@@ -19,21 +19,26 @@ include "machine_6502.n"
 type s4 { $size:4 $integer:signed $endian:little };
 type u4 { $size:4 $integer:unsigned $endian:little };
 
-s4 addmulcmp(s4 a, s4 b) {
+s4 sresult;
+u4 uresult;
+float fresult;
+
+void addmulcmp(s4 a, s4 b) {
    if (a <= b) {
-      return a + b;
+      sresult := a + b;
+      return;
    }
-   return a * b;
+   sresult := a * b;
 }
 
-u4 shl(u4 a, u4 b) {
-   return a << b;
+void shl(u4 a, u4 b) {
+   uresult := a << b;
 }
 
 bool feq(float a, float b) {
    return a == b;
 }
 
-float fmath(float a, float b) {
-   return (a + b) * b;
+void fmath(float a, float b) {
+   fresult := (a + b) * b;
 }

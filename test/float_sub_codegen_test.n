@@ -4,8 +4,10 @@
 
 include "machine_6502.n"
 
-float subf(float a, float b) {
-   return a - b;
+float sub_result;
+
+void subf(float a, float b) {
+   sub_result := a - b;
 }
 
 void sub_assignf(ref float a, float b) {

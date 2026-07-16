@@ -17,8 +17,8 @@ struct Bits {
    s4x value:20;
 };
 
-s4x widen(Bits b) {
-   s4x out;
+s4x out;
+
+void widen(Bits b) {
    out := b.value;
-   return out;
 }

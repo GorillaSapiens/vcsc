@@ -11,6 +11,6 @@ type int      { $size:4 $integer:signed $endian:little };
 type long     { $size:4 $integer:signed $endian:little };
 type longlong { $size:8 $integer:signed $endian:little };
 
-int helper(int x) {
+char helper(int x) {
    return x;
 }

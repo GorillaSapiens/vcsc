@@ -11,8 +11,8 @@ s2 pick(s2 x) {
    return x;
 }
 
-s4 pick(s4 x) {
-   return x;
+s2 pick(s4 x) {
+   return 4;
 }
 
 s2 main(s2 x) {

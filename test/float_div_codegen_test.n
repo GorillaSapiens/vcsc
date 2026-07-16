@@ -4,8 +4,10 @@
 
 include "machine_6502.n"
 
-float divf(float a, float b) {
-   return a / b;
+float div_result;
+
+void divf(float a, float b) {
+   div_result := a / b;
 }
 
 void div_assignf(ref float a, float b) {

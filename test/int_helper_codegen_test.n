@@ -14,26 +14,29 @@ type s3        { $size:3 $integer:signed $endian:little };
 type s5        { $size:5 $integer:signed $endian:little };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-s3 add3(s3 a, s3 b) {
-   return a + b;
+s3 result3;
+s5 result5;
+
+void add3(s3 a, s3 b) {
+   result3 := a + b;
 }
 
-s3 sub3(s3 a, s3 b) {
-   return a - b;
+void sub3(s3 a, s3 b) {
+   result3 := a - b;
 }
 
-s5 add5(s5 a, s5 b) {
-   return a + b;
+void add5(s5 a, s5 b) {
+   result5 := a + b;
 }
 
-s5 sub5(s5 a, s5 b) {
-   return a - b;
+void sub5(s5 a, s5 b) {
+   result5 := a - b;
 }
 
-s3 add3_wide(s3 a, s3 b) {
-   return (a + b) + a;
+void add3_wide(s3 a, s3 b) {
+   result3 := (a + b) + a;
 }
 
-s5 sub5_wide(s5 a, s5 b) {
-   return (a - b) - a;
+void sub5_wide(s5 a, s5 b) {
+   result5 := (a - b) - a;
 }

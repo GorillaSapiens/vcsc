@@ -6,67 +6,79 @@ include "machine_6502.n"
 type u2be { $size:2 $integer:unsigned $endian:big };
 type u2le { $size:2 $integer:unsigned $endian:little };
 
-u2be add_assign_mixed(u2be a, u2le b) {
+u2be result;
+
+void add_assign_mixed(u2be a, u2le b) {
    a += b;
-   return a;
+   result := a;
 }
 
-u2be sub_assign_mixed(u2be a, u2le b) {
+void sub_assign_mixed(u2be a, u2le b) {
    a -= b;
-   return a;
+   result := a;
 }
 
-u2be mul_assign_mixed(u2be a, u2le b) {
+void mul_assign_mixed(u2be a, u2le b) {
    a *= b;
-   return a;
+   result := a;
 }
 
-u2be div_assign_mixed(u2be a, u2le b) {
+void div_assign_mixed(u2be a, u2le b) {
    a /= b;
-   return a;
+   result := a;
 }
 
-u2be rem_assign_mixed(u2be a, u2le b) {
+void rem_assign_mixed(u2be a, u2le b) {
    a %= b;
-   return a;
+   result := a;
 }
 
-u2be and_assign_mixed(u2be a, u2le b) {
+void and_assign_mixed(u2be a, u2le b) {
    a &= b;
-   return a;
+   result := a;
 }
 
-u2be or_assign_mixed(u2be a, u2le b) {
+void or_assign_mixed(u2be a, u2le b) {
    a |= b;
-   return a;
+   result := a;
 }
 
-u2be xor_assign_mixed(u2be a, u2le b) {
+void xor_assign_mixed(u2be a, u2le b) {
    a ^= b;
-   return a;
+   result := a;
 }
 
-u2be shl_assign_mixed(u2be a, u2le b) {
+void shl_assign_mixed(u2be a, u2le b) {
    a <<= b;
-   return a;
+   result := a;
 }
 
-u2be shr_assign_mixed(u2be a, u2le b) {
+void shr_assign_mixed(u2be a, u2le b) {
    a >>= b;
-   return a;
+   result := a;
 }
 
 void main(void) {
-   if (add_assign_mixed(0x0102`u2be, 0x0003`u2le) != 0x0105`u2be) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
-   if (sub_assign_mixed(0x0102`u2be, 0x0003`u2le) != 0x00ff`u2be) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
-   if (mul_assign_mixed(0x0012`u2be, 0x0003`u2le) != 0x0036`u2be) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
-   if (div_assign_mixed(0x1234`u2be, 0x0011`u2le) != 0x0112`u2be) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
-   if (rem_assign_mixed(0x1234`u2be, 0x0011`u2le) != 0x0002`u2be) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
-   if (and_assign_mixed(0x0f0f`u2be, 0x00ff`u2le) != 0x000f`u2be) { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
-   if (or_assign_mixed(0x0f00`u2be, 0x00f0`u2le) != 0x0ff0`u2be) { asm lda #$ff; asm ldx #7; asm ldy #0; asm jsr $ffff; }
-   if (xor_assign_mixed(0x0ff0`u2be, 0x00ff`u2le) != 0x0f0f`u2be) { asm lda #$ff; asm ldx #8; asm ldy #0; asm jsr $ffff; }
-   if (shl_assign_mixed(0x0102`u2be, 0x0008`u2le) != 0x0200`u2be) { asm lda #$ff; asm ldx #9; asm ldy #0; asm jsr $ffff; }
-   if (shr_assign_mixed(0x1200`u2be, 0x0008`u2le) != 0x0012`u2be) { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+   add_assign_mixed(0x0102`u2be, 0x0003`u2le);
+   if (result != 0x0105`u2be) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   sub_assign_mixed(0x0102`u2be, 0x0003`u2le);
+   if (result != 0x00ff`u2be) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   mul_assign_mixed(0x0012`u2be, 0x0003`u2le);
+   if (result != 0x0036`u2be) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   div_assign_mixed(0x1234`u2be, 0x0011`u2le);
+   if (result != 0x0112`u2be) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   rem_assign_mixed(0x1234`u2be, 0x0011`u2le);
+   if (result != 0x0002`u2be) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   and_assign_mixed(0x0f0f`u2be, 0x00ff`u2le);
+   if (result != 0x000f`u2be) { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
+   or_assign_mixed(0x0f00`u2be, 0x00f0`u2le);
+   if (result != 0x0ff0`u2be) { asm lda #$ff; asm ldx #7; asm ldy #0; asm jsr $ffff; }
+   xor_assign_mixed(0x0ff0`u2be, 0x00ff`u2le);
+   if (result != 0x0f0f`u2be) { asm lda #$ff; asm ldx #8; asm ldy #0; asm jsr $ffff; }
+   shl_assign_mixed(0x0102`u2be, 0x0008`u2le);
+   if (result != 0x0200`u2be) { asm lda #$ff; asm ldx #9; asm ldy #0; asm jsr $ffff; }
+   shr_assign_mixed(0x1200`u2be, 0x0008`u2le);
+   if (result != 0x0012`u2be) { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
 
    asm lda #$ff;
    asm ldx #0;

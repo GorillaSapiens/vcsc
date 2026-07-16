@@ -18,14 +18,18 @@
 
 include "machine_6502.n"
 
-half hmath(half a, half b) {
-   return ((a + b) - b) * b / a;
+half hresult;
+float fresult;
+double dresult;
+
+void hmath(half a, half b) {
+   hresult := ((a + b) - b) * b / a;
 }
 
-float fmath(float a, float b) {
-   return ((a + b) - b) * b / a;
+void fmath(float a, float b) {
+   fresult := ((a + b) - b) * b / a;
 }
 
-double dmath(double a, double b) {
-   return ((a + b) - b) * b / a;
+void dmath(double a, double b) {
+   dresult := ((a + b) - b) * b / a;
 }

@@ -2,6 +2,6 @@ include "machine_6502.n"
 
 type s4x { $size:4 $integer:signed $endian:little };
 
-s4x helper(s4x x) {
-   return x;
+int helper(s4x x) {
+   return 0;
 }

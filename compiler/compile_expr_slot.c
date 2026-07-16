@@ -189,8 +189,8 @@ static void error_unknown_identifier_node(const ASTNode *idnode, const ASTNode *
    int column = idnode ? idnode->column : (fallback ? fallback->column : 0);
 
    if (ident && !strcmp(ident, "$$")) {
-      error_user("[%s:%d.%d] '$$' is the current function's return slot, so it is only valid inside a function that returns a value. "
-                 "Use it in a non-void function body, for example '$$.field := value; return;', or use 'return <expr>;' to have the compiler write the slot for you.",
+      error_user("[%s:%d.%d] '$$' is the current function's return object, so it is only valid inside a function that returns a value. "
+                 "Use it in a non-void function body, for example '$$.field := value; return;', or use 'return <expr>;' to have the compiler write the return object for you.",
                  file, line, column);
    }
 

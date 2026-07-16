@@ -21,12 +21,15 @@ type u4        { $size:4 $integer:unsigned $endian:little };
 type u5        { $size:5 $integer:unsigned $endian:little };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-s4 addassign_signed(s4 a, s2 b) {
+s4 signed_result;
+u5 unsigned_result;
+
+void addassign_signed(s4 a, s2 b) {
    a += b;
-   return a;
+   signed_result := a;
 }
 
-u5 addassign_unsigned(u5 a, u4 b) {
+void addassign_unsigned(u5 a, u4 b) {
    a += b;
-   return a;
+   unsigned_result := a;
 }

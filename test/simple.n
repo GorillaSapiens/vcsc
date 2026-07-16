@@ -18,5 +18,5 @@ type double    { $size:8            $endian:little $float:ieee754 }; // IEEE 754
 
 static char **argv;
 
-int main(int argc, char **argv) {
+void main(int argc, char **argv) {
 }

@@ -6,9 +6,10 @@
 
 include "machine_6502.n"
 
-long widen(char c) {
-   long out := c;
-   return out;
+long widen_result;
+
+void widen(char c) {
+   widen_result := c;
 }
 
 int shr(int value, int bits) {

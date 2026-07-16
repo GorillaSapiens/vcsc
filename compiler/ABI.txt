@@ -4,37 +4,32 @@ Current transitional function ABI
 ---------------------------------
 
 This document describes the ABI while the compiler is being reduced for the
-Atari 2600. Fixed parameters of directly named functions now use callee-owned
+Atari 2600. Fixed parameters of directly named functions use callee-owned
 symbols. Automatic locals, expression temporaries, and variadic argument blobs
-still use the existing software stack for now. Small return values no longer
-use a caller-owned return slot.
+still use the existing software stack for now.
 
-A return type uses the A:X return convention when all of the following are true:
+Function returns
+----------------
 
-* its stored size is one or two bytes;
-* it is not an aggregate or array;
-* a two-byte value is little-endian.
+Every legal function return is one of:
 
-This includes the retained 8-bit and 16-bit integer types and 16-bit pointers.
-The intended final VCS language is little-endian only.
+* `void`: no returned value;
+* one-byte integer: A contains the value and X is unspecified;
+* two-byte little-endian integer: A contains the low byte and X the high byte;
+* 16-bit pointer: A contains the low byte and X the high byte.
 
-Return registers:
+Functions may not return aggregates, arrays, floating-point values, big-endian
+integers, or any value larger than two bytes. The compiler rejects those return
+types at the declaration or definition. There is no caller-owned return-slot
+ABI or `return_value` metadata mode.
 
-* one-byte result: A contains the value; X is unspecified;
-* two-byte result: A contains the low byte and X contains the high byte;
-* void result: no return value;
-* any result larger than two bytes, aggregate, array, or big-endian result:
-  outside the final language. The compiler still contains a temporary legacy
-  caller-owned return-slot path only so those old features can be removed in a
-  controlled later slice.
+Inside a value-returning function, `$$` is the source-level return object. It is
+currently a hidden callee-local scratch object because automatic locals have not
+yet been converted to static storage. `return expr;` writes the converted value
+to `$$`. At the common epilogue, after local-stack cleanup, the compiler loads
+the high byte into X when present, loads the low byte into A, and executes RTS.
 
-Inside a value-returning function, `$$` remains the source-level return object.
-For an A:X return it is currently a hidden callee-local scratch object. A
-`return expr;` writes the converted expression into `$$`. At the common
-function epilogue, after local-stack cleanup, the compiler loads the high byte
-into X when present, loads the low byte into A, and executes RTS.
-
-Before an ordinary direct call using A:X return:
+Before an ordinary direct call:
 
 ; reserve one caller-owned scratch area large enough to evaluate the largest
 ; fixed parameter, if any
@@ -47,7 +42,7 @@ lda fp
 pha
 ; call target
 jsr _foo
-; A:X now contains the return value
+; A:X now contains the return value when the function is non-void
 ; restore caller frame pointer without destroying A:X
 ; A is temporarily moved through Y; X is left untouched
 tay
@@ -63,11 +58,6 @@ The current expression engine may reserve caller-local scratch space and copy
 A:X into it after a call. That scratch is not part of the callee ABI and is a
 transitional consequence of retaining the old stack-based expression engine.
 
-For a legacy return-slot function, the old return sequence remains temporarily:
-the caller allocates a return slot with any other stack-resident call data, the
-callee writes `$$` there, and the caller copies the value out before popping the
-call area. Fixed direct parameters are still symbols.
-
 Function prologue:
 
 ; transfer current sp to fp
@@ -77,14 +67,14 @@ lda sp
 sta fp
 ; allocate locals if any with pushN
 
-Function epilogue for A:X return:
+Function epilogue for a value return:
 
 ; pop locals if any with popN
 ; load high byte of $$ into X for a two-byte result
 ; load low byte of $$ into A
 rts
 
-Function epilogue for void or temporary legacy-slot return:
+Function epilogue for void:
 
 ; pop locals if any with popN
 rts
@@ -140,38 +130,26 @@ Variadic call ABI
 Variadic arguments are passed as a raw byte blob plus two hidden metadata slots.
 The caller lays out a variadic call frame in this order:
 
-1. a legacy return slot only when the return type does not use A:X
-2. raw variadic blob bytes
-3. hidden `__va_args` pointer to the first blob byte
-4. hidden `__va_arg_bytes` total byte count
-5. no fixed-parameter bytes; fixed parameters are callee-owned symbols
+1. raw variadic blob bytes
+2. hidden `__va_args` pointer to the first blob byte
+3. hidden `__va_arg_bytes` total byte count
+4. no fixed-parameter bytes; fixed parameters are callee-owned symbols
 
-The raw variadic blob is packed left-to-right in source argument order with no padding and no alignment holes.
-Each variadic argument contributes exactly its actual runtime storage size. There are no C-style default promotions for variadic arguments. A `char` stays 1 byte, an `int` stays 2 bytes, a `long` stays 4 bytes, and so on.
+The raw variadic blob is packed left-to-right in source argument order with no
+padding and no alignment holes. Each variadic argument contributes exactly its
+actual runtime storage size. There are no C-style default promotions for
+variadic arguments.
 
-Each variadic argument's bytes are copied in that argument's own storage order. On the default 6502 machine description that means little-endian integer bytes, but the compiler does not re-pack the blob to some separate canonical varargs endianness.
+Each variadic argument's bytes are copied in that argument's own storage order.
+The final VCS language is little-endian only, but arbitrary-endian and wide
+legacy argument types have not yet been removed from the transitional compiler.
 
-Inside a variadic callee, the compiler synthesizes two reserved implementation locals:
+Inside a variadic callee, the compiler synthesizes two reserved implementation
+locals:
 
-- `__va_args` ... `void *` pointing at the first raw variadic byte
-- `__va_arg_bytes` ... pointer-sized integer metadata holding the total byte length of the raw variadic blob
+- `__va_args`: `void *` pointing at the first raw variadic byte
+- `__va_arg_bytes`: pointer-sized integer metadata holding the total blob size
 
-These names are reserved and may not be used by user declarations.
-
-The user-facing wrapper in `libraries/nlib/stdarg.n` defines:
-
-```n
-struct va_list {
-   void *args;
-   void *bytes;
-   void *offset;
-};
-```
-
-`va_start(ap)` initializes `ap.args`, `ap.bytes`, and zeroes `ap.offset`.
-`va_arg(ap, out)` copies `sizeof(out)` bytes from `ap.args + ap.offset` into `out`, then increments `ap.offset` by that same byte count.
-`va_end(ap)` zeroes the `va_list` state.
-
-`bytes` and `offset` are exposed as pointer-width `void *` slots because ordinary user declarations do not have a direct bare-object spelling for the builtin `*` type. Treat them as raw pointer-sized counters, not as character pointers to dereference.
-
-`va_arg(ap, out)` is intentionally raw and unchecked. It does not verify types, promotions, alignment, or bounds at runtime. Caller and callee must already agree on the exact sequence of sizes and types.
+These names are reserved and may not be used by user declarations. Variadic
+functions are not part of the intended minimal VCS subset and will be removed in
+a later controlled slice.

@@ -124,6 +124,7 @@ void compile_function_decl(ASTNode *node) {
    bool ax_return;
    ContextEntry *return_entry;
 
+   validate_function_return_type(node);
    remember_function(node, name);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
@@ -153,7 +154,7 @@ void compile_function_decl(ASTNode *node) {
    }
    if (ax_return) {
       if (!return_entry || return_entry->size < 1 || return_entry->size > 2) {
-         error_unreachable("[%s:%d.%d] invalid A:X return slot", node->file, node->line, node->column);
+         error_unreachable("[%s:%d.%d] invalid A:X return object", node->file, node->line, node->column);
       }
       return_entry->offset = ctx.locals;
       ctx.locals += return_entry->size;
@@ -718,6 +719,7 @@ static void compile_function_signature(ASTNode *node) {
    const char *name    = declarator_name(declarator);
    char sym[256];
 
+   validate_function_return_type(node);
    remember_function(node, name);
 
    if (!has_modifier(modifiers, "static")) {

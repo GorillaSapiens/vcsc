@@ -6,8 +6,8 @@
 // expectlinkerr: e2e_abi_builtin_int_mismatch_fail__def.o65: definition -> symbol_abs signed_integer(size=4, little-endian)
 include "machine_6502.n"
 
-int helper(int x);
+char helper(int x);
 
-int main(void) {
+char main(void) {
    return helper(1);
 }

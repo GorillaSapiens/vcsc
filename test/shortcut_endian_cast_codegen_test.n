@@ -11,12 +11,15 @@ type u2le { $size:2 $integer:unsigned $endian:little };
 type f4be { $size:4 $float:ieee754 $endian:big };
 type f4le { $size:4 $float:ieee754 $endian:little };
 
+u2le result_le;
+u2be result_be;
+
 u2le addle(u2be a, u2le b) {
    return ($little)a + b;
 }
 
-u2be addbe(u2be a, u2le b) {
-   return a + ($big)b;
+void addbe(u2be a, u2le b) {
+   result_be := a + ($big)b;
 }
 
 bool samef(f4be a, f4le b) {

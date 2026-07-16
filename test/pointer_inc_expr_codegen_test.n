@@ -7,10 +7,11 @@ type bool     { $size:1 $integer:unsigned };
 type char      { $size:1    $integer:signed };
 type uchar     { $size:1  $integer:unsigned };
 type *         { $size:2  $integer:unsigned $endian:little };
+type short     { $size:2    $integer:signed $endian:little };
 type int       { $size:3    $integer:signed $endian:little };
 type uint      { $size:3  $integer:unsigned $endian:little };
 
-int main(void) {
+short main(void) {
    int a[4];
    int *p := &a[0];
    int *q := p++;

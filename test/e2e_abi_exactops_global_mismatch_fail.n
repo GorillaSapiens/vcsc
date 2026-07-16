@@ -10,8 +10,8 @@ type s4x { $size:4 $integer:signed $endian:little $exactops };
 
 extern s4x shared;
 
-s4x fetch(void) {
-   return shared;
+void fetch(void) {
+   s4x copy := shared;
 }
 
 int main(void) {

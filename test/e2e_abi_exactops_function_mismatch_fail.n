@@ -8,7 +8,7 @@ include "machine_6502.n"
 
 type s4x { $size:4 $integer:signed $endian:little $exactops };
 
-s4x helper(s4x x);
+int helper(s4x x);
 
 int main(void) {
    s4x v;

@@ -6,10 +6,10 @@
 type void { $size:0 };
 type bool { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
-type s2   { $size:2 $integer:signed $endian:little };
-type s4   { $size:4 $integer:signed $endian:little };
-type u4   { $size:4 $integer:unsigned $endian:little };
-type u5   { $size:5 $integer:unsigned $endian:little };
+type s2   { $size:1 $integer:signed };
+type s4   { $size:2 $integer:signed $endian:little };
+type u4   { $size:1 $integer:unsigned };
+type u5   { $size:2 $integer:unsigned $endian:little };
 
 s4 operator+(s4 a, s4 b) {
    return a;

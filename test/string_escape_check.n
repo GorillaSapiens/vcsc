@@ -12,8 +12,8 @@ char nl[3] := "\n";
 char mix[5] := "A\x42\101";
 char *gp := "\\\"";
 
-int main(void) {
+void main(void) {
    char local[5] := "A\x42\101";
    char *p := "\n";
-   return 0;
+   return;
 }

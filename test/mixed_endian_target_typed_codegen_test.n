@@ -12,61 +12,63 @@ void sink(u2be v) {
 void sink_le(u2le v) {
 }
 
-u2be return_add(u2be a, u2le b) {
-   return a + b;
+u2be result;
+
+void return_add(u2be a, u2le b) {
+   result := a + b;
 }
 
-u2be return_sub(u2be a, u2le b) {
-   return a - b;
+void return_sub(u2be a, u2le b) {
+   result := a - b;
 }
 
-u2be return_mul(u2be a, u2le b) {
-   return a * b;
+void return_mul(u2be a, u2le b) {
+   result := a * b;
 }
 
-u2be return_div(u2be a, u2le b) {
-   return a / b;
+void return_div(u2be a, u2le b) {
+   result := a / b;
 }
 
-u2be return_mod(u2be a, u2le b) {
-   return a % b;
+void return_mod(u2be a, u2le b) {
+   result := a % b;
 }
 
-u2be return_and(u2be a, u2le b) {
-   return a & b;
+void return_and(u2be a, u2le b) {
+   result := a & b;
 }
 
-u2be return_or(u2be a, u2le b) {
-   return a | b;
+void return_or(u2be a, u2le b) {
+   result := a | b;
 }
 
-u2be return_xor(u2be a, u2le b) {
-   return a ^ b;
+void return_xor(u2be a, u2le b) {
+   result := a ^ b;
 }
 
-u2be return_shl(u2be a, u2le b) {
-   return a << b;
+void return_shl(u2be a, u2le b) {
+   result := a << b;
 }
 
-u2be return_shr(u2be a, u2le b) {
-   return a >> b;
+void return_shr(u2be a, u2le b) {
+   result := a >> b;
 }
 
-u2be init_target(u2be a, u2le b) {
+void init_target(u2be a, u2le b) {
    u2be r := a * b;
-   return r;
+   result := r;
 }
 
-u2be assign_target(u2be a, u2le b) {
+void assign_target(u2be a, u2le b) {
    u2be r;
    r := a * b;
-   return r;
+   result := r;
 }
 
-u2be braced_assign_target(u2be a, u2le b) {
+void braced_assign_target(u2be a, u2le b) {
    u2be r;
    r := { a * b };
-   return r;
+   result := r;
 }
 
 void call_target(u2be a, u2le b) {
@@ -77,8 +79,8 @@ void call_target_le(u2be a, u2le b) {
    sink_le(a * b);
 }
 
-u2be nested_target(u2be a, u2le b, u2le c) {
-   return (a * b) + c;
+void nested_target(u2be a, u2le b, u2le c) {
+   result := (a * b) + c;
 }
 
 bool compare_return(u2be a, u2le b) {

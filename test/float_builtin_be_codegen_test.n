@@ -25,14 +25,18 @@ type hbe { $size:2 $endian:big $float:ieee754 };
 type fbe { $size:4 $endian:big $float:ieee754 };
 type dbe { $size:8 $endian:big $float:ieee754 };
 
-hbe hmath(hbe a, hbe b) {
-   return ((a + b) - b) * b / a;
+hbe hresult;
+fbe fresult;
+dbe dresult;
+
+void hmath(hbe a, hbe b) {
+   hresult := ((a + b) - b) * b / a;
 }
 
-fbe fmath(fbe a, fbe b) {
-   return ((a + b) - b) * b / a;
+void fmath(fbe a, fbe b) {
+   fresult := ((a + b) - b) * b / a;
 }
 
-dbe dmath(dbe a, dbe b) {
-   return ((a + b) - b) * b / a;
+void dmath(dbe a, dbe b) {
+   dresult := ((a + b) - b) * b / a;
 }

@@ -38,7 +38,7 @@ static const char *pending_loop_label_name = NULL;
 
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
 static void compile_local_decl_item(ASTNode *node, Context *ctx);
-static bool compile_expr_to_return_slot(ASTNode *expr, Context *ctx, ContextEntry *ret);
+static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret);
 static void compile_if_stmt(ASTNode *node, Context *ctx);
 static void compile_while_stmt(ASTNode *node, Context *ctx);
 static void compile_for_stmt(ASTNode *node, Context *ctx);
@@ -344,8 +344,8 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
    free((void *) end_label);
 }
 
-//! @brief Lower expr to return slot from AST/semantic state into generated assembly or linker-visible metadata.
-static bool compile_expr_to_return_slot(ASTNode *expr, Context *ctx, ContextEntry *ret) {
+//! @brief Lower expr to the current function return object from AST/semantic state into generated assembly or linker-visible metadata.
+static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret) {
    ContextEntry target;
    if (!ret) {
       return false;
@@ -1093,16 +1093,16 @@ static void compile_return_stmt(ASTNode *node, Context *ctx) {
    ContextEntry *ret = (ContextEntry *) set_get(ctx->vars, "$$");
    ASTNode *expr = (node->count > 0) ? node->children[0] : NULL;
 
-   if (!ret) {
-      error_unreachable("[%s:%d.%d] internal missing return slot", node->file, node->line, node->column);
-   }
-
    if (!expr || is_empty(expr)) {
       emit(&es_code, "    jmp @fini\n");
       return;
    }
 
-   if (!compile_expr_to_return_slot(expr, ctx, ret)) {
+   if (!ret) {
+      error_user("[%s:%d.%d] void function cannot return a value", node->file, node->line, node->column);
+   }
+
+   if (!compile_expr_to_return_object(expr, ctx, ret)) {
       error_user("[%s:%d.%d] invalid return expression", node->file, node->line, node->column);
    }
    emit(&es_code, "    jmp @fini\n");

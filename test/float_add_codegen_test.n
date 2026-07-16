@@ -4,8 +4,10 @@
 
 include "machine_6502.n"
 
-float addf(float a, float b) {
-   return a + b;
+float add_result;
+
+void addf(float a, float b) {
+   add_result := a + b;
 }
 
 void add_assignf(ref float a, float b) {

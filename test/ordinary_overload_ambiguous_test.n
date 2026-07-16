@@ -10,8 +10,8 @@
 type void { $size:0 };
 type bool { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
-type s4   { $size:4 $integer:signed $endian:little };
-type s5   { $size:5 $integer:signed $endian:little };
+type s4   { $size:1 $integer:signed };
+type s5   { $size:2 $integer:signed $endian:little };
 
 s4 pick(s4 a, s5 b) {
    return a;

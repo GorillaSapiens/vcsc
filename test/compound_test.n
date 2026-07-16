@@ -16,7 +16,7 @@ type ulonglong { $size:16 $integer:unsigned $endian:little };
 type float     { $size:4            $endian:little $float:ieee754 };  // IEEE 754 binary32
 type double    { $size:8            $endian:little $float:ieee754 }; // IEEE 754 binary64
 
-int main(int argc, char **argv) {
+short main(int argc, char **argv) {
    int x := 1;
    int y := 2;
    x += y;

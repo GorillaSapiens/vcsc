@@ -12,14 +12,14 @@ s2 pick(s2 x) {
    return x;
 }
 
-s4 pick(s4 x) {
-   return x;
+s2 pick(s4 x) {
+   return 4;
 }
 
 s2 use_small(s2 x) {
    return pick(x);
 }
 
-s4 use_big(s4 x) {
+s2 use_big(s4 x) {
    return pick(x);
 }

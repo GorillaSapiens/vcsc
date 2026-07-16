@@ -4,7 +4,7 @@
 
 include "machine_6502.n"
 
-type s4v { $size:4 $integer:signed $endian:little };
+type s4v { $size:2 $integer:signed $endian:little };
 
 s4v operator+(s4v, s4v);
 

@@ -6,17 +6,19 @@ type *    { $size:2 $integer:unsigned $endian:little };
 type u2le { $size:2 $integer:unsigned $endian:little };
 type u2be { $size:2 $integer:unsigned $endian:big };
 
-u2be add_assign_mixed(u2be a, u2le b) {
+u2be result;
+
+void add_assign_mixed(u2be a, u2le b) {
    a += b;
-   return a;
+   result := a;
 }
 
-u2be mul_assign_mixed(u2be a, u2le b) {
+void mul_assign_mixed(u2be a, u2le b) {
    a *= b;
-   return a;
+   result := a;
 }
 
-u2be shl_assign_mixed(u2be a, u2le b) {
+void shl_assign_mixed(u2be a, u2le b) {
    a <<= b;
-   return a;
+   result := a;
 }

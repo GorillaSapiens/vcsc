@@ -1,6 +1,6 @@
 // n65c -I .
 // expectfail
-// expecterr: '$$' is the current function's return slot
+// expecterr: '$$' is the current function's return object
 // expecterr: only valid inside a function that returns a value
 // expecterr: '$$.field := value; return;'
 include "machine_6502.n"

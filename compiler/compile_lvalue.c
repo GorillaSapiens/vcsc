@@ -1099,9 +1099,9 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
 }
 
 //! @brief Diagnose invalid use of the synthetic return-slot variable.
-static void error_invalid_return_slot_reference(const ASTNode *node) {
-   error_user("[%s:%d.%d] '$$' is the current function's return slot, so it is only valid inside a function that returns a value. "
-              "Use it in a non-void function body, for example '$$.field := value; return;', or use 'return <expr>;' to have the compiler write the slot for you.",
+static void error_invalid_return_object_reference(const ASTNode *node) {
+   error_user("[%s:%d.%d] '$$' is the current function's return object, so it is only valid inside a function that returns a value. "
+              "Use it in a non-void function body, for example '$$.field := value; return;', or use 'return <expr>;' to have the compiler write the return object for you.",
               node ? node->file : "<unknown>",
               node ? node->line : 0,
               node ? node->column : 0);
@@ -1129,7 +1129,7 @@ static bool resolve_lvalue_base(Context *ctx, ASTNode *base, LValueRef *out) {
       if (name && !strcmp(name, "$$")) {
          entry = ctx_lookup(ctx, "$$");
          if (!entry || entry->size <= 0) {
-            error_invalid_return_slot_reference(base->children[0]);
+            error_invalid_return_object_reference(base->children[0]);
          }
          init_lvalue_from_entry(out, entry, name);
          return true;

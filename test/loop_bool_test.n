@@ -10,7 +10,7 @@ type ushort    { $size:2  $integer:unsigned $endian:little };
 type int       { $size:4    $integer:signed $endian:little };
 type uint      { $size:4  $integer:unsigned $endian:little };
 
-int main(int argc) {
+short main(int argc) {
    int x := 0;
    int y := 0;
    while (x < 3 && y == 0) {

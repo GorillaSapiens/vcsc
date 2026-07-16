@@ -22,15 +22,15 @@ void print_bad(void) {
    asm jsr $ffff;
 }
 
-int inc(int x) {
-   return x + 1;
+int inc(void) {
+   return 5;
 }
 
-int (*fp)(int) := inc;
+int (*fp)(void) := inc;
 
 void main(void) {
    if (lib_value() == 9) {
-      if (fp(4) == 5) {
+      if (fp() == 5) {
          print_ok();
       }
       else {

@@ -1,0 +1,15 @@
+// n65c
+// expectasm: return_ax
+// forbidasm: return_value
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type int  { $size:2 $integer:signed $endian:little };
+type *    { $size:2 $integer:unsigned $endian:little };
+
+struct Pair { int a; int b; };
+Pair pair;
+
+Pair *get_pair(void) {
+   return &pair;
+}

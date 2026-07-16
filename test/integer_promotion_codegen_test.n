@@ -23,12 +23,15 @@ type u4        { $size:4 $integer:unsigned $endian:little };
 type u5        { $size:5 $integer:unsigned $endian:little };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-s4 addmix(s2 a, s4 b) {
-   return a + b;
+s4 result_s;
+u5 result_u;
+
+void addmix(s2 a, s4 b) {
+   result_s := a + b;
 }
 
-u5 addu(u4 a, u5 b) {
-   return a + b;
+void addu(u4 a, u5 b) {
+   result_u := a + b;
 }
 
 bool cmpmix(s2 a, s5 b) {

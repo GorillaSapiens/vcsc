@@ -12,24 +12,27 @@ type u2be      { $size:2 $integer:unsigned $endian:big };
 type s2be      { $size:2 $integer:signed $endian:big };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-u2be mulbe(u2be a, u2be b) {
-   return a * b;
+u2be result_u;
+s2be result_s;
+
+void mulbe(u2be a, u2be b) {
+   result_u := a * b;
 }
 
-u2be divbe(u2be a, u2be b) {
-   return a / b;
+void divbe(u2be a, u2be b) {
+   result_u := a / b;
 }
 
-u2be shlbe(u2be a, u2be b) {
-   return a << b;
+void shlbe(u2be a, u2be b) {
+   result_u := a << b;
 }
 
-u2be shrbe(u2be a, u2be b) {
-   return a >> b;
+void shrbe(u2be a, u2be b) {
+   result_u := a >> b;
 }
 
-s2be sarbe(s2be a, u2be b) {
-   return a >> b;
+void sarbe(s2be a, u2be b) {
+   result_s := a >> b;
 }
 
 bool cmplebe(s2be a, s2be b) {

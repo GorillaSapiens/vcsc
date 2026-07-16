@@ -57,8 +57,6 @@ typedef struct VaListLayout {
 static bool implementation_name_reserved(const char *name);
 static bool get_builtin_va_list_layout(VaListLayout *out);
 static void add_variadic_hidden_locals(Context *ctx);
-static void ctx_shove(Context *ctx, const ASTNode *type, const char *name);
-static void ctx_resize_last_shove(Context *ctx, const ASTNode *type, const ASTNode *declarator, const char *name);
 static bool symbol_backed_metadata_function_name(char *buf, size_t bufsize, const char *sym);
 static bool symbol_backed_metadata_edge_name(char *buf, size_t bufsize, const char *caller_sym, const char *callee_sym);
 static void call_graph_tarjan_visit(int v, int *index_counter, int *stack, int *stack_top,
@@ -72,19 +70,44 @@ static int call_graph_edge_count = 0;
 int current_call_graph_node = -1;
 const ASTNode *current_call_graph_function = NULL;
 
-//! @brief Return whether a value is returned in A (low byte) and X (high byte).
-bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator) {
+//! @brief Return whether a function return type is plain void.
+bool return_type_is_void(const ASTNode *type, const ASTNode *declarator) {
+   const char *name = type_name_from_node(type);
+
+   return name && !strcmp(name, "void") &&
+          declarator_pointer_depth(declarator) == 0 &&
+          declarator_array_count(declarator) == 0;
+}
+
+//! @brief Return whether a function return type is supported by the VCSC ABI.
+bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
    int size;
 
    if (!type) {
       return false;
    }
 
-   size = declarator_value_size(type, declarator);
-   if (size < 1 || size > 2) {
+   if (return_type_is_void(type, declarator)) {
+      return true;
+   }
+
+   if (declarator_array_count(declarator) > 0) {
       return false;
    }
-   if (type_is_aggregate(type) || (declarator && declarator_array_count(declarator) > 0)) {
+
+   size = declarator_value_size(type, declarator);
+
+   /* A pointer value is always a 16-bit little-endian address, regardless of
+      the byte order or aggregate nature of the pointed-to type. */
+   if (declarator_pointer_depth(declarator) > 0) {
+      return size == 2;
+   }
+
+   if (type_is_aggregate(type) || !type_is_promotable_integer(type)) {
+      return false;
+   }
+
+   if (size < 1 || size > 2) {
       return false;
    }
    if (size > 1 && type_is_big_endian(type)) {
@@ -92,6 +115,12 @@ bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator) {
    }
 
    return true;
+}
+
+//! @brief Return whether a value is returned in A (low byte) and X (high byte).
+bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator) {
+   return return_type_is_supported(type, declarator) &&
+          !return_type_is_void(type, declarator);
 }
 
 //! @brief Return whether a function uses the VCSC A:X scalar return convention.
@@ -105,6 +134,30 @@ bool function_uses_ax_return(const ASTNode *fn) {
    declarator = function_declarator_node(fn);
    return return_type_uses_ax(function_return_type(fn),
                               function_return_declarator_from_callable(declarator));
+}
+
+//! @brief Reject function return types outside the VCSC A:X ABI.
+void validate_function_return_type(const ASTNode *fn) {
+   const ASTNode *type;
+   const ASTNode *declarator;
+   const ASTNode *return_decl;
+   const char *name;
+
+   if (!fn) {
+      return;
+   }
+
+   type = function_return_type(fn);
+   declarator = function_declarator_node(fn);
+   return_decl = function_return_declarator_from_callable(declarator);
+   if (return_type_is_supported(type, return_decl)) {
+      return;
+   }
+
+   name = declarator_name(declarator);
+   error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, an 8- or 16-bit little-endian integer, or a 16-bit pointer",
+              fn->file, fn->line, fn->column,
+              (name && *name) ? name : "<unnamed>");
 }
 
 //! @brief Return whether a parameter of a directly named function uses callee-owned storage.
@@ -166,53 +219,6 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
    return entry_symbol_name(&callee_ctx, &pentry, buf, bufsize);
 }
 
-//! @brief Handle context shove logic for compiler function lowering.
-static void ctx_shove(Context *ctx, const ASTNode *type, const char *name) {
-   ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
-   if (entry != NULL) {
-      error_user("[%s:%d.%d] duplicate symbol '%s' first defined at [%s:%d.%d]",
-            type->file, type->line, type->column,
-            name,
-            entry->type->file, entry->type->line, entry->type->column);
-   }
-
-   entry = (ContextEntry *) malloc(sizeof(ContextEntry));
-   entry->name = strdup(name);
-   entry->is_static = false;
-   entry->is_zeropage = false;
-   entry->is_global = false;
-   entry->is_ref = false;
-   entry->is_absolute_ref = false;
-   entry->read_expr = NULL;
-   entry->write_expr = NULL;
-   entry->target_typed = false;
-   entry->type = type;
-   entry->declarator = NULL;
-   entry->size = get_size(type_name_from_node(type));
-   ctx->params -= entry->size;
-   entry->offset = ctx->params;
-   debug("[%s:%d] ctx_shove(%s, %s, %d, %d)", __FILE__, __LINE__, type->strval, name, entry->size, entry->offset);
-   set_add(ctx->vars, strdup(name), entry);
-}
-
-//! @brief Handle context resize last shove logic for compiler function lowering.
-static void ctx_resize_last_shove(Context *ctx, const ASTNode *type, const ASTNode *declarator, const char *name) {
-   ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
-   int base_size;
-   int value_size;
-
-   if (!entry || !type) {
-      return;
-   }
-
-   base_size = get_size(type_name_from_node(type));
-   value_size = declarator_value_size(type, declarator);
-   entry->size = value_size;
-   entry->declarator = declarator;
-   entry->offset = ctx->params + base_size - value_size;
-   ctx->params -= (value_size - base_size);
-}
-
 //! @brief Handle implementation-reserved name logic for compiler function lowering.
 static bool implementation_name_reserved(const char *name) {
    return name && (!strcmp(name, VARIADIC_HIDDEN_ARGS_NAME) ||
@@ -226,7 +232,7 @@ void validate_nonreserved_variadic_name(const char *name, const ASTNode *node) {
       return;
    }
    if (name && !strcmp(name, "$$")) {
-      error_user("[%s:%d.%d] '$$' is reserved for the current function's return slot; do not declare it. "
+      error_user("[%s:%d.%d] '$$' is reserved for the current function's return object; do not declare it. "
                  "Inside a non-void function body, assign to '$$' directly, then use 'return;' to leave the function.",
                  node->file, node->line, node->column);
    }
@@ -439,14 +445,10 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       ctx_resize_last_push(ctx, node->children[0]->children[1], declarator, "$$");
       return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
       if (!return_entry) {
-         error_unreachable("internal missing A:X return slot");
+         error_unreachable("internal missing A:X return object");
       }
       ctx->locals -= return_entry->size;
       return_entry->offset = -1;
-   }
-   else {
-      ctx_shove(ctx, node->children[0]->children[1], "$$");
-      ctx_resize_last_shove(ctx, node->children[0]->children[1], declarator, "$$");
    }
 
    if (parameter_list_is_variadic(params)) {

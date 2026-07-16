@@ -65,7 +65,6 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    int variadic_total = 0;
    bool variadic = parameter_list_is_variadic(params);
    bool ax_return;
-   int frame_ret_size;
    int caller_result_size;
    int call_prefix_size;
    int result_scratch_offset;
@@ -77,10 +76,13 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    if (ret_size < 0) {
       ret_size = 0;
    }
+   if (!return_type_is_supported(ret_type, ret_decl)) {
+      error_user("[%s:%d.%d] indirect call has an unsupported return type; functions may return only void, an 8- or 16-bit little-endian integer, or a 16-bit pointer",
+                 expr->file, expr->line, expr->column);
+   }
    ax_return = return_type_uses_ax(ret_type, ret_decl);
-   frame_ret_size = ax_return ? 0 : ret_size;
    caller_result_size = (ax_return && dst) ? ret_size : 0;
-   call_prefix_size = frame_ret_size + caller_result_size;
+   call_prefix_size = caller_result_size;
 
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count; i++) {
@@ -242,11 +244,8 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    }
 
    if (dst && ret_size > 0) {
-      int source_offset = base_locals + ptr_size + variadic_total;
-      if (ax_return) {
-         emit_store_ax_to_fp(result_scratch_offset, ret_size);
-         source_offset = result_scratch_offset;
-      }
+      int source_offset = result_scratch_offset;
+      emit_store_ax_to_fp(result_scratch_offset, ret_size);
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type,
                                  source_offset, ret_size, ret_type);
    }
@@ -315,7 +314,6 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    int variadic_total = 0;
    bool variadic = false;
    bool ax_return = false;
-   int frame_ret_size = 0;
    int caller_result_size = 0;
    int call_prefix_size = 0;
    int base_locals = ctx ? ctx->locals : 0;
@@ -353,6 +351,11 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       if (known_ret) {
          ret_type = known_ret;
          ret_size = declarator_value_size(ret_type, ret_decl);
+      }
+      if (!return_type_is_supported(ret_type, ret_decl)) {
+         error_unreachable("[%s:%d.%d] call target '%s' escaped function return-type validation",
+                           expr->file, expr->line, expr->column,
+                           callee->strval ? callee->strval : "<unknown>");
       }
       ax_return = function_uses_ax_return(fn);
       params = declarator_parameter_list(declarator);
@@ -400,9 +403,8 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    }
 
    if (ret_size < 0) ret_size = 0;
-   frame_ret_size = ax_return ? 0 : ret_size;
    caller_result_size = (ax_return && dst) ? ret_size : 0;
-   call_prefix_size = frame_ret_size + caller_result_size;
+   call_prefix_size = caller_result_size;
    result_scratch_offset = base_locals + (variadic ? variadic_total : 0);
    symbol_scratch_offset = base_locals + call_prefix_size + arg_total;
    int call_size = call_prefix_size + arg_total + symbol_scratch_size;
@@ -543,11 +545,8 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    }
 
    if (dst && ret_size > 0) {
-      int source_offset = base_locals + (variadic ? variadic_total : 0);
-      if (ax_return) {
-         emit_store_ax_to_fp(result_scratch_offset, ret_size);
-         source_offset = result_scratch_offset;
-      }
+      int source_offset = result_scratch_offset;
+      emit_store_ax_to_fp(result_scratch_offset, ret_size);
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type,
                                  source_offset, ret_size, ret_type);
    }

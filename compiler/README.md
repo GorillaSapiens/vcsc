@@ -664,15 +664,14 @@ Automatic local arrays reserve their full declared size.
 ### Return object: `$$` and A:X
 
 Inside a function that returns a value, `$$` names the current function's
-return object. It behaves like a real lvalue, so code may assign to it directly,
-read it back, use compound assignment on it, and select aggregate members from
-it. The spelling `return expr;` writes the converted expression into the same
-object for you.
+return object. It behaves like a scalar or pointer lvalue, so code may assign to
+it directly, read it back, or use compound assignment on it. The spelling
+`return expr;` writes the converted expression into the same object.
 
-For a one-byte scalar result, the current VCS ABI returns the value in A. For a
-two-byte little-endian scalar or pointer result, A holds the low byte and X
-holds the high byte. In these functions `$$` is currently implemented as a
-hidden callee-local scratch object and the common epilogue loads it into A:X
+The only legal return types are `void`, one- or two-byte little-endian integers,
+and 16-bit pointers. A one-byte result is returned in A. For a two-byte integer
+or pointer, A holds the low byte and X holds the high byte. `$$` is currently a
+hidden callee-local scratch object, and the common epilogue loads it into A:X
 before RTS.
 
 Example:
@@ -692,22 +691,20 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-The caller does not allocate a callee return slot for these one- and two-byte
-A:X results. The current stack-based expression engine may still allocate its
-own caller-local scratch area after the call; that is temporary implementation
-machinery, not part of the function ABI.
+The caller never allocates callee return storage. The current stack-based
+expression engine may allocate caller-local scratch after a call so it can feed
+the returned A:X value into older expression-copy machinery; that scratch is
+not part of the function ABI.
 
-The final language permits no return value larger than two bytes and no
-aggregate or array return. The compiler temporarily retains the old
-caller-owned return-slot path only so those legacy features can be removed in a
-controlled later slice. The `$$` name is reserved; it cannot be declared as a global,
-local, function, or parameter name, and it is invalid in `void` functions or
-outside a function body.
+Functions returning aggregates, arrays, floating-point values, big-endian
+integers, or values larger than two bytes are rejected at compile time. The
+`$$` name is reserved; it cannot be declared as a global, local, function, or
+parameter name, and it is invalid in `void` functions or outside a function
+body.
 
 ### Array returns
 
-Array returns still use the temporary legacy caller-owned return-slot path.
-They are not part of the intended minimal Atari 2600 language.
+Array returns are rejected. Pass an explicit result pointer instead.
 
 ## Control flow
 

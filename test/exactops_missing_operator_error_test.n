@@ -4,7 +4,7 @@
 
 include "machine_6502.n"
 
-type s4x { $size:4 $integer:signed $endian:little $exactops };
+type s4x { $size:2 $integer:signed $endian:little $exactops };
 
 s4x add(s4x a, s4x b) {
    return a + b;

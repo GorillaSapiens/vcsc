@@ -15,6 +15,8 @@ type bool      { $size:1 $integer:unsigned };
 type u2be      { $size:2 $integer:unsigned $endian:big };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-u2be mulbe(u2be a, u2be b) {
-   return a * b;
+u2be result;
+
+void mulbe(u2be a, u2be b) {
+   result := a * b;
 }

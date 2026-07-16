@@ -13,12 +13,14 @@ include "machine_6502.n"
 type u6 { $size:6 $integer:unsigned $endian:little };
 type s6 { $size:6 $integer:signed $endian:little };
 
-u6 expr_u(u6 a, int b) {
-   return a >> b;
+u6 result;
+
+void expr_u(u6 a, int b) {
+   result := a >> b;
 }
 
-u6 expr_ul(u6 a, int b) {
-   return a << b;
+void expr_ul(u6 a, int b) {
+   result := a << b;
 }
 
 void assign_s(ref s6 a, int b) {

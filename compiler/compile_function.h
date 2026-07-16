@@ -24,8 +24,11 @@
 bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter);
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
                                     char *buf, size_t bufsize, bool *is_zeropage_out);
+bool return_type_is_void(const ASTNode *type, const ASTNode *declarator);
+bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator);
 bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator);
 bool function_uses_ax_return(const ASTNode *fn);
+void validate_function_return_type(const ASTNode *fn);
 bool builtin_variadic_call_name(const char *name);
 bool compile_builtin_va_start_expr(ASTNode *expr, Context *ctx);
 bool compile_builtin_va_arg_expr(ASTNode *expr, Context *ctx);
