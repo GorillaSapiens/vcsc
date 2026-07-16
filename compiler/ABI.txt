@@ -1,13 +1,44 @@
 If you're not respecting the ABI, you're one segfault away from chaos.
 
-int foo(int in_sp, const int ref_in_sp, static int in_var_not_stack)
+Current transitional function ABI
+---------------------------------
 
-before call:
-; push room for return+args onto ARGUMENT stack
+This document describes the ABI while the compiler is being reduced for the
+Atari 2600. Function arguments and automatic locals still use the existing
+software stack for now. Small return values no longer use a caller-owned return
+slot.
+
+A return type uses the A:X return convention when all of the following are true:
+
+* its stored size is one or two bytes;
+* it is not an aggregate or array;
+* a two-byte value is little-endian.
+
+This includes the retained 8-bit and 16-bit integer types and 16-bit pointers.
+The intended final VCS language is little-endian only.
+
+Return registers:
+
+* one-byte result: A contains the value; X is unspecified;
+* two-byte result: A contains the low byte and X contains the high byte;
+* void result: no return value;
+* larger, aggregate, array, or big-endian result: temporary legacy
+  caller-owned return slot until those language features are removed or
+  explicitly redesigned.
+
+Inside a value-returning function, `$$` remains the source-level return object.
+For an A:X return it is currently a hidden callee-local scratch object. A
+`return expr;` writes the converted expression into `$$`. At the common
+function epilogue, after local-stack cleanup, the compiler loads the high byte
+into X when present, loads the low byte into A, and executes RTS.
+
+Before an ordinary direct call using A:X return:
+
+; push room for stack-backed arguments onto ARGUMENT stack
 lda #size
 sta arg0
 jsr _pushN
-; populate return/arg area relative to caller fp
+; populate argument area relative to caller fp
 ; stack-backed args occupy the frame in declaration order as seen by the callee,
 ; which means the caller writes the leftmost argument into the highest-addressed
 ; argument slot and the rightmost argument into the lowest-addressed slot.
@@ -16,20 +47,33 @@ lda fp+1
 pha
 lda fp
 pha
-; jsr to target
+; call target
 jsr _foo
-; restore caller frame pointer from HARDWARE stack
+; A:X now contains the return value
+; restore caller frame pointer without destroying A:X
+; A is temporarily moved through Y; X is left untouched
+tay
 pla
 sta fp
 pla
 sta fp+1
-; copy return value out of caller's pushed area if needed
-; pop return+arg area from ARGUMENT stack
+tya
+; consume or copy A:X as required by the enclosing expression
+; pop argument area from ARGUMENT stack
 lda #size
 sta arg0
 jsr _popN
 
-function prologue:
+The current expression engine may reserve caller-local scratch space and copy
+A:X into it after a call. That scratch is not part of the callee ABI and is a
+transitional consequence of retaining the old stack-based expression engine.
+
+For a legacy return-slot function, the old sequence remains temporarily: the
+caller allocates a return slot with the arguments, the callee writes `$$`
+there, and the caller copies the value out before popping the call area.
+
+Function prologue:
+
 ; transfer current sp to fp
 lda sp+1
 sta fp+1
@@ -37,22 +81,31 @@ lda sp
 sta fp
 ; allocate locals if any with pushN
 
-function epilogue:
+Function epilogue for A:X return:
+
+; pop locals if any with popN
+; load high byte of $$ into X for a two-byte result
+; load low byte of $$ into A
+rts
+
+Function epilogue for void or temporary legacy-slot return:
+
 ; pop locals if any with popN
 rts
 
-reset/startup:
+Reset/startup:
+
 ; initialize both sp and fp to the initial argument-stack base
 ; because the argument stack grows upward, startup should seed them at __stack_start
 
-A, P, X, and Y are caller-clobbered across ordinary function calls.
-Callers must assume callees may freely overwrite them unless an API explicitly
-documents stronger guarantees. The default calling sequence only preserves the
-frame pointer so the callee can establish its stack frame and the caller can
-recover it after the call.
+A, P, X, and Y are caller-clobbered across ordinary function calls, except that
+A and possibly X carry the function result on return. Callers must assume a
+callee may freely overwrite all registers before producing that result unless
+an API explicitly documents stronger guarantees.
 
-NOTE: If you do have a special-case wrapper that needs to preserve both A and P,
-and you want P exactly as it was, you must pull P last:
+NOTE: If a special-case wrapper needs to preserve both A and P, and wants P
+exactly as it was, it must pull P last:
+
 PHP      ; save status
 PHA      ; save A
 ...
@@ -66,7 +119,7 @@ Variadic call ABI
 Variadic arguments are passed as a raw byte blob plus two hidden metadata slots.
 The caller lays out a variadic call frame in this order:
 
-1. return slot
+1. a legacy return slot only when the return type does not use A:X
 2. raw variadic blob bytes
 3. hidden `__va_args` pointer to the first blob byte
 4. hidden `__va_arg_bytes` total byte count

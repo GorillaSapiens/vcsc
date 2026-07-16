@@ -674,36 +674,52 @@ Strings can initialize pointer values and byte arrays where appropriate. String 
 Automatic local arrays reserve their full declared size.
 
 
-### Explicit return slot: `$$`
+### Return object: `$$` and A:X
 
-Inside a function that returns a value, `$$` names the current function's caller-allocated return slot. It behaves like a real lvalue for the return object, so code may assign to it directly, read it back, use compound assignment on it, and select aggregate members from it. This is useful for large or structured return values because the callee can fill the return object in place and then use a bare `return;`.
+Inside a function that returns a value, `$$` names the current function's
+return object. It behaves like a real lvalue, so code may assign to it directly,
+read it back, use compound assignment on it, and select aggregate members from
+it. The spelling `return expr;` writes the converted expression into the same
+object for you.
+
+For a one-byte scalar result, the current VCS ABI returns the value in A. For a
+two-byte little-endian scalar or pointer result, A holds the low byte and X
+holds the high byte. In these functions `$$` is currently implemented as a
+hidden callee-local scratch object and the common epilogue loads it into A:X
+before RTS.
 
 Example:
 
 ```n
-struct Pair {
-   int foo;
-   int bar;
-};
-
-Pair make_pair(void) {
-   $$.foo := 5;
-   $$.bar := 6;
+uint16_t twice(uint16_t value) {
+   $$ := value + value;
    return;
 }
 ```
 
-The spelling `return expr;` writes `expr` into the same return slot for you. The `$$` name is reserved; it cannot be declared as a global, local, function, or parameter name, and it is invalid in `void` functions or outside a function body.
+A conventional return is equivalent:
+
+```n
+uint16_t twice(uint16_t value) {
+   return value + value;
+}
+```
+
+The caller does not allocate a callee return slot for these one- and two-byte
+A:X results. The current stack-based expression engine may still allocate its
+own caller-local scratch area after the call; that is temporary implementation
+machinery, not part of the function ABI.
+
+Larger, aggregate, array, and big-endian returns temporarily retain the old
+caller-owned return-slot ABI while those unsupported features are being removed
+or redesigned. The `$$` name is reserved; it cannot be declared as a global,
+local, function, or parameter name, and it is invalid in `void` functions or
+outside a function body.
 
 ### Array returns
 
-Functions can return arrays. The compiler sizes:
-
-- the callee return slot
-- the caller temporary/copy area
-- expression value size tracking
-
-using the full declared return-object size instead of the base element size.
+Array returns still use the temporary legacy caller-owned return-slot path.
+They are not part of the intended minimal Atari 2600 language.
 
 ## Control flow
 

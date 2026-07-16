@@ -1,0 +1,32 @@
+// expectasm: return_ax
+// n65c -I .
+// expectasmordered: .proc id16
+// expectasmordered: @fini:
+// expectasmordered: ldy #$01
+// expectasmordered: lda (fp),y
+// expectasmordered: tax
+// expectasmordered: ldy #$00
+// expectasmordered: lda (fp),y
+// expectasmordered: rts
+// expectasmordered: jsr id16
+// expectasmordered: tay
+// expectasmordered: pla
+// expectasmordered: sta fp
+// expectasmordered: pla
+// expectasmordered: sta fp+1
+// expectasmordered: tya
+// expectasmordered: sta (fp),y
+// expectasmordered: txa
+// expectasmordered: iny
+// expectasmordered: sta (fp),y
+include "machine_6502.n"
+
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t id16(uint16_t value) {
+   return value;
+}
+
+uint16_t main(void) {
+   return id16(0x1234`uint16_t);
+}

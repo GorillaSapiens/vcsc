@@ -3,10 +3,10 @@
 ; __init_sbrk seeds the heap pointer to the top free byte of the RAM arena
 ; shared with the upward-growing N argument stack.
 ;
-; _sbrk uses the ordinary external-function ABI.
+; _sbrk uses the current small-scalar external-function ABI.
 ; After mirroring the normal function prologue (fp := sp):
-;   return value lives at fp-4
 ;   first int argument lives at fp-2
+;   the returned pointer is little-endian in A:X (A low, X high)
 ;
 ; Input:
 ;   first int argument - requested byte count (unsigned 16-bit)
@@ -36,9 +36,6 @@
     lda #2
     sta arg0
     jsr _fp2ptr0m
-    lda #4
-    sta arg0
-    jsr _fp2ptr1m
 
     ldy #0
     lda (ptr0), y
@@ -85,31 +82,20 @@
     sbc #0
     sta sbrk+1
 
-    ldy #0
+    ldx ptr2+1
     lda ptr2
-    sta (ptr1), y
-    iny
-    lda ptr2+1
-    sta (ptr1), y
     rts
 
     ; archive-selection anchor: pulling _sbrk should also pull __init_sbrk.
     lda #<__init_sbrk
 
 @return_current:
-    ldy #0
+    ldx sbrk+1
     lda sbrk
-    sta (ptr1), y
-    iny
-    lda sbrk+1
-    sta (ptr1), y
     rts
 
 @fail:
-    ldy #0
+    ldx #0
     lda #0
-    sta (ptr1), y
-    iny
-    sta (ptr1), y
     rts
 .endproc

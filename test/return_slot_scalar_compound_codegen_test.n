@@ -1,21 +1,14 @@
 // n65c -I .
 // expectasmordered: .proc bump
-// expectasmordered: lda #$02
-// expectasmordered: sta arg0
 // expectasmordered: jsr _fp2ptr0m
-// expectasmordered: lda #$04
-// expectasmordered: sta arg0
-// expectasmordered: jsr _fp2ptr1m
-// expectasmordered: ldy #0
-// expectasmordered: lda (ptr0),y
-// expectasmordered: sta (ptr1),y
-// expectasmordered: ldy #1
-// expectasmordered: lda (ptr0),y
-// expectasmordered: sta (ptr1),y
 // expectasmordered: clc
 // expectasmordered: adc (fp),y
-// expectasmordered: jsr _fp2ptr1m
 // expectasmordered: @fini:
+// expectasmordered: ldy #$01
+// expectasmordered: lda (fp),y
+// expectasmordered: tax
+// expectasmordered: ldy #$00
+// expectasmordered: lda (fp),y
 // expectasmordered: rts
 include "machine_6502.n"
 int bump(int x) { $$ := x; $$ += 1; return; }

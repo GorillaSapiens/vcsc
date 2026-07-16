@@ -11,6 +11,7 @@
 
 #include "abi_meta.h"
 #include "compile_declarator.h"
+#include "compile_function.h"
 #include "compile_internal.h"
 #include "compile_overload.h"
 #include "compile_type.h"
@@ -631,7 +632,9 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
    snprintf(summary_fp, sizeof(summary_fp), "params=%d;variadic=%d", fixed_count, variadic ? 1 : 0);
    snprintf(summary_detail, sizeof(summary_detail), "parameters=%d variadic=%s", fixed_count, variadic ? "yes" : "no");
    emit_metadata_symbol("function", state, sym, "summary", summary_fp, summary_detail);
-   emit_type_record("function", state, sym, "return", "return_value", ret_type, ret_decl);
+   emit_type_record("function", state, sym, "return",
+                    return_type_uses_ax(ret_type, ret_decl) ? "return_ax" : "return_value",
+                    ret_type, ret_decl);
 
    if (params && !is_empty(params)) {
       int out_index = 0;

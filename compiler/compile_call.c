@@ -20,6 +20,31 @@
 #include "integer.h"
 #include "messages.h"
 
+//! @brief Restore the caller frame pointer while preserving an A:X return value.
+static void emit_restore_fp_after_call(bool preserve_ax) {
+   if (preserve_ax) {
+      emit(&es_code, "    tay\n");
+   }
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (preserve_ax) {
+      emit(&es_code, "    tya\n");
+   }
+}
+
+//! @brief Store a one- or two-byte A:X return value in caller frame scratch.
+static void emit_store_ax_to_fp(int offset, int size) {
+   emit(&es_code, "    ldy #$%02x\n", offset & 0xff);
+   emit(&es_code, "    sta (fp),y\n");
+   if (size == 2) {
+      emit(&es_code, "    txa\n");
+      emit(&es_code, "    iny\n");
+      emit(&es_code, "    sta (fp),y\n");
+   }
+}
+
 //! @brief Lower indirect call expression to slot from AST/semantic state into generated assembly or linker-visible metadata.
 static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst,
                                                ASTNode *callee, ASTNode *args,
@@ -39,6 +64,11 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    int fixed_stack_total = 0;
    int variadic_total = 0;
    bool variadic = parameter_list_is_variadic(params);
+   bool ax_return;
+   int frame_ret_size;
+   int caller_result_size;
+   int call_prefix_size;
+   int result_scratch_offset;
    ContextEntry callee_tmp;
 
    if (ret_type && dst) {
@@ -47,6 +77,10 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    if (ret_size < 0) {
       ret_size = 0;
    }
+   ax_return = return_type_uses_ax(ret_type, ret_decl);
+   frame_ret_size = ax_return ? 0 : ret_size;
+   caller_result_size = (ax_return && dst) ? ret_size : 0;
+   call_prefix_size = frame_ret_size + caller_result_size;
 
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count; i++) {
@@ -82,7 +116,8 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    }
 
    callee_tmp_offset = 0;
-   call_size = ptr_size + ret_size + arg_total;
+   result_scratch_offset = base_locals + ptr_size + (variadic ? variadic_total : 0);
+   call_size = ptr_size + call_prefix_size + arg_total;
 
    if (call_size > 0) {
       remember_runtime_import("pushN");
@@ -95,7 +130,7 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    }
 
    if (params && !is_empty(params)) {
-      int arg_offset = ptr_size + ret_size + (variadic ? variadic_total + ptr_size + len_size + fixed_stack_total : fixed_stack_total);
+      int arg_offset = ptr_size + call_prefix_size + (variadic ? variadic_total + ptr_size + len_size + fixed_stack_total : fixed_stack_total);
       int actual_index = 0;
 
       if (variadic) {
@@ -126,14 +161,14 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
          }
 
          emit_prepare_fp_ptr(0, base_locals + ptr_size);
-         emit_store_ptr_to_fp(base_locals + ptr_size + variadic_total + ret_size, 0, ptr_size);
+         emit_store_ptr_to_fp(base_locals + ptr_size + variadic_total + call_prefix_size, 0, ptr_size);
          {
             unsigned char bytes[sizeof(long long)] = {0};
             char len_buf[32];
             snprintf(len_buf, sizeof(len_buf), "%d", variadic_total);
             if (type_is_big_endian(required_typename_node("*"))) make_be_int(len_buf, bytes, len_size);
             else make_le_int(len_buf, bytes, len_size);
-            emit_store_immediate_to_fp(base_locals + ptr_size + variadic_total + ret_size + ptr_size, bytes, len_size);
+            emit_store_immediate_to_fp(base_locals + ptr_size + variadic_total + call_prefix_size + ptr_size, bytes, len_size);
          }
       }
 
@@ -200,19 +235,20 @@ static bool compile_indirect_call_expr_to_slot(ASTNode *expr, Context *ctx, Cont
    emit(&es_code, "    lda fp\n");
    emit(&es_code, "    pha\n");
    emit(&es_code, "    jsr _callptr0\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
+   emit_restore_fp_after_call(ax_return);
 
    if (ctx) {
       ctx->locals = base_locals;
    }
 
    if (dst && ret_size > 0) {
+      int source_offset = base_locals + ptr_size + variadic_total;
+      if (ax_return) {
+         emit_store_ax_to_fp(result_scratch_offset, ret_size);
+         source_offset = result_scratch_offset;
+      }
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type,
-                                 base_locals + ptr_size + variadic_total,
-                                 ret_size, ret_type);
+                                 source_offset, ret_size, ret_type);
    }
 
    if (call_size > 0) {
@@ -275,8 +311,13 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    int fixed_stack_total = 0;
    int symbol_scratch_size = 0;
    int symbol_scratch_offset = 0;
+   int result_scratch_offset = 0;
    int variadic_total = 0;
    bool variadic = false;
+   bool ax_return = false;
+   int frame_ret_size = 0;
+   int caller_result_size = 0;
+   int call_prefix_size = 0;
    int base_locals = ctx ? ctx->locals : 0;
 
    {
@@ -313,6 +354,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          ret_type = known_ret;
          ret_size = declarator_value_size(ret_type, ret_decl);
       }
+      ax_return = function_uses_ax_return(fn);
       params = declarator_parameter_list(declarator);
       variadic = parameter_list_is_variadic(params);
       if (params && !is_empty(params)) {
@@ -358,8 +400,12 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    }
 
    if (ret_size < 0) ret_size = 0;
-   int call_size = ret_size + arg_total + symbol_scratch_size;
-   symbol_scratch_offset = base_locals + ret_size + arg_total;
+   frame_ret_size = ax_return ? 0 : ret_size;
+   caller_result_size = (ax_return && dst) ? ret_size : 0;
+   call_prefix_size = frame_ret_size + caller_result_size;
+   result_scratch_offset = base_locals + (variadic ? variadic_total : 0);
+   symbol_scratch_offset = base_locals + call_prefix_size + arg_total;
+   int call_size = call_prefix_size + arg_total + symbol_scratch_size;
 
    if (call_size > 0) {
       remember_runtime_import("pushN");
@@ -373,7 +419,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (fn && declarator) {
       const ASTNode *params = declarator_parameter_list(declarator);
-      int arg_offset = ret_size + (variadic ? variadic_total + ptr_size + len_size + fixed_stack_total : fixed_stack_total);
+      int arg_offset = call_prefix_size + (variadic ? variadic_total + ptr_size + len_size + fixed_stack_total : fixed_stack_total);
       int actual_index = 0;
       char callee_sym[256];
       if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym))) {
@@ -408,14 +454,14 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          }
 
          emit_prepare_fp_ptr(0, base_locals);
-         emit_store_ptr_to_fp(base_locals + variadic_total + ret_size, 0, ptr_size);
+         emit_store_ptr_to_fp(base_locals + variadic_total + call_prefix_size, 0, ptr_size);
          {
             unsigned char bytes[sizeof(long long)] = {0};
             char len_buf[32];
             snprintf(len_buf, sizeof(len_buf), "%d", variadic_total);
             if (type_is_big_endian(required_typename_node("*"))) make_be_int(len_buf, bytes, len_size);
             else make_le_int(len_buf, bytes, len_size);
-            emit_store_immediate_to_fp(base_locals + variadic_total + ret_size + ptr_size, bytes, len_size);
+            emit_store_immediate_to_fp(base_locals + variadic_total + call_prefix_size + ptr_size, bytes, len_size);
          }
       }
 
@@ -489,10 +535,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       emit(&es_code, "    lda fp\n");
       emit(&es_code, "    pha\n");
       emit(&es_code, "    jsr %s\n", callee_sym);
-      emit(&es_code, "    pla\n");
-      emit(&es_code, "    sta fp\n");
-      emit(&es_code, "    pla\n");
-      emit(&es_code, "    sta fp+1\n");
+      emit_restore_fp_after_call(ax_return);
    }
 
    if (ctx) {
@@ -500,9 +543,13 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    }
 
    if (dst && ret_size > 0) {
+      int source_offset = base_locals + (variadic ? variadic_total : 0);
+      if (ax_return) {
+         emit_store_ax_to_fp(result_scratch_offset, ret_size);
+         source_offset = result_scratch_offset;
+      }
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type,
-                                 base_locals + (variadic ? variadic_total : 0),
-                                 ret_size, ret_type);
+                                 source_offset, ret_size, ret_type);
    }
 
    if (call_size > 0) {

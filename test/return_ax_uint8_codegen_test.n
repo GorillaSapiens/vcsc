@@ -1,0 +1,27 @@
+// expectasm: return_ax
+// n65c -I .
+// expectasmordered: .proc id8
+// expectasmordered: @fini:
+// expectasmordered: ldy #$00
+// expectasmordered: lda (fp),y
+// expectasmordered: rts
+// expectasmordered: jsr id8
+// expectasmordered: tay
+// expectasmordered: pla
+// expectasmordered: sta fp
+// expectasmordered: pla
+// expectasmordered: sta fp+1
+// expectasmordered: tya
+// expectasmordered: sta (fp),y
+// forbidasm: jsr _fp2ptr1m
+include "machine_6502.n"
+
+type uint8_t { $size:1 $integer:unsigned };
+
+uint8_t id8(uint8_t value) {
+   return value;
+}
+
+uint8_t main(void) {
+   return id8(0x5a`uint8_t);
+}

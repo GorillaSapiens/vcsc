@@ -14,6 +14,7 @@
 #include "ast.h"
 #include "compile.h"
 #include "compile_function.h"
+#include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_lvalue.h"
 #include "compile_overload.h"
@@ -70,6 +71,41 @@ static CallGraphEdge *call_graph_edges = NULL;
 static int call_graph_edge_count = 0;
 int current_call_graph_node = -1;
 const ASTNode *current_call_graph_function = NULL;
+
+//! @brief Return whether a value is returned in A (low byte) and X (high byte).
+bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator) {
+   int size;
+
+   if (!type) {
+      return false;
+   }
+
+   size = declarator_value_size(type, declarator);
+   if (size < 1 || size > 2) {
+      return false;
+   }
+   if (type_is_aggregate(type) || (declarator && declarator_array_count(declarator) > 0)) {
+      return false;
+   }
+   if (size > 1 && type_is_big_endian(type)) {
+      return false;
+   }
+
+   return true;
+}
+
+//! @brief Return whether a function uses the VCSC A:X scalar return convention.
+bool function_uses_ax_return(const ASTNode *fn) {
+   const ASTNode *declarator;
+
+   if (!fn) {
+      return false;
+   }
+
+   declarator = function_declarator_node(fn);
+   return return_type_uses_ax(function_return_type(fn),
+                              function_return_declarator_from_callable(declarator));
+}
 
 //! @brief Handle function parameter symbol name logic for compiler function lowering.
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
@@ -405,8 +441,21 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       ctx->params -= get_size("*") + get_size("*");
    }
 
-   ctx_shove(ctx, node->children[0]->children[1], "$$");
-   ctx_resize_last_shove(ctx, node->children[0]->children[1], declarator, "$$");
+   if (function_uses_ax_return(node)) {
+      ContextEntry *return_entry;
+      ctx_push(ctx, node->children[0]->children[1], "$$");
+      ctx_resize_last_push(ctx, node->children[0]->children[1], declarator, "$$");
+      return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
+      if (!return_entry) {
+         error_unreachable("internal missing A:X return slot");
+      }
+      ctx->locals -= return_entry->size;
+      return_entry->offset = -1;
+   }
+   else {
+      ctx_shove(ctx, node->children[0]->children[1], "$$");
+      ctx_resize_last_shove(ctx, node->children[0]->children[1], declarator, "$$");
+   }
 
    if (parameter_list_is_variadic(params)) {
       add_variadic_hidden_locals(ctx);

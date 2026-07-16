@@ -14,6 +14,7 @@
 #include "ast.h"
 #include "abi_meta.h"
 #include "compile.h"
+#include "compile_function.h"
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_overload.h"
@@ -120,6 +121,8 @@ void compile_function_decl(ASTNode *node) {
    const ASTNode *saved_call_graph_function = current_call_graph_function;
    int saved_call_graph_node = current_call_graph_node;
    char sym[256];
+   bool ax_return;
+   ContextEntry *return_entry;
 
    remember_function(node, name);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
@@ -140,11 +143,20 @@ void compile_function_decl(ASTNode *node) {
    ctx.break_label = NULL;
    ctx.continue_label = NULL;
    build_function_context(node, &ctx);
+   ax_return = function_uses_ax_return(node);
+   return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
    current_call_graph_node = call_graph_node_index_for_function(node);
 
    if (!is_empty(body) && !strcmp(body->name, "statement_list")) {
       predeclare_statement_list(body, &ctx);
+   }
+   if (ax_return) {
+      if (!return_entry || return_entry->size < 1 || return_entry->size > 2) {
+         error_unreachable("[%s:%d.%d] invalid A:X return slot", node->file, node->line, node->column);
+      }
+      return_entry->offset = ctx.locals;
+      ctx.locals += return_entry->size;
    }
 
    emit_function_parameter_storage(node, &ctx);
@@ -177,6 +189,15 @@ void compile_function_decl(ASTNode *node) {
       emit(&es_code, "    lda #$%02x\n", ctx.locals & 0xff);
       emit(&es_code, "    sta arg0\n");
       emit(&es_code, "    jsr _popN\n");
+   }
+   if (ax_return) {
+      if (return_entry->size == 2) {
+         emit(&es_code, "    ldy #$%02x\n", (return_entry->offset + 1) & 0xff);
+         emit(&es_code, "    lda (fp),y\n");
+         emit(&es_code, "    tax\n");
+      }
+      emit(&es_code, "    ldy #$%02x\n", return_entry->offset & 0xff);
+      emit(&es_code, "    lda (fp),y\n");
    }
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");

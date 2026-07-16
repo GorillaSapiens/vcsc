@@ -5,19 +5,16 @@
 // expectasmordered: ldy #1
 // expectasmordered: lda (ptr0),y
 // expectasmordered: sta (fp),y
-// expectasmordered: lda #$04
-// expectasmordered: sta arg0
-// expectasmordered: jsr _fp2ptr1m
-// expectasmordered: ldy #0
-// expectasmordered: lda (fp),y
-// expectasmordered: sta (ptr1),y
-// expectasmordered: ldy #1
-// expectasmordered: lda (fp),y
-// expectasmordered: sta (ptr1),y
 // expectasmordered: @fini:
+// expectasmordered: ldy #$03
+// expectasmordered: lda (fp),y
+// expectasmordered: tax
+// expectasmordered: ldy #$02
+// expectasmordered: lda (fp),y
+// expectasmordered: rts
 // expecterr: 001 peephole
-// expecterr: total_saved=11
-// expecterr: dup_load=4
+// expecterr: total_saved=7
+// expecterr: dup_load=2
 // expecterr: jump_next=1
 include "machine_6502.n"
 
