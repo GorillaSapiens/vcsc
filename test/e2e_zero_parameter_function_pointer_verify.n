@@ -1,0 +1,24 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t five(void) {
+   return 5`uint16_t;
+}
+
+uint16_t (*fp)(void) := five;
+
+void main(void) {
+   if (fp() != 5`uint16_t) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

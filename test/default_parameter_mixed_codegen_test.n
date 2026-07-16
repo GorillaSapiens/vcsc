@@ -1,0 +1,22 @@
+// n65c -I .
+// expectasm: mixed$a:
+// expectasm: 	.res 1
+// expectasm: mixed$b:
+// expectasm: 	.res 2
+// expectasm: mixed$c:
+// expectasm: 	.res 2
+// expectasmordered: sta mixed$a,y
+// expectasmordered: sta mixed$b,y
+// expectasmordered: sta mixed$c,y
+include "machine_6502.n"
+
+type uint8_t  { $size:1 $integer:unsigned };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t mixed(uint8_t a, uint16_t b, uint16_t c) {
+   return a + b + c;
+}
+
+uint16_t main(void) {
+   return mixed(1`uint8_t, 2`uint16_t, 3`uint16_t);
+}

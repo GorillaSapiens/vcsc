@@ -1,0 +1,22 @@
+// n65c -I .
+// object: e2e_default_parameter_cross_tu_verify__def.n
+// expectexit: 0
+include "machine_6502.n"
+
+type uint8_t  { $size:1 $integer:unsigned };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t cross_add(uint8_t a, uint16_t b);
+
+void main(void) {
+   if (cross_add(7`uint8_t, 0x1200`uint16_t) != 0x1207`uint16_t) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

@@ -581,30 +581,17 @@ Absolute address binding is only meaningful on `ref` declarations. Using `@...` 
 
 ## Function parameters
 
-### Ordinary parameters
+### Direct functions
 
-Ordinary parameters are passed in the N argument stack frame.
+Every ordinary parameter of a directly named function is symbol-backed by default. The callee owns one fixed storage symbol for each parameter, and the caller evaluates arguments left-to-right and writes each converted value directly into the corresponding symbol before `jsr`. Fixed direct-call parameters do not occupy the N software stack.
 
-### Symbol-backed parameters
+An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
-Function parameters declared `static`, or parameters that use a `mem` modifier, are not pushed as ordinary call-frame arguments.
+A direct caller may use one reusable software-stack scratch area while evaluating and converting arguments. That scratch is caller-private transitional machinery, not parameter storage and not part of the function ABI.
 
-Instead:
+Because each function owns only one parameter record, a parameterized function is non-reentrant. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
-- the callee owns a symbol-backed storage slot for that parameter
-- the caller evaluates the argument and writes it directly into that storage before `jsr`
-
-This includes zero-page-backed parameters and non-zero-page named memory regions such as `banana`.
-
-A parameter may not combine `static` with an explicit `mem` modifier. Use `static int x` for default BSS-backed parameter storage, or use the memory-region modifier by itself, such as `zeropage int x`, `banana int x`, or `register int x` if a `mem register` region has been declared.
-
-Because that storage is owned by the callee rather than the call frame, symbol-backed parameters should be treated as re-entrancy-hostile unless the programmer arranges external protection. Recursive or interrupt-driven re-entry can overwrite the shared parameter slots.
-
-The compiler performs a direct-call graph check inside each translation unit and rejects any call-cycle strongly connected component that contains a function with symbol-backed parameters. That catches obvious self-recursion and mutual recursion cases before code generation completes.
-
-The linker also performs the same check across the selected object files, so call cycles that only become visible after separate compilation are rejected before image generation.
-
-Because symbol-backed parameters need named callee-owned storage, functions with symbol-backed parameters cannot be converted to plain function pointers.
+Plain function pointers do not carry the addresses of callee-owned parameter symbols. Taking the address of a parameterized direct function is therefore rejected. Zero-parameter function pointers still use the legacy indirect-call path for now; function pointers are not part of the intended minimal VCS subset.
 
 ## Storage classes and memory regions
 
@@ -710,9 +697,10 @@ A:X results. The current stack-based expression engine may still allocate its
 own caller-local scratch area after the call; that is temporary implementation
 machinery, not part of the function ABI.
 
-Larger, aggregate, array, and big-endian returns temporarily retain the old
-caller-owned return-slot ABI while those unsupported features are being removed
-or redesigned. The `$$` name is reserved; it cannot be declared as a global,
+The final language permits no return value larger than two bytes and no
+aggregate or array return. The compiler temporarily retains the old
+caller-owned return-slot path only so those legacy features can be removed in a
+controlled later slice. The `$$` name is reserved; it cannot be declared as a global,
 local, function, or parameter name, and it is invalid in `void` functions or
 outside a function body.
 
@@ -769,7 +757,9 @@ char msg2[] = "hello";
 
 The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
 
-The language-level argument/local storage model uses `_nl_sp` and `_nl_fp`.
+Direct fixed parameters are callee-owned symbols. Automatic locals, expression
+temporaries, caller argument-evaluation scratch, and variadic blobs still use
+`_nl_sp` and `_nl_fp` during this transitional stage.
 
 ### `_nl_sp` and `_nl_fp`
 

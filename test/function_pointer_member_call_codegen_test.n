@@ -1,7 +1,6 @@
 // n65c -I .
-// expectasm: jsr _callptr0
-// expectasm: .proc inc?
-
+// expectfail
+// expecterr: cannot create a pointer to function 'inc' because it has symbol-backed parameters
 include "machine_6502.n"
 
 struct holder {

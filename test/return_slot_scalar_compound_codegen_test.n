@@ -1,6 +1,6 @@
 // n65c -I .
 // expectasmordered: .proc bump
-// expectasmordered: jsr _fp2ptr0m
+// expectasmordered: lda bump$x,y
 // expectasmordered: clc
 // expectasmordered: adc (fp),y
 // expectasmordered: @fini:

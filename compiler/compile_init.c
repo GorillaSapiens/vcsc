@@ -380,7 +380,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
          char sym[512];
          if (fn) {
             if (function_has_static_parameters(fn)) {
-               error_user("[%s:%d.%d] cannot create a pointer to function '%s' because it has symbol-backed parameters", expr->file, expr->line, expr->column, ident);
+               return false;
             }
             if (function_symbol_name(fn, ident, sym, sizeof(sym))) {
                char label[sizeof(sym) + 2];
@@ -468,7 +468,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             const ASTNode *fn = ident ? resolve_function_designator_target(ident, NULL, NULL) : NULL;
             if (fn) {
                if (function_has_static_parameters(fn)) {
-                  error_user("[%s:%d.%d] cannot create a pointer to function '%s' because it has symbol-backed parameters", inner->file, inner->line, inner->column, ident);
+                  return false;
                }
                if (function_symbol_name(fn, ident, sym, sizeof(sym))) {
                   char label[sizeof(sym) + 2];

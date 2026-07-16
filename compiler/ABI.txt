@@ -4,9 +4,10 @@ Current transitional function ABI
 ---------------------------------
 
 This document describes the ABI while the compiler is being reduced for the
-Atari 2600. Function arguments and automatic locals still use the existing
-software stack for now. Small return values no longer use a caller-owned return
-slot.
+Atari 2600. Fixed parameters of directly named functions now use callee-owned
+symbols. Automatic locals, expression temporaries, and variadic argument blobs
+still use the existing software stack for now. Small return values no longer
+use a caller-owned return slot.
 
 A return type uses the A:X return convention when all of the following are true:
 
@@ -22,9 +23,10 @@ Return registers:
 * one-byte result: A contains the value; X is unspecified;
 * two-byte result: A contains the low byte and X contains the high byte;
 * void result: no return value;
-* larger, aggregate, array, or big-endian result: temporary legacy
-  caller-owned return slot until those language features are removed or
-  explicitly redesigned.
+* any result larger than two bytes, aggregate, array, or big-endian result:
+  outside the final language. The compiler still contains a temporary legacy
+  caller-owned return-slot path only so those old features can be removed in a
+  controlled later slice.
 
 Inside a value-returning function, `$$` remains the source-level return object.
 For an A:X return it is currently a hidden callee-local scratch object. A
@@ -34,14 +36,10 @@ into X when present, loads the low byte into A, and executes RTS.
 
 Before an ordinary direct call using A:X return:
 
-; push room for stack-backed arguments onto ARGUMENT stack
-lda #size
-sta arg0
-jsr _pushN
-; populate argument area relative to caller fp
-; stack-backed args occupy the frame in declaration order as seen by the callee,
-; which means the caller writes the leftmost argument into the highest-addressed
-; argument slot and the rightmost argument into the lowest-addressed slot.
+; reserve one caller-owned scratch area large enough to evaluate the largest
+; fixed parameter, if any
+; evaluate fixed arguments left-to-right
+; copy each converted argument into its callee-owned parameter symbol
 ; save caller frame pointer on HARDWARE stack
 lda fp+1
 pha
@@ -59,18 +57,16 @@ pla
 sta fp+1
 tya
 ; consume or copy A:X as required by the enclosing expression
-; pop argument area from ARGUMENT stack
-lda #size
-sta arg0
-jsr _popN
+; release caller parameter-evaluation scratch, if any
 
 The current expression engine may reserve caller-local scratch space and copy
 A:X into it after a call. That scratch is not part of the callee ABI and is a
 transitional consequence of retaining the old stack-based expression engine.
 
-For a legacy return-slot function, the old sequence remains temporarily: the
-caller allocates a return slot with the arguments, the callee writes `$$`
-there, and the caller copies the value out before popping the call area.
+For a legacy return-slot function, the old return sequence remains temporarily:
+the caller allocates a return slot with any other stack-resident call data, the
+callee writes `$$` there, and the caller copies the value out before popping the
+call area. Fixed direct parameters are still symbols.
 
 Function prologue:
 
@@ -113,6 +109,31 @@ PLA      ; restore A (and flags get set from A)
 PLP      ; restore original status flags, including N/Z
 
 
+Direct fixed-parameter ABI
+--------------------------
+
+Every non-void, non-ellipsis parameter of a directly named function has a
+callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
+parameters explicitly assigned to a zero-page memory region use zero-page
+symbols. The caller evaluates arguments from left to right and writes each
+converted value to the corresponding symbol before JSR.
+
+A direct call therefore places no fixed parameter bytes on the software stack.
+The caller may temporarily reserve one reusable evaluation scratch area sized
+to the largest fixed parameter. That scratch belongs to the caller and is not
+part of the callee ABI.
+
+Because each function has only one parameter record, a parameterized direct
+function may not be active twice. The compiler rejects direct and mutual cycles
+inside a translation unit, and the linker rejects cycles completed across
+objects.
+
+Plain function pointers cannot encode the addresses of callee-owned parameter
+symbols. Taking the address of a parameterized direct function is therefore a
+compile-time error. Zero-parameter function pointers remain on the old indirect
+call path for now and are not part of the intended final VCS subset.
+
+
 Variadic call ABI
 -----------------
 
@@ -123,7 +144,7 @@ The caller lays out a variadic call frame in this order:
 2. raw variadic blob bytes
 3. hidden `__va_args` pointer to the first blob byte
 4. hidden `__va_arg_bytes` total byte count
-5. fixed stack-backed parameters in declaration order as seen by the callee
+5. no fixed-parameter bytes; fixed parameters are callee-owned symbols
 
 The raw variadic blob is packed left-to-right in source argument order with no padding and no alignment holes.
 Each variadic argument contributes exactly its actual runtime storage size. There are no C-style default promotions for variadic arguments. A `char` stays 1 byte, an `int` stays 2 bytes, a `long` stays 4 bytes, and so on.

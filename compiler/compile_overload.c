@@ -174,8 +174,10 @@ bool function_is_variadic(const ASTNode *fn) {
    return parameter_list_is_variadic(declarator_parameter_list(declarator));
 }
 
-//! @brief Extract fixed parameter stack bytes from params for compiler overload resolver.
-static int fixed_parameter_stack_bytes_from_params(const ASTNode *params) {
+//! @brief Handle function fixed parameter stack bytes logic for compiler overload resolver.
+int function_fixed_parameter_stack_bytes(const ASTNode *fn) {
+   const ASTNode *declarator = function_declarator_node(fn);
+   const ASTNode *params = declarator_parameter_list(declarator);
    int total = 0;
 
    if (!params || is_empty(params)) {
@@ -184,19 +186,14 @@ static int fixed_parameter_stack_bytes_from_params(const ASTNode *params) {
 
    for (int i = 0; i < params->count; i++) {
       const ASTNode *parameter = params->children[i];
-      if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter) || parameter_has_symbol_storage(parameter)) {
+      if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter) ||
+          function_parameter_uses_symbol_storage(fn, parameter)) {
          continue;
       }
       total += parameter_storage_size(parameter);
    }
 
    return total;
-}
-
-//! @brief Handle function fixed parameter stack bytes logic for compiler overload resolver.
-int function_fixed_parameter_stack_bytes(const ASTNode *fn) {
-   const ASTNode *declarator = function_declarator_node(fn);
-   return fixed_parameter_stack_bytes_from_params(declarator_parameter_list(declarator));
 }
 
 //! @brief Handle function fixed param count logic for compiler overload resolver.

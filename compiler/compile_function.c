@@ -107,6 +107,12 @@ bool function_uses_ax_return(const ASTNode *fn) {
                               function_return_declarator_from_callable(declarator));
 }
 
+//! @brief Return whether a parameter of a directly named function uses callee-owned storage.
+bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter) {
+   (void) fn;
+   return parameter && !parameter_is_void(parameter) && !parameter_is_ellipsis(parameter);
+}
+
 //! @brief Handle function parameter symbol name logic for compiler function lowering.
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
                                            char *buf, size_t bufsize, bool *is_zeropage_out) {
@@ -119,7 +125,8 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
    Context callee_ctx;
    ContextEntry pentry;
 
-   if (!fn || !parameter || !buf || bufsize == 0 || !parameter_has_symbol_storage(parameter)) {
+   if (!fn || !parameter || !buf || bufsize == 0 ||
+       !function_parameter_uses_symbol_storage(fn, parameter)) {
       return false;
    }
 
@@ -142,8 +149,8 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
    pentry.name = (char *) pname;
    pentry.type = ptype;
    pentry.declarator = pdecl;
-   pentry.is_static = has_modifier((ASTNode *) modifiers, "static") || modifiers_imply_named_nonzeropage(modifiers);
    pentry.is_zeropage = modifiers_imply_zeropage(modifiers);
+   pentry.is_static = !pentry.is_zeropage;
    pentry.is_global = false;
    pentry.is_ref = parameter_is_ref(parameter);
    pentry.is_absolute_ref = false;
@@ -400,7 +407,6 @@ void build_function_context(const ASTNode *node, Context *ctx) {
          const ASTNode *decl_specs = parameter_decl_specifiers(parameter);
          const ASTNode *modifiers = (decl_specs && decl_specs->count > 0) ? decl_specs->children[0] : NULL;
          const ASTNode *param_decl = call_adjusted_parameter_declarator(parameter_declarator(parameter), parameter_is_ref(parameter));
-         int size;
          int slot_size;
          ContextEntry *entry;
 
@@ -408,31 +414,17 @@ void build_function_context(const ASTNode *node, Context *ctx) {
             continue;
          }
 
-         size = declarator_storage_size(type, param_decl);
          slot_size = parameter_storage_size(parameter);
-         if (has_modifier((ASTNode *) modifiers, "static") || modifiers_imply_named_nonzeropage(modifiers)) {
-            ctx_static(ctx, type, name);
-            entry = (ContextEntry *) set_get(ctx->vars, name);
-            entry->size = slot_size;
-            entry->declarator = param_decl;
-            entry->is_ref = parameter_is_ref(parameter);
-         }
-         else if (modifiers_imply_zeropage(modifiers)) {
+         if (modifiers_imply_zeropage(modifiers)) {
             ctx_zeropage(ctx, type, name);
-            entry = (ContextEntry *) set_get(ctx->vars, name);
-            entry->size = slot_size;
-            entry->declarator = param_decl;
-            entry->is_ref = parameter_is_ref(parameter);
          }
          else {
-            ctx_shove(ctx, type, name);
-            entry = (ContextEntry *) set_get(ctx->vars, name);
-            entry->size = size;
-            entry->declarator = param_decl;
-            entry->is_ref = parameter_is_ref(parameter);
-            entry->offset = ctx->params + get_size(type_name_from_node(type)) - slot_size;
-            ctx->params -= (slot_size - get_size(type_name_from_node(type)));
+            ctx_static(ctx, type, name);
          }
+         entry = (ContextEntry *) set_get(ctx->vars, name);
+         entry->size = slot_size;
+         entry->declarator = param_decl;
+         entry->is_ref = parameter_is_ref(parameter);
          i++;
       }
    }
@@ -473,7 +465,7 @@ bool function_has_static_parameters(const ASTNode *fn) {
 
    for (int i = 0; i < params->count; i++) {
       const ASTNode *parameter = params->children[i];
-      if (parameter_has_symbol_storage(parameter)) {
+      if (function_parameter_uses_symbol_storage(fn, parameter)) {
          return true;
       }
    }
@@ -729,7 +721,7 @@ void emit_function_parameter_storage(const ASTNode *node, Context *ctx) {
       const ContextEntry *entry;
       char sym[256];
 
-      if (!type || parameter_is_void(parameter) || !parameter_has_symbol_storage(parameter)) {
+      if (!type || !function_parameter_uses_symbol_storage(node, parameter)) {
          continue;
       }
 
@@ -774,7 +766,7 @@ void emit_function_parameter_exports(const ASTNode *node) {
       char sym[256];
       bool is_zeropage = false;
 
-      if (!parameter || parameter_is_void(parameter) || !parameter_has_symbol_storage(parameter)) {
+      if (!function_parameter_uses_symbol_storage(node, parameter)) {
          continue;
       }
       if (!function_parameter_symbol_name(node, parameter, i, sym, sizeof(sym), &is_zeropage)) {

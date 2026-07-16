@@ -1,0 +1,14 @@
+// n65c -I .
+// object: e2e_default_parameter_cycle_cross_tu_fail__a.n
+// object: e2e_default_parameter_cycle_cross_tu_fail__b.n
+// expectlinkfail
+// expectlinkerr: call graph cycle reaches function 'a' with symbol-backed parameters
+include "machine_6502.n"
+
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t a(uint16_t x);
+
+int main(void) {
+   return a(1);
+}

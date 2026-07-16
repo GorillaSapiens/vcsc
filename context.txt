@@ -21,10 +21,10 @@ restart. When asked to "look at context.txt and figure out what to do next":
 
 Project goal
 ------------
-Reduce the existing general-purpose n 6502 toolchain to a small C-like language
+Reduce the existing general-purpose N 6502 toolchain to a small C-like language
 and toolchain aimed specifically at the Atari 2600/VCS. The current source is a
 starting point, not a compatibility contract. Unsupported features will be
-removed after the replacement ABI works end to end.
+removed in controlled slices after their replacements work end to end.
 
 Current source lineage
 ----------------------
@@ -32,9 +32,13 @@ Initial archive inspected:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for the current revision:
+A:X return slice input:
 
     vcsc.20260716_142209.tar.gz
+
+Input archive for the current revision:
+
+    vcsc.20260716_150406.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout when
@@ -62,7 +66,7 @@ These are settled unless the user explicitly changes them:
 * Parameters and automatic locals will use statically allocated storage.
 * Static activation records intentionally make functions non-reentrant.
 * Direct recursion, mutual recursion, callback re-entry, and any other way to
-  activate the same function twice must be rejected.
+  activate the same parameterized function twice must be rejected.
 * JSR/RTS still use the 6502 hardware stack for return addresses.
 * Function return values use A:X:
 
@@ -70,20 +74,31 @@ These are settled unless the user explicitly changes them:
       16-bit result: A contains the low byte; X contains the high byte
       pointer result: same 16-bit A:X convention
 
+* No legal function return value may be larger than two bytes.
+* Struct, union, and array returns are therefore not part of the final language,
+  even when an aggregate happens to occupy one or two bytes. Use an explicit
+  result pointer for aggregate output.
+
 Current implementation state
 ----------------------------
-The first vertical slice is complete: one- and two-byte little-endian scalar
-and pointer returns now use A:X.
+Two vertical slices are complete:
 
-This is deliberately transitional. Parameters, automatic locals, and
-expression temporaries still use the old _nl_sp/_nl_fp software stack. Larger,
-aggregate, array, and big-endian return types temporarily retain the old
-caller-owned memory return slot so the still-present legacy feature tests do
-not silently miscompile. Those types/features are not part of the intended
-final language and will be removed later.
+1. One- and two-byte little-endian scalar and pointer returns use A:X.
+2. Every fixed parameter of a directly named function is symbol-backed by
+   default rather than stack-backed.
 
-Current A:X return implementation details
------------------------------------------
+This is still transitional. Automatic locals, expression temporaries, caller
+argument-evaluation scratch, variadic blobs, and some runtime helpers still use
+_nl_sp/_nl_fp and _pushN/_popN.
+
+The compiler still contains a legacy caller-owned return-slot path for returns
+larger than two bytes, aggregates, arrays, and big-endian values. That path is
+not approved language behavior; it remains only so those old features can be
+removed in a controlled later slice. The newly settled two-byte maximum is not
+yet enforced everywhere.
+
+A:X return implementation details
+---------------------------------
 Relevant helpers:
 
     compiler/compile_function.c
@@ -111,30 +126,96 @@ through Y while fp is restored with PLA; X is left untouched. A is then restored
 from Y.
 
 The existing expression engine still expects a memory slot for most values.
-Therefore a caller that consumes an A:X result currently reserves a private
-scratch area in its own software-stack frame and copies A:X into it before
-running the old conversion/copy machinery. This scratch is not a callee return
-slot and is not part of the function ABI.
+Therefore a caller that consumes an A:X result may reserve private scratch in
+its own software-stack frame and copy A:X into it before running the old
+conversion/copy machinery. This scratch is not a callee return slot and is not
+part of the function ABI.
 
-Important frame-layout rule discovered during implementation:
+Important frame-layout rule discovered during the A:X slice:
 
-* caller-private result scratch must be below the arguments, occupying the same
-  low-address position formerly used by the return slot;
-* arguments must remain at the high-address end of the pushed call frame,
-  because the callee locates them backward from its fp, which is set to sp.
+* caller-private result scratch must be below any stack-resident call data,
+  occupying the same low-address position formerly used by the return slot;
+* stack-resident call data must remain at the high-address end of a pushed call
+  frame because old callees locate it backward from fp.
 
-Placing result scratch above the arguments made the callee read scratch bytes
-as parameters. This bug was found by the broad end-to-end suite and fixed.
+Direct fixed-parameter implementation
+-------------------------------------
+Every non-void, non-ellipsis parameter of a directly named function now has a
+callee-owned symbol.
 
-ABI metadata now emits return mode `return_ax` for eligible returns and retains
-`return_value` for the temporary legacy path.
+* Ordinary parameters use BSS-backed absolute symbols.
+* A parameter assigned to a zero-page memory region uses a zero-page symbol.
+* The old `static` parameter spelling remains accepted but is now redundant.
+* Other named memory-region modifiers continue to use the existing symbol
+  allocation machinery.
 
-Hand-written runtime ABI updates
---------------------------------
-The hand-written libraries/nlib/asm/sbrk.asm routine formerly wrote its pointer
-result into the old caller-owned return slot. It now returns the pointer in A:X
-(A low, X high). Its argument remains at fp-2 under the temporary stack-based
-parameter ABI.
+At a direct call site the compiler:
+
+1. Determines the largest fixed parameter size.
+2. Reserves one reusable caller-owned software-stack scratch area of that size,
+   if necessary.
+3. Evaluates arguments left-to-right.
+4. Converts each argument in the scratch area.
+5. Copies it into the corresponding callee-owned symbol.
+6. Executes JSR.
+7. Releases the scratch after consuming the result.
+
+No fixed direct-call parameter bytes are placed on the software argument stack.
+Automatic locals and expression scratch are unchanged in this slice.
+
+Relevant code:
+
+    compiler/compile_function.c
+        function_parameter_uses_symbol_storage()
+        function_parameter_symbol_name()
+        build_function_context()
+        emit_function_parameter_storage()
+        emit_function_parameter_exports()
+        function_has_static_parameters()
+
+    compiler/compile_call.c
+        direct-call fixed-argument sizing and symbol copies
+
+    compiler/abi_meta.c
+        direct function parameters emit symbol_abs or symbol_zp
+
+    compiler/compile_overload.c
+        direct fixed parameters contribute zero stack bytes
+
+Re-entry and call-graph rules
+-----------------------------
+Every parameterized direct function now counts as having static parameters.
+Existing compiler and linker call-graph checks therefore reject:
+
+* direct recursion;
+* mutual recursion inside one translation unit;
+* cycles completed only after separate objects are linked.
+
+The diagnostics still say "symbol-backed parameters", which accurately
+describes the storage model even though symbol backing is now the default.
+
+Function pointers during the transition
+---------------------------------------
+A plain function pointer contains only a code address and cannot identify the
+callee-owned symbols that receive parameters. Therefore:
+
+* taking the address of a parameterized direct function is a compile-time error;
+* parameterized indirect calls are no longer accepted silently;
+* zero-parameter function pointers still work through the legacy indirect-call
+  path and have a simulator-level test;
+* function pointers are not currently promised as part of the final minimal VCS
+  subset.
+
+This restriction was intentionally added rather than allowing wrong code.
+`compile_init.c` returns "not a constant" during speculative initializer
+checking; the real expression lowering path emits the precise user diagnostic.
+
+Hand-written runtime ABI note
+-----------------------------
+The previous A:X slice changed libraries/nlib/asm/sbrk.asm so _sbrk returns its
+pointer in A:X. Its argument handling still belongs to the old runtime/software-
+stack world. Heap/sbrk support is not part of the intended final VCS subset and
+was not migrated to symbol-backed parameters in this slice.
 
 Atari 2600 hardware constraints
 -------------------------------
@@ -166,42 +247,15 @@ They are mirrors of the same physical RIOT RAM. The configuration double-counts
 RAM and can hide collisions. The final configuration must model one physical
 pool and reserve its upper portion for worst-case hardware-stack use.
 
-Useful existing mechanisms
---------------------------
-The compiler already supports symbol-backed parameters declared `static` or
-placed in a named memory region. Existing compiler and linker machinery also
-checks call cycles involving such parameters.
-
-Useful references:
-
-    compiler/README.md
-        Function parameters / Symbol-backed parameters
-
-    compiler/compile_function.c
-        function_has_static_parameters()
-        analyze_static_parameter_call_graph()
-
-    compiler/compile_call.c
-        symbol-backed argument stores and current stack-call lowering
-
-    compiler/abi_meta.c
-        parameter and return ABI metadata
-
-    linker/
-        cross-object ABI and call-cycle validation
-
-This existing path is the intended basis for making all ordinary parameters
-static by default.
-
 Old software-stack machinery still present
 ------------------------------------------
 The compiler still uses _nl_sp/_nl_fp and _pushN/_popN for:
 
-* stack-backed function arguments;
 * automatic locals;
 * expression temporaries and spill slots;
+* caller-owned parameter-evaluation scratch;
 * aggregate copies;
-* variadic machinery;
+* variadic argument blobs and hidden metadata;
 * some hand-written runtime helpers.
 
 Important files include:
@@ -218,8 +272,8 @@ Important files include:
     compiler/compile_support.c
     libraries/nlib/
 
-Do not blindly remove _pushN/_popN. Function ABI, local storage, and expression
-scratch must each receive a replacement first.
+Do not blindly remove _pushN/_popN. Automatic locals and retained expression
+scratch need replacements first.
 
 Files changed in the current revision
 -------------------------------------
@@ -231,21 +285,39 @@ Modified:
     compiler/compile_call.c
     compiler/compile_function.c
     compiler/compile_function.h
-    compiler/compile_toplevel.c
-    libraries/nlib/asm/sbrk.asm
+    compiler/compile_init.c
+    compiler/compile_internal.h
+    compiler/compile_overload.c
+    test/abi_metadata_exactops_codegen_test.n
     test/call_argument_order_codegen_test.n
+    test/e2e_abi_bool_mismatch_fail.n
+    test/e2e_abi_builtin_int_mismatch_fail.n
+    test/e2e_abi_char_mismatch_fail.n
+    test/e2e_abi_exactops_function_mismatch_fail.n
+    test/e2e_abi_pointer_mismatch_fail.n
+    test/function_pointer_indirect_call_codegen_test.n
+    test/function_pointer_member_call_codegen_test.n
+    test/function_pointer_void_ptr_member_call_codegen_test.n
+    test/ordinary_overload_function_pointer_test.n
     test/peephole_codegen_test.n
-    test/register_parameter_zeropage_codegen_test.n
     test/return_slot_scalar_compound_codegen_test.n
-    test/variadic_zero_call_codegen_test.n
+    test/variadic_hidden_temps_codegen_test.n
     context.txt
 
 Added:
 
-    remove.txt
-    test/return_ax_uint8_codegen_test.n
-    test/return_ax_uint16_codegen_test.n
-    test/e2e_return_ax_verify.n
+    test/default_parameter_direct_cycle_error_test.n
+    test/default_parameter_function_pointer_error_test.n
+    test/default_parameter_mixed_codegen_test.n
+    test/default_parameter_mutual_cycle_error_test.n
+    test/default_parameter_uint8_codegen_test.n
+    test/e2e_default_parameter_calls_verify.n
+    test/e2e_default_parameter_cross_tu_verify.n
+    test/e2e_default_parameter_cross_tu_verify__def.n
+    test/e2e_default_parameter_cycle_cross_tu_fail.n
+    test/e2e_default_parameter_cycle_cross_tu_fail__a.n
+    test/e2e_default_parameter_cycle_cross_tu_fail__b.n
+    test/e2e_zero_parameter_function_pointer_verify.n
 
 Removed:
 
@@ -278,82 +350,103 @@ looks for its grammar skeletons under the host /usr/share/bison.
 
 Build command used:
 
+    make clean
     make -j2 tools
 
-Test results
-------------
-Untouched input baseline:
+Test results for the current revision
+-------------------------------------
+Build:
 
-    compile-only suite: 273 passed, 0 failed
+    clean full tools build: passed with -Wall -Wextra -Werror -pedantic
 
-The original full end-to-end run exceeded the execution window before a final
-baseline total was obtained.
+Compile-only suite:
 
-Current revision:
+    280 passed, 0 failed, 280 total
 
-    compile-only suite: 275 passed, 0 failed
-    end-to-end suite:   142 passed, 0 failed
+Focused end-to-end retained/direct-parameter checks:
 
-The end-to-end suite was covered in chunks because one monolithic invocation is
-slow. The first 72 sorted cases passed, then the remaining 70 were run in two
-35-case chunks. `_sbrk` was the one late failure; after converting it to A:X,
-its test was rerun and passed. No final known test failures remain.
+    13 passed, 0 failed
 
-New tests specifically cover:
+These cover:
 
-* uint8_t return in A;
-* uint16_t little-endian return in A:X;
-* ABI metadata containing return_ax;
-* preservation of A:X while restoring fp;
-* direct and indirect call use;
-* simulator verification of 0xA5 and 0x1234 results.
+* one uint8_t parameter;
+* mixed uint8_t/uint16_t parameters;
+* left-to-right direct argument evaluation;
+* nested A -> B -> C calls;
+* sequential calls to the same function;
+* separate-object direct calls using parameter symbols;
+* direct recursion rejection;
+* mutual recursion rejection;
+* cross-object cycle rejection;
+* ABI mismatch diagnostics using symbol_abs;
+* zero-page/register parameter storage;
+* A:X return behavior;
+* zero-parameter function-pointer behavior.
+
+Full legacy end-to-end inventory:
+
+    115 passed, 31 failed, 146 total
+
+The monolithic invocation reached 135/146 before the execution wrapper timed
+out; the remaining 11 cases were run separately and all passed. The 31 failures
+are known old-feature consumers, not unexplained failures in the retained direct
+scalar/pointer path. They group as follows:
+
+* parameterized function pointers / ordinary indirect calls: 5
+* generated or archive float implementations: 12
+* big-endian or mixed-endian paths: 4
+* legacy return-slot / oversized return path: 1
+* heap/sbrk: 1
+* varargs, sprintf, and vsprintf paths: 8
+
+Do not describe the complete old end-to-end suite as green. Those failing paths
+must either be removed with their tests or deliberately migrated if the user
+changes the final feature set.
 
 Immediate TODO
 --------------
 The first unfinished item is the default next action.
 
-[ ] 1. Make ordinary direct-function parameters symbol-backed by default rather
-       than software-stack-backed. Use the existing static-parameter path.
-       Keep this as a narrow slice: do not change automatic locals yet.
+[x] 1. Make ordinary direct-function parameters symbol-backed by default rather
+       than software-stack-backed. Automatic locals remain unchanged.
 
-       Required tests:
-       * one uint8_t parameter;
-       * multiple mixed 8/16-bit parameters;
-       * nested A -> B -> C calls;
-       * sequential calls to the same function;
-       * direct recursion rejection;
-       * mutual recursion rejection;
-       * cross-object cycle rejection if separate compilation remains enabled.
+[x] 2. Make the new parameter mode the direct-function ABI default in metadata,
+       exports/imports, and compiler/linker call-cycle validation.
 
-[ ] 2. Update ABI metadata and linker checks so the new parameter mode is the
-       default and every prohibited re-entry cycle is diagnosed, not only
-       cycles involving explicitly `static` parameters.
+[ ] 3. Enforce the settled rule that functions may return only void, an 8-bit
+       integer, a 16-bit integer, or a pointer. Reject every return type larger
+       than two bytes and every aggregate/array return. Then delete the legacy
+       caller-owned return-slot ABI and its compiler metadata path.
 
-[ ] 3. Fix libraries/vcs/vcs_4k.cfg so mirrored RIOT RAM is not modeled as two
+       Keep this as a narrow slice. Do not remove all wide types/floats yet;
+       reject only their use as function return types, update affected tests,
+       and record any files removed in remove.txt.
+
+[ ] 4. Fix libraries/vcs/vcs_4k.cfg so mirrored RIOT RAM is not modeled as two
        independent memories. Initially use a conservative hardware-stack
        reserve if exact call-depth sizing is not ready.
 
-[ ] 4. Replace stack-backed automatic locals with fixed-address per-function
+[ ] 5. Replace stack-backed automatic locals with fixed-address per-function
        storage. Start with distinct frames; defer frame overlay optimization.
 
-[ ] 5. Inventory every retained _pushN/_popN use and classify it as function
-       ABI, local allocation, expression temporary, aggregate support,
-       variadic support, or obsolete runtime support.
+[ ] 6. Inventory every retained _pushN/_popN use and classify it as automatic
+       local allocation, expression temporary, caller argument scratch,
+       aggregate support, variadic support, or obsolete runtime support.
 
-[ ] 6. Replace expression temporary storage for the retained 8/16-bit language,
+[ ] 7. Replace expression temporary storage for the retained 8/16-bit language,
        probably with per-function static scratch plus register-first lowering.
 
-[ ] 7. Remove _nl_sp/_nl_fp and the software argument/local stack after no
+[ ] 8. Remove _nl_sp/_nl_fp and the software argument/local stack after no
        retained compiler path depends on it.
 
-[ ] 8. Enforce the final basic-type set in parser/semantic machinery:
+[ ] 9. Enforce the final basic-type set in parser/semantic machinery:
        int8_t, uint8_t, int16_t, uint16_t only; remove floats, arbitrary endian,
        and 32/64-bit integer support and tests in controlled groups.
 
-[ ] 9. Produce and verify an unbanked 4K VCS cartridge using only the static
-       frame ABI and the real 128-byte shared RAM model.
+[ ] 10. Produce and verify an unbanked 4K VCS cartridge using only the static
+        frame ABI and the real 128-byte shared RAM model.
 
-[ ] 10. Delete unsupported tools/runtime/language features one group at a time,
+[ ] 11. Delete unsupported tools/runtime/language features one group at a time,
         listing every deleted pathname in remove.txt and keeping retained tests
         green.
 
@@ -368,8 +461,8 @@ These are not yet settled:
 * Whether separate compilation remains throughout simplification or whole-
   program compilation is temporarily required.
 * Kernel-function syntax and cycle checking/inlining policy.
-* Final fate of aggregate types and returns; current legacy fallback is only a
-  bridge, not approval to retain them.
+* Final fate of zero-argument function pointers. Parameterized function pointers
+  are already incompatible with the direct static-parameter ABI.
 
 Change log
 ----------
@@ -386,12 +479,32 @@ Change log
 * Made $$ a hidden callee-local scratch object for A:X-returning functions.
 * Preserved A:X while restoring caller fp.
 * Added return_ax ABI metadata.
-* Retained temporary legacy slots for currently present unsupported returns.
+* Retained temporary legacy slots for then-present unsupported returns.
 * Found and fixed caller scratch being placed above arguments.
 * Converted hand-written _sbrk pointer return to A:X.
 * Added code-generation and simulator tests.
-* Final results: 275/275 compile-only and 142/142 end-to-end.
-* No files removed; remove.txt is empty.
+* Results: 275/275 compile-only and 142/142 old end-to-end at that revision.
+* No files removed; remove.txt empty.
+
+2026-07-16, default direct-parameter symbols
+* Recorded the settled decision that no legal return exceeds two bytes and that
+  aggregate/array returns are excluded.
+* Made every fixed parameter of a directly named function symbol-backed by
+  default.
+* Removed fixed direct parameters from software-stack frame sizing.
+* Reused one caller scratch area while evaluating direct arguments left-to-right.
+* Updated parameter symbol emission, exports, ABI metadata, and overload sizing.
+* Expanded compiler/linker recursion checks to every parameterized direct
+  function, including cross-object cycles.
+* Rejected taking the address of parameterized functions rather than permitting
+  indirect calls that cannot locate callee parameter symbols.
+* Preserved and tested zero-parameter function pointers as a temporary legacy
+  path.
+* Added same-object and cross-object execution tests.
+* Results: 280/280 compile-only; 13/13 focused end-to-end; complete legacy
+  inventory 115/146 with all 31 failures categorized as features already slated
+  for removal.
+* No files removed; remove.txt empty.
 
 End-of-session checklist
 ------------------------

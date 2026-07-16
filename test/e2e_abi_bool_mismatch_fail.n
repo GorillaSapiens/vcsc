@@ -2,8 +2,8 @@
 // object: e2e_abi_bool_mismatch_fail__def.n
 // expectlinkfail
 // expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
-// expectlinkerr: e2e_abi_bool_mismatch_fail.o65: declaration -> stack_value unsigned_integer(size=1)
-// expectlinkerr: e2e_abi_bool_mismatch_fail__def.o65: definition -> stack_value unsigned_integer(size=2, little-endian)
+// expectlinkerr: e2e_abi_bool_mismatch_fail.o65: declaration -> symbol_abs unsigned_integer(size=1)
+// expectlinkerr: e2e_abi_bool_mismatch_fail__def.o65: definition -> symbol_abs unsigned_integer(size=2, little-endian)
 include "machine_6502.n"
 
 bool helper(bool x);

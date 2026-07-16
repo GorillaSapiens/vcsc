@@ -233,6 +233,17 @@ static const char *parameter_storage_mode(const ASTNode *parameter) {
 }
 
 //! @brief Return global storage mode data used by abi meta; returned pointers alias existing storage unless explicitly allocated by the function name.
+
+//! @brief Return storage mode for a parameter of a directly named function.
+static const char *function_parameter_storage_mode(const ASTNode *parameter) {
+   const ASTNode *mods = parameter_decl_specifiers(parameter);
+   const ASTNode *modifiers = (mods && mods->count > 0) ? mods->children[0] : NULL;
+
+   if (parameter_is_ref(parameter))
+      return "ref";
+   return modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs";
+}
+
 static const char *global_storage_mode(const ASTNode *node, bool is_zeropage) {
    const ASTNode *modifiers = node && node->count > 0 ? node->children[0] : NULL;
    if (modifiers && has_modifier((ASTNode *)modifiers, "ref"))
@@ -650,7 +661,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
 
          ptype = parameter_type(parameter);
          pdecl = call_adjusted_parameter_declarator(parameter_declarator(parameter), parameter_is_ref(parameter));
-         mode = parameter_storage_mode(parameter);
+         mode = function_parameter_storage_mode(parameter);
          snprintf(role, sizeof(role), "param%d", out_index++);
          emit_type_record("function", state, sym, role, mode, ptype, pdecl);
       }

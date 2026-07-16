@@ -367,7 +367,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
             fixed_params++;
             psz = parameter_storage_size(parameter);
-            if (parameter_has_symbol_storage(parameter)) {
+            if (function_parameter_uses_symbol_storage(fn, parameter)) {
                if (psz > symbol_scratch_size) {
                   symbol_scratch_size = psz;
                }
@@ -490,7 +490,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             tmp.write_expr = NULL;
             tmp.size = psz;
 
-            if (parameter_has_symbol_storage(parameter)) {
+            if (function_parameter_uses_symbol_storage(fn, parameter)) {
                char sym[256];
                bool is_zeropage = false;
 

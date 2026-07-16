@@ -1,0 +1,17 @@
+// n65c -I .
+// expectasm: .export id8$value
+// expectasm: id8$value:
+// expectasm: 	.res 1
+// expectasm: sta id8$value,y
+// expectasm: modeQ3Dsymbol_abs
+include "machine_6502.n"
+
+type uint8_t { $size:1 $integer:unsigned };
+
+uint8_t id8(uint8_t value) {
+   return value;
+}
+
+uint8_t main(void) {
+   return id8(0x5a`uint8_t);
+}

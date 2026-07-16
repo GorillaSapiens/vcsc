@@ -169,6 +169,7 @@ void remember_symbol_import(const char *name);
 bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, const ASTNode *g);
 const ASTNode *cast_expr_target_type(const ASTNode *expr);
 const ASTNode *cast_expr_target_declarator(const ASTNode *expr);
+bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter);
 bool function_has_static_parameters(const ASTNode *fn);
 bool entry_symbol_name(Context *ctx, const ContextEntry *entry, char *buf, size_t bufsize);
 bool resolve_lvalue(Context *ctx, ASTNode *node, LValueRef *out);

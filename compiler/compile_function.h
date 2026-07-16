@@ -21,6 +21,7 @@
 #define BUILTIN_VA_LIST_BYTES_FIELD "bytes"
 #define BUILTIN_VA_LIST_OFFSET_FIELD "offset"
 
+bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter);
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
                                     char *buf, size_t bufsize, bool *is_zeropage_out);
 bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator);

@@ -1,9 +1,9 @@
 // n65c -I . -X peephole
 // expectasmordered: ldy #0
-// expectasmordered: lda (ptr0),y
+// expectasmordered: lda f$a,y
 // expectasmordered: sta (fp),y
 // expectasmordered: ldy #1
-// expectasmordered: lda (ptr0),y
+// expectasmordered: lda f$a,y
 // expectasmordered: sta (fp),y
 // expectasmordered: @fini:
 // expectasmordered: ldy #$03
