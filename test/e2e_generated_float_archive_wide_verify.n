@@ -1,0 +1,49 @@
+// n65c -I .
+// expectexit: 0
+// archivegroup: gf10_archive generated_float_archive_gf10_core.n generated_float_archive_gf10_add_impl.n generated_float_archive_gf10_cmp_impl.n generated_float_archive_gf10_operator_add.n generated_float_archive_gf10_operator_eq.n generated_float_archive_gf10_operator_lt.n
+// archivegroup: gf10_archive generated_float_archive_gf10_nlf_gf10_ov_copy.n generated_float_archive_gf10_nlf_gf10_ov_exp.n generated_float_archive_gf10_nlf_gf10_ov_exp_max.n generated_float_archive_gf10_nlf_gf10_ov_exp_zero.n generated_float_archive_gf10_nlf_gf10_ov_mant_to_sig.n generated_float_archive_gf10_nlf_gf10_ov_mant_zero.n generated_float_archive_gf10_nlf_gf10_ov_set_inf.n generated_float_archive_gf10_nlf_gf10_ov_set_qnan.n generated_float_archive_gf10_nlf_gf10_ov_set_zero.n generated_float_archive_gf10_nlf_gf10_ov_sign.n
+// archivegroup: gf10_archive generated_float_archive_gf10_nlf_gf10_pack_result.n generated_float_archive_gf10_nlf_gf10_sig_add_inplace.n generated_float_archive_gf10_nlf_gf10_sig_copy.n generated_float_archive_gf10_nlf_gf10_mask8.n generated_float_archive_gf10_nlf_gf10_sig_get_bit.n generated_float_archive_gf10_nlf_gf10_sig_inc1.n generated_float_archive_gf10_nlf_gf10_sig_is_zero.n generated_float_archive_gf10_nlf_gf10_sig_set_bit.n generated_float_archive_gf10_nlf_gf10_sig_shl1.n generated_float_archive_gf10_nlf_gf10_sig_shl_bits.n
+// archivegroup: gf10_archive generated_float_archive_gf10_nlf_gf10_shr1_u8.n generated_float_archive_gf10_nlf_gf10_sig_shr1.n generated_float_archive_gf10_nlf_gf10_sig_shr1_sticky.n generated_float_archive_gf10_nlf_gf10_sig_shr_bits_sticky.n generated_float_archive_gf10_nlf_gf10_sig_sub_inplace.n generated_float_archive_gf10_nlf_gf10_sig_to_u.n generated_float_archive_gf10_nlf_gf10_sig_zero.n
+include "machine_6502.n"
+include "generated_float_archive_gf10_decls.n"
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+ref char gfailcode@[none/0x02f0];
+
+void fail(int code) {
+   gfailcode := code;
+   asm lda #$ff;
+   asm ldx $02f0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   gf10 one;
+   gf10 two;
+   gf10 sum;
+
+   one := 1.0;
+   two := 2.0;
+   sum := one + one;
+
+   if (one < two) {
+   }
+   else {
+      fail(1);
+   }
+
+   if (sum == two) {
+   }
+   else {
+      fail(2);
+   }
+
+   pass();
+}

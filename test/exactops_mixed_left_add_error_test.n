@@ -1,0 +1,13 @@
+// n65c -I .
+// expectfail
+// expecterr: type 'ex' uses '$exactops' and cannot participate in mixed-type operator '+' with type 'int'
+
+include "machine_6502.n"
+
+type ex { $size:4 $integer:signed $endian:little $exactops };
+
+ex operator+(ex, ex);
+
+ex add(ex a, int b) {
+   return a + b;
+}

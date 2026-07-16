@@ -1,0 +1,11 @@
+// n65c -I .
+// expectasm: jsr _comp2Nbe
+
+type void      { $size:0 };
+type bool      { $size:1 $integer:unsigned };
+type s2be      { $size:2 $integer:signed $endian:big };
+type *         { $size:2 $integer:unsigned $endian:little };
+
+s2be negbe(s2be a) {
+   return -a;
+}

@@ -1,0 +1,22 @@
+// n65c
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u2le { $size:2 $integer:unsigned $endian:little };
+type u2be { $size:2 $integer:unsigned $endian:big };
+
+u2be add_assign_mixed(u2be a, u2le b) {
+   a += b;
+   return a;
+}
+
+u2be mul_assign_mixed(u2be a, u2le b) {
+   a *= b;
+   return a;
+}
+
+u2be shl_assign_mixed(u2be a, u2le b) {
+   a <<= b;
+   return a;
+}

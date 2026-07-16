@@ -1,0 +1,71 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+// IEEE 754 binary32 test patterns, exercised via runtime float comparisons.
+union f32bits {
+   float f;
+   char b[4];
+};
+
+f32bits poszero;
+f32bits negzero;
+f32bits one;
+f32bits one25;
+f32bits one5;
+f32bits two;
+f32bits mone;
+f32bits mtwo;
+f32bits pinf;
+f32bits ninf;
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   one.f := 1.0;
+   one25.f := 1.25;
+   one5.f := 1.5;
+   two.f := 2.0;
+   mone.f := -1.0;
+   mtwo.f := -2.0;
+
+   negzero.b[sizeof(negzero.b) - 1] := 0x80;
+
+   pinf.b[sizeof(pinf.b) - 2] := 0x80;
+   pinf.b[sizeof(pinf.b) - 1] := 0x7f;
+
+   ninf.b[sizeof(ninf.b) - 2] := 0x80;
+   ninf.b[sizeof(ninf.b) - 1] := 0xff;
+
+   if (!(poszero.f == negzero.f)) { asm lda #$ff; asm ldx #1;  asm ldy #0; asm jsr $ffff; }
+   if (!(poszero.f <= negzero.f)) { asm lda #$ff; asm ldx #2;  asm ldy #0; asm jsr $ffff; }
+   if (!(poszero.f >= negzero.f)) { asm lda #$ff; asm ldx #3;  asm ldy #0; asm jsr $ffff; }
+   if ( poszero.f != negzero.f ) { asm lda #$ff; asm ldx #4;  asm ldy #0; asm jsr $ffff; }
+
+   if (!(mone.f < one.f))        { asm lda #$ff; asm ldx #5;  asm ldy #0; asm jsr $ffff; }
+   if (!(one.f > mone.f))        { asm lda #$ff; asm ldx #6;  asm ldy #0; asm jsr $ffff; }
+
+   if (!(mtwo.f < mone.f))       { asm lda #$ff; asm ldx #7;  asm ldy #0; asm jsr $ffff; }
+   if (!(mone.f > mtwo.f))       { asm lda #$ff; asm ldx #8;  asm ldy #0; asm jsr $ffff; }
+
+   if (!(one.f < two.f))         { asm lda #$ff; asm ldx #9;  asm ldy #0; asm jsr $ffff; }
+   if (!(two.f > one.f))         { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+
+   if (!(one25.f < one5.f))      { asm lda #$ff; asm ldx #11; asm ldy #0; asm jsr $ffff; }
+   if (!(one5.f > one25.f))      { asm lda #$ff; asm ldx #12; asm ldy #0; asm jsr $ffff; }
+
+   if (!(pinf.f > two.f))        { asm lda #$ff; asm ldx #13; asm ldy #0; asm jsr $ffff; }
+   if (!(ninf.f < mtwo.f))       { asm lda #$ff; asm ldx #14; asm ldy #0; asm jsr $ffff; }
+   if (!(pinf.f == pinf.f))      { asm lda #$ff; asm ldx #15; asm ldy #0; asm jsr $ffff; }
+   if (!(pinf.f != ninf.f))      { asm lda #$ff; asm ldx #16; asm ldy #0; asm jsr $ffff; }
+
+   if (!(one.f <= one.f))        { asm lda #$ff; asm ldx #17; asm ldy #0; asm jsr $ffff; }
+   if (!(one.f >= one.f))        { asm lda #$ff; asm ldx #18; asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

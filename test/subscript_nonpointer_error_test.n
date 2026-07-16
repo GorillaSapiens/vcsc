@@ -1,0 +1,8 @@
+// n65c -I .
+// expectfail
+// expecterr: cannot subscript non-pointer/non-array 'y'
+include "machine_6502.n"
+int main(void) {
+   int y;
+   return y[0];
+}

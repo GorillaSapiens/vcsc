@@ -1,0 +1,100 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type s3 { $size:3 $integer:signed $endian:little };
+type s5 { $size:5 $integer:signed $endian:little };
+
+union i24bits {
+   s3 v;
+   char b[3];
+};
+
+union i40bits {
+   s5 v;
+   char b[5];
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   i24bits a;
+   i24bits b;
+   i24bits c;
+   i24bits d;
+   i24bits e;
+   i24bits f;
+   i40bits p;
+   i40bits q;
+   i40bits r;
+   i40bits s;
+   i40bits t;
+   i40bits u;
+
+   a.b[0] := 1;  a.b[1] := 2;  a.b[2] := 3;
+   b.b[0] := 16; b.b[1] := 32; b.b[2] := 48;
+
+   c.v := a.v + b.v;
+   d.v := b.v - a.v;
+   e.v := a.v;
+   e.v += b.v;
+   f.v := b.v;
+   f.v -= a.v;
+
+   if (c.b[0] != 17) { asm lda #$ff; asm ldx #1;  asm ldy #0; asm jsr $ffff; }
+   if (c.b[1] != 34) { asm lda #$ff; asm ldx #2;  asm ldy #0; asm jsr $ffff; }
+   if (c.b[2] != 51) { asm lda #$ff; asm ldx #3;  asm ldy #0; asm jsr $ffff; }
+
+   if (d.b[0] != 15) { asm lda #$ff; asm ldx #4;  asm ldy #0; asm jsr $ffff; }
+   if (d.b[1] != 30) { asm lda #$ff; asm ldx #5;  asm ldy #0; asm jsr $ffff; }
+   if (d.b[2] != 45) { asm lda #$ff; asm ldx #6;  asm ldy #0; asm jsr $ffff; }
+
+   if (e.b[0] != 17) { asm lda #$ff; asm ldx #7;  asm ldy #0; asm jsr $ffff; }
+   if (e.b[1] != 34) { asm lda #$ff; asm ldx #8;  asm ldy #0; asm jsr $ffff; }
+   if (e.b[2] != 51) { asm lda #$ff; asm ldx #9;  asm ldy #0; asm jsr $ffff; }
+
+   if (f.b[0] != 15) { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+   if (f.b[1] != 30) { asm lda #$ff; asm ldx #11; asm ldy #0; asm jsr $ffff; }
+   if (f.b[2] != 45) { asm lda #$ff; asm ldx #12; asm ldy #0; asm jsr $ffff; }
+
+   p.b[0] := 1;  p.b[1] := 2;  p.b[2] := 3;  p.b[3] := 4;  p.b[4] := 5;
+   q.b[0] := 16; q.b[1] := 32; q.b[2] := 48; q.b[3] := 64; q.b[4] := 80;
+
+   r.v := p.v + q.v;
+   s.v := q.v - p.v;
+   t.v := p.v;
+   t.v += q.v;
+   u.v := q.v;
+   u.v -= p.v;
+
+   if (r.b[0] != 17) { asm lda #$ff; asm ldx #13; asm ldy #0; asm jsr $ffff; }
+   if (r.b[1] != 34) { asm lda #$ff; asm ldx #14; asm ldy #0; asm jsr $ffff; }
+   if (r.b[2] != 51) { asm lda #$ff; asm ldx #15; asm ldy #0; asm jsr $ffff; }
+   if (r.b[3] != 68) { asm lda #$ff; asm ldx #16; asm ldy #0; asm jsr $ffff; }
+   if (r.b[4] != 85) { asm lda #$ff; asm ldx #17; asm ldy #0; asm jsr $ffff; }
+
+   if (s.b[0] != 15) { asm lda #$ff; asm ldx #18; asm ldy #0; asm jsr $ffff; }
+   if (s.b[1] != 30) { asm lda #$ff; asm ldx #19; asm ldy #0; asm jsr $ffff; }
+   if (s.b[2] != 45) { asm lda #$ff; asm ldx #20; asm ldy #0; asm jsr $ffff; }
+   if (s.b[3] != 60) { asm lda #$ff; asm ldx #21; asm ldy #0; asm jsr $ffff; }
+   if (s.b[4] != 75) { asm lda #$ff; asm ldx #22; asm ldy #0; asm jsr $ffff; }
+
+   if (t.b[0] != 17) { asm lda #$ff; asm ldx #23; asm ldy #0; asm jsr $ffff; }
+   if (t.b[1] != 34) { asm lda #$ff; asm ldx #24; asm ldy #0; asm jsr $ffff; }
+   if (t.b[2] != 51) { asm lda #$ff; asm ldx #25; asm ldy #0; asm jsr $ffff; }
+   if (t.b[3] != 68) { asm lda #$ff; asm ldx #26; asm ldy #0; asm jsr $ffff; }
+   if (t.b[4] != 85) { asm lda #$ff; asm ldx #27; asm ldy #0; asm jsr $ffff; }
+
+   if (u.b[0] != 15) { asm lda #$ff; asm ldx #28; asm ldy #0; asm jsr $ffff; }
+   if (u.b[1] != 30) { asm lda #$ff; asm ldx #29; asm ldy #0; asm jsr $ffff; }
+   if (u.b[2] != 45) { asm lda #$ff; asm ldx #30; asm ldy #0; asm jsr $ffff; }
+   if (u.b[3] != 60) { asm lda #$ff; asm ldx #31; asm ldy #0; asm jsr $ffff; }
+   if (u.b[4] != 75) { asm lda #$ff; asm ldx #32; asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

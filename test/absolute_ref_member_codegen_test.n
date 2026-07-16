@@ -1,0 +1,18 @@
+// expectasm: lda  $200 + 1
+// expectasm: sta  $200 + 2
+
+type u8 { $size:1 $integer:unsigned };
+
+struct Pair {
+   u8 a,
+   u8 b,
+   u8 c,
+};
+
+ref struct Pair regs@[0x0200/0x0200];
+
+int main(void) {
+   u8 x := regs.b;
+   regs.c := x;
+   return 0;
+}

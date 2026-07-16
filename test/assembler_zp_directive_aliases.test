@@ -1,0 +1,3 @@
+# phase: compile
+# runner: @N65ASM@ -I @NLIB_INC@ -o @TMP@/aliases.o65 @FILEDIR@/assembler_zp_directive_aliases.s
+# expectexit: 0

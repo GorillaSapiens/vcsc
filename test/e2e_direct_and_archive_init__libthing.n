@@ -1,0 +1,12 @@
+include "machine_6502.n"
+
+int thrice(int x) {
+   return x + x + x;
+}
+
+static int seed := 3;
+int g2 := thrice(seed);
+
+int lib_value(void) {
+   return g2;
+}

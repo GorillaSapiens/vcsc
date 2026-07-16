@@ -1,0 +1,19 @@
+// n65c -I .
+// expectasm: @user_blk:
+// expectasm: nop
+// expectasm: @user_here:
+// expectasm: rts
+
+include "machine_6502.n"
+
+void helper(void) {
+blk: {
+      asm nop;
+   }
+here: asm rts;
+}
+
+int main(void) {
+   helper();
+   return 0;
+}

@@ -1,0 +1,19 @@
+// n65c -I .
+
+type void  { $size:0 };
+type bool  { $size:1 $integer:unsigned };
+type *     { $size:2 $integer:unsigned $endian:little };
+type char  { $size:1 $integer:signed };
+type int   { $size:2 $integer:signed $endian:little };
+
+const char* gp;
+
+int main(void) {
+   char a[1], b[1];
+   const char* p;
+
+   p := a;
+   p := b;
+
+   return 0;
+}

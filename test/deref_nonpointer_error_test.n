@@ -1,0 +1,8 @@
+// n65c -I .
+// expectfail
+// expecterr: cannot dereference non-pointer 'y'
+include "machine_6502.n"
+int main(void) {
+   int y;
+   return *y;
+}

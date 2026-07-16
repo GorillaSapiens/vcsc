@@ -1,0 +1,25 @@
+// n65c
+// expectasm:     lda fp+1
+// expectasm:     pha
+// expectasm:     lda fp
+// expectasm:     pha
+// expectasm:     jsr id
+// expectasm:     pla
+// expectasm:     sta fp
+// expectasm:     pla
+// expectasm:     sta fp+1
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int id(int x) {
+   return x;
+}
+
+int main(void) {
+   int a := 7;
+   int b := id(a);
+   return b;
+}

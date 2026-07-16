@@ -1,0 +1,36 @@
+// n65c
+// expectasm: jsr ?@op_add@s4_p0_a0@s4_p0_a0
+// expectasm: jsr ?@op_add@u5_p0_a0@u5_p0_a0
+// expectasm: jsr ?@op_neg@s4_p0_a0
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s2   { $size:2 $integer:signed $endian:little };
+type s4   { $size:4 $integer:signed $endian:little };
+type u4   { $size:4 $integer:unsigned $endian:little };
+type u5   { $size:5 $integer:unsigned $endian:little };
+
+s4 operator+(s4 a, s4 b) {
+   return a;
+}
+
+u5 operator+(u5 a, u5 b) {
+   return a;
+}
+
+s4 operator-(s4 a) {
+   return a;
+}
+
+s4 addmix(s2 a, s4 b) {
+   return a + b;
+}
+
+u5 addumix(u4 a, u5 b) {
+   return a + b;
+}
+
+s4 negmix(s2 a) {
+   return -a;
+}

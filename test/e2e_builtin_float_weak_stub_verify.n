@@ -1,0 +1,19 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+union pun {
+   float f;
+   long  l;
+};
+
+int main(void) {
+   pun p;
+   p.f := 1.5`float + 2.25`float;
+   if (p.l != 0x40700000`long) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if ((1.0`float == 1.0`float) != 1`bool) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if ((1.0`float != 1.0`float) != 0`bool) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff; asm ldx #0; asm ldy #0; asm jsr $ffff;
+   return 0;
+}

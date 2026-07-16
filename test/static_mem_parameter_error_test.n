@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: parameter 'bar' of function 'foo' combines 'static' with mem region 'register'
+// expecterr: use 'register <type> bar' to place the symbol-backed parameter in that mem region
+// expecterr: use 'static <type> bar' for default BSS-backed parameter storage
+include "machine_6502.n"
+mem register { $start:0x0000 $size:0x0010 $rw };
+
+int foo(static register int bar) {
+   return bar;
+}

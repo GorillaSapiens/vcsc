@@ -1,0 +1,17 @@
+# runner: n65asm -X passes --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s
+# phase: e2e
+# expectexit: 0
+# expectstdout: pass 001: begin
+# expectstdout:    bytes: 11
+# expectstdout:    instructions: 6
+# expectstdout:    directives: 4
+# expectstdout:    labels: 1
+# expectstdout:    constants: 0
+# expectstdout:    zero-page encodings: 0
+# expectstdout:    absolute encodings: 1
+# expectstdout:    long branches: 0
+# expectstdout:    still relaxable: 0
+# expectstdout:    errors: 0
+# expectstdout: pass 002: begin
+# expectstdout: pass 002: stable
+# expectstderrexact:

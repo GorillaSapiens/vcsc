@@ -1,0 +1,73 @@
+// n65c -I .
+// expectexit: 0
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_eq.n
+// archivegroup: gf32_archive generated_float_archive_gf32_cmp_impl.n
+// archivegroup: gf32_archive generated_float_archive_gf32_core.n
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_ne.n
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_lt.n
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_le.n
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_gt.n
+// archivegroup: gf32_archive generated_float_archive_gf32_operator_ge.n
+include "machine_6502.n"
+include "generated_float_archive_gf32_decls.n"
+
+union gf32_bits {
+   gf32 f;
+   char b[4];
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+ref char gfailcode@[none/0x02f0];
+
+void fail(int code) {
+   gfailcode := code;
+   asm lda #$ff;
+   asm ldx $02f0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   gf32_bits one;
+   gf32_bits halfv;
+   gf32_bits pinf;
+   gf32_bits ninf;
+   gf32_bits nanv;
+
+   one.f := 1.0;
+   halfv.f := 0.5;
+   pinf.b[0] := 0x00; pinf.b[1] := 0x00; pinf.b[2] := 0x80; pinf.b[3] := 0x7f;
+   ninf.b[0] := 0x00; ninf.b[1] := 0x00; ninf.b[2] := 0x80; ninf.b[3] := 0xff;
+   nanv.b[0] := 0x01; nanv.b[1] := 0x00; nanv.b[2] := 0x80; nanv.b[3] := 0x7f;
+
+   if (!(one.f == one.f))     { fail(1); }
+   if (one.f == halfv.f)      { fail(2); }
+   if (!(one.f != halfv.f))   { fail(3); }
+   if (one.f != one.f)        { fail(4); }
+   if (!(halfv.f < one.f))    { fail(5); }
+   if (one.f < halfv.f)       { fail(6); }
+   if (!(one.f >= one.f))     { fail(7); }
+   if (!(one.f >= halfv.f))   { fail(8); }
+   if (halfv.f >= one.f)      { fail(9); }
+   if (!(pinf.f >= one.f))    { fail(10); }
+   if (!(ninf.f < halfv.f))   { fail(11); }
+   if (nanv.f == one.f)       { fail(12); }
+   if (!(nanv.f != one.f))    { fail(13); }
+   if (nanv.f < one.f)        { fail(14); }
+   if (nanv.f >= one.f)       { fail(15); }
+   if (!(one.f > halfv.f))     { fail(16); }
+   if (halfv.f > one.f)        { fail(17); }
+   if (!(halfv.f <= one.f))    { fail(18); }
+   if (!(one.f <= one.f))      { fail(19); }
+   if (one.f <= halfv.f)       { fail(20); }
+   if (nanv.f > one.f)         { fail(21); }
+   if (nanv.f <= one.f)        { fail(22); }
+
+   pass();
+}

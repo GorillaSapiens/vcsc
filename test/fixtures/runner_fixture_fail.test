@@ -1,0 +1,3 @@
+# runner: perl -e "print qq(child fail\n)"
+# expectstdout: definitely-not-present
+# expectexit: 0

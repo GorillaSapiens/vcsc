@@ -1,0 +1,12 @@
+// n65c -I .
+// forbiderr: too big for 1 bytes!
+
+include "machine_6502.n"
+
+char dec_ok := 65;
+char hex_ok := 0x41;
+char oct_ok := 0101;
+char bin_ok := 0b01000001;
+
+void main(void) {
+}

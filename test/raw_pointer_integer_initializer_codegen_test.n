@@ -1,0 +1,10 @@
+// n65c -I .
+// expectasm: lda #$03
+// expectasm: sta (fp),y
+
+include "machine_6502.n"
+
+int main(void) {
+   int *q := 3;
+   return 0;
+}

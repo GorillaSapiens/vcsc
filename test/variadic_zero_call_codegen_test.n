@@ -1,0 +1,26 @@
+// n65c -I .
+// expectasmordered: lda #$08
+// expectasmordered: jsr _pushN
+// expectasmordered: jsr _fp2ptr0p
+// expectasmordered: ldy #2
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #4
+// expectasmordered: lda #$00
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #5
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #6
+// expectasmordered: lda #$77
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #7
+// expectasmordered: lda #$66
+// expectasmordered: sta (fp),y
+// expectasmordered: jsr sniff
+
+include "machine_6502.n"
+
+extern int sniff(int tag, ...);
+
+int probe(void) {
+   return sniff(0x6677);
+}

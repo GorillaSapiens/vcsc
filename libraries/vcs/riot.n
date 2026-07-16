@@ -1,0 +1,22 @@
+// Atari 2600 / VCS RIOT (6532) register bindings.
+//
+// This file assumes the target has already defined the core 6502-sized types.
+// Canonical register addresses use the usual VCS RIOT locations. These are
+// also mirrored by the hardware, but the canonical addresses are what source
+// should normally use.
+
+// 128 bytes of RIOT RAM live at $80-$FF and are mirrored elsewhere.
+mem riot_ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem riot_stack { $start:0x0180 $size:0x0080 $rw };
+
+// RIOT I/O and timer registers.
+ref char SWCHA @[0x0280/0x0280];
+ref char SWACNT@[0x0281/0x0281];
+ref char SWCHB @[0x0282/0x0282];
+ref char SWBCNT@[0x0283/0x0283];
+ref char INTIM @[0x0284/none];
+ref char TIMINT@[0x0285/none];
+ref char TIM1T @[none/0x0294];
+ref char TIM8T @[none/0x0295];
+ref char TIM64T@[none/0x0296];
+ref char T1024T@[none/0x0297];

@@ -1,0 +1,5 @@
+// n65c -X invert
+
+// this is meant to be a complete failure, it should never compile
+
+sdflgknaf;gjbnqerg;pjkqberg;qjkrbfg

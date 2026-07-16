@@ -1,0 +1,10 @@
+// n65c -I .
+// expectasm: __memmeta$V1$banana$S0400$Z0100$Trw = 0
+// expectasm: .export __memmeta$V1$banana$S0400$Z0100$Trw
+// expectasmordered: .segment "BSS.banana"
+// expectasmordered: x?:
+// expectasmordered: 	.res 2
+include "machine_6502.n"
+mem banana { $start:0x0400 $size:0x0100 $rw };
+
+banana int x;

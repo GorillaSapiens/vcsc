@@ -1,0 +1,9 @@
+# runner: @REPO@/compiler/n65c -X dumpast -quiet -I @TEST_ROOT@ @TEST_ROOT@/fixtures/pointer_postinc_deref_input.n -o @TMP@/out.s
+# expectexit: 0
+# expectstdoutordered: assign_expr
+# expectstdoutordered: identifier :=
+# expectstdoutordered: ├── *
+# expectstdoutordered: identifier p
+# expectstdoutordered: identifier post++
+# expectstdoutordered: integer_literal 7
+# expectstderrexact:

@@ -1,0 +1,62 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type u4 { $size:4 $integer:unsigned $endian:little };
+
+struct FloatBits {
+   u4 mantissa:23;
+   u4 exponent:8;
+   u4 sign:1;
+};
+
+union FloatOverlay {
+   float f;
+   u4 word;
+   char b[4];
+   FloatBits bits;
+};
+
+FloatOverlay fu;
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (sizeof(FloatBits) != 4)         { asm lda #$ff; asm ldx #1;  asm ldy #0; asm jsr $ffff; }
+   if (sizeof(FloatOverlay) != 4)      { asm lda #$ff; asm ldx #2;  asm ldy #0; asm jsr $ffff; }
+
+   fu.f := 1.0;
+   if (fu.bits.sign != 0)              { asm lda #$ff; asm ldx #3;  asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.exponent != 127)        { asm lda #$ff; asm ldx #4;  asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.mantissa != 0)          { asm lda #$ff; asm ldx #5;  asm ldy #0; asm jsr $ffff; }
+
+   fu.f := 1.5;
+   if (fu.bits.sign != 0)              { asm lda #$ff; asm ldx #6;  asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.exponent != 127)        { asm lda #$ff; asm ldx #7;  asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.mantissa != 0x400000)   { asm lda #$ff; asm ldx #8;  asm ldy #0; asm jsr $ffff; }
+
+   fu.word := 0;
+   fu.bits.mantissa := 0;
+   fu.bits.exponent := 127;
+   fu.bits.sign := 1;
+   if (fu.bits.mantissa != 0)          { asm lda #$ff; asm ldx #9;  asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.exponent != 127)        { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.sign != 1)              { asm lda #$ff; asm ldx #11; asm ldy #0; asm jsr $ffff; }
+   if (!(fu.f == -1.0))                { asm lda #$ff; asm ldx #12; asm ldy #0; asm jsr $ffff; }
+
+   fu.word := 0;
+   fu.bits.mantissa := 0x400000;
+   fu.bits.exponent := 127;
+   fu.bits.sign := 0;
+   if (fu.bits.mantissa != 0x400000)   { asm lda #$ff; asm ldx #13; asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.exponent != 127)        { asm lda #$ff; asm ldx #14; asm ldy #0; asm jsr $ffff; }
+   if (fu.bits.sign != 0)              { asm lda #$ff; asm ldx #15; asm ldy #0; asm jsr $ffff; }
+   if (!(fu.f == 1.5))                 { asm lda #$ff; asm ldx #16; asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

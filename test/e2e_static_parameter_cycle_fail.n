@@ -1,0 +1,18 @@
+// n65c -I .
+// expectfail
+// expecterr: call graph cycle reaches function 'a' with symbol-backed parameters
+include "machine_6502.n"
+
+int b(int x);
+
+int a(static int x) {
+   return b(x);
+}
+
+int b(int x) {
+   return a(x);
+}
+
+int main(void) {
+   return 0;
+}

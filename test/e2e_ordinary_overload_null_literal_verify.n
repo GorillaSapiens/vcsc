@@ -1,0 +1,26 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+type BYTE { $size:1 $integer:unsigned };
+type DWORD { $size:4 $integer:unsigned $endian:little };
+
+int disk_writep(int buff, int sc) {
+   return 1;
+}
+
+int disk_writep(BYTE *buff, DWORD sc) {
+   if (buff != 0) { return 3; }
+   if (sc != 0`DWORD) { return 4; }
+   return 2;
+}
+
+void main(void) {
+   if (disk_writep(0, 0) != 2) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

@@ -1,0 +1,14 @@
+// n65c -I .
+// expectfail
+// expecterr: type 'va_list' member 'args' must be declared as 'void *'
+include "machine_6502.n"
+struct va_list {
+   char *args;
+   char *bytes;
+   char *offset;
+};
+int scan(int tag, ...) {
+   va_list ap;
+   va_start(ap);
+   return tag;
+}

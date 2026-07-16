@@ -1,0 +1,13 @@
+// n65c
+// expectfail
+// expecterr: shift count 16 exceeds 16-bit left operand
+
+type bool { $size:1 $integer:unsigned };
+type void { $size:0 };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u2   { $size:2 $integer:unsigned $endian:little };
+
+u2 bad := 1`u2 << 16;
+
+void main(void) {
+}

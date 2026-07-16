@@ -1,0 +1,23 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+type BYTE { $size:1 $integer:unsigned };
+
+alias FA__WIP 0x40
+
+BYTE clear(BYTE flag) {
+   flag &= ~FA__WIP;
+   return flag;
+}
+
+void main(void) {
+   if (clear(0xff`BYTE) != 0xbf`BYTE) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (clear(0x40`BYTE) != 0x00`BYTE) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (clear(0x33`BYTE) != 0x33`BYTE) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

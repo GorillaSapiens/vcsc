@@ -1,0 +1,19 @@
+// n65c -I .
+// expectasmordered: jsr disk_writep@BYTE_p1_a0@DWORD_p0_a0
+
+include "machine_6502.n"
+
+type BYTE { $size:1 $integer:unsigned };
+type DWORD { $size:4 $integer:unsigned $endian:little };
+
+int disk_writep(int buff, int sc) {
+   return 1;
+}
+
+int disk_writep(BYTE *buff, DWORD sc) {
+   return 2;
+}
+
+void main(void) {
+   disk_writep(0, 0);
+}

@@ -1,0 +1,53 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+type u8    { $size:1 $integer:unsigned };
+type f10le { $size:10 $float:simple $endian:little };
+
+union f10le_bits {
+   f10le f;
+   u8 b[10];
+};
+
+void fail1(void) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+void fail2(void) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+void fail3(void) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+void fail4(void) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+void fail5(void) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+void fail6(void) { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
+void fail7(void) { asm lda #$ff; asm ldx #7; asm ldy #0; asm jsr $ffff; }
+void fail8(void) { asm lda #$ff; asm ldx #8; asm ldy #0; asm jsr $ffff; }
+void fail9(void) { asm lda #$ff; asm ldx #9; asm ldy #0; asm jsr $ffff; }
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   f10le_bits exact_hex;
+   f10le_bits rounded_hex;
+   f10le_bits exact_dec;
+
+   exact_hex.f := 0x1.0000000000000001p+0;
+   rounded_hex.f := 0x1.00000000000000003p+0;
+   exact_dec.f := 18446744073709551617.0;
+
+   if (exact_hex.b[0] != 0x08) { fail1(); }
+   if (exact_hex.b[8] != 0xf8) { fail2(); }
+   if (exact_hex.b[9] != 0x3f) { fail3(); }
+
+   if (rounded_hex.b[0] != 0x02) { fail4(); }
+   if (rounded_hex.b[8] != 0xf8) { fail5(); }
+   if (rounded_hex.b[9] != 0x3f) { fail6(); }
+
+   if (exact_dec.b[0] != 0x08) { fail7(); }
+   if (exact_dec.b[8] != 0xf8) { fail8(); }
+   if (exact_dec.b[9] != 0x41) { fail9(); }
+
+   pass();
+}

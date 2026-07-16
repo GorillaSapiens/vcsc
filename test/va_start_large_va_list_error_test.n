@@ -1,0 +1,14 @@
+// n65c -I . -I ../libraries/nlib
+// expectfail
+// expecterr: type 'va_list' is too large for va_start
+type bool { $size:1 $integer:unsigned };
+type void { $size:0 };
+type char { $size:1 $integer:signed };
+type * { $size:12 $integer:unsigned $endian:little };
+type int { $size:2 $integer:signed $endian:little };
+include "stdarg.n"
+int scan(int tag, ...) {
+   va_list ap;
+   va_start(ap);
+   return tag;
+}

@@ -1,0 +1,9 @@
+// n65c -I . -X invert
+// expecterr: integer '256' is too big for 1 bytes!
+
+include "machine_6502.n"
+
+char dec_over := 256;
+
+void main(void) {
+}

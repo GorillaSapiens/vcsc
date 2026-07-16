@@ -1,0 +1,7 @@
+// n65c -I .
+// expectfail
+// expecterr: '$$' is reserved for the current function's return slot
+// expecterr: do not declare it
+// expecterr: assign to '$$' directly
+include "machine_6502.n"
+int $$(void) { return 1; }

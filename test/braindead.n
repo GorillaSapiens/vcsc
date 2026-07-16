@@ -1,0 +1,3 @@
+// n65c -X parseonly
+
+include "braindead.n"

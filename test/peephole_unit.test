@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/peephole_unit.pl
+# phase: compile
+# timeout: 20
+# expectexit: 0
+# expectstdout: peephole unit tests passed

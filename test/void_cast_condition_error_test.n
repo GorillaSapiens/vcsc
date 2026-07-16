@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: void_cast_condition_error_test.n:7.16] void expression has no value
+include "machine_6502.n"
+int g;
+int main(void) {
+   if ((void)g) {
+      return 1;
+   }
+   return 0;
+}

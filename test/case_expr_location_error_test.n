@@ -1,0 +1,11 @@
+// n65c -I . -I test
+include "machine_6502.n"
+
+void main(void) {
+   switch (1) {
+      case ((1 + 2) * 3 == 9) ? 8 : 7:
+         break;
+      default:
+         break;
+   }
+}

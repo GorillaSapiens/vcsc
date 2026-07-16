@@ -1,0 +1,18 @@
+// n65c -I .
+// archive: e2e_abi_union_archive_mismatch_fail__lib.n
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for global symbol 'shared_union' object type
+// expectlinkerr: e2e_abi_union_archive_mismatch_fail.o65: declaration -> memory union#1(size=2){bytes @0 storage=2 array[2] of signed_integer(size=1); whole @0 storage=2 signed_integer(size=2, little-endian)}
+// expectlinkerr: e2e_abi_union_archive_mismatch_fail__lib.a65(e2e_abi_union_archive_mismatch_fail__lib.o65): definition -> memory union#1(size=4){wide @0 storage=4 signed_integer(size=4, little-endian); whole @0 storage=2 signed_integer(size=2, little-endian)}
+include "machine_6502.n"
+
+union Shared {
+   char bytes[2];
+   int whole;
+};
+
+extern Shared shared_union;
+
+int main(void) {
+   return shared_union.whole;
+}

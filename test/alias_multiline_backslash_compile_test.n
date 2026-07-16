@@ -1,0 +1,10 @@
+// n65c -I .
+
+include "machine_6502.n"
+
+alias DATA { 1, 2, \
+             3, 4 }
+
+void main(void) {
+   char x[4] := DATA;
+}

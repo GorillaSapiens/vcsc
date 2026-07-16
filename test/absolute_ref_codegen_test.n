@@ -1,0 +1,24 @@
+// n65c -I .
+// expectasm: lda  $00
+// expectasm: sta  $80
+// expectasm: lda  $100
+// expectasm: sta  $180
+
+include "machine_6502.n"
+
+type u8  { $size:1 $integer:unsigned };
+type u16 { $size:2 $integer:unsigned $endian:little };
+
+ref u8 ro@[0x00/none];
+ref u8 wo@[none/0x80];
+ref u16 banked@[0x100/0x180];
+
+u8 sink;
+
+int main(void) {
+   sink := ro;
+   banked := 0x1234;
+   wo := sink;
+   sink := banked;
+   return 0;
+}

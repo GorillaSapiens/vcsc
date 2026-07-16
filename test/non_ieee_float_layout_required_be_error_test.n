@@ -1,0 +1,9 @@
+// n65c -I .
+// expectfail
+// expecterr: float style 'ieee754' does not support $size:3
+include "machine_6502.n"
+type f3be { $size:3 $float:ieee754 $endian:big };
+int main(void) {
+   f3be x := 1.0;
+   return 0;
+}

@@ -1,0 +1,3 @@
+include "machine_6502.n"
+
+zeropage int shared := 7;

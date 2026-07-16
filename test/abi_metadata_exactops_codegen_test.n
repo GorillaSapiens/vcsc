@@ -1,0 +1,22 @@
+// n65c -I .
+// expectasm: .export __abimeta$V1$function$definition$exact_param$return$modeQ3Dreturn_valueQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ3BexactopsQ3D1Q29$return_valueQ20signed_integerQ28sizeQ3D4Q2CQ20littleQ2DendianQ2CQ20exactopsQ29
+// expectasm: .export __abimeta$V1$function$definition$exact_param$param0$modeQ3Dstack_valueQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ3BexactopsQ3D1Q29$stack_valueQ20signed_integerQ28sizeQ3D4Q2CQ20littleQ2DendianQ2CQ20exactopsQ29
+// expectasm: .export __abimeta$V1$global$definition$exact_global$object$modeQ3DmemoryQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ3BexactopsQ3D1Q29$memoryQ20signed_integerQ28sizeQ3D4Q2CQ20littleQ2DendianQ2CQ20exactopsQ29
+// expectasm: .export __abimeta$V1$function$definition$plain_param$param0$modeQ3Dstack_valueQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ29$stack_valueQ20signed_integerQ28sizeQ3D4Q2CQ20littleQ2DendianQ29
+// forbidasm: __abimeta$V1$function$definition$plain_param$param0$modeQ3Dstack_valueQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ3BexactopsQ3D1
+// forbidasm: __abimeta$V1$global$definition$plain_global$object$modeQ3DmemoryQ3BscalarQ28szQ3D4Q3BkindQ3Dsigned_intQ3BendQ3DlittleQ3BexactopsQ3D1
+include "machine_6502.n"
+
+type scalar4 { $size:4 $integer:signed $endian:little };
+type scalar4x { $size:4 $integer:signed $endian:little $exactops };
+
+scalar4x exact_param(scalar4x x) {
+   return x;
+}
+
+scalar4 plain_param(scalar4 x) {
+   return x;
+}
+
+scalar4x exact_global;
+scalar4 plain_global;

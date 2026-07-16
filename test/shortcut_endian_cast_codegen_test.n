@@ -1,0 +1,24 @@
+// n65c -I .
+// expectasm: jsr _pushN
+// expectasm: jsr _fcmp
+// expectasm: .import _pushN
+// expectasm: .import _fcmp
+
+include "machine_6502.n"
+
+type u2be { $size:2 $integer:unsigned $endian:big };
+type u2le { $size:2 $integer:unsigned $endian:little };
+type f4be { $size:4 $float:ieee754 $endian:big };
+type f4le { $size:4 $float:ieee754 $endian:little };
+
+u2le addle(u2be a, u2le b) {
+   return ($little)a + b;
+}
+
+u2be addbe(u2be a, u2le b) {
+   return a + ($big)b;
+}
+
+bool samef(f4be a, f4le b) {
+   return ($little)a == b;
+}

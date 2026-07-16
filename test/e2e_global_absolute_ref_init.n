@@ -1,0 +1,34 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type u8  { $size:1 $integer:unsigned };
+
+type intlit { $size:2 $integer:signed $endian:little };
+
+int twice(int x) {
+   return x + x;
+}
+
+ref int direct@0x0600 := twice(3) + 1;
+ref char split[2]@[none/0x0608] := { 52, 18 };
+ref u8 direct_lo@0x0600;
+ref u8 direct_hi@0x0601;
+ref u8 split_wr0@0x0608;
+ref u8 split_wr1@0x0609;
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (direct_lo != 7)  { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (direct_hi != 0)  { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (direct != 7)     { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   if (split_wr0 != 52) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   if (split_wr1 != 18) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   pass();
+}

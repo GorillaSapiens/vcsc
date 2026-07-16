@@ -1,0 +1,27 @@
+// n65c -I .
+// expectasm: jsr _callptr0
+// expectasm: .proc inc?
+
+include "machine_6502.n"
+
+struct holder {
+   int (*func)(int);
+};
+
+int inc(int x) {
+   return x + 1;
+}
+
+int dec(int x) {
+   return x - 1;
+}
+
+int main(void) {
+   holder a[2];
+   int q := 1;
+
+   a[0].func := inc;
+   a[1].func := dec;
+
+   return a[q].func(6);
+}

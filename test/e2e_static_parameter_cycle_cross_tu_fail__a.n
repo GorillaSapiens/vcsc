@@ -1,0 +1,7 @@
+include "machine_6502.n"
+
+int b(int x);
+
+int a(static int x) {
+   return b(x);
+}

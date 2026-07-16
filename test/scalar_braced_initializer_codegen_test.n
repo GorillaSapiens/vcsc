@@ -1,0 +1,32 @@
+// n65c
+// expectasm: g_direct:
+// expectasm: 	.byte $05, $00
+// expectasm: g_nested:
+// expectasm: 	.byte $07, $00
+// expectasm: .export __init_
+// expectasm: .proc __init_
+// expectasm: jsr twice
+// expectasm: sta g_runtime,y
+// expectasm: demo$s:
+// expectasm: .res 2
+// expectasm: sta demo$s,y
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int twice(int x) {
+   return x + x;
+}
+
+int g_direct := { 5 };
+int g_nested := { { 7 } };
+int seed := 3;
+int g_runtime := { twice(seed) + 1 };
+
+int demo(void) {
+   static int s := { twice(3) + 1 };
+   int x := { 9 };
+   return g_direct + g_nested + g_runtime + s + x;
+}

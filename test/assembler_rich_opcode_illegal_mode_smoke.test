@@ -1,0 +1,5 @@
+# runner: n65asm --illegals --hex=@TMP@/rich_bad.hex @TEST_ROOT@/assembler_rich_opcode_illegal_mode_smoke.s
+# phase: e2e
+# expectexit: 1
+# expectstderr: illegal addressing mode for LAX
+# expectstdoutexact:

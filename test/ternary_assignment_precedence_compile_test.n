@@ -1,0 +1,16 @@
+// n65c -I .
+
+include "machine_6502.n"
+
+void main(void) {
+   int cond;
+   int iftrue := 11;
+   int iffalse := 22;
+   int out;
+
+   cond := 0;
+   out := cond ? iftrue : iffalse;
+
+   cond := 1;
+   out := cond ? iftrue : iffalse;
+}

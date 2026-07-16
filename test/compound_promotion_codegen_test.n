@@ -1,0 +1,32 @@
+// n65c
+// expectasm: .import _copysxNle
+// expectasm: .import _copyzxNle
+// expectasmordered: lda #$02
+// expectasmordered: sta arg0
+// expectasmordered: lda #$04
+// expectasmordered: sta arg1
+// expectasmordered: jsr _copysxNle
+// expectasmordered: lda #$04
+// expectasmordered: sta arg0
+// expectasmordered: lda #$05
+// expectasmordered: sta arg1
+// expectasmordered: jsr _copyzxNle
+// forbidasm: and #$80
+
+type void      { $size:0 };
+type bool      { $size:1 $integer:unsigned };
+type s2        { $size:2 $integer:signed $endian:little };
+type s4        { $size:4 $integer:signed $endian:little };
+type u4        { $size:4 $integer:unsigned $endian:little };
+type u5        { $size:5 $integer:unsigned $endian:little };
+type *         { $size:2 $integer:unsigned $endian:little };
+
+s4 addassign_signed(s4 a, s2 b) {
+   a += b;
+   return a;
+}
+
+u5 addassign_unsigned(u5 a, u4 b) {
+   a += b;
+   return a;
+}

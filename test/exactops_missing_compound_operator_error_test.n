@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: type 's4x' uses '$exactops' and requires visible overload 'operator+' for same-type operands
+
+include "machine_6502.n"
+
+type s4x { $size:4 $integer:signed $endian:little $exactops };
+
+void add_assign(ref s4x a, s4x b) {
+   a += b;
+}

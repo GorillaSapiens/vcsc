@@ -1,0 +1,6 @@
+# runner: n65asm --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s
+# phase: e2e
+# expectexit: 0
+# expectfile: @TMP@/rich.hex A912AB348D3412F001EAEA
+# expectstdoutexact:
+# expectstderrexact:

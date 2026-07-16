@@ -1,0 +1,4 @@
+*.o
+*.d
+n65sim
+version.h

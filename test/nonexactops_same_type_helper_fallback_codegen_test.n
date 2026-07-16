@@ -1,0 +1,16 @@
+// n65c -I .
+// expectasm: jsr _add32le
+// expectasm: jsr _leNsle
+// forbidasm: ?@op_add@s4h_p0_a0@s4h_p0_a0
+// forbidasm: ?@op_le@s4h_p0_a0@s4h_p0_a0
+
+include "machine_6502.n"
+
+type s4h { $size:4 $integer:signed $endian:little };
+
+s4h add_or_cmp(s4h a, s4h b) {
+   if (a <= b) {
+      return a + b;
+   }
+   return a;
+}

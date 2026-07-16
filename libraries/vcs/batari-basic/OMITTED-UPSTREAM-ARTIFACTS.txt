@@ -1,0 +1,12 @@
+The following upstream batari Basic artifacts were not mirrored into this text/source
+kernel import because they are packaged binary blobs rather than text/source files:
+
+- includes/DPCplus.arm
+- includes/PXE-pre.arm
+- includes/PXE-post.arm
+- includes/PXE_CC_pre.arm
+- includes/PXE_CC_post.arm
+- includes/custom/bin/custom2.bin
+
+If you decide you want those vendored too, treat that as a separate binary-artifact
+import with its own provenance and license review.

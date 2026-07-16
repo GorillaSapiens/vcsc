@@ -1,0 +1,22 @@
+// n65c -I .
+// expectasmordered: ldy #8
+// expectasmordered: lda #$01
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #6
+// expectasmordered: lda #$02
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #4
+// expectasmordered: lda #$03
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #2
+// expectasmordered: lda #$04
+// expectasmordered: sta (fp),y
+include "machine_6502.n"
+
+int ord4(int a, int b, int c, int d) {
+   return a + b + c + d;
+}
+
+int main(void) {
+   return ord4(1, 2, 3, 4);
+}

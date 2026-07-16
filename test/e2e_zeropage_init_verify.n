@@ -1,0 +1,35 @@
+// n65c -I .
+// expectsim: OK
+include "machine_6502.n"
+
+static char ok[4] := { 'O', 'K', '\n', 0 };
+static char bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+zeropage int z := 5;
+zeropage char pad;
+zeropage char trio[3] := { 1, 2, 3 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (z == 5 && pad == 0 && trio[0] == 1 && trio[1] == 2 && trio[2] == 3) {
+      print_ok();
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

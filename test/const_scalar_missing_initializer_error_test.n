@@ -1,0 +1,13 @@
+// n65c -I .
+// expectfail
+// expecterr: 'const' missing initializer
+
+type void  { $size:0 };
+type bool  { $size:1 $integer:unsigned };
+type *     { $size:2 $integer:unsigned $endian:little };
+type char  { $size:1 $integer:signed };
+
+const char x;
+
+void main(void) {
+}

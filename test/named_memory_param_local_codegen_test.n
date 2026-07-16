@@ -1,0 +1,12 @@
+// n65c -I .
+// expectasm: .segment "BSS.banana"
+// expectasm: bump$x:
+// expectasm: .segment "DATA.banana"
+// expectasm: bump$q:
+include "machine_6502.n"
+mem banana { $start:0x0400 $size:0x0100 $rw };
+
+void bump(banana int x) {
+   banana char q[3] := { 1, 2, 3 };
+   x++;
+}

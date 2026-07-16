@@ -1,0 +1,16 @@
+// n65c -I .
+// expectfail
+// expecterr: syntax error, unexpected IDENTIFIER
+
+include "machine_6502.n"
+
+int main(void) {
+   int x := 3;
+   int y := 1;
+   switch (x) {
+      case y + 2:
+         return 1;
+      default:
+         return 0;
+   }
+}

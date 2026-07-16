@@ -1,0 +1,19 @@
+// n65c -I .
+// expectasmordered: ldy #0
+// expectasmordered: lda #$3f
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #1
+// expectasmordered: lda #$80
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #2
+// expectasmordered: lda #$00
+// expectasmordered: sta (fp),y
+
+include "machine_6502.n"
+
+type f3be { $size:3 $float:simple $endian:big };
+
+int main(void) {
+   f3be x := 1.5;
+   return 0;
+}

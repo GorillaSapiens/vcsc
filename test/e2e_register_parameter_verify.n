@@ -1,0 +1,32 @@
+// n65c -I .
+// linkcfg: e2e_register_parameter_verify__register.cfg
+// expectexit: 0
+include "machine_6502.n"
+mem register { $start:0x0080 $size:0x0010 $rw };
+
+type u4 { $size:4 $integer:unsigned $endian:little };
+
+u4 observed;
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void capture(register u4 value) {
+   observed := value;
+}
+
+void main(void) {
+   observed := 0`u4;
+   capture(0x12345678`u4);
+   if (observed != 0x12345678`u4) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   pass();
+}

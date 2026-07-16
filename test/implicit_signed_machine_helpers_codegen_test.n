@@ -1,0 +1,20 @@
+// n65c
+// expectasm: .import _copysxNle
+// expectasm: jsr _copysxNle
+// expectasm: jsr _asrNle
+// expectasm: jsr _leNsle
+
+include "machine_6502.n"
+
+long widen(char c) {
+   long out := c;
+   return out;
+}
+
+int shr(int value, int bits) {
+   return value >> bits;
+}
+
+bool ge_zero(int value) {
+   return value >= 0;
+}

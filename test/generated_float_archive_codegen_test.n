@@ -1,0 +1,23 @@
+// n65c -I .
+// expectasm: .import ?@op_add@gf32_p0_a0@gf32_p0_a0
+// expectasm: .import ?@op_div@gf32_p0_a0@gf32_p0_a0
+// expectasm: .import ?@op_ge@gf32_p0_a0@gf32_p0_a0
+// expectasm: jsr ?@op_add@gf32_p0_a0@gf32_p0_a0
+// expectasm: jsr ?@op_div@gf32_p0_a0@gf32_p0_a0
+// expectasm: jsr ?@op_ge@gf32_p0_a0@gf32_p0_a0
+include "machine_6502.n"
+include "generated_float_archive_gf32_decls.n"
+
+void main(void) {
+   gf32 a;
+   gf32 b;
+   gf32 c;
+   bool q;
+
+   c := a + b;
+   c := a / b;
+   q := a >= b;
+   if (q) {
+      asm nop;
+   }
+}

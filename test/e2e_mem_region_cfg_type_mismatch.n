@@ -1,0 +1,15 @@
+// n65c -I .
+// linkcfg: e2e_mem_region_cfg_type_mismatch__bad.cfg
+// expectlinkfail
+// expectlinkerr: mem region 'banana' type mismatch
+// expectlinkerr: compiler mem declaration says rw
+// expectlinkerr: linker cfg MEMORY BANANA has type ro
+include "machine_6502.n"
+mem banana { $start:0x0400 $size:0x0100 $rw };
+
+banana int x;
+
+void main(void) {
+   while (1) {
+   }
+}

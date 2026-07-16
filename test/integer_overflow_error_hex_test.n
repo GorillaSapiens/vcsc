@@ -1,0 +1,9 @@
+// n65c -I . -X invert
+// expecterr: integer '0x100' is too big for 1 bytes!
+
+include "machine_6502.n"
+
+char hex_over := 0x100;
+
+void main(void) {
+}

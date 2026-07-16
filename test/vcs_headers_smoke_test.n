@@ -1,0 +1,12 @@
+// n65c -I ../libraries/vcs
+// expectasm: lda  $3C
+// expectasm: sta  $01
+// expectasm: sta  $0296
+include "vcs.n"
+
+int main(void) {
+   char x := INPT4;
+   VBLANK := x;
+   TIM64T := 42;
+   return INTIM + SWCHB;
+}

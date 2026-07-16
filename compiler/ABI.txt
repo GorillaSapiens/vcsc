@@ -1,0 +1,103 @@
+If you're not respecting the ABI, you're one segfault away from chaos.
+
+int foo(int in_sp, const int ref_in_sp, static int in_var_not_stack)
+
+before call:
+; push room for return+args onto ARGUMENT stack
+lda #size
+sta arg0
+jsr _pushN
+; populate return/arg area relative to caller fp
+; stack-backed args occupy the frame in declaration order as seen by the callee,
+; which means the caller writes the leftmost argument into the highest-addressed
+; argument slot and the rightmost argument into the lowest-addressed slot.
+; save caller frame pointer on HARDWARE stack
+lda fp+1
+pha
+lda fp
+pha
+; jsr to target
+jsr _foo
+; restore caller frame pointer from HARDWARE stack
+pla
+sta fp
+pla
+sta fp+1
+; copy return value out of caller's pushed area if needed
+; pop return+arg area from ARGUMENT stack
+lda #size
+sta arg0
+jsr _popN
+
+function prologue:
+; transfer current sp to fp
+lda sp+1
+sta fp+1
+lda sp
+sta fp
+; allocate locals if any with pushN
+
+function epilogue:
+; pop locals if any with popN
+rts
+
+reset/startup:
+; initialize both sp and fp to the initial argument-stack base
+; because the argument stack grows upward, startup should seed them at __stack_start
+
+A, P, X, and Y are caller-clobbered across ordinary function calls.
+Callers must assume callees may freely overwrite them unless an API explicitly
+documents stronger guarantees. The default calling sequence only preserves the
+frame pointer so the callee can establish its stack frame and the caller can
+recover it after the call.
+
+NOTE: If you do have a special-case wrapper that needs to preserve both A and P,
+and you want P exactly as it was, you must pull P last:
+PHP      ; save status
+PHA      ; save A
+...
+PLA      ; restore A (and flags get set from A)
+PLP      ; restore original status flags, including N/Z
+
+
+Variadic call ABI
+-----------------
+
+Variadic arguments are passed as a raw byte blob plus two hidden metadata slots.
+The caller lays out a variadic call frame in this order:
+
+1. return slot
+2. raw variadic blob bytes
+3. hidden `__va_args` pointer to the first blob byte
+4. hidden `__va_arg_bytes` total byte count
+5. fixed stack-backed parameters in declaration order as seen by the callee
+
+The raw variadic blob is packed left-to-right in source argument order with no padding and no alignment holes.
+Each variadic argument contributes exactly its actual runtime storage size. There are no C-style default promotions for variadic arguments. A `char` stays 1 byte, an `int` stays 2 bytes, a `long` stays 4 bytes, and so on.
+
+Each variadic argument's bytes are copied in that argument's own storage order. On the default 6502 machine description that means little-endian integer bytes, but the compiler does not re-pack the blob to some separate canonical varargs endianness.
+
+Inside a variadic callee, the compiler synthesizes two reserved implementation locals:
+
+- `__va_args` ... `void *` pointing at the first raw variadic byte
+- `__va_arg_bytes` ... pointer-sized integer metadata holding the total byte length of the raw variadic blob
+
+These names are reserved and may not be used by user declarations.
+
+The user-facing wrapper in `libraries/nlib/stdarg.n` defines:
+
+```n
+struct va_list {
+   void *args;
+   void *bytes;
+   void *offset;
+};
+```
+
+`va_start(ap)` initializes `ap.args`, `ap.bytes`, and zeroes `ap.offset`.
+`va_arg(ap, out)` copies `sizeof(out)` bytes from `ap.args + ap.offset` into `out`, then increments `ap.offset` by that same byte count.
+`va_end(ap)` zeroes the `va_list` state.
+
+`bytes` and `offset` are exposed as pointer-width `void *` slots because ordinary user declarations do not have a direct bare-object spelling for the builtin `*` type. Treat them as raw pointer-sized counters, not as character pointers to dereference.
+
+`va_arg(ap, out)` is intentionally raw and unchecked. It does not verify types, promotions, alignment, or bounds at runtime. Caller and callee must already agree on the exact sequence of sizes and types.

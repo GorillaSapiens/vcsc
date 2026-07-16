@@ -1,0 +1,13 @@
+// n65c -I .
+// expectasm: jsr _f32_mul
+// expectasm: .import _f32_mul
+
+include "machine_6502.n"
+
+float mulf(float a, float b) {
+   return a * b;
+}
+
+void mul_assignf(ref float a, float b) {
+   a *= b;
+}

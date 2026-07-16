@@ -1,0 +1,16 @@
+// n65c -I .
+// expectasmordered: sta a?,y
+// expectasmordered: lda #<{a? + 0}
+// expectasmordered: ora (fp),y
+// expectasmordered: beq @if_false_
+
+include "machine_6502.n"
+
+int a;
+
+int main(void) {
+   if (a := 1) {
+      return a;
+   }
+   return 0;
+}

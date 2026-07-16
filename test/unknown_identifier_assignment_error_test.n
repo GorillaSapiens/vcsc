@@ -1,0 +1,8 @@
+// n65c -I .
+// expectfail
+// expecterr: unknown_identifier_assignment_error_test.n:6.14] unknown identifier 'missing'
+include "machine_6502.n"
+int main(void) {
+   missing := 1;
+   return 0;
+}

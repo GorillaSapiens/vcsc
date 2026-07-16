@@ -1,0 +1,12 @@
+// n65c
+// expectfail
+// expecterr: type_decl_stmt 'bool' must use '$integer:unsigned'
+
+type void { $size:0 };
+type bool { $size:1 $integer:signed };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int main(void) {
+   return 0;
+}

@@ -1,0 +1,13 @@
+// n65c
+// expectfail
+// expecterr: mixed signed/unsigned ordinary integer operator '+' requires an explicit cast
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s2   { $size:2 $integer:signed $endian:little };
+type u4   { $size:4 $integer:unsigned $endian:little };
+
+u4 bad(s2 a, u4 b) {
+   return a + b;
+}

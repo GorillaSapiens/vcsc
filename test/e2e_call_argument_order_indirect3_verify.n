@@ -1,0 +1,19 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+int ord3(int a, int b, int c) {
+   return a + 10 * b + 100 * c;
+}
+
+int (*fp3)(int, int, int) := ord3;
+
+void main(void) {
+   int r3;
+   r3 := fp3(1, 2, 3);
+   if (r3 != 321) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

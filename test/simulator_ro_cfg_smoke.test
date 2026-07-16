@@ -1,0 +1,5 @@
+# runner: stdbuf -o0 n65sim -T @TEST_ROOT@/simulator_smoke.cfg @TEST_ROOT@/simulator_smoke_ro_write.hex
+# phase: e2e
+# timeout: 2
+# expectexit: 1
+# expectstderr: write to read-only memory at $2000

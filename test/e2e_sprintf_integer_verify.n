@@ -1,0 +1,48 @@
+// n65c -I . -I ../libraries/nlib
+// expectexit: 0
+
+include "machine_6502.n"
+include "sprintf.n"
+
+
+int text_len(char *s) {
+   int n := 0;
+   while (s[n] != 0) {
+      n := n + 1;
+   }
+   return n;
+}
+
+int expect_text(char *got, char *want, int code) {
+   int i := 0;
+   while (got[i] == want[i] && want[i] != 0) {
+      i := i + 1;
+   }
+   if (got[i] != want[i]) {
+      return code;
+   }
+   return 0;
+}
+
+void main(void) {
+   char buf[96];
+   int count;
+   fmt_s1 s1 := 0`fmt_s1 - 5`fmt_s1;
+   fmt_s2 s2 := 0`fmt_s2 - 1234`fmt_s2;
+   fmt_s4 s4 := 0`fmt_s4 - 70000`fmt_s4;
+   fmt_s8 s8 := 0`fmt_s8 - 5000000000`fmt_s8;
+   fmt_u1 u1 := 0xab`fmt_u1;
+   fmt_u2 u2 := 0xbeef`fmt_u2;
+   fmt_u4 u4 := 0x89abcdef`fmt_u4;
+   fmt_u8 u8 := 0x123456789abcdef0`fmt_u8;
+   char *want := "-5 -1234 -70000 -5000000000 ab beef 89abcdef 123456789abcdef0 %";
+
+   count := sprintf(buf, "%hhd %d %ld %lld %hhx %x %lx %llx %%", s1, s2, s4, s8, u1, u2, u4, u8);
+   if (expect_text(buf, want, 1) != 0) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (count != text_len(want)) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

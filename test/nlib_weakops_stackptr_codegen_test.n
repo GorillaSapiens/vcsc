@@ -1,0 +1,17 @@
+// n65c
+// expectfile: ../libraries/nlib/asm/weakops.asm jsr _sp2ptr0m
+// expectfile: ../libraries/nlib/asm/weakops.asm jsr _sp2ptr2m
+// expectfile: ../libraries/nlib/asm/weakops.asm jsr _sp2ptr3m
+// forbidfile: ../libraries/nlib/asm/weakops.asm _fp2ptr
+// forbidfile: ../libraries/nlib/asm/weakops.asm sta fp
+// expectfile: ../libraries/nlib/asm/sbrk.asm sta fp
+// expectfile: ../libraries/nlib/asm/sbrk.asm jsr _fp2ptr0m
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type int  { $size:2 $integer:signed $endian:little };
+type *    { $size:2 $integer:unsigned $endian:little };
+
+int main(void) {
+   return 0;
+}

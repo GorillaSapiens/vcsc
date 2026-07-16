@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: void_cast_switch_error_test.n:7.20] void expression has no value
+include "machine_6502.n"
+int g;
+int main(void) {
+   switch ((void)g) {
+      case 0: return 0;
+   }
+   return 1;
+}

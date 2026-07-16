@@ -1,0 +1,92 @@
+// n65c
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u2le { $size:2 $integer:unsigned $endian:little };
+type u2be { $size:2 $integer:unsigned $endian:big };
+
+void sink(u2be v) {
+}
+
+void sink_le(u2le v) {
+}
+
+u2be return_add(u2be a, u2le b) {
+   return a + b;
+}
+
+u2be return_sub(u2be a, u2le b) {
+   return a - b;
+}
+
+u2be return_mul(u2be a, u2le b) {
+   return a * b;
+}
+
+u2be return_div(u2be a, u2le b) {
+   return a / b;
+}
+
+u2be return_mod(u2be a, u2le b) {
+   return a % b;
+}
+
+u2be return_and(u2be a, u2le b) {
+   return a & b;
+}
+
+u2be return_or(u2be a, u2le b) {
+   return a | b;
+}
+
+u2be return_xor(u2be a, u2le b) {
+   return a ^ b;
+}
+
+u2be return_shl(u2be a, u2le b) {
+   return a << b;
+}
+
+u2be return_shr(u2be a, u2le b) {
+   return a >> b;
+}
+
+u2be init_target(u2be a, u2le b) {
+   u2be r := a * b;
+   return r;
+}
+
+u2be assign_target(u2be a, u2le b) {
+   u2be r;
+   r := a * b;
+   return r;
+}
+
+u2be braced_assign_target(u2be a, u2le b) {
+   u2be r;
+   r := { a * b };
+   return r;
+}
+
+void call_target(u2be a, u2le b) {
+   sink(a * b);
+}
+
+void call_target_le(u2be a, u2le b) {
+   sink_le(a * b);
+}
+
+u2be nested_target(u2be a, u2le b, u2le c) {
+   return (a * b) + c;
+}
+
+bool compare_return(u2be a, u2le b) {
+   return a < b;
+}
+
+void compare_condition(u2be a, u2le b) {
+   if (a == b) {
+      sink(a);
+   }
+}

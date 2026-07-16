@@ -1,0 +1,13 @@
+// n65c -I .
+// expectasm: jsr _f32_sub
+// expectasm: .import _f32_sub
+
+include "machine_6502.n"
+
+float subf(float a, float b) {
+   return a - b;
+}
+
+void sub_assignf(ref float a, float b) {
+   a -= b;
+}

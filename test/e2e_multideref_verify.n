@@ -1,0 +1,96 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+void fail1(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail2(void) {
+   asm lda #$ff;
+   asm ldx #2;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail3(void) {
+   asm lda #$ff;
+   asm ldx #3;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail4(void) {
+   asm lda #$ff;
+   asm ldx #4;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail5(void) {
+   asm lda #$ff;
+   asm ldx #5;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail6(void) {
+   asm lda #$ff;
+   asm ldx #6;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+int bump(int v) {
+   return v + 1;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   int x := 0;
+   int y := 3;
+   int z;
+   int *p := &x;
+   int **pp := &p;
+   int ***ppp := &pp;
+
+   ***ppp := 5;
+   if (x != 5) {
+      fail1();
+   }
+
+   if (!***ppp) {
+      fail2();
+   }
+
+   p := &y;
+   if (***ppp != 3) {
+      fail3();
+   }
+
+   z := bump(***ppp);
+   if (z != 4) {
+      fail4();
+   }
+
+   ***ppp := 4;
+   if (y != 4) {
+      fail5();
+   }
+
+   if (bump(***ppp) != 5) {
+      fail6();
+   }
+
+   pass();
+}

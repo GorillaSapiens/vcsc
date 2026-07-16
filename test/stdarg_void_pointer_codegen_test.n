@@ -1,0 +1,12 @@
+// n65c -I . -I ../libraries/nlib
+// expectasm: .proc scan
+// forbidasm: member 'args' must be declared as 'char *'
+// forbidasm: builtin variadic support requires type 'char'
+include "machine_6502.n"
+include "stdarg.n"
+int scan(int tag, ...) {
+   va_list ap;
+   va_start(ap);
+   va_end(ap);
+   return tag;
+}

@@ -1,0 +1,68 @@
+# Doxygen configuration for the n65 toolchain source tree.
+PROJECT_NAME           = "n65 Toolchain"
+PROJECT_BRIEF          = "Compiler, assembler, linker, archiver, and driver for n65"
+OUTPUT_DIRECTORY       = doxygen
+CREATE_SUBDIRS         = NO
+
+INPUT                  = README.md \
+                         docs/mainpage.dox \
+                         docs/tool_usage.dox \
+                         compiler \
+                         assembler \
+                         linker \
+                         archiver \
+                         driver \
+                         libraries/nlib \
+                         libraries/petiteffs/source \
+                         simulator/mos6502
+RECURSIVE              = YES
+FILE_PATTERNS          = *.c *.h *.dox *.md
+
+EXCLUDE                = test \
+                         assembler/tests \
+                         libraries/vcs \
+                         libraries/nlib/wrk \
+                         build
+EXCLUDE_PATTERNS       = */lex.yy.c \
+                         */parser.tab.c \
+                         */parser.tab.h \
+                         */parser.output \
+                         */coverage_map.h \
+                         */delexer.h \
+                         */*.o \
+                         */*.d \
+                         */n65c \
+                         */n65asm \
+                         */n65ld \
+                         */n65ar \
+                         */n65cc \
+                         */n65sim \
+                         */build/* \
+                         */test/* \
+                         */tests/*
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+OPTIMIZE_OUTPUT_FOR_C  = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = NO
+QUIET                  = NO
+HAVE_DOT               = NO
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = YES
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES

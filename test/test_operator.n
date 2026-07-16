@@ -1,0 +1,26 @@
+// n65c -X dumpast -X parseonly
+
+type bool  { $size:1 $integer:unsigned };
+type int   { $size:2 $integer:signed $endian:little };
+bool operator{}(int);     // used by && || !, may be skipped if all 0x00 is false
+int  operator|(int,int);  // bitwise |, may be skipped if true bitwise or is ok
+int  operator^(int,int);  // bitwise ^, may be skipped if true bitwise xor is ok
+int  operator&(int,int);  // bitwise &, may be skipped if true bitwise and is ok
+bool operator==(int,int); // comparison ==, may be skipped if true bytewise comparison is ok
+bool operator!=(int,int); // comparison !=, may be skipped if == defined
+bool operator<=(int,int); // comparison <=, may be skipped if > defined
+bool operator>=(int,int); // comparison >=, may be skipped if < defined
+bool operator<(int,int);  // comparison <, may be skipped if >= defined
+bool operator>(int,int);  // comparison >, may be skipped if <= defined
+int  operator<<(int,int); // left shift, may be skipped if true bitwise left shift is ok
+int  operator>>(int,int); // right shift, may be skipped if true bitwise right shift is ok
+int  operator+(int,int);  // addition
+int  operator-(int,int);  // subtraction
+int  operator*(int,int);  // multiplication
+int  operator/(int,int);  // division
+int  operator%(int,int);  // modulo
+int  operator~(int);      // bitwise negation, may be skipped if true bitwise negation is ok
+int  operator-(int);      // unary negative
+int  operator+(int);      // unary positive, may be skipped if no-op
+int  operator++(int);     // unary incremement
+int  operator--(int);      // unary decrement

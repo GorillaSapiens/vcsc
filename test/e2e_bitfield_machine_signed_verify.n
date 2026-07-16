@@ -1,0 +1,35 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+struct CharBits {
+   char value:4;
+};
+
+struct LongBits {
+   long value:23;
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   CharBits cb;
+   LongBits lb;
+
+   cb.value := 0x0c;
+   if (cb.value != 0xfc`char) {
+      asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
+   }
+
+   lb.value := 0x400000;
+   if (lb.value != 0xffc00000`long) {
+      asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff;
+   }
+
+   pass();
+}

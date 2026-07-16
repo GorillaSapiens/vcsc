@@ -1,0 +1,20 @@
+// n65c
+// expectasm: bump$x:
+// expectasm: 	.res 2
+// expectasm: sta bump$x,y
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u1   { $size:1 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int bump(static ref u1 x, u1 y) {
+   x += y;
+   return x;
+}
+
+int main(void) {
+   u1 a := 7;
+   return bump(a, 2`u1);
+}

@@ -1,0 +1,5 @@
+include "machine_6502.n"
+void main(void) {
+   int *p;
+   (*p)++;
+}

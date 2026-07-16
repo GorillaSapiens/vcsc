@@ -1,0 +1,14 @@
+// n65c -I .
+// expectasmordered: sta b,y
+// expectasmordered: lda #<{b + 0}
+// expectasmordered: sta a?,y
+
+include "machine_6502.n"
+
+int a;
+int b;
+
+int main(void) {
+   a := (b := 3);
+   return a + b;
+}

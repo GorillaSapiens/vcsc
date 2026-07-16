@@ -1,0 +1,35 @@
+// n65c -I .
+// expectsim: OK
+// archive: e2e_zeropage_init_archive_verify__lib.n
+include "machine_6502.n"
+
+static char ok[4] := { 'O', 'K', '\n', 0 };
+static char bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+int lib_sum(void);
+int lib_pad(void);
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (lib_sum() == 24 && lib_pad() == 0) {
+      print_ok();
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

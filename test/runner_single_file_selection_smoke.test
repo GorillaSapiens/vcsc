@@ -1,0 +1,6 @@
+# runner: perl @TEST_ROOT@/test.pl @TEST_ROOT@/fixtures/runner_fixture_pass.test
+# timeout: 120
+# expectexit: 0
+# expectstdout: runner_fixture_pass.test
+# expectstdout: Summary: 1 passed, 0 failed, 1 total
+# forbidstdout: runner_fixture_fail.test

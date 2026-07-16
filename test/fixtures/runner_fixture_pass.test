@@ -1,0 +1,3 @@
+# runner: perl -e "print qq(child pass\n)"
+# expectstdout: child pass
+# expectexit: 0

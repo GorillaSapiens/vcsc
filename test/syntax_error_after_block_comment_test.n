@@ -1,0 +1,10 @@
+// n65c -I .
+// expectfail
+// expecterr: Error at syntax_error_after_block_comment_test.n:10.1
+// expecterr: syntax error, unexpected ':='
+
+include "machine_6502.n"
+
+/* one
+two */
+:=

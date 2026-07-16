@@ -1,0 +1,26 @@
+# runner: n65asm -X passes --hex=@TMP@/good.hex @REPO@/assembler/tests/good.s
+# phase: e2e
+# expectexit: 0
+# expectstdout: pass 001: begin
+# expectstdout:    bytes: 258
+# expectstdout:    instructions: 115
+# expectstdout:    directives: 7
+# expectstdout:    labels: 12
+# expectstdout:    zero-page encodings: 2
+# expectstdout:    absolute encodings: 37
+# expectstdout:    long branches: 8
+# expectstdout:    still relaxable: 8
+# expectstdout:    bytes: 258 -> 219 (-39)
+# expectstdout:    zero-page encodings: 2 -> 17 (+15)
+# expectstdout:    absolute encodings: 37 -> 22 (-15)
+# expectstdout:    long branches: 8 -> 0 (-8)
+# expectstdout:    still relaxable: 8 -> 0 (-8)
+# expectstdout: pass 002: begin
+# expectstdout: pass 003: begin
+# expectstdout: pass 003: stable
+# expectstdout:    bytes: 219
+# expectstdout:    zero-page encodings: 17
+# expectstdout:    absolute encodings: 22
+# expectstdout:    long branches: 0
+# expectstdout:    still relaxable: 0
+# expectstderrexact:

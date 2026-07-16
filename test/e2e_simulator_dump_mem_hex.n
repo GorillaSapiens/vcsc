@@ -1,0 +1,61 @@
+// n65c -I .
+// expectsim: ---8<--- BEGIN MEMORY DUMP ---8<---
+// expectsim: :100300000102030405060708090A0B0C0D0E0F1065
+// expectsim: :00000001FF
+// expectsim: ---8<---  END MEMORY DUMP  ---8<---
+// expectexit: 0
+
+include "machine_6502.n"
+
+ref char m0@0x0300;
+ref char m1@0x0301;
+ref char m2@0x0302;
+ref char m3@0x0303;
+ref char m4@0x0304;
+ref char m5@0x0305;
+ref char m6@0x0306;
+ref char m7@0x0307;
+ref char m8@0x0308;
+ref char m9@0x0309;
+ref char m10@0x030A;
+ref char m11@0x030B;
+ref char m12@0x030C;
+ref char m13@0x030D;
+ref char m14@0x030E;
+ref char m15@0x030F;
+
+void dump(void) {
+   asm lda #$fe;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   m0 := 1;
+   m1 := 2;
+   m2 := 3;
+   m3 := 4;
+   m4 := 5;
+   m5 := 6;
+   m6 := 7;
+   m7 := 8;
+   m8 := 9;
+   m9 := 10;
+   m10 := 11;
+   m11 := 12;
+   m12 := 13;
+   m13 := 14;
+   m14 := 15;
+   m15 := 16;
+
+   dump();
+   pass();
+}

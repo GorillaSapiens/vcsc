@@ -1,0 +1,20 @@
+// n65c -I .
+// expectasm: .export __sbpmeta$F$a?
+// expectasm: __sbpmeta$F$a? = 0
+// expectasm: .export __sbpmeta$E$a?$b
+// expectasm: __sbpmeta$E$a?$b = 0
+include "machine_6502.n"
+
+int b(int x);
+
+int a(static int x) {
+   return b(x);
+}
+
+int b(int x) {
+   return x + 1;
+}
+
+int main(void) {
+   return a(3);
+}

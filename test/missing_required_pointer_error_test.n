@@ -1,0 +1,9 @@
+// n65c -I .
+// expectfail
+// expecterr: required pointer type '*' is not defined
+type bool { $size:1 $integer:unsigned };
+type void { $size:0 };
+type int { $size:2 $integer:signed $endian:little };
+int main(void) {
+   return 0;
+}

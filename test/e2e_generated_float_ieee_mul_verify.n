@@ -1,0 +1,82 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type gf32 { $size:4 $endian:little $float:ieee754 };
+include "generated_gf32_mul_ops.n"
+
+union gf32_bits {
+   gf32 f;
+   char b[4];
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+ref char gfailcode@[none/0x02f0];
+
+void fail(int code) {
+   gfailcode := code;
+   asm lda #$ff;
+   asm ldx $02f0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void expect4(gf32_bits got, gf32_bits want, int code) {
+   if (got.b[0] != want.b[0]) { fail(code + 0); }
+   if (got.b[1] != want.b[1]) { fail(code + 1); }
+   if (got.b[2] != want.b[2]) { fail(code + 2); }
+   if (got.b[3] != want.b[3]) { fail(code + 3); }
+}
+
+void main(void) {
+   gf32_bits one;
+   gf32_bits halfv;
+   gf32_bits onep5;
+   gf32_bits two;
+   gf32_bits threeq;
+   gf32_bits zero;
+   gf32_bits mhalf;
+   gf32_bits mone;
+   gf32_bits special;
+   gf32_bits pinf;
+   gf32_bits ninf;
+   gf32_bits nanv;
+   gf32_bits qnan;
+
+   one.f := 1.0;
+   halfv.f := 0.5;
+   onep5.f := 1.5;
+   two.f := 2.0;
+   threeq.f := 0.75;
+   zero.f := 0.0;
+   mhalf.f := -0.5;
+   mone.f := -1.0;
+
+   pinf.b[0] := 0x00; pinf.b[1] := 0x00; pinf.b[2] := 0x80; pinf.b[3] := 0x7f;
+   ninf.b[0] := 0x00; ninf.b[1] := 0x00; ninf.b[2] := 0x80; ninf.b[3] := 0xff;
+   nanv.b[0] := 0x01; nanv.b[1] := 0x00; nanv.b[2] := 0x80; nanv.b[3] := 0x7f;
+   qnan.b[0] := 0x00; qnan.b[1] := 0x00; qnan.b[2] := 0xc0; qnan.b[3] := 0x7f;
+
+   special.f := onep5.f * halfv.f;
+   expect4(special, threeq, 1);
+
+   special.f := mhalf.f * two.f;
+   expect4(special, mone, 9);
+
+   special.f := pinf.f * mhalf.f;
+   expect4(special, ninf, 13);
+
+   special.f := pinf.f * zero.f;
+   expect4(special, qnan, 17);
+
+   special.f := nanv.f * one.f;
+   expect4(special, nanv, 21);
+
+   pass();
+}

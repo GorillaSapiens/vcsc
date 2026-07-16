@@ -1,0 +1,13 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+type fbe { $size:4 $endian:big $float:ieee754 };
+union bits { fbe f; char b[4]; };
+ref char gfailcode@[none/0x02f0];
+void pass(void) { asm lda #$ff; asm ldx #0; asm ldy #0; asm jsr $ffff; }
+void fail(int code) { gfailcode := code; asm lda #$ff; asm ldx $02f0; asm ldy #0; asm jsr $ffff; }
+void expect4(bits got, bits want) {
+   if (got.b[0] != want.b[0]) { fail(1); } if (got.b[1] != want.b[1]) { fail(2); }
+   if (got.b[2] != want.b[2]) { fail(3); } if (got.b[3] != want.b[3]) { fail(4); }
+}
+void main(void) { bits g; bits w; g.f := 1.5`fbe / 0.5`fbe; w.b[0] := 0x40; w.b[1] := 0x40; w.b[2] := 0x00; w.b[3] := 0x00; expect4(g, w); pass(); }

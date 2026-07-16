@@ -1,0 +1,26 @@
+// n65c -I .
+// expectasm: .import _lsrNle
+// expectasm: .import _lslNle
+// expectasm: .import _asrNle
+// expectasmordered: jsr _asrNle
+// expectasmordered: ldy #8
+// expectasmordered: lda (fp),y
+// expectasmordered: ldy #0
+// expectasmordered: sta (fp),y
+
+include "machine_6502.n"
+
+type u6 { $size:6 $integer:unsigned $endian:little };
+type s6 { $size:6 $integer:signed $endian:little };
+
+u6 expr_u(u6 a, int b) {
+   return a >> b;
+}
+
+u6 expr_ul(u6 a, int b) {
+   return a << b;
+}
+
+void assign_s(ref s6 a, int b) {
+   a >>= b;
+}

@@ -1,0 +1,19 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+int ord4(int a, int b, int c, int d) {
+   return a + 10 * b + 100 * c + 1000 * d;
+}
+
+int (*fp4)(int, int, int, int) := ord4;
+
+void main(void) {
+   int r4;
+   r4 := fp4(1, 2, 3, 4);
+   if (r4 != 4321) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

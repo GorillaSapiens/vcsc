@@ -1,0 +1,15 @@
+// n65c
+// expectfail
+// expecterr: argument 1 passed to ref parameter of function 'foo' must be an lvalue
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+void foo(ref int x) {
+}
+
+void main(int a, int b) {
+   foo(a * b);
+}

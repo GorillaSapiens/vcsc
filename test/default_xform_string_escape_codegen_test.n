@@ -1,0 +1,21 @@
+// n65c -I .
+// expectasmordered: text:
+// expectasmordered: 	.byte $5c, $6e, $00
+// expectasmordered: nl:
+// expectasmordered: 	.byte $0a, $00
+// expectasmordered: __data_0:
+// expectasmordered: 	.byte $5c, $6e, $00
+// expectasmordered: ps:
+// expectasmordered: __data_1:
+// expectasmordered: 	.byte $0a, $00
+
+include "machine_6502.n"
+
+char text[3] := "\\n";
+char nl[2] := "\n";
+char *ps := "\\n";
+char *pn := "\n";
+
+int main(void) {
+   return 0;
+}

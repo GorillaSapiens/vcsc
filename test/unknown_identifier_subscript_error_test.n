@@ -1,0 +1,7 @@
+// n65c -I .
+// expectfail
+// expecterr: unknown_identifier_subscript_error_test.n:6.18] unknown identifier 'missing'
+include "machine_6502.n"
+int main(void) {
+   return missing[0];
+}

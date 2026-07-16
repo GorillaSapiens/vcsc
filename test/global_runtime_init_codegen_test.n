@@ -1,0 +1,24 @@
+// n65c
+// expectasm: .import _zeroN
+// expectasm: .export __init_
+// expectasm: .proc __init_
+// expectasmordered: .proc __init_
+// expectasmordered: jsr _zeroN
+// expectasmordered: jsr twice
+// expectasmordered: sta g,y
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int twice(int x) {
+   return x + x;
+}
+
+int seed := 3;
+int g := twice(seed) + 1;
+
+int main(void) {
+   return g;
+}

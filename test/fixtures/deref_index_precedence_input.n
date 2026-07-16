@@ -1,0 +1,6 @@
+include "machine_6502.n"
+void main(void) {
+   int *q[2];
+   int x;
+   x := *q[1];
+}

@@ -1,0 +1,14 @@
+// n65c
+// expectasm:     jsr twice
+
+include "machine_6502.n"
+
+int twice(int x);
+
+int main(void) {
+   return twice(21);
+}
+
+int twice(int x) {
+   return x + x;
+}

@@ -1,0 +1,21 @@
+// n65c
+// expectasm: .export __init_
+// expectasm: .proc __init_
+// expectasm: demo$s:
+// expectasm: .res 2
+// expectasm: jsr twice
+// expectasm: sta demo$s,y
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int twice(int x) {
+   return x + x;
+}
+
+int demo(void) {
+   static int s := twice(3) + 1;
+   return s;
+}

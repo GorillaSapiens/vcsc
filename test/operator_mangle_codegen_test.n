@@ -1,0 +1,76 @@
+// n65c -I .
+// expectasm: jsr ?@op_add@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_pos@opm_p0_a0
+// expectasm: jsr ?@op_sub@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_neg@opm_p0_a0
+// expectasm: jsr ?@op_mul@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_div@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_mod@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_and@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_or@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_xor@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_inv@opm_p0_a0
+// expectasm: jsr ?@op_eq@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_ne@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_lt@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_le@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_gt@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_ge@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_lsh@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_rsh@opm_p0_a0@opm_p0_a0
+// expectasm: jsr ?@op_inc@opm_r1_p0_a0
+// expectasm: jsr ?@op_dec@opm_r1_p0_a0
+// expectasm: jsr ?@op_tst@opm_p0_a0
+// forbidasm: operatorx
+
+include "machine_6502.n"
+
+type opm { $size:2 $integer:signed $endian:little $exactops };
+
+opm operator+(opm a, opm b);
+opm operator+(opm a);
+opm operator-(opm a, opm b);
+opm operator-(opm a);
+opm operator*(opm a, opm b);
+opm operator/(opm a, opm b);
+opm operator%(opm a, opm b);
+opm operator&(opm a, opm b);
+opm operator|(opm a, opm b);
+opm operator^(opm a, opm b);
+opm operator~(opm a);
+bool operator==(opm a, opm b);
+bool operator!=(opm a, opm b);
+bool operator<(opm a, opm b);
+bool operator<=(opm a, opm b);
+bool operator>(opm a, opm b);
+bool operator>=(opm a, opm b);
+opm operator<<(opm a, opm b);
+opm operator>>(opm a, opm b);
+opm operator++(ref opm a);
+opm operator--(ref opm a);
+bool operator{}(opm a);
+
+opm do_binary(opm a, opm b) {
+   return ((((((((a + b) - b) * b) / b) % b) & b) | b) ^ b) << b >> b;
+}
+
+opm do_unary(opm a) {
+   return ~(-(+a));
+}
+
+bool do_compare(opm a, opm b) {
+   return a == b || a != b || a < b || a <= b || a > b || a >= b;
+}
+
+opm do_incdec(ref opm a) {
+   ++a;
+   --a;
+   return a;
+}
+
+bool do_truth(opm a) {
+   if (a) {
+      return true;
+   }
+   return false;
+}

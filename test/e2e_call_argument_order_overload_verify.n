@@ -1,0 +1,43 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+int pick(int a, int b) {
+   return a + 10 * b;
+}
+
+int pick(char a, char b) {
+   return a + 10 * b;
+}
+
+int operator-(int a, int b) {
+   return a + 10 * b;
+}
+
+void main(void) {
+   int i1;
+   int i2;
+   int ri;
+   int rop;
+   char c1;
+   char c2;
+   int rc;
+
+   i1 := 1;
+   i2 := 2;
+   c1 := 1;
+   c2 := 2;
+
+   ri := pick(1, 2);
+   rc := pick(c1, c2);
+   rop := i1 - i2;
+
+   if (ri != 21) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (rc != 21) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (rop != 21) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

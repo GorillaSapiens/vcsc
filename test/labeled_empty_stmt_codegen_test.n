@@ -1,0 +1,10 @@
+// n65c -I .
+// expectasm: @user_done:
+
+include "machine_6502.n"
+
+int main(void) {
+   goto done;
+done: ;
+   return 0;
+}

@@ -1,0 +1,21 @@
+// n65c -I .
+// expectasmordered: ldy #1
+// expectasmordered: lda #$01
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #2
+// expectasmordered: lda #$02
+// expectasmordered: sta (fp),y
+// expectasmordered: @for_start_
+include "machine_6502.n"
+
+type u8 { $size:1 $integer:unsigned };
+type intlit { $size:2 $integer:signed $endian:little };
+
+int main(void) {
+   u8 sum := 0;
+   for (u8 i := 1, j := 2; i < 4; i++) {
+      sum += i;
+      sum += j;
+   }
+   return sum;
+}

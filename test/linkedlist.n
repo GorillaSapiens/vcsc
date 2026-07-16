@@ -1,0 +1,8 @@
+// n65c
+
+include "machine_6502.n"
+
+struct llnode {
+   int data;
+   llnode *next;
+};

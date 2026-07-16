@@ -1,0 +1,19 @@
+// n65c -I .
+// expectasmordered: slot:
+// expectasmordered: 	.res 1
+// expectasmordered: small:
+// expectasmordered: 	.byte $03
+// expectasmordered: wide:
+// expectasmordered: 	.byte $00, $01
+
+include "machine_6502.n"
+
+type u1 { $size:1 $integer:unsigned };
+type u2 { $size:2 $integer:unsigned $endian:little };
+
+enum Small { RED := 1, GREEN, BLUE };
+enum Wide { BIG := 255, HUGE };
+
+Small slot;
+Small small := BLUE;
+Wide wide := HUGE;

@@ -1,0 +1,30 @@
+// n65c
+// expectasm: jsr ?@op_add@int_p0_a0@int_p0_a0
+// expectasm: jsr ?@op_lsh@int_p0_a0@int_p0_a0
+// expectasm: jsr ?@op_and@int_p0_a0@int_p0_a0
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type int  { $size:2 $integer:signed $endian:little };
+
+int operator+(int a, int b) {
+   return a;
+}
+
+int operator<<(int a, int b) {
+   return a;
+}
+
+int operator&(int a, int b) {
+   return a;
+}
+
+int main(void) {
+   int x;
+   int y;
+   x += y;
+   x <<= y;
+   x &= y;
+   return x;
+}

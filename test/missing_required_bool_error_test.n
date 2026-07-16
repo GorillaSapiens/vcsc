@@ -1,0 +1,9 @@
+// n65c -I .
+// expectfail
+// expecterr: required type 'bool' is not defined
+type void { $size:0 };
+type * { $size:2 $integer:unsigned $endian:little };
+type int { $size:2 $integer:signed $endian:little };
+int main(void) {
+   return 0;
+}

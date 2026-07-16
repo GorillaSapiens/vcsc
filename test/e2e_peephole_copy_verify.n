@@ -1,0 +1,41 @@
+// n65c -I . -X peephole
+// expecterr: 001 peephole
+// expecterr: total_saved=15
+// expecterr: dup_load=6
+// expecterr: jump_next=1
+// expectexit: 0
+include "machine_6502.n"
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail(int code) {
+   asm lda #$ff;
+   asm ldx $02f0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+ref char gfailcode@[none/0x02f0];
+
+int f(int a) {
+   int x;
+   x := a;
+   return x;
+}
+
+void main(void) {
+   if (f(0x1234) != 0x1234) {
+      gfailcode := 1;
+      fail(1);
+   }
+   if (f(0) != 0) {
+      gfailcode := 2;
+      fail(2);
+   }
+   pass();
+}

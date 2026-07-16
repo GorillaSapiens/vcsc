@@ -1,0 +1,31 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+type u1x { $size:1 $integer:unsigned $endian:little };
+type u2x { $size:2 $integer:unsigned $endian:little };
+
+type s1x { $size:1 $integer:signed $endian:little };
+
+u1x shl_byte(u1x x) {
+   return x << 7;
+}
+
+u2x shl_word(u2x x) {
+   return x << 8;
+}
+
+s1x shr_signed(s1x x) {
+   return x >> 1;
+}
+
+void main(void) {
+   if (shl_byte(1`u1x) != 128`u1x) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (shl_word(1`u2x) != 256`u2x) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (shr_signed(-2`s1x) != -1`s1x) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

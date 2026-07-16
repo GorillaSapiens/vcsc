@@ -1,0 +1,72 @@
+// Atari 2600 / VCS TIA register bindings.
+//
+// This file assumes the target has already defined the core 6502-sized types
+// such as `char`, `int`, and pointers. The generic `machine_6502.n` test file
+// or a platform-specific machine definition can provide those.
+//
+// Canonical register addresses use the usual TIA base page locations. The TIA
+// is heavily mirrored in the VCS address space, but these are the conventional
+// symbolic addresses to use in source.
+
+// write-only TIA registers ($00-$2C)
+ref char VSYNC @[none/0x00];
+ref char VBLANK@[none/0x01];
+ref char WSYNC @[none/0x02];
+ref char RSYNC @[none/0x03];
+ref char NUSIZ0@[none/0x04];
+ref char NUSIZ1@[none/0x05];
+ref char COLUP0@[none/0x06];
+ref char COLUP1@[none/0x07];
+ref char COLUPF@[none/0x08];
+ref char COLUBK@[none/0x09];
+ref char CTRLPF@[none/0x0A];
+ref char REFP0 @[none/0x0B];
+ref char REFP1 @[none/0x0C];
+ref char PF0   @[none/0x0D];
+ref char PF1   @[none/0x0E];
+ref char PF2   @[none/0x0F];
+ref char RESP0 @[none/0x10];
+ref char RESP1 @[none/0x11];
+ref char RESM0 @[none/0x12];
+ref char RESM1 @[none/0x13];
+ref char RESBL @[none/0x14];
+ref char AUDC0 @[none/0x15];
+ref char AUDC1 @[none/0x16];
+ref char AUDF0 @[none/0x17];
+ref char AUDF1 @[none/0x18];
+ref char AUDV0 @[none/0x19];
+ref char AUDV1 @[none/0x1A];
+ref char GRP0  @[none/0x1B];
+ref char GRP1  @[none/0x1C];
+ref char ENAM0 @[none/0x1D];
+ref char ENAM1 @[none/0x1E];
+ref char ENABL @[none/0x1F];
+ref char HMP0  @[none/0x20];
+ref char HMP1  @[none/0x21];
+ref char HMM0  @[none/0x22];
+ref char HMM1  @[none/0x23];
+ref char HMBL  @[none/0x24];
+ref char VDELP0@[none/0x25];
+ref char VDELP1@[none/0x26];
+ref char VDELBL@[none/0x27];
+ref char RESMP0@[none/0x28];
+ref char RESMP1@[none/0x29];
+ref char HMOVE @[none/0x2A];
+ref char HMCLR @[none/0x2B];
+ref char CXCLR @[none/0x2C];
+
+// read-only TIA registers ($30-$3D)
+ref char CXM0P @[0x30/none];
+ref char CXM1P @[0x31/none];
+ref char CXP0FB@[0x32/none];
+ref char CXP1FB@[0x33/none];
+ref char CXM0FB@[0x34/none];
+ref char CXM1FB@[0x35/none];
+ref char CXBLPF@[0x36/none];
+ref char CXPPMM@[0x37/none];
+ref char INPT0 @[0x38/none];
+ref char INPT1 @[0x39/none];
+ref char INPT2 @[0x3A/none];
+ref char INPT3 @[0x3B/none];
+ref char INPT4 @[0x3C/none];
+ref char INPT5 @[0x3D/none];

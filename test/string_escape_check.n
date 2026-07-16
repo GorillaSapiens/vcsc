@@ -1,0 +1,19 @@
+// n65c
+
+type void      { $size:0 };
+type bool     { $size:1 $integer:unsigned };
+type char      { $size:1    $integer:signed };
+type uchar     { $size:1  $integer:unsigned };
+type *         { $size:2  $integer:unsigned $endian:little };
+type int       { $size:4    $integer:signed $endian:little };
+type uint      { $size:4  $integer:unsigned $endian:little };
+
+char nl[3] := "\n";
+char mix[5] := "A\x42\101";
+char *gp := "\\\"";
+
+int main(void) {
+   char local[5] := "A\x42\101";
+   char *p := "\n";
+   return 0;
+}

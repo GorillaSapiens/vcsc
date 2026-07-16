@@ -1,0 +1,14 @@
+// n65c -I .
+// expectfail
+// expecterr: cannot create a pointer to function 'bad' because it has symbol-backed parameters
+include "machine_6502.n"
+
+int bad(static int x) {
+   return x;
+}
+
+int (*fp)(int) := &bad;
+
+int main(void) {
+   return 0;
+}

@@ -1,0 +1,53 @@
+// n65c -I . -I ../libraries/nlib
+// expectexit: 0
+
+include "machine_6502.n"
+include "stdarg.n"
+
+int sniff(int tag, ...) {
+   va_list ap;
+   char c0;
+   int i1;
+   long l2;
+   char c3;
+   longlong ll4;
+
+   va_start(ap);
+   if (tag != 0x1357) { return 1; }
+   if (ap.bytes != 16) { return 2; }
+
+   va_arg(ap, c0);
+   if (c0 != 0x11`char) { return 3; }
+   if (ap.offset != 1) { return 4; }
+
+   va_arg(ap, i1);
+   if (i1 != 0x2233`int) { return 5; }
+   if (ap.offset != 3) { return 6; }
+
+   va_arg(ap, l2);
+   if (l2 != 0x44556677`long) { return 7; }
+   if (ap.offset != 7) { return 8; }
+
+   va_arg(ap, c3);
+   if (c3 != 0x88`char) { return 9; }
+   if (ap.offset != 8) { return 10; }
+
+   va_arg(ap, ll4);
+   if (ll4 != 0x1122334455667788`longlong) { return 11; }
+   if (ap.offset != 16) { return 12; }
+
+   va_end(ap);
+   if (ap.bytes != 0) { return 13; }
+   if (ap.offset != 0) { return 14; }
+   return 0;
+}
+
+void main(void) {
+   if (sniff(0x1357, 0x11`char, 0x2233`int, 0x44556677`long, 0x88`char, 0x1122334455667788`longlong) != 0) {
+      asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
+   }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

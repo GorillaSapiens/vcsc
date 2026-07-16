@@ -1,0 +1,22 @@
+// n65c -I .
+// forbiderr: exceeds host double size; inaccuracies may appear
+// expectasmordered: ldy #0
+// expectasmordered: lda #$00
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #13
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #14
+// expectasmordered: lda #$ff
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #15
+// expectasmordered: lda #$3f
+// expectasmordered: sta (fp),y
+
+include "machine_6502.n"
+
+type f16x { $size:16 $float:simple $endian:little };
+
+int main(void) {
+   f16x x := 1.5;
+   return 0;
+}

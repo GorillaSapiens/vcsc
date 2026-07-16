@@ -1,0 +1,11 @@
+// n65c -I .
+// expectasm: __data_0:
+// expectasm: 	.byte $66, $6f, $6f, $00
+// expectasm: lda #<__data_0
+
+include "machine_6502.n"
+
+int main(void) {
+   char *s := "foo";
+   return 0;
+}

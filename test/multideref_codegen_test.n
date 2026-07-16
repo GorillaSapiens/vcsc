@@ -1,0 +1,32 @@
+// n65c -I .
+// expectasmordered: ldy #6
+// expectasmordered: lda (fp),y
+// expectasmordered: sta ptr0
+// expectasmordered: ldy #7
+// expectasmordered: lda (fp),y
+// expectasmordered: sta ptr0+1
+// expectasmordered: ldy #0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: sta arg0
+// expectasmordered: lda arg0
+// expectasmordered: sta ptr0
+// expectasmordered: ldy #0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: sta arg0
+// expectasmordered: lda arg0
+// expectasmordered: sta ptr0
+// expectasmordered: sta (ptr0),y
+
+include "machine_6502.n"
+
+int main(void) {
+   int x;
+   int *p;
+   int **pp;
+   int ***ppp;
+   p := &x;
+   pp := &p;
+   ppp := &pp;
+   ***ppp := 7;
+   return ***ppp;
+}

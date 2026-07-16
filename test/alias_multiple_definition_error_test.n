@@ -1,0 +1,8 @@
+// n65c -I .
+// expectfail
+// expecterr: multiple definitions for alias 'foo'
+
+include "machine_6502.n"
+
+alias foo 1
+alias foo 2

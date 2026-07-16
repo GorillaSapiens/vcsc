@@ -1,0 +1,51 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type u1 { $size:1 $integer:unsigned };
+
+struct PackedBits {
+   u1 lo:4;
+   u1 hi:4;
+   u1 tag:1;
+   u1 code:7;
+};
+
+union PackUnion {
+   PackedBits bits;
+   u1 b[2];
+};
+
+PackUnion pu;
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (sizeof(PackedBits) != 2)        { asm lda #$ff; asm ldx #1;  asm ldy #0; asm jsr $ffff; }
+   if (sizeof(PackUnion) != 2)         { asm lda #$ff; asm ldx #2;  asm ldy #0; asm jsr $ffff; }
+
+   pu.b[0] := 0;
+   pu.b[1] := 0;
+   pu.bits.lo := 5;
+   pu.bits.hi := 10;
+   pu.bits.tag := 1;
+   pu.bits.code := 0x55;
+
+   if (pu.b[0] != 0xa5)                { asm lda #$ff; asm ldx #3;  asm ldy #0; asm jsr $ffff; }
+   if (pu.b[1] != 0xab)                { asm lda #$ff; asm ldx #4;  asm ldy #0; asm jsr $ffff; }
+
+   pu.b[0] := 0x3c;
+   pu.b[1] := 0xd3;
+
+   if (pu.bits.lo != 12)               { asm lda #$ff; asm ldx #5;  asm ldy #0; asm jsr $ffff; }
+   if (pu.bits.hi != 3)                { asm lda #$ff; asm ldx #6;  asm ldy #0; asm jsr $ffff; }
+   if (pu.bits.tag != 1)               { asm lda #$ff; asm ldx #7;  asm ldy #0; asm jsr $ffff; }
+   if (pu.bits.code != 0x69)           { asm lda #$ff; asm ldx #8;  asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

@@ -1,0 +1,16 @@
+// n65c -I .
+// expectasm: .zpexport z
+// expectasm: .zpexport q
+// expectasm: .segment "ZEROPAGE"
+// expectasm: z:
+// expectasm: .byte $05, $00
+// expectasm: q:
+// expectasm: .res 1
+include "machine_6502.n"
+
+zeropage int z := 5;
+zeropage char q;
+
+int main(void) {
+   return z;
+}

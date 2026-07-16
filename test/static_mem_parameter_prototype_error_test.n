@@ -1,0 +1,12 @@
+// n65c -I .
+// expectfail
+// expecterr: parameter 'bar' of function 'foo' combines 'static' with mem region 'register'
+// expecterr: do not write both
+include "machine_6502.n"
+mem register { $start:0x0000 $size:0x0010 $rw };
+
+extern int foo(static register int bar);
+
+int main(void) {
+   return 0;
+}

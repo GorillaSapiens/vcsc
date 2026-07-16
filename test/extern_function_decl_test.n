@@ -1,0 +1,11 @@
+// n65c
+// expectasm: .import foreign_add
+// expectasm:     jsr foreign_add
+
+include "machine_6502.n"
+
+extern int foreign_add(int a, int b);
+
+int main(void) {
+   return foreign_add(1, 2);
+}

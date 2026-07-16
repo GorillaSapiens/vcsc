@@ -1,0 +1,17 @@
+// n65c -I .
+// expectfail
+// expecterr: absolute ref 'banked' does not have a single address
+
+include "machine_6502.n"
+
+type u8  { $size:1 $integer:unsigned };
+type u16 { $size:2 $integer:unsigned $endian:little };
+
+ref u16 banked@[0x100/0x180];
+
+int *p;
+
+int main(void) {
+   p := &banked;
+   return 0;
+}

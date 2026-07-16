@@ -1,0 +1,8 @@
+include "machine_6502.n"
+
+union Shared {
+   long wide;
+   int whole;
+};
+
+Shared shared_union;

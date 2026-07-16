@@ -1,0 +1,5 @@
+include "machine_6502.n"
+
+int *helper(int *p) {
+   return p;
+}

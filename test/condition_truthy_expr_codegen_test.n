@@ -1,0 +1,17 @@
+// n65c -I .
+// expectasm: jsr _pushN
+// expectasm: ora (fp),y
+// expectasm: beq @if_false_
+
+include "machine_6502.n"
+
+int helper(int x) {
+   return x;
+}
+
+int test(int a, int b) {
+   if ((a + helper(b)) * b) {
+      return 1;
+   }
+   return 0;
+}

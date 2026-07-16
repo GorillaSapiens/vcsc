@@ -1,0 +1,7 @@
+// n65c -I .
+// expectfail
+// expecterr: break used outside loop
+include "machine_6502.n"
+int main(void) {
+   break;
+}

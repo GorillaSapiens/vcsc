@@ -1,0 +1,12 @@
+// n65c
+// expectfail
+// expecterr: shortcut cast '$little' is only legal on already-typed fixed-width integer or float expressions
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u2   { $size:2 $integer:unsigned $endian:little };
+
+u2 bad(void) {
+   return ($little)1;
+}

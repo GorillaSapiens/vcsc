@@ -1,0 +1,26 @@
+// n65c -I .
+// expectasmordered: .proc make_pair
+// expectasmordered: lda #$04
+// expectasmordered: sta arg0
+// expectasmordered: jsr _fp2ptr0m
+// expectasmordered: ldy #0
+// expectasmordered: lda #$05
+// expectasmordered: sta (ptr0),y
+// expectasmordered: ldy #1
+// expectasmordered: lda #$00
+// expectasmordered: sta (ptr0),y
+// expectasmordered: lda #$02
+// expectasmordered: sta arg0
+// expectasmordered: jsr _fp2ptr0m
+// expectasmordered: ldy #0
+// expectasmordered: lda #$06
+// expectasmordered: sta (ptr0),y
+// expectasmordered: ldy #1
+// expectasmordered: lda #$00
+// expectasmordered: sta (ptr0),y
+// expectasmordered: @fini:
+// expectasmordered: rts
+include "machine_6502.n"
+struct Pair { int foo; int bar; };
+Pair make_pair(void) { $$.foo := 5; $$.bar := 6; return; }
+int main(void) { Pair p; p := make_pair(); return p.bar; }

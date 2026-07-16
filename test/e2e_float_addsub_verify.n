@@ -1,0 +1,116 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+union f32bits {
+   float f;
+   char b[4];
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   f32bits one;
+   f32bits halfv;
+   f32bits onep5;
+   f32bits two;
+   f32bits mone;
+   f32bits mtwo;
+   f32bits add_align;
+   f32bits add_carry;
+   f32bits add_neg;
+   f32bits sub_pos;
+   f32bits sub_neg;
+   f32bits sub_norm;
+   f32bits cancel;
+   f32bits add_eq;
+   f32bits add_eq_neg;
+   f32bits sub_eq;
+   f32bits sub_zero_rhs;
+
+   one.f := 1.0;
+   halfv.f := 0.5;
+   onep5.f := 1.5;
+   two.f := 2.0;
+   mone.f := -1.0;
+   mtwo.f := -2.0;
+
+   add_align.f := one.f + halfv.f;
+   add_carry.f := onep5.f + onep5.f;
+   add_neg.f := mone.f + mtwo.f;
+   sub_pos.f := two.f - one.f;
+   sub_neg.f := one.f - two.f;
+   sub_norm.f := onep5.f - one.f;
+   cancel.f := one.f - one.f;
+
+   add_eq.f := one.f;
+   add_eq.f += halfv.f;
+   add_eq_neg.f := onep5.f;
+   add_eq_neg.f += onep5.f;
+   sub_eq.f := two.f;
+   sub_eq.f -= one.f;
+   sub_zero_rhs.f := two.f;
+   sub_zero_rhs.f -= cancel.f;
+
+   if (add_align.b[0] != 0) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (add_align.b[1] != 0) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (add_align.b[2] != 192) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   if (add_align.b[3] != 63) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+
+   if (add_carry.b[0] != 0) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   if (add_carry.b[1] != 0) { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
+   if (add_carry.b[2] != 64) { asm lda #$ff; asm ldx #7; asm ldy #0; asm jsr $ffff; }
+   if (add_carry.b[3] != 64) { asm lda #$ff; asm ldx #8; asm ldy #0; asm jsr $ffff; }
+
+   if (add_neg.b[0] != 0) { asm lda #$ff; asm ldx #9; asm ldy #0; asm jsr $ffff; }
+   if (add_neg.b[1] != 0) { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+   if (add_neg.b[2] != 64) { asm lda #$ff; asm ldx #11; asm ldy #0; asm jsr $ffff; }
+   if (add_neg.b[3] != 192) { asm lda #$ff; asm ldx #12; asm ldy #0; asm jsr $ffff; }
+
+   if (sub_pos.b[0] != 0) { asm lda #$ff; asm ldx #13; asm ldy #0; asm jsr $ffff; }
+   if (sub_pos.b[1] != 0) { asm lda #$ff; asm ldx #14; asm ldy #0; asm jsr $ffff; }
+   if (sub_pos.b[2] != 128) { asm lda #$ff; asm ldx #15; asm ldy #0; asm jsr $ffff; }
+   if (sub_pos.b[3] != 63) { asm lda #$ff; asm ldx #16; asm ldy #0; asm jsr $ffff; }
+
+   if (sub_neg.b[0] != 0) { asm lda #$ff; asm ldx #17; asm ldy #0; asm jsr $ffff; }
+   if (sub_neg.b[1] != 0) { asm lda #$ff; asm ldx #18; asm ldy #0; asm jsr $ffff; }
+   if (sub_neg.b[2] != 128) { asm lda #$ff; asm ldx #19; asm ldy #0; asm jsr $ffff; }
+   if (sub_neg.b[3] != 191) { asm lda #$ff; asm ldx #20; asm ldy #0; asm jsr $ffff; }
+
+   if (sub_norm.b[0] != 0) { asm lda #$ff; asm ldx #21; asm ldy #0; asm jsr $ffff; }
+   if (sub_norm.b[1] != 0) { asm lda #$ff; asm ldx #22; asm ldy #0; asm jsr $ffff; }
+   if (sub_norm.b[2] != 0) { asm lda #$ff; asm ldx #23; asm ldy #0; asm jsr $ffff; }
+   if (sub_norm.b[3] != 63) { asm lda #$ff; asm ldx #24; asm ldy #0; asm jsr $ffff; }
+
+   if (cancel.b[0] != 0) { asm lda #$ff; asm ldx #25; asm ldy #0; asm jsr $ffff; }
+   if (cancel.b[1] != 0) { asm lda #$ff; asm ldx #26; asm ldy #0; asm jsr $ffff; }
+   if (cancel.b[2] != 0) { asm lda #$ff; asm ldx #27; asm ldy #0; asm jsr $ffff; }
+   if (cancel.b[3] != 0) { asm lda #$ff; asm ldx #28; asm ldy #0; asm jsr $ffff; }
+
+   if (add_eq.b[0] != 0) { asm lda #$ff; asm ldx #29; asm ldy #0; asm jsr $ffff; }
+   if (add_eq.b[1] != 0) { asm lda #$ff; asm ldx #30; asm ldy #0; asm jsr $ffff; }
+   if (add_eq.b[2] != 192) { asm lda #$ff; asm ldx #31; asm ldy #0; asm jsr $ffff; }
+   if (add_eq.b[3] != 63) { asm lda #$ff; asm ldx #32; asm ldy #0; asm jsr $ffff; }
+
+   if (add_eq_neg.b[0] != 0) { asm lda #$ff; asm ldx #33; asm ldy #0; asm jsr $ffff; }
+   if (add_eq_neg.b[1] != 0) { asm lda #$ff; asm ldx #34; asm ldy #0; asm jsr $ffff; }
+   if (add_eq_neg.b[2] != 64) { asm lda #$ff; asm ldx #35; asm ldy #0; asm jsr $ffff; }
+   if (add_eq_neg.b[3] != 64) { asm lda #$ff; asm ldx #36; asm ldy #0; asm jsr $ffff; }
+
+   if (sub_eq.b[0] != 0) { asm lda #$ff; asm ldx #37; asm ldy #0; asm jsr $ffff; }
+   if (sub_eq.b[1] != 0) { asm lda #$ff; asm ldx #38; asm ldy #0; asm jsr $ffff; }
+   if (sub_eq.b[2] != 128) { asm lda #$ff; asm ldx #39; asm ldy #0; asm jsr $ffff; }
+   if (sub_eq.b[3] != 63) { asm lda #$ff; asm ldx #40; asm ldy #0; asm jsr $ffff; }
+
+   if (sub_zero_rhs.b[0] != 0) { asm lda #$ff; asm ldx #41; asm ldy #0; asm jsr $ffff; }
+   if (sub_zero_rhs.b[1] != 0) { asm lda #$ff; asm ldx #42; asm ldy #0; asm jsr $ffff; }
+   if (sub_zero_rhs.b[2] != 0) { asm lda #$ff; asm ldx #43; asm ldy #0; asm jsr $ffff; }
+   if (sub_zero_rhs.b[3] != 64) { asm lda #$ff; asm ldx #44; asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

@@ -1,0 +1,113 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+type gf32 { $size:4 $endian:little $float:ieee754 };
+include "generated_gf32_addcmp_ops.n"
+
+union gf32_bits {
+   gf32 f;
+   char b[4];
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+ref char gfailcode@[none/0x02f0];
+
+void fail(int code) {
+   gfailcode := code;
+   asm lda #$ff;
+   asm ldx $02f0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void expect4(gf32_bits got, gf32_bits want, int code) {
+   if (got.b[0] != want.b[0]) { fail(code + 0); }
+   if (got.b[1] != want.b[1]) { fail(code + 1); }
+   if (got.b[2] != want.b[2]) { fail(code + 2); }
+   if (got.b[3] != want.b[3]) { fail(code + 3); }
+}
+
+void main(void) {
+   gf32_bits one;
+   gf32_bits halfv;
+   gf32_bits onep5;
+   gf32_bits two;
+   gf32_bits mhalf;
+   gf32_bits mone;
+   gf32_bits mtwo;
+   gf32_bits mthree;
+   gf32_bits add_align;
+   gf32_bits add_carry;
+   gf32_bits add_neg;
+   gf32_bits sub_pos;
+   gf32_bits sub_neg;
+   gf32_bits pinf;
+   gf32_bits ninf;
+   gf32_bits nanv;
+   gf32_bits special;
+   gf32_bits qnan;
+
+   one.f := 1.0;
+   halfv.f := 0.5;
+   onep5.f := 1.5;
+   two.f := 2.0;
+   mhalf.f := -0.5;
+   mone.f := -1.0;
+   mtwo.f := -2.0;
+   mthree.f := -3.0;
+
+   pinf.b[0] := 0x00; pinf.b[1] := 0x00; pinf.b[2] := 0x80; pinf.b[3] := 0x7f;
+   ninf.b[0] := 0x00; ninf.b[1] := 0x00; ninf.b[2] := 0x80; ninf.b[3] := 0xff;
+   nanv.b[0] := 0x01; nanv.b[1] := 0x00; nanv.b[2] := 0x80; nanv.b[3] := 0x7f;
+   qnan.b[0] := 0x00; qnan.b[1] := 0x00; qnan.b[2] := 0xc0; qnan.b[3] := 0x7f;
+
+   add_align.f := one.f + halfv.f;
+   expect4(add_align, onep5, 1);
+
+   add_carry.f := onep5.f + onep5.f;
+   two.f := 3.0;
+   expect4(add_carry, two, 5);
+
+   add_neg.f := mone.f + mtwo.f;
+   expect4(add_neg, mthree, 9);
+
+   sub_pos.f := one.f - halfv.f;
+   expect4(sub_pos, halfv, 13);
+
+   sub_neg.f := halfv.f - one.f;
+   expect4(sub_neg, mhalf, 17);
+
+   special.f := pinf.f + halfv.f;
+   expect4(special, pinf, 21);
+
+   special.f := pinf.f - pinf.f;
+   expect4(special, qnan, 25);
+
+   special.f := nanv.f + one.f;
+   expect4(special, nanv, 29);
+
+   if (!(one.f > halfv.f))   { fail(33); }
+   if (!(halfv.f < one.f))   { fail(34); }
+   if (!(one.f >= one.f))    { fail(35); }
+   if (!(one.f <= one.f))    { fail(36); }
+   if (!(one.f == one.f))    { fail(37); }
+   if (!(one.f != halfv.f))  { fail(38); }
+   if (!(pinf.f > two.f))    { fail(39); }
+   if (!(ninf.f < mhalf.f))  { fail(40); }
+   if (!(pinf.f == pinf.f))  { fail(41); }
+   if (!(pinf.f != ninf.f))  { fail(42); }
+   if (nanv.f == one.f)      { fail(43); }
+   if (!(nanv.f != one.f))   { fail(44); }
+   if (nanv.f < one.f)       { fail(45); }
+   if (nanv.f > one.f)       { fail(46); }
+   if (nanv.f <= one.f)      { fail(47); }
+
+   pass();
+}

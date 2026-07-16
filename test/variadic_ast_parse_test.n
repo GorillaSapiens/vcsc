@@ -1,0 +1,18 @@
+// n65c -I . -X dumpast -X parseonly
+// expectasmordered: identifier variadic
+// expectasmordered: parameter_list
+// expectasmordered: parameter
+// expectasmordered: typename int
+// expectasmordered: identifier x
+// expectasmordered: ellipsis
+// expectasmordered: identifier fp
+// expectasmordered: parameter_list
+// expectasmordered: parameter
+// expectasmordered: typename char
+// expectasmordered: identifier tag
+// expectasmordered: ellipsis
+
+include "machine_6502.n"
+
+extern int variadic(int x, ...);
+int (*fp)(char tag, ...);

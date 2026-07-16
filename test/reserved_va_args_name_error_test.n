@@ -1,0 +1,10 @@
+// n65c -I .
+// expectfail
+// expecterr: '__va_args' is a reserved implementation name
+
+include "machine_6502.n"
+
+int main(void) {
+   int __va_args;
+   return 0;
+}

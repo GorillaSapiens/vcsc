@@ -1,0 +1,54 @@
+// n65c -X dumpast -X parseonly
+
+type bool     { $size:1 $integer:unsigned };
+type void     { $size:0 };
+type * { $size:2 $integer:unsigned $endian:little};
+
+type uint8_t  { $size:1 $integer:unsigned };
+type  int8_t  { $size:1 $integer:signed };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+type  int16_t { $size:2 $integer:signed $endian:little };
+type uint24_t { $size:3 $integer:unsigned $endian:little };
+type  int24_t { $size:3 $integer:signed $endian:little };
+type uint32_t { $size:4 $integer:unsigned $endian:little };
+type  int32_t { $size:4 $integer:signed $endian:little };
+
+type quarter_t { $size:1 $float:simple $endian:little };  // FP8-style custom format
+type half_t    { $size:2 $float:ieee754 $endian:little };  // IEEE 754 binary16
+type float_t   { $size:4 $float:ieee754 $endian:little };  // IEEE 754 binary32
+type double_t  { $size:8 $float:ieee754 $endian:little }; // IEEE 754 binary64
+
+quarter_t quarter := 3.141592653587;
+half_t half := 3.141592653587;
+
+uint24_t x := 5 / 5;
+int24_t  n := -6;
+float_t  pi := 3.141592653587;
+double_t nphi := -1.618033988749894848204586834;
+uint24_t y;
+
+static uint24_t sx := 5;
+static int24_t  sn := -6;
+static float_t  spi := 3.141592653587;
+static double_t snphi := -1.618033988749894848204586834;
+static uint24_t sy;
+
+const uint24_t cx := 5;
+const int24_t  cn := -6;
+const float_t  cpi := 3.141592653587;
+const double_t cnphi := -1.618033988749894848204586834;
+const uint24_t cy := 0;
+
+int16_t bar(int16_t alpha, static uint8_t beta, const uint24_t gamma);
+
+void nop(void) {
+}
+
+int16_t foo(int16_t alpha, int16_t beta, int16_t gamma) {
+   return arg;
+}
+
+void main(void) {
+   int16_t val := 5;
+   foo(val);
+}

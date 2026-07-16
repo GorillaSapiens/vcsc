@@ -1,0 +1,10 @@
+// n65c -I .
+
+include "machine_6502.n"
+
+alias foo(x) x
+
+void main(void) {
+   int x;
+   x := foo(x);
+}

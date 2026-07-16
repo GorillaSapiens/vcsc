@@ -1,0 +1,37 @@
+// n65c -I .
+// expectsim: FP OK
+include "machine_6502.n"
+
+static char ok[7] := { 'F', 'P', ' ', 'O', 'K', '\n', 0 };
+static char bad[8] := { 'F', 'P', ' ', 'B', 'A', 'D', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+int inc(int x) {
+   return x + 1;
+}
+
+int (*fp)(int) := inc;
+
+void main(void) {
+   if (fp(4) == 5) {
+      print_ok();
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

@@ -1,0 +1,6 @@
+# runner: stdbuf -o0 n65sim --trace 0x20 @TEST_ROOT@/simulator_smoke_exit.hex -T @TEST_ROOT@/simulator_smoke.cfg
+# phase: e2e
+# timeout: 2
+# expectexit: 7
+# expectstdout: dispatch ff 0007
+# expectstderrexact:

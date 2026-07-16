@@ -1,0 +1,8 @@
+// n65c -I .
+include "machine_6502.n"
+int main(void) {
+   int x;
+   int *p := &x;
+   *p := { 1 };
+   return 0;
+}

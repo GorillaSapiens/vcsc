@@ -1,0 +1,375 @@
+// n65c -I .
+// expectexit: 0
+// expectsim: ---8<--- BEGIN MEMORY DUMP ---8<---
+// expectsim: :10030000A0FDA0FDE0C8ECFFE0C8ECFF00AD444458
+// expectsim: :10031000DCFF00AD4444DCFF00DA38977359FFFF7F
+// expectsim: :1003200000DA38977359FFFF00007CF56EF56EE038
+// expectsim: :10033000FDFF00007CF56EF56EE0FDFF00605238B9
+// expectsim: :100340001EE4E3419EFCFFFF006052381EE4E341DF
+// expectsim: :100350009EFCFFFF0000D36A8219B18219B148E008
+// expectsim: :10036000FFFF0000D36A8219B18219B148E0FFFF94
+// expectsim: :10037000000072D12F8CEA48C2A88E745AF0FFFF99
+// expectsim: :10038000000072D12F8CEA48C2A88E745AF0FFFF89
+// expectsim: ---8<---  END MEMORY DUMP  ---8<---
+
+include "machine_6502.n"
+
+type ub { $size:1 $integer:unsigned $endian:little };
+
+type s1 { $size:1 $integer:signed $endian:little };
+type s2 { $size:2 $integer:signed $endian:little };
+type s3 { $size:3 $integer:signed $endian:little };
+type s4 { $size:4 $integer:signed $endian:little };
+type s5 { $size:5 $integer:signed $endian:little };
+type s6 { $size:6 $integer:signed $endian:little };
+type s7 { $size:7 $integer:signed $endian:little };
+type s8 { $size:8 $integer:signed $endian:little };
+
+union bits_s1 {
+   s1 v;
+   ub b[1];
+};
+union bits_s2 {
+   s2 v;
+   ub b[2];
+};
+union bits_s3 {
+   s3 v;
+   ub b[3];
+};
+union bits_s4 {
+   s4 v;
+   ub b[4];
+};
+union bits_s5 {
+   s5 v;
+   ub b[5];
+};
+union bits_s6 {
+   s6 v;
+   ub b[6];
+};
+union bits_s7 {
+   s7 v;
+   ub b[7];
+};
+union bits_s8 {
+   s8 v;
+   ub b[8];
+};
+
+ref ub out[144]@[none/0x0300];
+
+void dump(void) {
+   asm lda #$fe;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   int shl;
+   int shr;
+   bits_s1 src1;
+   bits_s1 got1;
+   bits_s2 src2;
+   bits_s2 got2;
+   bits_s3 src3;
+   bits_s3 got3;
+   bits_s4 src4;
+   bits_s4 got4;
+   bits_s5 src5;
+   bits_s5 got5;
+   bits_s6 src6;
+   bits_s6 got6;
+   bits_s7 src7;
+   bits_s7 got7;
+   bits_s8 src8;
+   bits_s8 got8;
+
+   // s1: left 3, right 5
+   src1.b[0] := 0xb4;
+   shl := 3;
+   got1.v := src1.v << shl;
+   out[0] := got1.b[0];
+   shr := 5;
+   got1.v := src1.v >> shr;
+   out[1] := got1.b[0];
+   shl := 3;
+   got1.v := src1.v;
+   got1.v <<= shl;
+   out[2] := got1.b[0];
+   shr := 5;
+   got1.v := src1.v;
+   got1.v >>= shr;
+   out[3] := got1.b[0];
+
+   // s2: left 5, right 7
+   src2.b[0] := 0x47;
+   src2.b[1] := 0xf6;
+   shl := 5;
+   got2.v := src2.v << shl;
+   out[4] := got2.b[0];
+   out[5] := got2.b[1];
+   shr := 7;
+   got2.v := src2.v >> shr;
+   out[6] := got2.b[0];
+   out[7] := got2.b[1];
+   shl := 5;
+   got2.v := src2.v;
+   got2.v <<= shl;
+   out[8] := got2.b[0];
+   out[9] := got2.b[1];
+   shr := 7;
+   got2.v := src2.v;
+   got2.v >>= shr;
+   out[10] := got2.b[0];
+   out[11] := got2.b[1];
+
+   // s3: left 7, right 9
+   src3.b[0] := 0x5a;
+   src3.b[1] := 0x89;
+   src3.b[2] := 0xb8;
+   shl := 7;
+   got3.v := src3.v << shl;
+   out[12] := got3.b[0];
+   out[13] := got3.b[1];
+   out[14] := got3.b[2];
+   shr := 9;
+   got3.v := src3.v >> shr;
+   out[15] := got3.b[0];
+   out[16] := got3.b[1];
+   out[17] := got3.b[2];
+   shl := 7;
+   got3.v := src3.v;
+   got3.v <<= shl;
+   out[18] := got3.b[0];
+   out[19] := got3.b[1];
+   out[20] := got3.b[2];
+   shr := 9;
+   got3.v := src3.v;
+   got3.v >>= shr;
+   out[21] := got3.b[0];
+   out[22] := got3.b[1];
+   out[23] := got3.b[2];
+
+   // s4: left 9, right 11
+   src4.b[0] := 0x6d;
+   src4.b[1] := 0x9c;
+   src4.b[2] := 0xcb;
+   src4.b[3] := 0xfa;
+   shl := 9;
+   got4.v := src4.v << shl;
+   out[24] := got4.b[0];
+   out[25] := got4.b[1];
+   out[26] := got4.b[2];
+   out[27] := got4.b[3];
+   shr := 11;
+   got4.v := src4.v >> shr;
+   out[28] := got4.b[0];
+   out[29] := got4.b[1];
+   out[30] := got4.b[2];
+   out[31] := got4.b[3];
+   shl := 9;
+   got4.v := src4.v;
+   got4.v <<= shl;
+   out[32] := got4.b[0];
+   out[33] := got4.b[1];
+   out[34] := got4.b[2];
+   out[35] := got4.b[3];
+   shr := 11;
+   got4.v := src4.v;
+   got4.v >>= shr;
+   out[36] := got4.b[0];
+   out[37] := got4.b[1];
+   out[38] := got4.b[2];
+   out[39] := got4.b[3];
+
+   // s5: left 11, right 13
+   src5.b[0] := 0x80;
+   src5.b[1] := 0xaf;
+   src5.b[2] := 0xde;
+   src5.b[3] := 0x0d;
+   src5.b[4] := 0xbc;
+   shl := 11;
+   got5.v := src5.v << shl;
+   out[40] := got5.b[0];
+   out[41] := got5.b[1];
+   out[42] := got5.b[2];
+   out[43] := got5.b[3];
+   out[44] := got5.b[4];
+   shr := 13;
+   got5.v := src5.v >> shr;
+   out[45] := got5.b[0];
+   out[46] := got5.b[1];
+   out[47] := got5.b[2];
+   out[48] := got5.b[3];
+   out[49] := got5.b[4];
+   shl := 11;
+   got5.v := src5.v;
+   got5.v <<= shl;
+   out[50] := got5.b[0];
+   out[51] := got5.b[1];
+   out[52] := got5.b[2];
+   out[53] := got5.b[3];
+   out[54] := got5.b[4];
+   shr := 13;
+   got5.v := src5.v;
+   got5.v >>= shr;
+   out[55] := got5.b[0];
+   out[56] := got5.b[1];
+   out[57] := got5.b[2];
+   out[58] := got5.b[3];
+   out[59] := got5.b[4];
+
+   // s6: left 13, right 15
+   src6.b[0] := 0x93;
+   src6.b[1] := 0xc2;
+   src6.b[2] := 0xf1;
+   src6.b[3] := 0x20;
+   src6.b[4] := 0x4f;
+   src6.b[5] := 0xfe;
+   shl := 13;
+   got6.v := src6.v << shl;
+   out[60] := got6.b[0];
+   out[61] := got6.b[1];
+   out[62] := got6.b[2];
+   out[63] := got6.b[3];
+   out[64] := got6.b[4];
+   out[65] := got6.b[5];
+   shr := 15;
+   got6.v := src6.v >> shr;
+   out[66] := got6.b[0];
+   out[67] := got6.b[1];
+   out[68] := got6.b[2];
+   out[69] := got6.b[3];
+   out[70] := got6.b[4];
+   out[71] := got6.b[5];
+   shl := 13;
+   got6.v := src6.v;
+   got6.v <<= shl;
+   out[72] := got6.b[0];
+   out[73] := got6.b[1];
+   out[74] := got6.b[2];
+   out[75] := got6.b[3];
+   out[76] := got6.b[4];
+   out[77] := got6.b[5];
+   shr := 15;
+   got6.v := src6.v;
+   got6.v >>= shr;
+   out[78] := got6.b[0];
+   out[79] := got6.b[1];
+   out[80] := got6.b[2];
+   out[81] := got6.b[3];
+   out[82] := got6.b[4];
+   out[83] := got6.b[5];
+
+   // s7: left 15, right 17
+   src7.b[0] := 0xa6;
+   src7.b[1] := 0xd5;
+   src7.b[2] := 0x04;
+   src7.b[3] := 0x33;
+   src7.b[4] := 0x62;
+   src7.b[5] := 0x91;
+   src7.b[6] := 0xc0;
+   shl := 15;
+   got7.v := src7.v << shl;
+   out[84] := got7.b[0];
+   out[85] := got7.b[1];
+   out[86] := got7.b[2];
+   out[87] := got7.b[3];
+   out[88] := got7.b[4];
+   out[89] := got7.b[5];
+   out[90] := got7.b[6];
+   shr := 17;
+   got7.v := src7.v >> shr;
+   out[91] := got7.b[0];
+   out[92] := got7.b[1];
+   out[93] := got7.b[2];
+   out[94] := got7.b[3];
+   out[95] := got7.b[4];
+   out[96] := got7.b[5];
+   out[97] := got7.b[6];
+   shl := 15;
+   got7.v := src7.v;
+   got7.v <<= shl;
+   out[98] := got7.b[0];
+   out[99] := got7.b[1];
+   out[100] := got7.b[2];
+   out[101] := got7.b[3];
+   out[102] := got7.b[4];
+   out[103] := got7.b[5];
+   out[104] := got7.b[6];
+   shr := 17;
+   got7.v := src7.v;
+   got7.v >>= shr;
+   out[105] := got7.b[0];
+   out[106] := got7.b[1];
+   out[107] := got7.b[2];
+   out[108] := got7.b[3];
+   out[109] := got7.b[4];
+   out[110] := got7.b[5];
+   out[111] := got7.b[6];
+
+   // s8: left 17, right 19
+   src8.b[0] := 0xb9;
+   src8.b[1] := 0xe8;
+   src8.b[2] := 0x17;
+   src8.b[3] := 0x46;
+   src8.b[4] := 0x75;
+   src8.b[5] := 0xa4;
+   src8.b[6] := 0xd3;
+   src8.b[7] := 0x82;
+   shl := 17;
+   got8.v := src8.v << shl;
+   out[112] := got8.b[0];
+   out[113] := got8.b[1];
+   out[114] := got8.b[2];
+   out[115] := got8.b[3];
+   out[116] := got8.b[4];
+   out[117] := got8.b[5];
+   out[118] := got8.b[6];
+   out[119] := got8.b[7];
+   shr := 19;
+   got8.v := src8.v >> shr;
+   out[120] := got8.b[0];
+   out[121] := got8.b[1];
+   out[122] := got8.b[2];
+   out[123] := got8.b[3];
+   out[124] := got8.b[4];
+   out[125] := got8.b[5];
+   out[126] := got8.b[6];
+   out[127] := got8.b[7];
+   shl := 17;
+   got8.v := src8.v;
+   got8.v <<= shl;
+   out[128] := got8.b[0];
+   out[129] := got8.b[1];
+   out[130] := got8.b[2];
+   out[131] := got8.b[3];
+   out[132] := got8.b[4];
+   out[133] := got8.b[5];
+   out[134] := got8.b[6];
+   out[135] := got8.b[7];
+   shr := 19;
+   got8.v := src8.v;
+   got8.v >>= shr;
+   out[136] := got8.b[0];
+   out[137] := got8.b[1];
+   out[138] := got8.b[2];
+   out[139] := got8.b[3];
+   out[140] := got8.b[4];
+   out[141] := got8.b[5];
+   out[142] := got8.b[6];
+   out[143] := got8.b[7];
+
+   dump();
+   pass();
+}

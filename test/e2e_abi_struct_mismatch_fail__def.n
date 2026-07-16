@@ -1,0 +1,8 @@
+include "machine_6502.n"
+
+struct Packet {
+   int value;
+   char tag;
+};
+
+Packet shared;

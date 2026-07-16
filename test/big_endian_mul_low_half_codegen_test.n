@@ -1,0 +1,20 @@
+// n65c -I .
+// expectasm: jsr _mulNbe
+// expectasmordered: jsr _mulNbe
+// expectasmordered: ldy #6
+// expectasmordered: lda (fp),y
+// expectasmordered: ldy #0
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #7
+// expectasmordered: lda (fp),y
+// expectasmordered: ldy #1
+// expectasmordered: sta (fp),y
+
+type void      { $size:0 };
+type bool      { $size:1 $integer:unsigned };
+type u2be      { $size:2 $integer:unsigned $endian:big };
+type *         { $size:2 $integer:unsigned $endian:little };
+
+u2be mulbe(u2be a, u2be b) {
+   return a * b;
+}

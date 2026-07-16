@@ -1,0 +1,32 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+int set_ptr(char *a, char value) {
+   a[0] := value;
+   return 1;
+}
+
+int set_arr(char a[4], char value) {
+   a[0] := value;
+   return 1;
+}
+
+void main(void) {
+   char buf[6];
+   char *p := buf;
+
+   set_ptr(buf, 'a');
+   set_arr(buf + 1, 'b');
+   set_ptr(p + 2, 'c');
+
+   if (buf[0] != 'a') { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (buf[1] != 'b') { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (buf[2] != 'c') { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

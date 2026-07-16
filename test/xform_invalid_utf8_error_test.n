@@ -1,0 +1,13 @@
+// n65c -I test
+// expectfail
+// expecterr: invalid utf8 in string literal at byte offset 1
+// expecterr: while applying xform 'badutf'
+// expecterr: near bytes 0x80
+
+include "machine_6502.n"
+
+xform badutf {
+   '\u0041' 65,
+};
+
+char *s := "A€" `badutf;

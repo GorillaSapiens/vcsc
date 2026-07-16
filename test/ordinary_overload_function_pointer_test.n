@@ -1,0 +1,23 @@
+// n65c
+// expectasm: lda #<pick@s2_p0_a0
+// expectasm: jsr _callptr0
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s2   { $size:2 $integer:signed $endian:little };
+type s4   { $size:4 $integer:signed $endian:little };
+
+s2 pick(s2 x) {
+   return x;
+}
+
+s4 pick(s4 x) {
+   return x;
+}
+
+s2 main(s2 x) {
+   s2 (*fp)(s2);
+   fp := pick;
+   return fp(x);
+}

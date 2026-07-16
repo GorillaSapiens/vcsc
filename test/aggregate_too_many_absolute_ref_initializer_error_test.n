@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: too many initializers for 'Pair'
+include "machine_6502.n"
+struct Pair {
+   int a;
+};
+int main(void) {
+   ref Pair p@[0x100/0x100] := { 1, 2 };
+   return 0;
+}

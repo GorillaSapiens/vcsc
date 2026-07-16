@@ -1,0 +1,11 @@
+// n65c -I .
+// expectfail
+// expecterr: cannot use '->' on non-pointer 's'
+include "machine_6502.n"
+struct S {
+   int x;
+};
+int main(void) {
+   S s;
+   return s->x;
+}

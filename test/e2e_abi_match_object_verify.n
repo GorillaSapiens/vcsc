@@ -1,0 +1,27 @@
+// n65c -I .
+// object: e2e_abi_match_object_verify__helper.n
+// expectexit: 0
+include "machine_6502.n"
+
+int helper(int x);
+
+void fail1(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (helper(4) != 9) {
+      fail1();
+   }
+   pass();
+}

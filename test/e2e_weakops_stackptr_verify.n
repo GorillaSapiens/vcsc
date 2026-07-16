@@ -1,0 +1,28 @@
+// n65c -I .
+// expectexit: 0
+
+include "machine_6502.n"
+
+type s5 { $size:5 $integer:signed $endian:little };
+type u5 { $size:5 $integer:unsigned $endian:little };
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   s5 a := 12345`s5;
+   s5 b := 67`s5;
+   u5 u := 0x0102030405`u5;
+
+   if (a * b != 827115`s5)        { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (a / b != 184`s5)           { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (a % b != 17`s5)            { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   if ((~u) != 0xfefdfcfbfa`u5)   { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   if ((-b) != -67`s5)            { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+
+   pass();
+}

@@ -1,0 +1,23 @@
+This repository uses a split license layout.
+
+Unless a subdirectory says otherwise, the toolchain programs and the repository's top-level build/test glue are licensed under the GNU General Public License, version 3 or (at your option) any later version.
+
+That default applies to the source in these directories:
+- archiver/
+- assembler/
+- compiler/
+- driver/
+- linker/
+- simulator/ (except third-party code carrying its own notice)
+- test/
+- the repository root Makefile and README files
+
+The full GPL-3.0 license text is provided in COPYING.
+
+The runtime libraries in these directories are instead licensed under the BSD 2-Clause License:
+- libraries/nlib/
+- libraries/nint/
+
+See the local LICENSE files in those directories for the exact BSD-2-Clause text.
+
+Third-party code may carry its own license notices. For example, simulator/mos6502/LICENSE.txt remains in force for that imported code.

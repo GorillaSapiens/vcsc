@@ -1,0 +1,39 @@
+// n65c -I .
+// expectasm: jsr _add24le
+// expectasm: jsr _sub24le
+// expectasm: jsr _addNle
+// expectasm: jsr _subNle
+// expectasm: .import _add24le
+// expectasm: .import _sub24le
+// expectasm: .import _addNle
+// expectasm: .import _subNle
+
+type void      { $size:0 };
+type bool      { $size:1 $integer:unsigned };
+type s3        { $size:3 $integer:signed $endian:little };
+type s5        { $size:5 $integer:signed $endian:little };
+type *         { $size:2 $integer:unsigned $endian:little };
+
+s3 add3(s3 a, s3 b) {
+   return a + b;
+}
+
+s3 sub3(s3 a, s3 b) {
+   return a - b;
+}
+
+s5 add5(s5 a, s5 b) {
+   return a + b;
+}
+
+s5 sub5(s5 a, s5 b) {
+   return a - b;
+}
+
+s3 add3_wide(s3 a, s3 b) {
+   return (a + b) + a;
+}
+
+s5 sub5_wide(s5 a, s5 b) {
+   return (a - b) - a;
+}

@@ -1,0 +1,17 @@
+// n65c -I .
+
+include "machine_6502.n"
+
+struct Point {
+   int x;
+   int y;
+};
+
+int main(void) {
+   Point p;
+   Point q;
+   p.x := 3;
+   p.y := 4;
+   q := p;
+   return q.y;
+}

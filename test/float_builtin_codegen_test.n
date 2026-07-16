@@ -1,0 +1,31 @@
+// n65c -I .
+// expectasm: jsr _f16_add
+// expectasm: jsr _f16_sub
+// expectasm: jsr _f16_mul
+// expectasm: jsr _f16_div
+// expectasm: jsr _f32_add
+// expectasm: jsr _f32_sub
+// expectasm: jsr _f32_mul
+// expectasm: jsr _f32_div
+// expectasm: jsr _f64_add
+// expectasm: jsr _f64_sub
+// expectasm: jsr _f64_mul
+// expectasm: jsr _f64_div
+// forbidasm: _faddN
+// forbidasm: _fsubN
+// forbidasm: _fmulN
+// forbidasm: _fdivN
+
+include "machine_6502.n"
+
+half hmath(half a, half b) {
+   return ((a + b) - b) * b / a;
+}
+
+float fmath(float a, float b) {
+   return ((a + b) - b) * b / a;
+}
+
+double dmath(double a, double b) {
+   return ((a + b) - b) * b / a;
+}

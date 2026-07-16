@@ -1,0 +1,26 @@
+// n65c
+// expectfail
+// expecterr: Error at ordinary_overload_ambiguous_test.n:25.15 (near 'pick')
+// expecterr: ambiguous call to overloaded function 'pick'
+// expecterr: call arguments: (s4, s4)
+// expecterr: candidates:
+// expecterr: ordinary_overload_ambiguous_test.n:16.8   pick(s4, s5)
+// expecterr: ordinary_overload_ambiguous_test.n:20.8   pick(s5, s4)
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s4   { $size:4 $integer:signed $endian:little };
+type s5   { $size:5 $integer:signed $endian:little };
+
+s4 pick(s4 a, s5 b) {
+   return a;
+}
+
+s5 pick(s5 a, s4 b) {
+   return b;
+}
+
+s4 use_ambiguous(s4 x, s4 y) {
+   return pick(x, y);
+}

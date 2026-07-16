@@ -1,0 +1,26 @@
+// n65c
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type char { $size:1 $integer:signed };
+type *    { $size:2 $integer:unsigned $endian:little };
+
+bool less(char a, char b) {
+   return a < b;
+}
+
+bool both(char a, char b) {
+   return a && b;
+}
+
+bool neg(char a) {
+   return !a;
+}
+
+char main(char argc, char **argv) {
+   bool ok := less(argc, argc);
+   if (both(ok, !neg(argc))) {
+      return argc;
+   }
+   return 0;
+}
