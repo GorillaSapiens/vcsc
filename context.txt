@@ -1,0 +1,368 @@
+VCSC PROJECT CONTEXT
+====================
+
+Purpose of this file
+--------------------
+This is the durable handoff log for continuing the project after a chat restart.
+When asked to "look at context.txt and figure out what to do next":
+
+1. Read this file first.
+2. Inspect the current source tree and verify that its state agrees with the
+   changelog below.
+3. Continue with the first unfinished item in "Immediate TODO", unless newer
+   user instructions override it.
+4. Update this file whenever a design decision is made, a meaningful change is
+   completed, a test result changes, or a new blocking issue is found.
+5. Keep completed work in the changelog rather than silently deleting history.
+
+Project goal
+------------
+Turn the existing n 6502 toolchain into a deliberately small C-like language
+and toolchain aimed specifically at the Atari 2600/VCS.
+
+This tree is the starting point, not a specification to preserve. The intent is
+to trim it to the bare essentials for useful Atari 2600 programming.
+
+Current source baseline
+-----------------------
+Original input archive:
+
+    vcsc.20260716_140727.tar.gz
+
+The source tree currently contains a compiler, assembler, linker, driver,
+archiver, simulator, runtime libraries, documentation, and a large test suite.
+It is presently a general-purpose 6502 toolchain with substantially more
+functionality than the final VCS-specific toolchain should retain.
+
+Agreed architecture
+-------------------
+These points were explicitly established in discussion:
+
+* Target machine: Atari 2600/VCS using the 6507 CPU.
+* Source language: C-like, with functions and normal source-level argument
+  syntax and lexical scoping.
+* There will be no software argument stack.
+* Function arguments are passed through statically allocated memory rather
+  than through a runtime stack.
+* Calls still use JSR/RTS and the 6502 hardware stack mechanism for return
+  addresses.
+* The static argument scheme is intentionally non-reentrant.
+* Recursive or otherwise re-entrant activation of a function must not be
+  allowed unless a later design explicitly introduces multiple static frames.
+* The existing toolchain is to be reduced to bare essentials rather than
+  extended as a general-purpose C implementation.
+
+Working interpretation of the ABI
+---------------------------------
+The compiler should let source code look approximately like ordinary C:
+
+    byte add(byte a, byte b)
+    {
+        byte result;
+        result = a + b;
+        return result;
+    }
+
+but lower each function's parameters, and probably its automatic locals, to
+compiler-generated fixed-address symbols. Lexical scope remains a language
+property even though storage has static addresses.
+
+Conceptually:
+
+    add.a
+    add.b
+    add.result
+
+The caller stores values into the callee-owned argument symbols, executes JSR,
+and obtains the result according to the chosen return-value ABI.
+
+The treatment of automatic locals as fixed storage is the obvious consequence
+of eliminating the software local stack, but this should be treated as a
+working design until implementation begins and any corner cases are reviewed.
+
+Atari 2600 hardware constraints
+-------------------------------
+* The VCS has 128 bytes of RIOT RAM physically mapped at $80-$FF and mirrored
+  elsewhere, including $180-$1FF.
+* The CPU stack pointer addresses page 1, but on the VCS its stack bytes occupy
+  the same physical 128-byte RIOT RAM as ordinary variables.
+* Therefore the return-address stack and static variables must share one
+  physical 128-byte allocation. They are not independent RAM regions.
+* Each outstanding JSR consumes two stack bytes until the corresponding RTS.
+  PHA/PHP and other explicit stack operations consume additional bytes.
+* The 6507 in the VCS has no usable IRQ/NMI inputs, so asynchronous interrupt
+  re-entry is not a normal concern. Program-controlled recursion, mutual
+  recursion, and callback re-entry remain concerns.
+* Visible-kernel code is cycle-critical. A JSR plus RTS costs enough cycles that
+  calls in a scanline kernel may need to be rejected, explicitly allowed, or
+  inlined. This policy is not decided yet.
+
+Known defect in the current VCS configuration
+---------------------------------------------
+File:
+
+    libraries/vcs/vcs_4k.cfg
+
+It currently declares:
+
+    RAM:      $0080-$00FF
+    CPUSTACK: $0180-$01FF
+
+as separate MEMORY regions and places ARGSTACK in CPUSTACK. On real VCS
+hardware these addresses mirror the same physical 128 bytes. The configuration
+therefore double-counts RAM and can allow stack and variables to overwrite each
+other invisibly.
+
+The final configuration must model one physical RAM pool and reserve enough of
+its upper portion for worst-case return-address and explicit stack use.
+
+Useful mechanisms already present
+---------------------------------
+The current compiler already supports symbol-backed function parameters:
+
+* Parameters declared "static" are stored in callee-owned symbols.
+* Parameters assigned to a named memory region are also symbol-backed.
+* The compiler checks direct-call cycles within a translation unit when such
+  parameters are involved.
+* The linker checks corresponding cycles across separately compiled objects.
+* Functions with symbol-backed parameters cannot decay to ordinary function
+  pointers.
+
+Relevant documentation and code:
+
+    compiler/README.md
+        "Function parameters" / "Symbol-backed parameters"
+
+    compiler/compile_function.c
+        function_has_static_parameters()
+        analyze_static_parameter_call_graph()
+
+    compiler/compile_call.c
+        ordinary software-stack call lowering and symbol-backed argument stores
+
+    compiler/abi_meta.c
+        ABI metadata describing parameter storage
+
+    linker/
+        cross-object call-cycle validation
+
+The existing symbol-backed-parameter path is likely the shortest route to the
+new default ABI. Ordinary stack-backed parameters should eventually disappear.
+
+Current software-stack machinery to remove or replace
+------------------------------------------------------
+The current language ABI uses an upward-growing software argument/local stack,
+managed through _nl_sp and _nl_fp and runtime helpers such as _pushN and _popN.
+The compiler emits many calls to these helpers for expression temporaries as
+well as function arguments and locals.
+
+Important references include:
+
+    compiler/ABI.txt
+    compiler/README.md around the _nl_sp/_nl_fp sections
+    compiler/compile_call.c
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_init.c
+    compiler/compile_lvalue.c
+    compiler/compile_stmt.c
+    compiler/compile_toplevel.c
+    compiler/compile_support.c
+    libraries/nlib/
+
+Important warning: removing the argument/local stack is not merely changing
+function-call lowering. The current compiler also uses _pushN/_popN for
+expression evaluation and temporary values. Those uses need a deliberate
+replacement, probably fixed compiler scratch locations plus liveness-based
+reuse, rather than blind deletion.
+
+Provisional minimal feature set
+-------------------------------
+This list is guidance, not yet a frozen language specification.
+
+Likely retain initially:
+
+* Direct nonrecursive functions.
+* Fixed-address parameters and locals with lexical scope.
+* Global variables.
+* 8-bit integer types.
+* Enough 16-bit integer and pointer support to address ROM tables and hardware.
+* Arrays and basic structures if they do not greatly complicate the first ABI.
+* if/else, loops, switch, break, continue, and return.
+* Arithmetic, comparison, logical, and bitwise operators needed for VCS code.
+* Absolute-address hardware-register declarations.
+* Inline assembly or an equivalent escape hatch.
+* Includes/preprocessing sufficient for shared declarations.
+* Assembler, linker, and 4K ROM output.
+
+Likely remove early or leave unsupported:
+
+* Variadic functions.
+* Recursion and mutual recursion.
+* Function pointers and indirect calls.
+* Function and operator overloading.
+* Floating-point support.
+* 32-bit and 64-bit arithmetic unless a concrete need appears.
+* Arbitrary endian types.
+* Heap allocation and sbrk.
+* General-purpose interrupt runtime.
+* Generic machine configurations not needed for the VCS.
+* Archiver and archive-based runtime organization if direct object linking is
+  simpler for the final toolchain.
+* General-purpose simulator integration, unless it remains useful for tests.
+
+Do not delete broad subsystems merely because they are on this list until the
+new ABI can build and test at least one cartridge. First get a narrow vertical
+slice working; then remove dead paths with evidence.
+
+Open design questions
+---------------------
+These decisions have not yet been made:
+
+1. Return-value ABI:
+   * 8-bit result in A?
+   * 16-bit result in A/X or fixed result symbols?
+   * Are aggregate returns initially forbidden?
+
+2. Local storage:
+   * Give each function permanent distinct storage first?
+   * Overlay frames using whole-program call/liveness analysis immediately or
+     defer that optimization?
+
+3. Temporary-expression storage:
+   * Fixed global scratch slots?
+   * Per-function scratch symbols?
+   * Register-first expression lowering with statically allocated spill slots?
+
+4. Hardware-stack reservation:
+   * Fixed conservative boundary at first?
+   * Link-time calculation from maximum call depth and explicit stack use?
+
+5. Kernel functions:
+   * Automatically inline all calls?
+   * Forbid calls in cycle-counted regions?
+   * Add a kernel/cycle-checked function qualifier later?
+
+6. Multi-file compilation:
+   * Preserve current ABI metadata and linker call-graph checking?
+   * Temporarily require whole-program compilation while simplifying?
+
+7. Exact language surface:
+   * Preserve the existing n syntax and strip features?
+   * Move syntax closer to conventional C while retaining the existing parser
+     where practical?
+
+Immediate TODO
+--------------
+The first unfinished item is the next default action.
+
+[ ] 1. Establish a reproducible baseline build and test result from this exact
+       source tree before changing behavior.
+
+       Supplied local Debian packages are available under /mnt/data:
+
+           bison_3.8.2+dfsg-1+b2_amd64(36).deb
+           flex_2.6.4-8.2+b4_amd64(36).deb
+           libfl2_2.6.4-8.2+b4_amd64(36).deb
+           libfl-dev_2.6.4-8.2+b4_amd64(36).deb
+           clang_21.1.6-71+b1_amd64(6).deb
+           doxygen_1.15.0+ds1-1.1_amd64(7).deb
+           doxygen-doxyparse_1.15.0+ds1-1.1_amd64(7).deb
+           doxygen-gui_1.15.0+ds1-1.1_amd64(7).deb
+
+       Prefer unpacking only the needed packages into a private directory
+       rather than modifying the host system. Bison/flex/libfl are expected to
+       be the immediately relevant packages. Record exact commands and test
+       totals here.
+
+[ ] 2. Add a tiny VCS-specific end-to-end test program and preserve its expected
+       ROM/map output as a baseline.
+
+[ ] 3. Fix libraries/vcs/vcs_4k.cfg so mirrored RIOT RAM is not modeled as two
+       independent physical memories. Initially reserve a conservative stack
+       area if exact call-depth calculation is not yet implemented.
+
+[ ] 4. Trace the current symbol-backed parameter implementation end to end and
+       make a small test function use it successfully on the VCS target.
+
+[ ] 5. Decide and document the first return-value ABI and automatic-local
+       storage model.
+
+[ ] 6. Make all ordinary parameters use symbol-backed storage by default for
+       the VCS language/target. Reject all direct and indirect recursive call
+       cycles under this ABI.
+
+[ ] 7. Replace stack-backed automatic locals with fixed-address storage.
+
+[ ] 8. Inventory every compiler use of _pushN/_popN and classify it as:
+       function ABI, local allocation, expression temporary, aggregate copy,
+       variadic support, or obsolete runtime support.
+
+[ ] 9. Replace the expression-temporary uses needed by the minimal language.
+
+[ ] 10. Remove _nl_sp/_nl_fp and the N software argument/local stack only after
+        no retained compiler path depends on them.
+
+[ ] 11. Produce and run/link-check a minimal 4K cartridge image using only the
+        new static-frame ABI.
+
+[ ] 12. Begin deleting unsupported language/runtime/tool features, one group at
+        a time, keeping the build and retained tests green.
+
+Initial acceptance tests
+------------------------
+Before calling the static-frame ABI usable, tests should cover at least:
+
+* A no-argument leaf function.
+* One 8-bit argument and one 8-bit return value.
+* Multiple arguments.
+* Nested calls A -> B -> C where each function has static parameters/locals.
+* Two different call sites invoking the same function sequentially.
+* Rejection of direct recursion.
+* Rejection of mutual recursion across one translation unit.
+* Rejection of mutual recursion across multiple object files, if separate
+  compilation remains supported.
+* Correct coexistence of static storage and several nested JSR return addresses
+  inside the real 128-byte RIOT RAM limit.
+* A ROM image with reset/vector placement correct for an unbanked 4K cartridge.
+
+Build/environment notes
+-----------------------
+* The initial source inspection found bison unavailable in the base container.
+* The user supplied Debian packages for bison, flex, libfl, clang, and doxygen.
+* Do not assume root access or install packages system-wide. A typical private
+  extraction approach is:
+
+      mkdir -p .tools/debroot
+      dpkg-deb -x /mnt/data/<package>.deb .tools/debroot
+      PATH="$PWD/.tools/debroot/usr/bin:$PATH" ...
+
+  Library/include paths may also need to be added depending on which binaries
+  are used.
+* GCC is expected to be sufficient for the toolchain itself; clang and doxygen
+  are not currently required for the first behavioral changes.
+
+Change log
+----------
+2026-07-16
+* Began from vcsc.20260716_140727.tar.gz.
+* Inspected the top-level tree, README.md, NOTES.md, current VCS linker config,
+  compiler static-parameter documentation, and existing software-stack ABI.
+* Confirmed that the compiler already has symbol-backed parameters and
+  compiler/linker call-cycle checks for functions using them.
+* Identified that libraries/vcs/vcs_4k.cfg incorrectly models $80-$FF and
+  $180-$1FF as separate physical RAM regions even though they are mirrors on
+  the VCS.
+* Created this top-level context.txt as the durable project handoff file.
+
+End-of-session update checklist
+-------------------------------
+Before returning a modified archive after substantive work:
+
+[ ] Update the changelog with files changed and behavior changed.
+[ ] Mark completed TODO items and add the next concrete item.
+[ ] Record exact build/test commands and totals.
+[ ] Record known failures and whether they predated the change.
+[ ] Record any newly agreed language/ABI decisions under Agreed architecture.
+[ ] Repack the complete source tree with context.txt at its top level.
