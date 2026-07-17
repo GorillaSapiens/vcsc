@@ -19,7 +19,14 @@ namespace {
 constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerScanline = 76;
-constexpr uint64_t kExpectedFrameCycles = 262 * kCyclesPerScanline;
+constexpr uint64_t kExpectedDisplayedScanlines = 262;
+// Stella's status-line count for this non-interlaced kernel is one less than
+// the whole-scanline interval between successive VSYNC assertions. Keep both
+// quantities explicit so the regression does not repeat the old off-by-one.
+constexpr uint64_t kExpectedVsyncIntervalScanlines =
+   kExpectedDisplayedScanlines + 1;
+constexpr uint64_t kExpectedVsyncIntervalCycles =
+   kExpectedVsyncIntervalScanlines * kCyclesPerScanline;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kAudv0 = 0x0019;
@@ -181,18 +188,27 @@ int main(int argc, char **argv) {
    }
 
    // Startup occurs before the first complete measured frame, and the first
-   // interval includes reset alignment. From the third interval onward every
-   // VSYNC assertion must be exactly 262 scanlines apart.
+   // interval includes reset alignment. From the third interval onward the raw
+   // assertion-to-assertion interval must be 263 whole scanlines, which Stella
+   // displays as a 262-scanline frame for this kernel.
    size_t checked = 0;
    for (size_t i = 3; i < vsync_assertions.size(); ++i) {
       const uint64_t delta = vsync_assertions[i] - vsync_assertions[i - 1];
-      if (delta != kExpectedFrameCycles) {
+      const uint64_t interval_lines = delta / kCyclesPerScanline;
+      const bool whole_lines = (delta % kCyclesPerScanline) == 0;
+      const uint64_t displayed_lines = interval_lines > 0 ? interval_lines - 1 : 0;
+      if (!whole_lines || delta != kExpectedVsyncIntervalCycles) {
          std::fprintf(stderr,
-            "vcs_frame_timing: frame %zu is %llu cycles (%.6f lines), expected %llu cycles\n",
+            "vcs_frame_timing: frame %zu has %llu-cycle VSYNC spacing "
+            "(%llu whole lines, %llu Stella-displayed lines); expected %llu cycles "
+            "(%llu/%llu lines)\n",
             i,
             static_cast<unsigned long long>(delta),
-            static_cast<double>(delta) / kCyclesPerScanline,
-            static_cast<unsigned long long>(kExpectedFrameCycles));
+            static_cast<unsigned long long>(interval_lines),
+            static_cast<unsigned long long>(displayed_lines),
+            static_cast<unsigned long long>(kExpectedVsyncIntervalCycles),
+            static_cast<unsigned long long>(kExpectedVsyncIntervalScanlines),
+            static_cast<unsigned long long>(kExpectedDisplayedScanlines));
          return 1;
       }
       ++checked;
@@ -205,8 +221,9 @@ int main(int argc, char **argv) {
       fail("test run did not exercise repeated sounding and silent score steps");
    }
 
-   std::printf("vcs_frame_timing ok: %zu frames at 262 lines, %llu AUDV0 writes\n",
+   std::printf("vcs_frame_timing ok: %zu frames at %llu lines, %llu AUDV0 writes\n",
       checked,
+      static_cast<unsigned long long>(kExpectedDisplayedScanlines),
       static_cast<unsigned long long>(audv0_writes));
    return 0;
 }

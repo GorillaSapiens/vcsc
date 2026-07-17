@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_133749.tar.gz
+    vcsc.20260717_140627.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -164,7 +164,9 @@ ROM array and now implements both `music_tick()` and `music_apply_current()` in
 the C-like source. A persistent pointer identifies the current `MusicStep`, so
 advancing computes the next table location once instead of multiplying an array
 index for each field. The source player runs inside a TIM64T-governed 30-line
-overscan budget; an execution regression verifies stable 262-line NTSC frames
+overscan budget. Two final WSYNCs produce Stella-reported 262-line NTSC
+frames; the raw interval between successive VSYNC assertions is 263 whole
+scanlines. The execution regression uses that same Stella-equivalent accounting
 through ordinary, note-change, silent-gap, and score-wrap paths. The temporary
 companion assembly player has been removed.
 
@@ -342,42 +344,22 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Call-graph-derived hardware-stack sizing:
-
-    linker/n65ld.c
-    linker/n65ld_internal.h
-    linker/README.md
-    libraries/vcs/vcs_4k.cfg
-    libraries/vcs/vcs.n
-    libraries/vcs/README.md
-    compiler/README.md
-
-Source-level music player:
+Corrected Ode frame boundary and documentation:
 
     examples/02_ode_to_joy/ode_to_joy.n
-    examples/02_ode_to_joy/Makefile
     examples/02_ode_to_joy/README.md
+
+Corrected timing accounting and regression expectations:
+
+    test/vcs_frame_timing.cpp
     test/vcs_ode_to_joy_cartridge.pl
-    test/vcs_ode_to_joy_cartridge.test
-
-Stack-sizing regressions and updated expectations:
-
-    test/e2e_vcs_call_stack_depth_verify.n
-    test/e2e_vcs_ram_partition_verify.n
-    test/e2e_vcs_ram_reserve_overflow_fail.n
-    test/vcs_4k_cartridge.pl
-    test/vcs_ram_config_layout.test
 
 Bookkeeping:
 
     context.txt
-    remove.txt
 
-Removed this revision:
-
-    examples/02_ode_to_joy/music_player.s
-
-remove.txt now contains 462 unique cumulative paths.
+No files were added or removed. remove.txt remains at 462 unique cumulative
+paths.
 
 Build environment
 -----------------
@@ -424,8 +406,10 @@ reserve is $F4-$FF (12 bytes). Static/runtime allocation ends at $B8, leaving
 $B9-$F3 unused by ordinary storage.
 
 The timing regression ran through 1500 VSYNC assertions, checked 1497 complete
-frames at exactly 262 lines, exercised ordinary ticks, note transitions, silent
-gaps, and score wrap, and detected no overscan timer underflow.
+frames at exactly 262 Stella-reported lines, exercised ordinary ticks, note
+transitions, silent gaps, and score wrap, and detected no overscan timer
+underflow. The corresponding raw assertion-to-assertion interval is 263 whole
+scanlines. A one-WSYNC tail is now rejected as 261 displayed lines.
 
 Immediate TODO
 --------------
@@ -492,8 +476,9 @@ The first unfinished item is the default next action.
 [x] Side quest: add a second complete 4K example that plays a repeating
     frame-driven classical melody from a const ROM array of volume, frequency,
     control, and timing structs, plus reusable NTSC TIA sound aliases. The
-    corrected player runs inside a fixed TIM64T overscan budget and has an
-    execution regression proving stable 262-line frames.
+    corrected player runs inside a fixed TIM64T overscan budget, uses two final
+    WSYNCs, and has an execution regression proving Stella-reported 262-line
+    frames rather than the former 261-line output.
 
 [ ] 15. Finish the general compiler-efficiency work exposed by Ode to Joy
         before continuing broad functional reduction. The player itself now
@@ -513,8 +498,8 @@ The first unfinished item is the default next action.
                   32-byte hardware-stack partition.
         [x] 15c. Keep every execution path--ordinary counter tick, note change,
                   silent gap, and end-of-score wrap--inside the fixed 30-line
-                  TIM64T overscan budget while preserving stable 262-line NTSC
-                  frames in the execution regression.
+                  TIM64T overscan budget while preserving stable Stella-reported
+                  262-line NTSC frames in the execution regression.
         [ ] 15d. Continue the general compiler work exposed by the original
                   indexed formulation: overlay/reuse expression scratch by
                   lifetime, avoid permanent per-expression temporaries, lower
@@ -1000,6 +985,25 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 220/220 compile tests and 92/92 end-to-end tests.
 * Removed `examples/02_ode_to_joy/music_player.s`; remove.txt now contains 462
   unique cumulative paths.
+
+
+2026-07-17 14:10:25 PDT, correct Ode 261-line frame off-by-one
+* Confirmed in Stella that the timer-based Ode kernel produced 261 displayed
+  scanlines despite the old harness reporting 262.
+* Added a second final `sta WSYNC` after the TIM64T/INTIM wait, restoring the
+  emulator-visible frame to 262 lines without moving `music_tick()` outside the
+  fixed overscan budget.
+* Corrected the timing harness to distinguish raw VSYNC-assertion spacing from
+  Stella's displayed scanline count: a valid 262-line frame has a 263-whole-line
+  assertion interval in this kernel.
+* Added a negative calibration check during validation: the prior one-WSYNC ROM
+  is rejected as 261 Stella-displayed lines, while the corrected ROM passes
+  1497 complete frames at 262.
+* Updated the Ode cartridge regression and README for the required two-WSYNC
+  tail and corrected timing terminology.
+* Passed 220/220 compile tests and 92/92 end-to-end tests; both examples remain
+  exact 4096-byte cartridges.
+* No files were added or removed; remove.txt remains at 462 cumulative paths.
 
 End-of-session checklist
 ------------------------

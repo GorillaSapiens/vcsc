@@ -124,15 +124,17 @@ void main(void) {
    asm lda #2;
    asm sta VBLANK;
 
-   // Thirty scanlines of overscan. TIM64T=35 reaches zero late in the
-   // thirtieth line; music_tick() runs while it counts down. The final WSYNC
-   // aligns the next VSYNC to the following scanline boundary.
+   // Thirty displayed overscan scanlines. TIM64T=35 reaches zero late in
+   // the timed portion; music_tick() runs while it counts down. Two final
+   // WSYNCs complete the overscan budget and begin the next VSYNC after a
+   // Stella-reported 262-line frame.
    asm lda #35;
    asm sta TIM64T;
    music_tick();
    asm @overscan_wait:;
    asm lda INTIM;
    asm bne @overscan_wait;
+   asm sta WSYNC;
    asm sta WSYNC;
 
    asm jmp @frame;

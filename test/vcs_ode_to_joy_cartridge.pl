@@ -104,8 +104,8 @@ $source_text =~ /alias\s+MUSIC_STEP_COUNT\s+32/
    or die "source does not declare 32 score steps\n";
 my $gap_uses=()=$source_text =~ /MUSIC_TIME_GAP/g;
 $gap_uses==16 or die "source has $gap_uses gap steps, expected 16\n";
-$source_text =~ /asm lda \#35;\s*asm sta TIM64T;\s*music_tick\(\);\s*asm \@overscan_wait:;\s*asm lda INTIM;\s*asm bne \@overscan_wait;\s*asm sta WSYNC;\s*asm jmp \@frame;/s
-   or die "music_tick is not enclosed by the fixed TIM64T overscan wait\n";
+$source_text =~ /asm lda \#35;\s*asm sta TIM64T;\s*music_tick\(\);\s*asm \@overscan_wait:;\s*asm lda INTIM;\s*asm bne \@overscan_wait;\s*asm sta WSYNC;\s*asm sta WSYNC;\s*asm jmp \@frame;/s
+   or die "music_tick is not enclosed by the corrected TIM64T/two-WSYNC overscan tail\n";
 $source_text !~ /music_tick\(\);\s*asm lda \#2;\s*asm sta VSYNC;/s
    or die "music_tick still runs outside the fixed frame budget\n";
 $source_text =~ /MusicStep\s+\*music_current\s*:=\s*music\s*;/
