@@ -462,12 +462,17 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       const ASTNode *type = NULL;
       int size;
       int compare_size;
+      int saved_locals = ctx ? ctx->locals : 0;
+      int saved_high_water = ctx ? ctx->locals_high_water : 0;
+      int scratch_size;
+      char scratch_sym[96];
       ContextEntry lhs;
       ContextEntry rhs;
       const char *helper = NULL;
       bool invert = false;
       bool is_float_compare;
       int expbits = -1;
+      bool ok;
 
       if ((lhs_type && type_is_float_like(lhs_type)) || (rhs_type && type_is_float_like(rhs_type))) {
          int lhs_size = lhs_type ? type_size_from_node(lhs_type) : 0;
@@ -496,9 +501,10 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          size = 1;
       }
       compare_size = size * 2;
-      int saved_locals = ctx ? ctx->locals : 0;
-      lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = saved_locals, .size = size };
-      rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = saved_locals + size, .size = size };
+      scratch_size = compare_size;
+      snprintf(scratch_sym, sizeof(scratch_sym), "__n65_comparetmp_%d", label_counter++);
+      lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = 0, .size = size };
+      rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = size, .size = size };
       is_float_compare = type_is_float_like(type);
       if (is_float_compare) {
          expbits = type_float_expbits(type);
@@ -507,36 +513,39 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          }
       }
 
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
       if (ctx) {
-         ctx_set_locals(ctx, saved_locals + compare_size);
+         ctx->locals = compare_size;
+         ctx->locals_high_water = compare_size;
       }
-
-      if (!compile_expr_to_slot(expr->children[0], ctx, &lhs) ||
-          !compile_expr_to_slot(expr->children[1], ctx, &rhs)) {
+      emit_expr_scratch_save_fp();
+      emit_expr_scratch_set_fp(scratch_sym);
+      ok = compile_expr_to_slot(expr->children[0], ctx, &lhs) &&
+           compile_expr_to_slot(expr->children[1], ctx, &rhs);
+      if (ctx && ctx->locals_high_water > scratch_size) {
+         scratch_size = ctx->locals_high_water;
+      }
+      if (!ok) {
+         emit_expr_scratch_restore_fp();
          if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
+            ctx->locals = saved_locals;
+            ctx->locals_high_water = saved_high_water;
          }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         emit(&es_bss, ".segment \"BSS\"\n");
+         emit(&es_bss, "%s:\n", scratch_sym);
+         emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
          return false;
-      }
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
       }
 
       if (is_float_compare) {
          emit_runtime_float_compare(lhs.offset, rhs.offset, size, expbits);
-
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         emit_expr_scratch_restore_fp();
+         if (ctx) {
+            ctx->locals = saved_locals;
+            ctx->locals_high_water = saved_high_water;
+         }
+         emit(&es_bss, ".segment \"BSS\"\n");
+         emit(&es_bss, "%s:\n", scratch_sym);
+         emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
          emit(&es_code, "    lda arg1\n");
          if (!strcmp(expr->name, "==")) {
             emit(&es_code, "    bne %s\n", false_label);
@@ -591,11 +600,14 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       emit(&es_code, "    sta arg0\n");
       remember_runtime_import(helper);
       emit(&es_code, "    jsr _%s\n", helper);
-
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      emit_expr_scratch_restore_fp();
+      if (ctx) {
+         ctx->locals = saved_locals;
+         ctx->locals_high_water = saved_high_water;
+      }
+      emit(&es_bss, ".segment \"BSS\"\n");
+      emit(&es_bss, "%s:\n", scratch_sym);
+      emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
       emit(&es_code, "    lda arg1\n");
       emit(&es_code, "    %s %s\n", invert ? "bne" : "beq", false_label);
       return true;

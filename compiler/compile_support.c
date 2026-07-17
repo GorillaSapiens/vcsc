@@ -615,6 +615,49 @@ void emit_copy_symbol_to_fp_convert(int dst_offset, int dst_size, const ASTNode 
    emit_copy_symbol_to_fp_convert_offset(dst_offset, dst_size, dst_type, symbol, 0, src_size, src_type);
 }
 
+//! @brief Emit a converted copy between two fixed symbols.
+void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_offset, int dst_size, const ASTNode *dst_type,
+                                               const char *src_symbol, int src_offset, int src_size, const ASTNode *src_type) {
+   bool src_big_endian = type_is_big_endian(src_type);
+   bool dst_big_endian = type_is_big_endian(dst_type);
+   bool is_signed = type_is_signed_integer(src_type);
+   int sign_src_mem;
+   const char *helper;
+
+   if (!dst_symbol || !src_symbol || dst_size <= 0 || src_size <= 0) {
+      return;
+   }
+
+   sign_src_mem = endian_mem_index_for_significance(src_size, src_big_endian, src_size - 1);
+   helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
+   if (helper) {
+      emit_load_address_to_ptr(0, src_symbol, src_offset);
+      emit_load_address_to_ptr(1, dst_symbol, dst_offset);
+      emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
+      return;
+   }
+
+   for (int j = 0; j < dst_size; j++) {
+      int sig = dst_big_endian ? (dst_size - 1 - j) : j;
+      if (sig < src_size) {
+         int src_mem = endian_mem_index_for_significance(src_size, src_big_endian, sig);
+         emit(&es_code, "    ldy #%d\n", src_offset + src_mem);
+         emit(&es_code, "    lda %s,y\n", src_symbol);
+      }
+      else if (is_signed) {
+         emit(&es_code, "    ldy #%d\n", src_offset + sign_src_mem);
+         emit(&es_code, "    lda %s,y\n", src_symbol);
+         emit(&es_code, "    and #$80\n");
+         emit_sign_fill_from_masked_a();
+      }
+      else {
+         emit(&es_code, "    lda #$00\n");
+      }
+      emit(&es_code, "    ldy #%d\n", dst_offset + j);
+      emit(&es_code, "    sta %s,y\n", dst_symbol);
+   }
+}
+
 //! @brief Add runtime import to compiler code-generation support state, growing storage or preserving uniqueness as needed.
 void remember_runtime_import(const char *name) {
    if (!runtime_imports) {

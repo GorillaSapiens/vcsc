@@ -1,0 +1,11 @@
+// n65c -I .
+// expectasm: __n65_comparetmp_
+// expectasm: jsr _ltNsle
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.n"
+
+void compare(int a, int b) {
+   if (a < b) {
+   }
+}

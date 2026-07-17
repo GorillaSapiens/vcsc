@@ -24,5 +24,7 @@ void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const A
                                            const ASTNode *src_type);
 void emit_copy_symbol_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst_type,
                                     const char *symbol, int src_size, const ASTNode *src_type);
+void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_offset, int dst_size, const ASTNode *dst_type,
+                                               const char *src_symbol, int src_offset, int src_size, const ASTNode *src_type);
 
 #endif

@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_195648.tar.gz
+    vcsc.20260716_202355.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -100,6 +100,10 @@ Completed vertical slices
 11. Simple assignments into fixed symbols now evaluate and convert through
     fixed per-site `__n65_assigntmp_N` BSS scratch instead of
     `_pushN`/`_popN`.
+12. Two-operand comparisons and the main built-in binary operator families now
+    use fixed per-site BSS scratch instead of `_pushN`/`_popN`: pointer
+    subtraction, scalar/pointer addition and subtraction, shifts, bitwise
+    operations, multiplication, division, and remainder.
 
 Current return ABI
 ------------------
@@ -216,8 +220,8 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    24  emitted `_pushN` allocation sites
-    67  emitted `_popN` normal/error cleanup paths
+    19  emitted `_pushN` allocation sites
+    52  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
@@ -259,26 +263,29 @@ Files changed in this revision
 Modified compiler source:
 
     compiler/compile_expr_flow.c
+    compiler/compile_expr_ops.c
+    compiler/compile_support.c
+    compiler/compile_support.h
 
 Modified documentation and handoff state:
 
+    compiler/ABI.txt
     compiler/README.md
     context.txt
     software_stack_inventory.txt
 
 Modified tests:
 
-    test/e2e_shift_signed_widths_1_8_verify.n
-    test/e2e_shift_signed_widths_9_16_verify.n
-    test/e2e_shift_unsigned_widths_1_8_verify.n
-    test/e2e_shift_unsigned_widths_9_16_verify.n
+    test/big_endian_mul_low_half_codegen_test.n
     test/software_stack_inventory.pl
     test/software_stack_inventory.test
+    test/static_parameter_codegen_test.n
 
 Added tests:
 
-    test/assignment_fixed_scratch_codegen_test.n
-    test/e2e_assignment_fixed_scratch_verify.n
+    test/binary_fixed_scratch_codegen_test.n
+    test/comparison_fixed_scratch_codegen_test.n
+    test/e2e_fixed_binary_compare_verify.n
 
 Removed intentionally:
 
@@ -312,13 +319,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    274 passed, 0 failed, 274 total
+    276 passed, 0 failed, 276 total
 
 End-to-end/generic suite:
 
-    121 passed, 0 failed, 121 total
+    122 passed, 0 failed, 122 total
 
-The full retained suites completed successfully in their normal invocations.
+The compile suite completed in one invocation. The end-to-end/generic runner
+reached the execution wrapper timeout after 116 passing cases; the remaining
+six cases were run explicitly and all passed, accounting for all 122 cases.
 
 Immediate TODO
 --------------
@@ -351,9 +360,11 @@ The first unfinished item is the default next action.
 
 [ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
         probably with fixed scratch plus register-first lowering and later
-        overlay/liveness reuse. Truth-value evaluation, discarded results, and
-        simple fixed-symbol assignment conversion are complete; the two-operand
-        comparison buffer is next.
+        overlay/liveness reuse. Truth-value evaluation, discarded results,
+        simple fixed-symbol assignment conversion, comparisons, pointer/scalar
+        addition and subtraction, shifts, bitwise operations, multiplication,
+        division, and remainder are complete. Next batch cast and absolute-
+        reference conversion scratch, then built-in increment/decrement.
 
 [ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
         retained compiler path depends on it.
@@ -504,6 +515,22 @@ Change log
   buffer address; their computed output bytes remain unchanged.
 * Reduced the checked compiler stack inventory from 25/69 to 24/67.
 * Passed 274/274 compile tests and 121/121 end-to-end/generic tests.
+* No files were removed.
+
+
+2026-07-16, fixed comparison and binary-expression scratch
+* Replaced the two-operand comparison `_pushN`/`_popN` buffer with fixed per-site
+  BSS symbols named `__n65_comparetmp_N`.
+* Replaced stack scratch for pointer subtraction, scalar/pointer addition and
+  subtraction, shifts, bitwise operations, multiplication, division, and
+  remainder with `__n65_ptrdifftmp_N`, `__n65_addtmp_N`,
+  `__n65_shifttmp_N`, and `__n65_binarytmp_N`.
+* Added fixed-symbol-to-fixed-symbol conversion support for copied expression
+  results while preserving the caller frame.
+* Added focused code-generation and execution tests and updated two exact-
+  assembly expectations.
+* Reduced the checked compiler stack inventory from 24/67 to 19/52.
+* Passed 276/276 compile tests and 122/122 end-to-end/generic tests.
 * No files were removed.
 
 End-of-session checklist

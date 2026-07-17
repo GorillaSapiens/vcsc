@@ -40,6 +40,74 @@
 
 static ASTNode *make_synthetic_incdec_operand(ASTNode *origin);
 static int expr_byte_index(const ASTNode *type, int size, int i);
+
+typedef struct ExprFixedScratch {
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   char symbol[96];
+} ExprFixedScratch;
+
+//! @brief Begin one fixed-address expression working area and redirect fp to it.
+static void expr_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+                                     ExprFixedScratch *scratch) {
+   memset(scratch, 0, sizeof(*scratch));
+   scratch->saved_locals = ctx ? ctx->locals : 0;
+   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   scratch->reserved = reserved > 0 ? reserved : 1;
+   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+
+   if (ctx) {
+      ctx->locals = scratch->reserved;
+      ctx->locals_high_water = scratch->reserved;
+   }
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Restore fp, restore compiler frame accounting, and declare fixed scratch.
+static void expr_fixed_scratch_end(Context *ctx, ExprFixedScratch *scratch) {
+   int used = scratch->reserved;
+   if (ctx && ctx->locals_high_water > used) {
+      used = ctx->locals_high_water;
+   }
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (ctx) {
+      ctx->locals = scratch->saved_locals;
+      ctx->locals_high_water = scratch->saved_high_water;
+   }
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch->symbol);
+   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+}
+
+//! @brief Copy a converted fixed-scratch result into the caller destination.
+static void emit_fixed_scratch_result(Context *ctx, const ExprFixedScratch *scratch,
+                                      int src_offset, int src_size, const ASTNode *src_type,
+                                      ContextEntry *dst) {
+   char dst_symbol[256];
+   if (!dst || dst->size <= 0) {
+      return;
+   }
+   if ((dst->is_static || dst->is_zeropage || dst->is_global) &&
+       entry_symbol_name(ctx, dst, dst_symbol, sizeof(dst_symbol))) {
+      emit_copy_symbol_to_symbol_convert_offset(dst_symbol, 0, dst->size, dst->type,
+                                                scratch->symbol, src_offset, src_size, src_type);
+   }
+   else {
+      emit_copy_symbol_to_fp_convert_offset(dst->offset, dst->size, dst->type,
+                                            scratch->symbol, src_offset, src_size, src_type);
+   }
+}
 //! @brief Handle weak builtin operator symbol name logic for compiler operator lowering.
 static bool weak_builtin_operator_symbol_name(const char *opname, int arg_count,
                                               const ASTNode **arg_types,
@@ -818,11 +886,14 @@ unary_not_done:
       int work_size = expr_value_size(expr, ctx);
       int pointer_scale = 1;
 
+      if (!dst || dst->size <= 0) {
+         return false;
+      }
       expr_match_signature(expr->children[0], ctx, &lhs_type, &lhs_decl);
       expr_match_signature(expr->children[1], ctx, &rhs_type, &rhs_decl);
 
       bool scaled_pointer_arith = lhs_decl && declarator_pointer_depth(lhs_decl) > 0;
-      if (dst && dst->target_typed) {
+      if (dst->target_typed) {
          work_type = target_endian_integer_binary_work_type(expr->children[0], expr->children[1], ctx, dst->type, expr);
       }
       if (!work_type) {
@@ -858,111 +929,82 @@ unary_not_done:
       if (!strcmp(expr->name, "-") && lhs_decl && declarator_pointer_depth(lhs_decl) > 0 && rhs_decl && declarator_pointer_depth(rhs_decl) > 0) {
          int ptr_size = declarator_storage_size(lhs_type, lhs_decl);
          int elem_size = pointer_scale > 0 ? pointer_scale : 1;
-         int tmp_total = ptr_size * 3;
-         int saved_locals = ctx ? ctx->locals : 0;
-         int lhs_off = saved_locals;
-         int rhs_off = lhs_off + ptr_size;
-         int quo_off = rhs_off + ptr_size;
-         ContextEntry lhs_tmp = { .name = "$lhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = lhs_off, .size = ptr_size };
-         ContextEntry rhs_tmp = { .name = "$rhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = rhs_off, .size = ptr_size };
+         int work_total = ptr_size * 3;
+         int out_offset = work_total;
+         ExprFixedScratch scratch;
+         ContextEntry lhs_tmp = { .name = "$lhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = 0, .size = ptr_size };
+         ContextEntry rhs_tmp = { .name = "$rhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = ptr_size, .size = ptr_size };
          unsigned char *factor_bytes;
          char factor_buf[64];
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + tmp_total);
-         }
-         if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) || !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+
+         expr_fixed_scratch_begin(ctx, "ptrdifftmp", work_total + dst->size, &scratch);
+         if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
+             !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
+            expr_fixed_scratch_end(ctx, &scratch);
             return false;
          }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         emit_sub_fp_from_fp(lhs_type, lhs_off, rhs_off, ptr_size);
+         emit_sub_fp_from_fp(lhs_type, 0, ptr_size, ptr_size);
          factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
          if (!factor_bytes) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+            expr_fixed_scratch_end(ctx, &scratch);
             return false;
          }
          snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
          if (has_flag(type_name_from_node(lhs_type), "$endian:big")) make_be_int(factor_buf, factor_bytes, ptr_size);
          else make_le_int(factor_buf, factor_bytes, ptr_size);
-         emit_store_immediate_to_fp(rhs_off, factor_bytes, ptr_size);
+         emit_store_immediate_to_fp(ptr_size, factor_bytes, ptr_size);
          free(factor_bytes);
-         emit_prepare_fp_ptr(0, lhs_off);
-         emit_prepare_fp_ptr(1, rhs_off);
-         emit_prepare_fp_ptr(2, quo_off);
-         emit_prepare_fp_ptr(3, rhs_off);
+         emit_prepare_fp_ptr(0, 0);
+         emit_prepare_fp_ptr(1, ptr_size);
+         emit_prepare_fp_ptr(2, ptr_size * 2);
+         emit_prepare_fp_ptr(3, ptr_size);
          emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
          emit(&es_code, "    sta arg0\n");
          remember_runtime_import(int_div_helper_name(lhs_type));
          emit(&es_code, "    jsr _%s\n", int_div_helper_name(lhs_type));
-         emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, quo_off, ptr_size, dst->type ? dst->type : lhs_type);
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, ptr_size * 2, ptr_size,
+                                    dst->type ? dst->type : lhs_type);
+         expr_fixed_scratch_end(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
          return true;
       }
 
       {
-         int saved_locals = ctx ? ctx->locals : 0;
-         int lhs_offset = saved_locals;
-         int rhs_offset = lhs_offset + work_size;
+         int lhs_offset = 0;
+         int rhs_offset = work_size;
          int factor_offset = 0;
          int scaled_offset = 0;
          int value_offset = rhs_offset;
-         int tmp_total = work_size * 2;
+         int work_total = work_size * 2;
+         int out_offset;
          const ASTNode *rhs_slot_type = scaled_pointer_arith ? (expr_is_literal_node(rhs) ? work_type : rhs_type) : work_type;
-         ContextEntry lhs_tmp = { .name = "$lhs", .type = work_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = lhs_offset, .size = work_size };
-         ContextEntry rhs_tmp = { .name = "$rhs", .type = rhs_slot_type ? rhs_slot_type : work_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = rhs_offset, .size = work_size };
+         ContextEntry lhs_tmp = { .name = "$lhs", .type = work_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = lhs_offset, .size = work_size };
+         ContextEntry rhs_tmp = { .name = "$rhs", .type = rhs_slot_type ? rhs_slot_type : work_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = rhs_offset, .size = work_size };
+         ExprFixedScratch scratch;
 
          if (scaled_pointer_arith && pointer_scale != 1) {
-            tmp_total += work_size * 2;
+            work_total += work_size * 2;
             factor_offset = rhs_offset + work_size;
             scaled_offset = factor_offset + work_size;
             value_offset = scaled_offset;
          }
-
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + tmp_total);
-         }
+         out_offset = work_total;
+         expr_fixed_scratch_begin(ctx, "addtmp", work_total + dst->size, &scratch);
 
          if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
              !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+            expr_fixed_scratch_end(ctx, &scratch);
             return false;
-         }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
          }
 
          if (scaled_pointer_arith && pointer_scale != 1) {
             unsigned char *factor_bytes = (unsigned char *) calloc(work_size ? work_size : 1, sizeof(unsigned char));
             char scaled_buf[64];
             const ASTNode *factor_type = rhs_slot_type ? rhs_slot_type : work_type;
+            if (!factor_bytes) {
+               expr_fixed_scratch_end(ctx, &scratch);
+               return false;
+            }
             snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
             if (factor_type && has_flag(type_name_from_node(factor_type), "$endian:big")) {
                make_be_int(scaled_buf, factor_bytes, work_size);
@@ -979,10 +1021,7 @@ unary_not_done:
          if (work_type && type_is_float_like(work_type)) {
             int expbits = type_float_expbits(work_type);
             if (expbits < 0) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               expr_fixed_scratch_end(ctx, &scratch);
                error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
                return false;
             }
@@ -995,11 +1034,9 @@ unary_not_done:
             emit_sub_fp_from_fp(work_type, lhs_offset, value_offset, work_size);
          }
 
-         emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, lhs_offset, work_size, work_type);
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, lhs_offset, work_size, work_type);
+         expr_fixed_scratch_end(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
          return true;
       }
    }
@@ -1010,7 +1047,10 @@ unary_not_done:
       const char *op = expr->name;
       const ASTNode *rhs_type = expr_value_type(expr->children[1], ctx);
       const ASTNode *op_type = NULL;
-      if (dst && dst->target_typed) {
+      if (!dst || dst->size <= 0) {
+         return false;
+      }
+      if (dst->target_typed) {
          const ASTNode *lhs_type = expr_value_type(expr->children[0], ctx);
          const char *target_endian = type_endian_name(dst->type);
          if (expr_is_mixed_endian_integer_binary_expr(expr, ctx) && lhs_type && target_endian) {
@@ -1023,13 +1063,15 @@ unary_not_done:
       const ASTNode *rhs_slot_type = expr_is_literal_node(expr->children[1]) ? op_type : (rhs_type ? rhs_type : op_type);
       int lhs_size = op_type ? type_size_from_node(op_type) : 0;
       int rhs_size = rhs_slot_type ? type_size_from_node(rhs_slot_type) : 0;
-      int tmp_total;
-      int lhs_offset;
+      int work_total;
+      int lhs_offset = 0;
       int rhs_offset;
       int aux_offset;
+      int out_offset;
       ContextEntry lhs_tmp;
       ContextEntry rhs_tmp;
       const char *helper;
+      ExprFixedScratch scratch;
 
       if (lhs_size <= 0) {
          lhs_size = expr_value_size(expr->children[0], ctx);
@@ -1049,67 +1091,53 @@ unary_not_done:
 
       diagnose_constant_shift_count(expr->children[1], lhs_size * 8);
 
-      tmp_total = lhs_size + rhs_size + lhs_size;
-      int saved_locals = ctx ? ctx->locals : 0;
-      lhs_offset = saved_locals;
-      rhs_offset = lhs_offset + lhs_size;
+      rhs_offset = lhs_size;
       aux_offset = rhs_offset + rhs_size;
-      lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = lhs_offset, .size = lhs_size };
-      rhs_tmp = (ContextEntry){ .name = "$rhs", .type = rhs_slot_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = rhs_offset, .size = rhs_size };
+      work_total = lhs_size + rhs_size + lhs_size;
+      out_offset = work_total;
+      lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = lhs_offset, .size = lhs_size };
+      rhs_tmp = (ContextEntry){ .name = "$rhs", .type = rhs_slot_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = rhs_offset, .size = rhs_size };
 
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals + tmp_total);
-      }
-
+      expr_fixed_scratch_begin(ctx, "shifttmp", work_total + dst->size, &scratch);
       if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
           !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         expr_fixed_scratch_end(ctx, &scratch);
          return false;
-      }
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
       }
 
       helper = int_shift_helper_name(op_type, !strcmp(op, "<<"));
       emit_runtime_shift_fp(helper, lhs_offset, aux_offset, rhs_offset, rhs_type, rhs_size, lhs_size);
-
-      emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, aux_offset, lhs_size, op_type);
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, aux_offset, lhs_size, op_type);
+      expr_fixed_scratch_end(ctx, &scratch);
+      emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
       return true;
    }
+
 
    if (expr->count == 2 && (!strcmp(expr->name, "&") || !strcmp(expr->name, "|") || !strcmp(expr->name, "^") ||
                             !strcmp(expr->name, "*") || !strcmp(expr->name, "/") || !strcmp(expr->name, "%"))) {
       const char *op = expr->name;
       const ASTNode *op_type = NULL;
       int op_size = expr_value_size(expr, ctx);
-      if (dst && dst->target_typed) {
+      int work_total;
+      int lhs_offset = 0;
+      int rhs_offset;
+      int aux_offset;
+      int out_offset;
+      ContextEntry lhs_tmp;
+      ContextEntry rhs_tmp;
+      const char *helper = NULL;
+      ExprFixedScratch scratch;
+
+      if (!dst || dst->size <= 0) {
+         return false;
+      }
+      if (dst->target_typed) {
          op_type = target_endian_integer_binary_work_type(expr->children[0], expr->children[1], ctx, dst->type, expr);
       }
       if (!op_type) {
          op_type = expr_value_type(expr, ctx);
       }
-      int tmp_total;
-      int lhs_offset;
-      int rhs_offset;
-      int aux_offset;
-      ContextEntry lhs_tmp;
-      ContextEntry rhs_tmp;
-      const char *helper = NULL;
-
       if (op_size <= 0) {
          op_size = expr_value_size(expr->children[0], ctx);
       }
@@ -1123,39 +1151,21 @@ unary_not_done:
          op_type = dst->type;
       }
 
-      tmp_total = op_size * 2;
+      work_total = op_size * 2;
       if (!strcmp(op, "*") || !strcmp(op, "/") || !strcmp(op, "%")) {
-         tmp_total += op_size * 2;
+         work_total += op_size * 2;
       }
-
-      int saved_locals = ctx ? ctx->locals : 0;
-      lhs_offset = saved_locals;
-      rhs_offset = lhs_offset + op_size;
+      rhs_offset = op_size;
       aux_offset = rhs_offset + op_size;
-      lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = lhs_offset, .size = op_size };
-      rhs_tmp = (ContextEntry){ .name = "$rhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst && dst->target_typed, .offset = rhs_offset, .size = op_size };
+      out_offset = work_total;
+      lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = lhs_offset, .size = op_size };
+      rhs_tmp = (ContextEntry){ .name = "$rhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = rhs_offset, .size = op_size };
 
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals + tmp_total);
-      }
-
+      expr_fixed_scratch_begin(ctx, "binarytmp", work_total + dst->size, &scratch);
       if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
           !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         expr_fixed_scratch_end(ctx, &scratch);
          return false;
-      }
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
       }
 
       if (!strcmp(op, "&")) helper = "bit_andN";
@@ -1169,13 +1179,7 @@ unary_not_done:
          if (op_type && type_is_float_like(op_type)) {
             int expbits = type_float_expbits(op_type);
             if (expbits < 0) {
-               if (ctx) {
-                  ctx_set_locals(ctx, saved_locals);
-               }
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               expr_fixed_scratch_end(ctx, &scratch);
                error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
                return false;
             }
@@ -1191,13 +1195,7 @@ unary_not_done:
          if (!strcmp(op, "/") && op_type && type_is_float_like(op_type)) {
             int expbits = type_float_expbits(op_type);
             if (expbits < 0) {
-               if (ctx) {
-                  ctx_set_locals(ctx, saved_locals);
-               }
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               expr_fixed_scratch_end(ctx, &scratch);
                error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
                return false;
             }
@@ -1218,12 +1216,11 @@ unary_not_done:
          }
       }
 
-      emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, lhs_offset, op_size, op_type);
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, lhs_offset, op_size, op_type);
+      expr_fixed_scratch_end(ctx, &scratch);
+      emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
       return true;
    }
+
    return false;
 }

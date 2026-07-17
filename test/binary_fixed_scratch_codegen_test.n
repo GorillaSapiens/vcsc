@@ -1,0 +1,16 @@
+// n65c -I .
+// expectasm: __n65_addtmp_
+// expectasm: __n65_shifttmp_
+// expectasm: __n65_binarytmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.n"
+
+type uint8_t  { $size:1 $integer:unsigned };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t result;
+
+void calculate(uint16_t a, uint16_t b, uint8_t count) {
+   result := ((a + b) << count) ^ (a * b);
+}

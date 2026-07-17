@@ -1,7 +1,7 @@
 // n65c -I .
 // expectasm: bump$x:
 // expectasm: sta bump$x,y
-// expectasm: lda #$04
+// expectasm: __n65_addtmp_
 include "machine_6502.n"
 
 int bump(static int x, int y) {
