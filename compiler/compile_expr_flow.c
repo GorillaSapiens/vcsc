@@ -1192,6 +1192,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       else if (!strcmp(op, "/=") || !strcmp(op, "%=")) {
          int quo_offset = aux_offset;
          int rem_offset = aux_offset + work_size;
+         diagnose_runtime_power_of_two_divisor(node, rhs, op);
          emit_prepare_fp_ptr(0, lhs_tmp_offset);
          emit_prepare_fp_ptr(1, rhs_tmp_offset);
          emit_prepare_fp_ptr(2, quo_offset);

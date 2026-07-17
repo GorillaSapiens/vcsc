@@ -30,6 +30,10 @@ void compiler_scratch_note_used(CompilerScratchLease *lease, int used);
 void compiler_scratch_release(CompilerScratchLease *lease);
 void compiler_scratch_emit_bss(void);
 
+void diagnose_runtime_power_of_two_divisor(const ASTNode *origin,
+                                           const ASTNode *divisor,
+                                           const char *op);
+
 const ASTNode *decl_node_declarator(const ASTNode *node);
 bool entry_has_read_address(const ContextEntry *entry);
 bool entry_has_write_address(const ContextEntry *entry);

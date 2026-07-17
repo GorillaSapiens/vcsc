@@ -1,0 +1,17 @@
+// n65c -I .
+// expectstderrordered: runtime division by constant power of two 4
+// expectstderrordered: runtime remainder by constant power of two 8
+// expectstderrordered: runtime division by constant power of two 2
+// expectstderrordered: runtime remainder by constant power of two 16
+// expectasm: jsr _divNle
+
+include "machine_6502.n"
+
+uint8_t exercise(uint8_t x) {
+   uint8_t y;
+   y := x / 4;
+   y := x % 8;
+   y /= 2;
+   y %= 16;
+   return y;
+}

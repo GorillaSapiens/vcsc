@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_154505.tar.gz
+    vcsc.20260717_161143.tar(1).gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -179,6 +179,10 @@ Completed vertical slices
     archive members, `_nl_sbrk` zero-page pointer, compiler name-mangling
     exception, and allocator documentation are gone. `sbrk` is now an ordinary
     user identifier, and the runtime workspace shrank from 22 to 20 bytes.
+28. Explicit runtime `/`, `%`, `/=`, and `%=` operations whose divisor is a
+    compile-time positive power of two greater than one emit a performance
+    warning. Code generation and C-compatible signed division/remainder
+    semantics remain unchanged; literal-only expressions still fold silently.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -329,8 +333,8 @@ The generic test `test/software_stack_inventory.test` scans every compiler `.c`
 file and fails if either helper reappears. `_nl_fp` remains active as the base
 pointer for lifetime-pooled scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
 remain only in transitional runtime services. Generic division still uses `sp`
-as a private work area, and `_sbrk` still uses it as a collision boundary; that
-residual runtime state is now isolated from compiler-generated calls.
+as a private work area; heap/`sbrk` support and its collision-boundary use are
+already gone.
 
 Test policy
 -----------
@@ -367,56 +371,24 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler scratch pooling and address reuse:
+Compiler diagnostics:
 
-    compiler/compile.c
-    compiler/compile_call.c
     compiler/compile_expr_flow.c
     compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
-    compiler/compile_init.c
-    compiler/compile_lvalue.c
-    compiler/compile_stmt.c
     compiler/compile_support.c
     compiler/compile_support.h
 
 Documentation:
 
-    compiler/ABI.txt
     compiler/README.md
-    software_stack_inventory.txt
     context.txt
-
-Updated code-generation expectations for pooled symbol names:
-
-    test/assign_expr_condition_codegen_test.n
-    test/assignment_fixed_scratch_codegen_test.n
-    test/binary_fixed_scratch_codegen_test.n
-    test/cast_abs_incdec_fixed_scratch_codegen_test.n
-    test/comparison_fixed_scratch_codegen_test.n
-    test/compound_switch_fixed_scratch_codegen_test.n
-    test/condition_truthy_expr_codegen_test.n
-    test/direct_call_fixed_scratch_codegen_test.n
-    test/discard_fixed_scratch_codegen_test.n
-    test/initializer_lvalue_fixed_scratch_codegen_test.n
-    test/local_address_initializer_codegen_test.n
-    test/local_string_pointer_initializer_codegen_test.n
-    test/lvalue_braced_global_fixed_scratch_codegen_test.n
-    test/peephole_branch_codegen_test.n
-    test/register_parameter_zeropage_codegen_test.n
-    test/return_ax_uint16_codegen_test.n
-    test/static_parameter_codegen_test.n
-    test/truth_fixed_scratch_codegen_test.n
 
 Added regressions:
 
-    test/scratch_pool_layout.pl
-    test/scratch_pool_layout.test
-    test/common_indexed_address_reuse.pl
-    test/common_indexed_address_reuse.test
-    test/e2e_scratch_pool_lifetime_verify.n
+    test/power_of_two_division_warning_test.n
+    test/power_of_two_division_no_warning_test.n
 
-No files were removed. remove.txt remains at 462 unique cumulative paths.
+No files were removed. remove.txt remains at 463 unique cumulative paths.
 
 Build environment
 -----------------
@@ -1127,6 +1099,19 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 224/224 compile tests and 94/94 end-to-end/generic tests.
 * Added one test and removed one runtime source; remove.txt now contains 463
   unique cumulative paths.
+
+
+2026-07-17 16:32:32 PDT, warn on runtime division by powers of two
+* Added performance warnings for explicit runtime `/`, `%`, `/=`, and `%=`
+  operations with compile-time positive power-of-two divisors greater than one.
+* Division and remainder code generation and signed semantics are unchanged; the
+  warnings suggest explicit shifts or masks only when their different signed
+  behavior is acceptable or intended.
+* Literal-only constant expressions continue to fold without warnings. Divisor
+  one and non-power-of-two constants also remain silent.
+* Added focused positive and negative diagnostic regressions.
+* Passed 226/226 compile tests and 94/94 end-to-end/generic tests.
+* No files were removed; remove.txt remains at 463 unique cumulative paths.
 
 
 End-of-session checklist

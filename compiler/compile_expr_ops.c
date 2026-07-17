@@ -960,6 +960,7 @@ unary_not_done:
       }
       else if (!strcmp(op, "/") || !strcmp(op, "%")) {
          int rem_offset = aux_offset + op_size;
+         diagnose_runtime_power_of_two_divisor(expr, expr->children[1], op);
          emit_prepare_fp_ptr(0, lhs_offset);
          emit_prepare_fp_ptr(1, rhs_offset);
          emit_prepare_fp_ptr(2, aux_offset);

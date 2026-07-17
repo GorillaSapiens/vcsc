@@ -51,6 +51,34 @@ static CompilerScratchScope compiler_scratch_scopes[COMPILER_SCRATCH_MAX_SCOPES]
 static int compiler_scratch_scope_count = 0;
 static int compiler_scratch_symbol_count = 0;
 
+//! @brief Warn when explicit runtime division/remainder uses a constant power-of-two divisor.
+void diagnose_runtime_power_of_two_divisor(const ASTNode *origin,
+                                           const ASTNode *divisor,
+                                           const char *op) {
+   long long value;
+   unsigned long long uvalue;
+
+   if (!origin || !divisor || !op ||
+       !expr_is_integer_constant_expr(divisor, &value) || value <= 1) {
+      return;
+   }
+   uvalue = (unsigned long long) value;
+   if ((uvalue & (uvalue - 1ULL)) != 0) {
+      return;
+   }
+
+   if (!strcmp(op, "/") || !strcmp(op, "/=")) {
+      warning("[%s:%d.%d] runtime division by constant power of two %lld; "
+              "consider an explicit shift if its signed rounding behavior is acceptable",
+              origin->file, origin->line, origin->column, value);
+   }
+   else if (!strcmp(op, "%") || !strcmp(op, "%=")) {
+      warning("[%s:%d.%d] runtime remainder by constant power of two %lld; "
+              "consider an explicit mask if nonnegative modulo behavior is intended",
+              origin->file, origin->line, origin->column, value);
+   }
+}
+
 static int compiler_scratch_scope_for_context(const Context *ctx) {
    const char *name = (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
    for (int i = 0; i < compiler_scratch_scope_count; i++) {

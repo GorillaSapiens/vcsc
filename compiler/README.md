@@ -327,7 +327,18 @@ For example, with the VCS TIA declarations, `asm lda CXM0P` emits `lda $30`, whi
 
 All language operators use compiler-defined semantics. User-defined operator functions,
 `operator...` declarators, `$exactops`, weak operator dispatch, and operator ABI symbols
-are unsupported. The lexer retains explicit rejection rules so obsolete source receives a
+are unsupported.
+
+Explicit runtime division or remainder by a compile-time positive power of two
+greater than one emits a performance warning for `/`, `%`, `/=`, and `%=`. The
+compiler does not silently replace these operations: signed division truncates
+toward zero, signed remainder follows the dividend, right shift may round
+differently for negative values, and a mask produces a nonnegative residue. The
+programmer may write the shift or mask explicitly when those semantics are
+intended. Literal-only expressions are folded before lowering and do not warn;
+divisor one and non-power-of-two constants also remain silent.
+
+The lexer retains explicit rejection rules so obsolete source receives a
 clear diagnostic rather than a generic parse error. Ordinary named-function overloading
 remains supported.
 
