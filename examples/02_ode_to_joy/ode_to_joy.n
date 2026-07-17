@@ -51,25 +51,22 @@ const MusicStep music[MUSIC_STEP_COUNT] := {
    { MUSIC_VOLUME_OFF,    MUSIC_FREQ_C4, MUSIC_CONTROL_LEAD, MUSIC_TIME_GAP }
 };
 
-MusicStep *music_current := music;
-uint8_t music_steps_left := MUSIC_STEP_COUNT;
+uint8_t music_index := 0;
 uint8_t music_counter := 0;
 
 void music_apply_current(void) {
-   AUDV0 := music_current->volume;
-   AUDF0 := music_current->frequency;
-   AUDC0 := music_current->control;
+   AUDV0 := music[music_index].volume;
+   AUDF0 := music[music_index].frequency;
+   AUDC0 := music[music_index].control;
 }
 
 void music_tick(void) {
    music_counter++;
-   if (music_counter > music_current->timing) {
+   if (music_counter > music[music_index].timing) {
       music_counter := 0;
-      music_current++;
-      music_steps_left--;
-      if (music_steps_left == 0) {
-         music_current := music;
-         music_steps_left := MUSIC_STEP_COUNT;
+      music_index++;
+      if (music_index == MUSIC_STEP_COUNT) {
+         music_index := 0;
       }
       music_apply_current();
    }

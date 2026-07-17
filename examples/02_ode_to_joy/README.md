@@ -9,9 +9,11 @@ repeated notes. `music_tick()` runs once per television frame, advances a frame
 counter, changes steps when the current timing expires, wraps at the end, and
 writes `AUDV0`, `AUDF0`, and `AUDC0`.
 
-The score and player are both implemented in `ode_to_joy.n`. The player keeps a
-pointer to the current `MusicStep`, so the compiler computes the table location
-once when advancing rather than multiplying an array index for every field.
+The score and player are both implemented in `ode_to_joy.n`. The player uses
+the natural indexed form `music[music_index].field`. For an ordinary `uint8_t`
+index and this four-byte struct, the compiler now scales the index inline in
+compiler-owned zero-page scratch; it does not allocate per-expression BSS or
+call the generic multiplication helper.
 The kernel starts `TIM64T`, calls the source-level player while the timer counts
 down, waits for `INTIM` to reach zero, and uses two final `WSYNC`s before the
 next VSYNC. Stella then reports a stable 262-line NTSC frame; the raw interval

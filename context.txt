@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_140627.tar.gz
+    vcsc.20260717_144529.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -158,17 +158,26 @@ Completed vertical slices
     resulting hardware-stack range. This includes return addresses and the
     compiler's known fp-preservation allowance; inline assembly and separately
     assembled routine internals remain unaccounted future work.
+25. Common VCS byte operations now bypass permanent expression scratch.
+    Discarded uint8_t increment/decrement, unsigned byte comparisons, constant
+    byte stores, and byte-to-hardware-register stores lower directly. A simple
+    uint8_t runtime index into a power-of-two-sized array element is scaled
+    inline through compiler-owned arg0:arg1 and added to ptr0, with no
+    `__n65_indextmp_N` or generic multiply helper. The Ode player uses the
+    natural `music[music_index].field` form, allocates zero BSS scratch, and
+    retains only its two persistent state bytes.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
-ROM array and now implements both `music_tick()` and `music_apply_current()` in
-the C-like source. A persistent pointer identifies the current `MusicStep`, so
-advancing computes the next table location once instead of multiplying an array
-index for each field. The source player runs inside a TIM64T-governed 30-line
-overscan budget. Two final WSYNCs produce Stella-reported 262-line NTSC
+ROM array and implements both `music_tick()` and `music_apply_current()` in the
+C-like source. The player now uses the natural direct indexed form
+`music[music_index].field`; the optimized uint8_t/power-of-two array path emits
+no BSS expression scratch and no multiply helper. Only `music_index` and
+`music_counter` persist in RAM. The source player runs inside a TIM64T-governed
+30-line overscan budget. Two final WSYNCs produce Stella-reported 262-line NTSC
 frames; the raw interval between successive VSYNC assertions is 263 whole
 scanlines. The execution regression uses that same Stella-equivalent accounting
 through ordinary, note-change, silent-gap, and score-wrap paths. The temporary
-companion assembly player has been removed.
+companion assembly player remains removed.
 
 Current return ABI
 ------------------
@@ -344,22 +353,34 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Corrected Ode frame boundary and documentation:
+Compiler lowering and documentation:
+
+    compiler/compile_lvalue.c
+    compiler/compile_expr_flow.c
+    compiler/README.md
+
+Natural direct-index sound example:
 
     examples/02_ode_to_joy/ode_to_joy.n
     examples/02_ode_to_joy/README.md
 
-Corrected timing accounting and regression expectations:
+Added focused regressions:
 
-    test/vcs_frame_timing.cpp
+    test/indexed_struct_u8_codegen_test.n
+    test/e2e_indexed_struct_u8_verify.n
+
+Updated existing code-generation and cartridge expectations:
+
+    test/absolute_ref_codegen_test.n
+    test/cast_abs_incdec_fixed_scratch_codegen_test.n
+    test/vcs_headers_smoke_test.n
     test/vcs_ode_to_joy_cartridge.pl
 
 Bookkeeping:
 
     context.txt
 
-No files were added or removed. remove.txt remains at 462 unique cumulative
-paths.
+No files were removed. remove.txt remains at 462 unique cumulative paths.
 
 Build environment
 -----------------
@@ -386,30 +407,28 @@ Result: passed.
 
 Compile suite:
 
-    220 passed, 0 failed, 220 total
+    221 passed, 0 failed, 221 total
 
 End-to-end/generic suite:
 
-    92 passed, 0 failed, 92 total
+    93 passed, 0 failed, 93 total
 
 Both examples build directly as raw 4096-byte cartridges.
 
 `01_solid_color` has call depth 2. Its effective allocatable RIOT region is
 $80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes).
 
-`02_ode_to_joy` now contains source-level `music_tick()` and
-`music_apply_current()` with no companion assembly. It retains the 32-step,
-128-byte const ROM score, tracks the current element with a `MusicStep *`, and
-uses three persistent player-state values. The linked source call depth is 3,
-so the effective allocatable RIOT region is $80-$F3 and the hardware-stack
-reserve is $F4-$FF (12 bytes). Static/runtime allocation ends at $B8, leaving
-$B9-$F3 unused by ordinary storage.
+`02_ode_to_joy` uses direct `music[music_index].field` expressions. Its linked
+call depth is 3, so the effective allocatable RIOT region is $80-$F3 and the
+hardware-stack reserve is $F4-$FF (12 bytes). Runtime/compiler zero-page occupies
+$80-$95; the only player state is `music_index` at $96 and `music_counter` at
+$97. BSS size is zero, and the 128-byte score remains in RODATA.
 
 The timing regression ran through 1500 VSYNC assertions, checked 1497 complete
 frames at exactly 262 Stella-reported lines, exercised ordinary ticks, note
 transitions, silent gaps, and score wrap, and detected no overscan timer
 underflow. The corresponding raw assertion-to-assertion interval is 263 whole
-scanlines. A one-WSYNC tail is now rejected as 261 displayed lines.
+scanlines. A one-WSYNC tail remains rejected as 261 displayed lines.
 
 Immediate TODO
 --------------
@@ -481,17 +500,14 @@ The first unfinished item is the default next action.
     frames rather than the former 261-line output.
 
 [ ] 15. Finish the general compiler-efficiency work exposed by Ode to Joy
-        before continuing broad functional reduction. The player itself now
-        compiles entirely from the C-like language and the temporary companion
-        assembly has been removed; direct indexed-struct lowering remains the
-        unfinished part of this gate.
+        before continuing broad functional reduction. The practical direct-index
+        player gate now passes; general lifetime-based scratch reuse remains.
 
         Acceptance criteria:
 
         [x] 15a. Express `music_tick()` in `ode_to_joy.n`; retain the const ROM
                   array of `MusicStep` structs and remove the companion player
-                  assembly once the source version passes. The player keeps a
-                  pointer to the current element and advances/wraps that pointer.
+                  assembly once the source version passes.
         [x] 15b. Fit the complete cartridge in the VCS RAM map without relying
                   on accidental spare bytes or moving ordinary game logic into
                   assembly. Whole-program call-graph sizing replaced the fixed
@@ -500,14 +516,18 @@ The first unfinished item is the default next action.
                   silent gap, and end-of-score wrap--inside the fixed 30-line
                   TIM64T overscan budget while preserving stable Stella-reported
                   262-line NTSC frames in the execution regression.
-        [ ] 15d. Continue the general compiler work exposed by the original
-                  indexed formulation: overlay/reuse expression scratch by
-                  lifetime, avoid permanent per-expression temporaries, lower
-                  direct indexed arrays of structs efficiently, reuse repeated
-                  element addresses automatically where possible, and generate
-                  compact ordinary 8-bit increment/comparison code. The pointer
-                  formulation proves the language can express the player, but
-                  direct `music[index].field` remains unnecessarily expensive.
+        [x] 15d. Make natural direct `music[index].field` practical: inline-scale
+                  a simple uint8_t index for power-of-two element sizes without
+                  an indextmp or multiply helper; emit compact ordinary uint8_t
+                  increment/comparison/constant-store paths; restore the Ode
+                  source to direct indexing; retain zero BSS scratch and stable
+                  262-line timing. A high-byte regression covers index 64 into
+                  four-byte elements.
+        [ ] 15e. Generalize lifetime-based scratch pooling/overlay beyond these
+                  direct byte fast paths, and reuse repeated computed lvalue
+                  addresses automatically for complex expressions where doing
+                  so is safe. Unsupported index types and non-power-of-two
+                  element sizes still use the generic fixed-per-site path.
 
 [ ] 16. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
@@ -552,12 +572,12 @@ Open implementation questions
 -----------------------------
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
-* Whether the provisional 32-byte hardware-stack reserve should eventually be
-  replaced by exact link-time call-depth sizing.
-* Expression scratch allocation after the software stack is removed. The Ode
-  player is now the concrete acceptance test: scratch must be reusable by
-  lifetime and indexed array-of-struct access must not allocate a new permanent
-  block for every expression occurrence.
+* Extend call-graph hardware-stack sizing to account for PHA/PHP/JSR hidden in
+  inline assembly and for stack use inside separately assembled routines.
+* General expression scratch allocation after software-stack removal. The Ode
+  direct-index path no longer allocates permanent BSS scratch, but complex
+  expressions still need lifetime-based pooling/overlay and safe repeated-
+  address reuse.
 * Existing defect: in some simple assignments such as `old := value++`, the
   assignment-expression fast path can copy the lvalue without applying the
   increment. Standalone `value++`/`--value` works and is covered here; fix this
@@ -1004,6 +1024,29 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 220/220 compile tests and 92/92 end-to-end tests; both examples remain
   exact 4096-byte cartridges.
 * No files were added or removed; remove.txt remains at 462 cumulative paths.
+
+
+2026-07-17 15:02:00 PDT, direct indexed-struct byte lowering
+* Restored the Ode player to natural `music[music_index].field` source rather
+  than carrying a persistent pointer to the current score element.
+* Added a fast lvalue-index path for simple unsigned one-byte indices and
+  power-of-two element sizes. It scales through compiler-owned `arg0:arg1`,
+  adds the full 16-bit offset to `ptr0`, and avoids `__n65_indextmp_N` and the
+  generic multiplication helper.
+* Added direct scratch-free lowering for discarded one-byte increment/decrement,
+  unsigned byte comparisons against constants or byte lvalues, constant byte
+  stores, and byte lvalue stores to absolute hardware refs.
+* The Ode cartridge now has zero BSS scratch and only two persistent player
+  bytes at $96-$97; its direct-index code remains inside the fixed overscan
+  budget and passes 1497 consecutive Stella-reported 262-line frames.
+* Added focused assembly regression coverage plus an execution test using index
+  64 into four-byte structs, proving the scaled offset correctly crosses a
+  256-byte page.
+* Updated three older code-generation tests whose expected scratch/address
+  sequences were intentionally superseded by direct byte stores and inc/dec.
+* Passed 221/221 compile tests and 93/93 end-to-end tests; both examples remain
+  exact 4096-byte cartridges.
+* No files were removed; remove.txt remains at 462 unique cumulative paths.
 
 End-of-session checklist
 ------------------------

@@ -2,7 +2,9 @@
 // expectasm: __n65_casttmp_
 // expectasm: __n65_abslocaltmp_
 // expectasm: __n65_absglobaltmp_
-// expectasm: __n65_incdectmp_
+// expectasm: adc #1
+// expectasm: sbc #1
+// forbidasm: __n65_incdectmp_
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN
 

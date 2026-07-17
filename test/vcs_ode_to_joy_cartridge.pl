@@ -90,9 +90,14 @@ $map_text =~ /region=RAM\s+depth=3\s+bytes=\$000C\s+physical=\$00F4-\$00FF/
    or die "map does not report the expected three-level hardware-stack reserve\n";
 $map_text =~ /__stack_top\s+\$00F3/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";
+$map_text =~ /BSS\s+run=\$0096\s+size=\$0000/
+   or die "direct indexed player unexpectedly allocates BSS scratch\n";
+$map_text =~ /DATA\s+load=\$[0-9A-F]+\s+run=\$0096\s+size=\$0002/
+   or die "player state is not exactly the two index/counter bytes\n";
 $map_text =~ /\bmusic\b/ or die "map is missing ROM score symbol music\n";
-$map_text =~ /\bmusic_current\b/ or die "map is missing music_current\n";
-$map_text =~ /\bmusic_steps_left\b/ or die "map is missing music_steps_left\n";
+$map_text =~ /\bmusic_index\b/ or die "map is missing music_index\n";
+$map_text !~ /\bmusic_current\b/ or die "map still contains obsolete music_current\n";
+$map_text !~ /\bmusic_steps_left\b/ or die "map still contains obsolete music_steps_left\n";
 $map_text =~ /\bmusic_counter\b/ or die "map is missing music_counter\n";
 $map_text =~ /\bmusic_tick\b/ or die "map is missing music_tick\n";
 $map_text =~ /\bmusic_apply_current\b/ or die "map is missing music_apply_current\n";
@@ -108,12 +113,12 @@ $source_text =~ /asm lda \#35;\s*asm sta TIM64T;\s*music_tick\(\);\s*asm \@overs
    or die "music_tick is not enclosed by the corrected TIM64T/two-WSYNC overscan tail\n";
 $source_text !~ /music_tick\(\);\s*asm lda \#2;\s*asm sta VSYNC;/s
    or die "music_tick still runs outside the fixed frame budget\n";
-$source_text =~ /MusicStep\s+\*music_current\s*:=\s*music\s*;/
-   or die "source does not retain a pointer to the current score step\n";
-$source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\+\+.*music_current->timing.*music_current\+\+.*music_steps_left--.*music_apply_current\(\)/s
-   or die "music_tick is not implemented in the C-like source\n";
-$source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*music_current->volume.*AUDF0\s*:=\s*music_current->frequency.*AUDC0\s*:=\s*music_current->control/s
-   or die "source-level player does not update all channel-0 registers\n";
+$source_text =~ /uint8_t\s+music_index\s*:=\s*0\s*;/
+   or die "source does not retain the current score index\n";
+$source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\+\+.*music\[music_index\]\.timing.*music_index\+\+.*music_index\s*==\s*MUSIC_STEP_COUNT.*music_apply_current\(\)/s
+   or die "music_tick is not implemented with direct indexed score access\n";
+$source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*music\[music_index\]\.volume.*AUDF0\s*:=\s*music\[music_index\]\.frequency.*AUDC0\s*:=\s*music\[music_index\]\.control/s
+   or die "source-level indexed player does not update all channel-0 registers\n";
 -f File::Spec->catfile($example_dir,'music_player.s')
    and die "obsolete companion assembly player still exists\n";
 

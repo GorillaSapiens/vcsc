@@ -397,6 +397,100 @@ void emit_runtime_shift_fp(const char *helper, int value_offset, int scratch_off
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
+//! @brief Load a simple unsigned byte lvalue into A without disturbing ptr0.
+//!
+//! This is the common VCS array-index case.  It deliberately accepts only a
+//! directly addressable one-byte unsigned object; complex expressions keep the
+//! fully general fixed-scratch path below.
+static bool emit_load_simple_u8_index_to_a(Context *ctx, ASTNode *idx) {
+   LValueRef lv;
+   ContextEntry entry;
+   char symbol[256];
+
+   idx = (ASTNode *) unwrap_expr_node(idx);
+   if (!idx || !resolve_ref_argument_lvalue(ctx, idx, &lv) || lv.size != 1 ||
+       type_is_signed_integer(lv.type) || lv.is_bitfield || lv.indirect ||
+       lv.needs_runtime_address) {
+      return false;
+   }
+
+   if (lv.is_absolute_ref) {
+      if (!lv.read_expr || !*lv.read_expr) {
+         return false;
+      }
+      emit_load_a_from_expr_address(lv.read_expr, lv.offset);
+      return true;
+   }
+
+   if (lv.is_static || lv.is_zeropage || lv.is_global) {
+      entry = (ContextEntry){ .name = lv.name, .type = lv.type,
+         .declarator = lv.declarator, .is_static = lv.is_static,
+         .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
+         .offset = lv.offset, .size = lv.size };
+      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+         return false;
+      }
+      {
+         char expr_buf[256];
+         const char *asm_expr = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+         if (lv.offset == 0)
+            emit(&es_code, lv.is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", asm_expr);
+         else
+            emit(&es_code, lv.is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", asm_expr, lv.offset);
+      }
+      return true;
+   }
+
+   if (lv.offset < 0 || lv.offset > 255) {
+      return false;
+   }
+   emit(&es_code, "    ldy #%d\n", lv.offset);
+   emit(&es_code, "    lda (fp),y\n");
+   return true;
+}
+
+//! @brief Return log2(value) for a positive power of two, otherwise -1.
+static int exact_power_of_two_shift(int value) {
+   int shift = 0;
+
+   if (value <= 0 || (value & (value - 1)) != 0) {
+      return -1;
+   }
+   while (value > 1) {
+      value >>= 1;
+      shift++;
+   }
+   return shift;
+}
+
+//! @brief Add an unsigned byte index times a power-of-two element size to ptr0.
+//!
+//! arg0:arg1 is compiler-owned zero-page scratch.  Using it here avoids a
+//! per-expression BSS object and the generic runtime multiplication helper.
+static bool emit_add_simple_u8_index_to_ptr0(Context *ctx, ASTNode *idx, int elem_size) {
+   int shift = exact_power_of_two_shift(elem_size);
+
+   if (shift < 0 || shift > 8 || !emit_load_simple_u8_index_to_a(ctx, idx)) {
+      return false;
+   }
+
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    lda #0\n");
+   emit(&es_code, "    sta arg1\n");
+   for (int i = 0; i < shift; i++) {
+      emit(&es_code, "    asl arg0\n");
+      emit(&es_code, "    rol arg1\n");
+   }
+   emit(&es_code, "    clc\n");
+   emit(&es_code, "    lda ptr0\n");
+   emit(&es_code, "    adc arg0\n");
+   emit(&es_code, "    sta ptr0\n");
+   emit(&es_code, "    lda ptr0+1\n");
+   emit(&es_code, "    adc arg1\n");
+   emit(&es_code, "    sta ptr0+1\n");
+   return true;
+}
+
 //! @brief Emit prepare lvalue ptr suffixes for compiler lvalue lowering diagnostics or output files.
 static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffixes, const ASTNode **type_io, const ASTNode **decl_io) {
    if (!suffixes || is_empty(suffixes)) {
@@ -422,6 +516,9 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
 
       if (idx->kind == AST_INTEGER) {
          emit_add_immediate_to_ptr(0, atoi(idx->strval) * elem_size);
+      }
+      else if (emit_add_simple_u8_index_to_ptr0(ctx, (ASTNode *) idx, elem_size)) {
+         /* Fully lowered without fixed BSS scratch. */
       }
       else {
          const ASTNode *idx_type = expr_value_type((ASTNode *) idx, ctx);

@@ -1,7 +1,7 @@
 // n65c -I .
 // expectasm: lda  $00
-// expectasm: lda #<{$80 + 0}
-// expectasm: sta (ptr0),y
+// expectasm: sta  $80
+// forbidasm: lda #<{$80 + 0}
 // expectasm: lda  $100
 // expectasm: lda #<{$180 + 0}
 

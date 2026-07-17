@@ -310,6 +310,236 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
    }
 }
 
+//! @brief Describe a one-byte lvalue for compact comparison lowering.
+typedef struct DirectByteOperand {
+   LValueRef lv;
+   bool valid;
+   bool direct_memory;
+   bool local_fp;
+   int symbol_mode; /* 0 expression, 1 zero page, 2 absolute */
+   char expr[256];
+   int offset;
+} DirectByteOperand;
+
+//! @brief Classify an unsigned one-byte lvalue without emitting code.
+static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *expr,
+                                                       bool allow_runtime_pointer) {
+   DirectByteOperand out;
+   ContextEntry entry;
+
+   memset(&out, 0, sizeof(out));
+   if (!resolve_ref_argument_lvalue(ctx, expr, &out.lv) || out.lv.size != 1 ||
+       type_is_signed_integer(out.lv.type) || out.lv.is_bitfield) {
+      return out;
+   }
+   out.valid = true;
+   out.offset = out.lv.offset;
+
+   if (out.lv.is_absolute_ref && out.lv.read_expr && *out.lv.read_expr &&
+       !out.lv.indirect && !out.lv.needs_runtime_address) {
+      snprintf(out.expr, sizeof(out.expr), "%s", out.lv.read_expr);
+      out.direct_memory = true;
+      out.symbol_mode = 0;
+      return out;
+   }
+
+   if (!out.lv.indirect && !out.lv.needs_runtime_address &&
+       (out.lv.is_static || out.lv.is_zeropage || out.lv.is_global)) {
+      entry = (ContextEntry){ .name = out.lv.name, .type = out.lv.type,
+         .declarator = out.lv.declarator, .is_static = out.lv.is_static,
+         .is_zeropage = out.lv.is_zeropage, .is_global = out.lv.is_global,
+         .offset = out.lv.offset, .size = out.lv.size };
+      if (!entry_symbol_name(ctx, &entry, out.expr, sizeof(out.expr))) {
+         out.valid = false;
+         return out;
+      }
+      out.direct_memory = true;
+      out.symbol_mode = out.lv.is_zeropage ? 1 : 2;
+      return out;
+   }
+
+   if (!out.lv.indirect && !out.lv.needs_runtime_address && !out.lv.is_static &&
+       !out.lv.is_zeropage && !out.lv.is_global && out.lv.offset >= 0 &&
+       out.lv.offset <= 255) {
+      out.local_fp = true;
+      return out;
+   }
+
+   if (!allow_runtime_pointer) {
+      out.valid = false;
+   }
+   return out;
+}
+
+//! @brief Load a classified direct byte operand into A.
+static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand *op) {
+   if (!op || !op->valid) {
+      return false;
+   }
+   if (op->direct_memory) {
+      if (op->symbol_mode != 0) {
+         char expr_buf[256];
+         const char *formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+         if (op->offset == 0)
+            emit(&es_code, op->symbol_mode == 1 ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
+         else
+            emit(&es_code, op->symbol_mode == 1 ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", formatted, op->offset);
+      }
+      else {
+         emit_load_a_from_expr_address(op->expr, op->offset);
+      }
+      return true;
+   }
+   if (op->local_fp) {
+      emit(&es_code, "    ldy #%d\n", op->offset);
+      emit(&es_code, "    lda (fp),y\n");
+      return true;
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, &op->lv, LVALUE_ACCESS_READ)) {
+      return false;
+   }
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    lda (ptr0),y\n");
+   return true;
+}
+
+//! @brief Compare A against a direct byte memory operand.
+static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *op) {
+   char asm_expr[256];
+   const char *formatted;
+
+   if (!op || !op->valid) {
+      return false;
+   }
+   if (op->direct_memory) {
+      formatted = assembler_address_expr(op->expr, asm_expr, sizeof(asm_expr));
+      if (op->offset == 0) {
+         if (op->symbol_mode == 1) emit(&es_code, "    cmp.z %s\n", formatted);
+         else if (op->symbol_mode == 2) emit(&es_code, "    cmp.a %s\n", formatted);
+         else emit(&es_code, "    cmp %s\n", formatted);
+      }
+      else {
+         if (op->symbol_mode == 1) emit(&es_code, "    cmp.z %s + %d\n", formatted, op->offset);
+         else if (op->symbol_mode == 2) emit(&es_code, "    cmp.a %s + %d\n", formatted, op->offset);
+         else emit(&es_code, "    cmp %s + %d\n", formatted, op->offset);
+      }
+      return true;
+   }
+   if (op->local_fp) {
+      emit(&es_code, "    ldy #%d\n", op->offset);
+      emit(&es_code, "    cmp (fp),y\n");
+      return true;
+   }
+   /* ptr0 must already have been prepared before loading A. */
+   (void) ctx;
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    cmp (ptr0),y\n");
+   return true;
+}
+
+//! @brief Emit the false branch for an unsigned byte comparison, if eligible.
+static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
+                                                   const char *false_label) {
+   DirectByteOperand lhs;
+   DirectByteOperand rhs;
+   ASTNode *rhs_expr;
+   const char *op;
+   bool rhs_immediate = false;
+   long rhs_value = 0;
+
+   if (!expr || expr->count != 2) {
+      return false;
+   }
+   op = expr->name;
+   if (strcmp(op, "==") && strcmp(op, "!=") && strcmp(op, "<") &&
+       strcmp(op, ">") && strcmp(op, "<=") && strcmp(op, ">=")) {
+      return false;
+   }
+
+   lhs = classify_direct_byte_operand(ctx, expr->children[0], false);
+   if (!lhs.valid) {
+      return false;
+   }
+
+   rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
+   if (rhs_expr && rhs_expr->kind == AST_INTEGER) {
+      char *end = NULL;
+      rhs_value = strtol(rhs_expr->strval, &end, 0);
+      rhs_immediate = end && *end == '\0' && rhs_value >= 0 && rhs_value <= 255;
+      if (!rhs_immediate) {
+         return false;
+      }
+      if (!emit_load_direct_byte_operand(ctx, &lhs)) {
+         return false;
+      }
+      emit(&es_code, "    cmp #$%02lx\n", rhs_value & 0xff);
+   }
+   else {
+      rhs = classify_direct_byte_operand(ctx, expr->children[1], true);
+      if (!rhs.valid) {
+         return false;
+      }
+      if (!rhs.direct_memory && !rhs.local_fp) {
+         if (!emit_prepare_lvalue_ptr(ctx, &rhs.lv, LVALUE_ACCESS_READ)) {
+            return false;
+         }
+      }
+      if (!emit_load_direct_byte_operand(ctx, &lhs) ||
+          !emit_cmp_direct_byte_operand(ctx, &rhs)) {
+         return false;
+      }
+   }
+
+   if (!strcmp(op, "==")) {
+      const char *true_label = next_label("u8_eq_true");
+      emit(&es_code, "    beq %s\n", true_label);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) true_label);
+   }
+   else if (!strcmp(op, "!=")) {
+      const char *true_label = next_label("u8_ne_true");
+      emit(&es_code, "    bne %s\n", true_label);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) true_label);
+   }
+   else if (!strcmp(op, "<")) {
+      const char *true_label = next_label("u8_lt_true");
+      emit(&es_code, "    bcc %s\n", true_label);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) true_label);
+   }
+   else if (!strcmp(op, ">=")) {
+      const char *true_label = next_label("u8_ge_true");
+      emit(&es_code, "    bcs %s\n", true_label);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) true_label);
+   }
+   else if (!strcmp(op, ">")) {
+      const char *true_label = next_label("u8_gt_true");
+      const char *false_jump = next_label("u8_gt_false");
+      emit(&es_code, "    bcc %s\n", false_jump);
+      emit(&es_code, "    bne %s\n", true_label);
+      emit(&es_code, "%s:\n", false_jump);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) false_jump);
+      free((void *) true_label);
+   }
+   else { /* <= : false only when lhs > rhs. */
+      const char *true_label = next_label("u8_le_true");
+      emit(&es_code, "    bcc %s\n", true_label);
+      emit(&es_code, "    beq %s\n", true_label);
+      emit(&es_code, "    jmp %s\n", false_label);
+      emit(&es_code, "%s:\n", true_label);
+      free((void *) true_label);
+   }
+   return true;
+}
+
 //! @brief Lower truthy expression branch false from AST/semantic state into generated assembly or linker-visible metadata.
 static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
                                              const ASTNode *type,
@@ -408,6 +638,10 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 
    require_no_mixed_signed_integer_binary_expr(expr, ctx);
+
+   if (compile_direct_u8_compare_branch_false(expr, ctx, false_label)) {
+      return true;
+   }
 
    if (expr->count == 2 &&
        (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
@@ -518,6 +752,178 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 }
 
+//! @brief Assign a constant byte directly without a fixed BSS bridge object.
+static bool compile_direct_byte_constant_assignment(Context *ctx,
+                                                    const LValueRef *dst,
+                                                    ASTNode *rhs) {
+   InitConstValue value = {0};
+   ContextEntry entry;
+   char symbol[256];
+   unsigned int byte_value;
+
+   if (!dst || dst->size != 1 || dst->is_bitfield ||
+       !eval_constant_initializer_expr(rhs, &value) ||
+       value.kind != INIT_CONST_INT || value.i < -128 || value.i > 255) {
+      return false;
+   }
+   byte_value = (unsigned int) value.i & 0xff;
+
+   if (dst->is_absolute_ref) {
+      if (!dst->write_expr || !*dst->write_expr) {
+         return false;
+      }
+      emit(&es_code, "    lda #$%02x\n", byte_value);
+      emit_store_a_to_expr_address(dst->write_expr, dst->offset);
+      return true;
+   }
+
+   if (!dst->indirect && !dst->needs_runtime_address &&
+       (dst->is_static || dst->is_zeropage || dst->is_global)) {
+      entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+         .declarator = dst->declarator, .is_static = dst->is_static,
+         .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+         .offset = dst->offset, .size = dst->size };
+      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+         return false;
+      }
+      {
+         char expr_buf[256];
+         const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+         emit(&es_code, "    lda #$%02x\n", byte_value);
+         if (dst->offset == 0)
+            emit(&es_code, dst->is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+         else
+            emit(&es_code, dst->is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, dst->offset);
+      }
+      return true;
+   }
+
+   if (!dst->indirect && !dst->needs_runtime_address && !dst->is_static &&
+       !dst->is_zeropage && !dst->is_global && dst->offset >= 0 &&
+       dst->offset <= 255) {
+      emit(&es_code, "    lda #$%02x\n", byte_value);
+      emit(&es_code, "    ldy #%d\n", dst->offset);
+      emit(&es_code, "    sta (fp),y\n");
+      return true;
+   }
+
+   if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
+      return false;
+   }
+   emit(&es_code, "    lda #$%02x\n", byte_value);
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    sta (ptr0),y\n");
+   return true;
+}
+
+//! @brief Copy one byte directly from an lvalue into a write-only/read-write absolute ref.
+//!
+//! This avoids allocating a one-byte BSS object merely to bridge an indexed
+//! source and a memory-mapped VCS register.
+static bool compile_direct_byte_lvalue_to_absolute_ref(Context *ctx,
+                                                       const LValueRef *dst,
+                                                       ASTNode *rhs) {
+   LValueRef src;
+
+   if (!dst || !dst->is_absolute_ref || dst->is_bitfield || dst->size != 1 ||
+       !dst->write_expr || !*dst->write_expr ||
+       !resolve_ref_argument_lvalue(ctx, rhs, &src) || src.is_bitfield ||
+       src.size != 1) {
+      return false;
+   }
+
+   if (src.is_absolute_ref && src.read_expr && *src.read_expr &&
+       !src.indirect && !src.needs_runtime_address) {
+      emit_load_a_from_expr_address(src.read_expr, src.offset);
+   }
+   else {
+      if (!emit_prepare_lvalue_ptr(ctx, &src, LVALUE_ACCESS_READ)) {
+         return false;
+      }
+      emit(&es_code, "    ldy #0\n");
+      emit(&es_code, "    lda (ptr0),y\n");
+   }
+   emit_store_a_to_expr_address(dst->write_expr, dst->offset);
+   return true;
+}
+
+//! @brief Lower a discarded one-byte increment/decrement without result scratch.
+static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
+   LValueRef lv;
+   ContextEntry entry;
+   const char *op;
+   bool increment;
+   char symbol[256];
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!expr || strcmp(expr->name, "lvalue") || expr->count < 3 ||
+       !expr->children[2] || expr->children[2]->kind != AST_IDENTIFIER) {
+      return false;
+   }
+   op = expr->children[2]->strval;
+   if (!op || (strcmp(op, "pre++") && strcmp(op, "post++") &&
+               strcmp(op, "pre--") && strcmp(op, "post--"))) {
+      return false;
+   }
+   increment = !strcmp(op, "pre++") || !strcmp(op, "post++");
+   if (!resolve_lvalue(ctx, expr, &lv) || lv.size != 1 || lv.is_bitfield) {
+      return false;
+   }
+
+   if (lv.is_absolute_ref) {
+      if (!lv.read_expr || !lv.write_expr || strcmp(lv.read_expr, lv.write_expr)) {
+         return false;
+      }
+      emit_load_a_from_expr_address(lv.read_expr, lv.offset);
+      emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+      emit_store_a_to_expr_address(lv.write_expr, lv.offset);
+      return true;
+   }
+
+   if (!lv.indirect && !lv.needs_runtime_address &&
+       (lv.is_static || lv.is_zeropage || lv.is_global)) {
+      entry = (ContextEntry){ .name = lv.name, .type = lv.type,
+         .declarator = lv.declarator, .is_static = lv.is_static,
+         .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
+         .offset = lv.offset, .size = lv.size };
+      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+         return false;
+      }
+      {
+         char expr_buf[256];
+         const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+         if (lv.offset == 0)
+            emit(&es_code, lv.is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
+         else
+            emit(&es_code, lv.is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", formatted, lv.offset);
+         emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+         if (lv.offset == 0)
+            emit(&es_code, lv.is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+         else
+            emit(&es_code, lv.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, lv.offset);
+      }
+      return true;
+   }
+
+   if (!lv.indirect && !lv.needs_runtime_address && !lv.is_static &&
+       !lv.is_zeropage && !lv.is_global && lv.offset >= 0 && lv.offset <= 255) {
+      emit(&es_code, "    ldy #%d\n", lv.offset);
+      emit(&es_code, "    lda (fp),y\n");
+      emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+      emit(&es_code, "    sta (fp),y\n");
+      return true;
+   }
+
+   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_READ)) {
+      return false;
+   }
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    lda (ptr0),y\n");
+   emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+   emit(&es_code, "    sta (ptr0),y\n");
+   return true;
+}
+
 //! @brief Lower expr from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_expr(ASTNode *node, Context *ctx) {
    if (!node || is_empty(node)) {
@@ -541,6 +947,9 @@ void compile_expr(ASTNode *node, Context *ctx) {
    }
 
    if (!node || strcmp(node->name, "assign_expr") || node->count != 3) {
+      if (compile_discarded_byte_incdec(ctx, node)) {
+         return;
+      }
       const ASTNode *type = expr_value_type(node, ctx);
       int size = expr_value_size(node, ctx);
       char scratch_sym[96];
@@ -593,6 +1002,12 @@ void compile_expr(ASTNode *node, Context *ctx) {
    }
 
    if (!op || !strcmp(op, ":=")) {
+      if (compile_direct_byte_constant_assignment(ctx, &lv, rhs)) {
+         return;
+      }
+      if (compile_direct_byte_lvalue_to_absolute_ref(ctx, &lv, rhs)) {
+         return;
+      }
       if (!lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global)) {
          char sym[256];
          LValueRef rhs_lv;
