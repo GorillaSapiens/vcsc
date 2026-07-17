@@ -2,6 +2,8 @@
 
 include "machine_6502.n"
 
+typedef int16_t coverage_int;
+
 type uint_cov { $size:2 $integer:unsigned $endian:little };
 
 type wisp { };

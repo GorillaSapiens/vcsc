@@ -25,7 +25,7 @@ static void usage(FILE *fp)
       "  n65ld [options] file...\n"
       "\n"
       "Options:\n"
-      "  -o FILE              Write Intel HEX output to FILE (default: a.hex)\n"
+      "  -o FILE              Write Intel HEX, or flat binary when FILE ends in .bin\n"
       "  -T FILE              Use FILE as linker script/config\n"
       "  --script=FILE        Same as -T FILE\n"
       "  -Map FILE            Write linker map to FILE\n"
@@ -1403,6 +1403,44 @@ static void write_intel_hex(const char *path, const uint8_t *image, const uint8_
    fclose(fp);
 }
 
+//! @brief Write a flat binary from the lowest used address through the highest.
+static void write_flat_binary(const char *path, const uint8_t *image, const uint8_t *used)
+{
+   FILE *fp;
+   uint32_t first = 0;
+   uint32_t last = 65535u;
+   uint32_t addr;
+
+   while (first < 65536u && !used[first])
+      first++;
+   while (last > first && !used[last])
+      last--;
+   if (first >= 65536u) {
+      fprintf(stderr, "n65ld: cannot write empty flat binary '%s'\n", path);
+      exit(1);
+   }
+
+   fp = fopen(path, "wb");
+   if (!fp) {
+      fprintf(stderr, "n65ld: cannot create '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+
+   for (addr = first; addr <= last; ++addr) {
+      uint8_t byte = used[addr] ? image[addr] : 0xFFu;
+      if (fwrite(&byte, 1, 1, fp) != 1) {
+         fprintf(stderr, "n65ld: write failed for '%s': %s\n", path, strerror(errno));
+         fclose(fp);
+         exit(1);
+      }
+   }
+
+   if (fclose(fp) != 0) {
+      fprintf(stderr, "n65ld: close failed for '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in, const layout_t *layout)
 {
@@ -1586,7 +1624,8 @@ int main(int argc, char **argv)
          continue;
       }
 
-      if (!hex_path_set && compat_hex_path == NULL && ends_with(arg, ".hex")) {
+      if (!hex_path_set && compat_hex_path == NULL &&
+          (ends_with(arg, ".hex") || ends_with(arg, ".bin"))) {
          compat_hex_path = arg;
          continue;
       }
@@ -1625,7 +1664,10 @@ int main(int argc, char **argv)
    image = (uint8_t *)xmalloc(65536);
    used = (uint8_t *)xmalloc(65536);
    build_rom_image(&cfg, &inputs, &layout, image, used);
-   write_intel_hex(hex_path, image, used);
+   if (ends_with(hex_path, ".bin"))
+      write_flat_binary(hex_path, image, used);
+   else
+      write_intel_hex(hex_path, image, used);
    write_map_file(map_path, &cfg, &inputs, &layout);
 
    free(image);

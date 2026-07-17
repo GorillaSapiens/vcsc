@@ -99,16 +99,6 @@ static void compile(ASTNode *program) {
       }
    }
 
-   static const char *required_types[] = {
-      "void", "uint8_t"
-   };
-
-   for (size_t i = 0; i < sizeof(required_types) / sizeof(required_types[0]); i++) {
-      if (!typename_exists(required_types[i])) {
-         error_user("required type '%s' is not defined", required_types[i]);
-      }
-   }
-
    for (int i = 0; i < program->count; i++) {
       ASTNode *node = program->children[i];
       if (!strcmp(node->name, "struct_decl_stmt")) {
@@ -118,6 +108,24 @@ static void compile(ASTNode *program) {
       else if (!strcmp(node->name, "union_decl_stmt")) {
          node->handled = true;
          compile_union_decl_stmt(node);
+      }
+   }
+
+   for (int i = 0; i < program->count; i++) {
+      ASTNode *node = program->children[i];
+      if (!strcmp(node->name, "typedef_decl_stmt")) {
+         node->handled = true;
+         compile_typedef_decl_stmt(node);
+      }
+   }
+
+   static const char *required_types[] = {
+      "void", "uint8_t"
+   };
+
+   for (size_t i = 0; i < sizeof(required_types) / sizeof(required_types[0]); i++) {
+      if (!typename_exists(required_types[i])) {
+         error_user("required type '%s' is not defined", required_types[i]);
       }
    }
 

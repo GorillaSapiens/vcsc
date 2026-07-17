@@ -1,4 +1,0 @@
-// n65c
-// expectfail
-// expecterr: legacy type name 'bool' is not supported; use 'uint8_t'
-type bool { $size:1 $integer:unsigned };

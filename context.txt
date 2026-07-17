@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_095447.tar.gz
+    vcsc.20260717_102034.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -47,6 +47,12 @@ Settled final-language decisions
       int16_t
       uint16_t
 
+* `int`, `char`, and `bool` are ordinary identifiers rather than built-in or
+  reserved type names. Programs may introduce them as transparent typedef
+  aliases, for example `typedef int16_t int;`.
+* String literals are NUL-terminated `uint8_t` arrays stored in cartridge ROM.
+  They decay to `uint8_t *` in pointer initializers; writing through such a
+  pointer is invalid even though `const` is not yet enforced by the type system.
 * No float or double.
 * No int32_t, uint32_t, or wider integers.
 * void remains a special non-value type.
@@ -131,9 +137,15 @@ Completed vertical slices
     integer literals must fit in 16 bits. Positive 24/32/64-bit compiler,
     runtime, library, and test support has been removed.
 20. The stock language and machine interface now use only int8_t, uint8_t,
-    int16_t, and uint16_t as basic integer names. Legacy bool, char, and int
-    declarations are rejected directly. Comparisons and logical expressions
-    produce an ordinary uint8_t; there is no special boolean type.
+    int16_t, and uint16_t as built-in integer names. Comparisons and logical
+    expressions produce an ordinary uint8_t; there is no special boolean type.
+21. Simple transparent typedef aliases are supported. `int`, `char`, and `bool`
+    are ordinary identifiers and may be introduced as aliases for canonical
+    types. String literals used through pointers are emitted in RODATA/ROM.
+22. The linker can emit flat `.bin` files, and examples/vcs/solid_color.n builds
+    and verifies as a complete unbanked 4096-byte VCS cartridge with reset code
+    at $F000, valid vectors, the static-frame ABI, and the real shared RIOT RAM
+    map.
 
 Current return ABI
 ------------------
@@ -293,58 +305,63 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler changes are concentrated in:
+Compiler/language changes:
 
+    compiler/parser.y
+    compiler/lexer.l
     compiler/compile.c
-    compiler/compile_declarator.c
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_info.c
-    compiler/compile_literal.c
-    compiler/compile_lvalue.c
     compiler/compile_toplevel.c
+    compiler/compile_toplevel.h
     compiler/compile_type.c
-    compiler/compile_type.h
-    compiler/enumname.c
+    compiler/compile_literal.c
+    compiler/coverage_map.h
     compiler/README.md
 
-Machine/library interface changes include:
+Linker/VCS changes:
 
-    libraries/nlib/machine_6502.n
+    linker/n65ld.c
+    linker/README.md
     libraries/vcs/vcs.n
-    libraries/vcs/tia.n
     libraries/vcs/riot.n
     libraries/vcs/README.md
-    test/machine_6502.n
 
-All retained target-language `.n` fixtures under test/ and libraries/ were
-converted from legacy bool/char/int declarations to canonical types. Generated
-source in test/define_option_support.pl and test/unicode_identifier_mangle.pl
-was converted as well.
+Added cartridge example and regression coverage:
 
-Added tests:
+    examples/vcs/solid_color.n
+    examples/vcs/Makefile
+    examples/vcs/README.md
+    test/typedef_alias_codegen_test.n
+    test/e2e_typedef_alias_verify.n
+    test/vcs_4k_cartridge.pl
+    test/vcs_4k_cartridge.test
+
+Updated retained fixtures:
+
+    test/blanket.n
+    test/coverage.n
+    test/default_xform_string_escape_codegen_test.n
+    test/local_string_pointer_initializer_codegen_test.n
+
+Removed obsolete legacy-name rejection tests:
 
     test/legacy_bool_type_name_rejected_test.n
     test/legacy_char_type_name_rejected_test.n
     test/legacy_int_type_name_rejected_test.n
-    test/comparison_uint8_type_codegen_test.n
 
-Seven retained tests were renamed to replace legacy type names in their paths:
-three cross-object ABI mismatch pairs and loop_uint8_test.n. Four obsolete
-legacy-type requirement tests were deleted. Every old repository-relative path
-is in remove.txt. Top-level remove.txt now contains 458 unique cumulative
-removal paths.
+Those three paths are appended to remove.txt. remove.txt now contains 461
+unique cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_debroot
+    /mnt/data/vcsc_toolprefix
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_debroot/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_debroot/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_debroot/usr/share/bison
+    export PATH=/mnt/data/vcsc_toolprefix/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_toolprefix/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_toolprefix/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -359,15 +376,15 @@ Result: passed.
 
 Compile suite:
 
-    217 passed, 0 failed, 217 total
+    215 passed, 0 failed, 215 total
 
 End-to-end/generic suite:
 
-    88 passed, 0 failed, 88 total
+    90 passed, 0 failed, 90 total
 
-The canonical four-type compiler and machine interface pass all retained
-pointer, bit-field, overload, archive ABI, arithmetic, VCS RAM-map, assembler,
-linker, Unicode, and simulator tests.
+The first complete VCS example also builds directly from examples/vcs as a raw
+4096-byte cartridge. The cartridge regression checks the reset prefix, NMI/RESET/IRQ
+vectors, static-frame function symbol, and the $80-$DF allocatable RIOT RAM map.
 
 Immediate TODO
 --------------
@@ -420,12 +437,21 @@ The first unfinished item is the default next action.
                   machine interface exposes only the canonical four integer
                   names.
 
-[ ] 13. Produce and verify an unbanked 4K VCS cartridge using the static-frame
-        ABI and the real 128-byte shared RAM model.
+[x] 13. Produce and verify an unbanked 4K VCS cartridge using the static-frame
+        ABI and the real 128-byte shared RAM model. The example emits a raw
+        4096-byte .bin and has an automated map/vector/size regression test.
 
 [ ] 14. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
+
+        [ ] 14a. Remove heap/sbrk support and its initialization/runtime tests.
+        [ ] 14b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+                  runtime machinery after giving retained division a private
+                  fixed workspace. Keep `_nl_fp` while fixed scratch uses it.
+        [ ] 14c. Reassess and likely remove ordinary named-function overloading.
+        [ ] 14d. Prune unused generic libraries, machine targets, tools, and
+                  grammar surfaces in dependency-ordered groups.
 
 [ ] 15. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
@@ -449,6 +475,23 @@ Open implementation questions
 
 Change log
 ----------
+2026-07-17, typedef aliases, ROM strings, and first 4K cartridge
+* Added simple transparent `typedef ExistingType Alias;` declarations. `int`,
+  `char`, and `bool` are ordinary identifiers and may be aliases rather than
+  built-ins.
+* Moved pointer-backed string literals from DATA/RAM to RODATA/ROM and covered
+  `uint8_t *string := "Hello, World!\n"` end to end.
+* Added flat `.bin` output to n65ld; internal holes are filled with $FF.
+* Corrected vcs.n/riot.n so source-level memory declarations expose only
+  $80-$DF and do not double-count the page-1 stack mirror.
+* Added examples/vcs/solid_color.n, a complete 262-scanline unbanked cartridge
+  using a static-frame function call during initialization.
+* Added an automated cartridge test for exact 4096-byte size, reset prefix,
+  vectors, map bounds, and function symbols.
+* Removed three obsolete permanent-rejection tests for int/char/bool and listed
+  them in remove.txt; remove.txt now has 461 cumulative paths.
+* Passed 215/215 compile tests and 90/90 end-to-end/generic tests.
+
 2026-07-16, initial context
 * Documented the static-frame VCS goal and mirrored-RAM problem.
 * Added top-level context.txt and remove.txt policy.

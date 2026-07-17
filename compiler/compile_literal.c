@@ -102,31 +102,6 @@ static const char *emit_data_literal_object(const unsigned char *bytes, int size
    return label;
 }
 
-//! @brief Emit data string object for compile literal diagnostics or output files.
-static const char *emit_data_string_object(const char *text) {
-   unsigned char *bytes;
-   unsigned char *buf;
-   const char *label;
-   int n = 0;
-
-   if (!text) {
-      text = "";
-   }
-   bytes = decode_string_literal_bytes(text, &n);
-   buf = (unsigned char *) calloc((size_t) n + 1u, 1);
-   if (!buf) {
-      free(bytes);
-      error_unreachable("out of memory");
-   }
-   if (n > 0) {
-      memcpy(buf, bytes, (size_t) n);
-   }
-   free(bytes);
-   label = emit_data_literal_object(buf, n + 1);
-   free(buf);
-   return label;
-}
-
 //! @brief Add string literal to compile literal state, growing storage or preserving uniqueness as needed.
 const char *remember_string_literal(const char *text) {
    const char *existing;
@@ -207,7 +182,7 @@ const char *emit_pointer_initializer_backing_object(const ASTNode *type, const A
    }
 
    if (uexpr->kind == AST_STRING) {
-      return emit_data_string_object(uexpr->strval);
+      return remember_string_literal(uexpr->strval);
    }
 
    if (uexpr->count == 1 && !strcmp(uexpr->name, "&")) {
@@ -315,7 +290,7 @@ bool emit_string_initializer_to_fp(const ASTNode *type, const ASTNode *declarato
       return true;
    }
    if (declarator_pointer_depth(declarator) > 0 || (type && !strcmp(type_name_from_node(type), "*"))) {
-      const char *label = emit_data_string_object(text);
+      const char *label = remember_string_literal(text);
       emit_store_label_address_to_fp(base_offset, total_size > 0 ? total_size : declarator_storage_size(type, declarator), label);
       return true;
    }

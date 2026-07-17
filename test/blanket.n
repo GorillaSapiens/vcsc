@@ -4,6 +4,8 @@
 
 include "machine_6502.n"
 
+typedef int16_t coverage_int;
+
 type uint_cov { $size:2 $integer:unsigned $endian:little };
 include "map_ascii.n"
 include "map_cp437.n"

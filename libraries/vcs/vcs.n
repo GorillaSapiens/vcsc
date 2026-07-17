@@ -1,8 +1,9 @@
 // Atari 2600 / VCS machine definition.
 //
 // This describes the common unbanked 6507-visible view of the machine:
-// - 128 bytes of RIOT RAM in zero page ($80-$FF)
-// - mirrored page-1 stack RAM at $180-$1FF
+// - 96 linker-allocatable RIOT RAM bytes at $80-$DF
+// - 32 physical bytes at $E0-$FF reserved for the hardware stack
+// - page-1 stack addresses are mirrors of the same physical RAM
 // - 4K cartridge ROM conventionally linked at $F000-$FFFF
 
 type void     { $size:0 };
@@ -12,8 +13,7 @@ type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
 
-mem ram      { $start:0x0080 $size:0x0080 $rw $priority:2 };
-mem cpustack { $start:0x0180 $size:0x0080 $rw };
+mem ram      { $start:0x0080 $size:0x0060 $rw $priority:2 };
 mem rom      { $start:0xF000 $size:0x1000 $ro $priority:1 };
 
 xform {

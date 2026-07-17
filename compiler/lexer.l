@@ -1758,6 +1758,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "switch"        return SWITCH;
 "to"            return TO;
 "type"          return TYPE;
+"typedef"       return TYPEDEF;
 "union"         return UNION;
 "while"         return WHILE;
 "xform"         return XFORM;

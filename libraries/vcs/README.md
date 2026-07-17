@@ -8,6 +8,7 @@ Files:
 - `tia.n` ... TIA hardware register bindings
 - `riot.n` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
+- `../../examples/vcs/solid_color.n` ... complete 4K cartridge example
 - `batari-basic/` ... vendored upstream batari Basic kernel source tree (standard, multisprite) with provenance and license notes
 
 Typical use:
@@ -28,11 +29,14 @@ Compile with an include path that can see this directory, for example:
 n65c -I libraries/vcs source.n
 ```
 
-And link with:
+Build a raw 4K cartridge directly with the driver:
 
 ```sh
-n65ld -C libraries/vcs/vcs_4k.cfg ...
+n65cc -I libraries/vcs -T libraries/vcs/vcs_4k.cfg source.n -o game.bin
 ```
+
+A `.bin` output name asks the linker for a contiguous flat binary; this VCS
+layout produces exactly 4096 bytes mapped at `$F000-$FFFF`.
 
 Notes:
 

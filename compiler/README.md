@@ -118,7 +118,15 @@ The compiler requires these declarations when their language semantics need them
 - `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-The stock machine definition also supplies `uint16_t`. The legacy names `bool`, `char`, and `int` are not supported; use `uint8_t`, `int8_t`, and `int16_t` respectively.
+The stock machine definition also supplies `uint16_t`. The names `bool`, `char`, and `int` are not built in or reserved. A source file may introduce them as transparent aliases, for example:
+
+```n
+typedef uint8_t bool;
+typedef uint8_t char;
+typedef int16_t int;
+```
+
+Until such a typedef appears, those names are ordinary identifiers rather than types.
 
 Integer value types must be exactly one or two bytes and say whether they are signed or unsigned with `$integer:signed` or `$integer:unsigned`. Untyped integer literals larger than 16 bits are rejected. Comparisons and logical expressions produce an ordinary `uint8_t`, not a special boolean-only type. `void` remains flagless. Floating-point type flags are rejected.
 
@@ -466,7 +474,7 @@ Braced initializers are valid only for simple assignment. Compound assignment op
 
 ### String initializers
 
-Strings can initialize pointer values and byte arrays where appropriate. String bytes may be translated through an `xform`.
+Strings can initialize pointer values and byte arrays where appropriate. String bytes may be translated through an `xform`. A string literal is a NUL-terminated `uint8_t` array stored in read-only output storage. In a pointer initializer it decays to `uint8_t *`; the type system does not yet enforce `const`, so writing through that pointer is invalid even though the declaration is accepted.
 
 ## Arrays
 

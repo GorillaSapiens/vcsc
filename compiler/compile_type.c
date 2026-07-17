@@ -52,7 +52,7 @@ static ASTNode *expr_ternary_false(ASTNode *expr) {
 }
 
 //! @brief Extract type name from node for compiler type system.
-const char *type_name_from_node(const ASTNode *type) {
+static const char *raw_type_name_from_node(const ASTNode *type) {
    if (!type) {
       return NULL;
    }
@@ -63,6 +63,25 @@ const char *type_name_from_node(const ASTNode *type) {
       return type->children[0]->strval;
    }
    return NULL;
+}
+
+//! @brief Extract the canonical type name, resolving transparent typedef aliases.
+const char *type_name_from_node(const ASTNode *type) {
+   const char *name = raw_type_name_from_node(type);
+   const ASTNode *decl;
+   const char *canonical;
+
+   if (!name) {
+      return NULL;
+   }
+
+   decl = get_typename_node(name);
+   if (!decl || decl == type) {
+      return name;
+   }
+
+   canonical = raw_type_name_from_node(decl);
+   return canonical ? canonical : name;
 }
 
 //! @brief Return required typename node data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -817,9 +836,16 @@ void build_named_storage_segment(char *buf, size_t bufsize, const ASTNode *modif
 int get_size(const char *type) {
    const ASTNode *node;
    const char *backing;
+   const char *canonical;
 
    if (!type) {
       error_unreachable("[%s:%d] internal could not find NULL type", __FILE__, __LINE__);
+   }
+
+   node = get_typename_node(type);
+   canonical = node ? raw_type_name_from_node(node) : NULL;
+   if (canonical && strcmp(canonical, type)) {
+      return get_size(canonical);
    }
 
    if (typesizes && pair_exists(typesizes, type)) {

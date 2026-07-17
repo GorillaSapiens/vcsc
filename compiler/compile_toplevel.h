@@ -9,6 +9,7 @@
 
 void compile_mem_decl_stmt(ASTNode *node);
 void compile_type_decl_stmt(ASTNode *node);
+void compile_typedef_decl_stmt(ASTNode *node);
 void compile_enum_decl_stmt(ASTNode *node);
 void compile_struct_decl_stmt(ASTNode *node);
 void compile_union_decl_stmt(ASTNode *node);

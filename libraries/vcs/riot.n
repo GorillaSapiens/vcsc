@@ -5,9 +5,8 @@
 // also mirrored by the hardware, but the canonical addresses are what source
 // should normally use.
 
-// 128 bytes of RIOT RAM live at $80-$FF and are mirrored elsewhere.
-mem riot_ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
-mem riot_stack { $start:0x0180 $size:0x0080 $rw };
+// RIOT RAM is declared once by vcs.n. The page-1 stack window is only a
+// mirror of the same physical bytes and must not be declared as extra memory.
 
 // RIOT I/O and timer registers.
 ref uint8_t SWCHA @[0x0280/0x0280];

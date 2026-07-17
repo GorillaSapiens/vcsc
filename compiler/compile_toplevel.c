@@ -227,13 +227,6 @@ void compile_mem_decl_stmt(ASTNode *node) {
 void compile_type_decl_stmt(ASTNode *node) {
    const char *key = node->children[0]->strval;
 
-   if (key && (!strcmp(key, "bool") || !strcmp(key, "char") || !strcmp(key, "int"))) {
-      const char *replacement = !strcmp(key, "bool") ? "uint8_t" :
-                                (!strcmp(key, "char") ? "int8_t" : "int16_t");
-      error_user("[%s:%d.%d] legacy type name '%s' is not supported; use '%s'",
-                 node->file, node->line, node->column, key, replacement);
-   }
-
    attach_typename(key, node);
 
    //debug("%s:%s", __func__, node->children[0]->strval);
@@ -349,6 +342,28 @@ void compile_type_decl_stmt(ASTNode *node) {
    if (get_xray(XRAY_TYPEINFO)) {
       message("TYPEINFO: %s %d %s", key, haveSize ? size : -1, haveEndian ? endian : "unspec");
    }
+}
+
+
+//! @brief Attach a source-level typedef name to an existing named type.
+void compile_typedef_decl_stmt(ASTNode *node) {
+   const char *target_name;
+   const char *alias_name;
+   ASTNode *target;
+
+   if (!node || node->count < 2 || !node->children[0] || !node->children[1]) {
+      error_unreachable("[%s:%d] invalid typedef declaration", __FILE__, __LINE__);
+   }
+
+   target_name = node->children[0]->strval;
+   alias_name = node->children[1]->strval;
+   target = get_typename_node(target_name);
+   if (!target) {
+      error_user("[%s:%d.%d] typedef target type '%s' is not defined",
+                 node->file, node->line, node->column, target_name ? target_name : "?");
+   }
+
+   attach_typename(alias_name, target);
 }
 
 //! @brief Return whether enum candidate is integer type in compile toplevel.

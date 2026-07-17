@@ -106,6 +106,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token SWITCH
 %token TO
 %token TYPE
+%token TYPEDEF
 %token UNION
 %token WHILE
 %token XFORM
@@ -211,6 +212,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> switch_stmt
 %type <node> sizeof_operand
 %type <node> type_decl_stmt
+%type <node> typedef_decl_stmt
 %type <node> unary_expr
 %type <node> union_decl_stmt
 %type <node> while_stmt
@@ -236,6 +238,7 @@ program_item:
   | xform_decl_stmt                          { COVER; $$ = $1; register_xform($$->children[0]->strval, $$->children[1]); }
   | mem_decl_stmt                            { COVER; $$ = $1; }
   | type_decl_stmt                           { COVER; $$ = $1; }
+  | typedef_decl_stmt                        { COVER; $$ = $1; }
   | enum_decl_stmt                           { COVER; $$ = $1; }
   | struct_decl_stmt                         { COVER; $$ = $1; }
   | union_decl_stmt                          { COVER; $$ = $1; }
@@ -280,6 +283,10 @@ mem_decl_stmt:
 type_decl_stmt:
     TYPE IDENTIFIER '{' opt_flags '}' ';'    { COVER; if (register_typename($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); }
   | TYPE '*' '{' opt_flags '}' ';'           { COVER; if (register_typename("*") < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf("*"), $4); }
+  ;
+
+typedef_decl_stmt:
+    TYPEDEF TYPENAME IDENTIFIER ';'          { COVER; if (register_typename($3) < 0) YYABORT; $$ = MAKE_NODE(make_typename_leaf($2), make_identifier_leaf($3)); }
   ;
 
 enum_decl_stmt:
