@@ -2,6 +2,6 @@
 // expectfail
 // expecterr: unknown_identifier_member_error_test.n:6.18] unknown identifier 'missing'
 include "machine_6502.n"
-int main(void) {
+int16_t main(void) {
    return missing.x;
 }

@@ -6,5 +6,5 @@ alias pair(a,b) { a, \
                   b }
 
 void main(void) {
-   char x[2] := pair(5, 6);
+   int8_t x[2] := pair(5, 6);
 }

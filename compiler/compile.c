@@ -99,11 +99,14 @@ static void compile(ASTNode *program) {
       }
    }
 
-   if (!typename_exists("bool")) {
-      error_user("required type 'bool' is not defined");
-   }
-   if (!typename_exists("void")) {
-      error_user("required type 'void' is not defined");
+   static const char *required_types[] = {
+      "void", "uint8_t"
+   };
+
+   for (size_t i = 0; i < sizeof(required_types) / sizeof(required_types[0]); i++) {
+      if (!typename_exists(required_types[i])) {
+         error_user("required type '%s' is not defined", required_types[i]);
+      }
    }
 
    for (int i = 0; i < program->count; i++) {

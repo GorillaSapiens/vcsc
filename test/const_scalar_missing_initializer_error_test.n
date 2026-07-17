@@ -3,11 +3,11 @@
 // expecterr: 'const' missing initializer
 
 type void  { $size:0 };
-type bool  { $size:1 $integer:unsigned };
+type uint8_t  { $size:1 $integer:unsigned };
 type *     { $size:2 $integer:unsigned $endian:little };
-type char  { $size:1 $integer:signed };
+type int8_t  { $size:1 $integer:signed };
 
-const char x;
+const int8_t x;
 
 void main(void) {
 }

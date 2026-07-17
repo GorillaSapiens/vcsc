@@ -10,13 +10,13 @@ mem riot_ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
 mem riot_stack { $start:0x0180 $size:0x0080 $rw };
 
 // RIOT I/O and timer registers.
-ref char SWCHA @[0x0280/0x0280];
-ref char SWACNT@[0x0281/0x0281];
-ref char SWCHB @[0x0282/0x0282];
-ref char SWBCNT@[0x0283/0x0283];
-ref char INTIM @[0x0284/none];
-ref char TIMINT@[0x0285/none];
-ref char TIM1T @[none/0x0294];
-ref char TIM8T @[none/0x0295];
-ref char TIM64T@[none/0x0296];
-ref char T1024T@[none/0x0297];
+ref uint8_t SWCHA @[0x0280/0x0280];
+ref uint8_t SWACNT@[0x0281/0x0281];
+ref uint8_t SWCHB @[0x0282/0x0282];
+ref uint8_t SWBCNT@[0x0283/0x0283];
+ref uint8_t INTIM @[0x0284/none];
+ref uint8_t TIMINT@[0x0285/none];
+ref uint8_t TIM1T @[none/0x0294];
+ref uint8_t TIM8T @[none/0x0295];
+ref uint8_t TIM64T@[none/0x0296];
+ref uint8_t T1024T@[none/0x0297];

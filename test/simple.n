@@ -1,20 +1,20 @@
 // n65c
 
 type void      { $size:0 };
-type bool     { $size:1 $integer:unsigned };
-type char      { $size:1    $integer:signed };
+type uint8_t     { $size:1 $integer:unsigned };
+type int8_t      { $size:1    $integer:signed };
 type uchar     { $size:1  $integer:unsigned };
 type *         { $size:2  $integer:unsigned $endian:little };
 type short     { $size:2    $integer:signed $endian:little };
 type ushort    { $size:2  $integer:unsigned $endian:little };
-type int       { $size:2    $integer:signed $endian:little };
+type int16_t       { $size:2    $integer:signed $endian:little };
 type uint      { $size:2  $integer:unsigned $endian:little };
 type long      { $size:2    $integer:signed $endian:little };
 type ulong     { $size:2  $integer:unsigned $endian:little };
 type longlong  { $size:2   $integer:signed $endian:little };
 type ulonglong { $size:2 $integer:unsigned $endian:little };
 
-static char **argv;
+static int8_t **argv;
 
-void main(int argc, char **argv) {
+void main(int16_t argc, int8_t **argv) {
 }

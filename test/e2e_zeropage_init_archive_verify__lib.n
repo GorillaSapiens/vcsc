@@ -1,12 +1,12 @@
 include "machine_6502.n"
 
-zeropage char lib_bytes[3] := { 7, 8, 9 };
-zeropage char lib_zero;
+zeropage int8_t lib_bytes[3] := { 7, 8, 9 };
+zeropage int8_t lib_zero;
 
-int lib_sum(void) {
+int16_t lib_sum(void) {
    return lib_bytes[0] + lib_bytes[1] + lib_bytes[2];
 }
 
-int lib_pad(void) {
+int16_t lib_pad(void) {
    return lib_zero;
 }

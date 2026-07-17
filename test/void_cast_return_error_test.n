@@ -2,7 +2,7 @@
 // expectfail
 // expecterr: void_cast_return_error_test.n:7.19] void expression has no value
 include "machine_6502.n"
-int g;
-int main(void) {
+int16_t g;
+int16_t main(void) {
    return (void)g;
 }

@@ -2,16 +2,16 @@
 // expectasm: jsr bump
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
-type int  { $size:2 $integer:signed $endian:little };
+type int16_t  { $size:2 $integer:signed $endian:little };
 
-void bump(ref int x) {
+void bump(ref int16_t x) {
    x++;
 }
 
-int main(void) {
-   int a;
+int16_t main(void) {
+   int16_t a;
    bump(a);
    return a;
 }

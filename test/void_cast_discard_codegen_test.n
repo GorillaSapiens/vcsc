@@ -1,10 +1,10 @@
 // n65c -I .
 // expectasm: jsr side
 include "machine_6502.n"
-int side(void) {
+int16_t side(void) {
    return 1;
 }
-int main(void) {
+int16_t main(void) {
    (void)side();
    return 0;
 }

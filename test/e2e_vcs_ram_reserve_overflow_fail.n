@@ -8,7 +8,7 @@ include "vcs.n"
 // nlib currently consumes 22 bytes of the 96-byte allocatable VCS RAM window.
 // A 75-byte global must therefore fail rather than spill into the 32 bytes
 // reserved for the 6502 hardware stack.
-char payload[75];
+int8_t payload[75];
 
 void main(void) {
    payload[0] := 1;

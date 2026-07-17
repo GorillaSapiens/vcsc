@@ -81,17 +81,6 @@ const ASTNode *required_typename_node(const char *name) {
    return node;
 }
 
-//! @brief Return bool type node data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-const ASTNode *bool_type_node(void) {
-   return required_typename_node("bool");
-}
-
-//! @brief Return whether type is bool in compiler type system.
-bool type_is_bool(const ASTNode *type) {
-   const char *name = type_name_from_node(type);
-   return name && !strcmp(name, "bool");
-}
-
 //! @brief Parse integer style flag text into the normalized representation used by compiler type system.
 const char *parse_integer_style_flag_text(const char *text) {
    if (!text || strncmp(text, "$integer:", 9) || !text[9]) {
@@ -118,7 +107,7 @@ bool type_is_signed_integer(const ASTNode *type) {
    const char *name = type_name_from_node(type);
    const ASTNode *node;
 
-   if (!name || !strcmp(name, "*") || type_is_bool(type)) {
+   if (!name || !strcmp(name, "*")) {
       return false;
    }
 
@@ -196,7 +185,7 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
       int penalty = 0;
       int cand_size;
 
-      if (!node || strcmp(node->name, "type_decl_stmt") || type_is_bool(node)) {
+      if (!node || strcmp(node->name, "type_decl_stmt")) {
          continue;
       }
       if (require_signed) {
@@ -235,8 +224,7 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
    int required_size;
    const ASTNode *best;
 
-   if (!type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
+   if (!type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type)) {
       return NULL;
    }
 
@@ -288,8 +276,7 @@ const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Co
       return NULL;
    }
 
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
+   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type)) {
       return NULL;
    }
 
@@ -319,8 +306,7 @@ const ASTNode *compound_integer_work_type(const ASTNode *lhs_type, const ASTNode
    rhs_type = expr_value_type(rhs_expr, ctx);
    rhs_decl = expr_value_declarator(rhs_expr, ctx);
 
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
+   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type)) {
       return NULL;
    }
 
@@ -365,8 +351,7 @@ void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
       return;
    }
 
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
+   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type)) {
       return;
    }
 
@@ -416,7 +401,7 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    src_type = expr_value_type(operand, ctx);
    src_decl = expr_value_declarator(operand, ctx);
    if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) ||
-       !type_is_promotable_integer(src_type) || type_is_bool(src_type)) {
+       !type_is_promotable_integer(src_type)) {
       error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                  expr->file, expr->line, expr->column, flag_text);
    }
@@ -928,7 +913,7 @@ int expr_value_size(ASTNode *expr, Context *ctx) {
    }
 
    if (!strcmp(expr->name, "sizeof")) {
-      return get_size("int");
+      return get_size("int16_t");
    }
 
    type = expr_value_type(expr, ctx);

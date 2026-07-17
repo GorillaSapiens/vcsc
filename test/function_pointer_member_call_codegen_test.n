@@ -4,20 +4,20 @@
 include "machine_6502.n"
 
 struct holder {
-   int (*func)(int);
+   int16_t (*func)(int16_t);
 };
 
-int inc(int x) {
+int16_t inc(int16_t x) {
    return x + 1;
 }
 
-int dec(int x) {
+int16_t dec(int16_t x) {
    return x - 1;
 }
 
-int main(void) {
+int16_t main(void) {
    holder a[2];
-   int q := 1;
+   int16_t q := 1;
 
    a[0].func := inc;
    a[1].func := dec;

@@ -8,14 +8,14 @@ mem banana   { $start:0x0000 $size:0x0100 $rw };
 mem zeropage { $start:0x0100 $size:0x0100 $rw };
 
  type void { $size:0 };
- type bool { $size:1 $integer:unsigned };
- type char { $size:1 $integer:signed};
+ type uint8_t { $size:1 $integer:unsigned };
+ type int8_t { $size:1 $integer:signed};
  type * { $size:2 $integer:unsigned $endian:little };
- type int { $size:2 $integer:signed $endian:little };
+ type int16_t { $size:2 $integer:signed $endian:little };
 
-banana int a := 5;
-zeropage int b := 6;
+banana int16_t a := 5;
+zeropage int16_t b := 6;
 
-int main(void) {
+int16_t main(void) {
    return a;
 }

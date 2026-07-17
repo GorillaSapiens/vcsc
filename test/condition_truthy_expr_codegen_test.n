@@ -5,11 +5,11 @@
 
 include "machine_6502.n"
 
-int helper(int x) {
+int16_t helper(int16_t x) {
    return x;
 }
 
-int test(int a, int b) {
+int16_t test(int16_t a, int16_t b) {
    if ((a + helper(b)) * b) {
       return 1;
    }

@@ -6,13 +6,13 @@ include "machine_6502.n"
 type u1x { $size:1 $integer:unsigned $endian:little };
 type u2x { $size:2 $integer:unsigned $endian:little };
 
-int helper(char *dst, u1x value) {
+int16_t helper(int8_t *dst, u1x value) {
    dst[0] := 'u';
    dst[1] := '0' + value;
    return 2;
 }
 
-int helper(char *dst, u2x value) {
+int16_t helper(int8_t *dst, u2x value) {
    dst[0] := 'v';
    dst[1] := '0' + (value & 15`u2x);
    return 2;
@@ -20,9 +20,9 @@ int helper(char *dst, u2x value) {
 
 
 void main(void) {
-   char buf[8];
-   char *p := buf;
-   int used;
+   int8_t buf[8];
+   int8_t *p := buf;
+   int16_t used;
 
    used := helper(buf, 3`u1x);
    if (used != 2) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }

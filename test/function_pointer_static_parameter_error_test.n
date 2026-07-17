@@ -3,12 +3,12 @@
 // expecterr: function pointers are not supported
 include "machine_6502.n"
 
-int bad(static int x) {
+int16_t bad(static int16_t x) {
    return x;
 }
 
-int (*fp)(int) := &bad;
+int16_t (*fp)(int16_t) := &bad;
 
-int main(void) {
+int16_t main(void) {
    return 0;
 }

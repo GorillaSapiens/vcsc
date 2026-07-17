@@ -2,7 +2,7 @@
 // expectfail
 // expecterr: negative shift count -1
 
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type void { $size:0 };
 type *    { $size:2 $integer:unsigned $endian:little };
 type u2   { $size:2 $integer:unsigned $endian:little };

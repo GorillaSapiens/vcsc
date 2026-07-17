@@ -3,5 +3,5 @@
 include "machine_6502.n"
 
 void main(void) {
-   char port@0x10;
+   int8_t port@0x10;
 }

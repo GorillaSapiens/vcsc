@@ -17,8 +17,8 @@
 
 include "machine_6502.n"
 
-int f(int a) {
-   int x;
+int16_t f(int16_t a) {
+   int16_t x;
    x := a;
    return x;
 }

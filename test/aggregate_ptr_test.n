@@ -3,20 +3,20 @@
 include "machine_6502.n"
 
 struct Point {
-   int x;
-   int y;
+   int16_t x;
+   int16_t y;
 };
 
 union Value {
-   int i;
+   int16_t i;
    int16_t l;
 };
 
-int getx(Point *p) {
+int16_t getx(Point *p) {
    return p->x;
 }
 
-int main(void) {
+int16_t main(void) {
    Point p;
    Point q;
    Value v;

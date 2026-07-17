@@ -8,19 +8,19 @@
 include "machine_6502.n"
 
 struct Pair {
-   int a;
-   int b;
+   int16_t a;
+   int16_t b;
 };
 
-int twice(int x) {
+int16_t twice(int16_t x) {
    return x + x;
 }
 
-int seed := 3;
-int initialized := twice(seed);
+int16_t seed := 3;
+int16_t initialized := twice(seed);
 Pair pairs[2];
 
 void test(void) {
-   int index := 1;
+   int16_t index := 1;
    pairs[index] := { 7, 9 };
 }

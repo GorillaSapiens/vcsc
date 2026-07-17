@@ -7,22 +7,22 @@
 
 include "machine_6502.n"
 
-ref char m0@0x0300;
-ref char m1@0x0301;
-ref char m2@0x0302;
-ref char m3@0x0303;
-ref char m4@0x0304;
-ref char m5@0x0305;
-ref char m6@0x0306;
-ref char m7@0x0307;
-ref char m8@0x0308;
-ref char m9@0x0309;
-ref char m10@0x030A;
-ref char m11@0x030B;
-ref char m12@0x030C;
-ref char m13@0x030D;
-ref char m14@0x030E;
-ref char m15@0x030F;
+ref int8_t m0@0x0300;
+ref int8_t m1@0x0301;
+ref int8_t m2@0x0302;
+ref int8_t m3@0x0303;
+ref int8_t m4@0x0304;
+ref int8_t m5@0x0305;
+ref int8_t m6@0x0306;
+ref int8_t m7@0x0307;
+ref int8_t m8@0x0308;
+ref int8_t m9@0x0309;
+ref int8_t m10@0x030A;
+ref int8_t m11@0x030B;
+ref int8_t m12@0x030C;
+ref int8_t m13@0x030D;
+ref int8_t m14@0x030E;
+ref int8_t m15@0x030F;
 
 void dump(void) {
    asm lda #$fe;

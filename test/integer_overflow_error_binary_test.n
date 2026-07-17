@@ -3,7 +3,7 @@
 
 include "machine_6502.n"
 
-char bin_over := 0b100000000;
+int8_t bin_over := 0b100000000;
 
 void main(void) {
 }

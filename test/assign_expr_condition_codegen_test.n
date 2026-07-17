@@ -6,9 +6,9 @@
 
 include "machine_6502.n"
 
-int a;
+int16_t a;
 
-int main(void) {
+int16_t main(void) {
    if (a := 1) {
       return a;
    }

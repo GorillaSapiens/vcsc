@@ -4,7 +4,7 @@
 // expecterr: function pointers are not supported; call 'five' directly
 include "machine_6502.n"
 
-int five(void) {
+int16_t five(void) {
    return 5;
 }
 

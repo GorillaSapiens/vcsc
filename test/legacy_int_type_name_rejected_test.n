@@ -1,0 +1,4 @@
+// n65c
+// expectfail
+// expecterr: legacy type name 'int' is not supported; use 'int16_t'
+type int { $size:2 $integer:signed $endian:little };

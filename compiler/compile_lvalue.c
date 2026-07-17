@@ -431,7 +431,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          int scaled_offset = factor_offset + ptr_size;
          int save_ptr0_offset = elem_size != 1 ? (scaled_offset + (ptr_size * 2)) : (idx_offset + ptr_size);
          int total = (save_ptr0_offset - idx_offset) + ptr_size;
-         ContextEntry idx_tmp = { .name = "$idx", .type = idx_type ? idx_type : required_typename_node("int"), .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = idx_offset, .size = ptr_size };
+         ContextEntry idx_tmp = { .name = "$idx", .type = idx_type ? idx_type : required_typename_node("int16_t"), .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = idx_offset, .size = ptr_size };
          LValueFixedScratch scratch;
 
          lvalue_fixed_scratch_begin(ctx, "indextmp", total, &scratch);
@@ -452,9 +452,9 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
             make_le_int(factor_buf, factor_bytes, ptr_size);
             emit_store_immediate_to_fp(factor_offset, factor_bytes, ptr_size);
             free(factor_bytes);
-            emit_runtime_binary_fp_fp(int_mul_helper_name(idx_type ? idx_type : required_typename_node("int")), scaled_offset, idx_offset, factor_offset, ptr_size);
+            emit_runtime_binary_fp_fp(int_mul_helper_name(idx_type ? idx_type : required_typename_node("int16_t")), scaled_offset, idx_offset, factor_offset, ptr_size);
             emit_load_ptr_from_fpvar(0, save_ptr0_offset);
-            emit_add_fp_to_ptr(0, int_mul_result_offset(idx_type ? idx_type : required_typename_node("int"), scaled_offset, ptr_size), ptr_size);
+            emit_add_fp_to_ptr(0, int_mul_result_offset(idx_type ? idx_type : required_typename_node("int16_t"), scaled_offset, ptr_size), ptr_size);
          }
          else {
             emit_add_fp_to_ptr(0, idx_offset, ptr_size);

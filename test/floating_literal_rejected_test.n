@@ -3,8 +3,8 @@
 // expecterr: floating-point literals are not supported
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type * { $size:2 $integer:unsigned $endian:little };
-type int { $size:2 $integer:signed $endian:little };
+type int16_t { $size:2 $integer:signed $endian:little };
 
-int value := 1.0;
+int16_t value := 1.0;

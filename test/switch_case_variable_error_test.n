@@ -4,9 +4,9 @@
 
 include "machine_6502.n"
 
-int main(void) {
-   int x := 3;
-   int y := 1;
+int16_t main(void) {
+   int16_t x := 3;
+   int16_t y := 1;
    switch (x) {
       case y + 2:
          return 1;

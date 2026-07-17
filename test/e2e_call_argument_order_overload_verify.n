@@ -2,21 +2,21 @@
 // expectexit: 0
 include "machine_6502.n"
 
-int pick(int a, int b) {
+int16_t pick(int16_t a, int16_t b) {
    return a + 10 * b;
 }
 
-int pick(char a, char b) {
+int16_t pick(int8_t a, int8_t b) {
    return a + 10 * b;
 }
 
 void main(void) {
-   int i1;
-   int i2;
-   int ri;
-   char c1;
-   char c2;
-   int rc;
+   int16_t i1;
+   int16_t i2;
+   int16_t ri;
+   int8_t c1;
+   int8_t c2;
+   int16_t rc;
 
    i1 := 1;
    i2 := 2;

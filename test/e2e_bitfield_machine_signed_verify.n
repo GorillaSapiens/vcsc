@@ -3,11 +3,11 @@
 include "machine_6502.n"
 
 struct CharBits {
-   char value:4;
+   int8_t value:4;
 };
 
 struct IntBits {
-   int value:15;
+   int16_t value:15;
 };
 
 void pass(void) {
@@ -22,12 +22,12 @@ void main(void) {
    IntBits ib;
 
    cb.value := 0x0c;
-   if (cb.value != 0xfc`char) {
+   if (cb.value != 0xfc`int8_t) {
       asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
    }
 
    ib.value := 0x4000;
-   if (ib.value != 0xc000`int) {
+   if (ib.value != 0xc000`int16_t) {
       asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff;
    }
 

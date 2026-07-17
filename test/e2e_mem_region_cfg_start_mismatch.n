@@ -7,7 +7,7 @@
 include "machine_6502.n"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 
-banana int x;
+banana int16_t x;
 
 void main(void) {
    while (1) {

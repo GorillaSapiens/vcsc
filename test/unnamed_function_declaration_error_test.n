@@ -2,6 +2,6 @@
 // expectfail
 // expecterr: unnamed function declaration is not supported here
 include "machine_6502.n"
-int () {
+int16_t () {
    return 0;
 }

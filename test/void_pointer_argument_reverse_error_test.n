@@ -7,16 +7,16 @@
 // expecterr: void_pointer_argument_reverse_error_test.n:15.27   take_byte_ptr(BYTE*)
 
 type void  { $size:0 };
-type bool  { $size:1 $integer:unsigned };
+type uint8_t  { $size:1 $integer:unsigned };
 type *     { $size:2 $integer:unsigned $endian:little };
 type BYTE  { $size:1 $integer:unsigned };
-type int   { $size:2 $integer:signed $endian:little };
+type int16_t   { $size:2 $integer:signed $endian:little };
 
 static BYTE* take_byte_ptr(BYTE* p) {
    return p;
 }
 
-int main(void) {
+int16_t main(void) {
    void* p;
    return take_byte_ptr(p);
 }

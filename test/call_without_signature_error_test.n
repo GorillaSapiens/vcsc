@@ -3,6 +3,6 @@
 // expecterr: call target 'foreign_add' has no visible signature; declare it in this translation unit or with extern
 include "machine_6502.n"
 
-int main(void) {
+int16_t main(void) {
    return foreign_add(1, 2);
 }

@@ -5,10 +5,10 @@
 include "machine_6502.n"
 
 struct PackedBits {
-   char lo:4;
-   char hi:4;
-   char tag:1;
-   char code:7;
+   int8_t lo:4;
+   int8_t hi:4;
+   int8_t tag:1;
+   int8_t code:7;
 };
 
 struct WordBits {
@@ -22,8 +22,8 @@ union WordOverlay {
    WordBits bits;
 };
 
-int main(void) {
-   int a := sizeof(PackedBits);
-   int b := sizeof(WordOverlay);
+int16_t main(void) {
+   int16_t a := sizeof(PackedBits);
+   int16_t b := sizeof(WordOverlay);
    return a + b;
 }

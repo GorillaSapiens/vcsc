@@ -226,6 +226,14 @@ void compile_mem_decl_stmt(ASTNode *node) {
 //! @brief Lower type decl stmt from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_type_decl_stmt(ASTNode *node) {
    const char *key = node->children[0]->strval;
+
+   if (key && (!strcmp(key, "bool") || !strcmp(key, "char") || !strcmp(key, "int"))) {
+      const char *replacement = !strcmp(key, "bool") ? "uint8_t" :
+                                (!strcmp(key, "char") ? "int8_t" : "int16_t");
+      error_user("[%s:%d.%d] legacy type name '%s' is not supported; use '%s'",
+                 node->file, node->line, node->column, key, replacement);
+   }
+
    attach_typename(key, node);
 
    //debug("%s:%s", __func__, node->children[0]->strval);
@@ -338,11 +346,6 @@ void compile_type_decl_stmt(ASTNode *node) {
             node->file, node->line, node->column, node->children[0]->strval);
    }
 
-   if (key && !strcmp(key, "bool") && haveInteger && (!integer_style || strcmp(integer_style, "unsigned"))) {
-      error_user("[%s:%d.%d] type_decl_stmt '%s' must use '$integer:unsigned'",
-            node->file, node->line, node->column, node->children[0]->strval);
-   }
-
    if (get_xray(XRAY_TYPEINFO)) {
       message("TYPEINFO: %s %d %s", key, haveSize ? size : -1, haveEndian ? endian : "unspec");
    }
@@ -354,7 +357,7 @@ static bool enum_candidate_is_integer_type(const ASTNode *node) {
       return false;
    }
 
-   return type_is_promotable_integer(node) && !type_is_bool(node);
+   return type_is_promotable_integer(node);
 }
 
 //! @brief Return whether enum candidate can hold range in compile toplevel.

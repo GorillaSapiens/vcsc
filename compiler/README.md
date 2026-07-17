@@ -97,32 +97,30 @@ As with aliases, keep conditional compilation boring and local. It is useful for
 
 ## Type system
 
-There are no implicit built-in scalar types other than the required pointer type `*`, the required boolean type `bool`, and the required empty type `void`.
-
-Example:
+The stock machine interface exposes four integer types, one pointer type, and `void`:
 
 ```n
-type void   { $size:0 };
 type void     { $size:0 };
-type bool     { $size:1 $integer:unsigned }; // transitional compiler-required name
+type *        { $size:2 $integer:unsigned $endian:little };
 type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
-type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
 ### Required type declarations
 
-The compiler requires these declarations to exist in the program or its includes:
+The compiler requires these declarations when their language semantics need them:
 
-- `*` ... the machine pointer type
-- `bool` ... boolean result type used by comparisons and logical expressions
+- `*` ... the two-byte machine pointer type
+- `uint8_t` ... result type used by comparisons and logical expressions
+- `int8_t` ... character constants and string-element type
+- `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-`int` is **not** required and is not a hard-coded semantic fallback type.
+The stock machine definition also supplies `uint16_t`. The legacy names `bool`, `char`, and `int` are not supported; use `uint8_t`, `int8_t`, and `int16_t` respectively.
 
-Integer value types must be exactly one or two bytes and say whether they are signed or unsigned with `$integer:signed` or `$integer:unsigned`. Untyped integer literals larger than 16 bits are rejected. The required `bool` type must use `$integer:unsigned`, while `void` remains flagless. Floating-point type flags are rejected.
+Integer value types must be exactly one or two bytes and say whether they are signed or unsigned with `$integer:signed` or `$integer:unsigned`. Untyped integer literals larger than 16 bits are rejected. Comparisons and logical expressions produce an ordinary `uint8_t`, not a special boolean-only type. `void` remains flagless. Floating-point type flags are rejected.
 
 Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
 
@@ -163,13 +161,13 @@ Struct and union declarations immediately introduce their names as usable types.
 Ordinary function declarations work. Multiple compatible declarations are allowed, and a later definition may follow an earlier declaration. Incompatible redeclarations are rejected.
 
 ```n
-int twice(int x);
+int16_t twice(int16_t x);
 
-int main(void) {
+int16_t main(void) {
    return twice(21);
 }
 
-int twice(int x) {
+int16_t twice(int16_t x) {
    return x + x;
 }
 ```
@@ -455,8 +453,8 @@ Simple assignment also accepts braced initializers. The compiler lowers these th
 Examples:
 
 ```n
-int x;
-int a[3];
+int16_t x;
+int16_t a[3];
 Pair p;
 
 x := { 1 };
@@ -558,8 +556,8 @@ Range bounds are inclusive on both ends. If the programmer writes a reversed ran
 A string literal may optionally specify an `xform` name after a backtick.
 
 ```n
-char msg1[] = "hello"`cp437;
-char msg2[] = "hello";
+int8_t msg1[] = "hello"`cp437;
+int8_t msg2[] = "hello";
 ```
 
 ## ABI and runtime notes
@@ -614,20 +612,19 @@ A few sharp edges remain:
 ## Minimal example
 
 ```n
-type void { $size:0 };
-type bool     { $size:1 $integer:unsigned };
+type void     { $size:0 };
+type *        { $size:2 $integer:unsigned $endian:little };
 type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
-type *        { $size:2 $integer:unsigned $endian:little };
 
-void bump(ref s2 x) {
+void bump(ref int16_t x) {
    x++;
 }
 
-s2 main(void) {
-   s2 x;
+int16_t main(void) {
+   int16_t x;
    x := 1;
    bump(x);
    if (x) {

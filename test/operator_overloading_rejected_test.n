@@ -3,8 +3,8 @@
 // expectfail
 // expecterr: operator overloading is not supported
 
-type int { $size:2 $integer:signed $endian:little };
+type int16_t { $size:2 $integer:signed $endian:little };
 
-int operator+(int a, int b) {
+int16_t operator+(int16_t a, int16_t b) {
    return a + b;
 }

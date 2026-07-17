@@ -1,0 +1,4 @@
+// n65c
+// expectfail
+// expecterr: legacy type name 'char' is not supported; use 'int8_t'
+type char { $size:1 $integer:signed };

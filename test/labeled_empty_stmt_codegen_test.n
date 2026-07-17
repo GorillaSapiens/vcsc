@@ -3,7 +3,7 @@
 
 include "machine_6502.n"
 
-int main(void) {
+int16_t main(void) {
    goto done;
 done: ;
    return 0;

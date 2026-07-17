@@ -9,10 +9,10 @@
 // expectasmordered: sta ord4$d,y
 include "machine_6502.n"
 
-int ord4(int a, int b, int c, int d) {
+int16_t ord4(int16_t a, int16_t b, int16_t c, int16_t d) {
    return a + b + c + d;
 }
 
-int main(void) {
+int16_t main(void) {
    return ord4(1, 2, 3, 4);
 }

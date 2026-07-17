@@ -3,9 +3,9 @@
 // expecterr: aggregate_unknown_initializer_field_error_test.n:8.19] unknown initializer field 'b' for 'S'
 include "machine_6502.n"
 struct S {
-   int a;
+   int16_t a;
 };
 S g := { .b := 1 };
-int main(void) {
+int16_t main(void) {
    return 0;
 }

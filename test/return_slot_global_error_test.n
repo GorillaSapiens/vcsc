@@ -4,4 +4,4 @@
 // expecterr: only valid inside a function that returns a value
 // expecterr: return <expr>
 include "machine_6502.n"
-int global := $$;
+int16_t global := $$;

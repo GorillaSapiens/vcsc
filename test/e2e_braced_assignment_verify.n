@@ -6,8 +6,8 @@ include "machine_6502.n"
 type u1 { $size:1 $integer:unsigned };
 
 struct Pair {
-   int a;
-   int b;
+   int16_t a;
+   int16_t b;
 };
 
 struct Packed {
@@ -25,10 +25,10 @@ void pass(void) {
 }
 
 void main(void) {
-   int x;
-   int slot;
-   int *p := &slot;
-   int a[3];
+   int16_t x;
+   int16_t slot;
+   int16_t *p := &slot;
+   int16_t a[3];
    Pair lp;
    Packed bits;
 

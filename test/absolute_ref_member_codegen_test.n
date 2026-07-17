@@ -11,7 +11,7 @@ struct Pair {
 
 ref struct Pair regs@[0x0200/0x0200];
 
-int main(void) {
+int16_t main(void) {
    u8 x := regs.b;
    regs.c := x;
    return 0;

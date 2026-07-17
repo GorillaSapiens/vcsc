@@ -82,7 +82,7 @@ include "machine_6502.n"
 #ifdef FOO
 #if FOO == 7
 void main(void) {
-   int x;
+   int16_t x;
    x := FOO;
 }
 #else

@@ -7,7 +7,7 @@ alias B 3
 
 #if (A >= 5) && (B < 4) && (A == 5) && (A != 6)
 void main(void) {
-   int x;
+   int16_t x;
    x := 1;
 }
 #else

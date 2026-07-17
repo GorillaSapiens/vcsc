@@ -13,17 +13,17 @@ void pass(void) {
    asm jsr $ffff;
 }
 
-void fail(int code) {
+void fail(int16_t code) {
    asm lda #$ff;
    asm ldx $02f0;
    asm ldy #0;
    asm jsr $ffff;
 }
 
-ref char gfailcode@[none/0x02f0];
+ref int8_t gfailcode@[none/0x02f0];
 
-int f(int a) {
-   int x;
+int16_t f(int16_t a) {
+   int16_t x;
    x := a;
    return x;
 }

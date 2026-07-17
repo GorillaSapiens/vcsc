@@ -1,0 +1,13 @@
+// n65c -I .
+// object: e2e_abi_uint8_mismatch_fail__def.n
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
+// expectlinkerr: e2e_abi_uint8_mismatch_fail.o65: declaration -> symbol_abs unsigned_integer(size=1)
+// expectlinkerr: e2e_abi_uint8_mismatch_fail__def.o65: definition -> symbol_abs unsigned_integer(size=2, little-endian)
+include "machine_6502.n"
+
+uint8_t helper(uint8_t x);
+
+int16_t main(void) {
+   return helper(0);
+}

@@ -5,7 +5,7 @@
 // expectasm: jsr _lsrNle
 
 type void      { $size:0 };
-type bool      { $size:1 $integer:unsigned };
+type uint8_t      { $size:1 $integer:unsigned };
 type s1        { $size:1 $integer:signed $endian:little };
 type u2        { $size:2 $integer:unsigned $endian:little };
 type s2        { $size:2 $integer:signed $endian:little };

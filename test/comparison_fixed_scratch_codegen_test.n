@@ -5,7 +5,7 @@
 // forbidasm: jsr _popN
 include "machine_6502.n"
 
-void compare(int a, int b) {
+void compare(int16_t a, int16_t b) {
    if (a < b) {
    }
 }

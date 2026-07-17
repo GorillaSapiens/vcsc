@@ -2,7 +2,7 @@
 // xfail: sometimes x64 somehow uses $80 as the exit code
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
 type s1   { $size:1 $integer:signed };
 type s2   { $size:2 $integer:signed $endian:little };
@@ -13,7 +13,7 @@ s2 widen(s1 x) {
    return out;
 }
 
-bool ge(u2 a, u2 b) {
+uint8_t ge(u2 a, u2 b) {
    return a >= b;
 }
 

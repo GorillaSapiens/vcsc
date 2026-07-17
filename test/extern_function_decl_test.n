@@ -4,8 +4,8 @@
 
 include "machine_6502.n"
 
-extern int foreign_add(int a, int b);
+extern int16_t foreign_add(int16_t a, int16_t b);
 
-int main(void) {
+int16_t main(void) {
    return foreign_add(1, 2);
 }

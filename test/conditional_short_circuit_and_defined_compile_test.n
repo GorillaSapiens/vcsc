@@ -8,7 +8,7 @@ alias FLAG 0
 this is broken
 #else
 void main(void) {
-   int ok;
+   int16_t ok;
    ok := 1;
 }
 #endif

@@ -4,8 +4,8 @@
 // expecterr: function pointers are not supported
 include "machine_6502.n"
 
-int (*fp)(void);
+int16_t (*fp)(void);
 
-int main(void) {
+int16_t main(void) {
    return 0;
 }

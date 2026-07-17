@@ -73,7 +73,7 @@ my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.n');
 write_utf8($e2e_src, <<'EOF');
 include "machine_6502.n"
 
-ref char gfailcode@[none/0x02f0];
+ref uint8_t gfailcode@[none/0x02f0];
 
 void pass(void) {
    asm lda #$ff;
@@ -82,7 +82,7 @@ void pass(void) {
    asm jsr $ffff;
 }
 
-void fail(int code) {
+void fail(uint8_t code) {
    gfailcode := code;
    asm lda #$ff;
    asm ldx $02f0;
@@ -90,18 +90,18 @@ void fail(int code) {
    asm jsr $ffff;
 }
 
-char café := 3;
+int8_t café := 3;
 
-int λ_count(int x) {
+int16_t λ_count(int16_t x) {
    return x + café;
 }
 
-int 🦍(int x) {
+int16_t 🦍(int16_t x) {
    return λ_count(x) + café;
 }
 
 void main(void) {
-   int result := 🦍(4);
+   int16_t result := 🦍(4);
    if (result != 10) {
       fail(1);
    }
@@ -135,20 +135,20 @@ my $overload_src = File::Spec->catfile($tmp, 'unicode_overload.n');
 write_utf8($overload_src, <<'EOF');
 include "machine_6502.n"
 
-int café(int a) { return a + 1; }
-char café(char a) { return a + 1; }
-int call_cafe_int(int x) { return café(x); }
-char call_cafe_char(char x) { return café(x); }
+int16_t café(int16_t a) { return a + 1; }
+int8_t café(int8_t a) { return a + 1; }
+int16_t call_cafe_int(int16_t x) { return café(x); }
+int8_t call_cafe_char(int8_t x) { return café(x); }
 EOF
 
 my $overload_asm = File::Spec->catfile($tmp, 'unicode_overload.s');
 ($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $overload_src, '-o', $overload_asm);
 die "n65c failed for unicode overload source:\n$err$out\n" if $rc != 0;
 $asm = slurp_bytes($overload_asm);
-require_data_contains($asm, '.export caf?u00E9?@int_p0_a0');
-require_data_contains($asm, '.export caf?u00E9?@char_p0_a0');
-require_data_contains($asm, 'jsr caf?u00E9?@int_p0_a0');
-require_data_contains($asm, 'jsr caf?u00E9?@char_p0_a0');
+require_data_contains($asm, '.export caf?u00E9?@int16_t_p0_a0');
+require_data_contains($asm, '.export caf?u00E9?@int8_t_p0_a0');
+require_data_contains($asm, 'jsr caf?u00E9?@int16_t_p0_a0');
+require_data_contains($asm, 'jsr caf?u00E9?@int8_t_p0_a0');
 require_data_not_contains($asm, 'caf\xc3\xa9');
 
 
@@ -166,16 +166,16 @@ require_data_contains($err . $out, encode('UTF-8', "unknown identifier '🥹'"))
 require_data_not_contains($err . $out, "?u0001F979?");
 
 my $bad_col_src = File::Spec->catfile($tmp, 'unicode_bad_column.n');
-write_bytes($bad_col_src, "include \"machine_6502.n\"\nint a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
+write_bytes($bad_col_src, "include \"machine_6502.n\"\nint16_t a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
 ($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $bad_col_src, '-o', File::Spec->catfile($tmp, 'unicode_bad_column.s'));
 die "malformed UTF-8 column case unexpectedly compiled\n" if $rc == 0;
 require_data_contains($err . $out, 'invalid UTF-8 in identifier');
-require_data_contains($err . $out, ':2.7 ');
+require_data_contains($err . $out, ':2.11 ');
 
 for my $case (
-   ["incomplete trailing UTF-8", "include \"machine_6502.n\"\nint bad\xc3 := 0;\n"],
-   ["stray continuation byte", "include \"machine_6502.n\"\nint bad\x80 := 0;\n"],
-   ["stray starting continuation byte", "include \"machine_6502.n\"\nint \x80bad := 0;\n"],
+   ["incomplete trailing UTF-8", "include \"machine_6502.n\"\nint16_t bad\xc3 := 0;\n"],
+   ["stray continuation byte", "include \"machine_6502.n\"\nint16_t bad\x80 := 0;\n"],
+   ["stray starting continuation byte", "include \"machine_6502.n\"\nint16_t \x80bad := 0;\n"],
 ) {
    my ($name, $bytes) = @$case;
    my $bad_src = File::Spec->catfile($tmp, "bad_$name.n");

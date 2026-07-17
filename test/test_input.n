@@ -5,19 +5,19 @@
 /* Block comment over
    multiple lines */
 
-type bool     { $size:1 $integer:unsigned };
+type uint8_t     { $size:1 $integer:unsigned };
 type void { $size:0 };
 type uint8 { $size:1 $integer:unsigned };
 type * { $size:2 $integer:unsigned $endian:little };
-type int { $size:2 $integer:signed $endian:little};
+type int16_t { $size:2 $integer:signed $endian:little};
 
 struct Point {
-    int x;
-    int y;
+    int16_t x;
+    int16_t y;
 };
 
 union Value {
-    int i;
+    int16_t i;
 };
 
 Point origin := { .x := 0, .y := 0 };

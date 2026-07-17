@@ -11,6 +11,6 @@ uint16_t recur(uint16_t x) {
    return 0;
 }
 
-int main(void) {
+int16_t main(void) {
    return recur(3);
 }

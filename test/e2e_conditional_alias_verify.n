@@ -19,7 +19,7 @@ void pass(void) {
 }
 
 void main(void) {
-   int x := VALUE;
+   int16_t x := VALUE;
 
    if (x != 9) {
       asm lda #$ff;

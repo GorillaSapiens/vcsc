@@ -4,4 +4,4 @@
 // expecterr: do not declare it
 // expecterr: assign to '$$' directly
 include "machine_6502.n"
-int $$(void) { return 1; }
+int16_t $$(void) { return 1; }

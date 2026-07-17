@@ -2,4 +2,4 @@
 
 include "machine_6502.n"
 
-int ε := 5;
+int16_t ε := 5;

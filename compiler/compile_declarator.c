@@ -123,7 +123,7 @@ void expr_match_signature(ASTNode *expr, Context *ctx, const ASTNode **type_out,
    decl = expr_value_declarator(expr, ctx);
 
    if (expr->kind == AST_STRING && !string_literal_is_char_constant(expr->strval)) {
-      type = required_typename_node("char");
+      type = required_typename_node("int8_t");
       decl = make_synthetic_pointer_declarator(1);
    }
    else if (decl && declarator_pointer_depth(decl) == 0 && declarator_array_count(decl) > 0) {

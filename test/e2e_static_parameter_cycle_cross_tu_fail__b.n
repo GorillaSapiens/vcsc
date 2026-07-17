@@ -1,7 +1,7 @@
 include "machine_6502.n"
 
-int a(static int x);
+int16_t a(static int16_t x);
 
-int b(int x) {
+int16_t b(int16_t x) {
    return a(x);
 }

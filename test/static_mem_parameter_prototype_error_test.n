@@ -5,8 +5,8 @@
 include "machine_6502.n"
 mem register { $start:0x0000 $size:0x0010 $rw };
 
-extern int foo(static register int bar);
+extern int16_t foo(static register int16_t bar);
 
-int main(void) {
+int16_t main(void) {
    return 0;
 }

@@ -2,9 +2,9 @@
 // expectfail
 // expecterr: void_cast_assignment_error_test.n:8.17] void expression has no value
 include "machine_6502.n"
-int g;
-int main(void) {
-   int x;
+int16_t g;
+int16_t main(void) {
+   int16_t x;
    x := (void)g;
    return x;
 }

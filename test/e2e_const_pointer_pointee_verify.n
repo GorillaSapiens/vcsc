@@ -4,7 +4,7 @@
 include "machine_6502.n"
 
 
-static int read_first(const char* p) {
+static int16_t read_first(const int8_t* p) {
    return p[0];
 }
 
@@ -16,8 +16,8 @@ void pass(void) {
 }
 
 void main(void) {
-   char a[1], b[1];
-   const char* p;
+   int8_t a[1], b[1];
+   const int8_t* p;
 
    a[0] := 1;
    b[0] := 2;

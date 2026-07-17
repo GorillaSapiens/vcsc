@@ -3,7 +3,7 @@
 // expecterr: missing '$integer:signed' or '$integer:unsigned' flag
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
 type bad  { $size:2 $endian:little };
 

@@ -8,6 +8,6 @@ include "machine_6502.n"
 
 uint16_t a(uint16_t x);
 
-int main(void) {
+int16_t main(void) {
    return a(1);
 }

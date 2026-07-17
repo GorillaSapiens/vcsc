@@ -5,7 +5,7 @@
 
 include "machine_6502.n"
 
-int main(void) {
-   char *s := "foo";
+int16_t main(void) {
+   int8_t *s := "foo";
    return 0;
 }

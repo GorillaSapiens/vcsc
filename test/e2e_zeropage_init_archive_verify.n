@@ -3,11 +3,11 @@
 // archive: e2e_zeropage_init_archive_verify__lib.n
 include "machine_6502.n"
 
-static char ok[4] := { 'O', 'K', '\n', 0 };
-static char bad[5] := { 'B', 'A', 'D', '\n', 0 };
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
 
-int lib_sum(void);
-int lib_pad(void);
+int16_t lib_sum(void);
+int16_t lib_pad(void);
 
 void print_ok(void) {
    asm lda #0;

@@ -8,10 +8,10 @@ mem ram      { $start:0x0200 $size:0x7e00 $rw $priority:2 };
 mem rom      { $start:0x8000 $size:0x8000 $ro $priority:1 };
 
 type void     { $size:0 };
-type bool     { $size:1 $integer:unsigned };
-type char { $size:1 $integer:signed};
+type uint8_t     { $size:1 $integer:unsigned };
+type int8_t { $size:1 $integer:signed};
 type * { $size:2 $integer:unsigned $endian:little };
-type int { $size:2 $integer:signed $endian:little };
+type int16_t { $size:2 $integer:signed $endian:little };
 type long { $size:2 $integer:signed $endian:little };
 type longlong { $size:2 $integer:signed $endian:little };
 
@@ -33,28 +33,28 @@ xform { // default xform has no name
 };
 
 struct hoot {
-   int foo[2][3];
+   int16_t foo[2][3];
 };
 
 struct complex {
-   int real, imaginary;
-   int re, im;
-   int hook := 5;
+   int16_t real, imaginary;
+   int16_t re, im;
+   int16_t hook := 5;
 };
 
 struct linkedlistnode {
-   int data;
+   int16_t data;
    linkedlistnode *next;
 };
 
-int a := 3 * (2 + 2 - 2 * 2 / 2);
-int b := 4 + -5;
-int z := 0b000_111_000 + 3_141;
+int16_t a := 3 * (2 + 2 - 2 * 2 / 2);
+int16_t b := 4 + -5;
+int16_t z := 0b000_111_000 + 3_141;
 
-int c;
+int16_t c;
 
 void main(void) {
-   int foo[3][3] := { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };
+   int16_t foo[3][3] := { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };
    a := 1;
    { a := 1; b := 2; c := 3; }
 }

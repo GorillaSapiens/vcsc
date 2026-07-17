@@ -16,13 +16,13 @@ xform testxform2 {
 };
 
 enum enum1 { enumv1 := 1, enumv2 };
-int enumuse := enumv2;
-int enumusetyped := enumv1`int;
+int16_t enumuse := enumv2;
+int16_t enumusetyped := enumv1`int16_t;
 
 enum enum2 { enum2v1 := 1, enum2v2, };
 
-struct xyz { int x; int y; int *z; };
-union  abc { int a; int b; int c; };
+struct xyz { int16_t x; int16_t y; int16_t *z; };
+union  abc { int16_t a; int16_t b; int16_t c; };
 
 struct struct_b;
 struct struct_a { struct_b *b; };
@@ -31,56 +31,56 @@ struct struct_b { struct_a *a; };
 union union_a;
 union union_a { union_a *a; };
 
-struct llnode { int data; llnode *next; };
+struct llnode { int16_t data; llnode *next; };
 
 struct coverbits { int16_t mantissa:23; int16_t exponent:8; int16_t sign:1; };
 
-static int q[12] @ 27;
-static int qq[12] @ symbol;
-ref int splitrw@[none/27];
-int r[12] @ 27 := { .x := 1, 1, 1 };
-int s[12] @ 27 := { 1, 1, 1 };
-int five := 5;
-const int six := 6;
-static const int seven := 7;
+static int16_t q[12] @ 27;
+static int16_t qq[12] @ symbol;
+ref int16_t splitrw@[none/27];
+int16_t r[12] @ 27 := { .x := 1, 1, 1 };
+int16_t s[12] @ 27 := { 1, 1, 1 };
+int16_t five := 5;
+const int16_t six := 6;
+static const int16_t seven := 7;
 
-extern int foreign(int x);
-extern int foreign_add(int a, int b);
+extern int16_t foreign(int16_t x);
+extern int16_t foreign_add(int16_t a, int16_t b);
 
-char *exy := "this is a test";
-char exy  := '\f';
+int8_t *exy := "this is a test";
+int8_t exy  := '\f';
 
-char *exy := "this is a test" `testxform;
-char exy  := '\f' `testxform;
+int8_t *exy := "this is a test" `testxform;
+int8_t exy  := '\f' `testxform;
 
-zeropage int in_the_zero_page := 5;
+zeropage int16_t in_the_zero_page := 5;
 
-int a[5], *b, c := 'a';
+int16_t a[5], *b, c := 'a';
 
-int a := 5`int;
-int afloat := 5`int;
+int16_t a := 5`int16_t;
+int16_t afloat := 5`int16_t;
 
-void (*fruitloops)(int n);
+void (*fruitloops)(int16_t n);
 
 struct callbox {
-   int (*func)(int);
+   int16_t (*func)(int16_t);
 };
 
 struct voidcallbox {
    void *data;
-   int (*func)(char *, void *);
+   int16_t (*func)(int8_t *, void *);
 };
 
 void useless() {
-   static int q[12] @ 27;
-   int r[12] @ 27 := { {0,0,0}, {0,0,0}, {0,0,0} };
-   int r[12] @ 27 := { {0,0,0}, {0,0,0}, {0,0,0}, };
-   int s[12] @ 27 := { 1, 1, 1 };
-   int s[12] @ 27 := { 1, 1, 1, };
-   int five := 5;
-   const int six := 6;
+   static int16_t q[12] @ 27;
+   int16_t r[12] @ 27 := { {0,0,0}, {0,0,0}, {0,0,0} };
+   int16_t r[12] @ 27 := { {0,0,0}, {0,0,0}, {0,0,0}, };
+   int16_t s[12] @ 27 := { 1, 1, 1 };
+   int16_t s[12] @ 27 := { 1, 1, 1, };
+   int16_t five := 5;
+   const int16_t six := 6;
 
-   int a := 5 | 6;
+   int16_t a := 5 | 6;
    a := 5 & 6;
    a := 5 ^ 6;
    a := 8 ? 2 : 4;
@@ -150,21 +150,21 @@ empty_cov: ;
    a := { -3 };
    a := { "hello" };
 
-   int *addr := &3;
-   char *datamsg := "data";
-   int *rawptr := 3;
-   int *castptr := (int *) 3;
-   a := (char) a;
+   int16_t *addr := &3;
+   int8_t *datamsg := "data";
+   int16_t *rawptr := 3;
+   int16_t *castptr := (int16_t *) 3;
+   a := (int8_t) a;
    uint_cov ucov;
    ucov := ($unsigned)a;
    a := ($signed)ucov;
 
    a := sizeof(a);
-   a := sizeof(int *);
-   a := sizeof(int $$);
+   a := sizeof(int16_t *);
+   a := sizeof(int16_t $$);
 
-   int fc := 1;
-   int fd := 2;
+   int16_t fc := 1;
+   int16_t fd := 2;
    a := fc < fd;
    a := fc > fd;
    a := fc <= fd;
@@ -183,39 +183,39 @@ empty_cov: ;
    return;
 }
 
-int globalint0;
-int globalint1 := 5;
+int16_t globalint0;
+int16_t globalint1 := 5;
 
-int return_slot_cov(void) {
+int16_t return_slot_cov(void) {
    $$ := 7;
    return;
 }
 
 
 
-int function0(void **);
+int16_t function0(void **);
 
-int function0(void **) {
+int16_t function0(void **) {
    return 5;
 }
-int function_voidcall(char *, void *);
+int16_t function_voidcall(int8_t *, void *);
 
-int function_voidcall(char *, void *) {
-   return 5;
-}
-
-
-const int function1(int i);
-
-const int function1(int i) {
+int16_t function_voidcall(int8_t *, void *) {
    return 5;
 }
 
-int function2(int i @ 12, int j @ 13);
 
-int function2(int i @ 12, int j @ 13) {
-   static int q[12] @ 27;
-   static int r[12] @ 27 := { 1, 1, 1 };
+const int16_t function1(int16_t i);
+
+const int16_t function1(int16_t i) {
+   return 5;
+}
+
+int16_t function2(int16_t i @ 12, int16_t j @ 13);
+
+int16_t function2(int16_t i @ 12, int16_t j @ 13) {
+   static int16_t q[12] @ 27;
+   static int16_t r[12] @ 27 := { 1, 1, 1 };
    switch (i+j) {
       case 0 + 0:
          i := i - j;
@@ -234,9 +234,9 @@ int function2(int i @ 12, int j @ 13) {
    }
 }
 
-int function3(void);
+int16_t function3(void);
 
-int function3(void) {
+int16_t function3(void) {
 
    if ((a + function1(1)) * b) {
    }
@@ -249,7 +249,7 @@ int function3(void) {
       return 1 + 2 - 3 * 4 / 5;
    }
 
-   for (int i := 0; i < 10; i++) {
+   for (int16_t i := 0; i < 10; i++) {
       if (i == 3) {
          continue;
       }
@@ -277,9 +277,9 @@ int function3(void) {
 }
 
 
-int function4(void);
+int16_t function4(void);
 
-void coverage_case_expr_coverage(int f) {
+void coverage_case_expr_coverage(int16_t f) {
    switch(0) {
       case 1 || 0:
       case 1 && 1:
@@ -301,8 +301,8 @@ void coverage_case_expr_coverage(int f) {
       case -1:
       case +1:
       case enumv1:
-      case enumv2`int:
-      case 1`int:
+      case enumv2`int16_t:
+      case 1`int16_t:
       case '\f':
       case '\f' `testxform:
          break;
@@ -312,14 +312,14 @@ void coverage_case_expr_coverage(int f) {
 
    switch(0) {
       case 1:
-      case 1`int:
+      case 1`int16_t:
          break;
       default:
          break;
    }
 }
 
-int function4(void) {
-   static int runtime_seed := function1(1) + 2;
+int16_t function4(void) {
+   static int16_t runtime_seed := function1(1) + 2;
    return runtime_seed;
 }

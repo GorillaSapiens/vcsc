@@ -8,9 +8,9 @@
 // expectasm: .res 1
 include "machine_6502.n"
 
-zeropage int z := 5;
-zeropage char q;
+zeropage int16_t z := 5;
+zeropage int8_t q;
 
-int main(void) {
+int16_t main(void) {
    return z;
 }

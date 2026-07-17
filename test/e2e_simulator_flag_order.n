@@ -7,7 +7,7 @@
 
 include "machine_6502.n"
 
-static char ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
 
 void print_ok(void) {
    asm lda #0;

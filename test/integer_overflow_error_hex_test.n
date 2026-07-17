@@ -3,7 +3,7 @@
 
 include "machine_6502.n"
 
-char hex_over := 0x100;
+int8_t hex_over := 0x100;
 
 void main(void) {
 }

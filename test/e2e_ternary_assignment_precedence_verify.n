@@ -11,10 +11,10 @@ void pass(void) {
 }
 
 void main(void) {
-   int cond;
-   int iftrue := 11;
-   int iffalse := 22;
-   int out;
+   int16_t cond;
+   int16_t iftrue := 11;
+   int16_t iffalse := 22;
+   int16_t out;
 
    cond := 0;
    out := cond ? iftrue : iffalse;

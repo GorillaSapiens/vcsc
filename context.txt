@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_084914.tar.gz
+    vcsc.20260717_095447.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -129,9 +129,11 @@ Completed vertical slices
     remain only as direct rejection paths.
 19. Target integer widths are restricted to exactly one or two bytes. Untyped
     integer literals must fit in 16 bits. Positive 24/32/64-bit compiler,
-    runtime, library, and test support has been removed. The machine files now
-    define int8_t, uint8_t, int16_t, and uint16_t; legacy internal names remain
-    temporarily until the compiler is switched to the canonical four names.
+    runtime, library, and test support has been removed.
+20. The stock language and machine interface now use only int8_t, uint8_t,
+    int16_t, and uint16_t as basic integer names. Legacy bool, char, and int
+    declarations are rejected directly. Comparisons and logical expressions
+    produce an ordinary uint8_t; there is no special boolean type.
 
 Current return ABI
 ------------------
@@ -291,44 +293,46 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Modified compiler/runtime/documentation files include:
+Compiler changes are concentrated in:
 
-    README.md
-    compiler/ABI.txt
-    compiler/README.md
+    compiler/compile.c
+    compiler/compile_declarator.c
+    compiler/compile_expr_flow.c
     compiler/compile_expr_info.c
+    compiler/compile_literal.c
     compiler/compile_lvalue.c
     compiler/compile_toplevel.c
     compiler/compile_type.c
-    context.txt
-    libraries/nlib/README.md
+    compiler/compile_type.h
+    compiler/enumname.c
+    compiler/README.md
+
+Machine/library interface changes include:
+
     libraries/nlib/machine_6502.n
     libraries/vcs/vcs.n
-    remove.txt
+    libraries/vcs/tia.n
+    libraries/vcs/riot.n
+    libraries/vcs/README.md
     test/machine_6502.n
 
-Added rejection tests:
+All retained target-language `.n` fixtures under test/ and libraries/ were
+converted from legacy bool/char/int declarations to canonical types. Generated
+source in test/define_option_support.pl and test/unicode_identifier_mangle.pl
+was converted as well.
 
-    test/integer_24bit_type_rejected_test.n
-    test/integer_32bit_type_rejected_test.n
-    test/integer_64bit_type_rejected_test.n
-    test/integer_literal_over_16bit_rejected_test.n
+Added tests:
 
-Many retained tests were rewritten from obsolete wide aliases to legal one- and
-two-byte types. Pointer-scaling tests now use a three-byte aggregate so they
-continue to exercise non-power-of-two scaling without requiring a 24-bit
-integer.
+    test/legacy_bool_type_name_rejected_test.n
+    test/legacy_char_type_name_rejected_test.n
+    test/legacy_int_type_name_rejected_test.n
+    test/comparison_uint8_type_codegen_test.n
 
-Removed intentionally in this revision:
-
-    20 obsolete positive wide-integer tests
-    all 27 files under libraries/petiteffs/
-    libraries/nlib/asm/add.asm
-    libraries/nlib/asm/sub.asm
-    libraries/nlib/asm/incdec.asm
-
-Every exact repository-relative pathname is in remove.txt. Top-level remove.txt
-now contains 447 unique cumulative deletion paths.
+Seven retained tests were renamed to replace legacy type names in their paths:
+three cross-object ABI mismatch pairs and loop_uint8_test.n. Four obsolete
+legacy-type requirement tests were deleted. Every old repository-relative path
+is in remove.txt. Top-level remove.txt now contains 458 unique cumulative
+removal paths.
 
 Build environment
 -----------------
@@ -361,10 +365,9 @@ End-to-end/generic suite:
 
     88 passed, 0 failed, 88 total
 
-The runtime archive rebuild succeeded after deleting the dead add/subtract and
-increment/decrement assembly sources. All retained pointer, bit-field,
-overload, archive ABI, arithmetic, VCS RAM-map, assembler, linker, and simulator
-tests pass.
+The canonical four-type compiler and machine interface pass all retained
+pointer, bit-field, overload, archive ABI, arithmetic, VCS RAM-map, assembler,
+linker, Unicode, and simulator tests.
 
 Immediate TODO
 --------------
@@ -404,7 +407,7 @@ The first unfinished item is the default next action.
         `_nl_fp` temporarily for fixed-scratch addressing; remove `_nl_sp` and
         the runtime helpers after obsolete runtime families are gone.
 
-[ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
+[x] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
         in controlled groups.
 
         [x] 12a. Remove floating-point types, literals, compiler/runtime code,
@@ -412,7 +415,7 @@ The first unfinished item is the default next action.
         [x] 12b. Remove big-endian and mixed-endian type/expression support.
         [x] 12c. Remove 24/32/64-bit integer types, helpers, and positive
                   tests; enforce one- and two-byte target integers only.
-        [ ] 12d. Replace transitional compiler-required `bool`, `char`, and
+        [x] 12d. Replace transitional compiler-required `bool`, `char`, and
                   `int` names with uint8_t, int8_t, and int16_t so the stock
                   machine interface exposes only the canonical four integer
                   names.
@@ -423,6 +426,12 @@ The first unfinished item is the default next action.
 [ ] 14. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
+
+[ ] 15. After the functional reduction is complete, rename the project and
+        toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
+        filenames, binary names, paths, and user-visible identifiers as
+        appropriate. Preserve useful history where needed. Project tagline:
+        "a brutally pared-down Atari VCS C-like compiler".
 
 Open implementation questions
 -----------------------------
@@ -678,17 +687,31 @@ Change log
 * Enforced exactly one- or two-byte target integer declarations and two-byte
   pointers; untyped literals larger than 16 bits are rejected.
 * Added canonical int8_t, uint8_t, int16_t, and uint16_t definitions to the
-  generic, VCS, and test machine files. Transitional internal aliases remain
-  until TODO 12d.
+  generic, VCS, and test machine files.
 * Removed wide add/subtract/increment lowering and deleted their now-dead nlib
   assembly sources.
 * Removed PetiteFFS because it requires a 32-bit DWORD model.
 * Removed 20 obsolete positive wide-integer tests, rewrote useful broad tests to
   legal widths, and added four direct rejection tests.
-* Fixed pointer-pointer subtraction to produce the signed `int` difference type
+* Fixed pointer-pointer subtraction to produce the signed `int16_t` difference type
   rather than incorrectly inheriting the pointee type.
 * remove.txt now contains 447 cumulative paths.
 * Passed 217/217 compile tests and 88/88 end-to-end/generic tests.
+
+2026-07-17, canonical four-type interface
+* Replaced target-language uses of transitional `bool`, `char`, and `int` with
+  `uint8_t`, `int8_t`, and `int16_t`. The stock generic, VCS, and test machine
+  definitions now expose only int8_t, uint8_t, int16_t, and uint16_t.
+* Removed the compiler's special boolean-type requirement and semantics.
+  Comparisons and logical expressions now produce an ordinary uint8_t.
+* Added direct rejection tests for legacy bool, char, and int declarations and
+  canonical-type ABI/code-generation coverage.
+* Renamed retained tests whose filenames encoded legacy type names and listed
+  every old pathname in remove.txt. remove.txt now has 458 cumulative paths.
+* Passed 217/217 compile tests and 88/88 end-to-end/generic tests.
+* Deferred the project/toolchain rename to `vcsc` until after functional
+  reduction; recorded the tagline "a brutally pared-down Atari VCS C-like
+  compiler" as the final task-list item.
 
 End-of-session checklist
 ------------------------

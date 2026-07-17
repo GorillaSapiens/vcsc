@@ -2,7 +2,7 @@
 // expectfail
 // expecterr: sizeof_unknown_identifier_error_test.n:6.22] unknown identifier 'missing'
 include "machine_6502.n"
-int main(void) {
+int16_t main(void) {
    if (sizeof(missing)) {
       return 1;
    }

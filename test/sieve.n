@@ -1,10 +1,10 @@
 // n65c
 include "machine_6502.n"
 
-static char buffer[16] := { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-void printi(int arg) {
-   char spot := 15;
-   char i;
+static int8_t buffer[16] := { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+void printi(int16_t arg) {
+   int8_t spot := 15;
+   int8_t i;
    buffer[spot--] := 0;
    buffer[spot--] := '\n';
    if (arg == 0) {
@@ -28,8 +28,8 @@ void printi(int arg) {
 }
 
 void main(void) {
-   int i := 2, j;
-   bool flag := 0;
+   int16_t i := 2, j;
+   uint8_t flag := 0;
    while (1) {
       flag := 0;
       for (j := 2; !flag && j * j <= i; j++) {

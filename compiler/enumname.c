@@ -44,7 +44,7 @@ static ASTNode *clone_enum_value_literal(const ASTNode *enum_value, ASTNode *typ
          type = make_typename_leaf(value->children[0]->strval);
       }
       else {
-         type = make_typename_leaf("int");
+         type = make_typename_leaf("int16_t");
       }
    }
 

@@ -7,7 +7,7 @@ alias B 2 // two
 
 #if (A == 1) && (B == 2)
 void main(void) {
-   int x;
+   int16_t x;
    x := A + B;
 }
 #else

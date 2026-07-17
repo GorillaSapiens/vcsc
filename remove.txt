@@ -171,6 +171,8 @@ test/big_endian_mul_low_half_codegen_test.n
 test/big_endian_promotion_codegen_test.n
 test/big_endian_unary_minus_codegen_test.n
 test/bitfield_sign_extend_helper_codegen_test.n
+test/bool_integer_style_required_error_test.n
+test/bool_must_be_unsigned_error_test.n
 test/builtin_operator_codegen_test.n
 test/compound_operator_overload_test.n
 test/compound_promotion_codegen_test.n
@@ -179,6 +181,12 @@ test/custom_float_exact_literal_codegen_test.n
 test/custom_float_layout_be_codegen_test.n
 test/custom_float_layout_le_codegen_test.n
 test/custom_float_layout_warning_test.n
+test/e2e_abi_bool_mismatch_fail.n
+test/e2e_abi_bool_mismatch_fail__def.n
+test/e2e_abi_builtin_int_mismatch_fail.n
+test/e2e_abi_builtin_int_mismatch_fail__def.n
+test/e2e_abi_char_mismatch_fail.n
+test/e2e_abi_char_mismatch_fail__def.n
 test/e2e_abi_exactops_function_mismatch_fail.n
 test/e2e_abi_exactops_function_mismatch_fail__def.n
 test/e2e_abi_exactops_global_mismatch_fail.n
@@ -393,6 +401,8 @@ test/generated_gf64_ops.n
 test/int_helper_big_endian_codegen_test.n
 test/int_helper_codegen_test.n
 test/integer_promotion_codegen_test.n
+test/loop_bool_test.n
+test/missing_required_bool_error_test.n
 test/mixed_endian_add_error_test.n
 test/mixed_endian_codegen_test.n
 test/mixed_endian_compare_error_test.n
@@ -403,6 +413,7 @@ test/mixed_endian_target_typed_codegen_test.n
 test/modulofloat.n
 test/nlib_weakops_stackptr_codegen_test.n
 test/no_int_float_required_test.n
+test/no_int_required_test.n
 test/non_ieee_float_layout_required_add_error_test.n
 test/non_ieee_float_layout_required_be_error_test.n
 test/non_ieee_float_layout_required_compare_error_test.n

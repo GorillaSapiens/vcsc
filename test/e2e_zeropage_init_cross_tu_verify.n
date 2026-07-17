@@ -3,10 +3,10 @@
 // object: e2e_zeropage_init_cross_tu_verify__def.n
 include "machine_6502.n"
 
-static char ok[4] := { 'O', 'K', '\n', 0 };
-static char bad[5] := { 'B', 'A', 'D', '\n', 0 };
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
 
-extern zeropage int shared;
+extern zeropage int16_t shared;
 
 void print_ok(void) {
    asm lda #0;

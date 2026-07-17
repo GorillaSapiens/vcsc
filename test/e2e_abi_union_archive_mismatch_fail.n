@@ -6,12 +6,12 @@
 include "machine_6502.n"
 
 union Shared {
-   char bytes[2];
-   int whole;
+   int8_t bytes[2];
+   int16_t whole;
 };
 
 extern Shared shared_union;
 
-int main(void) {
+int16_t main(void) {
    return shared_union.whole;
 }

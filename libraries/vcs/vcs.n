@@ -6,10 +6,7 @@
 // - 4K cartridge ROM conventionally linked at $F000-$FFFF
 
 type void     { $size:0 };
-type char     { $size:1 $integer:signed };
-type bool     { $size:1 $integer:unsigned };
-type * { $size:2 $integer:unsigned $endian:little };
-type int      { $size:2 $integer:signed $endian:little };
+type *        { $size:2 $integer:unsigned $endian:little };
 type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };

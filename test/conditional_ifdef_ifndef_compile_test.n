@@ -7,7 +7,7 @@ alias FOO 1
 #ifdef FOO
 #ifndef BAR
 void main(void) {
-   int x;
+   int16_t x;
    x := 1;
 }
 #else

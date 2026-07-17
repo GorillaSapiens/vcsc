@@ -13,7 +13,7 @@ this is broken
 #ifdef FOO   // comment after ifdef
 #ifndef BAR  /* comment after ifndef */
 void main(void) {
-   int x;
+   int16_t x;
    x := 1;
 }
 #else // ignored

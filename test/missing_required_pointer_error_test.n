@@ -1,9 +1,9 @@
 // n65c -I .
 // expectfail
 // expecterr: required pointer type '*' is not defined
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type void { $size:0 };
-type int { $size:2 $integer:signed $endian:little };
-int main(void) {
+type int16_t { $size:2 $integer:signed $endian:little };
+int16_t main(void) {
    return 0;
 }

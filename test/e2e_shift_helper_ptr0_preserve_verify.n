@@ -3,57 +3,57 @@
 
 include "machine_6502.n"
 
-ref char lsl_s0@0x0300;
-ref char lsl_s1@0x0301;
-ref char lsl_s2@0x0302;
-ref char lsl_d0@0x0303;
-ref char lsl_d1@0x0304;
-ref char lsl_d2@0x0305;
+ref int8_t lsl_s0@0x0300;
+ref int8_t lsl_s1@0x0301;
+ref int8_t lsl_s2@0x0302;
+ref int8_t lsl_d0@0x0303;
+ref int8_t lsl_d1@0x0304;
+ref int8_t lsl_d2@0x0305;
 
-ref char lsr_s0@0x0310;
-ref char lsr_s1@0x0311;
-ref char lsr_s2@0x0312;
-ref char lsr_d0@0x0313;
-ref char lsr_d1@0x0314;
-ref char lsr_d2@0x0315;
+ref int8_t lsr_s0@0x0310;
+ref int8_t lsr_s1@0x0311;
+ref int8_t lsr_s2@0x0312;
+ref int8_t lsr_d0@0x0313;
+ref int8_t lsr_d1@0x0314;
+ref int8_t lsr_d2@0x0315;
 
-ref char asr_s0@0x0320;
-ref char asr_s1@0x0321;
-ref char asr_s2@0x0322;
-ref char asr_d0@0x0323;
-ref char asr_d1@0x0324;
-ref char asr_d2@0x0325;
+ref int8_t asr_s0@0x0320;
+ref int8_t asr_s1@0x0321;
+ref int8_t asr_s2@0x0322;
+ref int8_t asr_d0@0x0323;
+ref int8_t asr_d1@0x0324;
+ref int8_t asr_d2@0x0325;
 
 
-ref char lsl17_s0@0x0330;
-ref char lsl17_s1@0x0331;
-ref char lsl17_s2@0x0332;
-ref char lsl17_s3@0x0333;
-ref char lsl17_d0@0x0334;
-ref char lsl17_d1@0x0335;
-ref char lsl17_d2@0x0336;
-ref char lsl17_d3@0x0337;
+ref int8_t lsl17_s0@0x0330;
+ref int8_t lsl17_s1@0x0331;
+ref int8_t lsl17_s2@0x0332;
+ref int8_t lsl17_s3@0x0333;
+ref int8_t lsl17_d0@0x0334;
+ref int8_t lsl17_d1@0x0335;
+ref int8_t lsl17_d2@0x0336;
+ref int8_t lsl17_d3@0x0337;
 
-ref char lsl1_s0@0x0340;
-ref char lsl1_s1@0x0341;
-ref char lsl1_s2@0x0342;
-ref char lsl1_d0@0x0343;
-ref char lsl1_d1@0x0344;
-ref char lsl1_d2@0x0345;
+ref int8_t lsl1_s0@0x0340;
+ref int8_t lsl1_s1@0x0341;
+ref int8_t lsl1_s2@0x0342;
+ref int8_t lsl1_d0@0x0343;
+ref int8_t lsl1_d1@0x0344;
+ref int8_t lsl1_d2@0x0345;
 
-ref char lsr1_s0@0x0350;
-ref char lsr1_s1@0x0351;
-ref char lsr1_s2@0x0352;
-ref char lsr1_d0@0x0353;
-ref char lsr1_d1@0x0354;
-ref char lsr1_d2@0x0355;
+ref int8_t lsr1_s0@0x0350;
+ref int8_t lsr1_s1@0x0351;
+ref int8_t lsr1_s2@0x0352;
+ref int8_t lsr1_d0@0x0353;
+ref int8_t lsr1_d1@0x0354;
+ref int8_t lsr1_d2@0x0355;
 
-ref char asr1_s0@0x0360;
-ref char asr1_s1@0x0361;
-ref char asr1_s2@0x0362;
-ref char asr1_d0@0x0363;
-ref char asr1_d1@0x0364;
-ref char asr1_d2@0x0365;
+ref int8_t asr1_s0@0x0360;
+ref int8_t asr1_s1@0x0361;
+ref int8_t asr1_s2@0x0362;
+ref int8_t asr1_d0@0x0363;
+ref int8_t asr1_d1@0x0364;
+ref int8_t asr1_d2@0x0365;
 
 void pass(void) {
    asm lda #$ff;

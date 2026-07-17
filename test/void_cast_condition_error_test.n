@@ -2,8 +2,8 @@
 // expectfail
 // expecterr: void_cast_condition_error_test.n:7.16] void expression has no value
 include "machine_6502.n"
-int g;
-int main(void) {
+int16_t g;
+int16_t main(void) {
    if ((void)g) {
       return 1;
    }

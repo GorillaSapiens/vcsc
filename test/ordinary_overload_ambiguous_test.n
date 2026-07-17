@@ -8,7 +8,7 @@
 // expecterr: ordinary_overload_ambiguous_test.n:20.8   pick(s5, s4)
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
+type uint8_t { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
 type s4   { $size:1 $integer:signed };
 type s5   { $size:2 $integer:signed $endian:little };

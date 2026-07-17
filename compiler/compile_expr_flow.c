@@ -690,8 +690,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          rhs_work_size = rhs_slot_type ? type_size_from_node(rhs_slot_type) : 0;
       }
       else {
-         if (dst->type && rhs_type && type_is_promotable_integer(dst->type) && type_is_promotable_integer(rhs_type) &&  
-             !type_is_bool(dst->type) && !type_is_bool(rhs_type) &&
+         if (dst->type && rhs_type && type_is_promotable_integer(dst->type) && type_is_promotable_integer(rhs_type) &&
              !expr_is_literal_node(rhs) && type_is_signed_integer(dst->type) != type_is_signed_integer(rhs_type)) {
             error_user("[%s:%d.%d] mixed signed/unsigned ordinary integer operator '%c' requires an explicit cast",
                        node->file, node->line, node->column, op ? op[0] : '?');

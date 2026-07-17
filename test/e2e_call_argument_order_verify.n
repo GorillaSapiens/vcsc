@@ -2,22 +2,22 @@
 // expectexit: 0
 include "machine_6502.n"
 
-int ord2(int a, int b) {
+int16_t ord2(int16_t a, int16_t b) {
    return a + 10 * b;
 }
 
-int ord3(int a, int b, int c) {
+int16_t ord3(int16_t a, int16_t b, int16_t c) {
    return a + 10 * b + 100 * c;
 }
 
-int ord4(int a, int b, int c, int d) {
+int16_t ord4(int16_t a, int16_t b, int16_t c, int16_t d) {
    return a + 10 * b + 100 * c + 1000 * d;
 }
 
 void main(void) {
-   int r2;
-   int r3;
-   int r4;
+   int16_t r2;
+   int16_t r3;
+   int16_t r4;
 
    r2 := ord2(1, 2);
    r3 := ord3(1, 2, 3);

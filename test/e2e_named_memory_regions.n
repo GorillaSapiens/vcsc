@@ -7,11 +7,11 @@
 include "machine_6502.n"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 
-banana int x := 5;
-banana char z;
+banana int16_t x := 5;
+banana int8_t z;
 
-static char ok[4] := { 'O', 'K', '\n', 0 };
-static char bad[5] := { 'B', 'A', 'D', '\n', 0 };
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
 
 void print_ok(void) {
    asm lda #0;
@@ -27,8 +27,8 @@ void print_bad(void) {
    asm jsr $ffff;
 }
 
-int read_banana(banana int p) {
-   banana int q := 7;
+int16_t read_banana(banana int16_t p) {
+   banana int16_t q := 7;
    if (p == 5 && q == 7 && z == 0) {
       return 1;
    }

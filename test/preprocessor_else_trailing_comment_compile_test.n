@@ -6,7 +6,7 @@ include "machine_6502.n"
 this is broken
 #else /* keep ignoring this comment */
 void main(void) {
-   int x;
+   int16_t x;
    x := 1;
 }
 #endif // trailing comment

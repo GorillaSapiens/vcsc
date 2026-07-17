@@ -8,14 +8,14 @@ include "machine_6502.n"
 
 int16_t widen_result;
 
-void widen(char c) {
+void widen(int8_t c) {
    widen_result := c;
 }
 
-int shr(int value, int bits) {
+int16_t shr(int16_t value, int16_t bits) {
    return value >> bits;
 }
 
-bool ge_zero(int value) {
+uint8_t ge_zero(int16_t value) {
    return value >= 0;
 }

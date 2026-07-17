@@ -6,6 +6,6 @@
 include "machine_6502.n"
 mem register { $start:0x0000 $size:0x0010 $rw };
 
-int foo(static register int bar) {
+int16_t foo(static register int16_t bar) {
    return bar;
 }

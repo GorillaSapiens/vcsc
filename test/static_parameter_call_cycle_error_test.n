@@ -3,16 +3,16 @@
 // expecterr: call graph cycle reaches function 'a' with static activation storage
 include "machine_6502.n"
 
-int b(int x);
+int16_t b(int16_t x);
 
-int a(static int x) {
+int16_t a(static int16_t x) {
    return b(x);
 }
 
-int b(int x) {
+int16_t b(int16_t x) {
    return a(x);
 }
 
-int main(void) {
+int16_t main(void) {
    return 0;
 }

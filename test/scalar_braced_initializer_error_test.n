@@ -2,4 +2,4 @@
 // expectfail
 // expecterr: too many initializers for scalar
 include "machine_6502.n"
-int g := { 1, 2 };
+int16_t g := { 1, 2 };

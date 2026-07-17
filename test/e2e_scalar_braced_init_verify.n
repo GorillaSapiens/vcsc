@@ -3,12 +3,12 @@
 
 include "machine_6502.n"
 
-int twice(int x) {
+int16_t twice(int16_t x) {
    return x + x;
 }
 
-int g_direct := { 5 };
-int g_runtime := { twice(3) + 1 };
+int16_t g_direct := { 5 };
+int16_t g_runtime := { twice(3) + 1 };
 
 void pass(void) {
    asm lda #$ff;
@@ -17,14 +17,14 @@ void pass(void) {
    asm jsr $ffff;
 }
 
-int from_static(void) {
-   static int s := { twice(4) + 1 };
+int16_t from_static(void) {
+   static int16_t s := { twice(4) + 1 };
    return s;
 }
 
 void main(void) {
-   int x := { 9 };
-   int y := { { 11 } };
+   int16_t x := { 9 };
+   int16_t y := { { 11 } };
 
    if (g_direct != 5) {
       asm lda #$ff;

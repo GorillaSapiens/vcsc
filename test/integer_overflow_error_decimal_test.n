@@ -3,7 +3,7 @@
 
 include "machine_6502.n"
 
-char dec_over := 256;
+int8_t dec_over := 256;
 
 void main(void) {
 }

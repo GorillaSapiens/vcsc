@@ -2,6 +2,6 @@
 // expectfail
 // expecterr: continue used outside loop
 include "machine_6502.n"
-int main(void) {
+int16_t main(void) {
    continue;
 }

@@ -15,7 +15,7 @@ Typical use:
 ```n
 include "vcs.n"
 
-int main(void) {
+int16_t main(void) {
    VBLANK := 0x02;
    COLUBK := 0x00;
    return 0;

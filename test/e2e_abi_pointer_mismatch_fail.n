@@ -6,8 +6,8 @@
 // expectlinkerr: e2e_abi_pointer_mismatch_fail__def.o65: definition -> symbol_abs pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=2, little-endian))
 include "machine_6502.n"
 
-char *helper(char *p);
+int8_t *helper(int8_t *p);
 
-int main(void) {
-   return helper((char *)0) != (char *)0;
+int16_t main(void) {
+   return helper((int8_t *)0) != (int8_t *)0;
 }

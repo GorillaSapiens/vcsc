@@ -14,8 +14,6 @@
 const ASTNode *type_name_node(const ASTNode *type);
 const char *type_name_from_node(const ASTNode *type);
 const ASTNode *required_typename_node(const char *name);
-const ASTNode *bool_type_node(void);
-bool type_is_bool(const ASTNode *type);
 const char *parse_integer_style_flag_text(const char *text);
 bool type_has_integer_style(const ASTNode *type, const char *style);
 bool type_is_signed_integer(const ASTNode *type);

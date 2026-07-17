@@ -3,14 +3,14 @@
 
 include "machine_6502.n"
 
-ref char mul_a0@0x0300;
-ref char mul_a1@0x0301;
-ref char mul_b0@0x0302;
-ref char mul_b1@0x0303;
-ref char mul_r0@0x0304;
-ref char mul_r1@0x0305;
-ref char mul_r2@0x0306;
-ref char mul_r3@0x0307;
+ref int8_t mul_a0@0x0300;
+ref int8_t mul_a1@0x0301;
+ref int8_t mul_b0@0x0302;
+ref int8_t mul_b1@0x0303;
+ref int8_t mul_r0@0x0304;
+ref int8_t mul_r1@0x0305;
+ref int8_t mul_r2@0x0306;
+ref int8_t mul_r3@0x0307;
 
 void pass(void) {
    asm lda #$ff;

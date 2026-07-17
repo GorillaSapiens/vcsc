@@ -5,6 +5,6 @@ include "machine_6502.n"
 alias foo(x) x
 
 void main(void) {
-   int x;
+   int16_t x;
    x := foo(x);
 }

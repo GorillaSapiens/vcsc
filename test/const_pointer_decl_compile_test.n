@@ -1,16 +1,16 @@
 // n65c -I .
 
 type void  { $size:0 };
-type bool  { $size:1 $integer:unsigned };
+type uint8_t  { $size:1 $integer:unsigned };
 type *     { $size:2 $integer:unsigned $endian:little };
-type char  { $size:1 $integer:signed };
-type int   { $size:2 $integer:signed $endian:little };
+type int8_t  { $size:1 $integer:signed };
+type int16_t   { $size:2 $integer:signed $endian:little };
 
-const char* gp;
+const int8_t* gp;
 
-int main(void) {
-   char a[1], b[1];
-   const char* p;
+int16_t main(void) {
+   int8_t a[1], b[1];
+   const int8_t* p;
 
    p := a;
    p := b;

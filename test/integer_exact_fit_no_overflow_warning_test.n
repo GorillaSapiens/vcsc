@@ -3,10 +3,10 @@
 
 include "machine_6502.n"
 
-char dec_ok := 65;
-char hex_ok := 0x41;
-char oct_ok := 0101;
-char bin_ok := 0b01000001;
+int8_t dec_ok := 65;
+int8_t hex_ok := 0x41;
+int8_t oct_ok := 0101;
+int8_t bin_ok := 0b01000001;
 
 void main(void) {
 }

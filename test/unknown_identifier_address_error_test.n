@@ -2,7 +2,7 @@
 // expectfail
 // expecterr: unknown_identifier_address_error_test.n:6.16] unknown identifier 'missing'
 include "machine_6502.n"
-int main(void) {
+int16_t main(void) {
    if (&missing) {
       return 1;
    }

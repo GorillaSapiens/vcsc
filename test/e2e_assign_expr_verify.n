@@ -11,9 +11,9 @@ void pass(void) {
 }
 
 void main(void) {
-   int a := 0;
-   int b := 0;
-   int c := 0;
+   int16_t a := 0;
+   int16_t b := 0;
+   int16_t c := 0;
 
    if (a := 4) {
       c := c + a;

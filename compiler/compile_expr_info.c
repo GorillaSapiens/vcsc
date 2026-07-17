@@ -167,15 +167,12 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       if (annotated) {
          return annotated;
       }
-      if (typename_exists("int")) {
-         return required_typename_node("int");
-      }
-      return NULL;
+      return required_typename_node("int16_t");
    }
 
    if (expr->kind == AST_STRING) {
       if (string_literal_is_char_constant(expr->strval)) {
-         return required_typename_node("char");
+         return required_typename_node("int8_t");
       }
       return required_typename_node("*");
    }
@@ -189,7 +186,7 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
    }
 
    if (!strcmp(expr->name, "sizeof")) {
-      return required_typename_node("int");
+      return required_typename_node("int16_t");
    }
 
    {
@@ -256,14 +253,14 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
        (expr->count == 2 && (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
         !strcmp(expr->name, "<") || !strcmp(expr->name, ">") || !strcmp(expr->name, "<=") || !strcmp(expr->name, ">=") ||
         !strcmp(expr->name, "&&") || !strcmp(expr->name, "||")))) {
-      return bool_type_node();
+      return required_typename_node("uint8_t");
    }
 
    if (expr->count == 2 && !strcmp(expr->name, "-")) {
       const ASTNode *lhs_decl = expr_value_declarator(expr->children[0], ctx);
       const ASTNode *rhs_decl = expr_value_declarator(expr->children[1], ctx);
       if (lhs_decl && rhs_decl && declarator_pointer_depth(lhs_decl) > 0 && declarator_pointer_depth(rhs_decl) > 0) {
-         return required_typename_node("int");
+         return required_typename_node("int16_t");
       }
    }
 
@@ -282,8 +279,7 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
          return rhs_type;
       }
       if (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) {
-         if (expr_is_literal_node(expr->children[0]) && rhs_type && type_is_promotable_integer(rhs_type) &&
-             !type_is_bool(rhs_type)) {
+         if (expr_is_literal_node(expr->children[0]) && rhs_type && type_is_promotable_integer(rhs_type)) {
             return rhs_type;
          }
          return lhs_type ? lhs_type : rhs_type;

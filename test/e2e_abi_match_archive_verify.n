@@ -3,7 +3,7 @@
 // expectexit: 0
 include "machine_6502.n"
 
-int helper(int x);
+int16_t helper(int16_t x);
 
 void fail1(void) {
    asm lda #$ff;

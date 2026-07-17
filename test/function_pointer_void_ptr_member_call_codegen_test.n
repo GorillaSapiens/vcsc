@@ -5,15 +5,15 @@ include "machine_6502.n"
 
 struct argbox {
    void *data;
-   int (*func)(char *, void *);
+   int16_t (*func)(int8_t *, void *);
 };
 
-int pstr(char *out, void *v) {
+int16_t pstr(int8_t *out, void *v) {
    return 0;
 }
 
-int main(void) {
-   char *p;
+int16_t main(void) {
+   int8_t *p;
    argbox a[1] := {
       { &3, pstr },
    };

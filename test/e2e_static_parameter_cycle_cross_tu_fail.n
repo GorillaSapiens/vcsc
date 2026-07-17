@@ -5,8 +5,8 @@
 // expectlinkerr: call graph cycle reaches function 'a' with static activation storage
 include "machine_6502.n"
 
-int a(static int x);
+int16_t a(static int16_t x);
 
-int main(void) {
+int16_t main(void) {
    return a(1);
 }

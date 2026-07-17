@@ -3,19 +3,19 @@
 
 include "machine_6502.n"
 
-int set_ptr(char *a, char value) {
+int16_t set_ptr(int8_t *a, int8_t value) {
    a[0] := value;
    return 1;
 }
 
-int set_arr(char a[4], char value) {
+int16_t set_arr(int8_t a[4], int8_t value) {
    a[0] := value;
    return 1;
 }
 
 void main(void) {
-   char buf[6];
-   char *p := buf;
+   int8_t buf[6];
+   int8_t *p := buf;
 
    set_ptr(buf, 'a');
    set_arr(buf + 1, 'b');

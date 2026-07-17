@@ -4,11 +4,11 @@
 // expectasm: __n65_addtmp_
 include "machine_6502.n"
 
-int bump(static int x, int y) {
+int16_t bump(static int16_t x, int16_t y) {
    return x + y;
 }
 
-int main(void) {
-   int a := 7;
+int16_t main(void) {
+   int16_t a := 7;
    return bump(a, 2);
 }

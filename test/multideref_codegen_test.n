@@ -18,11 +18,11 @@
 
 include "machine_6502.n"
 
-int main(void) {
-   int x;
-   int *p;
-   int **pp;
-   int ***ppp;
+int16_t main(void) {
+   int16_t x;
+   int16_t *p;
+   int16_t **pp;
+   int16_t ***ppp;
    p := &x;
    pp := &p;
    ppp := &pp;

@@ -5,18 +5,18 @@
 include "machine_6502.n"
 
 union U {
-   int i;
-   char b[2];
+   int16_t i;
+   int8_t b[2];
 };
 
 struct S {
-   char a[4];
+   int8_t a[4];
    U u;
 };
 
-int main(void) {
+int16_t main(void) {
    S s;
-   int a := sizeof(s.u.b);
-   int b := sizeof(int16_t);
+   int16_t a := sizeof(s.u.b);
+   int16_t b := sizeof(int16_t);
    return a + b;
 }

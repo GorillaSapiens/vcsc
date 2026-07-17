@@ -5,4 +5,4 @@
 include "machine_6502.n"
 mem banana { $start:0x0400 $rw };
 
-banana int x;
+banana int16_t x;

@@ -3,7 +3,7 @@
 
 include "machine_6502.n"
 
-char oct_over := 0400;
+int8_t oct_over := 0400;
 
 void main(void) {
 }

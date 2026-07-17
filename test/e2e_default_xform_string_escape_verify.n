@@ -3,10 +3,10 @@
 
 include "machine_6502.n"
 
-char text[3] := "\\n";
-char nl[2] := "\n";
-char *ps := "\\n";
-char *pn := "\n";
+int8_t text[3] := "\\n";
+int8_t nl[2] := "\n";
+int8_t *ps := "\\n";
+int8_t *pn := "\n";
 
 void pass(void) {
    asm lda #$ff;

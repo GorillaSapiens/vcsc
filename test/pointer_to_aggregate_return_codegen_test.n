@@ -3,11 +3,11 @@
 // forbidasm: return_value
 
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
-type int  { $size:2 $integer:signed $endian:little };
+type uint8_t { $size:1 $integer:unsigned };
+type int16_t  { $size:2 $integer:signed $endian:little };
 type *    { $size:2 $integer:unsigned $endian:little };
 
-struct Pair { int a; int b; };
+struct Pair { int16_t a; int16_t b; };
 Pair pair;
 
 Pair *get_pair(void) {

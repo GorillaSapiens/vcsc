@@ -10,11 +10,11 @@
 
 include "machine_6502.n"
 
-int base;
+int16_t base;
 
-int demo(void) {
-   static int *s := &base + 1;
-   zeropage char q[3] := { 1, 2, 3 };
-   static int u[3];
+int16_t demo(void) {
+   static int16_t *s := &base + 1;
+   zeropage int8_t q[3] := { 1, 2, 3 };
+   static int16_t u[3];
    return 0;
 }

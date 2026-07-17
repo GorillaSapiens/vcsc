@@ -10,4 +10,4 @@ xform badutf {
    '\u0041' 65,
 };
 
-char *s := "A€" `badutf;
+int8_t *s := "A€" `badutf;

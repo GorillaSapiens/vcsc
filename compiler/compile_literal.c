@@ -239,7 +239,7 @@ const char *emit_pointer_initializer_backing_object(const ASTNode *type, const A
             obj_type = annotated;
          }
          else {
-            obj_type = required_typename_node("int");
+            obj_type = required_typename_node("int16_t");
          }
       }
       if (obj_decl) {
@@ -249,7 +249,7 @@ const char *emit_pointer_initializer_backing_object(const ASTNode *type, const A
          obj_size = type_size_from_node(obj_type);
       }
       if (obj_size <= 0) {
-         obj_type = required_typename_node("int");
+         obj_type = required_typename_node("int16_t");
          obj_decl = NULL;
          obj_size = type_size_from_node(obj_type);
       }

@@ -3,9 +3,9 @@
 // expecterr: cannot use '->' on non-pointer 's'
 include "machine_6502.n"
 struct S {
-   int x;
+   int16_t x;
 };
-int main(void) {
+int16_t main(void) {
    S s;
    return s->x;
 }

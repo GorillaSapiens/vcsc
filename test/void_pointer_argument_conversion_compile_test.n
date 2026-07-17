@@ -1,17 +1,17 @@
 // n65c -I .
 
 type void  { $size:0 };
-type bool  { $size:1 $integer:unsigned };
+type uint8_t  { $size:1 $integer:unsigned };
 type *     { $size:2 $integer:unsigned $endian:little };
-type char  { $size:1 $integer:signed };
+type int8_t  { $size:1 $integer:signed };
 type BYTE  { $size:1 $integer:unsigned };
-type int   { $size:2 $integer:signed $endian:little };
+type int16_t   { $size:2 $integer:signed $endian:little };
 
-static int mem_cmp(const void* dst, const void* src, int cnt) {
+static int16_t mem_cmp(const void* dst, const void* src, int16_t cnt) {
    return cnt;
 }
 
-int main(void) {
+int16_t main(void) {
    BYTE a[11], b[11];
    return mem_cmp(a, b, 11);
 }

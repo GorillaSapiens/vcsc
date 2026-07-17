@@ -8,8 +8,8 @@
 
 include "machine_6502.n"
 
-int main(void) {
-   int x := 3;
+int16_t main(void) {
+   int16_t x := 3;
    switch (x) {
       case 5 - 0 to 1 + 1:
          return 1;

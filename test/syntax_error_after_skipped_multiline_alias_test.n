@@ -6,7 +6,7 @@
 include "machine_6502.n"
 
 #if 1
-alias T int
+alias T int16_t
 #elif 0
 alias X {1, \
 2}
