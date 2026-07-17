@@ -1,0 +1,17 @@
+// n65c -I .
+// expectasm: __n65_inittmp_
+// expectasm: __n65_lvalueassigntmp_
+// expectasm: __n65_absinittmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.n"
+
+type uint8_t { $size:1 $integer:unsigned };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+void test(uint8_t *out, uint8_t source) {
+   uint16_t widened := source;
+   ref uint8_t port@0x0080 := source;
+   *out := widened;
+}

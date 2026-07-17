@@ -1,7 +1,8 @@
 // n65c -I .
-// expectasm: jsr _pushN
+// expectasm: __n65_inittmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
 // expectasm: jsr _fcmp
-// expectasm: .import _pushN
 // expectasm: .import _fcmp
 
 include "machine_6502.n"

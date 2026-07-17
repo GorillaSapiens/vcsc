@@ -37,6 +37,13 @@
 
 static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
+typedef struct FlowFixedScratch {
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   char symbol[96];
+} FlowFixedScratch;
+
 //! @brief Save the current frame pointer on the 6502 hardware stack.
 static void emit_expr_scratch_save_fp(void) {
    emit(&es_code, "    lda fp+1\n");
@@ -59,6 +66,42 @@ static void emit_expr_scratch_restore_fp(void) {
    emit(&es_code, "    sta fp\n");
    emit(&es_code, "    pla\n");
    emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Prepare one fixed-address flow-expression working area without changing fp.
+static void flow_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+                                       FlowFixedScratch *scratch) {
+   memset(scratch, 0, sizeof(*scratch));
+   scratch->saved_locals = ctx ? ctx->locals : 0;
+   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   scratch->reserved = reserved > 0 ? reserved : 1;
+   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+}
+
+//! @brief Redirect fp to a prepared fixed-address flow-expression working area.
+static void flow_fixed_scratch_activate(Context *ctx, FlowFixedScratch *scratch) {
+   if (ctx) {
+      ctx->locals = scratch->reserved;
+      ctx->locals_high_water = scratch->reserved;
+   }
+   emit_expr_scratch_save_fp();
+   emit_expr_scratch_set_fp(scratch->symbol);
+}
+
+//! @brief Restore fp, restore compiler frame accounting, and declare fixed scratch.
+static void flow_fixed_scratch_end(Context *ctx, FlowFixedScratch *scratch) {
+   int used = scratch->reserved;
+   if (ctx && ctx->locals_high_water > used) {
+      used = ctx->locals_high_water;
+   }
+   emit_expr_scratch_restore_fp();
+   if (ctx) {
+      ctx->locals = scratch->saved_locals;
+      ctx->locals_high_water = scratch->saved_high_water;
+   }
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch->symbol);
+   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
 }
 
 //! @brief Evaluate an expression in fixed BSS scratch and restore the caller frame.
@@ -723,44 +766,20 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
       if (lv.is_bitfield || lv.indirect || lv.needs_runtime_address || lv.is_absolute_ref) {
          int tmp_size = dst->size > 0 ? dst->size : expr_value_size(rhs, ctx);
+         char scratch_sym[96];
          if (tmp_size <= 0) {
             tmp_size = 1;
          }
-         ContextEntry tmp = { .name = "$tmp", .type = dst->type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = ctx->locals, .size = tmp_size };
-         int saved_locals = ctx ? ctx->locals : 0;
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + tmp_size);
-         }
-         if (!compile_expr_to_slot(rhs, ctx, &tmp)) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
+                                            tmp_size, true, "lvalueassigntmp", scratch_sym,
+                                            sizeof(scratch_sym), NULL)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         if (!emit_copy_fp_to_lvalue(ctx, &lv, tmp.offset, tmp.size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch_sym, 0, tmp_size)) {
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;
          }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
       }
       else if (!compile_expr_to_slot(rhs, ctx, dst)) {
          error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
@@ -979,6 +998,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       int pointer_scale = 1;
       ContextEntry rhs_tmp;
       const char *helper = NULL;
+      FlowFixedScratch scratch;
 
       if (scaled_pointer_assign) {
          require_no_mixed_endian_pointer_index_expr(node, rhs, ctx, op);
@@ -1046,8 +1066,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
 
       tmp_total = work_size + rhs_work_size;
-      lhs_tmp_offset = ctx->locals;
-      rhs_tmp_offset = lhs_tmp_offset + work_size;
+      lhs_tmp_offset = 0;
+      rhs_tmp_offset = work_size;
       aux_offset = rhs_tmp_offset + rhs_work_size;
       rhs_value_offset = rhs_tmp_offset;
 
@@ -1065,54 +1085,34 @@ void compile_expr(ASTNode *node, Context *ctx) {
          tmp_total += work_size * 2;
       }
 
-      need_store_tmp = dst_symbol || lv.is_bitfield || lv.indirect || lv.needs_runtime_address;
-      if (need_store_tmp) {
-         store_offset = ctx->locals + tmp_total;
-         tmp_total += dst->size;
-      }
+      need_store_tmp = true;
+      store_offset = tmp_total;
+      tmp_total += dst->size;
 
       rhs_tmp = (ContextEntry){ .name = "$rhs_tmp", .type = rhs_slot_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = rhs_tmp_offset, .size = rhs_work_size };
 
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-
+      flow_fixed_scratch_prepare(ctx, "compoundtmp", tmp_total, &scratch);
       if (dst_symbol) {
-         emit_copy_symbol_to_fp_convert_offset(lhs_tmp_offset, work_size, work_type, dst_sym, lv.offset, dst->size, dst->type);
+         emit_copy_symbol_to_symbol_convert_offset(scratch.symbol, lhs_tmp_offset, work_size, work_type,
+                                                   dst_sym, lv.offset, dst->size, dst->type);
       }
-      else if (lv.is_bitfield || lv.indirect || lv.needs_runtime_address) {
+      else {
          int lhs_src_size = dst->size < work_size ? dst->size : work_size;
-         if (!emit_copy_lvalue_to_fp(ctx, lhs_tmp_offset, &lv, lhs_src_size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, lhs_tmp_offset, &lv, lhs_src_size)) {
             error_user("[%s:%d.%d] invalid compound assignment target", node->file, node->line, node->column);
             return;
          }
-         emit_copy_fp_to_fp_convert(lhs_tmp_offset, work_size, work_type, lhs_tmp_offset, lhs_src_size, dst->type);
-      }
-      else {
-         emit_copy_fp_to_fp_convert(lhs_tmp_offset, work_size, work_type, dst->offset, dst->size, dst->type);
       }
 
-      if (ctx) {
-         ctx_set_locals(ctx, lhs_tmp_offset + tmp_total);
+      flow_fixed_scratch_activate(ctx, &scratch);
+      if (!dst_symbol) {
+         int lhs_src_size = dst->size < work_size ? dst->size : work_size;
+         emit_copy_fp_to_fp_convert(lhs_tmp_offset, work_size, work_type, lhs_tmp_offset, lhs_src_size, dst->type);
       }
       if (!compile_expr_to_slot(rhs, ctx, &rhs_tmp)) {
-         if (ctx) {
-            ctx_set_locals(ctx, lhs_tmp_offset);
-         }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         flow_fixed_scratch_end(ctx, &scratch);
          error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
          return;
-      }
-      if (ctx) {
-         ctx_set_locals(ctx, lhs_tmp_offset);
       }
 
       if (scaled_pointer_assign && pointer_scale != 1) {
@@ -1120,10 +1120,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          char scaled_buf[64];
          const ASTNode *factor_type = rhs_slot_type ? rhs_slot_type : work_type;
          if (!factor_bytes) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+            flow_fixed_scratch_end(ctx, &scratch);
             return;
          }
          snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
@@ -1142,10 +1139,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if ((!strcmp(op, "+=") || !strcmp(op, "-=")) && work_type && type_is_float_like(work_type)) {
          int expbits = type_float_expbits(work_type);
          if (expbits < 0) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+            flow_fixed_scratch_end(ctx, &scratch);
             error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
             return;
          }
@@ -1170,10 +1164,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          if (work_type && type_is_float_like(work_type)) {
             int expbits = type_float_expbits(work_type);
             if (expbits < 0) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               flow_fixed_scratch_end(ctx, &scratch);
                error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
                return;
             }
@@ -1189,10 +1180,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          if (!strcmp(op, "/=") && work_type && type_is_float_like(work_type)) {
             int expbits = type_float_expbits(work_type);
             if (expbits < 0) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               flow_fixed_scratch_end(ctx, &scratch);
                error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
                return;
             }
@@ -1219,38 +1207,23 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_copy_fp_to_fp(lhs_tmp_offset, aux_offset, work_size);
       }
       else {
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         flow_fixed_scratch_end(ctx, &scratch);
          error_user("[%s:%d.%d] unsupported compound assignment operator '%s'", node->file, node->line, node->column, op);
          return;
       }
 
       if (need_store_tmp) {
          emit_copy_fp_to_fp_convert(store_offset, dst->size, dst->type, lhs_tmp_offset, work_size, work_type);
-         if (dst_symbol) {
-            emit_copy_fp_to_symbol_offset(dst_sym, lv.offset, store_offset, dst->size);
-         }
-         else {
-            if (!emit_copy_fp_to_lvalue(ctx, &lv, store_offset, dst->size)) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
-               error_user("[%s:%d.%d] invalid compound assignment target", node->file, node->line, node->column);
-               return;
-            }
-         }
       }
-      else {
-         emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, lhs_tmp_offset, work_size, work_type);
+      flow_fixed_scratch_end(ctx, &scratch);
+      if (dst_symbol) {
+         emit_copy_symbol_to_symbol_convert_offset(dst_sym, lv.offset, dst->size, dst->type,
+                                                   scratch.symbol, store_offset, dst->size, dst->type);
       }
-
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      else if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol, store_offset, dst->size)) {
+         error_user("[%s:%d.%d] invalid compound assignment target", node->file, node->line, node->column);
+         return;
+      }
       return;
    }
 

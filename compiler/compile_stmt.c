@@ -36,6 +36,63 @@ static const char *named_loop_continue_stack[128];
 static int named_loop_depth = 0;
 static const char *pending_loop_label_name = NULL;
 
+typedef struct StmtFixedScratch {
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   int used;
+   char symbol[96];
+} StmtFixedScratch;
+
+//! @brief Prepare one reusable fixed-address statement working area.
+static void stmt_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+                                       StmtFixedScratch *scratch) {
+   memset(scratch, 0, sizeof(*scratch));
+   scratch->saved_locals = ctx ? ctx->locals : 0;
+   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   scratch->reserved = reserved > 0 ? reserved : 1;
+   scratch->used = scratch->reserved;
+   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+}
+
+//! @brief Redirect fp to a prepared fixed-address statement working area.
+static void stmt_fixed_scratch_activate(Context *ctx, StmtFixedScratch *scratch) {
+   if (ctx) {
+      ctx->locals = scratch->reserved;
+      ctx->locals_high_water = scratch->reserved;
+   }
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Restore fp after one use of a reusable statement scratch area.
+static void stmt_fixed_scratch_deactivate(Context *ctx, StmtFixedScratch *scratch) {
+   if (ctx && ctx->locals_high_water > scratch->used) {
+      scratch->used = ctx->locals_high_water;
+   }
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (ctx) {
+      ctx->locals = scratch->saved_locals;
+      ctx->locals_high_water = scratch->saved_high_water;
+   }
+}
+
+//! @brief Declare the maximum fixed storage required by a statement scratch area.
+static void stmt_fixed_scratch_finish(StmtFixedScratch *scratch) {
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch->symbol);
+   emit(&es_bss, "\t.res %d\n", scratch->used > 0 ? scratch->used : 1);
+}
+
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
 static void compile_local_decl_item(ASTNode *node, Context *ctx);
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
@@ -349,21 +406,15 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
 //! @brief Evaluate a runtime initializer in temporary frame scratch and copy it to a fixed symbol.
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
       const ASTNode *type, const ASTNode *declarator, const char *symbol, int size) {
-   int saved_locals;
-   int scratch_offset;
+   StmtFixedScratch scratch;
    bool ok;
 
    if (!expression || is_empty(expression) || !ctx || !symbol || size <= 0) {
       return false;
    }
 
-   saved_locals = ctx->locals;
-   scratch_offset = saved_locals;
-   remember_runtime_import("pushN");
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _pushN\n");
-   ctx_set_locals(ctx, saved_locals + size);
+   stmt_fixed_scratch_prepare(ctx, "inittmp", size, &scratch);
+   stmt_fixed_scratch_activate(ctx, &scratch);
 
    if (initializer_is_list(unwrap_expr_node(expression)) ||
        declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
@@ -371,9 +422,9 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
       if (!zeroes) {
          error_unreachable("out of memory");
       }
-      emit_store_immediate_to_fp(scratch_offset, zeroes, size);
+      emit_store_immediate_to_fp(0, zeroes, size);
       free(zeroes);
-      ok = compile_initializer_to_fp(expression, ctx, type, declarator, scratch_offset, size);
+      ok = compile_initializer_to_fp(expression, ctx, type, declarator, 0, size);
    }
    else {
       ContextEntry target = {
@@ -384,20 +435,17 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
          .is_zeropage = false,
          .is_global = false,
          .target_typed = true,
-         .offset = scratch_offset,
+         .offset = 0,
          .size = size
       };
       ok = compile_expr_to_slot(expression, ctx, &target);
    }
 
-   ctx_set_locals(ctx, saved_locals);
    if (ok) {
-      emit_copy_fp_to_symbol(symbol, scratch_offset, size);
+      emit_copy_fp_to_symbol(symbol, 0, size);
    }
-   remember_runtime_import("popN");
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _popN\n");
+   stmt_fixed_scratch_deactivate(ctx, &scratch);
+   stmt_fixed_scratch_finish(&scratch);
    return ok;
 }
 
@@ -597,47 +645,61 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    }
 
    if (entry->is_absolute_ref) {
+      StmtFixedScratch scratch;
+      LValueRef lv;
+      bool ok;
+
       if (is_empty(expression)) {
          return;
       }
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      if (initializer_is_list(unwrap_expr_node(expression)) || declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
-         emit_fill_fp_bytes(ctx->locals, 0, size, 0x00);
-         if (!compile_initializer_to_fp(expression, ctx, type, declarator, ctx->locals, size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
-            return;
-         }
+
+      stmt_fixed_scratch_prepare(ctx, "absinittmp", size, &scratch);
+      stmt_fixed_scratch_activate(ctx, &scratch);
+      if (initializer_is_list(unwrap_expr_node(expression)) ||
+          declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
+         emit_fill_fp_bytes(0, 0, size, 0x00);
+         ok = compile_initializer_to_fp(expression, ctx, type, declarator, 0, size);
       }
-      else if (!compile_expr_to_slot(expression, ctx, &(ContextEntry){ .name = "$tmp", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = ctx->locals, .size = size })) {
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+      else {
+         ContextEntry tmp = {
+            .name = "$tmp",
+            .type = type,
+            .declarator = declarator,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = size
+         };
+         ok = compile_expr_to_slot(expression, ctx, &tmp);
+      }
+      stmt_fixed_scratch_deactivate(ctx, &scratch);
+      stmt_fixed_scratch_finish(&scratch);
+      if (!ok) {
          error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
          return;
       }
-      {
-         LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = entry->offset, .size = entry->size };
-         if (!emit_copy_fp_to_lvalue(ctx, &lv, ctx->locals, size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
-            return;
-         }
+
+      lv = (LValueRef){
+         .name = entry->name,
+         .type = entry->type,
+         .declarator = entry->declarator,
+         .base_type = entry->type,
+         .base_declarator = entry->declarator,
+         .is_static = entry->is_static,
+         .is_zeropage = entry->is_zeropage,
+         .is_global = entry->is_global,
+         .is_ref = entry->is_ref,
+         .is_absolute_ref = entry->is_absolute_ref,
+         .read_expr = entry->read_expr,
+         .write_expr = entry->write_expr,
+         .offset = entry->offset,
+         .size = entry->size
+      };
+      if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol, 0, size)) {
+         error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
       }
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
       return;
    }
 
@@ -860,7 +922,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    const ASTNode *type;
    int size;
    int compare_size;
-   int saved_locals;
+   StmtFixedScratch scratch;
    ContextEntry lhs;
    ContextEntry rhs;
    const char *cleanup_label;
@@ -888,9 +950,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       size = 1;
    }
    compare_size = size * 2;
-   saved_locals = ctx ? ctx->locals : 0;
-   lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = saved_locals, .size = size };
-   rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = saved_locals + size, .size = size };
+   lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = 0, .size = size };
+   rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = size, .size = size };
    is_signed = type_is_signed_integer(type);
    cleanup_label = next_label("switch_cleanup");
    end_label = next_label("switch_end");
@@ -909,31 +970,18 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       error_unreachable("out of memory");
    }
 
-   remember_runtime_import("pushN");
-   emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _pushN\n");
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals + compare_size);
-   }
-
+   stmt_fixed_scratch_prepare(ctx, "switchtmp", compare_size, &scratch);
+   stmt_fixed_scratch_activate(ctx, &scratch);
    if (!compile_expr_to_slot(expr, ctx, &lhs)) {
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
-      }
+      stmt_fixed_scratch_deactivate(ctx, &scratch);
+      stmt_fixed_scratch_finish(&scratch);
       error_user("[%s:%d.%d] invalid switch expression", node->file, node->line, node->column);
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
       free(case_labels);
       free((void *) cleanup_label);
       free((void *) end_label);
       return;
    }
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals);
-   }
+   stmt_fixed_scratch_deactivate(ctx, &scratch);
 
    for (int i = 0; i < section_count; i++) {
       ASTNode *section = sections->children[i];
@@ -965,19 +1013,12 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
          }
 
          if (!high) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals + compare_size);
-            }
+            stmt_fixed_scratch_activate(ctx, &scratch);
             if (!compile_constant_expr_to_slot(low, ctx, &rhs) &&
                 !compile_expr_to_slot(low, ctx, &rhs)) {
-               if (ctx) {
-                  ctx_set_locals(ctx, saved_locals);
-               }
+               stmt_fixed_scratch_deactivate(ctx, &scratch);
                error_user("[%s:%d.%d] invalid case expression", low->file, low->line, low->column);
                continue;
-            }
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, lhs.offset);
             emit_prepare_fp_ptr(1, rhs.offset);
@@ -985,6 +1026,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import("eqN");
             emit(&es_code, "    jsr _eqN\n");
+            stmt_fixed_scratch_deactivate(ctx, &scratch);
             emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    bne %s\n", case_labels[i]);
             continue;
@@ -1021,20 +1063,13 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                        section->file, section->line, section->column);
             }
 
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals + compare_size);
-            }
+            stmt_fixed_scratch_activate(ctx, &scratch);
             if (!compile_constant_expr_to_slot(ordered_low, ctx, &rhs) &&
                 !compile_expr_to_slot(ordered_low, ctx, &rhs)) {
-               if (ctx) {
-                  ctx_set_locals(ctx, saved_locals);
-               }
+               stmt_fixed_scratch_deactivate(ctx, &scratch);
                free((void *) skip_label);
                error_user("[%s:%d.%d] invalid case range start", ordered_low->file, ordered_low->line, ordered_low->column);
                continue;
-            }
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, rhs.offset);
             emit_prepare_fp_ptr(1, lhs.offset);
@@ -1042,23 +1077,17 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import(le_helper);
             emit(&es_code, "    jsr _%s\n", le_helper);
+            stmt_fixed_scratch_deactivate(ctx, &scratch);
             emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    beq %s\n", skip_label);
 
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals + compare_size);
-            }
+            stmt_fixed_scratch_activate(ctx, &scratch);
             if (!compile_constant_expr_to_slot(ordered_high, ctx, &rhs) &&
                 !compile_expr_to_slot(ordered_high, ctx, &rhs)) {
-               if (ctx) {
-                  ctx_set_locals(ctx, saved_locals);
-               }
+               stmt_fixed_scratch_deactivate(ctx, &scratch);
                free((void *) skip_label);
                error_user("[%s:%d.%d] invalid case range end", ordered_high->file, ordered_high->line, ordered_high->column);
                continue;
-            }
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, lhs.offset);
             emit_prepare_fp_ptr(1, rhs.offset);
@@ -1066,6 +1095,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import(le_helper);
             emit(&es_code, "    jsr _%s\n", le_helper);
+            stmt_fixed_scratch_deactivate(ctx, &scratch);
             emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    bne %s\n", case_labels[i]);
             emit(&es_code, "%s:\n", skip_label);
@@ -1074,18 +1104,11 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
          }
       }
 
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals + compare_size);
-      }
+      stmt_fixed_scratch_activate(ctx, &scratch);
       if (!compile_expr_to_slot(case_expr, ctx, &rhs)) {
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
+         stmt_fixed_scratch_deactivate(ctx, &scratch);
          error_user("[%s:%d.%d] invalid case expression", case_expr->file, case_expr->line, case_expr->column);
          continue;
-      }
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
       }
       emit_prepare_fp_ptr(0, lhs.offset);
       emit_prepare_fp_ptr(1, rhs.offset);
@@ -1093,6 +1116,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       emit(&es_code, "    sta arg0\n");
       remember_runtime_import("eqN");
       emit(&es_code, "    jsr _eqN\n");
+      stmt_fixed_scratch_deactivate(ctx, &scratch);
       emit(&es_code, "    lda arg1\n");
       emit(&es_code, "    bne %s\n", case_labels[i]);
    }
@@ -1111,13 +1135,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       }
       emit(&es_code, "%s:\n", case_labels[i]);
       if (body && !is_empty(body)) {
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + compare_size);
-         }
          compile_statement_list(body, ctx);
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
       }
    }
    pop_loop_labels();
@@ -1126,11 +1144,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    }
 
    emit(&es_code, "%s:\n", cleanup_label);
-   remember_runtime_import("popN");
-   emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _popN\n");
    emit(&es_code, "%s:\n", end_label);
+   stmt_fixed_scratch_finish(&scratch);
 
    for (int i = 0; i < section_count; i++) {
       free((void *) case_labels[i]);

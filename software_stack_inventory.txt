@@ -12,12 +12,12 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_210552.tar.gz
+    vcsc.20260716_215237.tar.gz
 
 Compiler emission totals:
 
-    15  `jsr _pushN` allocation sites
-    41  `jsr _popN` emissions
+    10  `jsr _pushN` allocation sites
+    22  `jsr _popN` emissions
 
 The larger pop count is expected: most allocation sites have normal cleanup and
 one or more error-path cleanups.
@@ -35,26 +35,19 @@ name collision.
 Compiler allocation sites
 -------------------------
 
-`compiler/compile_expr_flow.c` -- 6 allocations
+`compiler/compile_expr_flow.c` -- 4 allocations
 
 1. Braced assignment initializer buffer.
    Classification: initializer/aggregate scratch.
 
-2. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
-   Classification: retained lvalue/expression scratch.
-
-3. Overloaded compound-assignment result buffer.
+2. Overloaded compound-assignment result buffer.
    Classification: obsolete operator-overloading support.
 
-4. Overloaded compound-assignment conversion buffer for symbol destinations.
+3. Overloaded compound-assignment conversion buffer for symbol destinations.
    Classification: obsolete operator-overloading support.
 
-5. Overloaded compound-assignment conversion buffer for indirect lvalues.
+4. Overloaded compound-assignment conversion buffer for indirect lvalues.
    Classification: obsolete operator-overloading support.
-
-6. Built-in compound-assignment working area.
-   Classification: retained 8/16-bit expression scratch; float, wide-integer,
-   arbitrary-endian, and overload branches are obsolete.
 
 `compiler/compile_expr_ops.c` -- 2 allocations
 
@@ -81,17 +74,6 @@ Compiler allocation sites
 3. Bit-field write helper saved-pointer area.
    Classification: bit-field/lvalue scratch; retain only if bit-fields remain.
 
-`compiler/compile_stmt.c` -- 3 allocations
-
-1. Runtime initializer buffer used before copying into a fixed symbol.  This
-   includes automatic-local initialization and the `$$` return object.
-   Classification: retained initializer/expression scratch.
-
-2. Absolute-reference local initializer buffer.
-   Classification: lvalue/initializer scratch if absolute references remain.
-
-3. Switch expression and case-comparison pair.
-   Classification: retained scalar statement/expression scratch.
 
 
 Non-emitting compiler consumers
@@ -142,15 +124,15 @@ C. Replace conditionally, after language-surface decisions:
 Completed expression-scratch slices
 -----------------------------------
 Truth-value evaluation, discarded expression results, simple assignment
-conversion into fixed-symbol destinations, two-operand comparisons, pointer
-subtraction, scalar/pointer addition and subtraction, shifts, bitwise
-operations, multiplication, division, remainder, casts, local/global absolute-
-reference conversion, and built-in increment/decrement now use private fixed
-BSS scratch named `__n65_truthtmp_N`, `__n65_discardtmp_N`,
-`__n65_assigntmp_N`, `__n65_comparetmp_N`, `__n65_ptrdifftmp_N`,
-`__n65_addtmp_N`, `__n65_shifttmp_N`, `__n65_binarytmp_N`,
-`__n65_casttmp_N`, `__n65_abslocaltmp_N`, `__n65_absglobaltmp_N`, and
-`__n65_incdectmp_N`.
+conversion into fixed-symbol destinations, indirect/absolute/bit-field simple
+assignment, two-operand comparisons, pointer subtraction, scalar/pointer
+addition and subtraction, shifts, bitwise operations, multiplication, division,
+remainder, casts, local/global absolute-reference conversion, built-in
+increment/decrement, built-in compound assignment, switch expressions, runtime
+local/return-object initialization, and local absolute-reference initialization
+now use private fixed BSS scratch. New symbols in this revision include
+`__n65_lvalueassigntmp_N`, `__n65_compoundtmp_N`, `__n65_switchtmp_N`,
+`__n65_inittmp_N`, and `__n65_absinittmp_N`.
 
 The compiler temporarily redirects `fp` to each symbol, tracks nested scratch
 high-water, restores the caller frame through the 6502 hardware stack, and
@@ -176,7 +158,7 @@ longer emits `_pushN` or `_popN`.
 
 Recommended next slice
 ----------------------
-Batch built-in compound assignment and switch-expression scratch next. Then
-replace scalar runtime initializer/return-object scratch and pointer/index
-lvalue scratch. Operator-overload-only emitters should be deleted with operator
+Replace pointer/index lvalue scratch next, including the saved-pointer areas used
+by ordinary indexing. Then replace or reject braced-assignment initializer
+scratch. Operator-overload-only emitters should be deleted with operator
 overloading rather than converted.

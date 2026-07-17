@@ -1,7 +1,8 @@
 // n65c -I ../libraries/vcs
 // expectasm: lda  $3C
-// expectasm: sta  $01
-// expectasm: sta  $0296
+// expectasm: lda #<{$01 + 0}
+// expectasm: sta (ptr0),y
+// expectasm: lda #<{$0296 + 0}
 include "vcs.n"
 
 int main(void) {

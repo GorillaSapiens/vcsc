@@ -1,0 +1,28 @@
+// n65c -I .
+// expectasm: __n65_compoundtmp_
+// expectasm: __n65_switchtmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.n"
+
+type uint8_t { $size:1 $integer:unsigned };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t value;
+uint8_t selector;
+
+void test(void) {
+   value += 3;
+   value <<= 1;
+   switch (selector) {
+      case 1:
+         value ^= 0x55;
+         break;
+      case 2 to 4:
+         value -= 1;
+         break;
+      default:
+         value |= 0x80;
+   }
+}

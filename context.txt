@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_210552.tar.gz
+    vcsc.20260716_215237.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -107,6 +107,10 @@ Completed vertical slices
 13. Cast conversion, function-local/global absolute-reference conversion, and
     built-in increment/decrement now use fixed per-site BSS scratch. Fixed
     symbol-to-lvalue helpers cover ordinary, indirect, and bit-field lvalues.
+14. Built-in compound assignment, switch-expression comparison, simple
+    indirect/absolute/bit-field assignment, runtime local and return-object
+    initialization, and local absolute-reference initialization now use fixed
+    BSS scratch. `compile_stmt.c` no longer emits `_pushN` or `_popN`.
 
 Current return ABI
 ------------------
@@ -223,15 +227,16 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    15  emitted `_pushN` allocation sites
-    41  emitted `_popN` normal/error cleanup paths
+    10  emitted `_pushN` allocation sites
+    22  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
-* retained compound-assignment, pointer/index lvalue, switch, and initializer
-  scratch;
-* conditional aggregate, bit-field, and runtime-global-initializer scratch;
+* retained pointer/index lvalue and braced-assignment initializer scratch;
+* conditional bit-field and runtime-global-initializer scratch;
 * obsolete operator-overload, float, wide-integer, and arbitrary-endian paths.
+
+`compile_stmt.c` has no remaining target software-stack emitter.
 
 There are no remaining `_pushN` sites whose purpose is to allocate ordinary
 named automatic locals or `$$`.
@@ -360,12 +365,13 @@ The first unfinished item is the default next action.
 [ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
         probably with fixed scratch plus register-first lowering and later
         overlay/liveness reuse. Truth-value evaluation, discarded results,
-        simple fixed-symbol assignment conversion, comparisons, pointer/scalar
-        addition and subtraction, shifts, bitwise operations, multiplication,
-        division, remainder, casts, local/global absolute-reference conversion,
-        and built-in increment/decrement are complete. Next batch built-in
-        compound assignment and switch-expression scratch, then initializer and
-        pointer/index lvalue scratch.
+        simple fixed-symbol and indirect/absolute/bit-field assignment,
+        comparisons, pointer/scalar arithmetic, shifts, bitwise operations,
+        multiplication/division/remainder, casts, absolute-reference conversion,
+        built-in increment/decrement and compound assignment, switch comparison,
+        runtime local/return initialization, and local absolute-reference
+        initialization are complete. Next batch pointer/index lvalue scratch,
+        then braced-assignment and runtime-global-initializer scratch.
 
 [ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
         retained compiler path depends on it.
@@ -565,3 +571,18 @@ Before returning another modified archive:
 [x] Record exact build/test totals and any known failures.
 [x] Run make clean and remove test-runner scratch before packaging.
 [x] Repack with the same archive-root layout.
+
+2026-07-16, compound/switch/initializer fixed-scratch batch
+* Replaced built-in compound-assignment scratch with `__n65_compoundtmp_N`.
+* Replaced switch expression/case scratch with reusable `__n65_switchtmp_N`; fp
+  is restored before every generated branch and before case bodies.
+* Replaced simple indirect/absolute/bit-field assignment scratch with
+  `__n65_lvalueassigntmp_N`.
+* Replaced runtime local and return-object initialization with `__n65_inittmp_N`.
+* Replaced local absolute-reference initialization with `__n65_absinittmp_N`.
+* `compile_stmt.c` no longer emits `_pushN` or `_popN`.
+* Software-stack inventory fell from 15/41 to 10/22.
+* Moved the two obsolete 9-16-byte shift-test dump buffers from $E000 to $1800;
+  fixed-scratch code growth had reached $E000, while $1800 remains unused RAM in
+  their generic test map.
+* No files were removed.
