@@ -66,6 +66,7 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
                                           const ASTNode *type,
                                           const ASTNode *declarator,
                                           int size,
+                                          bool target_typed,
                                           const char *prefix,
                                           char *symbol,
                                           size_t symbol_size,
@@ -85,7 +86,7 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
    tmp.name = "$fixedtmp";
    tmp.type = type;
    tmp.declarator = declarator;
-   tmp.target_typed = declarator != NULL;
+   tmp.target_typed = target_typed;
    tmp.offset = 0;
    tmp.size = size;
 
@@ -299,7 +300,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
    }
 
    if (!compile_expr_to_fixed_scratch(expr, ctx, type, declarator, size,
-                                      "truthtmp", scratch_sym,
+                                      declarator != NULL, "truthtmp", scratch_sym,
                                       sizeof(scratch_sym), NULL)) {
       return false;
    }
@@ -637,7 +638,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          size = 1;
       }
       if (!compile_expr_to_fixed_scratch(node, ctx, type, NULL, size,
-                                         "discardtmp", scratch_sym,
+                                         false, "discardtmp", scratch_sym,
                                          sizeof(scratch_sym), NULL)) {
          error_user("[%s:%d.%d] invalid expression", node->file, node->line, node->column);
          return;
@@ -685,8 +686,6 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (!lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global)) {
          char sym[256];
          LValueRef rhs_lv;
-         int saved_locals;
-         int scratch_offset;
          if (!entry_symbol_name(ctx, dst, sym, sizeof(sym))) {
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;
@@ -697,34 +696,17 @@ void compile_expr(ASTNode *node, Context *ctx) {
             }
             return;
          }
-         saved_locals = ctx ? ctx->locals : 0;
-         scratch_offset = saved_locals;
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + dst->size);
-         }
-         if (!compile_expr_to_slot(rhs, ctx, &(ContextEntry){ .name = "$tmp", .type = dst->type, .declarator = dst->declarator, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = scratch_offset, .size = dst->size })) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         char scratch_sym[96];
+         if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
+                                            dst->size, true, "assigntmp", scratch_sym,
+                                            sizeof(scratch_sym), NULL)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         emit_copy_fp_to_symbol_offset(sym, lv.offset, scratch_offset, dst->size);
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         emit_expr_scratch_save_fp();
+         emit_expr_scratch_set_fp(scratch_sym);
+         emit_copy_fp_to_symbol_offset(sym, lv.offset, 0, dst->size);
+         emit_expr_scratch_restore_fp();
          return;
       }
       if (lv.is_bitfield || lv.indirect || lv.needs_runtime_address || lv.is_absolute_ref) {

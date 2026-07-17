@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_193407.tar.gz
+    vcsc.20260716_195648.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -97,6 +97,9 @@ Completed vertical slices
    the final software-stack call frame in `compile_call.c` are gone.
 10. General truth-value evaluation and discarded non-call expression results
     now use fixed per-site BSS scratch instead of `_pushN`/`_popN`.
+11. Simple assignments into fixed symbols now evaluate and convert through
+    fixed per-site `__n65_assigntmp_N` BSS scratch instead of
+    `_pushN`/`_popN`.
 
 Current return ABI
 ------------------
@@ -213,8 +216,8 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    25  emitted `_pushN` allocation sites
-    69  emitted `_popN` normal/error cleanup paths
+    24  emitted `_pushN` allocation sites
+    67  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
@@ -265,16 +268,17 @@ Modified documentation and handoff state:
 
 Modified tests:
 
-    test/assign_expr_condition_codegen_test.n
-    test/condition_truthy_expr_codegen_test.n
-    test/peephole_branch_codegen_test.n
+    test/e2e_shift_signed_widths_1_8_verify.n
+    test/e2e_shift_signed_widths_9_16_verify.n
+    test/e2e_shift_unsigned_widths_1_8_verify.n
+    test/e2e_shift_unsigned_widths_9_16_verify.n
     test/software_stack_inventory.pl
     test/software_stack_inventory.test
 
 Added tests:
 
-    test/truth_fixed_scratch_codegen_test.n
-    test/discard_fixed_scratch_codegen_test.n
+    test/assignment_fixed_scratch_codegen_test.n
+    test/e2e_assignment_fixed_scratch_verify.n
 
 Removed intentionally:
 
@@ -308,11 +312,11 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    273 passed, 0 failed, 273 total
+    274 passed, 0 failed, 274 total
 
 End-to-end/generic suite:
 
-    120 passed, 0 failed, 120 total
+    121 passed, 0 failed, 121 total
 
 The full retained suites completed successfully in their normal invocations.
 
@@ -347,8 +351,9 @@ The first unfinished item is the default next action.
 
 [ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
         probably with fixed scratch plus register-first lowering and later
-        overlay/liveness reuse. Truth-value evaluation and discarded results
-        are complete; simple fixed-symbol assignment conversion is next.
+        overlay/liveness reuse. Truth-value evaluation, discarded results, and
+        simple fixed-symbol assignment conversion are complete; the two-operand
+        comparison buffer is next.
 
 [ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
         retained compiler path depends on it.
@@ -486,6 +491,19 @@ Change log
 * Added focused code-generation tests and updated affected assembly expectations.
 * Reduced the checked compiler stack inventory from 27/73 to 25/69.
 * Passed 273/273 compile tests and 120/120 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16, fixed simple-assignment scratch
+* Replaced the fixed-symbol simple-assignment conversion `_pushN`/`_popN`
+  buffer with private per-site BSS symbols named `__n65_assigntmp_N`.
+* Made assignment scratch explicitly destination-typed so widening, narrowing,
+  signedness, and endian conversion happen before the final symbol copy.
+* Added code-generation and runtime tests for an 8-bit-to-16-bit assignment.
+* Moved four legacy wide-shift dump buffers from $0300 to unused $E000 because
+  the new fixed BSS scratch legitimately expands beyond their old hard-coded
+  buffer address; their computed output bytes remain unchanged.
+* Reduced the checked compiler stack inventory from 25/69 to 24/67.
+* Passed 274/274 compile tests and 121/121 end-to-end/generic tests.
 * No files were removed.
 
 End-of-session checklist

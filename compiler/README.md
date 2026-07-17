@@ -535,7 +535,7 @@ An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may 
 
 Each ordinary direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
 
-Condition truth-value evaluation and discarded non-call expression results also use fixed per-site BSS scratch (`__n65_truthtmp_N` and `__n65_discardtmp_N`). The compiler temporarily redirects `fp` while lowering the expression, restores it using the 6502 hardware stack, and never invokes `_pushN` or `_popN` for those outer scratch areas. Nested expression machinery may still use the transitional software stack until later slices remove it.
+Condition truth-value evaluation, discarded non-call expression results, and simple assignments into fixed symbols use fixed per-site BSS scratch (`__n65_truthtmp_N`, `__n65_discardtmp_N`, and `__n65_assigntmp_N`). The compiler temporarily redirects `fp` while lowering the expression, restores it using the 6502 hardware stack, and never invokes `_pushN` or `_popN` for those outer scratch areas. Assignment scratch is explicitly destination-typed so widening, narrowing, and signedness conversion occur before the bytes are copied into the destination symbol. Nested expression machinery may still use the transitional software stack until later slices remove it.
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
@@ -704,9 +704,8 @@ char msg2[] = "hello";
 The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
-Expression temporaries, zero-parameter indirect-call scratch, and a few
-legacy compiler-only paths still use `_nl_sp` and `_nl_fp` during this
-transitional stage.
+Some expression, lvalue, initializer, switch, and legacy operator paths still
+use `_nl_sp` and `_nl_fp` during this transitional stage.
 
 ### `_nl_sp` and `_nl_fp`
 

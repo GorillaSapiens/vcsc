@@ -12,12 +12,12 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_193407.tar.gz
+    vcsc.20260716_195648.tar.gz
 
 Compiler emission totals:
 
-    25  `jsr _pushN` allocation sites
-    69  `jsr _popN` emissions
+    24  `jsr _pushN` allocation sites
+    67  `jsr _popN` emissions
 
 The larger pop count is expected: most allocation sites have normal cleanup and
 one or more error-path cleanups.
@@ -35,7 +35,7 @@ name collision.
 Compiler allocation sites
 -------------------------
 
-`compiler/compile_expr_flow.c` -- 8 allocations
+`compiler/compile_expr_flow.c` -- 7 allocations
 
 1. Braced assignment initializer buffer.
    Classification: initializer/aggregate scratch.
@@ -44,22 +44,19 @@ Compiler allocation sites
    Classification: retained scalar comparison scratch; float branches are
    obsolete.
 
-3. Simple assignment conversion buffer for fixed symbols.
-   Classification: retained scalar expression scratch.
-
-4. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
+3. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
    Classification: retained lvalue/expression scratch.
 
-5. Overloaded compound-assignment result buffer.
+4. Overloaded compound-assignment result buffer.
    Classification: obsolete operator-overloading support.
 
-6. Overloaded compound-assignment conversion buffer for symbol destinations.
+5. Overloaded compound-assignment conversion buffer for symbol destinations.
    Classification: obsolete operator-overloading support.
 
-7. Overloaded compound-assignment conversion buffer for indirect lvalues.
+6. Overloaded compound-assignment conversion buffer for indirect lvalues.
    Classification: obsolete operator-overloading support.
 
-8. Built-in compound-assignment working area.
+7. Built-in compound-assignment working area.
    Classification: retained 8/16-bit expression scratch; float, wide-integer,
    arbitrary-endian, and overload branches are obsolete.
 
@@ -136,7 +133,7 @@ Non-emitting compiler consumers
 -------------------------------
 Helpers that manipulate `ctx->locals` and `(fp),y` scratch without emitting
 `_pushN` own no persistent function frame. Their temporary bytes belong to an
-enclosing expression, statement, initializer, or indirect-call allocation.
+enclosing expression, statement, initializer, or lvalue allocation.
 
 
 Runtime and generated-library dependencies
@@ -180,12 +177,14 @@ C. Replace conditionally, after language-surface decisions:
 
 Completed expression-scratch slices
 -----------------------------------
-Truth-value evaluation and discarded expression results now use private fixed
-BSS scratch named `__n65_truthtmp_N` and `__n65_discardtmp_N`. The compiler
-temporarily redirects `fp` to each symbol, tracks nested scratch high-water,
-restores the caller frame through the 6502 hardware stack, and then reads truth
-bytes directly from the fixed symbol. These paths no longer emit `_pushN` or
-`_popN`. Scratch is per evaluation site and is not overlaid yet.
+Truth-value evaluation, discarded expression results, and simple assignment
+conversion into fixed-symbol destinations now use private fixed BSS scratch
+named `__n65_truthtmp_N`, `__n65_discardtmp_N`, and `__n65_assigntmp_N`. The
+compiler temporarily redirects `fp` to each symbol, tracks nested scratch
+high-water, restores the caller frame through the 6502 hardware stack, and
+copies converted assignment bytes into the destination symbol. These paths no
+longer emit `_pushN` or `_popN`. Scratch is per evaluation site and is not
+overlaid yet.
 
 Completed call-ABI removal slices
 ---------------------------------
@@ -206,5 +205,5 @@ longer emits `_pushN` or `_popN`.
 Recommended next slice
 ----------------------
 Continue replacing retained 8/16-bit scalar expression scratch with fixed storage.
-The next narrow target is simple assignment conversion scratch for fixed-symbol
-destinations, followed by comparison and binary arithmetic working areas.
+The next narrow target is the two-operand comparison buffer in
+`compile_expr_flow.c`, followed by binary arithmetic working areas.
