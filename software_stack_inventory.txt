@@ -11,7 +11,7 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_232529.tar.gz
+    vcsc.20260717_154505.tar.gz
 
 Compiler emission totals:
 
@@ -49,12 +49,12 @@ The software-stack implementation itself still exists outside compiler code:
     libraries/nlib/nrt0.s              startup initialization
 
 `_nl_fp` is still actively used as the base pointer for pooled scratch addressing.
-`_nl_sp`, `_pushN`, and `_popN` survive only because obsolete runtime families—most
-notably generic wide helpers—still reference them. They can be
-removed after those unsupported type/runtime families are deleted.
+`_nl_sp`, `_pushN`, `_popN`, and the `sp2ptr*` helpers now survive only for the
+retained generic division/remainder implementation and transitional startup state.
+Heap/`_sbrk` support and its dedicated zero-page pointer have been removed.
 
 Next slice
 ----------
-Remove heap/`_sbrk` support, then give retained division a private fixed workspace
-and delete `_nl_sp`, `_pushN`, `_popN`, and dead stack-pointer helpers. Keep
+Give retained division/remainder a private fixed workspace, then delete `_nl_sp`,
+`_pushN`, `_popN`, `sp2ptr*`, and residual startup initialization of `sp`. Keep
 `_nl_fp` while compiler-generated pooled scratch still uses it.

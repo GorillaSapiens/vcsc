@@ -466,7 +466,7 @@ static bool assembler_user_symbol_needs_escape(const char *name) {
       "clc", "cld", "cli", "clv", "cmp", "cpx", "cpy", "dec", "dex", "dey", "eor", "inc", "inx", "iny",
       "jmp", "jsr", "lda", "ldx", "ldy", "lsr", "nop", "ora", "pha", "php", "pla", "plp", "rol", "ror",
       "rti", "rts", "sbc", "sec", "sed", "sei", "sta", "stx", "sty", "tax", "tay", "tsx", "txa", "txs", "tya",
-      "sp", "fp", "arg0", "arg1", "ptr0", "ptr1", "ptr2", "ptr3", "sbrk", "tmp0", "tmp1", "tmp2", "tmp3", "tmp4", "tmp5"
+      "sp", "fp", "arg0", "arg1", "ptr0", "ptr1", "ptr2", "ptr3", "tmp0", "tmp1", "tmp2", "tmp3", "tmp4", "tmp5"
    };
    char lower[256];
    size_t n;
@@ -494,43 +494,6 @@ bool format_user_asm_symbol(const char *name, char *buf, size_t bufsize) {
    return true;
 }
 
-//! @brief Handle modifier list node like logic for compiler overload resolver.
-static bool modifier_list_node_like(const ASTNode *node) {
-   if (!node || is_empty(node)) {
-      return false;
-   }
-   for (int i = 0; i < node->count; i++) {
-      if (!node->children[i] || !node->children[i]->strval) {
-         return false;
-      }
-   }
-   return true;
-}
-
-//! @brief Return function modifier node data used by compiler overload resolver; returned pointers alias existing storage unless explicitly allocated by the function name.
-static ASTNode *function_modifier_node(const ASTNode *fn) {
-   ASTNode *mods;
-
-   if (!fn || fn->count <= 0 || !fn->children[0]) {
-      return NULL;
-   }
-
-   mods = fn->children[0];
-   if (modifier_list_node_like(mods)) {
-      return mods;
-   }
-   if (mods->count > 0 && mods->children[0] && modifier_list_node_like(mods->children[0])) {
-      return mods->children[0];
-   }
-   return NULL;
-}
-
-//! @brief Return whether function has extern nonstatic storage in compiler overload resolver.
-static bool function_has_extern_nonstatic_storage(const ASTNode *fn) {
-   ASTNode *mods = function_modifier_node(fn);
-   return mods && has_modifier(mods, "extern") && !has_modifier(mods, "static");
-}
-
 //! @brief Handle function symbol name logic for compiler overload resolver.
 bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *buf, size_t bufsize) {
    const ASTNode *declarator = function_declarator_node(fn);
@@ -546,11 +509,6 @@ bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *bu
    }
    if (!name) {
       return false;
-   }
-
-   if (fn && function_has_extern_nonstatic_storage(fn) && !strcmp(name, "sbrk")) {
-      snprintf(buf, bufsize, "_sbrk");
-      return true;
    }
 
    if (!ordinary_function_name_is_overloaded(name)) {

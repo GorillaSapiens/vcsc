@@ -82,8 +82,8 @@ rts
 Reset/startup still initializes `sp` and `fp` during the transitional runtime.
 Compiler-generated code no longer allocates through `sp`; `fp` remains the addressing
 base for pooled fixed scratch. The target language now has only one- and two-byte integers,
-but a few runtime services (notably generic division and `_sbrk`) still reference
-`sp`; removing that residual runtime stack state is a separate cleanup step.
+but retained generic division still references `sp`; removing that residual runtime
+stack state is a separate cleanup step.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls, except that
 A and possibly X carry the function result on return. Callers must assume a

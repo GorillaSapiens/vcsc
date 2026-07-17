@@ -460,3 +460,4 @@ test/variadic_no_char_codegen_test.n
 test/variadic_zero_call_codegen_test.n
 test/visible_same_type_operator_beats_helper_codegen_test.n
 test/weak_builtin_operator_codegen_test.n
+libraries/nlib/asm/sbrk.asm

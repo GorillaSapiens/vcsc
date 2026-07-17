@@ -600,8 +600,6 @@ solely for obsolete runtime/library code awaiting removal.
 
 Startup initializes both `_nl_sp` and `_nl_fp` from `__stack_start`, not from a hard-coded constant. The N stack grows upward from there.
 
-The runtime also seeds `_nl_sbrk` from `__stack_top`, so simple `sbrk` allocations can grow downward through the same free RAM arena.
-
 ### Frame pointer preservation
 
 Compiled calls save and restore the caller's frame pointer around calls so nested calls do not smash the caller's frame-relative addressing.

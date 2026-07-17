@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_151019.tar.gz
+    vcsc.20260717_154505.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -55,6 +55,7 @@ Settled final-language decisions
   pointer is invalid even though `const` is not yet enforced by the type system.
 * No float or double.
 * No int32_t, uint32_t, or wider integers.
+* The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
 * Functions retain normal source-level parameters and lexical scope.
@@ -174,6 +175,10 @@ Completed vertical slices
     unit completion. Binary expressions whose two operands are fields of the
     same runtime-indexed aggregate element now compute the common address once
     and load both fields by offsets when strict side-effect-free conditions hold.
+27. Heap/`sbrk` support has been removed. The `_sbrk` and `__init_sbrk`
+    archive members, `_nl_sbrk` zero-page pointer, compiler name-mangling
+    exception, and allocator documentation are gone. `sbrk` is now an ordinary
+    user identifier, and the runtime workspace shrank from 22 to 20 bytes.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -566,7 +571,7 @@ The first unfinished item is the default next action.
         recording all removed paths in remove.txt and keeping retained tests
         green.
 
-        [ ] 16a. Remove heap/sbrk support and its initialization/runtime tests.
+        [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
         [ ] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
                   fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
@@ -1105,6 +1110,24 @@ reproducibly rather than the exact instant of each individual source edit.
   exact 4096-byte cartridges, and Ode passes 1497 consecutive Stella-reported
   262-line frames.
 * No files were removed; remove.txt remains at 462 unique cumulative paths.
+
+2026-07-17 15:53:35 PDT, remove heap and sbrk runtime support
+* Removed `libraries/nlib/asm/sbrk.asm`, including `_sbrk` and its archive-
+  selected `__init_sbrk` initializer.
+* Removed the `_nl_sbrk` zero-page object and its import/alias glue, shrinking
+  the stock runtime workspace from 22 to 20 bytes and reclaiming two VCS RAM
+  bytes.
+* Removed the compiler's special external-`sbrk` to `_sbrk` symbol mapping and
+  the obsolete assembler-name reservation. `sbrk` is now an ordinary user
+  function name; added a code-generation regression proving that behavior.
+* Updated runtime, compiler, linker, limitation, and software-stack inventory
+  documentation to state that the stock runtime has no heap or allocator.
+* Updated the Ode cartridge map regression for the two-byte zero-page shift;
+  it still allocates zero BSS scratch and only two bytes of persistent state.
+* Passed 224/224 compile tests and 94/94 end-to-end/generic tests.
+* Added one test and removed one runtime source; remove.txt now contains 463
+  unique cumulative paths.
+
 
 End-of-session checklist
 ------------------------
