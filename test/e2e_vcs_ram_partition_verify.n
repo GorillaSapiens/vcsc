@@ -1,7 +1,10 @@
 // n65c -I ../libraries/vcs
 // linkcfg: ../libraries/vcs/vcs_4k.cfg
-// expectmap: RAM        start=$0080 size=$0060 type=rw
-// expectmap: __stack_top   $00DF
+// expectmap: RAM        start=$0080 size=$0078 type=rw
+// expectmap: __stack_top   $00F7
+// expectmap: region=RAM depth=2 bytes=$0008 physical=$00F8-$00FF
+// expectmap: __call_stack_depth
+// expectmap: __call_stack_size
 // expectexit: 0
 
 include "vcs.n"

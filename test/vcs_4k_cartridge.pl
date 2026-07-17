@@ -89,10 +89,12 @@ $reset == 0xf000
    or die sprintf("RESET vector is %04x, expected f000\n", $reset);
 
 my $map_text = read_file($map);
-$map_text =~ /RAM\s+start=\$0080\s+size=\$0060\s+type=rw/
-   or die "map does not expose exactly 96 allocatable RIOT RAM bytes\n";
-$map_text =~ /__stack_top\s+\$00DF/
-   or die "map does not reserve the hardware-stack window above \$00DF\n";
+$map_text =~ /RAM\s+start=\$0080\s+size=\$0078\s+type=rw/
+   or die "map does not expose the call-graph-sized RIOT RAM arena\n";
+$map_text =~ /region=RAM\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF/
+   or die "map does not report the expected two-level hardware-stack reserve\n";
+$map_text =~ /__stack_top\s+\$00F7/
+   or die "map does not stop ordinary allocation below the hardware stack\n";
 $map_text =~ /\bmain\b/
    or die "map is missing main\n";
 $map_text =~ /\bchoose_background\b/

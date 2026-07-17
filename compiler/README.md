@@ -223,7 +223,9 @@ declarations are rejected. Function names may appear only as direct call
 targets; using a function name or `&name` as a value is also rejected.
 
 This keeps the call graph statically knowable and eliminates the indirect-call
-runtime trampoline and its software-stack frame.
+runtime trampoline and its software-stack frame. Linker-visible graph metadata
+also lets VCS configurations derive a hardware-stack reserve from the longest
+whole-program call path.
 
 
 ### Variadic functions
@@ -580,7 +582,9 @@ int8_t msg2[] = "hello";
 
 ### Hardware stack vs N stack
 
-The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
+The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations. A linker `MEMORY` region marked `callstack = callgraph` is shortened from the top according to the longest linked source-level call path. The present reserve is four bytes per active function level: a two-byte return address plus a two-byte allowance for compiler-generated `fp` preservation/transient saves.
+
+Inline-assembly stack operations and stack use hidden inside separately assembled routines are not included in that calculation yet and must be treated as future work.
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
 Compiler-generated code no longer emits `_pushN` or `_popN`. Fixed per-site BSS scratch

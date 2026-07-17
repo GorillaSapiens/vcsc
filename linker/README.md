@@ -133,6 +133,15 @@ SEGMENTS {
 - `run = NAME`
 - `type = ro/rw/zp/data/bss`
 - `define = yes/no`
+- `callstack = callgraph/no`
+
+`callstack = callgraph` may be placed on one writable `MEMORY` region. After
+all objects and archive members are selected, the linker computes the longest
+acyclic source-level call path and shrinks that region from the top before
+placing DATA/BSS/ZEROPAGE. The current reserve is four bytes per function level:
+two for the active JSR return address and two for the compiler's known `fp`
+preservation/transient use. Inline-assembly stack operations and stack use
+inside separately assembled routines are not represented yet.
 
 It is not trying to be a full `ld65` config parser.
 ## Compiler mem-region validation
@@ -157,10 +166,14 @@ For the current object format subset, `n65ld` maps o65 segments like this:
 ## Map file
 
 When you request a map file, `n65ld` writes:
-- memory regions
+- effective memory regions after any call-graph stack reservation
 - object placement
+- the selected call-stack region, graph depth, byte reserve, and physical range
 - linker-generated symbols
 - all resolved global symbols
+
+A call-graph-sized image also exports `__call_stack_depth`,
+`__call_stack_size`, `__call_stack_start`, and `__call_stack_top`.
 
 ## Supported o65 subset
 

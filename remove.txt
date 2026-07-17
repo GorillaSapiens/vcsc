@@ -2,6 +2,7 @@ compiler/float.c
 compiler/float.h
 compiler/float_bignat.c
 compiler/float_bignat.h
+examples/02_ode_to_joy/music_player.s
 libraries/float/.gitignore
 libraries/float/Makefile
 libraries/float/README.md
@@ -401,6 +402,9 @@ test/generated_gf64_ops.n
 test/int_helper_big_endian_codegen_test.n
 test/int_helper_codegen_test.n
 test/integer_promotion_codegen_test.n
+test/legacy_bool_type_name_rejected_test.n
+test/legacy_char_type_name_rejected_test.n
+test/legacy_int_type_name_rejected_test.n
 test/loop_bool_test.n
 test/missing_required_bool_error_test.n
 test/mixed_endian_add_error_test.n
@@ -456,6 +460,3 @@ test/variadic_no_char_codegen_test.n
 test/variadic_zero_call_codegen_test.n
 test/visible_same_type_operator_beats_helper_codegen_test.n
 test/weak_builtin_operator_codegen_test.n
-test/legacy_bool_type_name_rejected_test.n
-test/legacy_char_type_name_rejected_test.n
-test/legacy_int_type_name_rejected_test.n

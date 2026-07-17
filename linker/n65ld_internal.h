@@ -39,6 +39,7 @@ typedef struct {
    uint16_t size;
    char type[8];
    int define_yes;
+   int callstack_callgraph;
    char name[MAX_NAME];
 } memory_region_t;
 
@@ -57,6 +58,12 @@ typedef struct {
    size_t mem_count;
    segment_rule_t seg[16];
    size_t seg_count;
+   int call_stack_enabled;
+   char call_stack_region[MAX_NAME];
+   uint16_t call_stack_depth;
+   uint16_t call_stack_size;
+   uint16_t call_stack_start;
+   uint16_t call_stack_top;
 } linker_config_t;
 
 //! Exported or imported o65 symbol record.
@@ -221,6 +228,11 @@ typedef struct {
    uint16_t zero_table_size;
    uint16_t stack_start;
    uint16_t stack_top;
+   int call_stack_enabled;
+   uint16_t call_stack_depth;
+   uint16_t call_stack_size;
+   uint16_t call_stack_start;
+   uint16_t call_stack_top;
    memory_cursor_t *cursors;
    size_t cursor_count;
    copy_record_t *copy_records;

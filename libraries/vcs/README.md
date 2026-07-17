@@ -45,6 +45,7 @@ Notes:
 - `vcs.n` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.n` and `riot.n`.
 - `tia.n` and `riot.n` can also be included separately if you already have your own base machine definition.
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
-- The 128 physical RIOT RAM bytes are not double-counted: `$80-$DF` are currently available to the linker, while `$E0-$FF` are reserved for the downward-growing 6502 hardware stack. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
+- The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `n65ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
+- Current stack sizing accounts for JSR return addresses and compiler-generated `fp` preservation. Inline `PHA`/`PHP`/`JSR` and stack use hidden in separately assembled routines remain future accounting work.
 - `batari-basic/` is reference/source material imported from upstream batari Basic and is not automatically wired into the `n65c`/`n65ld` flow.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.

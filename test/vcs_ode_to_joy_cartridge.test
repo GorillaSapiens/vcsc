@@ -1,4 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_ode_to_joy_cartridge.pl @REPO@ @TMP@
 # phase: e2e
+# timeout: 10
 # expectstdout: vcs_ode_to_joy_cartridge ok
 # expectexit: 0

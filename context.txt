@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_124413.tar.gz
+    vcsc.20260717_133749.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -83,9 +83,9 @@ Completed vertical slices
 3. Function return types are now restricted to void, supported 8/16-bit
    little-endian integers, and 16-bit pointers. The old caller-owned return-slot
    ABI has been deleted.
-4. The VCS linker now exposes only $80-$DF as allocatable RIOT RAM and reserves
-   $E0-$FF for the 6502 hardware stack. The mirrored $0180-$01FF window is no
-   longer modeled as separate physical memory.
+4. The VCS linker stopped modeling mirrored $0180-$01FF stack addresses as
+   separate physical memory. The first implementation used a fixed $E0-$FF
+   reserve; completed slice 24 supersedes that partition with call-graph sizing.
 5. Every named automatic local and the hidden `$$` return object now has
    function-qualified fixed-address storage. Automatic initializers still run
    whenever control reaches the declaration on each invocation.
@@ -151,12 +151,22 @@ Completed vertical slices
     the write address, and read-modify-write instructions require identical
     non-`none` read/write addresses. Illegal side use and split-address RMW are
     compile-time errors. The solid-color kernel now uses TIA register names.
+24. The VCS linker configuration declares all 128 physical RIOT RAM bytes and
+    marks the region `callstack = callgraph`. After archive selection and
+    cross-object cycle validation, n65ld computes the longest linked call path,
+    reserves four top-of-RAM bytes per function level, and reports/exports the
+    resulting hardware-stack range. This includes return addresses and the
+    compiler's known fp-preservation allowance; inline assembly and separately
+    assembled routine internals remain unaccounted future work.
 
-Side quest: examples/02_ode_to_joy now keeps its 32-step, 128-byte score as a
-const ROM array while a cycle-bounded companion assembly player updates TIA
-channel 0. The player runs inside a TIM64T-governed 30-line overscan budget;
-an execution regression verifies stable 262-line NTSC frames through ordinary,
-note-change, silent-gap, and score-wrap paths.
+Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
+ROM array and now implements both `music_tick()` and `music_apply_current()` in
+the C-like source. A persistent pointer identifies the current `MusicStep`, so
+advancing computes the next table location once instead of multiplying an array
+index for each field. The source player runs inside a TIM64T-governed 30-line
+overscan budget; an execution regression verifies stable 262-line NTSC frames
+through ordinary, note-change, silent-gap, and score-wrap paths. The temporary
+companion assembly player has been removed.
 
 Current return ABI
 ------------------
@@ -226,6 +236,12 @@ declarators are rejected, as are bare function names or `&function` used as
 values. This keeps every call edge visible to cycle analysis and eliminates the
 indirect-call ABI and `_callptr0` runtime trampoline.
 
+The same linker-visible function/edge metadata now drives longest-path stack
+sizing. The linker counts nodes on the longest acyclic path after all selected
+objects and archive members are known. External assembly functions reached by a
+source call appear as one graph node, but calls and pushes inside their assembly
+bodies are not visible yet.
+
 Atari 2600 hardware constraints
 -------------------------------
 * The VCS has 128 physical bytes of RIOT RAM at $80-$FF.
@@ -243,28 +259,38 @@ File:
 
     libraries/vcs/vcs_4k.cfg
 
-The linker now models one physical RIOT RAM pool rather than independent RAM
-and CPUSTACK regions. The current conservative partition is:
+The linker models one physical RIOT RAM pool rather than independent RAM and
+CPUSTACK regions. `vcs_4k.cfg` declares the full block:
 
-    $80-$DF   96 bytes available to ZEROPAGE, DATA, BSS, and the
-              transitional upward-growing N software stack
-    $E0-$FF   32 bytes reserved for the downward-growing 6502 hardware stack
+    $80-$FF   128 physical bytes, with `callstack = callgraph`
 
-The reserved bytes are mirrored at $01E0-$01FF, where JSR/RTS/PHA/PHP actually
-address them through the 6502 stack pointer. They are intentionally absent from
-the linker MEMORY list, so ordinary storage cannot be allocated there.
+Before layout, n65ld shrinks that region from the top. For a maximum linked
+source call depth D, the current reserve is `4 * D` bytes:
 
-The linker-generated `__stack_top` for the N software stack is therefore $00DF.
-This is a fixed provisional reserve; exact call-depth-based sizing remains a
-later optimization.
+* two bytes for each active JSR return address, including the assembly startup
+  call into a source root;
+* two bytes per active level for the compiler's known fp-preservation/transient
+  hardware-stack use.
 
-Tests verify both the map and enforcement:
+For `01_solid_color`, D=2, so ordinary allocation receives $80-$F7 (120 bytes)
+and $F8-$FF is reserved. For the fully source-level Ode player, D=3, so ordinary
+allocation receives $80-$F3 (116 bytes) and $F4-$FF is reserved. The bytes are
+accessed through their page-1 mirrors by the 6502 stack pointer.
 
-* a VCS link map must show RAM start $0080, size $0060, and stack top $00DF;
-* a BSS allocation that would cross into the reserved hardware-stack bytes must
-  fail at link time;
-* a configuration guard rejects any reintroduced CPUSTACK memory region and
-  requires ARGSTACK to share RAM.
+The map reports a `CALL STACK` block and the linker exports:
+
+    __call_stack_depth
+    __call_stack_size
+    __call_stack_start
+    __call_stack_top
+
+Known limitation: inline assembly can issue PHA/PHP/JSR, and separately assembled
+routines can contain hidden calls or pushes. Those are deliberately not included
+in the first implementation and must be accounted for later.
+
+Tests verify dynamic map sizing, a four-level path, overflow enforcement, and
+that the configuration declares the full RIOT block without a separate
+CPUSTACK region.
 
 Transitional software-stack machinery still present
 --------------------------------------------------
@@ -316,25 +342,42 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Stable-timing sound example:
+Call-graph-derived hardware-stack sizing:
 
+    linker/n65ld.c
+    linker/n65ld_internal.h
+    linker/README.md
+    libraries/vcs/vcs_4k.cfg
+    libraries/vcs/vcs.n
+    libraries/vcs/README.md
+    compiler/README.md
+
+Source-level music player:
+
+    examples/02_ode_to_joy/ode_to_joy.n
     examples/02_ode_to_joy/Makefile
     examples/02_ode_to_joy/README.md
-    examples/02_ode_to_joy/ode_to_joy.n
-    examples/02_ode_to_joy/music_player.s                 (new)
-    libraries/vcs/sound_ntsc.n
-
-Timing regression:
-
     test/vcs_ode_to_joy_cartridge.pl
-    test/vcs_frame_timing.cpp                             (new)
+    test/vcs_ode_to_joy_cartridge.test
 
-Documentation:
+Stack-sizing regressions and updated expectations:
+
+    test/e2e_vcs_call_stack_depth_verify.n
+    test/e2e_vcs_ram_partition_verify.n
+    test/e2e_vcs_ram_reserve_overflow_fail.n
+    test/vcs_4k_cartridge.pl
+    test/vcs_ram_config_layout.test
+
+Bookkeeping:
 
     context.txt
+    remove.txt
 
-No files were removed. remove.txt remains unchanged at 461 unique cumulative
-paths.
+Removed this revision:
+
+    examples/02_ode_to_joy/music_player.s
+
+remove.txt now contains 462 unique cumulative paths.
 
 Build environment
 -----------------
@@ -365,26 +408,24 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    91 passed, 0 failed, 91 total
+    92 passed, 0 failed, 92 total
 
-Both examples/01_solid_color and examples/02_ode_to_joy build directly as raw
-4096-byte cartridges.
+Both examples build directly as raw 4096-byte cartridges.
 
-The Ode score now has 32 four-byte steps (128 bytes in RODATA): every musical
-step is followed by a two-frame silent gap. The C-like score remains
-linker-managed ROM data, while examples/02_ode_to_joy/music_player.s performs
-the cycle-critical counter, step, wrap, and TIA audio updates. main() starts
-TIM64T at 35 for the 30-line overscan budget, calls music_tick(), waits for
-INTIM to reach zero, then executes one final WSYNC before the next VSYNC.
+`01_solid_color` has call depth 2. Its effective allocatable RIOT region is
+$80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes).
 
-The timing regression wraps the repository's 6502 core with the WSYNC, VSYNC,
-RIOT interval-timer, and AUDV0 behavior required by this cartridge. A 1500-VSYNC
-run checked 1497 complete consecutive frames at exactly 262 scanlines, exercised
-ordinary/note-change/silent-gap/wrap paths, and detected no timer overrun.
+`02_ode_to_joy` now contains source-level `music_tick()` and
+`music_apply_current()` with no companion assembly. It retains the 32-step,
+128-byte const ROM score, tracks the current element with a `MusicStep *`, and
+uses three persistent player-state values. The linked source call depth is 3,
+so the effective allocatable RIOT region is $80-$F3 and the hardware-stack
+reserve is $F4-$FF (12 bytes). Static/runtime allocation ends at $B8, leaving
+$B9-$F3 unused by ordinary storage.
 
-Moving the player out of the compiler's current general indexed-struct lowering
-also reduced the Ode cartridge's allocated RAM high-water mark from $D8 to $A1.
-The two player-state bytes are at $A0-$A1; the 128-byte score remains in ROM.
+The timing regression ran through 1500 VSYNC assertions, checked 1497 complete
+frames at exactly 262 lines, exercised ordinary ticks, note transitions, silent
+gaps, and score wrap, and detected no overscan timer underflow.
 
 Immediate TODO
 --------------
@@ -397,7 +438,8 @@ The first unfinished item is the default next action.
 [x] 3. Enforce legal return types and delete the caller-owned return-slot ABI.
 
 [x] 4. Fix libraries/vcs/vcs_4k.cfg so mirrored RIOT RAM is not modeled as two
-       independent memories. Reserve $E0-$FF for the hardware return stack.
+       independent memories. The initial fixed reserve was later replaced by
+       call-graph-derived hardware-stack sizing.
 
 [x] 5. Replace stack-backed automatic locals with fixed-address per-function
        storage. Start with distinct frames; defer frame overlay optimization.
@@ -453,19 +495,48 @@ The first unfinished item is the default next action.
     corrected player runs inside a fixed TIM64T overscan budget and has an
     execution regression proving stable 262-line frames.
 
-[ ] 15. Delete unsupported tools/runtime/language features one group at a time,
+[ ] 15. Finish the general compiler-efficiency work exposed by Ode to Joy
+        before continuing broad functional reduction. The player itself now
+        compiles entirely from the C-like language and the temporary companion
+        assembly has been removed; direct indexed-struct lowering remains the
+        unfinished part of this gate.
+
+        Acceptance criteria:
+
+        [x] 15a. Express `music_tick()` in `ode_to_joy.n`; retain the const ROM
+                  array of `MusicStep` structs and remove the companion player
+                  assembly once the source version passes. The player keeps a
+                  pointer to the current element and advances/wraps that pointer.
+        [x] 15b. Fit the complete cartridge in the VCS RAM map without relying
+                  on accidental spare bytes or moving ordinary game logic into
+                  assembly. Whole-program call-graph sizing replaced the fixed
+                  32-byte hardware-stack partition.
+        [x] 15c. Keep every execution path--ordinary counter tick, note change,
+                  silent gap, and end-of-score wrap--inside the fixed 30-line
+                  TIM64T overscan budget while preserving stable 262-line NTSC
+                  frames in the execution regression.
+        [ ] 15d. Continue the general compiler work exposed by the original
+                  indexed formulation: overlay/reuse expression scratch by
+                  lifetime, avoid permanent per-expression temporaries, lower
+                  direct indexed arrays of structs efficiently, reuse repeated
+                  element addresses automatically where possible, and generate
+                  compact ordinary 8-bit increment/comparison code. The pointer
+                  formulation proves the language can express the player, but
+                  direct `music[index].field` remains unnecessarily expensive.
+
+[ ] 16. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
 
-        [ ] 15a. Remove heap/sbrk support and its initialization/runtime tests.
-        [ ] 15b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+        [ ] 16a. Remove heap/sbrk support and its initialization/runtime tests.
+        [ ] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
                   fixed workspace. Keep `_nl_fp` while fixed scratch uses it.
-        [ ] 15c. Reassess and likely remove ordinary named-function overloading.
-        [ ] 15d. Prune unused generic libraries, machine targets, tools, and
+        [ ] 16c. Reassess and likely remove ordinary named-function overloading.
+        [ ] 16d. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
 
-[ ] 16. After the functional reduction is complete, rename the project and
+[ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
         filenames, binary names, paths, and user-visible identifiers as
         appropriate. Preserve useful history where needed. Project tagline:
@@ -498,7 +569,10 @@ Open implementation questions
   analysis. Start with distinct storage.
 * Whether the provisional 32-byte hardware-stack reserve should eventually be
   replaced by exact link-time call-depth sizing.
-* Expression scratch allocation after the software stack is removed.
+* Expression scratch allocation after the software stack is removed. The Ode
+  player is now the concrete acceptance test: scratch must be reusable by
+  lifetime and indexed array-of-struct access must not allocate a new permanent
+  block for every expression occurrence.
 * Existing defect: in some simple assignments such as `old := value++`, the
   assignment-expression fast path can copy the lvalue without applying the
   increment. Standalone `value++`/`--value` works and is covered here; fix this
@@ -888,6 +962,44 @@ reproducibly rather than the exact instant of each individual source edit.
   fixed scratch for the cycle-critical indexed-struct player.
 * Passed 220/220 compile tests and 91/91 end-to-end/generic tests.
 * No files were removed; remove.txt remains at 461 cumulative paths.
+
+
+2026-07-17 13:27:51 PDT, source-level music player acceptance gate
+* Recorded the companion assembly music player as a temporary diagnostic
+  workaround rather than an acceptable endpoint for the compiler.
+* Inserted a new task 15 before broad functional reduction: compile the complete
+  Ode to Joy `music_tick()` from the C-like source while retaining the const ROM
+  array of structs, fitting the VCS RAM map, and meeting the fixed 30-line
+  overscan deadline on ordinary, transition, gap, and wrap paths.
+* Made efficient scratch lifetime/overlay, indexed array-of-struct lowering,
+  repeated-address reuse, and compact 8-bit increment/comparison generation
+  explicit compiler acceptance requirements rather than program-specific
+  special cases.
+* Renumbered broad functional reduction to task 16 and the final `vcsc` rename
+  to task 17.
+* Documentation only; no source, tests, build files, or remove.txt paths changed.
+
+
+2026-07-17 13:53:58 PDT, call-graph stack sizing and source-level music player
+* Replaced the fixed 32-byte VCS hardware-stack partition with linker-side
+  whole-program call-graph sizing. A `callstack = callgraph` MEMORY region is
+  shortened from the top by four bytes per maximum function level: two return
+  bytes plus the compiler's known two-byte fp-preservation allowance.
+* Added map output and generated symbols for call-stack depth, size, start, and
+  top; added a four-level depth regression and updated VCS overflow/map tests.
+* Documented that inline-assembly pushes/calls and stack use hidden inside
+  separately assembled routines are not yet included.
+* Replaced the Ode companion assembly player with source-level
+  `music_tick()`/`music_apply_current()`. The player retains a pointer to the
+  current ROM `MusicStep`, advances or wraps it once per expired step, and
+  updates TIA channel 0 from ordinary C-like code.
+* Verified the source player fits: call depth 3 reserves $F4-$FF, ordinary
+  allocation ends at $B8, and the cartridge remains 4096 bytes.
+* Verified 1497 complete consecutive frames at exactly 262 scanlines across
+  normal, transition, gap, and wrap paths with no timer underflow.
+* Passed 220/220 compile tests and 92/92 end-to-end tests.
+* Removed `examples/02_ode_to_joy/music_player.s`; remove.txt now contains 462
+  unique cumulative paths.
 
 End-of-session checklist
 ------------------------

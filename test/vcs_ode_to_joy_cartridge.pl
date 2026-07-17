@@ -38,7 +38,6 @@ my $cfg=File::Spec->catfile($vcs_dir,'vcs_4k.cfg');
 my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.n');
 my $example_dir=File::Spec->catdir($repo,'examples','02_ode_to_joy');
 my $source=File::Spec->catfile($example_dir,'ode_to_joy.n');
-my $player=File::Spec->catfile($example_dir,'music_player.s');
 my $binary=File::Spec->catfile($tmp,'ode_to_joy.bin');
 my $map=File::Spec->catfile($tmp,'ode_to_joy.map');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
@@ -48,13 +47,12 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 -x $driver or die "compiler driver is not executable: $driver\n";
 -f $source or die "example source is missing: $source\n";
--f $player or die "assembly player is missing: $player\n";
 -f $sound or die "sound alias library is missing: $sound\n";
 -f $timing_source or die "timing harness source is missing: $timing_source\n";
 -f $mos_source or die "6502 emulator source is missing: $mos_source\n";
 
 my ($exit,$signal,$stdout,$stderr)=run_capture(
-   $driver,'-I',$vcs_dir,'-T',$cfg,'-Map',$map,$source,$player,'-o',$binary,
+   $driver,'-I',$vcs_dir,'-T',$cfg,'-Map',$map,$source,'-o',$binary,
 );
 die "cartridge build exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
    if $exit != 0 || $signal != 0;
@@ -86,10 +84,15 @@ length($score)==128 or die "internal expected score is not 128 bytes\n";
 index($rom,$score)>=0 or die "ROM does not contain the expected 128-byte score table\n";
 
 my $map_text=read_file($map);
-$map_text =~ /RAM\s+start=\$0080\s+size=\$0060\s+type=rw/
-   or die "map does not expose exactly 96 allocatable RIOT RAM bytes\n";
+$map_text =~ /RAM\s+start=\$0080\s+size=\$0074\s+type=rw/
+   or die "map does not expose the call-graph-sized RIOT RAM arena\n";
+$map_text =~ /region=RAM\s+depth=3\s+bytes=\$000C\s+physical=\$00F4-\$00FF/
+   or die "map does not report the expected three-level hardware-stack reserve\n";
+$map_text =~ /__stack_top\s+\$00F3/
+   or die "map does not stop ordinary allocation below the computed stack reserve\n";
 $map_text =~ /\bmusic\b/ or die "map is missing ROM score symbol music\n";
-$map_text =~ /\bmusic_index\b/ or die "map is missing music_index\n";
+$map_text =~ /\bmusic_current\b/ or die "map is missing music_current\n";
+$map_text =~ /\bmusic_steps_left\b/ or die "map is missing music_steps_left\n";
 $map_text =~ /\bmusic_counter\b/ or die "map is missing music_counter\n";
 $map_text =~ /\bmusic_tick\b/ or die "map is missing music_tick\n";
 $map_text =~ /\bmusic_apply_current\b/ or die "map is missing music_apply_current\n";
@@ -105,14 +108,14 @@ $source_text =~ /asm lda \#35;\s*asm sta TIM64T;\s*music_tick\(\);\s*asm \@overs
    or die "music_tick is not enclosed by the fixed TIM64T overscan wait\n";
 $source_text !~ /music_tick\(\);\s*asm lda \#2;\s*asm sta VSYNC;/s
    or die "music_tick still runs outside the fixed frame budget\n";
-
-my $player_text=read_file($player);
-$player_text =~ /\.import\s+music\b/ or die "assembly player does not import music\n";
-$player_text =~ /cmp\.ax\s+music\+3,x/ or die "assembly player does not read step timing\n";
-$player_text =~ /sta\s+AUDV0/ or die "assembly player does not write AUDV0\n";
-$player_text =~ /sta\s+AUDF0/ or die "assembly player does not write AUDF0\n";
-$player_text =~ /sta\s+AUDC0/ or die "assembly player does not write AUDC0\n";
-$player_text =~ /cmp\s+\#128/ or die "assembly player does not wrap the 128-byte score\n";
+$source_text =~ /MusicStep\s+\*music_current\s*:=\s*music\s*;/
+   or die "source does not retain a pointer to the current score step\n";
+$source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\+\+.*music_current->timing.*music_current\+\+.*music_steps_left--.*music_apply_current\(\)/s
+   or die "music_tick is not implemented in the C-like source\n";
+$source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*music_current->volume.*AUDF0\s*:=\s*music_current->frequency.*AUDC0\s*:=\s*music_current->control/s
+   or die "source-level player does not update all channel-0 registers\n";
+-f File::Spec->catfile($example_dir,'music_player.s')
+   and die "obsolete companion assembly player still exists\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 ($exit,$signal,$stdout,$stderr)=run_capture(

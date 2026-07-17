@@ -51,11 +51,29 @@ const MusicStep music[MUSIC_STEP_COUNT] := {
    { MUSIC_VOLUME_OFF,    MUSIC_FREQ_C4, MUSIC_CONTROL_LEAD, MUSIC_TIME_GAP }
 };
 
-uint8_t music_index := 0;
+MusicStep *music_current := music;
+uint8_t music_steps_left := MUSIC_STEP_COUNT;
 uint8_t music_counter := 0;
 
-extern void music_apply_current(void);
-extern void music_tick(void);
+void music_apply_current(void) {
+   AUDV0 := music_current->volume;
+   AUDF0 := music_current->frequency;
+   AUDC0 := music_current->control;
+}
+
+void music_tick(void) {
+   music_counter++;
+   if (music_counter > music_current->timing) {
+      music_counter := 0;
+      music_current++;
+      music_steps_left--;
+      if (music_steps_left == 0) {
+         music_current := music;
+         music_steps_left := MUSIC_STEP_COUNT;
+      }
+      music_apply_current();
+   }
+}
 
 void main(void) {
    // Clear video objects and silence the unused audio channel.

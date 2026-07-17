@@ -455,6 +455,18 @@ static void parse_memory_property(memory_region_t *mem, const char *key, const c
       snprintf(mem->type, sizeof(mem->type), "%s", trim((char *)value));
    } else if (str_ieq(key, "define")) {
       mem->define_yes = str_ieq(trim((char *)value), "yes");
+   } else if (str_ieq(key, "callstack")) {
+      value = trim((char *)value);
+      if (str_ieq(value, "callgraph")) {
+         mem->callstack_callgraph = 1;
+      }
+      else if (str_ieq(value, "no")) {
+         mem->callstack_callgraph = 0;
+      }
+      else {
+         fprintf(stderr, "n65ld: bad memory callstack mode '%s'; expected callgraph or no\n", value);
+         exit(1);
+      }
    }
 }
 
@@ -706,8 +718,33 @@ static const char *display_function_symbol(const char *name)
    return name;
 }
 
-//! @brief Validate symbol backed call graph invariants before later linker stages depend on them.
-static void enforce_symbol_backed_call_graph(const input_set_t *in)
+//! @brief Compute the longest node path in an already validated acyclic call graph.
+static int call_graph_longest_depth_visit(int v,
+                                          const call_graph_edge_t *edges, size_t edge_count,
+                                          int *memo)
+{
+   size_t i;
+   int best = 1;
+
+   if (memo[v] > 0)
+      return memo[v];
+
+   for (i = 0; i < edge_count; ++i) {
+      int child_depth;
+
+      if (edges[i].from != v)
+         continue;
+      child_depth = 1 + call_graph_longest_depth_visit(edges[i].to, edges, edge_count, memo);
+      if (child_depth > best)
+         best = child_depth;
+   }
+
+   memo[v] = best;
+   return best;
+}
+
+//! @brief Validate symbol backed call graph invariants and return its maximum function depth.
+static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in)
 {
    call_graph_node_t *nodes = NULL;
    call_graph_edge_t *edges = NULL;
@@ -721,6 +758,8 @@ static void enforce_symbol_backed_call_graph(const input_set_t *in)
    unsigned char *onstack = NULL;
    unsigned char *component_has_symbol_backed = NULL;
    unsigned char *component_has_cycle = NULL;
+   int *depth_memo = NULL;
+   int max_depth = 0;
    int stack_top = 0;
    int index_counter = 0;
    int component_count = 0;
@@ -781,6 +820,13 @@ static void enforce_symbol_backed_call_graph(const input_set_t *in)
       }
    }
 
+   depth_memo = (int *)xcalloc(node_count, sizeof(*depth_memo));
+   for (i = 0; i < node_count; ++i) {
+      int depth = call_graph_longest_depth_visit((int)i, edges, edge_count, depth_memo);
+      if (depth > max_depth)
+         max_depth = depth;
+   }
+
 cleanup:
    for (i = 0; i < node_count; ++i)
       free(nodes[i].name);
@@ -794,6 +840,55 @@ cleanup:
    free(onstack);
    free(component_has_symbol_backed);
    free(component_has_cycle);
+   free(depth_memo);
+   return (uint16_t)max_depth;
+}
+
+//! @brief Shrink the configured RAM arena by the stack requirement derived from the call graph.
+static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t depth)
+{
+   memory_region_t *target = NULL;
+   size_t i;
+   uint32_t end;
+   uint32_t bytes;
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      if (!cfg->mem[i].callstack_callgraph)
+         continue;
+      if (target) {
+         fprintf(stderr, "n65ld: more than one MEMORY region requests callstack=callgraph\n");
+         exit(1);
+      }
+      target = &cfg->mem[i];
+   }
+
+   if (!target)
+      return;
+
+   /* Each active source function accounts for a two-byte JSR return address.
+      The current compiler also uses up to two bytes per active level while
+      preserving fp around fixed-scratch lowering. Inline assembly and stack
+      use hidden inside separately assembled routines are intentionally not
+      represented yet. */
+   bytes = (uint32_t)depth * 4u;
+   end = (uint32_t)target->start + (uint32_t)target->size;
+   if (end > 0x10000u) {
+      fprintf(stderr, "n65ld: MEMORY region '%s' extends beyond address space\n", target->name);
+      exit(1);
+   }
+   if (bytes > target->size) {
+      fprintf(stderr, "n65ld: call graph requires %" PRIu32 " hardware-stack bytes but MEMORY region '%s' has only %u\n",
+              bytes, target->name, (unsigned)target->size);
+      exit(1);
+   }
+
+   cfg->call_stack_enabled = 1;
+   snprintf(cfg->call_stack_region, sizeof(cfg->call_stack_region), "%s", target->name);
+   cfg->call_stack_depth = depth;
+   cfg->call_stack_size = (uint16_t)bytes;
+   cfg->call_stack_start = (uint16_t)(end - bytes);
+   cfg->call_stack_top = (uint16_t)(end - 1u);
+   target->size = (uint16_t)(target->size - bytes);
 }
 
 //! @brief Add global to linker layout and image writer state, growing storage or preserving uniqueness as needed.
@@ -824,6 +919,12 @@ static void add_generated_symbols(layout_t *layout)
    add_global(layout, "__init_table", layout->init_table_addr, O65_SEG_ABS, "<linker>");
    add_global(layout, "__stack_start", layout->stack_start, O65_SEG_ABS, "<linker>");
    add_global(layout, "__stack_top", layout->stack_top, O65_SEG_ABS, "<linker>");
+   if (layout->call_stack_enabled) {
+      add_global(layout, "__call_stack_depth", layout->call_stack_depth, O65_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_size", layout->call_stack_size, O65_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_start", layout->call_stack_start, O65_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_top", layout->call_stack_top, O65_SEG_ABS, "<linker>");
+   }
 }
 
 //! @brief Find global addr in linker layout and image writer tables without transferring ownership.
@@ -1045,6 +1146,11 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    }
 
    memset(layout, 0, sizeof(*layout));
+   layout->call_stack_enabled = cfg->call_stack_enabled;
+   layout->call_stack_depth = cfg->call_stack_depth;
+   layout->call_stack_size = cfg->call_stack_size;
+   layout->call_stack_start = cfg->call_stack_start;
+   layout->call_stack_top = cfg->call_stack_top;
    (void)ensure_cursor(layout, cfg, code_load_name);
    (void)ensure_cursor(layout, cfg, data_load_name);
    (void)ensure_cursor(layout, cfg, data_run_name);
@@ -1485,6 +1591,15 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "  __init_table  $%04X size=$%04X\n", layout->init_table_addr, layout->init_table_size);
    fprintf(fp, "  __stack_start $%04X\n", layout->stack_start);
    fprintf(fp, "  __stack_top   $%04X\n", layout->stack_top);
+   if (layout->call_stack_enabled) {
+      fprintf(fp, "\nCALL STACK\n");
+      fprintf(fp, "  region=%s depth=%u bytes=$%04X physical=$%04X-$%04X\n",
+              cfg->call_stack_region,
+              (unsigned)layout->call_stack_depth,
+              layout->call_stack_size,
+              layout->call_stack_start,
+              layout->call_stack_top);
+   }
 
    fprintf(fp, "\nSYMBOLS\n");
    for (i = 0; i < layout->global_count; ++i) {
@@ -1655,7 +1770,10 @@ int main(int argc, char **argv)
    select_needed_objects(&inputs);
    validate_abi_metadata(&inputs);
    validate_mem_region_metadata(&cfg, &inputs);
-   enforce_symbol_backed_call_graph(&inputs);
+   {
+      uint16_t call_depth = enforce_symbol_backed_call_graph(&inputs);
+      reserve_call_stack_from_call_graph(&cfg, call_depth);
+   }
    warn_unused_cmdline_objects(&inputs);
    layout_objects(&cfg, &inputs, &layout);
    add_generated_symbols(&layout);
