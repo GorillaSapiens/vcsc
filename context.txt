@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_215237.tar.gz
+    vcsc.20260716_224332.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -111,6 +111,10 @@ Completed vertical slices
     indirect/absolute/bit-field assignment, runtime local and return-object
     initialization, and local absolute-reference initialization now use fixed
     BSS scratch. `compile_stmt.c` no longer emits `_pushN` or `_popN`.
+15. Pointer/index lvalue evaluation, bit-field helper pointer preservation,
+    braced assignments, and runtime global initializers now use fixed BSS
+    scratch. `compile_lvalue.c` and `compile_init.c` no longer emit `_pushN` or
+    `_popN`; only obsolete operator-overload paths still do.
 
 Current return ABI
 ------------------
@@ -227,16 +231,15 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    10  emitted `_pushN` allocation sites
-    22  emitted `_popN` normal/error cleanup paths
+    5   emitted `_pushN` allocation sites
+    13  emitted `_popN` normal/error cleanup paths
 
-The remaining allocations are classified as:
+Every remaining allocation belongs to obsolete operator-overload or weak-
+operator dispatch. Retained direct-call, expression, statement, lvalue, and
+initializer lowering is software-stack-free.
 
-* retained pointer/index lvalue and braced-assignment initializer scratch;
-* conditional bit-field and runtime-global-initializer scratch;
-* obsolete operator-overload, float, wide-integer, and arbitrary-endian paths.
-
-`compile_stmt.c` has no remaining target software-stack emitter.
+`compile_stmt.c`, `compile_lvalue.c`, `compile_init.c`, and `compile_call.c`
+have no remaining target software-stack emitter.
 
 There are no remaining `_pushN` sites whose purpose is to allocate ordinary
 named automatic locals or `$$`.
@@ -268,11 +271,9 @@ Files changed in this revision
 ------------------------------
 Modified compiler source:
 
-    compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
+    compiler/compile_expr_flow.c
+    compiler/compile_init.c
     compiler/compile_lvalue.c
-    compiler/compile_lvalue.h
-    compiler/compile_support.c
 
 Modified documentation and handoff state:
 
@@ -288,8 +289,7 @@ Modified tests:
 
 Added tests:
 
-    test/cast_abs_incdec_fixed_scratch_codegen_test.n
-    test/e2e_fixed_cast_abs_incdec_verify.n
+    test/lvalue_braced_global_fixed_scratch_codegen_test.n
 
 Removed intentionally:
 
@@ -323,15 +323,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    277 passed, 0 failed, 277 total
+    280 passed, 0 failed, 280 total
 
 End-to-end/generic suite:
 
     123 passed, 0 failed, 123 total
 
-The compile suite completed in one invocation. The end-to-end/generic runner
-reached the execution wrapper timeout after 117 passing cases; the remaining
-six cases were run explicitly and all passed, accounting for all 123 cases.
+The compile suite completed in one invocation. The full end-to-end invocation
+reached the execution wrapper timeout after 95 passing cases; the remaining 28
+cases were run explicitly and all passed, accounting for all 123 cases.
 
 Immediate TODO
 --------------
@@ -362,19 +362,13 @@ The first unfinished item is the default next action.
 
 [x] 9. Remove function pointers and the indirect-call software-stack ABI.
 
-[ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
-        probably with fixed scratch plus register-first lowering and later
-        overlay/liveness reuse. Truth-value evaluation, discarded results,
-        simple fixed-symbol and indirect/absolute/bit-field assignment,
-        comparisons, pointer/scalar arithmetic, shifts, bitwise operations,
-        multiplication/division/remainder, casts, absolute-reference conversion,
-        built-in increment/decrement and compound assignment, switch comparison,
-        runtime local/return initialization, and local absolute-reference
-        initialization are complete. Next batch pointer/index lvalue scratch,
-        then braced-assignment and runtime-global-initializer scratch.
+[x] 10. Replace retained expression, statement, lvalue, and initializer
+        temporary storage for the 8/16-bit language with fixed BSS scratch.
+        Scratch overlay/liveness reuse remains a later optimization.
 
-[ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
-        retained compiler path depends on it.
+[ ] 11. Remove operator overloading, `$exactops`, and weak built-in operator
+        dispatch. These are the only compiler paths still emitting `_pushN` or
+        `_popN`; then remove _nl_sp/_nl_fp and the software argument/local stack.
 
 [ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
         Remove floats, arbitrary endian, and 32/64-bit support and tests in
@@ -559,6 +553,20 @@ Change log
 * Passed 277/277 compile tests and 123/123 end-to-end/generic tests.
 * Recorded the pre-existing assignment-expression `post++` fast-path defect for
   a later independent fix; standalone built-in increment/decrement is correct.
+* No files were removed.
+
+2026-07-16, lvalue/braced/global-init fixed-scratch batch
+* Replaced nonconstant pointer/index lvalue scratch with per-site
+  `__n65_indextmp_N` BSS storage.
+* Removed unnecessary software-stack pointer saves from bit-field read/write
+  helpers; preparing `ptr1` does not clobber the lvalue address in `ptr0`.
+* Replaced braced-assignment scratch with `__n65_bracedtmp_N`.
+* Replaced the synthesized runtime-global-initializer software frame with
+  `__n65_globalinittmp_N`, preserving and restoring the caller `fp` through the
+  6502 hardware stack.
+* `compile_lvalue.c` and `compile_init.c` no longer emit `_pushN` or `_popN`.
+* Software-stack inventory fell from 10/22 to 5/13; every survivor is an
+  obsolete operator-overload/weak-operator path.
 * No files were removed.
 
 End-of-session checklist

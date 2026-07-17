@@ -1,0 +1,26 @@
+// n65c -I .
+// expectasm: __n65_indextmp_
+// expectasm: __n65_bracedtmp_
+// expectasm: __n65_globalinittmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.n"
+
+struct Pair {
+   int a;
+   int b;
+};
+
+int twice(int x) {
+   return x + x;
+}
+
+int seed := 3;
+int initialized := twice(seed);
+Pair pairs[2];
+
+void test(void) {
+   int index := 1;
+   pairs[index] := { 7, 9 };
+}

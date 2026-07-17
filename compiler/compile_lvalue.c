@@ -22,6 +22,54 @@
 #include "xray.h"
 #include "lextern.h"
 
+typedef struct LValueFixedScratch {
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   char symbol[96];
+} LValueFixedScratch;
+
+//! @brief Begin fixed-address lvalue scratch and redirect fp to it.
+static void lvalue_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+                                       LValueFixedScratch *scratch) {
+   memset(scratch, 0, sizeof(*scratch));
+   scratch->saved_locals = ctx ? ctx->locals : 0;
+   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   scratch->reserved = reserved > 0 ? reserved : 1;
+   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+   if (ctx) {
+      ctx->locals = scratch->reserved;
+      ctx->locals_high_water = scratch->reserved;
+   }
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Restore fp and declare fixed-address lvalue scratch.
+static void lvalue_fixed_scratch_end(Context *ctx, LValueFixedScratch *scratch) {
+   int used = scratch->reserved;
+   if (ctx && ctx->locals_high_water > used) {
+      used = ctx->locals_high_water;
+   }
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (ctx) {
+      ctx->locals = scratch->saved_locals;
+      ctx->locals_high_water = scratch->saved_high_water;
+   }
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch->symbol);
+   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+}
+
 //! @brief Handle absolute ref supports direct access logic for compiler lvalue lowering.
 static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
    return lv && lv->is_absolute_ref && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address;
@@ -438,44 +486,26 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          const ASTNode *idx_type = expr_value_type((ASTNode *) idx, ctx);
          int ptr_size = get_size("*");
          require_no_mixed_endian_pointer_index_expr((ASTNode *) idx, (ASTNode *) idx, ctx, "[]");
-         int saved_locals = ctx ? ctx->locals : 0;
-         int idx_offset = saved_locals;
+         int idx_offset = 0;
          int factor_offset = idx_offset + ptr_size;
          int scaled_offset = factor_offset + ptr_size;
          int save_ptr0_offset = elem_size != 1 ? (scaled_offset + (ptr_size * 2)) : (idx_offset + ptr_size);
          int total = (save_ptr0_offset - idx_offset) + ptr_size;
          ContextEntry idx_tmp = { .name = "$idx", .type = idx_type ? idx_type : required_typename_node("int"), .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = idx_offset, .size = ptr_size };
+         LValueFixedScratch scratch;
 
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
+         lvalue_fixed_scratch_begin(ctx, "indextmp", total, &scratch);
          emit_store_ptr_to_fp(save_ptr0_offset, 0, ptr_size);
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + total);
-         }
          if (!compile_expr_to_slot((ASTNode *) idx, ctx, &idx_tmp)) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+            lvalue_fixed_scratch_end(ctx, &scratch);
             return false;
-         }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
          }
          emit_load_ptr_from_fpvar(0, save_ptr0_offset);
          if (elem_size != 1) {
             unsigned char *factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
             char factor_buf[64];
             if (!factor_bytes) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", total & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
+               lvalue_fixed_scratch_end(ctx, &scratch);
                return false;
             }
             snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
@@ -494,10 +524,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          else {
             emit_add_fp_to_ptr(0, idx_offset, ptr_size);
          }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         lvalue_fixed_scratch_end(ctx, &scratch);
       }
 
       next_decl = declarator_after_subscript(*decl_io);
@@ -644,10 +671,6 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
 //! @brief Emit copy bitfield lvalue to frame pointer for compiler lvalue lowering diagnostics or output files.
 static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, int size) {
    int copy_size = size < src->size ? size : src->size;
-   bool dst_direct = dst_offset >= 0 && dst_offset + copy_size <= 256;
-   int saved_locals = ctx ? ctx->locals : 0;
-   int protected_locals = saved_locals;
-   int ptr_save_offset;
    bool is_signed;
    int src_byte_offset;
    int shift_bits;
@@ -658,37 +681,10 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
    if (copy_size <= 0) {
       return true;
    }
-   if (dst_offset + copy_size > protected_locals) {
-      protected_locals = dst_offset + copy_size;
-   }
-   ptr_save_offset = protected_locals;
-   if (ctx) {
-      ctx_set_locals(ctx, protected_locals);
-   }
    if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
-      }
       return false;
    }
-   if (!dst_direct) {
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$02\n");
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      emit_store_ptr_to_fp(ptr_save_offset, 0, get_size("*"));
-      if (ctx) {
-         ctx_set_locals(ctx, protected_locals + get_size("*"));
-      }
-      emit_prepare_fp_ptr(1, dst_offset);
-      emit_load_ptr_from_fpvar(0, ptr_save_offset);
-      if (ctx) {
-         ctx_set_locals(ctx, protected_locals);
-      }
-   }
-   if (dst_direct) {
-      emit_prepare_fp_ptr(1, dst_offset);
-   }
+   emit_prepare_fp_ptr(1, dst_offset);
 
    emit_runtime_fill_ptr1(copy_size, 0x00);
 
@@ -765,15 +761,6 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
          emit_prepare_fp_ptr(1, dst_offset);
       }
       emit(&es_code, "%s:\n", skip_label);
-   }
-   if (!dst_direct) {
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$02\n");
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
-   }
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }
@@ -930,40 +917,15 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
 static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
    int copy_size = size < dst->size ? size : dst->size;
    bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
-   int saved_locals = ctx ? ctx->locals : 0;
-   int protected_locals = saved_locals;
-   int ptr_save_offset;
 
    if (copy_size <= 0) {
       return true;
    }
-   if (src_offset + copy_size > protected_locals) {
-      protected_locals = src_offset + copy_size;
-   }
-   ptr_save_offset = protected_locals;
-   if (ctx) {
-      ctx_set_locals(ctx, protected_locals);
-   }
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
-      }
       return false;
    }
    if (!src_direct) {
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$02\n");
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      emit_store_ptr_to_fp(ptr_save_offset, 0, get_size("*"));
-      if (ctx) {
-         ctx_set_locals(ctx, protected_locals + get_size("*"));
-      }
       emit_prepare_fp_ptr(1, src_offset);
-      emit_load_ptr_from_fpvar(0, ptr_save_offset);
-      if (ctx) {
-         ctx_set_locals(ctx, protected_locals);
-      }
    }
    for (int bit = 0; bit < dst->bit_width; bit++) {
       int dst_byte = (dst->bit_offset + bit) / 8;
@@ -987,15 +949,6 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
       emit(&es_code, "    and #$%02x\n", (0xff ^ dst_mask) & 0xff);
       emit(&es_code, "    sta (ptr0),y\n");
       emit(&es_code, "%s:\n", done_label);
-   }
-   if (!src_direct) {
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$02\n");
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
-   }
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }

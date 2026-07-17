@@ -3,30 +3,30 @@ VCSC SOFTWARE-STACK INVENTORY
 
 Purpose
 -------
-This is the checked inventory for Immediate TODO step 6 in context.txt.  It
+This is the checked inventory for Immediate TODO step 6 in context.txt. It
 records every compiler site that still emits a runtime `_pushN` allocation and
-classifies why that storage exists.  It is a snapshot of the transitional ABI,
+classifies why that storage exists. It is a snapshot of the transitional ABI,
 not an endorsement of the software stack.
 
 Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_215237.tar.gz
+    vcsc.20260716_224332.tar.gz
 
 Compiler emission totals:
 
-    10  `jsr _pushN` allocation sites
-    22  `jsr _popN` emissions
+    5  `jsr _pushN` allocation sites
+    13 `jsr _popN` emissions
 
-The larger pop count is expected: most allocation sites have normal cleanup and
-one or more error-path cleanups.
+The larger pop count is expected: the surviving legacy branches have normal
+cleanup and several error-path cleanups.
 
 Named automatic locals
 ----------------------
 There are no remaining `_pushN` sites whose purpose is to allocate ordinary
-named automatic locals.  Named automatic locals and the hidden `$$` return
-object already use fixed-address symbols.
+named automatic locals. Named automatic locals and the hidden `$$` return
+object use fixed-address symbols.
 
 Do not confuse the compiler's host-side `ctx_push()` bookkeeping function with
 the target runtime helper `_pushN`; they are unrelated despite the unfortunate
@@ -35,18 +35,15 @@ name collision.
 Compiler allocation sites
 -------------------------
 
-`compiler/compile_expr_flow.c` -- 4 allocations
+`compiler/compile_expr_flow.c` -- 3 allocations
 
-1. Braced assignment initializer buffer.
-   Classification: initializer/aggregate scratch.
-
-2. Overloaded compound-assignment result buffer.
+1. Overloaded compound-assignment result buffer.
    Classification: obsolete operator-overloading support.
 
-3. Overloaded compound-assignment conversion buffer for symbol destinations.
+2. Overloaded compound-assignment conversion buffer for symbol destinations.
    Classification: obsolete operator-overloading support.
 
-4. Overloaded compound-assignment conversion buffer for indirect lvalues.
+3. Overloaded compound-assignment conversion buffer for indirect lvalues.
    Classification: obsolete operator-overloading support.
 
 `compiler/compile_expr_ops.c` -- 2 allocations
@@ -57,108 +54,66 @@ Compiler allocation sites
 2. Overloaded pre/post increment/decrement working area.
    Classification: obsolete operator-overloading support.
 
-`compiler/compile_init.c` -- 1 allocation
+No other compiler source file emits `_pushN` or `_popN`.
 
-1. Runtime global-initializer frame.
-   Classification: initializer scratch.  `ctx.locals` describes the maximum
-   temporary area needed by the synthesized initializer function.
+Completed retained-language replacements
+----------------------------------------
+The following retained paths use fixed compiler-generated BSS scratch:
 
-`compiler/compile_lvalue.c` -- 3 allocations
+* direct-call argument evaluation and A:X capture;
+* truth-value evaluation and discarded expression results;
+* scalar/pointer comparisons and arithmetic;
+* shifts, bitwise operations, multiplication, division, and remainder;
+* casts and absolute-reference conversion;
+* simple and compound assignments;
+* built-in increment/decrement;
+* switch expressions;
+* local and return-object initialization;
+* pointer/index lvalue calculation;
+* bit-field read/write helper pointer preservation;
+* braced assignments;
+* runtime global initializers.
 
-1. Pointer/index suffix evaluation and saved-pointer area.
-   Classification: retained pointer/lvalue expression scratch.
+The compiler temporarily redirects `fp` to each fixed area, tracks the maximum
+nested temporary depth, restores the caller `fp` through the 6502 hardware
+stack, and copies results into the final destination. Scratch is currently
+allocated per site and is not overlaid.
 
-2. Bit-field read helper saved-pointer area.
-   Classification: bit-field/lvalue scratch; retain only if bit-fields remain.
+New scratch families in this revision include:
 
-3. Bit-field write helper saved-pointer area.
-   Classification: bit-field/lvalue scratch; retain only if bit-fields remain.
+    __n65_indextmp_N
+    __n65_bracedtmp_N
+    __n65_globalinittmp_N
 
-
+The bit-field helper paths no longer need scratch merely to preserve `ptr0`:
+`_fp2ptr1p` only writes `ptr1`, so the destination/source frame pointer can be
+prepared directly without disturbing the lvalue pointer in `ptr0`.
 
 Non-emitting compiler consumers
 -------------------------------
-Helpers that manipulate `ctx->locals` and `(fp),y` scratch without emitting
-`_pushN` own no persistent function frame. Their temporary bytes belong to an
-enclosing expression, statement, initializer, or lvalue allocation.
-
+Helpers that manipulate `ctx->locals` and `(fp),y` temporary offsets without
+emitting `_pushN` own no persistent function frame. Their bytes belong to an
+enclosing fixed scratch area.
 
 Runtime and generated-library dependencies
 ------------------------------------------
-The target stack mechanism itself lives in:
+The target stack mechanism itself still lives in:
 
     libraries/nlib/asm/stack.asm       `_pushN` and `_popN`
     libraries/nlib/nlib_zeropage.s     `_nl_sp` and `_nl_fp`
     libraries/nlib/nlib.inc            `sp` and `fp` aliases
     libraries/nlib/nrt0.s              startup initialization
 
-Large additional dependency families are already outside the final language:
+Additional obsolete dependency families include:
 
-* `libraries/float/asm/*` uses `_pushN`/`_popN` extensively.
-* `libraries/nlib/genasm.pl`, `gen_weakops.pl`, and `asm/weakops.asm` generate
-  wide/general arithmetic helpers around the old stack ABI.
-
-Disposition and implementation order
-------------------------------------
-
-A. Remove first, because the feature itself is unwanted:
-
-   * operator overloading and weak built-in operator calls;
-   * float, wide-integer, and arbitrary-endian branches;
-   * bit-field or aggregate-only scratch if those features are later rejected.
-
-B. Replace for the retained language:
-
-   * scalar truth/comparison/binary/shift/cast scratch;
-   * pointer arithmetic and indexing scratch;
-   * simple/compound assignment scratch;
-   * switch-expression scratch;
-   * scalar runtime initializer and return-object scratch.
-
-C. Replace conditionally, after language-surface decisions:
-
-   * aggregate/braced initializer scratch;
-   * bit-field scratch;
-   * runtime global initializers.
-
-Completed expression-scratch slices
------------------------------------
-Truth-value evaluation, discarded expression results, simple assignment
-conversion into fixed-symbol destinations, indirect/absolute/bit-field simple
-assignment, two-operand comparisons, pointer subtraction, scalar/pointer
-addition and subtraction, shifts, bitwise operations, multiplication, division,
-remainder, casts, local/global absolute-reference conversion, built-in
-increment/decrement, built-in compound assignment, switch expressions, runtime
-local/return-object initialization, and local absolute-reference initialization
-now use private fixed BSS scratch. New symbols in this revision include
-`__n65_lvalueassigntmp_N`, `__n65_compoundtmp_N`, `__n65_switchtmp_N`,
-`__n65_inittmp_N`, and `__n65_absinittmp_N`.
-
-The compiler temporarily redirects `fp` to each symbol, tracks nested scratch
-high-water, restores the caller frame through the 6502 hardware stack, and
-copies converted result bytes into the caller destination. These paths no
-longer emit `_pushN` or `_popN`. Scratch is per evaluation site and is not
-overlaid yet.
-
-Completed call-ABI removal slices
----------------------------------
-Ordinary direct calls use fixed BSS scratch named `__n65_calltmp_N`. Arguments
-are copied into callee-owned parameter symbols, and A:X is captured there only
-when conversion into a memory-backed destination is required.
-
-Variadic syntax, call lowering, hidden callee metadata, compiler builtins,
-`libraries/nlib/stdarg.n`, and `libraries/nlib/sprintf.n` have been removed.
-The lexer rejects `...`. The obsolete direct-call software-stack fallback and
-persistent per-function software frame were deleted.
-
-Function pointers and indirect calls have also been removed completely. The
-compiler rejects function-pointer declarators and function designators used as
-values, and the `_callptr0` runtime trampoline is gone. `compile_call.c` no
-longer emits `_pushN` or `_popN`.
+* `libraries/float/asm/*`, which uses `_pushN`/`_popN` extensively;
+* `libraries/nlib/genasm.pl`, `gen_weakops.pl`, and `asm/weakops.asm`, which
+  generate wide/general weak-operator helpers around the old stack ABI.
 
 Recommended next slice
 ----------------------
-Replace pointer/index lvalue scratch next, including the saved-pointer areas used
-by ordinary indexing. Then replace or reject braced-assignment initializer
-scratch. Operator-overload-only emitters should be deleted with operator
-overloading rather than converted.
+Remove operator overloading, `$exactops`, weak built-in operator dispatch, and
+their positive tests. Those are the only compiler paths that still emit
+`_pushN` or `_popN`. After that, delete `_nl_sp`, `_pushN`, `_popN`, and the
+software argument/local stack once no retained runtime or generated helper
+requires them.

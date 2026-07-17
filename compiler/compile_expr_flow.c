@@ -274,52 +274,39 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
    }
 
    {
-      int saved_locals = ctx->locals;
-      int tmp_offset = saved_locals;
+      int tmp_offset = 0;
       char sym[256];
+      FlowFixedScratch scratch;
       bool dst_symbol = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                         !lv->is_absolute_ref && (dst->is_static || dst->is_zeropage || dst->is_global) &&
                         entry_symbol_name(ctx, dst, sym, sizeof(sym));
       bool dst_direct_fp = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                            !lv->is_absolute_ref && !dst->is_static && !dst->is_zeropage && !dst->is_global;
 
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      ctx_set_locals(ctx, saved_locals + size);
+      flow_fixed_scratch_prepare(ctx, "bracedtmp", size, &scratch);
+      flow_fixed_scratch_activate(ctx, &scratch);
 
       emit_zero_assignment_initializer_fp_target(tmp_offset, size);
       if (!compile_initializer_to_fp(rhs, ctx, dst->type, dst->declarator, tmp_offset, size)) {
-         ctx_set_locals(ctx, saved_locals);
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         flow_fixed_scratch_end(ctx, &scratch);
          error_user("[%s:%d.%d] invalid assignment initializer", node->file, node->line, node->column);
          return false;
       }
 
-      ctx_set_locals(ctx, saved_locals);
+      flow_fixed_scratch_end(ctx, &scratch);
       if (dst_symbol) {
-         emit_copy_fp_to_symbol_offset(sym, lv->offset, tmp_offset, size);
+         emit_copy_symbol_to_symbol_convert_offset(sym, lv->offset, size, dst->type,
+                                                   scratch.symbol, tmp_offset, size, dst->type);
       }
       else if (dst_direct_fp) {
-         emit_copy_fp_to_fp(dst->offset, tmp_offset, size);
+         emit_copy_symbol_to_fp_convert_offset(dst->offset, size, dst->type,
+                                               scratch.symbol, tmp_offset, size, dst->type);
       }
-      else if (!emit_copy_fp_to_lvalue(ctx, lv, tmp_offset, size)) {
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+      else if (!emit_copy_symbol_to_lvalue(ctx, lv, scratch.symbol, tmp_offset, size)) {
          error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
          return false;
       }
 
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
       return true;
    }
 }

@@ -844,12 +844,15 @@ static const char *runtime_global_init_symbol(void) {
 void emit_runtime_global_init_function(void) {
    Context ctx;
    const char *sym;
+   char scratch_sym[96];
+   int scratch_size;
 
    if (pending_global_init_count <= 0) {
       return;
    }
 
    sym = runtime_global_init_symbol();
+   snprintf(scratch_sym, sizeof(scratch_sym), "__n65_globalinittmp_%d", label_counter++);
    emit(&es_export, ".export %s\n", sym);
 
    ctx.name = sym;
@@ -861,17 +864,14 @@ void emit_runtime_global_init_function(void) {
    ctx.continue_label = NULL;
 
    emit(&es_code, ".proc %s\n", sym);
-   emit(&es_code, "    lda sp+1\n");
-   emit(&es_code, "    sta fp+1\n");
-   emit(&es_code, "    lda sp\n");
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", scratch_sym);
    emit(&es_code, "    sta fp\n");
-
-   if (ctx.locals > 0) {
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", ctx.locals & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-   }
+   emit(&es_code, "    lda #>%s\n", scratch_sym);
+   emit(&es_code, "    sta fp+1\n");
 
    for (int i = 0; i < pending_global_init_count; i++) {
       PendingGlobalInit *entry = &pending_global_inits[i];
@@ -900,14 +900,16 @@ void emit_runtime_global_init_function(void) {
       }
    }
 
-   if (ctx.locals > 0) {
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", ctx.locals & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
-   }
+   scratch_size = ctx.locals_high_water > 0 ? ctx.locals_high_water : 1;
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch_sym);
+   emit(&es_bss, "\t.res %d\n", scratch_size);
 }
 
 //! @brief Return aggregate initializer target name data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.

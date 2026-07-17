@@ -7,10 +7,8 @@ my $repo = shift @ARGV;
 die "usage: $0 REPO\n" unless defined $repo && -d $repo;
 
 my %expected = (
-    'compile_expr_flow.c' => [4, 10],
+    'compile_expr_flow.c' => [3, 7],
     'compile_expr_ops.c'  => [2, 6],
-    'compile_init.c'      => [1, 1],
-    'compile_lvalue.c'    => [3, 5],
 );
 
 my $compiler = File::Spec->catdir($repo, 'compiler');
@@ -44,7 +42,7 @@ for my $file (sort keys %expected) {
         unless $seen{$file};
 }
 
-die "software-stack inventory total drift: got $total_push/$total_pop, expected 10/22\n"
-    unless $total_push == 10 && $total_pop == 22;
+die "software-stack inventory total drift: got $total_push/$total_pop, expected 5/13\n"
+    unless $total_push == 5 && $total_pop == 13;
 
-print "software-stack inventory ok: 10 push sites, 22 pop emissions\n";
+print "software-stack inventory ok: 5 push sites, 13 pop emissions\n";
