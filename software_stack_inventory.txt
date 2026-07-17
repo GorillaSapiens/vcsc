@@ -12,7 +12,7 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_172832.tar.gz
+    vcsc.20260716_174257.tar.gz
 
 Compiler emission totals:
 
@@ -44,12 +44,11 @@ Compiler allocation sites
    indirect calls are temporarily retained, but parameterized function
    pointers and varargs are already outside the intended final language.
 
-2. `compile_call_expr_to_slot()`
-   Classification: retained direct-call argument/result scratch plus obsolete
-   variadic/legacy-stack branches.
-   For the retained direct ABI this holds one reusable argument-conversion
-   buffer and, when needed, caller-private memory used to consume A:X.  This is
-   the first high-value call path to convert to fixed per-function scratch.
+2. `compile_call_expr_to_slot()` legacy branch
+   Classification: obsolete variadic direct-call frame.
+   Ordinary nonvariadic direct calls now bypass this allocation and use fixed
+   per-call-site `__n65_calltmp_N` BSS scratch. The allocation remains emitted
+   only by the isolated variadic/legacy direct-call branch.
 
 `compiler/compile_expr_flow.c` -- 10 allocations
 
@@ -198,7 +197,6 @@ A. Remove first, because the feature itself is unwanted:
 
 B. Replace for the retained language:
 
-   * direct-call argument conversion and A:X consumption;
    * scalar truth/comparison/binary/shift/cast scratch;
    * pointer arithmetic and indexing scratch;
    * simple/compound assignment scratch;
@@ -212,18 +210,25 @@ C. Replace conditionally, after language-surface decisions:
    * absolute-reference scratch;
    * runtime global initializers.
 
+Completed direct-call slice
+---------------------------
+Ordinary nonvariadic direct calls now use fixed BSS scratch named
+`__n65_calltmp_N`. The compiler tracks the highest temporary offset reached
+while compiling each argument and sizes that call-site symbol accordingly.
+Arguments are copied from that scratch into callee-owned parameter symbols, and
+A:X is captured there only when conversion into a memory-backed destination is
+required.
+
+Scratch is per call site so nested direct calls cannot overwrite an outer call's
+live argument evaluation. No overlay analysis exists yet, so this is deliberately
+RAM-hungry transitional storage. The source emission totals above do not change
+because the old allocation statement still exists for the variadic fallback,
+but retained ordinary direct calls no longer execute that generated path.
+
 Recommended next slice
 ----------------------
-Introduce fixed-address per-function scratch symbols and convert the retained
-**direct-call** path first:
-
-1. reserve a function-qualified argument-conversion buffer sized to the largest
-   fixed parameter used at any direct call in the function;
-2. reserve a two-byte function-qualified A:X consumption buffer;
-3. make `compile_call_expr_to_slot()` use those symbols instead of `_pushN`;
-4. leave indirect/variadic calls on the old path temporarily, clearly isolated;
-5. add code-generation and execution tests proving nested direct calls do not
-   use `_pushN` merely to pass or consume scalar arguments/results.
-
-This removes the ABI-facing stack use before attacking the much larger generic
-expression engine.
+Remove variadic support and its stdarg/runtime machinery. That will delete the
+now-isolated direct-call software-stack fallback, reduce the checked emission
+counts, and leave only indirect calls plus general expression/lvalue scratch on
+the old stack. After that, settle whether zero-argument function pointers are
+worth retaining before attacking the broader scalar expression engine.

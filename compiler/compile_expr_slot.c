@@ -331,11 +331,11 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       emit(&es_code, "    jsr _pushN\n");
       tmp = (ContextEntry){ .name = "$cast", .type = target_type, .declarator = target_decl, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = saved_locals, .size = target_size };
       if (ctx) {
-         ctx->locals = saved_locals + target_size;
+         ctx_set_locals(ctx, saved_locals + target_size);
       }
       if (!compile_expr_to_slot(expr->children[1], ctx, &tmp)) {
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", target_size & 0xff);
@@ -344,7 +344,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          return false;
       }
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, tmp.offset, tmp.size, tmp.type);
       remember_runtime_import("popN");

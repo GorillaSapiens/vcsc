@@ -874,6 +874,7 @@ void emit_runtime_global_init_function(void) {
 
    ctx.name = sym;
    ctx.locals = pending_global_init_max_size;
+   ctx.locals_high_water = pending_global_init_max_size;
    ctx.params = 0;
    ctx.vars = new_set();
    ctx.break_label = NULL;

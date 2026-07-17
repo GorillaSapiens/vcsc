@@ -452,11 +452,11 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          emit(&es_code, "    jsr _pushN\n");
          emit_store_ptr_to_fp(save_ptr0_offset, 0, ptr_size);
          if (ctx) {
-            ctx->locals = saved_locals + total;
+            ctx_set_locals(ctx, saved_locals + total);
          }
          if (!compile_expr_to_slot((ASTNode *) idx, ctx, &idx_tmp)) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", total & 0xff);
@@ -465,7 +465,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
             return false;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          emit_load_ptr_from_fpvar(0, save_ptr0_offset);
          if (elem_size != 1) {
@@ -663,11 +663,11 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
    }
    ptr_save_offset = protected_locals;
    if (ctx) {
-      ctx->locals = protected_locals;
+      ctx_set_locals(ctx, protected_locals);
    }
    if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       return false;
    }
@@ -678,12 +678,12 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
       emit(&es_code, "    jsr _pushN\n");
       emit_store_ptr_to_fp(ptr_save_offset, 0, get_size("*"));
       if (ctx) {
-         ctx->locals = protected_locals + get_size("*");
+         ctx_set_locals(ctx, protected_locals + get_size("*"));
       }
       emit_prepare_fp_ptr(1, dst_offset);
       emit_load_ptr_from_fpvar(0, ptr_save_offset);
       if (ctx) {
-         ctx->locals = protected_locals;
+         ctx_set_locals(ctx, protected_locals);
       }
    }
    if (dst_direct) {
@@ -773,7 +773,7 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
       emit(&es_code, "    jsr _popN\n");
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }
@@ -794,11 +794,11 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
    }
    ptr_save_offset = protected_locals;
    if (ctx) {
-      ctx->locals = protected_locals;
+      ctx_set_locals(ctx, protected_locals);
    }
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       return false;
    }
@@ -809,12 +809,12 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
       emit(&es_code, "    jsr _pushN\n");
       emit_store_ptr_to_fp(ptr_save_offset, 0, get_size("*"));
       if (ctx) {
-         ctx->locals = protected_locals + get_size("*");
+         ctx_set_locals(ctx, protected_locals + get_size("*"));
       }
       emit_prepare_fp_ptr(1, src_offset);
       emit_load_ptr_from_fpvar(0, ptr_save_offset);
       if (ctx) {
-         ctx->locals = protected_locals;
+         ctx_set_locals(ctx, protected_locals);
       }
    }
    for (int bit = 0; bit < dst->bit_width; bit++) {
@@ -847,7 +847,7 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
       emit(&es_code, "    jsr _popN\n");
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }
@@ -885,11 +885,11 @@ bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, 
       protected_locals = dst_offset + copy_size;
    }
    if (ctx) {
-      ctx->locals = protected_locals;
+      ctx_set_locals(ctx, protected_locals);
    }
    if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       return false;
    }
@@ -903,7 +903,7 @@ bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, 
       emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }
@@ -941,11 +941,11 @@ bool emit_copy_fp_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, 
       protected_locals = src_offset + copy_size;
    }
    if (ctx) {
-      ctx->locals = protected_locals;
+      ctx_set_locals(ctx, protected_locals);
    }
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       return false;
    }
@@ -959,7 +959,7 @@ bool emit_copy_fp_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, 
       emit(&es_code, "    sta (ptr0),y\n");
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
    return true;
 }

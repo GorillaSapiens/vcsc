@@ -49,6 +49,7 @@ typedef struct ContextEntry {
 typedef struct Context {
    const char *name;
    int locals;
+   int locals_high_water;
    int params;
    Set *vars;
    const char *break_label;
@@ -115,6 +116,8 @@ extern const ASTNode *current_call_graph_function;
 
 const ASTNode *global_decl_lookup(const char *name);
 ContextEntry *ctx_lookup(Context *ctx, const char *name);
+void ctx_set_locals(Context *ctx, int value);
+void ctx_add_locals(Context *ctx, int value);
 void ctx_push(Context *ctx, const ASTNode *type, const char *name);
 void ctx_resize_last_push(Context *ctx, const ASTNode *type, const ASTNode *declarator, const char *name);
 void ctx_static(Context *ctx, const ASTNode *type, const char *name);

@@ -363,7 +363,7 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
    emit(&es_code, "    lda #$%02x\n", size & 0xff);
    emit(&es_code, "    sta arg0\n");
    emit(&es_code, "    jsr _pushN\n");
-   ctx->locals = saved_locals + size;
+   ctx_set_locals(ctx, saved_locals + size);
 
    if (initializer_is_list(unwrap_expr_node(expression)) ||
        declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
@@ -390,7 +390,7 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
       ok = compile_expr_to_slot(expression, ctx, &target);
    }
 
-   ctx->locals = saved_locals;
+   ctx_set_locals(ctx, saved_locals);
    if (ok) {
       emit_copy_fp_to_symbol(symbol, scratch_offset, size);
    }
@@ -914,12 +914,12 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    emit(&es_code, "    sta arg0\n");
    emit(&es_code, "    jsr _pushN\n");
    if (ctx) {
-      ctx->locals = saved_locals + compare_size;
+      ctx_set_locals(ctx, saved_locals + compare_size);
    }
 
    if (!compile_expr_to_slot(expr, ctx, &lhs)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       error_user("[%s:%d.%d] invalid switch expression", node->file, node->line, node->column);
       remember_runtime_import("popN");
@@ -932,7 +932,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       return;
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
 
    for (int i = 0; i < section_count; i++) {
@@ -966,18 +966,18 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
 
          if (!high) {
             if (ctx) {
-               ctx->locals = saved_locals + compare_size;
+               ctx_set_locals(ctx, saved_locals + compare_size);
             }
             if (!compile_constant_expr_to_slot(low, ctx, &rhs) &&
                 !compile_expr_to_slot(low, ctx, &rhs)) {
                if (ctx) {
-                  ctx->locals = saved_locals;
+                  ctx_set_locals(ctx, saved_locals);
                }
                error_user("[%s:%d.%d] invalid case expression", low->file, low->line, low->column);
                continue;
             }
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, lhs.offset);
             emit_prepare_fp_ptr(1, rhs.offset);
@@ -1022,19 +1022,19 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             }
 
             if (ctx) {
-               ctx->locals = saved_locals + compare_size;
+               ctx_set_locals(ctx, saved_locals + compare_size);
             }
             if (!compile_constant_expr_to_slot(ordered_low, ctx, &rhs) &&
                 !compile_expr_to_slot(ordered_low, ctx, &rhs)) {
                if (ctx) {
-                  ctx->locals = saved_locals;
+                  ctx_set_locals(ctx, saved_locals);
                }
                free((void *) skip_label);
                error_user("[%s:%d.%d] invalid case range start", ordered_low->file, ordered_low->line, ordered_low->column);
                continue;
             }
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, rhs.offset);
             emit_prepare_fp_ptr(1, lhs.offset);
@@ -1046,19 +1046,19 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             emit(&es_code, "    beq %s\n", skip_label);
 
             if (ctx) {
-               ctx->locals = saved_locals + compare_size;
+               ctx_set_locals(ctx, saved_locals + compare_size);
             }
             if (!compile_constant_expr_to_slot(ordered_high, ctx, &rhs) &&
                 !compile_expr_to_slot(ordered_high, ctx, &rhs)) {
                if (ctx) {
-                  ctx->locals = saved_locals;
+                  ctx_set_locals(ctx, saved_locals);
                }
                free((void *) skip_label);
                error_user("[%s:%d.%d] invalid case range end", ordered_high->file, ordered_high->line, ordered_high->column);
                continue;
             }
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             emit_prepare_fp_ptr(0, lhs.offset);
             emit_prepare_fp_ptr(1, rhs.offset);
@@ -1075,17 +1075,17 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       }
 
       if (ctx) {
-         ctx->locals = saved_locals + compare_size;
+         ctx_set_locals(ctx, saved_locals + compare_size);
       }
       if (!compile_expr_to_slot(case_expr, ctx, &rhs)) {
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          error_user("[%s:%d.%d] invalid case expression", case_expr->file, case_expr->line, case_expr->column);
          continue;
       }
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       emit_prepare_fp_ptr(0, lhs.offset);
       emit_prepare_fp_ptr(1, rhs.offset);
@@ -1112,11 +1112,11 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       emit(&es_code, "%s:\n", case_labels[i]);
       if (body && !is_empty(body)) {
          if (ctx) {
-            ctx->locals = saved_locals + compare_size;
+            ctx_set_locals(ctx, saved_locals + compare_size);
          }
          compile_statement_list(body, ctx);
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
       }
    }

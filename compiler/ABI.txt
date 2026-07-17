@@ -5,8 +5,9 @@ Current transitional function ABI
 
 This document describes the ABI while the compiler is being reduced for the
 Atari 2600. Fixed parameters and named automatic locals use callee-owned
-symbols. Expression temporaries, caller argument-evaluation scratch, and
-variadic argument blobs still use the existing software stack for now.
+symbols. Ordinary nonvariadic direct calls use fixed call-site scratch.
+Expression temporaries outside that path, indirect calls, and variadic argument
+blobs still use the existing software stack for now.
 
 Function returns
 ----------------
@@ -28,34 +29,35 @@ a hidden callee-owned symbol. `return expr;` writes the converted value to
 `$$`. At the common epilogue, the compiler loads the high byte into X when
 present, loads the low byte into A, and executes RTS.
 
-Before an ordinary direct call:
+Before an ordinary nonvariadic direct call, the compiler assigns the call site
+a private fixed BSS symbol such as `__n65_calltmp_0`. For each fixed argument:
 
-; reserve one caller-owned scratch area large enough to evaluate the largest
-; fixed parameter, if any
-; evaluate fixed arguments left-to-right
-; copy each converted argument into its callee-owned parameter symbol
-; save caller frame pointer on HARDWARE stack
+; save caller fp on the HARDWARE stack
 lda fp+1
 pha
 lda fp
 pha
-; call target
-jsr _foo
-; A:X now contains the return value when the function is non-void
-; restore caller frame pointer without destroying A:X
-; A is temporarily moved through Y; X is left untouched
-tay
+; redirect fp to fixed call-site scratch
+lda #<__n65_calltmp_0
+sta fp
+lda #>__n65_calltmp_0
+sta fp+1
+; evaluate and convert the argument through that scratch
+; copy it into the callee-owned parameter symbol
+; restore caller fp
 pla
 sta fp
 pla
 sta fp+1
-tya
-; consume or copy A:X as required by the enclosing expression
-; release caller parameter-evaluation scratch, if any
 
-The current expression engine may reserve caller-local scratch space and copy
-A:X into it after a call. That scratch is not part of the callee ABI and is a
-transitional consequence of retaining the old stack-based expression engine.
+The caller then saves `fp`, executes JSR, and restores `fp` without destroying
+A:X. If the enclosing expression needs a memory-backed result, A:X is copied to
+the same fixed call-site scratch and converted into its destination.
+
+The scratch symbol is sized to the greatest temporary depth observed while
+compiling any argument at that call site, or to the consumed return width when
+larger. Scratch is allocated per call site so nested calls remain safe. It is
+not overlaid yet, so this transitional ABI can consume more RAM than necessary.
 
 Function prologue:
 
@@ -108,10 +110,10 @@ parameters explicitly assigned to a zero-page memory region use zero-page
 symbols. The caller evaluates arguments from left to right and writes each
 converted value to the corresponding symbol before JSR.
 
-A direct call therefore places no fixed parameter bytes on the software stack.
-The caller may temporarily reserve one reusable evaluation scratch area sized
-to the largest fixed parameter. That scratch belongs to the caller and is not
-part of the callee ABI.
+A direct call therefore places no fixed parameter bytes on the software stack
+and allocates no software-stack call frame. Argument conversion and optional
+A:X consumption use the call site's fixed `__n65_calltmp_N` symbol. That scratch
+belongs to the caller and is not part of the callee ABI.
 
 Every function body owns one fixed activation record containing its parameters,
 automatic locals, and return object when present. No function may be active

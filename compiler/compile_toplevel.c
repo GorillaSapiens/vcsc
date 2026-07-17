@@ -140,6 +140,7 @@ void compile_function_decl(ASTNode *node) {
    Context ctx;
    ctx.name = strdup(sym);
    ctx.locals = 0;
+   ctx.locals_high_water = 0;
    ctx.params = 0;
    ctx.vars = new_set();
    ctx.break_label = NULL;

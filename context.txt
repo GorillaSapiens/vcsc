@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_172832.tar.gz
+    vcsc.20260716_174257.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -86,6 +86,9 @@ Completed vertical slices
 6. Every remaining compiler `_pushN` allocation site has been inventoried and
    classified in top-level software_stack_inventory.txt. A regression test
    detects unrecorded additions, removals, or count changes.
+7. Ordinary nonvariadic direct calls now evaluate arguments and consume A:X
+   through fixed compiler-generated call-site scratch rather than allocating a
+   software-stack call frame.
 
 Current return ABI
 ------------------
@@ -116,9 +119,10 @@ Pointers to aggregate or otherwise unsupported pointee types are legal because
 the returned value is still a 16-bit pointer.
 
 There is no compiler `return_value` metadata mode and no caller-owned return
-storage. A caller that consumes a result may still copy A:X to caller-private
-software-stack scratch because the old expression engine expects memory-backed
-values. That scratch is not part of the function ABI.
+storage. An ordinary direct caller that must feed A:X into the still-memory-
+based expression engine copies it to fixed compiler-generated call-site scratch.
+That scratch is not part of the callee ABI. Indirect and variadic legacy paths
+still use the software stack temporarily.
 
 Inside a non-void function, `$$` is the source-level return object. It is a
 hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
@@ -126,17 +130,24 @@ hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
 Current direct-parameter ABI
 ----------------------------
 Every fixed parameter of a directly named function has a callee-owned symbol.
-At a direct call, the caller:
+At each ordinary nonvariadic direct call, the compiler emits one private BSS
+scratch symbol named `__n65_calltmp_N`. The caller:
 
-1. reserves one reusable temporary area large enough for the largest argument;
-2. evaluates arguments left-to-right;
-3. converts each argument in that scratch area;
-4. copies it to the corresponding callee parameter symbol;
-5. executes JSR;
-6. consumes A:X and releases scratch.
+1. saves the current `fp` on the 6502 hardware stack;
+2. temporarily points `fp` at the fixed call-site scratch;
+3. evaluates each argument left-to-right and copies the converted value to the
+   corresponding callee parameter symbol;
+4. restores `fp` after each argument;
+5. executes JSR while preserving the returned A:X across `fp` restoration;
+6. copies A:X through the same fixed scratch only when the enclosing expression
+   needs a memory-backed converted value.
 
-The temporary evaluation area still uses the software stack. Parameters do not.
-Parameter symbols may be ordinary absolute storage or zero-page storage.
+The scratch size is the maximum temporary depth observed while compiling any
+argument at that call site, or the consumed return width when larger. Nested
+calls are safe because scratch is allocated per call site rather than once per
+function. Scratch is not overlaid yet, so this intentionally trades RAM for a
+clean stack-free direct-call path. Parameter symbols may be ordinary absolute
+storage or zero-page storage.
 
 Call-graph and function-pointer rules
 -------------------------------------
@@ -203,7 +214,8 @@ At this snapshot the compiler contains:
 
 The remaining allocations are classified as:
 
-* retained direct-call argument conversion and A:X consumption scratch;
+* legacy variadic and indirect-call frames; ordinary nonvariadic direct calls no
+  longer allocate them;
 * retained scalar/pointer expression, conversion, lvalue, switch, and
   initializer scratch;
 * conditional aggregate, bit-field, absolute-reference, and runtime-global-
@@ -239,18 +251,35 @@ In this return-restriction slice:
 
 Files changed in this revision
 ------------------------------
+Modified compiler source:
+
+    compiler/compile_call.c
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_function.c
+    compiler/compile_init.c
+    compiler/compile_internal.h
+    compiler/compile_lvalue.c
+    compiler/compile_stmt.c
+    compiler/compile_support.c
+    compiler/compile_toplevel.c
+
 Modified documentation:
 
+    compiler/ABI.txt
+    compiler/README.md
     context.txt
-
-Added documentation:
-
     software_stack_inventory.txt
+
+Modified tests:
+
+    test/register_parameter_zeropage_codegen_test.n
+    test/return_ax_uint16_codegen_test.n
 
 Added tests:
 
-    test/software_stack_inventory.pl
-    test/software_stack_inventory.test
+    test/direct_call_fixed_scratch_codegen_test.n
 
 Removed intentionally:
 
@@ -263,13 +292,13 @@ Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_toolroot
+    /mnt/data/vcsc_debroot
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_toolroot/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_toolroot/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_toolroot/usr/share/bison
+    export PATH=/mnt/data/vcsc_debroot/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_debroot/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_debroot/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -284,7 +313,7 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    280 passed, 0 failed, 280 total
+    281 passed, 0 failed, 281 total
 
 End-to-end/generic suite:
 
@@ -314,24 +343,31 @@ The first unfinished item is the default next action.
        local allocation, expression temporary, caller argument scratch,
        aggregate support, variadic support, or obsolete runtime support.
 
-[ ] 7. Replace the retained direct-call argument-conversion buffer and
-       caller-private A:X consumption buffer with fixed per-function scratch.
-       Leave indirect/variadic paths isolated on the old stack temporarily.
+[x] 7. Replace ordinary nonvariadic direct-call argument/result scratch with
+       fixed call-site storage. Leave indirect/variadic paths isolated on the
+       old stack temporarily.
 
-[ ] 8. Replace retained expression temporary storage for the 8/16-bit language,
-       probably with per-function static scratch plus register-first lowering.
+[ ] 8. Remove variadic functions, stdarg machinery, and the now-isolated legacy
+       direct-call software-stack fallback.
 
-[ ] 9. Remove _nl_sp/_nl_fp and the software argument/local stack after no
-       retained compiler path depends on it.
+[ ] 9. Decide the final fate of zero-argument function pointers and remove the
+       indirect-call software-stack ABI if they are dropped.
 
-[ ] 10. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
+[ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
+        probably with fixed scratch plus register-first lowering and later
+        overlay/liveness reuse.
+
+[ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
+        retained compiler path depends on it.
+
+[ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
         Remove floats, arbitrary endian, and 32/64-bit support and tests in
         controlled groups.
 
-[ ] 11. Produce and verify an unbanked 4K VCS cartridge using the static-frame
+[ ] 13. Produce and verify an unbanked 4K VCS cartridge using the static-frame
         ABI and the real 128-byte shared RAM model.
 
-[ ] 12. Delete unsupported tools/runtime/language features one group at a time,
+[ ] 14. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
 
@@ -409,13 +445,28 @@ Change log
 * Selected direct-call argument/result scratch as the next implementation slice.
 * No files were removed.
 
+2026-07-16, fixed direct-call scratch
+* Replaced ordinary nonvariadic direct-call `_pushN`/`_popN` call frames with
+  private fixed BSS symbols named `__n65_calltmp_N`.
+* Temporarily redirects `fp` to call-site scratch while evaluating arguments,
+  then copies converted values to callee-owned parameter symbols.
+* Captures A:X through the same scratch only when old expression machinery needs
+  a memory-backed result.
+* Added scratch high-water tracking so nested expression temporaries determine
+  the correct fixed allocation size.
+* Kept variadic and indirect calls on the isolated legacy stack paths.
+* Added a code-generation test forbidding `_pushN`/`_popN` in a simple direct
+  call and updated affected assembly expectations.
+* Passed 281/281 compile tests and 123/123 end-to-end/generic tests.
+* No files were removed.
+
 End-of-session checklist
 ------------------------
 Before returning another modified archive:
 
-[ ] Update this file and the TODO ordering.
-[ ] Record every changed, added, and intentionally removed source/test file.
-[ ] Keep remove.txt synchronized with intentional removals.
-[ ] Record exact build/test totals and any known failures.
-[ ] Run make clean and remove test-runner scratch before packaging.
-[ ] Repack with the same archive-root layout.
+[x] Update this file and the TODO ordering.
+[x] Record every changed, added, and intentionally removed source/test file.
+[x] Keep remove.txt synchronized with intentional removals.
+[x] Record exact build/test totals and any known failures.
+[x] Run make clean and remove test-runner scratch before packaging.
+[x] Repack with the same archive-root layout.

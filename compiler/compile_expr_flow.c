@@ -161,11 +161,11 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
       emit(&es_code, "    lda #$%02x\n", size & 0xff);
       emit(&es_code, "    sta arg0\n");
       emit(&es_code, "    jsr _pushN\n");
-      ctx->locals = saved_locals + size;
+      ctx_set_locals(ctx, saved_locals + size);
 
       emit_zero_assignment_initializer_fp_target(tmp_offset, size);
       if (!compile_initializer_to_fp(rhs, ctx, dst->type, dst->declarator, tmp_offset, size)) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", size & 0xff);
          emit(&es_code, "    sta arg0\n");
@@ -174,7 +174,7 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
          return false;
       }
 
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
       if (dst_symbol) {
          emit_copy_fp_to_symbol_offset(sym, lv->offset, tmp_offset, size);
       }
@@ -224,12 +224,12 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
    emit(&es_code, "    sta arg0\n");
    emit(&es_code, "    jsr _pushN\n");
    if (ctx) {
-      ctx->locals = saved_locals + size;
+      ctx_set_locals(ctx, saved_locals + size);
    }
 
    if (!compile_expr_to_slot(expr, ctx, &tmp)) {
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
       remember_runtime_import("popN");
       emit(&es_code, "    lda #$%02x\n", size & 0xff);
@@ -238,7 +238,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
       return false;
    }
    if (ctx) {
-      ctx->locals = saved_locals;
+      ctx_set_locals(ctx, saved_locals);
    }
 
    emit(&es_code, "    lda #0\n");
@@ -455,13 +455,13 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       emit(&es_code, "    sta arg0\n");
       emit(&es_code, "    jsr _pushN\n");
       if (ctx) {
-         ctx->locals = saved_locals + compare_size;
+         ctx_set_locals(ctx, saved_locals + compare_size);
       }
 
       if (!compile_expr_to_slot(expr->children[0], ctx, &lhs) ||
           !compile_expr_to_slot(expr->children[1], ctx, &rhs)) {
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", compare_size & 0xff);
@@ -470,7 +470,7 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          return false;
       }
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
 
       if (is_float_compare) {
@@ -657,11 +657,11 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit(&es_code, "    sta arg0\n");
          emit(&es_code, "    jsr _pushN\n");
          if (ctx) {
-            ctx->locals = saved_locals + dst->size;
+            ctx_set_locals(ctx, saved_locals + dst->size);
          }
          if (!compile_expr_to_slot(rhs, ctx, &(ContextEntry){ .name = "$tmp", .type = dst->type, .declarator = dst->declarator, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = scratch_offset, .size = dst->size })) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
@@ -671,7 +671,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          emit_copy_fp_to_symbol_offset(sym, lv.offset, scratch_offset, dst->size);
          remember_runtime_import("popN");
@@ -692,11 +692,11 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit(&es_code, "    sta arg0\n");
          emit(&es_code, "    jsr _pushN\n");
          if (ctx) {
-            ctx->locals = saved_locals + tmp_size;
+            ctx_set_locals(ctx, saved_locals + tmp_size);
          }
          if (!compile_expr_to_slot(rhs, ctx, &tmp)) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
@@ -706,7 +706,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          if (!emit_copy_fp_to_lvalue(ctx, &lv, tmp.offset, tmp.size)) {
             remember_runtime_import("popN");
@@ -1057,11 +1057,11 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
 
       if (ctx) {
-         ctx->locals = lhs_tmp_offset + tmp_total;
+         ctx_set_locals(ctx, lhs_tmp_offset + tmp_total);
       }
       if (!compile_expr_to_slot(rhs, ctx, &rhs_tmp)) {
          if (ctx) {
-            ctx->locals = lhs_tmp_offset;
+            ctx_set_locals(ctx, lhs_tmp_offset);
          }
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -1071,7 +1071,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          return;
       }
       if (ctx) {
-         ctx->locals = lhs_tmp_offset;
+         ctx_set_locals(ctx, lhs_tmp_offset);
       }
 
       if (scaled_pointer_assign && pointer_scale != 1) {

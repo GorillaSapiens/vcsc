@@ -16,10 +16,11 @@
 // expectasmordered: pla
 // expectasmordered: sta fp+1
 // expectasmordered: tya
-// expectasmordered: sta (fp),y
+// expectasmordered: ldy #0
+// expectasmordered: sta __n65_calltmp_0,y
 // expectasmordered: txa
 // expectasmordered: iny
-// expectasmordered: sta (fp),y
+// expectasmordered: sta __n65_calltmp_0,y
 
 include "machine_6502.n"
 

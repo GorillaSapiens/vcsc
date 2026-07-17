@@ -587,7 +587,7 @@ Every ordinary parameter of a directly named function is symbol-backed by defaul
 
 An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
-A direct caller may use one reusable software-stack scratch area while evaluating and converting arguments. That scratch is caller-private transitional machinery, not parameter storage and not part of the function ABI.
+Each ordinary nonvariadic direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
@@ -692,10 +692,10 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-The caller never allocates callee return storage. The current stack-based
-expression engine may allocate caller-local scratch after a call so it can feed
-the returned A:X value into older expression-copy machinery; that scratch is
-not part of the function ABI.
+The caller never allocates callee return storage. An ordinary direct call may
+copy A:X into its fixed `__n65_calltmp_N` scratch so older expression-copy
+machinery can consume it; that scratch is not part of the function ABI.
+Indirect and variadic legacy calls still use software-stack scratch temporarily.
 
 Functions returning aggregates, arrays, floating-point values, big-endian
 integers, or values larger than two bytes are rejected at compile time. The

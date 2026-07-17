@@ -119,7 +119,7 @@ static bool compile_weak_builtin_operator_call_to_slot(const char *symbol,
       emit(&es_code, "    jsr _pushN\n");
    }
    if (ctx) {
-      ctx->locals = base_locals + call_size;
+      ctx_set_locals(ctx, base_locals + call_size);
    }
 
    arg_offset = ret_size + arg_total;
@@ -135,7 +135,7 @@ static bool compile_weak_builtin_operator_call_to_slot(const char *symbol,
                             .offset = base_locals + arg_offset, .size = psz };
       if (!compile_expr_to_slot(arg_exprs[i], ctx, &tmp)) {
          if (ctx) {
-            ctx->locals = base_locals;
+            ctx_set_locals(ctx, base_locals);
          }
          if (call_size > 0) {
             remember_runtime_import("popN");
@@ -159,7 +159,7 @@ static bool compile_weak_builtin_operator_call_to_slot(const char *symbol,
    emit(&es_code, "    sta fp+1\n");
 
    if (ctx) {
-      ctx->locals = base_locals;
+      ctx_set_locals(ctx, base_locals);
    }
    if (ret_size > 0) {
       emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, base_locals, ret_size, ret_type);
@@ -486,11 +486,11 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
             emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, saved_locals, old_size, lv.type);
          }
          if (ctx) {
-            ctx->locals = saved_locals + tmp_total;
+            ctx_set_locals(ctx, saved_locals + tmp_total);
          }
          if (!compile_call_expr_to_slot(call, ctx, &result_tmp)) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -499,7 +499,7 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
             return false;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          emit_copy_fp_to_fp_convert(store_offset, store_size, lv.type, result_offset, result_size, rtype);
          if (!emit_copy_fp_to_lvalue(ctx, &store_lv, store_offset, store_size)) {
@@ -872,11 +872,11 @@ unary_not_done:
          emit(&es_code, "    sta arg0\n");
          emit(&es_code, "    jsr _pushN\n");
          if (ctx) {
-            ctx->locals = saved_locals + tmp_total;
+            ctx_set_locals(ctx, saved_locals + tmp_total);
          }
          if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) || !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -885,7 +885,7 @@ unary_not_done:
             return false;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          emit_sub_fp_from_fp(lhs_type, lhs_off, rhs_off, ptr_size);
          factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
@@ -941,13 +941,13 @@ unary_not_done:
          emit(&es_code, "    sta arg0\n");
          emit(&es_code, "    jsr _pushN\n");
          if (ctx) {
-            ctx->locals = saved_locals + tmp_total;
+            ctx_set_locals(ctx, saved_locals + tmp_total);
          }
 
          if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
              !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
             if (ctx) {
-               ctx->locals = saved_locals;
+               ctx_set_locals(ctx, saved_locals);
             }
             remember_runtime_import("popN");
             emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -956,7 +956,7 @@ unary_not_done:
             return false;
          }
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
 
          if (scaled_pointer_arith && pointer_scale != 1) {
@@ -1062,13 +1062,13 @@ unary_not_done:
       emit(&es_code, "    sta arg0\n");
       emit(&es_code, "    jsr _pushN\n");
       if (ctx) {
-         ctx->locals = saved_locals + tmp_total;
+         ctx_set_locals(ctx, saved_locals + tmp_total);
       }
 
       if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
           !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -1077,7 +1077,7 @@ unary_not_done:
          return false;
       }
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
 
       helper = int_shift_helper_name(op_type, !strcmp(op, "<<"));
@@ -1140,13 +1140,13 @@ unary_not_done:
       emit(&es_code, "    sta arg0\n");
       emit(&es_code, "    jsr _pushN\n");
       if (ctx) {
-         ctx->locals = saved_locals + tmp_total;
+         ctx_set_locals(ctx, saved_locals + tmp_total);
       }
 
       if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
           !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
          if (ctx) {
-            ctx->locals = saved_locals;
+            ctx_set_locals(ctx, saved_locals);
          }
          remember_runtime_import("popN");
          emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -1155,7 +1155,7 @@ unary_not_done:
          return false;
       }
       if (ctx) {
-         ctx->locals = saved_locals;
+         ctx_set_locals(ctx, saved_locals);
       }
 
       if (!strcmp(op, "&")) helper = "bit_andN";
@@ -1170,7 +1170,7 @@ unary_not_done:
             int expbits = type_float_expbits(op_type);
             if (expbits < 0) {
                if (ctx) {
-                  ctx->locals = saved_locals;
+                  ctx_set_locals(ctx, saved_locals);
                }
                remember_runtime_import("popN");
                emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
@@ -1192,7 +1192,7 @@ unary_not_done:
             int expbits = type_float_expbits(op_type);
             if (expbits < 0) {
                if (ctx) {
-                  ctx->locals = saved_locals;
+                  ctx_set_locals(ctx, saved_locals);
                }
                remember_runtime_import("popN");
                emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);

@@ -864,13 +864,13 @@ bool compile_builtin_va_start_expr(ASTNode *expr, Context *ctx) {
 
    saved_locals = ctx->locals;
    scratch_offset = saved_locals;
-   ctx->locals = scratch_offset + layout.size;
+   ctx_set_locals(ctx, scratch_offset + layout.size);
    emit_store_immediate_to_fp(scratch_offset, zeroes, layout.size);
    emit_copy_fp_to_fp(scratch_offset + layout.args_offset, hidden_args->offset, hidden_args->size);
    emit_copy_fp_to_fp_convert(scratch_offset + layout.bytes_offset, layout.bytes_size, required_typename_node("*"),
                               hidden_bytes->offset, hidden_bytes->size, hidden_bytes->type);
    emit_copy_fp_to_lvalue(ctx, &ap_lv, scratch_offset, layout.size);
-   ctx->locals = saved_locals;
+   ctx_set_locals(ctx, saved_locals);
    return true;
 }
 
@@ -919,7 +919,7 @@ bool compile_builtin_va_arg_expr(ASTNode *expr, Context *ctx) {
    ap_tmp = saved_locals;
    src_tmp = ap_tmp + layout.size;
    out_tmp = src_tmp + ptr_size;
-   ctx->locals = out_tmp + out_size;
+   ctx_set_locals(ctx, out_tmp + out_size);
 
    emit_copy_lvalue_to_fp(ctx, ap_tmp, &ap_lv, layout.size);
    emit_copy_fp_to_fp(src_tmp, ap_tmp + layout.args_offset, layout.args_size);
@@ -944,7 +944,7 @@ bool compile_builtin_va_arg_expr(ASTNode *expr, Context *ctx) {
    }
    emit_add_immediate_to_fp(required_typename_node("*"), ap_tmp + layout.offset_offset, add_bytes, ptr_size);
    emit_copy_fp_to_lvalue(ctx, &ap_lv, ap_tmp, layout.size);
-   ctx->locals = saved_locals;
+   ctx_set_locals(ctx, saved_locals);
    return true;
 }
 
@@ -979,9 +979,9 @@ bool compile_builtin_va_end_expr(ASTNode *expr, Context *ctx) {
 
    saved_locals = ctx->locals;
    scratch_offset = saved_locals;
-   ctx->locals = scratch_offset + layout.size;
+   ctx_set_locals(ctx, scratch_offset + layout.size);
    emit_store_immediate_to_fp(scratch_offset, zeroes, layout.size);
    emit_copy_fp_to_lvalue(ctx, &ap_lv, scratch_offset, layout.size);
-   ctx->locals = saved_locals;
+   ctx_set_locals(ctx, saved_locals);
    return true;
 }

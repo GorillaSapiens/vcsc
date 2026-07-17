@@ -659,6 +659,25 @@ void remember_symbol_import_mode(const char *name, bool is_zeropage) {
 
 
 
+//! @brief Set current compiler scratch depth and retain its high-water mark.
+void ctx_set_locals(Context *ctx, int value) {
+   if (!ctx) {
+      return;
+   }
+   ctx->locals = value;
+   if (value > ctx->locals_high_water) {
+      ctx->locals_high_water = value;
+   }
+}
+
+//! @brief Add to current compiler scratch depth and retain its high-water mark.
+void ctx_add_locals(Context *ctx, int value) {
+   if (!ctx) {
+      return;
+   }
+   ctx_set_locals(ctx, ctx->locals + value);
+}
+
 //! @brief Handle context push logic for compiler code-generation support.
 void ctx_push(Context *ctx, const ASTNode *type, const char *name) {
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
@@ -683,7 +702,7 @@ void ctx_push(Context *ctx, const ASTNode *type, const char *name) {
    entry->declarator = NULL;
    entry->size = get_size(type_name_from_node(type));
    entry->offset = ctx->locals;
-   ctx->locals += entry->size;
+   ctx_add_locals(ctx, entry->size);
    debug("[%s:%d] ctx_push(%s, %s, %d, %d)", __FILE__, __LINE__, type->strval, name, entry->size, entry->offset);
    set_add(ctx->vars, strdup(name), entry);
 }
@@ -702,7 +721,7 @@ void ctx_resize_last_push(Context *ctx, const ASTNode *type, const ASTNode *decl
    value_size = declarator_value_size(type, declarator);
    entry->size = value_size;
    entry->declarator = declarator;
-   ctx->locals += (value_size - base_size);
+   ctx_add_locals(ctx, (value_size - base_size));
 }
 
 
