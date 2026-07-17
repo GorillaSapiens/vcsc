@@ -1,0 +1,229 @@
+VCSC SOFTWARE-STACK INVENTORY
+=============================
+
+Purpose
+-------
+This is the checked inventory for Immediate TODO step 6 in context.txt.  It
+records every compiler site that still emits a runtime `_pushN` allocation and
+classifies why that storage exists.  It is a snapshot of the transitional ABI,
+not an endorsement of the software stack.
+
+Snapshot
+--------
+Input archive:
+
+    vcsc.20260716_172832.tar.gz
+
+Compiler emission totals:
+
+    30  `jsr _pushN` allocation sites
+    78  `jsr _popN` emissions
+
+The larger pop count is expected: most allocation sites have normal cleanup and
+one or more error-path cleanups.
+
+Named automatic locals
+----------------------
+There are no remaining `_pushN` sites whose purpose is to allocate ordinary
+named automatic locals.  Named automatic locals and the hidden `$$` return
+object already use fixed-address symbols.
+
+Do not confuse the compiler's host-side `ctx_push()` bookkeeping function with
+the target runtime helper `_pushN`; they are unrelated despite the unfortunate
+name collision.
+
+Compiler allocation sites
+-------------------------
+
+`compiler/compile_call.c` -- 2 allocations
+
+1. `compile_indirect_call_expr_to_slot()`
+   Classification: caller call frame; mostly obsolete indirect/variadic ABI.
+   Contents can include the callee pointer, fixed stack parameters, a variadic
+   byte blob and metadata, and scratch for an A:X result.  Zero-argument
+   indirect calls are temporarily retained, but parameterized function
+   pointers and varargs are already outside the intended final language.
+
+2. `compile_call_expr_to_slot()`
+   Classification: retained direct-call argument/result scratch plus obsolete
+   variadic/legacy-stack branches.
+   For the retained direct ABI this holds one reusable argument-conversion
+   buffer and, when needed, caller-private memory used to consume A:X.  This is
+   the first high-value call path to convert to fixed per-function scratch.
+
+`compiler/compile_expr_flow.c` -- 10 allocations
+
+1. Braced assignment initializer buffer.
+   Classification: initializer/aggregate scratch.
+
+2. General truth-value evaluation buffer.
+   Classification: retained scalar expression scratch.
+
+3. Two-operand comparison buffer.
+   Classification: retained scalar comparison scratch; float branches are
+   obsolete.
+
+4. Discarded expression-result buffer used by expression statements.
+   Classification: retained scalar expression scratch.
+
+5. Simple assignment conversion buffer for fixed symbols.
+   Classification: retained scalar expression scratch.
+
+6. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
+   Classification: retained lvalue/expression scratch.
+
+7. Overloaded compound-assignment result buffer.
+   Classification: obsolete operator-overloading support.
+
+8. Overloaded compound-assignment conversion buffer for symbol destinations.
+   Classification: obsolete operator-overloading support.
+
+9. Overloaded compound-assignment conversion buffer for indirect lvalues.
+   Classification: obsolete operator-overloading support.
+
+10. Built-in compound-assignment working area.
+    Classification: retained 8/16-bit expression scratch; float, wide-integer,
+    arbitrary-endian, and overload branches are obsolete.
+
+`compiler/compile_expr_ops.c` -- 7 allocations
+
+1. Weak built-in operator call frame.
+   Classification: obsolete operator-overloading/weak-operator ABI.
+
+2. Overloaded pre/post increment/decrement working area.
+   Classification: obsolete operator-overloading support.
+
+3. Built-in pre/post increment/decrement working value.
+   Classification: retained scalar/lvalue expression scratch.
+
+4. Pointer-subtraction working area.
+   Classification: retained pointer expression scratch.
+
+5. General additive/comparison/pointer-arithmetic working area.
+   Classification: retained scalar/pointer expression scratch; float and wide
+   branches are obsolete.
+
+6. Shift-expression working area.
+   Classification: retained scalar expression scratch.
+
+7. Multiplicative and other binary-expression working area.
+   Classification: retained scalar expression scratch; float and wide branches
+   are obsolete.
+
+`compiler/compile_expr_slot.c` -- 3 allocations
+
+1. Cast-conversion buffer.
+   Classification: retained scalar/pointer expression scratch; unsupported type
+   branches will disappear when the final type set is enforced.
+
+2. Function-local absolute-reference read/conversion buffer.
+   Classification: retained lvalue/conversion scratch if absolute references
+   remain.
+
+3. Global absolute-reference read/conversion buffer.
+   Classification: retained lvalue/conversion scratch if absolute references
+   remain.
+
+`compiler/compile_init.c` -- 1 allocation
+
+1. Runtime global-initializer frame.
+   Classification: initializer scratch.  `ctx.locals` describes the maximum
+   temporary area needed by the synthesized initializer function.
+
+`compiler/compile_lvalue.c` -- 3 allocations
+
+1. Pointer/index suffix evaluation and saved-pointer area.
+   Classification: retained pointer/lvalue expression scratch.
+
+2. Bit-field read helper saved-pointer area.
+   Classification: bit-field/lvalue scratch; retain only if bit-fields remain.
+
+3. Bit-field write helper saved-pointer area.
+   Classification: bit-field/lvalue scratch; retain only if bit-fields remain.
+
+`compiler/compile_stmt.c` -- 3 allocations
+
+1. Runtime initializer buffer used before copying into a fixed symbol.  This
+   includes automatic-local initialization and the `$$` return object.
+   Classification: retained initializer/expression scratch.
+
+2. Absolute-reference local initializer buffer.
+   Classification: lvalue/initializer scratch if absolute references remain.
+
+3. Switch expression and case-comparison pair.
+   Classification: retained scalar statement/expression scratch.
+
+`compiler/compile_toplevel.c` -- 1 allocation
+
+1. Per-function software frame reserved from `ctx.locals` at entry.
+   Classification: obsolete variadic hidden-local frame.  Ordinary parameters,
+   named automatic locals, and `$$` no longer use it.  At present only the
+   variadic hidden metadata created by `add_variadic_hidden_locals()` gives a
+   normal function a persistent frame allocation.
+
+Non-emitting compiler consumers
+-------------------------------
+Several helpers in `compiler/compile_function.c` manipulate `ctx->locals` and
+address `(fp),y` scratch without emitting their own `_pushN`.  Their storage is
+owned by the surrounding function frame or expression allocation.  The notable
+cases are `va_start`, `va_arg`, and `va_end`, all obsolete variadic support.
+
+Runtime and generated-library dependencies
+------------------------------------------
+The target stack mechanism itself lives in:
+
+    libraries/nlib/asm/stack.asm       `_pushN` and `_popN`
+    libraries/nlib/nlib_zeropage.s     `_nl_sp` and `_nl_fp`
+    libraries/nlib/nlib.inc            `sp` and `fp` aliases
+    libraries/nlib/nrt0.s              startup initialization
+
+Large additional dependency families are already outside the final language:
+
+* `libraries/float/asm/*` uses `_pushN`/`_popN` extensively.
+* `libraries/nlib/genasm.pl`, `gen_weakops.pl`, and `asm/weakops.asm` generate
+  wide/general arithmetic helpers around the old stack ABI.
+* `libraries/nlib/stdarg.n` and variadic compiler paths depend on stack-backed
+  argument blobs.
+
+Disposition and implementation order
+------------------------------------
+
+A. Remove first, because the feature itself is unwanted:
+
+   * variadic functions and stdarg machinery;
+   * parameterized indirect calls and likely all function pointers;
+   * operator overloading and weak built-in operator calls;
+   * float, wide-integer, and arbitrary-endian branches;
+   * bit-field or aggregate-only scratch if those features are later rejected.
+
+B. Replace for the retained language:
+
+   * direct-call argument conversion and A:X consumption;
+   * scalar truth/comparison/binary/shift/cast scratch;
+   * pointer arithmetic and indexing scratch;
+   * simple/compound assignment scratch;
+   * switch-expression scratch;
+   * scalar runtime initializer and return-object scratch.
+
+C. Replace conditionally, after language-surface decisions:
+
+   * aggregate/braced initializer scratch;
+   * bit-field scratch;
+   * absolute-reference scratch;
+   * runtime global initializers.
+
+Recommended next slice
+----------------------
+Introduce fixed-address per-function scratch symbols and convert the retained
+**direct-call** path first:
+
+1. reserve a function-qualified argument-conversion buffer sized to the largest
+   fixed parameter used at any direct call in the function;
+2. reserve a two-byte function-qualified A:X consumption buffer;
+3. make `compile_call_expr_to_slot()` use those symbols instead of `_pushN`;
+4. leave indirect/variadic calls on the old path temporarily, clearly isolated;
+5. add code-generation and execution tests proving nested direct calls do not
+   use `_pushN` merely to pass or consume scalar arguments/results.
+
+This removes the ABI-facing stack use before attacking the much larger generic
+expression engine.

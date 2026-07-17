@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_161453.tar.gz
+    vcsc.20260716_172832.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -83,6 +83,9 @@ Completed vertical slices
 5. Every named automatic local and the hidden `$$` return object now has
    function-qualified fixed-address storage. Automatic initializers still run
    whenever control reaches the declaration on each invocation.
+6. Every remaining compiler `_pushN` allocation site has been inventoried and
+   classified in top-level software_stack_inventory.txt. A regression test
+   detects unrecorded additions, removals, or count changes.
 
 Current return ABI
 ------------------
@@ -192,18 +195,28 @@ Tests verify both the map and enforcement:
 
 Old software-stack machinery still present
 ------------------------------------------
-_nl_sp/_nl_fp and _pushN/_popN are still used for:
+Top-level software_stack_inventory.txt is the authoritative detailed inventory.
+At this snapshot the compiler contains:
 
-* expression temporaries and spill slots;
-* temporary runtime-initializer buffers before copying into fixed local symbols;
-* direct-call argument-evaluation scratch;
-* caller-private scratch used to consume A:X results;
-* variadic argument blobs and metadata;
-* aggregate copy machinery and old runtime helpers.
+    30  emitted `_pushN` allocation sites
+    78  emitted `_popN` normal/error cleanup paths
 
-Named automatic locals and `$$` no longer occupy the software stack. Do not
-remove the remaining stack blindly; retained expression and conversion scratch
-still need replacements first.
+The remaining allocations are classified as:
+
+* retained direct-call argument conversion and A:X consumption scratch;
+* retained scalar/pointer expression, conversion, lvalue, switch, and
+  initializer scratch;
+* conditional aggregate, bit-field, absolute-reference, and runtime-global-
+  initializer scratch;
+* obsolete variadic, indirect-call, operator-overload, float, wide-integer,
+  and arbitrary-endian paths.
+
+There are no remaining `_pushN` sites whose purpose is to allocate ordinary
+named automatic locals or `$$`.
+
+The generic test test/software_stack_inventory.test checks the per-file and
+whole-compiler emission counts. Any later stack-removal change must update both
+the test and software_stack_inventory.txt deliberately.
 
 Test policy
 -----------
@@ -226,45 +239,18 @@ In this return-restriction slice:
 
 Files changed in this revision
 ------------------------------
-Modified compiler/linker sources:
-
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_slot.c
-    compiler/compile_function.c
-    compiler/compile_stmt.c
-    compiler/compile_toplevel.c
-    linker/n65ld.c
-
 Modified documentation:
 
-    compiler/ABI.txt
-    compiler/README.md
     context.txt
 
-Updated tests:
+Added documentation:
 
-    test/big_endian_mul_low_half_codegen_test.n
-    test/custom_float_exact_literal_codegen_test.n
-    test/default_parameter_direct_cycle_error_test.n
-    test/default_parameter_mutual_cycle_error_test.n
-    test/e2e_default_parameter_cycle_cross_tu_fail.n
-    test/e2e_named_memory_regions.n
-    test/e2e_static_parameter_cycle_cross_tu_fail.n
-    test/e2e_static_parameter_cycle_fail.n
-    test/for_decl_init_codegen_test.n
-    test/local_static_storage_test.n
-    test/multideref_codegen_test.n
-    test/named_memory_param_local_codegen_test.n
-    test/peephole_codegen_test.n
-    test/return_ax_uint16_codegen_test.n
-    test/return_ax_uint8_codegen_test.n
-    test/return_slot_scalar_compound_codegen_test.n
-    test/static_parameter_call_cycle_error_test.n
+    software_stack_inventory.txt
 
-Added:
+Added tests:
 
-    test/automatic_local_symbol_codegen_test.n
-    test/e2e_automatic_local_reinit_verify.n
+    test/software_stack_inventory.pl
+    test/software_stack_inventory.test
 
 Removed intentionally:
 
@@ -300,12 +286,13 @@ Compile suite:
 
     280 passed, 0 failed, 280 total
 
-End-to-end suite:
+End-to-end/generic suite:
 
-    121 passed, 0 failed, 121 total
+    123 passed, 0 failed, 123 total
 
-This includes fixed-address automatic-local code-generation coverage and an
-execution test proving automatic initializers run again on a second call.
+The monolithic E2E invocation reached the execution-wrapper time limit after
+117 passing tests. The six remaining tests were then run explicitly and all
+passed, including the new software-stack inventory guard.
 
 Immediate TODO
 --------------
@@ -323,24 +310,28 @@ The first unfinished item is the default next action.
 [x] 5. Replace stack-backed automatic locals with fixed-address per-function
        storage. Start with distinct frames; defer frame overlay optimization.
 
-[ ] 6. Inventory every retained _pushN/_popN use and classify it as automatic
+[x] 6. Inventory every retained _pushN/_popN use and classify it as automatic
        local allocation, expression temporary, caller argument scratch,
        aggregate support, variadic support, or obsolete runtime support.
 
-[ ] 7. Replace expression temporary storage for the retained 8/16-bit language,
+[ ] 7. Replace the retained direct-call argument-conversion buffer and
+       caller-private A:X consumption buffer with fixed per-function scratch.
+       Leave indirect/variadic paths isolated on the old stack temporarily.
+
+[ ] 8. Replace retained expression temporary storage for the 8/16-bit language,
        probably with per-function static scratch plus register-first lowering.
 
-[ ] 8. Remove _nl_sp/_nl_fp and the software argument/local stack after no
+[ ] 9. Remove _nl_sp/_nl_fp and the software argument/local stack after no
        retained compiler path depends on it.
 
-[ ] 9. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
-       Remove floats, arbitrary endian, and 32/64-bit support and tests in
-       controlled groups.
+[ ] 10. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
+        Remove floats, arbitrary endian, and 32/64-bit support and tests in
+        controlled groups.
 
-[ ] 10. Produce and verify an unbanked 4K VCS cartridge using the static-frame
+[ ] 11. Produce and verify an unbanked 4K VCS cartridge using the static-frame
         ABI and the real 128-byte shared RAM model.
 
-[ ] 11. Delete unsupported tools/runtime/language features one group at a time,
+[ ] 12. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
 
@@ -404,6 +395,18 @@ Change log
 * Fixed array-to-pointer decay when assignment evaluation uses temporary
   scratch; the previous transitional lowering copied the first array byte.
 * Added focused code-generation and repeated-call execution tests.
+* No files were removed.
+
+2026-07-16, software-stack inventory
+* Counted and classified all 30 compiler `_pushN` allocation sites and their 78
+  normal/error `_popN` emissions.
+* Confirmed that no ordinary named automatic local or `$$` allocation remains
+  on the software stack.
+* Added top-level software_stack_inventory.txt with per-file/per-purpose
+  disposition and an ordered removal plan.
+* Added a generic regression test that rejects unclassified stack-emission
+  changes.
+* Selected direct-call argument/result scratch as the next implementation slice.
 * No files were removed.
 
 End-of-session checklist
