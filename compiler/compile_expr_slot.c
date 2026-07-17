@@ -40,53 +40,29 @@ static int cast_expr_target_size(const ASTNode *expr);
 
 static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
-typedef struct SlotFixedScratch {
-   int saved_locals;
-   int saved_high_water;
-   int reserved;
-   char symbol[96];
-} SlotFixedScratch;
+typedef CompilerScratchLease SlotFixedScratch;
 
 //! @brief Begin fixed-address slot scratch and redirect fp to it.
-static void slot_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+static void slot_fixed_scratch_begin(Context *ctx, int reserved,
                                      SlotFixedScratch *scratch) {
-   memset(scratch, 0, sizeof(*scratch));
-   scratch->saved_locals = ctx ? ctx->locals : 0;
-   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
-   scratch->reserved = reserved > 0 ? reserved : 1;
-   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
-
-   if (ctx) {
-      ctx->locals = scratch->reserved;
-      ctx->locals_high_water = scratch->reserved;
-   }
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_acquire(ctx, reserved, scratch);
+   compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp and declare fixed-address slot scratch.
-static void slot_fixed_scratch_end(Context *ctx, SlotFixedScratch *scratch) {
-   int used = scratch->reserved;
-   if (ctx && ctx->locals_high_water > used) {
-      used = ctx->locals_high_water;
-   }
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-   if (ctx) {
-      ctx->locals = scratch->saved_locals;
-      ctx->locals_high_water = scratch->saved_high_water;
-   }
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch->symbol);
-   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+//! @brief Restore fp while keeping the slot scratch lease live for copy-out.
+static void slot_fixed_scratch_deactivate(Context *ctx, SlotFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+}
+
+//! @brief Release one inactive slot scratch lease.
+static void slot_fixed_scratch_finish(SlotFixedScratch *scratch) {
+   compiler_scratch_release(scratch);
+}
+
+//! @brief Restore fp and release a slot scratch lease on an error path.
+static void slot_fixed_scratch_abort(Context *ctx, SlotFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+   compiler_scratch_release(scratch);
 }
 
 //! @brief Copy a converted slot-scratch result into the caller destination.
@@ -374,16 +350,17 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          error_user("[%s:%d.%d] invalid cast target type",
                expr->file ? expr->file : "<unknown>", expr->line, expr->column);
       }
-      slot_fixed_scratch_begin(ctx, "casttmp", target_size, &scratch);
+      slot_fixed_scratch_begin(ctx, target_size, &scratch);
       tmp = (ContextEntry){ .name = "$cast", .type = target_type, .declarator = target_decl,
                             .is_static = false, .is_zeropage = false, .is_global = false,
                             .target_typed = true, .offset = 0, .size = target_size };
       if (!compile_expr_to_slot(expr->children[1], ctx, &tmp)) {
-         slot_fixed_scratch_end(ctx, &scratch);
+         slot_fixed_scratch_abort(ctx, &scratch);
          return false;
       }
-      slot_fixed_scratch_end(ctx, &scratch);
+      slot_fixed_scratch_deactivate(ctx, &scratch);
       emit_slot_fixed_scratch_result(ctx, &scratch, 0, tmp.size, tmp.type, dst);
+      slot_fixed_scratch_finish(&scratch);
       return true;
    }
 
@@ -450,13 +427,14 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
             {
                SlotFixedScratch scratch;
-               slot_fixed_scratch_begin(ctx, "abslocaltmp", lv.size, &scratch);
+               slot_fixed_scratch_begin(ctx, lv.size, &scratch);
                if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
-                  slot_fixed_scratch_end(ctx, &scratch);
+                  slot_fixed_scratch_abort(ctx, &scratch);
                   return false;
                }
-               slot_fixed_scratch_end(ctx, &scratch);
+               slot_fixed_scratch_deactivate(ctx, &scratch);
                emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+               slot_fixed_scratch_finish(&scratch);
                return true;
             }
          }
@@ -485,13 +463,14 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                   }
                   {
                      SlotFixedScratch scratch;
-                     slot_fixed_scratch_begin(ctx, "absglobaltmp", lv.size, &scratch);
+                     slot_fixed_scratch_begin(ctx, lv.size, &scratch);
                      if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
-                        slot_fixed_scratch_end(ctx, &scratch);
+                        slot_fixed_scratch_abort(ctx, &scratch);
                         return false;
                      }
-                     slot_fixed_scratch_end(ctx, &scratch);
+                     slot_fixed_scratch_deactivate(ctx, &scratch);
                      emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+                     slot_fixed_scratch_finish(&scratch);
                      return true;
                   }
                }

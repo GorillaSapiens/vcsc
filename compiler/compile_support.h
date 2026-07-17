@@ -11,6 +11,25 @@
 #include "compile_internal.h"
 #include "compile_lvalue.h"
 
+typedef struct CompilerScratchLease {
+   int scope_index;
+   int slot_index;
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   int used;
+   bool active;
+   char symbol[64];
+} CompilerScratchLease;
+
+void compiler_scratch_reset(void);
+void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *lease);
+void compiler_scratch_activate(Context *ctx, CompilerScratchLease *lease);
+void compiler_scratch_deactivate(Context *ctx, CompilerScratchLease *lease);
+void compiler_scratch_note_used(CompilerScratchLease *lease, int used);
+void compiler_scratch_release(CompilerScratchLease *lease);
+void compiler_scratch_emit_bss(void);
+
 const ASTNode *decl_node_declarator(const ASTNode *node);
 bool entry_has_read_address(const ContextEntry *entry);
 bool entry_has_write_address(const ContextEntry *entry);

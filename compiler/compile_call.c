@@ -42,22 +42,6 @@ static void emit_save_fp(void) {
    emit(&es_code, "    pha\n");
 }
 
-//! @brief Point fp at fixed compiler-generated scratch storage.
-static void emit_set_fp_to_symbol(const char *symbol) {
-   emit(&es_code, "    lda #<%s\n", symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", symbol);
-   emit(&es_code, "    sta fp+1\n");
-}
-
-//! @brief Restore fp from the 6502 hardware stack.
-static void emit_restore_fp(void) {
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-}
-
 //! @brief Store a one- or two-byte A:X value in fixed storage.
 static void emit_store_ax_to_symbol(const char *symbol, int size) {
    emit(&es_code, "    ldy #0\n");
@@ -77,13 +61,18 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    const ASTNode *params = declarator_parameter_list(declarator);
    int arg_count = (args && !is_empty(args)) ? args->count : 0;
    int actual_index = 0;
-   int scratch_size = (dst && ret_size > 0) ? ret_size : 0;
-   char scratch_sym[96];
+   int initial_scratch = (dst && ret_size > 0) ? ret_size : 0;
+   bool have_scratch = arg_count > 0 || initial_scratch > 0;
+   CompilerScratchLease scratch;
+   const char *scratch_sym = NULL;
    char callee_sym[256];
 
-   snprintf(scratch_sym, sizeof(scratch_sym), "__n65_calltmp_%d", label_counter++);
    if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym))) {
       return false;
+   }
+   if (have_scratch) {
+      compiler_scratch_acquire(ctx, initial_scratch > 0 ? initial_scratch : 1, &scratch);
+      scratch_sym = scratch.symbol;
    }
 
    if (params && !is_empty(params)) {
@@ -95,9 +84,6 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          char param_sym[256];
          bool is_zeropage = false;
          int psz;
-         int saved_locals;
-         int saved_high_water;
-         int used;
          bool ok;
 
          if (!ptype || parameter_is_void(parameter)) {
@@ -105,6 +91,7 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          }
          psz = parameter_storage_size(parameter);
          if (!function_parameter_symbol_name(fn, parameter, i, param_sym, sizeof(param_sym), &is_zeropage)) {
+            if (have_scratch) compiler_scratch_release(&scratch);
             return false;
          }
          if (!function_has_body(fn)) {
@@ -119,44 +106,29 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          tmp.offset = 0;
          tmp.size = psz;
 
-         saved_locals = ctx ? ctx->locals : 0;
-         saved_high_water = ctx ? ctx->locals_high_water : 0;
-         if (ctx) {
-            ctx->locals = psz;
-            ctx->locals_high_water = psz;
+         if (!have_scratch) {
+            error_unreachable("direct call argument missing compiler scratch");
          }
-
-         emit_save_fp();
-         emit_set_fp_to_symbol(scratch_sym);
+         if (psz > scratch.reserved) {
+            scratch.reserved = psz;
+         }
+         compiler_scratch_activate(ctx, &scratch);
          if (parameter_is_ref(parameter)) {
             ok = compile_ref_argument_to_slot(args->children[actual_index], ctx, 0, psz);
          }
          else {
             ok = compile_expr_to_slot(args->children[actual_index], ctx, &tmp);
          }
-         used = ctx ? ctx->locals_high_water : psz;
-         if (used > scratch_size) {
-            scratch_size = used;
-         }
          if (ok) {
             emit_copy_fp_to_symbol(param_sym, 0, psz);
          }
-         emit_restore_fp();
-         if (ctx) {
-            ctx->locals = saved_locals;
-            ctx->locals_high_water = saved_high_water;
-         }
+         compiler_scratch_deactivate(ctx, &scratch);
          if (!ok) {
+            compiler_scratch_release(&scratch);
             return false;
          }
          actual_index++;
       }
-   }
-
-   if (scratch_size > 0) {
-      emit(&es_bss, ".segment \"BSS\"\n");
-      emit(&es_bss, "%s:\n", scratch_sym);
-      emit(&es_bss, "\t.res %d\n", scratch_size);
    }
 
    record_call_graph_edge(current_call_graph_function, fn);
@@ -166,11 +138,17 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    emit_restore_fp_after_call(ax_return);
 
    if (dst && ret_size > 0) {
+      if (!have_scratch) {
+         error_unreachable("direct call return missing compiler scratch");
+      }
       emit_store_ax_to_symbol(scratch_sym, ret_size);
       emit_copy_symbol_to_fp_convert(dst->offset, dst->size, dst->type,
                                      scratch_sym, ret_size, ret_type);
    }
 
+   if (have_scratch) {
+      compiler_scratch_release(&scratch);
+   }
    return true;
 }
 

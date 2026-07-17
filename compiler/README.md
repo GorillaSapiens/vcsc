@@ -416,13 +416,13 @@ Every ordinary parameter of a directly named function is symbol-backed by defaul
 
 An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
-Each ordinary direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
+Compiler-generated temporary storage is pooled by function and nesting depth. Symbols are named `__n65_scratch_N`; sequential expressions in the same non-reentrant function reuse the same depth slot, while nested expressions receive deeper slots. Different functions receive distinct physical slots because caller scratch can remain live across a callee invocation. Each slot is emitted once at the maximum size observed for that depth.
 
-Retained direct-call, expression, lvalue, statement, and initializer lowering now use fixed per-site BSS scratch rather than the N software stack. Current prefixes include `__n65_calltmp_N`, `__n65_truthtmp_N`, `__n65_comparetmp_N`, `__n65_discardtmp_N`, `__n65_assigntmp_N`, `__n65_addtmp_N`, `__n65_shifttmp_N`, `__n65_binarytmp_N`, `__n65_ptrdifftmp_N`, `__n65_casttmp_N`, `__n65_abslocaltmp_N`, `__n65_absglobaltmp_N`, `__n65_incdectmp_N`, `__n65_compoundtmp_N`, `__n65_switchtmp_N`, `__n65_indextmp_N`, `__n65_bracedtmp_N`, and `__n65_globalinittmp_N`. The compiler temporarily redirects `fp` while lowering each site, restores it using the 6502 hardware stack, and copies converted results back into caller-owned storage.
+An ordinary direct call leases the caller function's current scratch depth while evaluating and converting arguments, then copies values into callee-owned parameter symbols. The same live lease may capture A:X when the surrounding expression needs a memory-backed converted result. The lease remains caller-private transitional machinery, not parameter storage and not part of the function ABI. LIFO lease checks and an end-of-compilation zero-depth check turn accidental lifetime overlap into a compiler error.
 
-Several common one-byte paths now bypass that transitional machinery entirely. Discarded `uint8_t` increment/decrement, unsigned byte comparisons against constants or byte lvalues, constant byte stores, and byte stores into absolute hardware refs emit direct 6502 instructions without permanent BSS scratch. A simple unsigned one-byte runtime index into an array whose element size is a power of two is scaled inline through compiler-owned `arg0:arg1`; the resulting element address is left in `ptr0`, with no `__n65_indextmp_N` and no generic multiplication helper. This is sufficient for natural `music[music_index].field` access in the VCS sound example, including indices whose scaled offset crosses a page.
+Several common one-byte paths bypass scratch entirely. Discarded `uint8_t` increment/decrement, unsigned byte comparisons against constants or byte lvalues, constant byte stores, and byte stores into absolute hardware refs emit direct 6502 instructions. A simple unsigned one-byte runtime index into an array whose element size is a power of two is scaled inline through compiler-owned `arg0:arg1`; the resulting element address is left in `ptr0`, with no generic multiplication helper. This is sufficient for natural `music[music_index].field` access in the VCS sound example, including indices whose scaled offset crosses a page.
 
-General complex expression scratch remains allocated per site and is not yet overlaid by lifetime. Unsupported index forms continue to use the generic fixed-scratch lowering. No compiler source path emits `_pushN` or `_popN`.
+When two operands of one binary expression are direct fields of the same runtime-indexed aggregate element, with structurally identical index expressions and no pointer, bitfield, absolute-ref, conversion, or side-effect ambiguity, the compiler calculates the element address once and loads both fields by fixed offsets from `ptr0`. Other cases conservatively calculate each address independently. Unsupported index forms continue to use generic lowering, now backed by the same lifetime pool rather than fixed per-site objects. No compiler source path emits `_pushN` or `_popN`.
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
@@ -527,8 +527,9 @@ uint16_t twice(uint16_t value) {
 ```
 
 The caller never allocates callee return storage. An ordinary direct call may
-copy A:X into its fixed `__n65_calltmp_N` scratch so older expression-copy
-machinery can consume it; that scratch is not part of the function ABI.
+copy A:X into a live caller-function `__n65_scratch_N` lease so the
+memory-based expression machinery can consume it; that scratch is not part of
+the function ABI.
 Indirect calls are unsupported; no call path uses an indirect-call software-stack frame.
 
 Functions returning aggregates, arrays, floating-point values, or values larger than two bytes are rejected at compile time. The
@@ -591,9 +592,9 @@ The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar l
 Inline-assembly stack operations and stack use hidden inside separately assembled routines are not included in that calculation yet and must be treated as future work.
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
-Compiler-generated code no longer emits `_pushN` or `_popN`. Fixed per-site BSS scratch
-uses `_nl_fp` only as a temporary addressing base while `_nl_sp` remains solely for
-obsolete runtime/library code awaiting removal.
+Compiler-generated code no longer emits `_pushN` or `_popN`. Lifetime-pooled BSS
+scratch uses `_nl_fp` only as a temporary addressing base while `_nl_sp` remains
+solely for obsolete runtime/library code awaiting removal.
 
 ### `_nl_sp` and `_nl_fp`
 

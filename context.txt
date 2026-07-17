@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_144529.tar.gz
+    vcsc.20260717_151019.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -166,6 +166,14 @@ Completed vertical slices
     `__n65_indextmp_N` or generic multiply helper. The Ode player uses the
     natural `music[music_index].field` form, allocates zero BSS scratch, and
     retains only its two persistent state bytes.
+26. All remaining compiler-generated temporary BSS is pooled by function and
+    nesting depth as `__n65_scratch_N`. Sequential expressions in one function
+    reuse a depth slot; nested expressions receive deeper slots; caller and
+    callee functions retain distinct physical storage. Leases remain live
+    through final copy-out, are released LIFO, and are checked at translation-
+    unit completion. Binary expressions whose two operands are fields of the
+    same runtime-indexed aggregate element now compute the common address once
+    and load both fields by offsets when strict side-effect-free conditions hold.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -207,8 +215,8 @@ the returned value is still a 16-bit pointer.
 
 There is no compiler `return_value` metadata mode and no caller-owned return
 storage. An ordinary direct caller that must feed A:X into the still-memory-
-based expression engine copies it to fixed compiler-generated call-site scratch.
-That scratch is not part of the callee ABI. Indirect calls are unsupported.
+based expression engine copies it through a live caller-function scratch lease.
+That pooled scratch is not part of the callee ABI. Indirect calls are unsupported.
 
 Inside a non-void function, `$$` is the source-level return object. It is a
 hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
@@ -216,24 +224,25 @@ hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
 Current direct-parameter ABI
 ----------------------------
 Every fixed parameter of a directly named function has a callee-owned symbol.
-At each ordinary direct call, the compiler emits one private BSS
-scratch symbol named `__n65_calltmp_N`. The caller:
+At each ordinary direct call, the compiler leases the caller function's current
+scratch-depth slot. The caller:
 
 1. saves the current `fp` on the 6502 hardware stack;
-2. temporarily points `fp` at the fixed call-site scratch;
+2. temporarily points `fp` at the live `__n65_scratch_N` lease;
 3. evaluates each argument left-to-right and copies the converted value to the
    corresponding callee parameter symbol;
 4. restores `fp` after each argument;
 5. executes JSR while preserving the returned A:X across `fp` restoration;
-6. copies A:X through the same fixed scratch only when the enclosing expression
+6. copies A:X through the same live lease only when the enclosing expression
    needs a memory-backed converted value.
 
-The scratch size is the maximum temporary depth observed while compiling any
-argument at that call site, or the consumed return width when larger. Nested
-calls are safe because scratch is allocated per call site rather than once per
-function. Scratch is not overlaid yet, so this intentionally trades RAM for a
-clean stack-free direct-call path. Parameter symbols may be ordinary absolute
-storage or zero-page storage.
+Scratch is pooled per function and nesting depth. Sequential uses in one
+non-reentrant function reuse the same slot, nested uses receive deeper slots,
+and different functions receive distinct physical symbols so caller values
+remain live during a callee. Each slot is emitted once at the maximum size seen
+for that depth. LIFO release and an end-of-compilation zero-depth check reject
+unsafe lifetime overlap. Parameter symbols may be ordinary absolute storage or
+zero-page storage.
 
 Call-graph and call-target rules
 --------------------------------
@@ -313,7 +322,7 @@ Compiler source now contains:
 
 The generic test `test/software_stack_inventory.test` scans every compiler `.c`
 file and fails if either helper reappears. `_nl_fp` remains active as the base
-pointer for fixed per-site scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+pointer for lifetime-pooled scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
 remain only in transitional runtime services. Generic division still uses `sp`
 as a private work area, and `_sbrk` still uses it as a collision boundary; that
 residual runtime state is now isolated from compiler-generated calls.
@@ -353,32 +362,54 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler lowering and documentation:
+Compiler scratch pooling and address reuse:
 
-    compiler/compile_lvalue.c
+    compiler/compile.c
+    compiler/compile_call.c
     compiler/compile_expr_flow.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_init.c
+    compiler/compile_lvalue.c
+    compiler/compile_stmt.c
+    compiler/compile_support.c
+    compiler/compile_support.h
+
+Documentation:
+
+    compiler/ABI.txt
     compiler/README.md
-
-Natural direct-index sound example:
-
-    examples/02_ode_to_joy/ode_to_joy.n
-    examples/02_ode_to_joy/README.md
-
-Added focused regressions:
-
-    test/indexed_struct_u8_codegen_test.n
-    test/e2e_indexed_struct_u8_verify.n
-
-Updated existing code-generation and cartridge expectations:
-
-    test/absolute_ref_codegen_test.n
-    test/cast_abs_incdec_fixed_scratch_codegen_test.n
-    test/vcs_headers_smoke_test.n
-    test/vcs_ode_to_joy_cartridge.pl
-
-Bookkeeping:
-
+    software_stack_inventory.txt
     context.txt
+
+Updated code-generation expectations for pooled symbol names:
+
+    test/assign_expr_condition_codegen_test.n
+    test/assignment_fixed_scratch_codegen_test.n
+    test/binary_fixed_scratch_codegen_test.n
+    test/cast_abs_incdec_fixed_scratch_codegen_test.n
+    test/comparison_fixed_scratch_codegen_test.n
+    test/compound_switch_fixed_scratch_codegen_test.n
+    test/condition_truthy_expr_codegen_test.n
+    test/direct_call_fixed_scratch_codegen_test.n
+    test/discard_fixed_scratch_codegen_test.n
+    test/initializer_lvalue_fixed_scratch_codegen_test.n
+    test/local_address_initializer_codegen_test.n
+    test/local_string_pointer_initializer_codegen_test.n
+    test/lvalue_braced_global_fixed_scratch_codegen_test.n
+    test/peephole_branch_codegen_test.n
+    test/register_parameter_zeropage_codegen_test.n
+    test/return_ax_uint16_codegen_test.n
+    test/static_parameter_codegen_test.n
+    test/truth_fixed_scratch_codegen_test.n
+
+Added regressions:
+
+    test/scratch_pool_layout.pl
+    test/scratch_pool_layout.test
+    test/common_indexed_address_reuse.pl
+    test/common_indexed_address_reuse.test
+    test/e2e_scratch_pool_lifetime_verify.n
 
 No files were removed. remove.txt remains at 462 unique cumulative paths.
 
@@ -407,11 +438,11 @@ Result: passed.
 
 Compile suite:
 
-    221 passed, 0 failed, 221 total
+    223 passed, 0 failed, 223 total
 
 End-to-end/generic suite:
 
-    93 passed, 0 failed, 93 total
+    94 passed, 0 failed, 94 total
 
 Both examples build directly as raw 4096-byte cartridges.
 
@@ -462,11 +493,11 @@ The first unfinished item is the default next action.
 
 [x] 10. Replace retained expression, statement, lvalue, and initializer
         temporary storage for the 8/16-bit language with fixed BSS scratch.
-        Scratch overlay/liveness reuse remains a later optimization.
+        Slice 15e later pooled that scratch by function and nesting depth.
 
 [x] 11. Remove operator overloading, `$exactops`, and weak built-in operator
         dispatch. Compiler source now emits zero `_pushN`/`_popN` calls. Keep
-        `_nl_fp` temporarily for fixed-scratch addressing; remove `_nl_sp` and
+        `_nl_fp` temporarily for pooled-scratch addressing; remove `_nl_sp` and
         the runtime helpers after obsolete runtime families are gone.
 
 [x] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
@@ -499,9 +530,10 @@ The first unfinished item is the default next action.
     WSYNCs, and has an execution regression proving Stella-reported 262-line
     frames rather than the former 261-line output.
 
-[ ] 15. Finish the general compiler-efficiency work exposed by Ode to Joy
-        before continuing broad functional reduction. The practical direct-index
-        player gate now passes; general lifetime-based scratch reuse remains.
+[x] 15. Finish the general compiler-efficiency work exposed by Ode to Joy
+        before continuing broad functional reduction. The source-level
+        direct-index player, compact byte paths, lifetime-pooled scratch, and
+        repeated-address reuse now pass the RAM and fixed-overscan gates.
 
         Acceptance criteria:
 
@@ -523,11 +555,12 @@ The first unfinished item is the default next action.
                   source to direct indexing; retain zero BSS scratch and stable
                   262-line timing. A high-byte regression covers index 64 into
                   four-byte elements.
-        [ ] 15e. Generalize lifetime-based scratch pooling/overlay beyond these
-                  direct byte fast paths, and reuse repeated computed lvalue
-                  addresses automatically for complex expressions where doing
-                  so is safe. Unsupported index types and non-power-of-two
-                  element sizes still use the generic fixed-per-site path.
+        [x] 15e. Pool general compiler scratch by function and nesting depth,
+                  retaining leases through final copy-out and verifying LIFO
+                  lifetime safety. Reuse one computed element address when two
+                  binary operands are fields of the same runtime-indexed
+                  aggregate element under strict side-effect-free conditions.
+                  Unsupported index forms use generic pooled scratch.
 
 [ ] 16. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
@@ -536,7 +569,7 @@ The first unfinished item is the default next action.
         [ ] 16a. Remove heap/sbrk support and its initialization/runtime tests.
         [ ] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
-                  fixed workspace. Keep `_nl_fp` while fixed scratch uses it.
+                  fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
         [ ] 16c. Reassess and likely remove ordinary named-function overloading.
         [ ] 16d. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
@@ -574,10 +607,10 @@ Open implementation questions
   analysis. Start with distinct storage.
 * Extend call-graph hardware-stack sizing to account for PHA/PHP/JSR hidden in
   inline assembly and for stack use inside separately assembled routines.
-* General expression scratch allocation after software-stack removal. The Ode
-  direct-index path no longer allocates permanent BSS scratch, but complex
-  expressions still need lifetime-based pooling/overlay and safe repeated-
-  address reuse.
+* Whether common computed-address reuse should later extend across statement
+  boundaries. The current implementation deliberately reuses only two operands
+  inside one binary expression, where identical index trees and intervening
+  clobbers can be ruled out mechanically.
 * Existing defect: in some simple assignments such as `old := value++`, the
   assignment-expression fast path can copy the lvalue without applying the
   increment. Standalone `value++`/`--value` works and is covered here; fix this
@@ -1046,6 +1079,31 @@ reproducibly rather than the exact instant of each individual source edit.
   sequences were intentionally superseded by direct byte stores and inc/dec.
 * Passed 221/221 compile tests and 93/93 end-to-end tests; both examples remain
   exact 4096-byte cartridges.
+* No files were removed; remove.txt remains at 462 unique cumulative paths.
+
+
+2026-07-17 15:31:37 PDT, lifetime-pooled scratch and common indexed address reuse
+* Replaced the per-site temporary-symbol families with depth-indexed
+  `__n65_scratch_N` pools scoped to each function/translation-unit context.
+  Sequential expressions reuse a slot, nested expressions receive deeper slots,
+  and caller/callee functions retain separate physical storage.
+* Added explicit acquire/activate/deactivate/release leases, LIFO validation, and
+  an end-of-compilation check that rejects unreleased scratch. Each pooled slot
+  is emitted once at its maximum observed size.
+* Kept scratch leases live until final copy-out. Execution testing caught and
+  fixed an early-release bug where recomputing a computed destination address
+  could overwrite the pending RHS value; the same lifetime rule was applied to
+  cast, operator, braced, compound, and increment/decrement copy-out paths.
+* Added safe common-address lowering for two binary operands that are direct
+  fields of the same runtime-indexed aggregate element. Identical index trees
+  compute ptr0 once and load both fields by offsets; differing indices and
+  ambiguous pointer/bitfield/ref/conversion cases retain independent lowering.
+* Added layout, address-count, and execution regressions covering sequential
+  reuse, nested separation, caller/callee isolation, computed assignments,
+  braced and compound stores, increment/decrement, and shared indexed fields.
+* Passed 223/223 compile tests and 94/94 end-to-end tests; both examples remain
+  exact 4096-byte cartridges, and Ode passes 1497 consecutive Stella-reported
+  262-line frames.
 * No files were removed; remove.txt remains at 462 unique cumulative paths.
 
 End-of-session checklist

@@ -1,6 +1,6 @@
 // n65c -I .
-// expectasm: __n65_compoundtmp_
-// expectasm: __n65_switchtmp_
+// expectasm: __n65_scratch_
+// expectasm: __n65_scratch_
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN
 

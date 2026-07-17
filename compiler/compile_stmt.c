@@ -14,6 +14,7 @@
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_internal.h"
+#include "compile_support.h"
 #include "compile_lvalue.h"
 #include "compile_stmt.h"
 #include "compile_type.h"
@@ -36,61 +37,27 @@ static const char *named_loop_continue_stack[128];
 static int named_loop_depth = 0;
 static const char *pending_loop_label_name = NULL;
 
-typedef struct StmtFixedScratch {
-   int saved_locals;
-   int saved_high_water;
-   int reserved;
-   int used;
-   char symbol[96];
-} StmtFixedScratch;
+typedef CompilerScratchLease StmtFixedScratch;
 
 //! @brief Prepare one reusable fixed-address statement working area.
-static void stmt_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+static void stmt_fixed_scratch_prepare(Context *ctx, int reserved,
                                        StmtFixedScratch *scratch) {
-   memset(scratch, 0, sizeof(*scratch));
-   scratch->saved_locals = ctx ? ctx->locals : 0;
-   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
-   scratch->reserved = reserved > 0 ? reserved : 1;
-   scratch->used = scratch->reserved;
-   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+   compiler_scratch_acquire(ctx, reserved, scratch);
 }
 
 //! @brief Redirect fp to a prepared fixed-address statement working area.
 static void stmt_fixed_scratch_activate(Context *ctx, StmtFixedScratch *scratch) {
-   if (ctx) {
-      ctx->locals = scratch->reserved;
-      ctx->locals_high_water = scratch->reserved;
-   }
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_activate(ctx, scratch);
 }
 
 //! @brief Restore fp after one use of a reusable statement scratch area.
 static void stmt_fixed_scratch_deactivate(Context *ctx, StmtFixedScratch *scratch) {
-   if (ctx && ctx->locals_high_water > scratch->used) {
-      scratch->used = ctx->locals_high_water;
-   }
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-   if (ctx) {
-      ctx->locals = scratch->saved_locals;
-      ctx->locals_high_water = scratch->saved_high_water;
-   }
+   compiler_scratch_deactivate(ctx, scratch);
 }
 
 //! @brief Declare the maximum fixed storage required by a statement scratch area.
 static void stmt_fixed_scratch_finish(StmtFixedScratch *scratch) {
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch->symbol);
-   emit(&es_bss, "\t.res %d\n", scratch->used > 0 ? scratch->used : 1);
+   compiler_scratch_release(scratch);
 }
 
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
@@ -130,7 +97,7 @@ static const ASTNode *decl_subitem_address_spec(const ASTNode *node) {
 }
 
 //! @brief Return decl node declarator data used by compiler statement lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-static const ASTNode *decl_node_declarator(const ASTNode *node) {
+static const ASTNode *stmt_decl_node_declarator(const ASTNode *node) {
    if (!node || node->count < 3) {
       return NULL;
    }
@@ -413,7 +380,7 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
       return false;
    }
 
-   stmt_fixed_scratch_prepare(ctx, "inittmp", size, &scratch);
+   stmt_fixed_scratch_prepare(ctx, size, &scratch);
    stmt_fixed_scratch_activate(ctx, &scratch);
 
    if (initializer_is_list(unwrap_expr_node(expression)) ||
@@ -503,7 +470,7 @@ static void compile_continue_stmt(ASTNode *node, Context *ctx) {
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    ASTNode *modifiers  = node->children[0];
    ASTNode *type       = node->children[1];
-   ASTNode *declarator = (ASTNode *) decl_node_declarator(node);
+   ASTNode *declarator = (ASTNode *) stmt_decl_node_declarator(node);
    const ASTNode *addrspec = decl_node_address_spec(node);
    const char *name    = declarator_name(declarator);
    int size            = declarator_storage_size(type, declarator);
@@ -618,7 +585,7 @@ void predeclare_statement_list(ASTNode *node, Context *ctx) {
 static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    ASTNode *modifiers  = node->children[0];
    ASTNode *type       = node->children[1];
-   ASTNode *declarator = (ASTNode *) decl_node_declarator(node);
+   ASTNode *declarator = (ASTNode *) stmt_decl_node_declarator(node);
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
    validate_nonreserved_implementation_name(name, node);
@@ -653,7 +620,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          return;
       }
 
-      stmt_fixed_scratch_prepare(ctx, "absinittmp", size, &scratch);
+      stmt_fixed_scratch_prepare(ctx, size, &scratch);
       stmt_fixed_scratch_activate(ctx, &scratch);
       if (initializer_is_list(unwrap_expr_node(expression)) ||
           declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
@@ -970,7 +937,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
       error_unreachable("out of memory");
    }
 
-   stmt_fixed_scratch_prepare(ctx, "switchtmp", compare_size, &scratch);
+   stmt_fixed_scratch_prepare(ctx, compare_size, &scratch);
    stmt_fixed_scratch_activate(ctx, &scratch);
    if (!compile_expr_to_slot(expr, ctx, &lhs)) {
       stmt_fixed_scratch_deactivate(ctx, &scratch);

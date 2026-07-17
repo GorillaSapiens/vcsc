@@ -1,7 +1,7 @@
 // n65c -I .
 // expectasmordered: sta a?,y
 // expectasmordered: lda #<{a? + 0}
-// expectasmordered: ora __n65_truthtmp_
+// expectasmordered: ora __n65_scratch_
 // expectasmordered: beq @if_false_
 
 include "machine_6502.n"

@@ -1,7 +1,7 @@
 // n65c -I .
-// expectasm: __str_1:
+// expectasm: __str_0:
 // expectasm: 	.byte $66, $6f, $6f, $00
-// expectasm: lda #<__str_1
+// expectasm: lda #<__str_0
 
 include "machine_6502.n"
 

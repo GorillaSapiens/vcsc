@@ -15,6 +15,7 @@
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_internal.h"
+#include "compile_support.h"
 #include "compile_overload.h"
 #include "compile_type.h"
 #include "emit.h"
@@ -740,34 +741,26 @@ static const char *runtime_global_init_symbol(void) {
 void emit_runtime_global_init_function(void) {
    Context ctx;
    const char *sym;
-   char scratch_sym[96];
-   int scratch_size;
+   CompilerScratchLease scratch;
 
    if (pending_global_init_count <= 0) {
       return;
    }
 
    sym = runtime_global_init_symbol();
-   snprintf(scratch_sym, sizeof(scratch_sym), "__n65_globalinittmp_%d", label_counter++);
    emit(&es_export, ".export %s\n", sym);
 
    ctx.name = sym;
-   ctx.locals = pending_global_init_max_size;
-   ctx.locals_high_water = pending_global_init_max_size;
+   ctx.locals = 0;
+   ctx.locals_high_water = 0;
    ctx.params = 0;
    ctx.vars = new_set();
    ctx.break_label = NULL;
    ctx.continue_label = NULL;
 
+   compiler_scratch_acquire(&ctx, pending_global_init_max_size, &scratch);
    emit(&es_code, ".proc %s\n", sym);
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", scratch_sym);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", scratch_sym);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_activate(&ctx, &scratch);
 
    for (int i = 0; i < pending_global_init_count; i++) {
       PendingGlobalInit *entry = &pending_global_inits[i];
@@ -796,16 +789,10 @@ void emit_runtime_global_init_function(void) {
       }
    }
 
-   scratch_size = ctx.locals_high_water > 0 ? ctx.locals_high_water : 1;
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_deactivate(&ctx, &scratch);
+   compiler_scratch_release(&scratch);
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch_sym);
-   emit(&es_bss, "\t.res %d\n", scratch_size);
 }
 
 //! @brief Return aggregate initializer target name data used by compiler initializer lowering; returned pointers alias existing storage unless explicitly allocated by the function name.

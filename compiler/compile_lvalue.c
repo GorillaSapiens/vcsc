@@ -12,6 +12,7 @@
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_internal.h"
+#include "compile_support.h"
 #include "compile_lvalue.h"
 #include "compile_overload.h"
 #include "compile_type.h"
@@ -22,52 +23,19 @@
 #include "xray.h"
 #include "lextern.h"
 
-typedef struct LValueFixedScratch {
-   int saved_locals;
-   int saved_high_water;
-   int reserved;
-   char symbol[96];
-} LValueFixedScratch;
+typedef CompilerScratchLease LValueFixedScratch;
 
 //! @brief Begin fixed-address lvalue scratch and redirect fp to it.
-static void lvalue_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+static void lvalue_fixed_scratch_begin(Context *ctx, int reserved,
                                        LValueFixedScratch *scratch) {
-   memset(scratch, 0, sizeof(*scratch));
-   scratch->saved_locals = ctx ? ctx->locals : 0;
-   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
-   scratch->reserved = reserved > 0 ? reserved : 1;
-   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
-   if (ctx) {
-      ctx->locals = scratch->reserved;
-      ctx->locals_high_water = scratch->reserved;
-   }
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_acquire(ctx, reserved, scratch);
+   compiler_scratch_activate(ctx, scratch);
 }
 
 //! @brief Restore fp and declare fixed-address lvalue scratch.
 static void lvalue_fixed_scratch_end(Context *ctx, LValueFixedScratch *scratch) {
-   int used = scratch->reserved;
-   if (ctx && ctx->locals_high_water > used) {
-      used = ctx->locals_high_water;
-   }
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-   if (ctx) {
-      ctx->locals = scratch->saved_locals;
-      ctx->locals_high_water = scratch->saved_high_water;
-   }
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch->symbol);
-   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+   compiler_scratch_deactivate(ctx, scratch);
+   compiler_scratch_release(scratch);
 }
 
 //! @brief Handle absolute ref supports direct access logic for compiler lvalue lowering.
@@ -531,7 +499,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          ContextEntry idx_tmp = { .name = "$idx", .type = idx_type ? idx_type : required_typename_node("int16_t"), .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = idx_offset, .size = ptr_size };
          LValueFixedScratch scratch;
 
-         lvalue_fixed_scratch_begin(ctx, "indextmp", total, &scratch);
+         lvalue_fixed_scratch_begin(ctx, total, &scratch);
          emit_store_ptr_to_fp(save_ptr0_offset, 0, ptr_size);
          if (!compile_expr_to_slot((ASTNode *) idx, ctx, &idx_tmp)) {
             lvalue_fixed_scratch_end(ctx, &scratch);

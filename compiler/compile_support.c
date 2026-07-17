@@ -31,6 +31,181 @@
 #include "xray.h"
 #include "lextern.h"
 
+
+#define COMPILER_SCRATCH_MAX_SCOPES 256
+#define COMPILER_SCRATCH_MAX_SLOTS 64
+
+typedef struct CompilerScratchSlot {
+   int symbol_id;
+   int max_size;
+} CompilerScratchSlot;
+
+typedef struct CompilerScratchScope {
+   char *name;
+   int depth;
+   int slot_count;
+   CompilerScratchSlot slots[COMPILER_SCRATCH_MAX_SLOTS];
+} CompilerScratchScope;
+
+static CompilerScratchScope compiler_scratch_scopes[COMPILER_SCRATCH_MAX_SCOPES];
+static int compiler_scratch_scope_count = 0;
+static int compiler_scratch_symbol_count = 0;
+
+static int compiler_scratch_scope_for_context(const Context *ctx) {
+   const char *name = (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
+   for (int i = 0; i < compiler_scratch_scope_count; i++) {
+      if (!strcmp(compiler_scratch_scopes[i].name, name)) {
+         return i;
+      }
+   }
+   if (compiler_scratch_scope_count >= COMPILER_SCRATCH_MAX_SCOPES) {
+      error_unreachable("too many compiler scratch scopes");
+   }
+   int index = compiler_scratch_scope_count++;
+   memset(&compiler_scratch_scopes[index], 0, sizeof(compiler_scratch_scopes[index]));
+   compiler_scratch_scopes[index].name = strdup(name);
+   if (!compiler_scratch_scopes[index].name) {
+      error_unreachable("out of memory creating compiler scratch scope");
+   }
+   return index;
+}
+
+void compiler_scratch_reset(void) {
+   for (int i = 0; i < compiler_scratch_scope_count; i++) {
+      free(compiler_scratch_scopes[i].name);
+   }
+   memset(compiler_scratch_scopes, 0, sizeof(compiler_scratch_scopes));
+   compiler_scratch_scope_count = 0;
+   compiler_scratch_symbol_count = 0;
+}
+
+void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *lease) {
+   CompilerScratchScope *scope;
+   CompilerScratchSlot *slot;
+   int scope_index;
+   int slot_index;
+
+   if (!lease) {
+      error_unreachable("NULL compiler scratch lease");
+   }
+   memset(lease, 0, sizeof(*lease));
+   scope_index = compiler_scratch_scope_for_context(ctx);
+   scope = &compiler_scratch_scopes[scope_index];
+   slot_index = scope->depth++;
+   if (slot_index >= COMPILER_SCRATCH_MAX_SLOTS) {
+      error_unreachable("compiler scratch nesting exceeds %d", COMPILER_SCRATCH_MAX_SLOTS);
+   }
+   if (slot_index >= scope->slot_count) {
+      slot = &scope->slots[scope->slot_count++];
+      slot->symbol_id = compiler_scratch_symbol_count++;
+   }
+   else {
+      slot = &scope->slots[slot_index];
+   }
+
+   lease->scope_index = scope_index;
+   lease->slot_index = slot_index;
+   lease->saved_locals = ctx ? ctx->locals : 0;
+   lease->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   lease->reserved = reserved > 0 ? reserved : 1;
+   lease->used = lease->reserved;
+   snprintf(lease->symbol, sizeof(lease->symbol), "__n65_scratch_%d", slot->symbol_id);
+}
+
+void compiler_scratch_note_used(CompilerScratchLease *lease, int used) {
+   CompilerScratchScope *scope;
+   CompilerScratchSlot *slot;
+   if (!lease || lease->scope_index < 0 || lease->scope_index >= compiler_scratch_scope_count ||
+       lease->slot_index < 0) {
+      error_unreachable("invalid compiler scratch lease");
+   }
+   if (used < lease->reserved) {
+      used = lease->reserved;
+   }
+   if (used > lease->used) {
+      lease->used = used;
+   }
+   scope = &compiler_scratch_scopes[lease->scope_index];
+   if (lease->slot_index >= scope->slot_count) {
+      error_unreachable("invalid compiler scratch slot");
+   }
+   slot = &scope->slots[lease->slot_index];
+   if (lease->used > slot->max_size) {
+      slot->max_size = lease->used;
+   }
+}
+
+void compiler_scratch_activate(Context *ctx, CompilerScratchLease *lease) {
+   if (!lease || lease->active) {
+      error_unreachable("invalid compiler scratch activation");
+   }
+   if (ctx) {
+      ctx->locals = lease->reserved;
+      ctx->locals_high_water = lease->reserved;
+   }
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", lease->symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", lease->symbol);
+   emit(&es_code, "    sta fp+1\n");
+   lease->active = true;
+}
+
+void compiler_scratch_deactivate(Context *ctx, CompilerScratchLease *lease) {
+   int used;
+   if (!lease || !lease->active) {
+      error_unreachable("invalid compiler scratch deactivation");
+   }
+   used = ctx ? ctx->locals_high_water : lease->reserved;
+   compiler_scratch_note_used(lease, used);
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (ctx) {
+      ctx->locals = lease->saved_locals;
+      ctx->locals_high_water = lease->saved_high_water;
+   }
+   lease->active = false;
+}
+
+void compiler_scratch_release(CompilerScratchLease *lease) {
+   CompilerScratchScope *scope;
+   if (!lease || lease->active || lease->scope_index < 0 ||
+       lease->scope_index >= compiler_scratch_scope_count) {
+      error_unreachable("invalid compiler scratch release");
+   }
+   compiler_scratch_note_used(lease, lease->used);
+   scope = &compiler_scratch_scopes[lease->scope_index];
+   if (scope->depth != lease->slot_index + 1) {
+      error_unreachable("compiler scratch leases must be released in LIFO order");
+   }
+   scope->depth--;
+   lease->scope_index = -1;
+   lease->slot_index = -1;
+}
+
+void compiler_scratch_emit_bss(void) {
+   for (int i = 0; i < compiler_scratch_scope_count; i++) {
+      CompilerScratchScope *scope = &compiler_scratch_scopes[i];
+      if (scope->depth != 0) {
+         error_unreachable("unreleased compiler scratch in scope '%s'", scope->name);
+      }
+      for (int j = 0; j < scope->slot_count; j++) {
+         CompilerScratchSlot *slot = &scope->slots[j];
+         if (slot->max_size <= 0) {
+            continue;
+         }
+         emit(&es_bss, ".segment \"BSS\"\n");
+         emit(&es_bss, "__n65_scratch_%d:\n", slot->symbol_id);
+         emit(&es_bss, "\t.res %d\n", slot->max_size);
+      }
+   }
+}
+
 //! @brief Return context lookup data used by compiler code-generation support; returned pointers alias existing storage unless explicitly allocated by the function name.
 ContextEntry *ctx_lookup(Context *ctx, const char *name) {
    return ctx ? (ContextEntry *) set_get(ctx->vars, name) : NULL;

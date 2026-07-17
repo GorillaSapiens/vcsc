@@ -1,6 +1,6 @@
 // n65c -I .
-// expectasm: __n65_truthtmp_
-// expectasm: ora __n65_truthtmp_
+// expectasm: __n65_scratch_
+// expectasm: ora __n65_scratch_
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN
 include "machine_6502.n"

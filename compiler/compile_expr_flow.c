@@ -36,12 +36,7 @@
 
 static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
-typedef struct FlowFixedScratch {
-   int saved_locals;
-   int saved_high_water;
-   int reserved;
-   char symbol[96];
-} FlowFixedScratch;
+typedef CompilerScratchLease FlowFixedScratch;
 
 //! @brief Save the current frame pointer on the 6502 hardware stack.
 static void emit_expr_scratch_save_fp(void) {
@@ -68,39 +63,30 @@ static void emit_expr_scratch_restore_fp(void) {
 }
 
 //! @brief Prepare one fixed-address flow-expression working area without changing fp.
-static void flow_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+static void flow_fixed_scratch_prepare(Context *ctx, int reserved,
                                        FlowFixedScratch *scratch) {
-   memset(scratch, 0, sizeof(*scratch));
-   scratch->saved_locals = ctx ? ctx->locals : 0;
-   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
-   scratch->reserved = reserved > 0 ? reserved : 1;
-   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+   compiler_scratch_acquire(ctx, reserved, scratch);
 }
 
 //! @brief Redirect fp to a prepared fixed-address flow-expression working area.
 static void flow_fixed_scratch_activate(Context *ctx, FlowFixedScratch *scratch) {
-   if (ctx) {
-      ctx->locals = scratch->reserved;
-      ctx->locals_high_water = scratch->reserved;
-   }
-   emit_expr_scratch_save_fp();
-   emit_expr_scratch_set_fp(scratch->symbol);
+   compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp, restore compiler frame accounting, and declare fixed scratch.
-static void flow_fixed_scratch_end(Context *ctx, FlowFixedScratch *scratch) {
-   int used = scratch->reserved;
-   if (ctx && ctx->locals_high_water > used) {
-      used = ctx->locals_high_water;
-   }
-   emit_expr_scratch_restore_fp();
-   if (ctx) {
-      ctx->locals = scratch->saved_locals;
-      ctx->locals_high_water = scratch->saved_high_water;
-   }
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch->symbol);
-   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+//! @brief Restore fp while keeping the flow scratch lease live for copy-out.
+static void flow_fixed_scratch_deactivate(Context *ctx, FlowFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+}
+
+//! @brief Release one inactive flow scratch lease.
+static void flow_fixed_scratch_finish(FlowFixedScratch *scratch) {
+   compiler_scratch_release(scratch);
+}
+
+//! @brief Restore fp and release a flow scratch lease on an error path.
+static void flow_fixed_scratch_abort(Context *ctx, FlowFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+   compiler_scratch_release(scratch);
 }
 
 //! @brief Evaluate an expression in fixed BSS scratch and restore the caller frame.
@@ -109,21 +95,19 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
                                           const ASTNode *declarator,
                                           int size,
                                           bool target_typed,
-                                          const char *prefix,
                                           char *symbol,
                                           size_t symbol_size,
-                                          int *allocated_size) {
-   int saved_locals = ctx ? ctx->locals : 0;
-   int saved_high_water = ctx ? ctx->locals_high_water : 0;
-   int used = size;
+                                          int *allocated_size,
+                                          CompilerScratchLease *scratch_out) {
    bool ok;
    ContextEntry tmp;
 
-   if (!expr || !prefix || !symbol || symbol_size == 0 || size <= 0) {
+   if (!expr || !symbol || symbol_size == 0 || size <= 0 || !scratch_out) {
       return false;
    }
 
-   snprintf(symbol, symbol_size, "__n65_%s_%d", prefix, label_counter++);
+   compiler_scratch_acquire(ctx, size, scratch_out);
+   snprintf(symbol, symbol_size, "%s", scratch_out->symbol);
    memset(&tmp, 0, sizeof(tmp));
    tmp.name = "$fixedtmp";
    tmp.type = type;
@@ -132,32 +116,14 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
    tmp.offset = 0;
    tmp.size = size;
 
-   if (ctx) {
-      ctx->locals = size;
-      ctx->locals_high_water = size;
-   }
-
-   emit_expr_scratch_save_fp();
-   emit_expr_scratch_set_fp(symbol);
+   compiler_scratch_activate(ctx, scratch_out);
    ok = compile_expr_to_slot(expr, ctx, &tmp);
-   if (ctx && ctx->locals_high_water > used) {
-      used = ctx->locals_high_water;
-   }
-   emit_expr_scratch_restore_fp();
-
-   if (ctx) {
-      ctx->locals = saved_locals;
-      ctx->locals_high_water = saved_high_water;
-   }
-
-   if (used <= 0) {
-      used = 1;
-   }
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", symbol);
-   emit(&es_bss, "\t.res %d\n", used);
+   compiler_scratch_deactivate(ctx, scratch_out);
    if (allocated_size) {
-      *allocated_size = used;
+      *allocated_size = scratch_out->used;
+   }
+   if (!ok) {
+      compiler_scratch_release(scratch_out);
    }
    return ok;
 }
@@ -282,17 +248,17 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
       bool dst_direct_fp = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                            !lv->is_absolute_ref && !dst->is_static && !dst->is_zeropage && !dst->is_global;
 
-      flow_fixed_scratch_prepare(ctx, "bracedtmp", size, &scratch);
+      flow_fixed_scratch_prepare(ctx, size, &scratch);
       flow_fixed_scratch_activate(ctx, &scratch);
 
       emit_zero_assignment_initializer_fp_target(tmp_offset, size);
       if (!compile_initializer_to_fp(rhs, ctx, dst->type, dst->declarator, tmp_offset, size)) {
-         flow_fixed_scratch_end(ctx, &scratch);
+         flow_fixed_scratch_abort(ctx, &scratch);
          error_user("[%s:%d.%d] invalid assignment initializer", node->file, node->line, node->column);
          return false;
       }
 
-      flow_fixed_scratch_end(ctx, &scratch);
+      flow_fixed_scratch_deactivate(ctx, &scratch);
       if (dst_symbol) {
          emit_copy_symbol_to_symbol_convert_offset(sym, lv->offset, size, dst->type,
                                                    scratch.symbol, tmp_offset, size, dst->type);
@@ -302,9 +268,11 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
                                                scratch.symbol, tmp_offset, size, dst->type);
       }
       else if (!emit_copy_symbol_to_lvalue(ctx, lv, scratch.symbol, tmp_offset, size)) {
+         flow_fixed_scratch_finish(&scratch);
          error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
          return false;
       }
+      flow_fixed_scratch_finish(&scratch);
 
       return true;
    }
@@ -547,6 +515,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
                                              int size,
                                              const char *false_label) {
    char scratch_sym[96];
+   CompilerScratchLease scratch;
 
    if (size <= 0) {
       size = expr_value_size(expr, ctx);
@@ -559,8 +528,8 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
    }
 
    if (!compile_expr_to_fixed_scratch(expr, ctx, type, declarator, size,
-                                      declarator != NULL, "truthtmp", scratch_sym,
-                                      sizeof(scratch_sym), NULL)) {
+                                      declarator != NULL, scratch_sym,
+                                      sizeof(scratch_sym), NULL, &scratch)) {
       return false;
    }
 
@@ -570,6 +539,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
       emit(&es_code, "    ora %s,y\n", scratch_sym);
    }
    emit(&es_code, "    beq %s\n", false_label);
+   compiler_scratch_release(&scratch);
    return true;
 }
 
@@ -652,10 +622,7 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       const ASTNode *type = NULL;
       int size;
       int compare_size;
-      int saved_locals = ctx ? ctx->locals : 0;
-      int saved_high_water = ctx ? ctx->locals_high_water : 0;
-      int scratch_size;
-      char scratch_sym[96];
+      CompilerScratchLease scratch;
       ContextEntry lhs;
       ContextEntry rhs;
       const char *helper = NULL;
@@ -677,30 +644,15 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          size = 1;
       }
       compare_size = size * 2;
-      scratch_size = compare_size;
-      snprintf(scratch_sym, sizeof(scratch_sym), "__n65_comparetmp_%d", label_counter++);
+      compiler_scratch_acquire(ctx, compare_size, &scratch);
       lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = 0, .size = size };
       rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = size, .size = size };
-      if (ctx) {
-         ctx->locals = compare_size;
-         ctx->locals_high_water = compare_size;
-      }
-      emit_expr_scratch_save_fp();
-      emit_expr_scratch_set_fp(scratch_sym);
+      compiler_scratch_activate(ctx, &scratch);
       ok = compile_expr_to_slot(expr->children[0], ctx, &lhs) &&
            compile_expr_to_slot(expr->children[1], ctx, &rhs);
-      if (ctx && ctx->locals_high_water > scratch_size) {
-         scratch_size = ctx->locals_high_water;
-      }
       if (!ok) {
-         emit_expr_scratch_restore_fp();
-         if (ctx) {
-            ctx->locals = saved_locals;
-            ctx->locals_high_water = saved_high_water;
-         }
-         emit(&es_bss, ".segment \"BSS\"\n");
-         emit(&es_bss, "%s:\n", scratch_sym);
-         emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
+         compiler_scratch_deactivate(ctx, &scratch);
+         compiler_scratch_release(&scratch);
          return false;
       }
 
@@ -732,14 +684,8 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       emit(&es_code, "    sta arg0\n");
       remember_runtime_import(helper);
       emit(&es_code, "    jsr _%s\n", helper);
-      emit_expr_scratch_restore_fp();
-      if (ctx) {
-         ctx->locals = saved_locals;
-         ctx->locals_high_water = saved_high_water;
-      }
-      emit(&es_bss, ".segment \"BSS\"\n");
-      emit(&es_bss, "%s:\n", scratch_sym);
-      emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
+      compiler_scratch_deactivate(ctx, &scratch);
+      compiler_scratch_release(&scratch);
       emit(&es_code, "    lda arg1\n");
       emit(&es_code, "    %s %s\n", invert ? "bne" : "beq", false_label);
       return true;
@@ -953,15 +899,17 @@ void compile_expr(ASTNode *node, Context *ctx) {
       const ASTNode *type = expr_value_type(node, ctx);
       int size = expr_value_size(node, ctx);
       char scratch_sym[96];
+      CompilerScratchLease scratch;
       if (size <= 0) {
          size = 1;
       }
       if (!compile_expr_to_fixed_scratch(node, ctx, type, NULL, size,
-                                         false, "discardtmp", scratch_sym,
-                                         sizeof(scratch_sym), NULL)) {
+                                         false, scratch_sym,
+                                         sizeof(scratch_sym), NULL, &scratch)) {
          error_user("[%s:%d.%d] invalid expression", node->file, node->line, node->column);
          return;
       }
+      compiler_scratch_release(&scratch);
       return;
    }
 
@@ -1022,9 +970,10 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
          char scratch_sym[96];
+         CompilerScratchLease scratch;
          if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
-                                            dst->size, true, "assigntmp", scratch_sym,
-                                            sizeof(scratch_sym), NULL)) {
+                                            dst->size, true, scratch_sym,
+                                            sizeof(scratch_sym), NULL, &scratch)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
@@ -1032,24 +981,28 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_expr_scratch_set_fp(scratch_sym);
          emit_copy_fp_to_symbol_offset(sym, lv.offset, 0, dst->size);
          emit_expr_scratch_restore_fp();
+         compiler_scratch_release(&scratch);
          return;
       }
       if (lv.is_bitfield || lv.indirect || lv.needs_runtime_address || lv.is_absolute_ref) {
          int tmp_size = dst->size > 0 ? dst->size : expr_value_size(rhs, ctx);
          char scratch_sym[96];
+         CompilerScratchLease scratch;
          if (tmp_size <= 0) {
             tmp_size = 1;
          }
          if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
-                                            tmp_size, true, "lvalueassigntmp", scratch_sym,
-                                            sizeof(scratch_sym), NULL)) {
+                                            tmp_size, true, scratch_sym,
+                                            sizeof(scratch_sym), NULL, &scratch)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
          if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch_sym, 0, tmp_size)) {
+            compiler_scratch_release(&scratch);
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;
          }
+         compiler_scratch_release(&scratch);
       }
       else if (!compile_expr_to_slot(rhs, ctx, dst)) {
          error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
@@ -1176,7 +1129,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
 
       rhs_tmp = (ContextEntry){ .name = "$rhs_tmp", .type = rhs_slot_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = rhs_tmp_offset, .size = rhs_work_size };
 
-      flow_fixed_scratch_prepare(ctx, "compoundtmp", tmp_total, &scratch);
+      flow_fixed_scratch_prepare(ctx, tmp_total, &scratch);
       if (dst_symbol) {
          emit_copy_symbol_to_symbol_convert_offset(scratch.symbol, lhs_tmp_offset, work_size, work_type,
                                                    dst_sym, lv.offset, dst->size, dst->type);
@@ -1184,6 +1137,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       else {
          int lhs_src_size = dst->size < work_size ? dst->size : work_size;
          if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, lhs_tmp_offset, &lv, lhs_src_size)) {
+            flow_fixed_scratch_finish(&scratch);
             error_user("[%s:%d.%d] invalid compound assignment target", node->file, node->line, node->column);
             return;
          }
@@ -1195,7 +1149,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_copy_fp_to_fp_convert(lhs_tmp_offset, work_size, work_type, lhs_tmp_offset, lhs_src_size, dst->type);
       }
       if (!compile_expr_to_slot(rhs, ctx, &rhs_tmp)) {
-         flow_fixed_scratch_end(ctx, &scratch);
+         flow_fixed_scratch_abort(ctx, &scratch);
          error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
          return;
       }
@@ -1205,7 +1159,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          char scaled_buf[64];
          const ASTNode *factor_type = rhs_slot_type ? rhs_slot_type : work_type;
          if (!factor_bytes) {
-            flow_fixed_scratch_end(ctx, &scratch);
+            flow_fixed_scratch_abort(ctx, &scratch);
             return;
          }
          snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
@@ -1254,7 +1208,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_copy_fp_to_fp(lhs_tmp_offset, aux_offset, work_size);
       }
       else {
-         flow_fixed_scratch_end(ctx, &scratch);
+         flow_fixed_scratch_abort(ctx, &scratch);
          error_user("[%s:%d.%d] unsupported compound assignment operator '%s'", node->file, node->line, node->column, op);
          return;
       }
@@ -1262,15 +1216,17 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (need_store_tmp) {
          emit_copy_fp_to_fp_convert(store_offset, dst->size, dst->type, lhs_tmp_offset, work_size, work_type);
       }
-      flow_fixed_scratch_end(ctx, &scratch);
+      flow_fixed_scratch_deactivate(ctx, &scratch);
       if (dst_symbol) {
          emit_copy_symbol_to_symbol_convert_offset(dst_sym, lv.offset, dst->size, dst->type,
                                                    scratch.symbol, store_offset, dst->size, dst->type);
       }
       else if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol, store_offset, dst->size)) {
+         flow_fixed_scratch_finish(&scratch);
          error_user("[%s:%d.%d] invalid compound assignment target", node->file, node->line, node->column);
          return;
       }
+      flow_fixed_scratch_finish(&scratch);
       return;
    }
 

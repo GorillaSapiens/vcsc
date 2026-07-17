@@ -1,9 +1,9 @@
 // n65c -I .
-// expectasm: __n65_calltmp_0:
+// expectasm: __n65_scratch_0:
 // expectasmordered: .proc main
-// expectasmordered: lda #<__n65_calltmp_0
+// expectasmordered: lda #<__n65_scratch_0
 // expectasmordered: sta fp
-// expectasmordered: lda #>__n65_calltmp_0
+// expectasmordered: lda #>__n65_scratch_0
 // expectasmordered: sta fp+1
 // expectasmordered: sta sink$a,y
 // expectasmordered: sta sink$b,y

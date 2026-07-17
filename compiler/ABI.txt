@@ -9,7 +9,8 @@ symbols. Ordinary direct calls, truth tests, comparisons, simple fixed-symbol
 assignments, casts, absolute-reference conversion, built-in increment/decrement,
 compound assignment, pointer/index lvalues, braced and runtime-global
 initializers, bit-field helpers, switch expressions, and all builtin operator
-families use fixed per-site scratch. Compiler source emits no `_pushN` or `_popN`.
+families use function/depth-pooled fixed scratch. Compiler source emits no
+`_pushN` or `_popN`.
 
 Function returns
 ----------------
@@ -31,18 +32,18 @@ a hidden callee-owned symbol. `return expr;` writes the converted value to
 `$$`. At the common epilogue, the compiler loads the high byte into X when
 present, loads the low byte into A, and executes RTS.
 
-Before an ordinary direct call, the compiler assigns the call site
-a private fixed BSS symbol such as `__n65_calltmp_0`. For each fixed argument:
+Before an ordinary direct call, the compiler leases the caller function's
+current depth slot, such as `__n65_scratch_0`. For each fixed argument:
 
 ; save caller fp on the HARDWARE stack
 lda fp+1
 pha
 lda fp
 pha
-; redirect fp to fixed call-site scratch
-lda #<__n65_calltmp_0
+; redirect fp to the active caller scratch lease
+lda #<__n65_scratch_0
 sta fp
-lda #>__n65_calltmp_0
+lda #>__n65_scratch_0
 sta fp+1
 ; evaluate and convert the argument through that scratch
 ; copy it into the callee-owned parameter symbol
@@ -54,16 +55,19 @@ sta fp+1
 
 The caller then saves `fp`, executes JSR, and restores `fp` without destroying
 A:X. If the enclosing expression needs a memory-backed result, A:X is copied to
-the same fixed call-site scratch and converted into its destination.
+the still-live caller scratch lease and converted into its destination.
 
-The scratch symbol is sized to the greatest temporary depth observed while
-compiling any argument at that call site, or to the consumed return width when
-larger. Scratch is allocated per call site so nested calls remain safe. It is
-not overlaid yet, so this transitional ABI can consume more RAM than necessary.
+Scratch is pooled by function and lexical emission depth. Sequential uses in one
+function reuse a slot; nested uses get deeper slots; different functions get
+distinct physical symbols so caller data remains valid during a callee. Each
+slot is emitted at the maximum size observed for that depth. Scratch leases are
+released in LIFO order and compilation fails if any lease remains live at the
+end of code generation.
 
 Function entry has no software-stack prologue. Named automatic locals already have
-fixed symbols. An expression site that needs temporary storage redirects `fp` to its
-own fixed BSS scratch and restores the caller value through the 6502 hardware stack.
+fixed symbols. An expression site that needs temporary storage redirects `fp` to its active
+function/depth-pooled BSS scratch lease and restores the caller value through the
+6502 hardware stack.
 
 Function epilogue for a value return:
 
@@ -77,7 +81,7 @@ rts
 
 Reset/startup still initializes `sp` and `fp` during the transitional runtime.
 Compiler-generated code no longer allocates through `sp`; `fp` remains the addressing
-base for fixed scratch. The target language now has only one- and two-byte integers,
+base for pooled fixed scratch. The target language now has only one- and two-byte integers,
 but a few runtime services (notably generic division and `_sbrk`) still reference
 `sp`; removing that residual runtime stack state is a separate cleanup step.
 
@@ -107,7 +111,7 @@ converted value to the corresponding symbol before JSR.
 
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion and optional
-A:X consumption use the call site's fixed `__n65_calltmp_N` symbol. That scratch
+A:X consumption use a live caller-function `__n65_scratch_N` lease. That scratch
 belongs to the caller and is not part of the callee ABI.
 
 Every function body owns one fixed activation record containing its parameters,

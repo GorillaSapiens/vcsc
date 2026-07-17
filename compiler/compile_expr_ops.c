@@ -39,63 +39,162 @@
 
 static int expr_byte_index(const ASTNode *type, int size, int i);
 
-typedef struct ExprFixedScratch {
-   int saved_locals;
-   int saved_high_water;
-   int reserved;
-   char symbol[96];
-} ExprFixedScratch;
+
+typedef enum CommonLValuePairResult {
+   COMMON_LVALUE_PAIR_NOT_APPLICABLE = 0,
+   COMMON_LVALUE_PAIR_OK = 1,
+   COMMON_LVALUE_PAIR_ERROR = -1
+} CommonLValuePairResult;
+
+//! @brief Compare expression structure while ignoring source positions and pass flags.
+static bool expression_tree_equal(const ASTNode *lhs, const ASTNode *rhs) {
+   if (lhs == rhs) {
+      return true;
+   }
+   if (!lhs || !rhs || lhs->kind != rhs->kind || lhs->count != rhs->count ||
+       strcmp(lhs->name ? lhs->name : "", rhs->name ? rhs->name : "")) {
+      return false;
+   }
+   if (lhs->kind == AST_IDENTIFIER || lhs->kind == AST_TYPENAME ||
+       lhs->kind == AST_INTEGER || lhs->kind == AST_STRING || lhs->kind == AST_ASM) {
+      if (strcmp(lhs->strval ? lhs->strval : "", rhs->strval ? rhs->strval : "")) {
+         return false;
+      }
+   }
+   for (int i = 0; i < lhs->count; i++) {
+      if (!expression_tree_equal(lhs->children[i], rhs->children[i])) {
+         return false;
+      }
+   }
+   return true;
+}
+
+//! @brief Return whether an exact lvalue load can be written to a binary work slot.
+static bool common_lvalue_slot_compatible(const LValueRef *lv, const ContextEntry *slot) {
+   if (!lv || !slot || lv->size != slot->size || lv->size <= 0) {
+      return false;
+   }
+   return same_named_value_type(lv->type, lv->declarator, slot->type, slot->declarator);
+}
+
+//! @brief Copy one ptr0-relative object into an fp-relative work slot.
+static void emit_copy_ptr0_relative_to_slot(int ptr_offset, const ContextEntry *slot) {
+   for (int i = 0; i < slot->size; i++) {
+      emit(&es_code, "    ldy #%d\n", ptr_offset + i);
+      emit(&es_code, "    lda (ptr0),y\n");
+      emit(&es_code, "    ldy #%d\n", slot->offset + i);
+      emit(&es_code, "    sta (fp),y\n");
+   }
+}
+
+//! @brief Load two fields sharing one runtime-indexed aggregate address with one ptr0 calculation.
+//!
+//! This is deliberately narrow: both operands must be direct fields of the same
+//! dynamic array element, with structurally identical index expressions and no
+//! pointer dereference, bitfield, conversion, or absolute-ref semantics.  Those
+//! restrictions make reusing ptr0 side-effect-free and mechanically safe.
+static CommonLValuePairResult compile_common_indexed_lvalue_pair(Context *ctx,
+                                                                 ASTNode *lhs_expr,
+                                                                 ASTNode *rhs_expr,
+                                                                 ContextEntry *lhs_slot,
+                                                                 ContextEntry *rhs_slot) {
+   LValueRef lhs;
+   LValueRef rhs;
+   const ASTNode *lhs_prefix;
+   const ASTNode *rhs_prefix;
+   const LValueRef *anchor;
+   int lhs_relative;
+   int rhs_relative;
+
+   lhs_expr = (ASTNode *) unwrap_expr_node(lhs_expr);
+   rhs_expr = (ASTNode *) unwrap_expr_node(rhs_expr);
+   if (!lhs_expr || !rhs_expr || strcmp(lhs_expr->name, "lvalue") ||
+       strcmp(rhs_expr->name, "lvalue") ||
+       !resolve_lvalue(ctx, lhs_expr, &lhs) || !resolve_lvalue(ctx, rhs_expr, &rhs)) {
+      return COMMON_LVALUE_PAIR_NOT_APPLICABLE;
+   }
+   if (!lhs.needs_runtime_address || !rhs.needs_runtime_address ||
+       lhs.indirect || rhs.indirect || lhs.is_ref || rhs.is_ref ||
+       lhs.is_absolute_ref || rhs.is_absolute_ref || lhs.is_bitfield || rhs.is_bitfield ||
+       !lhs.name || !rhs.name || strcmp(lhs.name, rhs.name) ||
+       lhs.base_offset != rhs.base_offset || lhs.ptr_adjust != rhs.ptr_adjust ||
+       lhs.deref_depth != rhs.deref_depth ||
+       lhs.is_static != rhs.is_static || lhs.is_zeropage != rhs.is_zeropage ||
+       lhs.is_global != rhs.is_global ||
+       !same_named_value_type(lhs.base_type, lhs.base_declarator,
+                              rhs.base_type, rhs.base_declarator) ||
+       !common_lvalue_slot_compatible(&lhs, lhs_slot) ||
+       !common_lvalue_slot_compatible(&rhs, rhs_slot)) {
+      return COMMON_LVALUE_PAIR_NOT_APPLICABLE;
+   }
+   if (!lhs.suffixes || !rhs.suffixes || strcmp(lhs.suffixes->name, ".") ||
+       strcmp(rhs.suffixes->name, ".") || lhs.suffixes->count < 2 ||
+       rhs.suffixes->count < 2) {
+      return COMMON_LVALUE_PAIR_NOT_APPLICABLE;
+   }
+   lhs_prefix = lhs.suffixes->children[0];
+   rhs_prefix = rhs.suffixes->children[0];
+   if (!lhs_prefix || !rhs_prefix || is_empty(lhs_prefix) || is_empty(rhs_prefix) ||
+       !expression_tree_equal(lhs_prefix, rhs_prefix)) {
+      return COMMON_LVALUE_PAIR_NOT_APPLICABLE;
+   }
+
+   if (lhs.offset <= rhs.offset) {
+      anchor = &lhs;
+      lhs_relative = 0;
+      rhs_relative = rhs.offset - lhs.offset;
+   }
+   else {
+      anchor = &rhs;
+      rhs_relative = 0;
+      lhs_relative = lhs.offset - rhs.offset;
+   }
+   if (lhs_relative < 0 || rhs_relative < 0 ||
+       lhs_relative + lhs.size > 256 || rhs_relative + rhs.size > 256) {
+      return COMMON_LVALUE_PAIR_NOT_APPLICABLE;
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, anchor, LVALUE_ACCESS_READ)) {
+      return COMMON_LVALUE_PAIR_ERROR;
+   }
+   emit_copy_ptr0_relative_to_slot(lhs_relative, lhs_slot);
+   emit_copy_ptr0_relative_to_slot(rhs_relative, rhs_slot);
+   return COMMON_LVALUE_PAIR_OK;
+}
+
+typedef CompilerScratchLease ExprFixedScratch;
 
 //! @brief Prepare one fixed-address expression working area without changing fp.
-static void expr_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+static void expr_fixed_scratch_prepare(Context *ctx, int reserved,
                                        ExprFixedScratch *scratch) {
-   memset(scratch, 0, sizeof(*scratch));
-   scratch->saved_locals = ctx ? ctx->locals : 0;
-   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
-   scratch->reserved = reserved > 0 ? reserved : 1;
-   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+   compiler_scratch_acquire(ctx, reserved, scratch);
 }
 
 //! @brief Redirect fp to a prepared fixed-address expression working area.
 static void expr_fixed_scratch_activate(Context *ctx, ExprFixedScratch *scratch) {
-   if (ctx) {
-      ctx->locals = scratch->reserved;
-      ctx->locals_high_water = scratch->reserved;
-   }
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", scratch->symbol);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_activate(ctx, scratch);
 }
 
 //! @brief Begin one fixed-address expression working area and redirect fp to it.
-static void expr_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+static void expr_fixed_scratch_begin(Context *ctx, int reserved,
                                      ExprFixedScratch *scratch) {
-   expr_fixed_scratch_prepare(ctx, prefix, reserved, scratch);
+   expr_fixed_scratch_prepare(ctx, reserved, scratch);
    expr_fixed_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp, restore compiler frame accounting, and declare fixed scratch.
-static void expr_fixed_scratch_end(Context *ctx, ExprFixedScratch *scratch) {
-   int used = scratch->reserved;
-   if (ctx && ctx->locals_high_water > used) {
-      used = ctx->locals_high_water;
-   }
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-   if (ctx) {
-      ctx->locals = scratch->saved_locals;
-      ctx->locals_high_water = scratch->saved_high_water;
-   }
-   emit(&es_bss, ".segment \"BSS\"\n");
-   emit(&es_bss, "%s:\n", scratch->symbol);
-   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+//! @brief Restore fp while keeping the scratch lease live for result copy-out.
+static void expr_fixed_scratch_deactivate(Context *ctx, ExprFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+}
+
+//! @brief Release one inactive expression scratch lease.
+static void expr_fixed_scratch_finish(ExprFixedScratch *scratch) {
+   compiler_scratch_release(scratch);
+}
+
+//! @brief Restore fp and release an expression scratch lease on an error path.
+static void expr_fixed_scratch_abort(Context *ctx, ExprFixedScratch *scratch) {
+   compiler_scratch_deactivate(ctx, scratch);
+   compiler_scratch_release(scratch);
 }
 
 //! @brief Copy a converted fixed-scratch result into the caller destination.
@@ -345,8 +444,9 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
          unsigned char *one;
          ExprFixedScratch scratch;
          tmp_size = lv.size > 0 ? lv.size : dst->size;
-         expr_fixed_scratch_prepare(ctx, "incdectmp", tmp_size, &scratch);
+         expr_fixed_scratch_prepare(ctx, tmp_size, &scratch);
          if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, tmp_size)) {
+            expr_fixed_scratch_finish(&scratch);
             return false;
          }
          if (!pre) {
@@ -354,10 +454,12 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
          }
          one = (unsigned char *) calloc(tmp_size ? tmp_size : 1, sizeof(unsigned char));
          if (!one) {
+            expr_fixed_scratch_finish(&scratch);
             return false;
          }
          if (!make_incdec_delta_bytes(lv.type, lv.declarator, tmp_size, one)) {
             free(one);
+            expr_fixed_scratch_finish(&scratch);
             return false;
          }
          expr_fixed_scratch_activate(ctx, &scratch);
@@ -368,13 +470,15 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
             emit_sub_immediate_from_fp(lv.type, 0, one, tmp_size);
          }
          free(one);
-         expr_fixed_scratch_end(ctx, &scratch);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
          if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol, 0, tmp_size)) {
+            expr_fixed_scratch_finish(&scratch);
             return false;
          }
          if (pre) {
             emit_fixed_scratch_result(ctx, &scratch, 0, tmp_size, lv.type, dst);
          }
+         expr_fixed_scratch_finish(&scratch);
          return true;
       }
    }
@@ -620,16 +724,16 @@ unary_not_done:
          unsigned char *factor_bytes;
          char factor_buf[64];
 
-         expr_fixed_scratch_begin(ctx, "ptrdifftmp", work_total + dst->size, &scratch);
+         expr_fixed_scratch_begin(ctx, work_total + dst->size, &scratch);
          if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
              !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
-            expr_fixed_scratch_end(ctx, &scratch);
+            expr_fixed_scratch_abort(ctx, &scratch);
             return false;
          }
          emit_sub_fp_from_fp(lhs_type, 0, ptr_size, ptr_size);
          factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
          if (!factor_bytes) {
-            expr_fixed_scratch_end(ctx, &scratch);
+            expr_fixed_scratch_abort(ctx, &scratch);
             return false;
          }
          snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
@@ -646,8 +750,9 @@ unary_not_done:
          emit(&es_code, "    jsr _%s\n", int_div_helper_name(lhs_type));
          emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, ptr_size * 2, ptr_size,
                                     dst->type ? dst->type : lhs_type);
-         expr_fixed_scratch_end(ctx, &scratch);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
          emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
          return true;
       }
 
@@ -671,12 +776,18 @@ unary_not_done:
             value_offset = scaled_offset;
          }
          out_offset = work_total;
-         expr_fixed_scratch_begin(ctx, "addtmp", work_total + dst->size, &scratch);
+         expr_fixed_scratch_begin(ctx, work_total + dst->size, &scratch);
 
-         if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
-             !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)) {
-            expr_fixed_scratch_end(ctx, &scratch);
-            return false;
+         {
+            CommonLValuePairResult pair_result = compile_common_indexed_lvalue_pair(
+               ctx, expr->children[0], (ASTNode *) rhs, &lhs_tmp, &rhs_tmp);
+            if (pair_result == COMMON_LVALUE_PAIR_ERROR ||
+                (pair_result == COMMON_LVALUE_PAIR_NOT_APPLICABLE &&
+                 (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
+                  !compile_expr_to_slot((ASTNode *) rhs, ctx, &rhs_tmp)))) {
+               expr_fixed_scratch_abort(ctx, &scratch);
+               return false;
+            }
          }
 
          if (scaled_pointer_arith && pointer_scale != 1) {
@@ -684,7 +795,7 @@ unary_not_done:
             char scaled_buf[64];
             const ASTNode *factor_type = rhs_slot_type ? rhs_slot_type : work_type;
             if (!factor_bytes) {
-               expr_fixed_scratch_end(ctx, &scratch);
+               expr_fixed_scratch_abort(ctx, &scratch);
                return false;
             }
             snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
@@ -703,8 +814,9 @@ unary_not_done:
          }
 
          emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, lhs_offset, work_size, work_type);
-         expr_fixed_scratch_end(ctx, &scratch);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
          emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
          return true;
       }
    }
@@ -757,18 +869,25 @@ unary_not_done:
       lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = lhs_offset, .size = lhs_size };
       rhs_tmp = (ContextEntry){ .name = "$rhs", .type = rhs_slot_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = rhs_offset, .size = rhs_size };
 
-      expr_fixed_scratch_begin(ctx, "shifttmp", work_total + dst->size, &scratch);
-      if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
-          !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
-         expr_fixed_scratch_end(ctx, &scratch);
-         return false;
+      expr_fixed_scratch_begin(ctx, work_total + dst->size, &scratch);
+      {
+         CommonLValuePairResult pair_result = compile_common_indexed_lvalue_pair(
+            ctx, expr->children[0], expr->children[1], &lhs_tmp, &rhs_tmp);
+         if (pair_result == COMMON_LVALUE_PAIR_ERROR ||
+             (pair_result == COMMON_LVALUE_PAIR_NOT_APPLICABLE &&
+              (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
+               !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)))) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
       }
 
       helper = int_shift_helper_name(op_type, !strcmp(op, "<<"));
       emit_runtime_shift_fp(helper, lhs_offset, aux_offset, rhs_offset, rhs_type, rhs_size, lhs_size);
       emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, aux_offset, lhs_size, op_type);
-      expr_fixed_scratch_end(ctx, &scratch);
+      expr_fixed_scratch_deactivate(ctx, &scratch);
       emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
+      expr_fixed_scratch_finish(&scratch);
       return true;
    }
 
@@ -815,11 +934,17 @@ unary_not_done:
       lhs_tmp = (ContextEntry){ .name = "$lhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = lhs_offset, .size = op_size };
       rhs_tmp = (ContextEntry){ .name = "$rhs", .type = op_type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = dst->target_typed, .offset = rhs_offset, .size = op_size };
 
-      expr_fixed_scratch_begin(ctx, "binarytmp", work_total + dst->size, &scratch);
-      if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
-          !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)) {
-         expr_fixed_scratch_end(ctx, &scratch);
-         return false;
+      expr_fixed_scratch_begin(ctx, work_total + dst->size, &scratch);
+      {
+         CommonLValuePairResult pair_result = compile_common_indexed_lvalue_pair(
+            ctx, expr->children[0], expr->children[1], &lhs_tmp, &rhs_tmp);
+         if (pair_result == COMMON_LVALUE_PAIR_ERROR ||
+             (pair_result == COMMON_LVALUE_PAIR_NOT_APPLICABLE &&
+              (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
+               !compile_expr_to_slot(expr->children[1], ctx, &rhs_tmp)))) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
       }
 
       if (!strcmp(op, "&")) helper = "bit_andN";
@@ -847,8 +972,9 @@ unary_not_done:
       }
 
       emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, lhs_offset, op_size, op_type);
-      expr_fixed_scratch_end(ctx, &scratch);
+      expr_fixed_scratch_deactivate(ctx, &scratch);
       emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
+      expr_fixed_scratch_finish(&scratch);
       return true;
    }
 

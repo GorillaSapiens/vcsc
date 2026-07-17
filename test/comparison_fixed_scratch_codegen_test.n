@@ -1,5 +1,5 @@
 // n65c -I .
-// expectasm: __n65_comparetmp_
+// expectasm: __n65_scratch_
 // expectasm: jsr _ltNsle
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN

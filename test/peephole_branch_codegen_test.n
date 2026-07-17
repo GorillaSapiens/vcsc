@@ -1,5 +1,5 @@
 // n65c -I . -X peephole
-// expectasmordered: ora __n65_truthtmp_
+// expectasmordered: ora __n65_scratch_
 // expectasmordered: @if_false_0:
 // expectasmordered: @fini:
 // expecterr: 001 peephole

@@ -14,6 +14,7 @@
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_toplevel.h"
+#include "compile_support.h"
 #include "emit.h"
 #include "messages.h"
 #include "pair.h"
@@ -157,6 +158,7 @@ static void compile(ASTNode *program) {
 void do_compile(FILE *out) {
 
    typesizes = pair_create();
+   compiler_scratch_reset();
    enumbackings = pair_create();
 
    emit(&es_header, "; this file produced by \"n65c\" compiler\n");
@@ -174,6 +176,7 @@ void do_compile(FILE *out) {
    analyze_static_parameter_call_graph();
    emit_symbol_backed_call_graph_metadata();
    emit_runtime_global_init_function();
+   compiler_scratch_emit_bss();
    emit_peephole_optimize(&es_code);
 
    emit_print(&es_header, out);
