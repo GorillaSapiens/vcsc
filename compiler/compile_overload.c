@@ -113,8 +113,6 @@ static int integer_promotion_conversion_cost(const ASTNode *actual_type, const A
    int cost = 0;
    int formal_size;
    int actual_size;
-   const char *actual_endian;
-   const char *formal_endian;
 
    if (!actual_type || !formal_type) {
       return -1;
@@ -151,12 +149,6 @@ static int integer_promotion_conversion_cost(const ASTNode *actual_type, const A
       cost += 4;
    }
 
-   actual_endian = type_endian_name(actual_type);
-   formal_endian = type_endian_name(formal_type);
-   if (formal_size > 1 && actual_endian && formal_endian && strcmp(actual_endian, formal_endian)) {
-      cost += 1;
-   }
-
    return cost;
 }
 
@@ -188,6 +180,7 @@ static int parameter_argument_conversion_cost(const ASTNode *ptype, const ASTNod
    bool decl_match = false;
    int promo_cost;
 
+   (void) ctx;
    pdecl = call_adjusted_parameter_declarator(pdecl, pref);
 
    if (!ptype || !atype) {
@@ -225,27 +218,6 @@ static int parameter_argument_conversion_cost(const ASTNode *ptype, const ASTNod
       decl_match = true;
    }
 
-   if (!pref && arg_expr && expr_is_mixed_endian_integer_binary_expr((ASTNode *) arg_expr, ctx) &&
-       declarator_is_plain_value(pdecl) && (!adecl || declarator_is_plain_value(adecl)) &&
-       type_is_promotable_integer(ptype) && type_is_promotable_integer(atype) &&  
-       !type_is_bool(ptype) && !type_is_bool(atype) &&
-       type_endian_name(ptype)) {
-      ASTNode *binary = (ASTNode *) unwrap_expr_node((ASTNode *) arg_expr);
-      const ASTNode *work_type = NULL;
-      if (binary && binary->count == 2) {
-         work_type = target_endian_integer_binary_work_type(binary->children[0], binary->children[1], ctx, ptype, binary);
-      }
-      if (work_type && integer_type_can_represent_type(ptype, work_type)) {
-         int cost = 64;
-         int psize = type_size_from_node(ptype);
-         int wsize = type_size_from_node(work_type);
-         if (psize > wsize) {
-            cost += (psize - wsize) * 16;
-         }
-         return cost;
-      }
-   }
-
    if (!strcmp(pname, aname) && decl_match) {
       if (pref) {
          return arg_lvalue ? 0 : -1;
@@ -272,13 +244,6 @@ static int parameter_argument_conversion_cost(const ASTNode *ptype, const ASTNod
       int cost = 96;
       if (type_is_signed_integer(atype) != type_is_signed_integer(ptype)) {
          cost += 4;
-      }
-      {
-         const char *actual_endian = type_endian_name(atype);
-         const char *formal_endian = type_endian_name(ptype);
-         if (actual_endian && formal_endian && strcmp(actual_endian, formal_endian)) {
-            cost += 1;
-         }
       }
       return cost;
    }

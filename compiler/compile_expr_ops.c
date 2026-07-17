@@ -173,12 +173,7 @@ static bool make_incdec_delta_bytes(const ASTNode *type, const ASTNode *declarat
    }
 
    snprintf(step_buf, sizeof(step_buf), "%d", step);
-   if (type && has_flag(type_name_from_node(type), "$endian:big")) {
-      make_be_int(step_buf, bytes, size);
-   }
-   else {
-      make_le_int(step_buf, bytes, size);
-   }
+   make_le_int(step_buf, bytes, size);
    return true;
 }
 
@@ -211,9 +206,8 @@ void emit_copy_fp_to_fp(int dst_offset, int src_offset, int size) {
 
 //! @brief Handle expr byte index logic for compiler operator lowering.
 static int expr_byte_index(const ASTNode *type, int size, int i) {
-   if (has_flag(type_name_from_node(type), "$endian:big")) {
-      return size - 1 - i;
-   }
+   (void) type;
+   (void) size;
    return i;
 }
 
@@ -385,20 +379,7 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       }
    }
 
-   {
-      bool mixed_endian = expr_is_mixed_endian_integer_binary_expr(expr, ctx);
-      bool comparison_expr = expr->count == 2 &&
-            (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") || !strcmp(expr->name, "<") ||
-             !strcmp(expr->name, ">") || !strcmp(expr->name, "<=") || !strcmp(expr->name, ">="));
-      bool target_resolved = false;
-      require_no_mixed_signed_integer_binary_expr(expr, ctx);
-      if (mixed_endian && dst && dst->target_typed && expr->count == 2) {
-         target_resolved = target_endian_integer_binary_work_type(expr->children[0], expr->children[1], ctx, dst->type, expr) != NULL;
-      }
-      if (!mixed_endian || (!comparison_expr && !target_resolved)) {
-         require_no_mixed_endian_integer_binary_expr(expr, ctx);
-      }
-   }
+   require_no_mixed_signed_integer_binary_expr(expr, ctx);
 
    if (expr->count == 1 && !strcmp(expr->name, "+")) {
       return compile_expr_to_slot(expr->children[0], ctx, dst);
@@ -602,22 +583,15 @@ unary_not_done:
       expr_match_signature(expr->children[1], ctx, &rhs_type, &rhs_decl);
 
       bool scaled_pointer_arith = lhs_decl && declarator_pointer_depth(lhs_decl) > 0;
-      if (dst->target_typed) {
-         work_type = target_endian_integer_binary_work_type(expr->children[0], expr->children[1], ctx, dst->type, expr);
-      }
-      if (!work_type) {
-         work_type = expr_value_type(expr, ctx);
-      }
+      work_type = expr_value_type(expr, ctx);
 
       if (scaled_pointer_arith) {
-         require_no_mixed_endian_pointer_index_expr(expr, (ASTNode *) rhs, ctx, expr->name);
          work_size = declarator_storage_size(lhs_type, lhs_decl);
          if (work_size <= 0) {
             work_size = dst->size;
          }
       }
       else if (!strcmp(expr->name, "+") && rhs_decl && declarator_pointer_depth(rhs_decl) > 0) {
-         require_no_mixed_endian_pointer_index_expr(expr, expr->children[0], ctx, expr->name);
       }
       if (work_size <= 0) {
          work_size = dst->size;
@@ -659,8 +633,7 @@ unary_not_done:
             return false;
          }
          snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
-         if (has_flag(type_name_from_node(lhs_type), "$endian:big")) make_be_int(factor_buf, factor_bytes, ptr_size);
-         else make_le_int(factor_buf, factor_bytes, ptr_size);
+         make_le_int(factor_buf, factor_bytes, ptr_size);
          emit_store_immediate_to_fp(ptr_size, factor_bytes, ptr_size);
          free(factor_bytes);
          emit_prepare_fp_ptr(0, 0);
@@ -715,12 +688,7 @@ unary_not_done:
                return false;
             }
             snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
-            if (factor_type && has_flag(type_name_from_node(factor_type), "$endian:big")) {
-               make_be_int(scaled_buf, factor_bytes, work_size);
-            }
-            else {
-               make_le_int(scaled_buf, factor_bytes, work_size);
-            }
+            make_le_int(scaled_buf, factor_bytes, work_size);
             emit_store_immediate_to_fp(factor_offset, factor_bytes, work_size);
             free(factor_bytes);
             emit_runtime_binary_fp_fp(int_mul_helper_name(factor_type ? factor_type : work_type), scaled_offset, rhs_offset, factor_offset, work_size);
@@ -750,16 +718,7 @@ unary_not_done:
       if (!dst || dst->size <= 0) {
          return false;
       }
-      if (dst->target_typed) {
-         const ASTNode *lhs_type = expr_value_type(expr->children[0], ctx);
-         const char *target_endian = type_endian_name(dst->type);
-         if (expr_is_mixed_endian_integer_binary_expr(expr, ctx) && lhs_type && target_endian) {
-            op_type = select_endian_variant_type(lhs_type, target_endian);
-         }
-      }
-      if (!op_type) {
-         op_type = expr_value_type(expr, ctx);
-      }
+      op_type = expr_value_type(expr, ctx);
       const ASTNode *rhs_slot_type = expr_is_literal_node(expr->children[1]) ? op_type : (rhs_type ? rhs_type : op_type);
       int lhs_size = op_type ? type_size_from_node(op_type) : 0;
       int rhs_size = rhs_slot_type ? type_size_from_node(rhs_slot_type) : 0;
@@ -832,12 +791,7 @@ unary_not_done:
       if (!dst || dst->size <= 0) {
          return false;
       }
-      if (dst->target_typed) {
-         op_type = target_endian_integer_binary_work_type(expr->children[0], expr->children[1], ctx, dst->type, expr);
-      }
-      if (!op_type) {
-         op_type = expr_value_type(expr, ctx);
-      }
+      op_type = expr_value_type(expr, ctx);
       if (op_size <= 0) {
          op_size = expr_value_size(expr->children[0], ctx);
       }

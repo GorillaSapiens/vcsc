@@ -284,12 +284,12 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
 //! @brief Emit load count lowbyte frame pointer to arg1 for compiler lvalue lowering diagnostics or output files.
 static void emit_load_count_lowbyte_fp_to_arg1(int src_offset, const ASTNode *src_type, int src_size) {
    bool direct;
-   int mem_index;
+   int mem_index = 0;
 
+   (void) src_type;
    if (src_size <= 0) {
       src_size = 1;
    }
-   mem_index = endian_mem_index_for_significance(src_size, type_is_big_endian(src_type), 0);
    direct = src_offset >= 0 && src_offset + src_size <= 256;
    if (!direct) {
       emit_prepare_fp_ptr(0, src_offset);
@@ -325,70 +325,69 @@ void emit_runtime_fixed_binary_fp_fp(const char *helper, int dst_offset, int lhs
 
 //! @brief Return int addsub helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
 const char *int_addsub_helper_name(const ASTNode *type, int size, bool subtract, bool *is_generic_out) {
-   bool big_endian = type_is_big_endian(type);
-
+   (void) type;
    if (is_generic_out) {
       *is_generic_out = false;
    }
-   if (size < 3 || !type) {
+   if (size < 3) {
       return NULL;
    }
    switch (size) {
-      case 3: return subtract ? (big_endian ? "sub24be" : "sub24le") : (big_endian ? "add24be" : "add24le");
-      case 4: return subtract ? (big_endian ? "sub32be" : "sub32le") : (big_endian ? "add32be" : "add32le");
+      case 3: return subtract ? "sub24le" : "add24le";
+      case 4: return subtract ? "sub32le" : "add32le";
       default:
          if (is_generic_out) {
             *is_generic_out = true;
          }
-         return subtract ? (big_endian ? "subNbe" : "subNle") : (big_endian ? "addNbe" : "addNle");
+         return subtract ? "subNle" : "addNle";
    }
 }
 
-//! @brief Return int mul helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return int mul helper name data used by compiler lvalue lowering.
 const char *int_mul_helper_name(const ASTNode *type) {
-   return type_is_big_endian(type) ? "mulNbe" : "mulNle";
+   (void) type;
+   return "mulNle";
 }
 
 //! @brief Handle int mul result offset logic for compiler lvalue lowering.
 int int_mul_result_offset(const ASTNode *type, int product_offset, int size) {
-   return type_is_big_endian(type) ? (product_offset + size) : product_offset;
+   (void) type;
+   (void) size;
+   return product_offset;
 }
 
-//! @brief Return int div helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return int div helper name data used by compiler lvalue lowering.
 const char *int_div_helper_name(const ASTNode *type) {
-   return type_is_big_endian(type) ? "divNbe" : "divNle";
+   (void) type;
+   return "divNle";
 }
 
-//! @brief Return int shift helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return int shift helper name data used by compiler lvalue lowering.
 const char *int_shift_helper_name(const ASTNode *type, bool left_shift) {
    if (left_shift) {
-      return type_is_big_endian(type) ? "lslNbe" : "lslNle";
+      return "lslNle";
    }
-   return type_is_signed_integer(type)
-      ? (type_is_big_endian(type) ? "asrNbe" : "asrNle")
-      : (type_is_big_endian(type) ? "lsrNbe" : "lsrNle");
+   return type_is_signed_integer(type) ? "asrNle" : "lsrNle";
 }
 
-//! @brief Return int comp2 helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return int comp2 helper name data used by compiler lvalue lowering.
 const char *int_comp2_helper_name(const ASTNode *type) {
-   return type_is_big_endian(type) ? "comp2Nbe" : "comp2Nle";
+   (void) type;
+   return "comp2Nle";
 }
 
-//! @brief Return int compare helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return int compare helper name data used by compiler lvalue lowering.
 const char *int_compare_helper_name(const ASTNode *type, const char *op) {
-   bool big_endian = type_is_big_endian(type);
    bool is_signed = type_is_signed_integer(type);
 
    if (!strcmp(op, "==") || !strcmp(op, "!=")) {
       return "eqN";
    }
    if (!strcmp(op, "<") || !strcmp(op, ">")) {
-      return is_signed ? (big_endian ? "ltNsbe" : "ltNsle")
-                       : (big_endian ? "ltNube" : "ltNule");
+      return is_signed ? "ltNsle" : "ltNule";
    }
    if (!strcmp(op, "<=") || !strcmp(op, ">=")) {
-      return is_signed ? (big_endian ? "leNsbe" : "leNsle")
-                       : (big_endian ? "leNube" : "leNule");
+      return is_signed ? "leNsle" : "leNule";
    }
    return NULL;
 }
@@ -434,7 +433,6 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
       else {
          const ASTNode *idx_type = expr_value_type((ASTNode *) idx, ctx);
          int ptr_size = get_size("*");
-         require_no_mixed_endian_pointer_index_expr((ASTNode *) idx, (ASTNode *) idx, ctx, "[]");
          int idx_offset = 0;
          int factor_offset = idx_offset + ptr_size;
          int scaled_offset = factor_offset + ptr_size;
@@ -458,12 +456,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
                return false;
             }
             snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
-            if (idx_type && has_flag(type_name_from_node(idx_type), "$endian:big")) {
-               make_be_int(factor_buf, factor_bytes, ptr_size);
-            }
-            else {
-               make_le_int(factor_buf, factor_bytes, ptr_size);
-            }
+            make_le_int(factor_buf, factor_bytes, ptr_size);
             emit_store_immediate_to_fp(factor_offset, factor_bytes, ptr_size);
             free(factor_bytes);
             emit_runtime_binary_fp_fp(int_mul_helper_name(idx_type ? idx_type : required_typename_node("int")), scaled_offset, idx_offset, factor_offset, ptr_size);

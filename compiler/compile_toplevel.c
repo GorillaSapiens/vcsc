@@ -263,7 +263,7 @@ void compile_type_decl_stmt(ASTNode *node) {
             pair_insert(typesizes, key, (void *)(intptr_t) size);
          }
 
-         // check for $endian, must be "big" or "little"
+         // Multibyte values are always little-endian.
          if (!strncmp(item->strval, "$endian:", 8)) {
             if (haveEndian) {
                error_user("[%s:%d.%d] type_decl_stmt '%s' has multiple '$endian:' flags",
@@ -272,7 +272,11 @@ void compile_type_decl_stmt(ASTNode *node) {
             }
             endian = strchr(item->strval, ':');
             endian++;
-            if (strcmp(endian, "big") && strcmp(endian, "little")) {
+            if (!strcmp(endian, "big")) {
+               error_user("[%s:%d.%d] big-endian types are not supported",
+                     node->file, node->line, node->column);
+            }
+            if (strcmp(endian, "little")) {
                error_user("[%s:%d.%d] type_decl_stmt '%s' unrecognized '$endian:%s' flag",
                      node->file, node->line, node->column,
                      node->children[0]->strval, endian);
@@ -898,12 +902,6 @@ void calculate_struct_union_sizes(ASTNode *program) {
                      }
                      if (has_flag_prefix(tname, "$float:")) {
                         error_user("[%s:%d.%d] bitfield '%s' cannot use floating type '%s'",
-                              decl->file, decl->line, decl->column,
-                              declarator_name(decl) ? declarator_name(decl) : "<unnamed>",
-                              tname);
-                     }
-                     if (has_flag(tname, "$endian:big")) {
-                        error_user("[%s:%d.%d] bitfield '%s' does not support big-endian type '%s'",
                               decl->file, decl->line, decl->column,
                               declarator_name(decl) ? declarator_name(decl) : "<unnamed>",
                               tname);

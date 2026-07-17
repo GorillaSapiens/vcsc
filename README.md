@@ -92,7 +92,7 @@ type int    { $size:4 $integer:signed $endian:little };
 type uint   { $size:4 $integer:unsigned $endian:little };
 ```
 
-Type declarations use `$integer:signed` or `$integer:unsigned`. Expression-level shortcut casts `($signed)` / `($unsigned)` are available, with matching endian shortcuts `($big)` / `($little)` for fixed-width integers.
+Type declarations use `$integer:signed` or `$integer:unsigned`. All multibyte values are little-endian. Expression-level shortcut casts `($signed)` / `($unsigned)` change signedness while preserving width.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
 

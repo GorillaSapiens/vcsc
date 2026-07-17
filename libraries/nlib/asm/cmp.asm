@@ -1,12 +1,10 @@
 ; cmp.asm - Comparison routines
 ;
-; Endian-neutral helper:
+; Equality helper:
 ;   _eqN
-; Endian-specific helpers:
-;   _ltNsle / _ltNsbe
-;   _leNsle / _leNsbe
-;   _ltNule / _ltNube
-;   _leNule / _leNube
+; Little-endian ordering helpers:
+;   _ltNsle / _leNsle
+;   _ltNule / _leNule
 ;
 ; Returns result in arg1: 1 if true, 0 if false.
 ; Inputs:
@@ -152,120 +150,3 @@
     rts
 .endproc
 
-.proc _ltNsbe
-    ldy #0
-    lda (ptr0), y
-    eor (ptr1), y
-    bmi @differ
-
-    lda (ptr0), y
-    bmi @both_neg
-@both_pos:
-    lda (ptr0), y
-    cmp (ptr1), y
-    bcc @true
-    bne @false
-    iny
-    cpy arg0
-    bcc @both_pos
-    jmp @false
-@both_neg:
-    lda (ptr1), y
-    cmp (ptr0), y
-    bcc @false
-    bne @true
-    iny
-    cpy arg0
-    bcc @both_neg
-    jmp @false
-@differ:
-    lda (ptr0), y
-    bpl @false
-@true:
-    lda #1
-    sta arg1
-    rts
-@false:
-    lda #0
-    sta arg1
-    rts
-.endproc
-
-.proc _leNsbe
-    ldy #0
-    lda (ptr0), y
-    eor (ptr1), y
-    bmi @differ
-
-    lda (ptr0), y
-    bmi @both_neg
-@both_pos:
-    lda (ptr0), y
-    cmp (ptr1), y
-    bcc @true
-    bne @false
-    iny
-    cpy arg0
-    bcc @both_pos
-    jmp @true
-@both_neg:
-    lda (ptr1), y
-    cmp (ptr0), y
-    bcc @false
-    bne @true
-    iny
-    cpy arg0
-    bcc @both_neg
-    jmp @true
-@differ:
-    lda (ptr0), y
-    bpl @false
-@true:
-    lda #1
-    sta arg1
-    rts
-@false:
-    lda #0
-    sta arg1
-    rts
-.endproc
-
-.proc _ltNube
-    ldy #0
-@loop:
-    lda (ptr0), y
-    cmp (ptr1), y
-    bcc @true
-    bne @false
-    iny
-    cpy arg0
-    bcc @loop
-@false:
-    lda #0
-    sta arg1
-    rts
-@true:
-    lda #1
-    sta arg1
-    rts
-.endproc
-
-.proc _leNube
-    ldy #0
-@loop:
-    lda (ptr0), y
-    cmp (ptr1), y
-    bcc @true
-    bne @false
-    iny
-    cpy arg0
-    bcc @loop
-@true:
-    lda #1
-    sta arg1
-    rts
-@false:
-    lda #0
-    sta arg1
-    rts
-.endproc

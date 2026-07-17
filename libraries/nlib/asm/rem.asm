@@ -6,6 +6,3 @@
     jmp _divNle
 .endproc
 
-.proc _remNbe
-    jmp _divNbe
-.endproc

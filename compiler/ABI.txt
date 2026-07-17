@@ -21,8 +21,8 @@ Every legal function return is one of:
 * two-byte little-endian integer: A contains the low byte and X the high byte;
 * 16-bit pointer: A contains the low byte and X the high byte.
 
-Functions may not return aggregates, arrays, floating-point values, big-endian
-integers, or any value larger than two bytes. The compiler rejects those return
+Functions may not return aggregates, arrays, floating-point values, or any
+value larger than two bytes. All legal multibyte return values are little-endian. The compiler rejects those return
 types at the declaration or definition. There is no caller-owned return-slot
 ABI or `return_value` metadata mode.
 

@@ -257,18 +257,10 @@ static const char *array_bound_text(const ASTNode *declarator) {
 static void append_builtin_pointer_machine(StrBuf *fp, StrBuf *detail) {
    const ASTNode *node = required_typename_node("*");
    int size = type_size_from_node(node);
-   const char *endian = type_endian_name(node);
    const char *sign = type_is_signed_integer(node) ? "signed" : (type_is_unsigned_integer(node) ? "unsigned" : "plain");
 
-   sb_appendf(fp, "ptrmach(sz=%d;sign=%s", size, sign);
-   if (endian)
-      sb_appendf(fp, ";end=%s", endian);
-   sb_append(fp, ")");
-
-   sb_appendf(detail, "pointer_machine(size=%d, %s", size, sign);
-   if (endian)
-      sb_appendf(detail, ", %s-endian", endian);
-   sb_append(detail, ")");
+   sb_appendf(fp, "ptrmach(sz=%d;sign=%s)", size, sign);
+   sb_appendf(detail, "pointer_machine(size=%d, %s, little-endian)", size, sign);
 }
 
 //! @brief Add base type fingerprint to abi meta state, growing storage or preserving uniqueness as needed.
@@ -291,7 +283,6 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
    size = type_size_from_node(node);
 
    if (!strcmp(node->name, "type_decl_stmt")) {
-      const char *endian = type_endian_name(node);
       bool is_signed = type_is_signed_integer(node);
       bool is_unsigned = type_is_unsigned_integer(node);
 
@@ -304,17 +295,12 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
          return;
       }
 
-      sb_appendf(fp, "scalar(sz=%d;kind=%s", size,
+      sb_appendf(fp, "scalar(sz=%d;kind=%s)", size,
          is_signed ? "signed_int" : (is_unsigned ? "unsigned_int" : "plain"));
-      if (endian)
-         sb_appendf(fp, ";end=%s", endian);
-      sb_append(fp, ")");
 
-      sb_appendf(detail, "%s(size=%d",
-         is_signed ? "signed_integer" : (is_unsigned ? "unsigned_integer" : "scalar"), size);
-      if (endian)
-         sb_appendf(detail, ", %s-endian", endian);
-      sb_append(detail, ")");
+      sb_appendf(detail, "%s(size=%d%s)",
+         is_signed ? "signed_integer" : (is_unsigned ? "unsigned_integer" : "scalar"), size,
+         size > 1 ? ", little-endian" : "");
       return;
    }
 

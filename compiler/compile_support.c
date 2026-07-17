@@ -427,17 +427,15 @@ void emit_runtime_fill_ptr1(int count, unsigned char value) {
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
-//! @brief Return runtime copy convert helper name data used by compiler code-generation support; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return runtime copy-conversion helper name.
 const char *runtime_copy_convert_helper_name(int dst_size, const ASTNode *dst_type, int src_size, const ASTNode *src_type) {
-   bool src_big_endian = type_is_big_endian(src_type);
-   bool dst_big_endian = type_is_big_endian(dst_type);
    bool is_signed = type_is_signed_integer(src_type);
+   (void) dst_type;
 
-   if (dst_size <= 0 || src_size <= 0 || dst_size == src_size || src_big_endian != dst_big_endian) {
+   if (dst_size <= 0 || src_size <= 0 || dst_size == src_size) {
       return NULL;
    }
-   return is_signed ? (src_big_endian ? "copysxNbe" : "copysxNle")
-                    : (src_big_endian ? "copyzxNbe" : "copyzxNle");
+   return is_signed ? "copysxNle" : "copyzxNle";
 }
 
 //! @brief Emit runtime copy ptr0 to ptr1 for compiler code-generation support diagnostics or output files.
@@ -481,10 +479,8 @@ static void emit_sign_fill_from_masked_a(void) {
    emit(&es_code, "%s:\n", done_label);
 }
 
-//! @brief Emit copy frame pointer to frame pointer convert for compiler code-generation support diagnostics or output files.
+//! @brief Emit copy frame pointer to frame pointer convert for little-endian values.
 void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst_type, int src_offset, int src_size, const ASTNode *src_type) {
-   bool src_big_endian = type_is_big_endian(src_type);
-   bool dst_big_endian = type_is_big_endian(dst_type);
    bool is_signed = type_is_signed_integer(src_type);
    bool dst_direct;
    bool src_direct;
@@ -497,7 +493,7 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
 
    dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
    src_direct = src_offset >= 0 && src_offset + src_size <= 256;
-   sign_src_mem = endian_mem_index_for_significance(src_size, src_big_endian, src_size - 1);
+   sign_src_mem = src_size - 1;
    helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
 
    if (helper) {
@@ -516,10 +512,8 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
 
    if (dst_offset == src_offset) {
       for (int j = dst_size - 1; j >= 0; j--) {
-         int sig = dst_big_endian ? (dst_size - 1 - j) : j;
-         if (sig < src_size) {
-            int src_mem = endian_mem_index_for_significance(src_size, src_big_endian, sig);
-            emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + src_mem) : src_mem);
+         if (j < src_size) {
+            emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + j) : j);
             emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
          }
          else if (is_signed) {
@@ -542,10 +536,8 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
    }
 
    for (int j = 0; j < dst_size; j++) {
-      int sig = dst_big_endian ? (dst_size - 1 - j) : j;
-      if (sig < src_size) {
-         int src_mem = endian_mem_index_for_significance(src_size, src_big_endian, sig);
-         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + src_mem) : src_mem);
+      if (j < src_size) {
+         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + j) : j);
          emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
       }
       else if (is_signed) {
@@ -562,10 +554,8 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
    }
 }
 
-//! @brief Emit copy symbol to frame pointer convert offset for compiler code-generation support diagnostics or output files.
+//! @brief Emit copy symbol to frame pointer convert offset for little-endian values.
 void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const ASTNode *dst_type, const char *symbol, int src_offset, int src_size, const ASTNode *src_type) {
-   bool src_big_endian = type_is_big_endian(src_type);
-   bool dst_big_endian = type_is_big_endian(dst_type);
    bool is_signed = type_is_signed_integer(src_type);
    bool dst_direct;
    int sign_src_mem;
@@ -576,7 +566,7 @@ void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const A
    }
 
    dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
-   sign_src_mem = endian_mem_index_for_significance(src_size, src_big_endian, src_size - 1);
+   sign_src_mem = src_size - 1;
    helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
    if (helper) {
       emit_load_address_to_ptr(0, symbol, src_offset);
@@ -589,10 +579,8 @@ void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const A
    }
 
    for (int j = 0; j < dst_size; j++) {
-      int sig = dst_big_endian ? (dst_size - 1 - j) : j;
-      if (sig < src_size) {
-         int src_mem = endian_mem_index_for_significance(src_size, src_big_endian, sig);
-         emit(&es_code, "    ldy #%d\n", src_offset + src_mem);
+      if (j < src_size) {
+         emit(&es_code, "    ldy #%d\n", src_offset + j);
          emit(&es_code, "    lda %s,y\n", symbol);
       }
       else if (is_signed) {
@@ -614,11 +602,9 @@ void emit_copy_symbol_to_fp_convert(int dst_offset, int dst_size, const ASTNode 
    emit_copy_symbol_to_fp_convert_offset(dst_offset, dst_size, dst_type, symbol, 0, src_size, src_type);
 }
 
-//! @brief Emit a converted copy between two fixed symbols.
+//! @brief Emit a converted copy between two fixed little-endian symbols.
 void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_offset, int dst_size, const ASTNode *dst_type,
                                                const char *src_symbol, int src_offset, int src_size, const ASTNode *src_type) {
-   bool src_big_endian = type_is_big_endian(src_type);
-   bool dst_big_endian = type_is_big_endian(dst_type);
    bool is_signed = type_is_signed_integer(src_type);
    int sign_src_mem;
    const char *helper;
@@ -627,7 +613,7 @@ void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_o
       return;
    }
 
-   sign_src_mem = endian_mem_index_for_significance(src_size, src_big_endian, src_size - 1);
+   sign_src_mem = src_size - 1;
    helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
    if (helper) {
       emit_load_address_to_ptr(0, src_symbol, src_offset);
@@ -637,10 +623,8 @@ void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_o
    }
 
    for (int j = 0; j < dst_size; j++) {
-      int sig = dst_big_endian ? (dst_size - 1 - j) : j;
-      if (sig < src_size) {
-         int src_mem = endian_mem_index_for_significance(src_size, src_big_endian, sig);
-         emit(&es_code, "    ldy #%d\n", src_offset + src_mem);
+      if (j < src_size) {
+         emit(&es_code, "    ldy #%d\n", src_offset + j);
          emit(&es_code, "    lda %s,y\n", src_symbol);
       }
       else if (is_signed) {

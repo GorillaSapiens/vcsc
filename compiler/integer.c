@@ -147,8 +147,8 @@ void negate_le_int(unsigned char *target, int size) {
    }
 }
 
-//! @brief Create big-endian int for compiler integer constants.
-int make_be_int(const char *p, unsigned char *target, int size) {
+//! @brief Create host-big-endian bytes for parse_int() on a big-endian host.
+static int make_host_be_int(const char *p, unsigned char *target, int size) {
    int ret = make_le_int(p, target, size);
    int tmp;
    for (int i = 0; i < size/2; i++) {
@@ -159,8 +159,8 @@ int make_be_int(const char *p, unsigned char *target, int size) {
    return ret;
 }
 
-//! @brief Handle negate big-endian int logic for compiler integer constants.
-void negate_be_int(unsigned char *target, int size) {
+//! @brief Negate host-big-endian bytes for parse_int() on a big-endian host.
+static void negate_host_be_int(unsigned char *target, int size) {
    int carry = 1;
    for (int i = size - 1; i >= 0; i--) {
       carry = (target[i] ^ 0xFF) + carry;
@@ -173,7 +173,7 @@ void negate_be_int(unsigned char *target, int size) {
 // directly into a native long long. This assumes an
 // 8-bit-byte, two's-complement host and chooses
 // little- or big-endian packing based on the host
-// representation so parse_int() and make_{le,be}_int()
+// representation so parse_int() and make_le_int()
 // share exactly the same integer-literal decoding path.
 //! @brief Parse int into the normalized representation used by compiler integer constants.
 long long parse_int(const char *p) {
@@ -193,9 +193,9 @@ long long parse_int(const char *p) {
       }
    }
    else {
-      make_be_int(p, (unsigned char *) &ret, sizeof(ret));
+      make_host_be_int(p, (unsigned char *) &ret, sizeof(ret));
       if (negate) {
-         negate_be_int((unsigned char *) &ret, sizeof(ret));
+         negate_host_be_int((unsigned char *) &ret, sizeof(ret));
       }
    }
 

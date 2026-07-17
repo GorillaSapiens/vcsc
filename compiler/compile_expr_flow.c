@@ -407,16 +407,7 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       return true;
    }
 
-   {
-      bool mixed_endian = expr_is_mixed_endian_integer_binary_expr(expr, ctx);
-      bool comparison_expr = expr->count == 2 &&
-            (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") || !strcmp(expr->name, "<") ||
-             !strcmp(expr->name, ">") || !strcmp(expr->name, "<=") || !strcmp(expr->name, ">="));
-      require_no_mixed_signed_integer_binary_expr(expr, ctx);
-      if (!mixed_endian || !comparison_expr) {
-         require_no_mixed_endian_integer_binary_expr(expr, ctx);
-      }
-   }
+   require_no_mixed_signed_integer_binary_expr(expr, ctx);
 
    if (expr->count == 2 &&
        (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
@@ -684,7 +675,6 @@ void compile_expr(ASTNode *node, Context *ctx) {
       FlowFixedScratch scratch;
 
       if (scaled_pointer_assign) {
-         require_no_mixed_endian_pointer_index_expr(node, rhs, ctx, op);
          work_type = dst->type;
          rhs_slot_type = expr_is_literal_node(rhs) ? work_type : (rhs_type ? rhs_type : work_type);
          work_size = dst->size;
@@ -805,12 +795,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
          snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
-         if (factor_type && has_flag(type_name_from_node(factor_type), "$endian:big")) {
-            make_be_int(scaled_buf, factor_bytes, work_size);
-         }
-         else {
-            make_le_int(scaled_buf, factor_bytes, work_size);
-         }
+         make_le_int(scaled_buf, factor_bytes, work_size);
          emit_store_immediate_to_fp(factor_offset, factor_bytes, work_size);
          free(factor_bytes);
          emit_runtime_binary_fp_fp(int_mul_helper_name(factor_type ? factor_type : work_type), scaled_rhs_offset, rhs_tmp_offset, factor_offset, work_size);

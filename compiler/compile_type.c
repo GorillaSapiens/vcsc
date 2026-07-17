@@ -171,37 +171,6 @@ bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
 
 
 
-//! @brief Return type endian name data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-const char *type_endian_name(const ASTNode *type) {
-   const char *name = type_name_from_node(type);
-   if (!name) {
-      return NULL;
-   }
-   if (has_flag(name, "$endian:big")) {
-      return "big";
-   }
-   if (has_flag(name, "$endian:little")) {
-      return "little";
-   }
-   return NULL;
-}
-
-//! @brief Return whether type is big endian in compiler type system.
-bool type_is_big_endian(const ASTNode *type) {
-   return type && has_flag(type_name_from_node(type), "$endian:big");
-}
-
-//! @brief Handle endian mem index for significance logic for compiler type system.
-int endian_mem_index_for_significance(int size, bool big_endian, int significance_index) {
-   if (significance_index < 0) {
-      return 0;
-   }
-   if (significance_index >= size) {
-      significance_index = size - 1;
-   }
-   return big_endian ? (size - 1 - significance_index) : significance_index;
-}
-
 //! @brief Return whether expr is literal node in compiler type system.
 bool expr_is_literal_node(const ASTNode *expr) {
    expr = unwrap_expr_node(expr);
@@ -214,32 +183,8 @@ bool expr_is_literal_node(const ASTNode *expr) {
    return expr_is_integer_constant_expr(expr, NULL);
 }
 
-//! @brief Handle ordinary integer endian conflict logic for compiler type system.
-bool ordinary_integer_endian_conflict(const ASTNode *lhs_type, const ASTNode *rhs_type) {
-   int lhs_size;
-   int rhs_size;
-   const char *lhs_endian;
-   const char *rhs_endian;
-
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
-      return false;
-   }
-
-   lhs_size = type_size_from_node(lhs_type);
-   rhs_size = type_size_from_node(rhs_type);
-   if (lhs_size <= 1 || rhs_size <= 1) {
-      return false;
-   }
-
-   lhs_endian = type_endian_name(lhs_type);
-   rhs_endian = type_endian_name(rhs_type);
-   return lhs_endian && rhs_endian && strcmp(lhs_endian, rhs_endian);
-}
-
-//! @brief Compute integer type by shape and update compiler type system state once prerequisite pass data is available.
+//! @brief Compute integer type by width and signedness.
 static const ASTNode *select_integer_type_by_shape(int required_size, bool require_signed,
-                                                   const char *preferred_endian,
                                                    const ASTNode *prefer_a,
                                                    const ASTNode *prefer_b) {
    const ASTNode *best = NULL;
@@ -249,13 +194,9 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
    for (int i = 0; root && i < root->count; i++) {
       ASTNode *node = root->children[i];
       int penalty = 0;
-      const char *cand_endian;
       int cand_size;
 
-      if (!node || strcmp(node->name, "type_decl_stmt")) {
-         continue;
-      }
-      if ( type_is_bool(node)) {
+      if (!node || strcmp(node->name, "type_decl_stmt") || type_is_bool(node)) {
          continue;
       }
       if (require_signed) {
@@ -271,11 +212,6 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
       if (cand_size < required_size) {
          continue;
       }
-
-      cand_endian = type_endian_name(node);
-      if (preferred_endian && cand_size > 1 && cand_endian && strcmp(preferred_endian, cand_endian)) {
-         penalty += 8;
-      }
       if (node == prefer_a || node == prefer_b) {
          penalty -= 1;
       }
@@ -290,14 +226,13 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
    return best;
 }
 
-//! @brief Return promoted integer type for binary data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return promoted integer type for binary data used by compiler type system.
 const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const ASTNode *rhs_type, ASTNode *origin) {
    bool lhs_signed;
    bool rhs_signed;
    int lhs_size;
    int rhs_size;
    int required_size;
-   const char *preferred_endian = NULL;
    const ASTNode *best;
 
    if (!type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
@@ -317,33 +252,12 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
    rhs_signed = type_is_signed_integer(rhs_type);
    lhs_size = type_size_from_node(lhs_type);
    rhs_size = type_size_from_node(rhs_type);
-   if (lhs_size <= 0 || rhs_size <= 0) {
-      return NULL;
-   }
-   if (lhs_signed != rhs_signed || ordinary_integer_endian_conflict(lhs_type, rhs_type)) {
+   if (lhs_size <= 0 || rhs_size <= 0 || lhs_signed != rhs_signed) {
       return NULL;
    }
 
    required_size = lhs_size > rhs_size ? lhs_size : rhs_size;
-
-   {
-      const char *lhs_endian = type_endian_name(lhs_type);
-      const char *rhs_endian = type_endian_name(rhs_type);
-      if (lhs_size >= rhs_size) {
-         preferred_endian = lhs_endian;
-      }
-      else {
-         preferred_endian = rhs_endian;
-      }
-      if (!preferred_endian) {
-         preferred_endian = lhs_endian;
-      }
-      if (!preferred_endian) {
-         preferred_endian = rhs_endian;
-      }
-   }
-
-   best = select_integer_type_by_shape(required_size, lhs_signed, preferred_endian, lhs_type, rhs_type);
+   best = select_integer_type_by_shape(required_size, lhs_signed, lhs_type, rhs_type);
    if (!best) {
       warning("[%s:%d.%d] no integer promotion type can represent the requested width/sign; keeping existing operand type",
               origin ? origin->file : __FILE__, origin ? origin->line : __LINE__, origin ? origin->column : 0);
@@ -353,7 +267,7 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
    return best;
 }
 
-//! @brief Return binary integer work type data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return binary integer work type data used by compiler type system.
 const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Context *ctx, ASTNode *origin) {
    const ASTNode *lhs_type;
    const ASTNode *rhs_type;
@@ -391,161 +305,12 @@ const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Co
    return promoted_integer_type_for_binary(lhs_type, rhs_type, origin);
 }
 
-//! @brief Return whether an expression is an ordinary mixed-endian integer binary expression.
-bool expr_is_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
-   const ASTNode *lhs_type;
-   const ASTNode *rhs_type;
-   const ASTNode *lhs_decl;
-   const ASTNode *rhs_decl;
-   ASTNode *lhs_expr;
-   ASTNode *rhs_expr;
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || expr->count != 2) {
-      return false;
-   }
-   if (strcmp(expr->name, "+") && strcmp(expr->name, "-") && strcmp(expr->name, "*") && strcmp(expr->name, "/") &&
-       strcmp(expr->name, "%") && strcmp(expr->name, "&") && strcmp(expr->name, "|") && strcmp(expr->name, "^") &&
-       strcmp(expr->name, "<<") && strcmp(expr->name, ">>") &&
-       strcmp(expr->name, "==") && strcmp(expr->name, "!=") && strcmp(expr->name, "<") && strcmp(expr->name, ">") &&
-       strcmp(expr->name, "<=") && strcmp(expr->name, ">=")) {
-      return false;
-   }
-
-   lhs_expr = (ASTNode *) unwrap_expr_node(expr->children[0]);
-   rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
-   lhs_type = expr_value_type(lhs_expr, ctx);
-   rhs_type = expr_value_type(rhs_expr, ctx);
-   lhs_decl = expr_value_declarator(lhs_expr, ctx);
-   rhs_decl = expr_value_declarator(rhs_expr, ctx);
-
-   if ((lhs_decl && declarator_pointer_depth(lhs_decl) > 0) ||
-       (rhs_decl && declarator_pointer_depth(rhs_decl) > 0)) {
-      return false;
-   }
-
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
-      return false;
-   }
-
-   if ((expr_is_literal_node(lhs_expr) && !expr_is_literal_node(rhs_expr)) ||
-       (expr_is_literal_node(rhs_expr) && !expr_is_literal_node(lhs_expr)) ||
-       same_named_value_type(lhs_type, lhs_decl, rhs_type, rhs_decl)) {
-      return false;
-   }
-
-   return ordinary_integer_endian_conflict(lhs_type, rhs_type);
-}
-
-//! @brief Select a target-endian integer work type for target-typed mixed-endian binary expressions.
-const ASTNode *target_endian_integer_binary_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Context *ctx, const ASTNode *target_type, ASTNode *origin) {
-   const ASTNode *lhs_type;
-   const ASTNode *rhs_type;
-   const ASTNode *lhs_decl;
-   const ASTNode *rhs_decl;
-   const char *target_endian;
-   int lhs_size;
-   int rhs_size;
-   int required_size;
-   bool require_signed;
-
-   (void) origin;
-
-   lhs_expr = (ASTNode *) unwrap_expr_node(lhs_expr);
-   rhs_expr = (ASTNode *) unwrap_expr_node(rhs_expr);
-   lhs_type = expr_value_type(lhs_expr, ctx);
-   rhs_type = expr_value_type(rhs_expr, ctx);
-   lhs_decl = expr_value_declarator(lhs_expr, ctx);
-   rhs_decl = expr_value_declarator(rhs_expr, ctx);
-
-   if ((lhs_decl && declarator_pointer_depth(lhs_decl) > 0) ||
-       (rhs_decl && declarator_pointer_depth(rhs_decl) > 0)) {
-      return NULL;
-   }
-
-   if (!lhs_type || !rhs_type || !target_type ||
-       !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) || !type_is_promotable_integer(target_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) || type_is_bool(target_type)) {
-      return NULL;
-   }
-
-   if (!ordinary_integer_endian_conflict(lhs_type, rhs_type)) {
-      return NULL;
-   }
-   if (type_is_signed_integer(lhs_type) != type_is_signed_integer(rhs_type)) {
-      return NULL;
-   }
-
-   lhs_size = type_size_from_node(lhs_type);
-   rhs_size = type_size_from_node(rhs_type);
-   if (lhs_size <= 1 || rhs_size <= 1) {
-      return NULL;
-   }
-
-   target_endian = type_endian_name(target_type);
-   if (!target_endian) {
-      return NULL;
-   }
-
-   required_size = lhs_size > rhs_size ? lhs_size : rhs_size;
-   require_signed = type_is_signed_integer(lhs_type);
-   return select_integer_type_by_shape(required_size, require_signed, target_endian, target_type, target_type);
-}
-
-//! @brief Select a value-comparison work type for mixed-endian integer comparisons.
+//! @brief Return comparison work type.
 const ASTNode *value_compare_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Context *ctx, ASTNode *origin) {
-   const ASTNode *lhs_type;
-   const ASTNode *rhs_type;
-   const ASTNode *lhs_decl;
-   const ASTNode *rhs_decl;
-   const char *lhs_endian;
-   int lhs_size;
-   int rhs_size;
-   bool require_signed;
-
-   lhs_expr = (ASTNode *) unwrap_expr_node(lhs_expr);
-   rhs_expr = (ASTNode *) unwrap_expr_node(rhs_expr);
-   lhs_type = expr_value_type(lhs_expr, ctx);
-   rhs_type = expr_value_type(rhs_expr, ctx);
-   lhs_decl = expr_value_declarator(lhs_expr, ctx);
-   rhs_decl = expr_value_declarator(rhs_expr, ctx);
-
-   if ((lhs_decl && declarator_pointer_depth(lhs_decl) > 0) ||
-       (rhs_decl && declarator_pointer_depth(rhs_decl) > 0)) {
-      return NULL;
-   }
-
-   if (!lhs_type || !rhs_type ||
-       !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
-      return NULL;
-   }
-
-   if (!ordinary_integer_endian_conflict(lhs_type, rhs_type)) {
-      return binary_integer_work_type(lhs_expr, rhs_expr, ctx, origin);
-   }
-   if (type_is_signed_integer(lhs_type) != type_is_signed_integer(rhs_type)) {
-      return NULL;
-   }
-
-   lhs_size = type_size_from_node(lhs_type);
-   rhs_size = type_size_from_node(rhs_type);
-   if (lhs_size <= 1 || rhs_size <= 1) {
-      return binary_integer_work_type(lhs_expr, rhs_expr, ctx, origin);
-   }
-
-   lhs_endian = type_endian_name(lhs_type);
-   if (!lhs_endian) {
-      return NULL;
-   }
-
-   require_signed = type_is_signed_integer(lhs_type);
-   return select_integer_type_by_shape(lhs_size > rhs_size ? lhs_size : rhs_size,
-                                       require_signed, lhs_endian, lhs_type, lhs_type);
+   return binary_integer_work_type(lhs_expr, rhs_expr, ctx, origin);
 }
 
-//! @brief Return compound integer work type data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return compound integer work type data used by compiler type system.
 const ASTNode *compound_integer_work_type(const ASTNode *lhs_type, const ASTNode *lhs_decl, ASTNode *rhs_expr, Context *ctx, ASTNode *origin) {
    const ASTNode *rhs_type;
    const ASTNode *rhs_decl;
@@ -565,13 +330,10 @@ const ASTNode *compound_integer_work_type(const ASTNode *lhs_type, const ASTNode
    if (same_named_value_type(lhs_type, lhs_decl, rhs_type, rhs_decl)) {
       return lhs_type;
    }
-   if (ordinary_integer_endian_conflict(lhs_type, rhs_type)) {
-      return lhs_type;
-   }
    return promoted_integer_type_for_binary(lhs_type, rhs_type, origin);
 }
 
-//! @brief Handle require no mixed signed integer binary expr logic for compiler type system.
+//! @brief Reject implicit signed/unsigned mixing in ordinary integer expressions.
 void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
    const ASTNode *lhs_type;
    const ASTNode *rhs_type;
@@ -620,139 +382,14 @@ void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 }
 
-//! @brief Handle require no mixed endian integer binary expr logic for compiler type system.
-void require_no_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
-   const ASTNode *lhs_type;
-   const ASTNode *rhs_type;
-   const ASTNode *lhs_decl;
-   const ASTNode *rhs_decl;
-   ASTNode *lhs_expr;
-   ASTNode *rhs_expr;
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || expr->count != 2) {
-      return;
-   }
-   if (strcmp(expr->name, "+") && strcmp(expr->name, "-") && strcmp(expr->name, "*") && strcmp(expr->name, "/") &&
-       strcmp(expr->name, "%") && strcmp(expr->name, "&") && strcmp(expr->name, "|") && strcmp(expr->name, "^") &&
-       strcmp(expr->name, "<<") && strcmp(expr->name, ">>") &&
-       strcmp(expr->name, "==") && strcmp(expr->name, "!=") && strcmp(expr->name, "<") && strcmp(expr->name, ">") &&
-       strcmp(expr->name, "<=") && strcmp(expr->name, ">=")) {
-      return;
-   }
-
-   lhs_expr = (ASTNode *) unwrap_expr_node(expr->children[0]);
-   rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
-   lhs_type = expr_value_type(lhs_expr, ctx);
-   rhs_type = expr_value_type(rhs_expr, ctx);
-   lhs_decl = expr_value_declarator(lhs_expr, ctx);
-   rhs_decl = expr_value_declarator(rhs_expr, ctx);
-
-   if ((lhs_decl && declarator_pointer_depth(lhs_decl) > 0) ||
-       (rhs_decl && declarator_pointer_depth(rhs_decl) > 0)) {
-      return;
-   }
-
-   if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
-      return;
-   }
-
-   if ((expr_is_literal_node(lhs_expr) && !expr_is_literal_node(rhs_expr)) ||
-       (expr_is_literal_node(rhs_expr) && !expr_is_literal_node(lhs_expr)) ||
-       same_named_value_type(lhs_type, lhs_decl, rhs_type, rhs_decl)) {
-      return;
-   }
-
-   if (ordinary_integer_endian_conflict(lhs_type, rhs_type)) {
-      error_user("[%s:%d.%d] mixed-endian ordinary integer operator '%s' is not supported; use an explicit cast or matching endianness",
-                 expr->file, expr->line, expr->column, expr->name);
-   }
-}
-
-//! @brief Handle require no mixed endian pointer index expr logic for compiler type system.
-void require_no_mixed_endian_pointer_index_expr(ASTNode *origin, ASTNode *idx_expr, Context *ctx, const char *op) {
-   const ASTNode *idx_type;
-   const ASTNode *ptr_type;
-   const char *idx_endian;
-   const char *ptr_endian;
-
-   origin = (ASTNode *) unwrap_expr_node(origin);
-   idx_expr = (ASTNode *) unwrap_expr_node(idx_expr);
-   if (!origin || !idx_expr || expr_is_literal_node(idx_expr)) {
-      return;
-   }
-
-   idx_type = expr_value_type(idx_expr, ctx);
-   ptr_type = required_typename_node("*");
-   if (!ptr_type || !idx_type || !type_is_promotable_integer(idx_type) || type_is_bool(idx_type) ||
-       type_size_from_node(idx_type) <= 1 || type_size_from_node(ptr_type) <= 1) {
-      return;
-   }
-
-   idx_endian = type_endian_name(idx_type);
-   ptr_endian = type_endian_name(ptr_type);
-   if (!idx_endian || !ptr_endian || !strcmp(idx_endian, ptr_endian)) {
-      return;
-   }
-
-   error_user("[%s:%d.%d] pointer operator '%s' does not support %s-endian index with %s-endian pointers; use an explicit cast",
-              origin->file, origin->line, origin->column, op ? op : "?", idx_endian, ptr_endian);
-}
-
-//! @brief Compute endian variant type and update compiler type system state once prerequisite pass data is available.
-const ASTNode *select_endian_variant_type(const ASTNode *src_type, const char *target_endian) {
-   int src_size;
-
-   if (!src_type) {
-      return NULL;
-   }
-
-   src_size = type_size_from_node(src_type);
-   if (src_size <= 1) {
-      return src_type;
-   }
-
-   for (int i = 0; root && i < root->count; i++) {
-      ASTNode *node = root->children[i];
-      const char *cand_endian;
-
-      if (!node || strcmp(node->name, "type_decl_stmt")) {
-         continue;
-      }
-      if (type_size_from_node(node) != src_size) {
-         continue;
-      }
-      cand_endian = type_endian_name(node);
-      if (target_endian && cand_endian && strcmp(target_endian, cand_endian)) {
-         continue;
-      }
-      if (type_is_promotable_integer(src_type) && !type_is_bool(src_type)) {
-         if (!type_is_promotable_integer(node) || type_is_bool(node)) {
-            continue;
-         }
-         if (type_is_signed_integer(node) != type_is_signed_integer(src_type)) {
-            continue;
-         }
-         return node;
-      }
-   }
-
-   return NULL;
-}
-
-//! @brief Return flag cast target type data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Return flag cast target type data used by compiler type system.
 const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    ASTNode *operand;
    ASTNode *flag;
    const ASTNode *src_type;
    const ASTNode *src_decl;
-   const char *src_endian;
-   const char *target_endian;
    const char *flag_text;
    bool want_signed;
-   bool signedness_cast;
-   bool endian_cast;
    int src_size;
 
    expr = (ASTNode *) unwrap_expr_node(expr);
@@ -763,74 +400,44 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    flag = expr->children[0];
    operand = (ASTNode *) unwrap_expr_node(expr->children[1]);
    flag_text = flag ? flag->strval : NULL;
-   signedness_cast = flag_text && (!strcmp(flag_text, "$signed") || !strcmp(flag_text, "$unsigned"));
-   endian_cast = flag_text && (!strcmp(flag_text, "$big") || !strcmp(flag_text, "$little"));
-   if (!flag_text || (!signedness_cast && !endian_cast)) {
+
+   if (flag_text && (!strcmp(flag_text, "$big") || !strcmp(flag_text, "$little"))) {
+      error_user("[%s:%d.%d] endian shortcut casts are not supported",
+                 expr->file, expr->line, expr->column);
+   }
+   if (!flag_text || (strcmp(flag_text, "$signed") && strcmp(flag_text, "$unsigned"))) {
       error_user("[%s:%d.%d] invalid shortcut cast flag", expr->file, expr->line, expr->column);
    }
    if (!operand || expr_is_literal_node(operand)) {
-      if (signedness_cast) {
-         error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
-                    expr->file, expr->line, expr->column, flag_text);
-      }
-      error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer expressions",
+      error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                  expr->file, expr->line, expr->column, flag_text);
    }
 
    src_type = expr_value_type(operand, ctx);
    src_decl = expr_value_declarator(operand, ctx);
-   if (signedness_cast) {
-      if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) ||
-          !type_is_promotable_integer(src_type) || type_is_bool(src_type)) {
-         error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
-                    expr->file, expr->line, expr->column, flag_text);
-      }
-   }
-   else {
-      if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) || type_is_bool(src_type) ||
-          (!type_is_promotable_integer(src_type))) {
-         error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer expressions",
-                    expr->file, expr->line, expr->column, flag_text);
-      }
+   if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) ||
+       !type_is_promotable_integer(src_type) || type_is_bool(src_type)) {
+      error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
+                 expr->file, expr->line, expr->column, flag_text);
    }
 
    src_size = type_size_from_node(src_type);
    if (src_size <= 0) {
-      error_user("[%s:%d.%d] shortcut cast '%s' requires a fixed-width %s operand",
-                 expr->file, expr->line, expr->column, flag_text,
-                 "integer");
+      error_user("[%s:%d.%d] shortcut cast '%s' requires a fixed-width integer operand",
+                 expr->file, expr->line, expr->column, flag_text);
    }
 
-   if (signedness_cast) {
-      want_signed = !strcmp(flag_text, "$signed");
-      if (type_is_signed_integer(src_type) == want_signed) {
-         return src_type;
-      }
-
-      src_endian = type_endian_name(src_type);
-      {
-         const ASTNode *dst_type = select_integer_type_by_shape(src_size, want_signed, src_endian, NULL, NULL);
-         if (!dst_type || type_size_from_node(dst_type) != src_size) {
-            error_user("[%s:%d.%d] shortcut cast '%s' has no matching %d-byte %s integer type",
-                       expr->file, expr->line, expr->column, flag_text, src_size,
-                       want_signed ? "signed" : "unsigned");
-         }
-         return dst_type;
-      }
-   }
-
-   target_endian = !strcmp(flag_text, "$big") ? "big" : "little";
-   src_endian = type_endian_name(src_type);
-   if (src_size <= 1 || !src_endian || !strcmp(src_endian, target_endian)) {
+   want_signed = !strcmp(flag_text, "$signed");
+   if (type_is_signed_integer(src_type) == want_signed) {
       return src_type;
    }
 
    {
-      const ASTNode *dst_type = select_endian_variant_type(src_type, target_endian);
-      if (!dst_type) {
-         error_user("[%s:%d.%d] shortcut cast '%s' has no matching %d-byte %s-endian %s type",
-                    expr->file, expr->line, expr->column, flag_text, src_size, target_endian,
-                    "integer");
+      const ASTNode *dst_type = select_integer_type_by_shape(src_size, want_signed, NULL, NULL);
+      if (!dst_type || type_size_from_node(dst_type) != src_size) {
+         error_user("[%s:%d.%d] shortcut cast '%s' has no matching %d-byte %s integer type",
+                    expr->file, expr->line, expr->column, flag_text, src_size,
+                    want_signed ? "signed" : "unsigned");
       }
       return dst_type;
    }

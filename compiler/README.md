@@ -134,8 +134,8 @@ Recognized flags include:
 Floating-point flags are not recognized as value types; `$float` and `$float:*` declarations are rejected.
 
 Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
-- `$endian:little`
-- `$endian:big`
+
+Multibyte integer and pointer types use `$endian:little`. `$endian:big` is rejected; the target language has no selectable byte order.
 
 ## Declarators
 
@@ -261,16 +261,12 @@ The language uses two cast families:
 - backtick casts such as ``123`u2`` are literal-only and always happen immediately on the host
 - parenthesized casts such as `(u2)expr` are ordinary expression casts; when applied to a literal they may also fold on the host at compile time
 
-There are also four shortcut casts:
+There are also two shortcut casts:
 
 - ``($signed)expr``
 - ``($unsigned)expr``
-- ``($big)expr``
-- ``($little)expr``
 
-`($signed)` and `($unsigned)` preserve width and endianness while changing signedness, but only for already-typed ordinary fixed-width integers. They are never legal on literals or pointers.
-
-`($big)` and `($little)` preserve width and numeric family while changing endianness. They are legal on already-typed fixed-width integers, but they are never legal on literals, `bool`, or pointers.
+They preserve width while changing signedness, but are legal only on already-typed ordinary fixed-width integers. They are never legal on literals or pointers. The former endian shortcut casts `($big)` and `($little)` are rejected.
 
 ### Shifts
 
@@ -286,31 +282,9 @@ The intended shift rules are:
 - runtime negative shift counts are not a supported language feature; codegen should not reinterpret `x << -n` as `x >> n`
 
 
-### Endianness in expressions and assignment
+### Byte order
 
-Mixed-endian assignments are supported.
-
-The compiler performs endian-aware conversion when values move between slots or symbols. When source and destination integer endianness differ, bytes are reordered instead of blindly copied.
-
-Ordinary mixed-endian integer operators are accepted in target-typed contexts where the destination type supplies the endian choice. This includes declaration initializers, assignments, braced assignment, return values, casts, and function-call arguments. For example, when `u2be x` receives `a * b`, the mixed-endian operands are compiled through a `u2be` work type before the result is stored.
-
-For overloaded calls, a mixed-endian binary argument can make several parameter-endian choices viable. Exact non-mixed argument matches still win; equal-cost mixed-endian parameter choices are reported as ambiguous.
-
-Compound assignments use the left-hand side as the destination. For `x += y`, `x *= y`, `x <<= y`, and the other compound assignment forms, a mixed-endian right-hand side is converted through the left-hand side/work type before the operation is performed, and the final value is stored back into the left-hand side type.
-
-Mixed-endian integer comparisons compare logical values. The compiler converts to a common same-endian work type for `==`, `!=`, `<`, `>`, `<=`, and `>=` when the integer signedness is compatible.
-
-Ordinary mixed-endian integer operators in free expressions do **not** promote through a hidden work type. A free expression such as `a * b;` is rejected unless the user makes the endianness choice explicit with a cast, either a full type cast such as `(u2le)expr` or an endian shortcut cast such as `($little)expr`.
-
-That means these are handled sensibly:
-
-- big-endian to little-endian assignment of equal-sized integers
-- little-endian to big-endian assignment of equal-sized integers
-- mixed-endian integer arithmetic in target-typed destinations
-- mixed-endian integer arithmetic after an explicit endian cast
-- mixed-endian integer comparisons
-- mixed-endian compound assignment using the left-hand side as the endian sink
-- mixed-endian pointer indexing after an explicit endian cast
+All multibyte integers and pointers are little-endian. Assignments, casts, arithmetic, comparisons, indexing, initializers, calls, and returns therefore use one fixed byte order. Big-endian type declarations and endian shortcut casts are rejected.
 
 ## Inline assembly
 
@@ -534,8 +508,7 @@ copy A:X into its fixed `__n65_calltmp_N` scratch so older expression-copy
 machinery can consume it; that scratch is not part of the function ABI.
 Indirect calls are unsupported; no call path uses an indirect-call software-stack frame.
 
-Functions returning aggregates, arrays, floating-point values, big-endian
-integers, or values larger than two bytes are rejected at compile time. The
+Functions returning aggregates, arrays, floating-point values, or values larger than two bytes are rejected at compile time. The
 `$$` name is reserved; it cannot be declared as a global, local, function, or
 parameter name, and it is invalid in `void` functions or outside a function
 body.
@@ -632,7 +605,6 @@ The following limits are deliberate in the language and compiler design, not unk
 A few sharp edges remain:
 
 - ordinary function overloading supports exact matches plus safe integer promotions for plain value parameters, but there is no user-defined conversion search or other C++-style ranking machinery
-- mixed-endian ordinary integer operators in free expressions require an explicit endian cast; target-typed contexts use the destination type as the endian sink
 - symbol-backed-parameter cycle checking spans the selected object files at link time, but truly dynamic call targets cannot be proven safe
 - shift-count diagnostics are lax
 

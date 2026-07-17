@@ -83,8 +83,7 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
 
    size = declarator_value_size(type, declarator);
 
-   /* A pointer value is always a 16-bit little-endian address, regardless of
-      the byte order or aggregate nature of the pointed-to type. */
+   /* A pointer value is always a 16-bit little-endian address. */
    if (declarator_pointer_depth(declarator) > 0) {
       return size == 2;
    }
@@ -96,10 +95,6 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
    if (size < 1 || size > 2) {
       return false;
    }
-   if (size > 1 && type_is_big_endian(type)) {
-      return false;
-   }
-
    return true;
 }
 

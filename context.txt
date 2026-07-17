@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_235459.tar.gz
+    vcsc.20260717_082117.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -123,6 +123,10 @@ Completed vertical slices
     build, runtime, machine definitions, and positive test suite. Floating-point
     literals and `$float`/`$float:*` type flags remain only as direct rejection
     paths.
+18. Big-endian and mixed-endian target support has been removed. All target
+    integers, pointers, constants, initializers, conversions, comparisons, and
+    runtime helpers are little-endian. `$endian:big`, `($big)`, and `($little)`
+    remain only as direct rejection paths.
 
 Current return ABI
 ------------------
@@ -145,7 +149,6 @@ Every function declaration and definition is validated. The compiler rejects:
 
 * aggregate and array returns;
 * integers larger than two bytes;
-* two-byte big-endian integer returns;
 * any other noninteger, nonpointer value return.
 
 Pointers to aggregate or otherwise unsupported pointee types are legal because
@@ -257,40 +260,31 @@ When a feature is removed:
    out-parameters;
 4. list every intentionally deleted path in remove.txt.
 
-For the floating-point purge:
+For the big/mixed-endian purge:
 
-* the compiler and lexer retain only direct rejection paths for floating-point
-  type flags and literals;
-* broad parser/codegen fixtures were rewritten to use integer values where
-  their real purpose was unrelated to floating point;
-* the nlib input-preservation E2E test now covers the retained integer helper;
-* 152 files were intentionally removed in this revision, including the complete
-  float runtime, compiler float implementation, dead nlib float bundle
-  generator, and obsolete positive tests;
+* target multibyte values are unconditionally little-endian;
+* the compiler retains only direct rejection paths for `$endian:big`, `($big)`,
+  and `($little)`;
+* all big-endian and mixed-endian compiler branches and 37 big-endian nlib
+  procedures were removed;
+* 24 obsolete positive endian tests were intentionally removed and three direct
+  rejection tests were added;
 * all removed paths are in top-level remove.txt.
 
 Files changed in this revision
 ------------------------------
-Modified source, build, documentation, and tests:
+Modified source and documentation:
 
-    Makefile
     NOTES.md
     README.md
     compiler/ABI.txt
-    compiler/Makefile
     compiler/README.md
     compiler/abi_meta.c
-    compiler/ast.c
-    compiler/ast.h
-    compiler/compile_expr.c
     compiler/compile_expr_flow.c
-    compiler/compile_expr_info.c
     compiler/compile_expr_ops.c
     compiler/compile_expr_slot.c
     compiler/compile_function.c
     compiler/compile_init.c
-    compiler/compile_init.h
-    compiler/compile_internal.h
     compiler/compile_lvalue.c
     compiler/compile_overload.c
     compiler/compile_stmt.c
@@ -298,47 +292,32 @@ Modified source, build, documentation, and tests:
     compiler/compile_toplevel.c
     compiler/compile_type.c
     compiler/compile_type.h
-    compiler/coverage_map.h
-    compiler/expropt.c
-    compiler/lexer.l
-    compiler/parser.y
-    docs/tool_usage.dox
-    driver/README.md
-    driver/n65cc.c
-    libraries/nlib/README.md
-    libraries/nlib/machine_6502.n
-    libraries/vcs/vcs.n
-    software_stack_inventory.txt
-    test/README.md
-    test/bitfield_sizeof_codegen_test.n
-    test/blanket.n
-    test/broken.n
-    test/builtin_operator_codegen_test.n
-    test/compound_test.n
-    test/coverage.n
-    test/e2e_nlib_inputs_preserved_verify.n
-    test/lexer.n
-    test/machine_6502.n
-    test/shortcut_endian_cast_codegen_test.n
-    test/shortcut_endian_cast_literal_error_test.n
-    test/simple.n
-    test/static_initializer_expr_test.n
-    test/test.pl
-    test/test_foo.n
-    test/test_input.n
-    test/unimpl_audit.pl
+    compiler/integer.c
+    compiler/integer.h
+    context.txt
+    libraries/nlib/asm/add.asm
+    libraries/nlib/asm/cmp.asm
+    libraries/nlib/asm/div.asm
+    libraries/nlib/asm/incdec.asm
+    libraries/nlib/asm/mul.asm
+    libraries/nlib/asm/rem.asm
+    libraries/nlib/asm/shift.asm
+    libraries/nlib/asm/stack.asm
+    libraries/nlib/asm/sub.asm
+    remove.txt
 
-Added rejection/retained tests:
+Added rejection tests:
 
-    test/floating_literal_rejected_test.n
-    test/floating_type_rejected_test.n
-    test/no_int_required_test.n
+    test/big_endian_shortcut_cast_rejected_test.n
+    test/big_endian_type_rejected_test.n
+    test/little_endian_shortcut_cast_rejected_test.n
 
 Removed intentionally:
 
-    152 files; every repository-relative pathname is appended to remove.txt.
+    24 obsolete positive big-endian/mixed-endian tests; every repository-relative
+    pathname is appended to remove.txt.
 
-Top-level remove.txt now contains 373 cumulative deletion paths.
+Top-level remove.txt now contains 397 cumulative deletion paths.
 
 Build environment
 -----------------
@@ -365,13 +344,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    241 passed, 0 failed, 241 total
+    224 passed, 0 failed, 224 total
 
 End-to-end/generic suite:
 
-    101 passed, 0 failed, 101 total
+    97 passed, 0 failed, 97 total
 
-The compile suite completed in one invocation. The full E2E run reached the execution wrapper timeout after 89 passing cases; the remaining 12 cases were run explicitly and passed, accounting for all 101 cases.
+The final clean E2E validation was split into bounded runs of 49 and 48 cases;
+both passed, accounting for all 97 cases. The rebuilt nlib archive contains 71
+members and no big-endian helper member.
 
 Immediate TODO
 --------------
@@ -416,7 +397,7 @@ The first unfinished item is the default next action.
 
         [x] 12a. Remove floating-point types, literals, compiler/runtime code,
                   driver linkage, and positive tests.
-        [ ] 12b. Remove big-endian and mixed-endian type/expression support.
+        [x] 12b. Remove big-endian and mixed-endian type/expression support.
         [ ] 12c. Remove 32/64-bit integer types, helpers, and tests; enforce
                   only the four final integer widths/signedness combinations.
 
@@ -645,6 +626,22 @@ Change log
 * Added focused rejection tests for floating-point types and literals.
 * Removed 152 files in this revision; remove.txt now contains 373 cumulative paths.
 * Passed 241/241 compile tests and 101/101 end-to-end/generic tests.
+
+2026-07-17, big/mixed-endian purge
+* Removed target-endian selection from type promotion, conversion, expression
+  lowering, lvalue addressing, initializers, return handling, overload ranking,
+  and ABI fingerprints.
+* Target integers, pointers, constants, and runtime values are now
+  unconditionally little-endian.
+* Removed 37 big-endian procedures from the nlib assembly templates; the rebuilt
+  archive has no big-endian helper members.
+* `$endian:big`, `($big)`, and `($little)` remain only as direct rejection
+  diagnostics. `$endian:little` remains accepted temporarily by the general type
+  declaration syntax but carries no selectable ABI state.
+* Removed 24 obsolete positive endian tests and added three direct rejection
+  tests. remove.txt now contains 397 cumulative paths.
+* Passed 224/224 compile tests and 97/97 end-to-end/generic tests; final clean
+  E2E validation ran as 49-case and 48-case chunks.
 
 End-of-session checklist
 ------------------------

@@ -1039,8 +1039,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             ASTNode *ordered_low = low;
             ASTNode *ordered_high = high;
             const char *skip_label = next_label("case_skip");
-            const char *le_helper = is_signed ? (type_is_big_endian(type) ? "leNsbe" : "leNsle")
-                                               : (type_is_big_endian(type) ? "leNube" : "leNule");
+            const char *le_helper = is_signed ? "leNsle" : "leNule";
 
             if (!skip_label) {
                warning("[%s:%d.%d] switch case label generation failed", case_expr->file, case_expr->line, case_expr->column);

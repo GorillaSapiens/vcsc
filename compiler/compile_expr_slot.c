@@ -408,12 +408,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (expr->kind == AST_INTEGER) {
       unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
-      if (has_flag(type_name_from_node(dst->type), "$endian:big")) {
-         make_be_int(expr->strval, bytes, dst->size);
-      }
-      else {
-         make_le_int(expr->strval, bytes, dst->size);
-      }
+      make_le_int(expr->strval, bytes, dst->size);
       emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
       free(bytes);
       return true;
@@ -426,12 +421,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
          char tmp[64];
          snprintf(tmp, sizeof(tmp), "%lld", ch_value);
-         if (has_flag(type_name_from_node(dst->type), "$endian:big")) {
-            make_be_int(tmp, bytes, dst->size);
-         }
-         else {
-            make_le_int(tmp, bytes, dst->size);
-         }
+         make_le_int(tmp, bytes, dst->size);
          emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
          free(bytes);
       }
@@ -563,12 +553,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
             char tmp[64];
             snprintf(tmp, sizeof(tmp), "%lld", value.i);
-            if (has_flag(type_name_from_node(dst->type), "$endian:big")) {
-               make_be_int(tmp, bytes, dst->size);
-            }
-            else {
-               make_le_int(tmp, bytes, dst->size);
-            }
+            make_le_int(tmp, bytes, dst->size);
             emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
             free(bytes);
             return true;

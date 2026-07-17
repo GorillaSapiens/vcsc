@@ -591,17 +591,9 @@ bool encode_integer_initializer_value(long long value, unsigned char *buf, int s
 
    mag = value < 0 ? (unsigned long long) (-(value + 1)) + 1ULL : (unsigned long long) value;
    snprintf(tmp, sizeof(tmp), "%llu", mag);
-   if (has_flag(type_name_from_node(type), "$endian:big")) {
-      make_be_int(tmp, buf, size);
-      if (value < 0) {
-         negate_be_int(buf, size);
-      }
-   }
-   else {
-      make_le_int(tmp, buf, size);
-      if (value < 0) {
-         negate_le_int(buf, size);
-      }
+   make_le_int(tmp, buf, size);
+   if (value < 0) {
+      negate_le_int(buf, size);
    }
    return true;
 }
@@ -613,12 +605,7 @@ bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf
    }
 
    if (value->int_text && value->i >= 0) {
-      if (has_flag(type_name_from_node(type), "$endian:big")) {
-         make_be_int(value->int_text, buf, size);
-      }
-      else {
-         make_le_int(value->int_text, buf, size);
-      }
+      make_le_int(value->int_text, buf, size);
       return true;
    }
 
@@ -633,12 +620,7 @@ static bool emit_symbol_address_initializer(EmitSink *es, int size, const ASTNod
    if (size != 2) {
       return false;
    }
-   if (has_flag(type_name_from_node(type), "$endian:big")) {
-      emit(es, "\t.byte >{%s%+lld}, <{%s%+lld}\n", symbol, addend, symbol, addend);
-   }
-   else {
-      emit(es, "\t.byte <{%s%+lld}, >{%s%+lld}\n", symbol, addend, symbol, addend);
-   }
+   emit(es, "\t.byte <{%s%+lld}, >{%s%+lld}\n", symbol, addend, symbol, addend);
    return true;
 }
 
