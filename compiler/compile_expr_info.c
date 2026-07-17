@@ -247,9 +247,6 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       const ASTNode *fn = NULL;
       {
          const char *callee_name = expr_bare_identifier_name(callee);
-         if (callee_name && builtin_variadic_call_name(callee_name)) {
-            return required_typename_node("void");
-         }
          if (callee_name) {
             fn = resolve_function_call_target(callee_name, expr, args, ctx);
          }

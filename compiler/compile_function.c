@@ -1,10 +1,9 @@
 //! @file compiler/compile_function.c
-//! @brief Implements function and variadic ABI lowering for the n65 compiler.
+//! @brief Implements function ABI lowering for the n65 compiler.
 //! @ingroup compiler
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,20 +42,8 @@ typedef struct CallGraphEdge {
    int to;
 } CallGraphEdge;
 
-typedef struct VaListLayout {
-   const ASTNode *type;
-   int size;
-   int args_offset;
-   int args_size;
-   int bytes_offset;
-   int bytes_size;
-   int offset_offset;
-   int offset_size;
-} VaListLayout;
 
 static bool implementation_name_reserved(const char *name);
-static bool get_builtin_va_list_layout(VaListLayout *out);
-static void add_variadic_hidden_locals(Context *ctx);
 static bool symbol_backed_metadata_function_name(char *buf, size_t bufsize, const char *sym);
 static bool symbol_backed_metadata_edge_name(char *buf, size_t bufsize, const char *caller_sym, const char *callee_sym);
 static void call_graph_tarjan_visit(int v, int *index_counter, int *stack, int *stack_top,
@@ -163,7 +150,7 @@ void validate_function_return_type(const ASTNode *fn) {
 //! @brief Return whether a parameter of a directly named function uses callee-owned storage.
 bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter) {
    (void) fn;
-   return parameter && !parameter_is_void(parameter) && !parameter_is_ellipsis(parameter);
+   return parameter && !parameter_is_void(parameter);
 }
 
 //! @brief Handle function parameter symbol name logic for compiler function lowering.
@@ -221,13 +208,11 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
 
 //! @brief Handle implementation-reserved name logic for compiler function lowering.
 static bool implementation_name_reserved(const char *name) {
-   return name && (!strcmp(name, VARIADIC_HIDDEN_ARGS_NAME) ||
-                   !strcmp(name, VARIADIC_HIDDEN_BYTES_NAME) ||
-                   !strcmp(name, "$$"));
+   return name && !strcmp(name, "$$");
 }
 
-//! @brief Validate nonreserved implementation-name invariants before later compiler stages depend on them.
-void validate_nonreserved_variadic_name(const char *name, const ASTNode *node) {
+//! @brief Validate implementation-reserved names before later compiler stages depend on them.
+void validate_nonreserved_implementation_name(const char *name, const ASTNode *node) {
    if (!node || !implementation_name_reserved(name)) {
       return;
    }
@@ -239,8 +224,8 @@ void validate_nonreserved_variadic_name(const char *name, const ASTNode *node) {
    error_user("[%s:%d.%d] '%s' is a reserved implementation name", node->file, node->line, node->column, name);
 }
 
-//! @brief Validate function nonreserved variadic names invariants before later compiler stages depend on them.
-void validate_function_nonreserved_variadic_names(const ASTNode *fn) {
+//! @brief Validate function implementation-reserved names before later compiler stages depend on them.
+void validate_function_nonreserved_implementation_names(const ASTNode *fn) {
    const ASTNode *declarator;
    const ASTNode *params;
 
@@ -250,13 +235,13 @@ void validate_function_nonreserved_variadic_names(const ASTNode *fn) {
 
    declarator = function_declarator_node(fn);
    if (declarator) {
-      validate_nonreserved_variadic_name(declarator_name(declarator), fn);
+      validate_nonreserved_implementation_name(declarator_name(declarator), fn);
       params = declarator_parameter_list(declarator);
       if (params && !is_empty(params)) {
          for (int i = 0; i < params->count; i++) {
             const ASTNode *parameter = params->children[i];
             const ASTNode *pdecl = parameter ? parameter_declarator(parameter) : NULL;
-            validate_nonreserved_variadic_name(pdecl ? declarator_name(pdecl) : NULL, parameter ? parameter : fn);
+            validate_nonreserved_implementation_name(pdecl ? declarator_name(pdecl) : NULL, parameter ? parameter : fn);
          }
       }
    }
@@ -317,88 +302,6 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
    }
 }
 
-//! @brief Handle builtin variadic call name logic for compiler function lowering.
-bool builtin_variadic_call_name(const char *name) {
-   return name && (!strcmp(name, BUILTIN_VA_START_NAME) || !strcmp(name, BUILTIN_VA_ARG_NAME) || !strcmp(name, BUILTIN_VA_END_NAME));
-}
-
-//! @brief Handle get builtin va list layout logic for compiler function lowering.
-static bool get_builtin_va_list_layout(VaListLayout *out) {
-   const ASTNode *type = NULL;
-   AggregateMemberInfo info;
-   int ptr_size = get_size("*");
-
-   if (out) {
-      memset(out, 0, sizeof(*out));
-   }
-
-   if (!typename_exists(BUILTIN_VA_LIST_TYPE_NAME)) {
-      error_user("builtin variadic support requires type '%s'; include \"stdarg.n\"", BUILTIN_VA_LIST_TYPE_NAME);
-   }
-
-   type = required_typename_node(BUILTIN_VA_LIST_TYPE_NAME);
-   if (!type) {
-      return false;
-   }
-   if (!find_aggregate_member_info(type, BUILTIN_VA_LIST_ARGS_FIELD, &info)) {
-      error_user("type '%s' must define member '%s'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_ARGS_FIELD);
-   }
-   if (type_name_from_node(info.type) == NULL || strcmp(type_name_from_node(info.type), "void") || declarator_pointer_depth(info.declarator) <= 0 || info.storage_size != ptr_size) {
-      error_user("type '%s' member '%s' must be declared as 'void *'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_ARGS_FIELD);
-   }
-
-   if (out) {
-      out->type = type;
-      out->size = type_size_from_node(type);
-      out->args_offset = info.byte_offset;
-      out->args_size = info.storage_size;
-   }
-
-   if (!find_aggregate_member_info(type, BUILTIN_VA_LIST_BYTES_FIELD, &info)) {
-      error_user("type '%s' must define member '%s'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_BYTES_FIELD);
-   }
-   if (type_name_from_node(info.type) == NULL || strcmp(type_name_from_node(info.type), "void") || declarator_pointer_depth(info.declarator) <= 0 || info.storage_size != ptr_size) {
-      error_user("type '%s' member '%s' must be declared as 'void *'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_BYTES_FIELD);
-   }
-   if (out) {
-      out->bytes_offset = info.byte_offset;
-      out->bytes_size = info.storage_size;
-   }
-
-   if (!find_aggregate_member_info(type, BUILTIN_VA_LIST_OFFSET_FIELD, &info)) {
-      error_user("type '%s' must define member '%s'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_OFFSET_FIELD);
-   }
-   if (type_name_from_node(info.type) == NULL || strcmp(type_name_from_node(info.type), "void") || declarator_pointer_depth(info.declarator) <= 0 || info.storage_size != ptr_size) {
-      error_user("type '%s' member '%s' must be declared as 'void *'", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_LIST_OFFSET_FIELD);
-   }
-   if (out) {
-      out->offset_offset = info.byte_offset;
-      out->offset_size = info.storage_size;
-   }
-
-   return true;
-}
-
-//! @brief Add variadic hidden locals to compiler function lowering state, growing storage or preserving uniqueness as needed.
-static void add_variadic_hidden_locals(Context *ctx) {
-   ContextEntry *entry;
-   ASTNode *ptr_decl;
-
-   if (!ctx) {
-      return;
-   }
-
-   ctx_push(ctx, required_typename_node("void"), VARIADIC_HIDDEN_ARGS_NAME);
-   entry = (ContextEntry *) set_get(ctx->vars, VARIADIC_HIDDEN_ARGS_NAME);
-   ptr_decl = make_named_pointer_declarator(VARIADIC_HIDDEN_ARGS_NAME);
-   if (entry) {
-      entry->declarator = ptr_decl;
-      ctx_resize_last_push(ctx, required_typename_node("void"), ptr_decl, VARIADIC_HIDDEN_ARGS_NAME);
-   }
-
-   ctx_push(ctx, required_typename_node("*"), VARIADIC_HIDDEN_BYTES_NAME);
-}
-
 //! @brief Handle build function context logic for compiler function lowering.
 void build_function_context(const ASTNode *node, Context *ctx) {
    const ASTNode *declarator = node->children[1];
@@ -435,9 +338,6 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       }
    }
 
-   if (parameter_list_is_variadic(params)) {
-      ctx->params -= get_size("*") + get_size("*");
-   }
 
    if (function_uses_ax_return(node)) {
       ContextEntry *return_entry;
@@ -458,9 +358,6 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       return_entry->size = declarator_value_size(return_entry->type, return_entry->declarator);
    }
 
-   if (parameter_list_is_variadic(params)) {
-      add_variadic_hidden_locals(ctx);
-   }
 }
 
 //! @brief Return whether function has static parameters in compiler function lowering.
@@ -788,200 +685,4 @@ void emit_function_parameter_exports(const ASTNode *node) {
            is_zeropage ? ".zpexport %s\n" : ".export %s\n",
            sym);
    }
-}
-
-//! @brief Emit variadic hidden local setup for compiler function lowering diagnostics or output files.
-void emit_variadic_hidden_local_setup(const ASTNode *node, Context *ctx) {
-   ContextEntry *args_entry;
-   ContextEntry *bytes_entry;
-   int ptr_size;
-   int len_size;
-   int fixed_stack_bytes;
-   int hidden_ptr_offset;
-   int hidden_len_offset;
-
-   if (!node || !ctx || !function_is_variadic(node)) {
-      return;
-   }
-
-   args_entry = (ContextEntry *) set_get(ctx->vars, VARIADIC_HIDDEN_ARGS_NAME);
-   bytes_entry = (ContextEntry *) set_get(ctx->vars, VARIADIC_HIDDEN_BYTES_NAME);
-   if (!args_entry || !bytes_entry) {
-      return;
-   }
-
-   ptr_size = get_size("*");
-   len_size = get_size("*");
-   fixed_stack_bytes = function_fixed_parameter_stack_bytes(node);
-   hidden_len_offset = -(fixed_stack_bytes + len_size);
-   hidden_ptr_offset = -(fixed_stack_bytes + len_size + ptr_size);
-
-   emit_load_ptr_from_fpvar(0, hidden_ptr_offset);
-   emit_store_ptr_to_fp(args_entry->offset, 0, args_entry->size);
-   emit_copy_fp_to_fp_convert(bytes_entry->offset, bytes_entry->size, bytes_entry->type,
-                              hidden_len_offset, len_size, required_typename_node("*"));
-}
-
-//! @brief Lower builtin va start expr from AST/semantic state into generated assembly or linker-visible metadata.
-bool compile_builtin_va_start_expr(ASTNode *expr, Context *ctx) {
-   ASTNode *args;
-   LValueRef ap_lv;
-   VaListLayout layout;
-   ContextEntry *hidden_args;
-   ContextEntry *hidden_bytes;
-   int saved_locals;
-   int scratch_offset;
-   unsigned char zeroes[32] = {0};
-
-   if (!expr || strcmp(expr->name, "()") || expr->count < 2) {
-      return false;
-   }
-   args = expr->children[1];
-   if (!args || is_empty(args) || args->count != 1) {
-      error_user("[%s:%d.%d] %s expects exactly 1 argument", expr->file, expr->line, expr->column, BUILTIN_VA_START_NAME);
-   }
-   if (!ctx || !current_call_graph_function || !function_is_variadic(current_call_graph_function)) {
-      error_user("[%s:%d.%d] %s may only be used inside a variadic function", expr->file, expr->line, expr->column, BUILTIN_VA_START_NAME);
-   }
-   hidden_args = (ContextEntry *) set_get(ctx->vars, VARIADIC_HIDDEN_ARGS_NAME);
-   hidden_bytes = (ContextEntry *) set_get(ctx->vars, VARIADIC_HIDDEN_BYTES_NAME);
-   if (!hidden_args || !hidden_bytes) {
-      error_user("[%s:%d.%d] variadic metadata is unavailable in this function", expr->file, expr->line, expr->column);
-   }
-   if (!resolve_ref_argument_lvalue(ctx, args->children[0], &ap_lv)) {
-      error_user("[%s:%d.%d] %s argument must be an lvalue", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_START_NAME);
-   }
-   if (!get_builtin_va_list_layout(&layout)) {
-      return false;
-   }
-   if (ap_lv.size != layout.size || !ap_lv.type || !type_name_from_node(ap_lv.type) || strcmp(type_name_from_node(ap_lv.type), BUILTIN_VA_LIST_TYPE_NAME)) {
-      error_user("[%s:%d.%d] %s argument must have type '%s'", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_START_NAME, BUILTIN_VA_LIST_TYPE_NAME);
-   }
-
-   if (layout.size > (int) sizeof(zeroes)) {
-      error_user("type '%s' is too large for %s", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_START_NAME);
-   }
-
-   saved_locals = ctx->locals;
-   scratch_offset = saved_locals;
-   ctx_set_locals(ctx, scratch_offset + layout.size);
-   emit_store_immediate_to_fp(scratch_offset, zeroes, layout.size);
-   emit_copy_fp_to_fp(scratch_offset + layout.args_offset, hidden_args->offset, hidden_args->size);
-   emit_copy_fp_to_fp_convert(scratch_offset + layout.bytes_offset, layout.bytes_size, required_typename_node("*"),
-                              hidden_bytes->offset, hidden_bytes->size, hidden_bytes->type);
-   emit_copy_fp_to_lvalue(ctx, &ap_lv, scratch_offset, layout.size);
-   ctx_set_locals(ctx, saved_locals);
-   return true;
-}
-
-//! @brief Lower builtin va arg expr from AST/semantic state into generated assembly or linker-visible metadata.
-bool compile_builtin_va_arg_expr(ASTNode *expr, Context *ctx) {
-   ASTNode *args;
-   LValueRef ap_lv;
-   LValueRef out_lv;
-   VaListLayout layout;
-   int ptr_size = get_size("*");
-   int saved_locals;
-   int ap_tmp;
-   int src_tmp;
-   int out_tmp;
-   int out_size;
-   unsigned char add_bytes[16] = {0};
-
-   if (!expr || strcmp(expr->name, "()") || expr->count < 2) {
-      return false;
-   }
-   args = expr->children[1];
-   if (!args || is_empty(args) || args->count != 2) {
-      error_user("[%s:%d.%d] %s expects exactly 2 arguments", expr->file, expr->line, expr->column, BUILTIN_VA_ARG_NAME);
-   }
-   if (!resolve_ref_argument_lvalue(ctx, args->children[0], &ap_lv)) {
-      error_user("[%s:%d.%d] first %s argument must be an lvalue", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_ARG_NAME);
-   }
-   if (!resolve_ref_argument_lvalue(ctx, args->children[1], &out_lv)) {
-      error_user("[%s:%d.%d] second %s argument must be an lvalue", args->children[1]->file, args->children[1]->line, args->children[1]->column, BUILTIN_VA_ARG_NAME);
-   }
-   if (!get_builtin_va_list_layout(&layout)) {
-      return false;
-   }
-   if (ap_lv.size != layout.size || !ap_lv.type || !type_name_from_node(ap_lv.type) || strcmp(type_name_from_node(ap_lv.type), BUILTIN_VA_LIST_TYPE_NAME)) {
-      error_user("[%s:%d.%d] first %s argument must have type '%s'", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_ARG_NAME, BUILTIN_VA_LIST_TYPE_NAME);
-   }
-   out_size = out_lv.size;
-   if (out_size <= 0) {
-      error_user("[%s:%d.%d] second %s argument has no runtime storage", args->children[1]->file, args->children[1]->line, args->children[1]->column, BUILTIN_VA_ARG_NAME);
-   }
-   if (ptr_size > (int) sizeof(add_bytes)) {
-      error_user("pointer type '*' is too large for %s", BUILTIN_VA_ARG_NAME);
-   }
-
-   saved_locals = ctx->locals;
-   ap_tmp = saved_locals;
-   src_tmp = ap_tmp + layout.size;
-   out_tmp = src_tmp + ptr_size;
-   ctx_set_locals(ctx, out_tmp + out_size);
-
-   emit_copy_lvalue_to_fp(ctx, ap_tmp, &ap_lv, layout.size);
-   emit_copy_fp_to_fp(src_tmp, ap_tmp + layout.args_offset, layout.args_size);
-   emit_add_fp_to_fp(required_typename_node("*"), src_tmp, ap_tmp + layout.offset_offset, ptr_size);
-   emit_load_ptr_from_fpvar(0, src_tmp);
-   for (int i = 0; i < out_size; i++) {
-      emit(&es_code, "    ldy #%d\n", i);
-      emit(&es_code, "    lda (ptr0),y\n");
-      emit(&es_code, "    ldy #%d\n", out_tmp + i);
-      emit(&es_code, "    sta (fp),y\n");
-   }
-   emit_copy_fp_to_lvalue(ctx, &out_lv, out_tmp, out_size);
-   {
-      char add_buf[32];
-      snprintf(add_buf, sizeof(add_buf), "%d", out_size);
-      if (type_is_big_endian(required_typename_node("*"))) {
-         make_be_int(add_buf, add_bytes, ptr_size);
-      }
-      else {
-         make_le_int(add_buf, add_bytes, ptr_size);
-      }
-   }
-   emit_add_immediate_to_fp(required_typename_node("*"), ap_tmp + layout.offset_offset, add_bytes, ptr_size);
-   emit_copy_fp_to_lvalue(ctx, &ap_lv, ap_tmp, layout.size);
-   ctx_set_locals(ctx, saved_locals);
-   return true;
-}
-
-//! @brief Lower builtin va end expr from AST/semantic state into generated assembly or linker-visible metadata.
-bool compile_builtin_va_end_expr(ASTNode *expr, Context *ctx) {
-   ASTNode *args;
-   LValueRef ap_lv;
-   VaListLayout layout;
-   int saved_locals;
-   int scratch_offset;
-   unsigned char zeroes[32] = {0};
-
-   if (!expr || strcmp(expr->name, "()") || expr->count < 2) {
-      return false;
-   }
-   args = expr->children[1];
-   if (!args || is_empty(args) || args->count != 1) {
-      error_user("[%s:%d.%d] %s expects exactly 1 argument", expr->file, expr->line, expr->column, BUILTIN_VA_END_NAME);
-   }
-   if (!resolve_ref_argument_lvalue(ctx, args->children[0], &ap_lv)) {
-      error_user("[%s:%d.%d] %s argument must be an lvalue", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_END_NAME);
-   }
-   if (!get_builtin_va_list_layout(&layout)) {
-      return false;
-   }
-   if (layout.size > (int) sizeof(zeroes)) {
-      error_user("type '%s' is too large for %s", BUILTIN_VA_LIST_TYPE_NAME, BUILTIN_VA_END_NAME);
-   }
-   if (ap_lv.size != layout.size || !ap_lv.type || !type_name_from_node(ap_lv.type) || strcmp(type_name_from_node(ap_lv.type), BUILTIN_VA_LIST_TYPE_NAME)) {
-      error_user("[%s:%d.%d] %s argument must have type '%s'", args->children[0]->file, args->children[0]->line, args->children[0]->column, BUILTIN_VA_END_NAME, BUILTIN_VA_LIST_TYPE_NAME);
-   }
-
-   saved_locals = ctx->locals;
-   scratch_offset = saved_locals;
-   ctx_set_locals(ctx, scratch_offset + layout.size);
-   emit_store_immediate_to_fp(scratch_offset, zeroes, layout.size);
-   emit_copy_fp_to_lvalue(ctx, &ap_lv, scratch_offset, layout.size);
-   ctx_set_locals(ctx, saved_locals);
-   return true;
 }

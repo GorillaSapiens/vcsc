@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_174257.tar.gz
+    vcsc.20260716_180639.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -86,9 +86,12 @@ Completed vertical slices
 6. Every remaining compiler `_pushN` allocation site has been inventoried and
    classified in top-level software_stack_inventory.txt. A regression test
    detects unrecorded additions, removals, or count changes.
-7. Ordinary nonvariadic direct calls now evaluate arguments and consume A:X
-   through fixed compiler-generated call-site scratch rather than allocating a
-   software-stack call frame.
+7. Ordinary direct calls now evaluate arguments and consume A:X through fixed
+   compiler-generated call-site scratch rather than allocating a software-stack
+   call frame.
+8. Variadic functions and callable types have been removed. The lexer rejects
+   `...`; variadic call lowering, hidden metadata, `stdarg.n`, `sprintf.n`, and
+   the legacy direct-call software-stack fallback are gone.
 
 Current return ABI
 ------------------
@@ -121,8 +124,8 @@ the returned value is still a 16-bit pointer.
 There is no compiler `return_value` metadata mode and no caller-owned return
 storage. An ordinary direct caller that must feed A:X into the still-memory-
 based expression engine copies it to fixed compiler-generated call-site scratch.
-That scratch is not part of the callee ABI. Indirect and variadic legacy paths
-still use the software stack temporarily.
+That scratch is not part of the callee ABI. The temporary zero-argument
+indirect-call path still uses the software stack.
 
 Inside a non-void function, `$$` is the source-level return object. It is a
 hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
@@ -130,7 +133,7 @@ hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
 Current direct-parameter ABI
 ----------------------------
 Every fixed parameter of a directly named function has a callee-owned symbol.
-At each ordinary nonvariadic direct call, the compiler emits one private BSS
+At each ordinary direct call, the compiler emits one private BSS
 scratch symbol named `__n65_calltmp_N`. The caller:
 
 1. saves the current `fp` on the 6502 hardware stack;
@@ -209,19 +212,19 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    30  emitted `_pushN` allocation sites
-    78  emitted `_popN` normal/error cleanup paths
+    28  emitted `_pushN` allocation sites
+    75  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
-* legacy variadic and indirect-call frames; ordinary nonvariadic direct calls no
-  longer allocate them;
+* the temporary zero-parameter indirect-call frame; ordinary direct calls do
+  not allocate a software-stack frame;
 * retained scalar/pointer expression, conversion, lvalue, switch, and
   initializer scratch;
 * conditional aggregate, bit-field, absolute-reference, and runtime-global-
   initializer scratch;
-* obsolete variadic, indirect-call, operator-overload, float, wide-integer,
-  and arbitrary-endian paths.
+* obsolete indirect-call, operator-overload, float, wide-integer, and
+  arbitrary-endian paths.
 
 There are no remaining `_pushN` sites whose purpose is to allocate ordinary
 named automatic locals or `$$`.
@@ -253,20 +256,23 @@ Files changed in this revision
 ------------------------------
 Modified compiler source:
 
+    compiler/abi_meta.c
     compiler/compile_call.c
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
+    compiler/compile_expr_info.c
     compiler/compile_function.c
-    compiler/compile_init.c
+    compiler/compile_function.h
     compiler/compile_internal.h
-    compiler/compile_lvalue.c
+    compiler/compile_overload.c
+    compiler/compile_overload.h
     compiler/compile_stmt.c
-    compiler/compile_support.c
     compiler/compile_toplevel.c
+    compiler/coverage_map.h
+    compiler/lexer.l
+    compiler/parser.y
 
 Modified documentation:
 
+    NOTES.md
     compiler/ABI.txt
     compiler/README.md
     context.txt
@@ -274,19 +280,35 @@ Modified documentation:
 
 Modified tests:
 
-    test/register_parameter_zeropage_codegen_test.n
-    test/return_ax_uint16_codegen_test.n
+    test/blanket.n
+    test/coverage.n
+    test/software_stack_inventory.pl
+    test/software_stack_inventory.test
 
 Added tests:
 
-    test/direct_call_fixed_scratch_codegen_test.n
+    test/variadic_function_rejected_test.n
+    test/variadic_function_pointer_rejected_test.n
 
 Removed intentionally:
 
-    none
+    libraries/nlib/stdarg.n
+    libraries/nlib/sprintf.n
+    test/e2e_variadic_prototype_smoke.n
+    test/reserved_va_arg_bytes_name_error_test.n
+    test/reserved_va_args_name_error_test.n
+    test/stdarg_builtin_codegen_test.n
+    test/stdarg_requires_void_pointer_error_test.n
+    test/stdarg_void_pointer_codegen_test.n
+    test/va_arg_large_pointer_error_test.n
+    test/va_end_large_va_list_error_test.n
+    test/va_start_large_va_list_error_test.n
+    test/variadic_ast_parse_test.n
+    test/variadic_hidden_temps_codegen_test.n
+    test/variadic_no_char_codegen_test.n
+    test/variadic_zero_call_codegen_test.n
 
-Top-level remove.txt is unchanged and still contains the cumulative deletions
-from earlier revisions.
+All removed paths are appended to top-level remove.txt.
 
 Build environment
 -----------------
@@ -313,15 +335,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    281 passed, 0 failed, 281 total
+    269 passed, 0 failed, 269 total
 
 End-to-end/generic suite:
 
-    123 passed, 0 failed, 123 total
+    122 passed, 0 failed, 122 total
 
 The monolithic E2E invocation reached the execution-wrapper time limit after
-117 passing tests. The six remaining tests were then run explicitly and all
-passed, including the new software-stack inventory guard.
+116 passing tests. The six remaining tests were run explicitly and all passed,
+including the updated software-stack inventory guard.
 
 Immediate TODO
 --------------
@@ -341,13 +363,13 @@ The first unfinished item is the default next action.
 
 [x] 6. Inventory every retained _pushN/_popN use and classify it as automatic
        local allocation, expression temporary, caller argument scratch,
-       aggregate support, variadic support, or obsolete runtime support.
+       aggregate-only support, or obsolete runtime support.
 
-[x] 7. Replace ordinary nonvariadic direct-call argument/result scratch with
-       fixed call-site storage. Leave indirect/variadic paths isolated on the
-       old stack temporarily.
+[x] 7. Replace ordinary direct-call argument/result scratch with fixed call-site
+       storage. Leave the indirect-call path isolated on the old stack
+       temporarily.
 
-[ ] 8. Remove variadic functions, stdarg machinery, and the now-isolated legacy
+[x] 8. Remove variadic functions, stdarg machinery, and the now-isolated legacy
        direct-call software-stack fallback.
 
 [ ] 9. Decide the final fate of zero-argument function pointers and remove the
@@ -459,6 +481,17 @@ Change log
   call and updated affected assembly expectations.
 * Passed 281/281 compile tests and 123/123 end-to-end/generic tests.
 * No files were removed.
+
+2026-07-16, variadic removal
+* Removed `...` from the parser grammar and made the lexer reject it directly.
+* Deleted variadic direct and indirect call lowering, hidden variadic locals,
+  builtin `va_start`/`va_arg`/`va_end`, and variadic ABI metadata.
+* Deleted `libraries/nlib/stdarg.n` and `libraries/nlib/sprintf.n`.
+* Deleted 13 obsolete variadic/stdarg tests and added two rejection tests.
+* Deleted the obsolete direct-call stack fallback and persistent function-frame
+  `_pushN`/`_popN` emissions.
+* Reduced the checked compiler stack inventory from 30/78 to 28/75.
+* Passed 269/269 compile tests and 122/122 end-to-end/generic tests.
 
 End-of-session checklist
 ------------------------

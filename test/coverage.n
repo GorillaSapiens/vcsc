@@ -45,7 +45,6 @@ const int six := 6;
 
 extern int foreign(int x);
 extern int foreign_add(int a, int b);
-extern int variadic(int x, ...);
 
 char *exy := "this is a test";
 char exy  := '\f';

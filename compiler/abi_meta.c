@@ -469,7 +469,6 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
 static void append_callable_signature(StrBuf *fp, StrBuf *detail, const ASTNode *base_type, const ASTNode *callable_decl, FingerprintCtx *ctx) {
    const ASTNode *params = declarator_parameter_list(callable_decl);
    const ASTNode *ret_decl = function_return_declarator_from_callable(callable_decl);
-   bool variadic = parameter_list_is_variadic(params);
    int fixed_count = 0;
 
    sb_append(fp, "fn(");
@@ -478,8 +477,8 @@ static void append_callable_signature(StrBuf *fp, StrBuf *detail, const ASTNode 
    sb_append(fp, "ret=");
    append_type_fingerprint(fp, detail, base_type, ret_decl, ctx);
 
-   sb_appendf(fp, ";variadic=%d;params=[", variadic ? 1 : 0);
-   sb_appendf(detail, ", variadic=%s, params=[", variadic ? "yes" : "no");
+   sb_append(fp, ";params=[");
+   sb_append(detail, ", params=[");
 
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count; i++) {
@@ -490,7 +489,7 @@ static void append_callable_signature(StrBuf *fp, StrBuf *detail, const ASTNode 
          StrBuf subfp;
          StrBuf subdetail;
 
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter))
+         if (!parameter || parameter_is_void(parameter))
             continue;
 
          ptype = parameter_type(parameter);
@@ -633,15 +632,14 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
    const ASTNode *ret_decl = function_return_declarator_from_callable(decl);
    const char *state = is_definition ? "definition" : "declaration";
    int fixed_count = function_fixed_param_count(fn);
-   bool variadic = function_is_variadic(fn);
    char summary_fp[64];
    char summary_detail[64];
 
    if (!sym || !*sym || !decl)
       return;
 
-   snprintf(summary_fp, sizeof(summary_fp), "params=%d;variadic=%d", fixed_count, variadic ? 1 : 0);
-   snprintf(summary_detail, sizeof(summary_detail), "parameters=%d variadic=%s", fixed_count, variadic ? "yes" : "no");
+   snprintf(summary_fp, sizeof(summary_fp), "params=%d", fixed_count);
+   snprintf(summary_detail, sizeof(summary_detail), "parameters=%d", fixed_count);
    emit_metadata_symbol("function", state, sym, "summary", summary_fp, summary_detail);
    emit_type_record("function", state, sym, "return",
                     return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_ax",
@@ -656,7 +654,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
          const char *mode;
          char role[32];
 
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter))
+         if (!parameter || parameter_is_void(parameter))
             continue;
 
          ptype = parameter_type(parameter);

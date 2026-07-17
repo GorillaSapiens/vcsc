@@ -12,12 +12,12 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_174257.tar.gz
+    vcsc.20260716_180639.tar.gz
 
 Compiler emission totals:
 
-    30  `jsr _pushN` allocation sites
-    78  `jsr _popN` emissions
+    28  `jsr _pushN` allocation sites
+    75  `jsr _popN` emissions
 
 The larger pop count is expected: most allocation sites have normal cleanup and
 one or more error-path cleanups.
@@ -35,20 +35,14 @@ name collision.
 Compiler allocation sites
 -------------------------
 
-`compiler/compile_call.c` -- 2 allocations
+`compiler/compile_call.c` -- 1 allocation
 
-1. `compile_indirect_call_expr_to_slot()`
-   Classification: caller call frame; mostly obsolete indirect/variadic ABI.
-   Contents can include the callee pointer, fixed stack parameters, a variadic
-   byte blob and metadata, and scratch for an A:X result.  Zero-argument
-   indirect calls are temporarily retained, but parameterized function
-   pointers and varargs are already outside the intended final language.
-
-2. `compile_call_expr_to_slot()` legacy branch
-   Classification: obsolete variadic direct-call frame.
-   Ordinary nonvariadic direct calls now bypass this allocation and use fixed
-   per-call-site `__n65_calltmp_N` BSS scratch. The allocation remains emitted
-   only by the isolated variadic/legacy direct-call branch.
+1. Zero-parameter indirect-call frame.
+   Classification: temporary indirect-call scratch. It holds the callee pointer
+   and optional A:X result bytes. Variadic calls and the legacy direct-call
+   software-stack fallback have been deleted. Parameterized function pointers
+   are already rejected because a plain code pointer cannot identify the
+   callee-owned parameter symbols.
 
 `compiler/compile_expr_flow.c` -- 10 allocations
 
@@ -152,20 +146,13 @@ Compiler allocation sites
 3. Switch expression and case-comparison pair.
    Classification: retained scalar statement/expression scratch.
 
-`compiler/compile_toplevel.c` -- 1 allocation
-
-1. Per-function software frame reserved from `ctx.locals` at entry.
-   Classification: obsolete variadic hidden-local frame.  Ordinary parameters,
-   named automatic locals, and `$$` no longer use it.  At present only the
-   variadic hidden metadata created by `add_variadic_hidden_locals()` gives a
-   normal function a persistent frame allocation.
 
 Non-emitting compiler consumers
 -------------------------------
-Several helpers in `compiler/compile_function.c` manipulate `ctx->locals` and
-address `(fp),y` scratch without emitting their own `_pushN`.  Their storage is
-owned by the surrounding function frame or expression allocation.  The notable
-cases are `va_start`, `va_arg`, and `va_end`, all obsolete variadic support.
+Helpers that manipulate `ctx->locals` and `(fp),y` scratch without emitting
+`_pushN` own no persistent function frame. Their temporary bytes belong to an
+enclosing expression, statement, initializer, or indirect-call allocation.
+
 
 Runtime and generated-library dependencies
 ------------------------------------------
@@ -181,15 +168,12 @@ Large additional dependency families are already outside the final language:
 * `libraries/float/asm/*` uses `_pushN`/`_popN` extensively.
 * `libraries/nlib/genasm.pl`, `gen_weakops.pl`, and `asm/weakops.asm` generate
   wide/general arithmetic helpers around the old stack ABI.
-* `libraries/nlib/stdarg.n` and variadic compiler paths depend on stack-backed
-  argument blobs.
 
 Disposition and implementation order
 ------------------------------------
 
 A. Remove first, because the feature itself is unwanted:
 
-   * variadic functions and stdarg machinery;
    * parameterized indirect calls and likely all function pointers;
    * operator overloading and weak built-in operator calls;
    * float, wide-integer, and arbitrary-endian branches;
@@ -210,25 +194,21 @@ C. Replace conditionally, after language-surface decisions:
    * absolute-reference scratch;
    * runtime global initializers.
 
-Completed direct-call slice
----------------------------
-Ordinary nonvariadic direct calls now use fixed BSS scratch named
-`__n65_calltmp_N`. The compiler tracks the highest temporary offset reached
-while compiling each argument and sizes that call-site symbol accordingly.
-Arguments are copied from that scratch into callee-owned parameter symbols, and
-A:X is captured there only when conversion into a memory-backed destination is
-required.
+Completed direct-call and variadic-removal slices
+------------------------------------------------
+Ordinary direct calls use fixed BSS scratch named `__n65_calltmp_N`. Arguments
+are copied into callee-owned parameter symbols, and A:X is captured there only
+when conversion into a memory-backed destination is required.
 
-Scratch is per call site so nested direct calls cannot overwrite an outer call's
-live argument evaluation. No overlay analysis exists yet, so this is deliberately
-RAM-hungry transitional storage. The source emission totals above do not change
-because the old allocation statement still exists for the variadic fallback,
-but retained ordinary direct calls no longer execute that generated path.
+Variadic syntax, call lowering, hidden callee metadata, compiler builtins,
+`libraries/nlib/stdarg.n`, and `libraries/nlib/sprintf.n` have been removed.
+The lexer rejects `...`. The obsolete direct-call software-stack fallback and
+persistent per-function software frame were deleted. Only the temporary
+zero-parameter indirect-call path remains in `compile_call.c`.
 
 Recommended next slice
 ----------------------
-Remove variadic support and its stdarg/runtime machinery. That will delete the
-now-isolated direct-call software-stack fallback, reduce the checked emission
-counts, and leave only indirect calls plus general expression/lvalue scratch on
-the old stack. After that, settle whether zero-argument function pointers are
-worth retaining before attacking the broader scalar expression engine.
+Decide whether zero-parameter function pointers justify retaining the indirect
+call trampoline and its software-stack frame. If not, reject function pointers,
+delete the final `compile_call.c` `_pushN`/`_popN` path, and remove `_callptr0`
+and its tests before attacking the broader scalar expression engine.

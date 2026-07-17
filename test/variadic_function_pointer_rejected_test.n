@@ -1,0 +1,7 @@
+// phase: compile
+// expectfail
+// expecterr: variadic declarations are not supported
+
+type int $size:2 $signed;
+
+int (*fn)(int first, ...);

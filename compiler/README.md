@@ -233,53 +233,11 @@ Indirect calls through function pointers are implemented. The compiler lowers th
 Functions that use `static` parameters are **not** allowed to have pointers formed to them. That prohibition applies both to bare decay and explicit `&name`, because the static-parameter calling convention needs caller knowledge that a plain function pointer does not carry.
 
 
-### Variadic functions and `stdarg.n`
+### Variadic functions
 
-Parser and AST support exist for `...`, and the current backend implements variadic calls as a raw byte blob rather than C's promotion-heavy ABI.
-
-There is no textual preprocessor yet, so the user-facing layer is a small builtin-style wrapper in `libraries/nlib/stdarg.n` rather than literal macros. Include it and use these compiler-recognized forms:
-
-```n
-include "stdarg.n"
-
-int sum(int count, ...) {
-   va_list ap;
-   int x;
-   int total := 0;
-
-   va_start(ap);
-   while (count) {
-      va_arg(ap, x);
-      total += x;
-      count--;
-   }
-   va_end(ap);
-   return total;
-}
-```
-
-`stdarg.n` defines:
-
-```n
-struct va_list {
-   void *args;
-   void *bytes;
-   void *offset;
-};
-```
-
-Behavior of the current variadic ABI:
-
-- variadic arguments are packed left-to-right in source order
-- there is no alignment padding between variadic arguments
-- there are no C-style default promotions for variadic arguments
-- each argument is copied using its actual runtime storage size and byte order
-- `va_arg(ap, out)` copies `sizeof(out)` bytes into the destination lvalue and advances `ap.offset`
-- `va_end(ap)` zeroes the `va_list` state
-
-That means a call like `f(1`char, 2`int, 3`long)` is packed as 1 byte, then 2 bytes, then 4 bytes... not as promoted `int, int, long`.
-
-The implementation names `__va_args` and `__va_arg_bytes` are reserved for compiler-generated variadic metadata and may not be declared by user code.
+Variadic functions and variadic callable types are not supported. The lexer
+rejects `...` directly. The reduced VCS ABI has no `stdarg`, `va_list`, hidden
+variadic metadata, or raw variadic argument blob.
 
 ## Expressions
 
@@ -587,7 +545,7 @@ Every ordinary parameter of a directly named function is symbol-backed by defaul
 
 An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
-Each ordinary nonvariadic direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
+Each ordinary direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
@@ -695,7 +653,7 @@ uint16_t twice(uint16_t value) {
 The caller never allocates callee return storage. An ordinary direct call may
 copy A:X into its fixed `__n65_calltmp_N` scratch so older expression-copy
 machinery can consume it; that scratch is not part of the function ABI.
-Indirect and variadic legacy calls still use software-stack scratch temporarily.
+Zero-parameter indirect calls still use software-stack scratch temporarily.
 
 Functions returning aggregates, arrays, floating-point values, big-endian
 integers, or values larger than two bytes are rejected at compile time. The
@@ -756,8 +714,8 @@ char msg2[] = "hello";
 The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
-Expression temporaries, caller argument-evaluation scratch, variadic blobs, and
-a few legacy compiler-only paths still use `_nl_sp` and `_nl_fp` during this
+Expression temporaries, zero-parameter indirect-call scratch, and a few
+legacy compiler-only paths still use `_nl_sp` and `_nl_fp` during this
 transitional stage.
 
 ### `_nl_sp` and `_nl_fp`
@@ -784,7 +742,7 @@ The following limits are deliberate in the language and compiler design, not unk
 
 - Aliases are lexer-level textual substitution. They are not typed macros, templates, or inline functions; function-like aliases require `name(...)` with no whitespace before `(`, and repeated parameters duplicate the argument text.
 - Conditional compilation is intentionally small. `#if` and `#elif` accept only the expression subset listed above, and function-like aliases are not expanded there.
-- There is no separate textual preprocessor phase. Facilities such as `stdarg` are handled by compiler-recognized wrappers rather than by C-style macro expansion.
+- There is no separate textual preprocessor phase. Variadic functions are intentionally unsupported, and the lexer rejects `...`.
 - `void*` conversion is one-way by default: typed object pointers may convert to `void*` or `const void*`, but converting `void*` back to a typed pointer requires an explicit cast.
 - Ordinary mixed signed/unsigned integer operators require an explicit cast when width adjustment leaves the signedness ambiguous. The compiler widens by width, but it does not guess signedness.
 - `$exactops` types opt out of generic mixed-type promotion. They require explicit casts and visible exact operator overloads for the operations they use.

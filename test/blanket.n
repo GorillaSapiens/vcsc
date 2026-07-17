@@ -50,7 +50,6 @@ union also_undeclared;
 
 extern int floopy(void);
 extern int foreign_add(int a, int b);
-extern int variadic(int x, ...);
 
 xform nulxform {
    '\0' 0

@@ -460,7 +460,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    const char *name    = declarator_name(declarator);
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
-   validate_nonreserved_variadic_name(name, node);
+   validate_nonreserved_implementation_name(name, node);
    emit_mem_region_metadata_for_modifiers(node, modifiers);
 
    if (entry != NULL) {
@@ -573,7 +573,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    ASTNode *declarator = (ASTNode *) decl_node_declarator(node);
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
-   validate_nonreserved_variadic_name(name, node);
+   validate_nonreserved_implementation_name(name, node);
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry;
 

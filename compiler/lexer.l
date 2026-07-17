@@ -1789,7 +1789,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 ">>="           return RSHIFT_ASSIGN;
 "-="            return SUB_ASSIGN;
 "^="            return XOR_ASSIGN;
-"..."           return ELLIPSIS;
+"..."           { LEX_ERROR_HERE("variadic declarations are not supported"); }
 "$$"            return DOLLAR_DOLLAR;
 
 {FLAG} {

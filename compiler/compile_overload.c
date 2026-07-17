@@ -148,53 +148,7 @@ bool function_has_body(const ASTNode *fn) {
    return fn && fn->count == 3;
 }
 
-//! @brief Return whether parameter is ellipsis in compiler overload resolver.
-bool parameter_is_ellipsis(const ASTNode *parameter) {
-   return parameter && parameter->name && !strcmp(parameter->name, "ellipsis");
-}
 
-//! @brief Return whether parameter list is variadic in compiler overload resolver.
-bool parameter_list_is_variadic(const ASTNode *params) {
-   if (!params || is_empty(params)) {
-      return false;
-   }
-
-   for (int i = 0; i < params->count; i++) {
-      if (parameter_is_ellipsis(params->children[i])) {
-         return true;
-      }
-   }
-
-   return false;
-}
-
-//! @brief Return whether function is variadic in compiler overload resolver.
-bool function_is_variadic(const ASTNode *fn) {
-   const ASTNode *declarator = function_declarator_node(fn);
-   return parameter_list_is_variadic(declarator_parameter_list(declarator));
-}
-
-//! @brief Handle function fixed parameter stack bytes logic for compiler overload resolver.
-int function_fixed_parameter_stack_bytes(const ASTNode *fn) {
-   const ASTNode *declarator = function_declarator_node(fn);
-   const ASTNode *params = declarator_parameter_list(declarator);
-   int total = 0;
-
-   if (!params || is_empty(params)) {
-      return 0;
-   }
-
-   for (int i = 0; i < params->count; i++) {
-      const ASTNode *parameter = params->children[i];
-      if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter) ||
-          function_parameter_uses_symbol_storage(fn, parameter)) {
-         continue;
-      }
-      total += parameter_storage_size(parameter);
-   }
-
-   return total;
-}
 
 //! @brief Handle function fixed param count logic for compiler overload resolver.
 int function_fixed_param_count(const ASTNode *fn) {
@@ -205,7 +159,7 @@ int function_fixed_param_count(const ASTNode *fn) {
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count; i++) {
          const ASTNode *parameter = params->children[i];
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter)) {
+         if (!parameter || parameter_is_void(parameter)) {
             continue;
          }
          if (parameter_type(parameter)) {
@@ -479,14 +433,12 @@ static int function_signature_match_cost(const ASTNode *fn, int arg_count, const
    const ASTNode *params = declarator_parameter_list(declarator);
    int seen = 0;
    int cost = 0;
-   bool variadic = parameter_list_is_variadic(params);
 
    if (!declarator) {
       return -1;
    }
 
-   if ((!variadic && function_fixed_param_count(fn) != arg_count) ||
-       (variadic && arg_count < function_fixed_param_count(fn))) {
+   if (function_fixed_param_count(fn) != arg_count) {
       return -1;
    }
 
@@ -498,7 +450,7 @@ static int function_signature_match_cost(const ASTNode *fn, int arg_count, const
          bool pref;
          int param_cost;
 
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter)) {
+         if (!parameter || parameter_is_void(parameter)) {
             continue;
          }
 
@@ -523,20 +475,14 @@ static int function_signature_match_cost(const ASTNode *fn, int arg_count, const
       }
    }
 
-   if (variadic) {
-      cost += 1024 + (arg_count - seen);
-   }
 
-   return (!variadic && seen == arg_count) || (variadic && seen <= arg_count) ? cost : -1;
+   return seen == arg_count ? cost : -1;
 }
 
 
 //! @brief Handle function same signature logic for compiler overload resolver.
 static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
    if (!a || !b) {
-      return false;
-   }
-   if (function_is_variadic(a) != function_is_variadic(b)) {
       return false;
    }
    if (function_fixed_param_count(a) != function_fixed_param_count(b)) {
@@ -557,14 +503,14 @@ static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
          const ASTNode *bparam = NULL;
          while (aparams && !is_empty(aparams) && ai < aparams->count) {
             aparam = aparams->children[ai++];
-            if (aparam && !parameter_is_void(aparam) && !parameter_is_ellipsis(aparam) && parameter_type(aparam)) {
+            if (aparam && !parameter_is_void(aparam) && parameter_type(aparam)) {
                break;
             }
             aparam = NULL;
          }
          while (bparams && !is_empty(bparams) && bi < bparams->count) {
             bparam = bparams->children[bi++];
-            if (bparam && !parameter_is_void(bparam) && !parameter_is_ellipsis(bparam) && parameter_type(bparam)) {
+            if (bparam && !parameter_is_void(bparam) && parameter_type(bparam)) {
                break;
             }
             bparam = NULL;
@@ -665,7 +611,7 @@ static void append_callable_signature_mangle(char *buf, size_t bufsize, const AS
          const ASTNode *ptype;
          const ASTNode *pdecl;
          char tmp[64];
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter)) {
+         if (!parameter || parameter_is_void(parameter)) {
             continue;
          }
          saw_param = true;
@@ -678,10 +624,6 @@ static void append_callable_signature_mangle(char *buf, size_t bufsize, const AS
          }
          snprintf(tmp, sizeof(tmp), "_p%d_a%d", declarator_pointer_depth(pdecl), declarator_array_count(pdecl));
          strncat(buf, tmp, bufsize - strlen(buf) - 1);
-      }
-      if (parameter_list_is_variadic(params)) {
-         saw_param = true;
-         strncat(buf, "@var", bufsize - strlen(buf) - 1);
       }
    }
    if (!saw_param) {
@@ -926,11 +868,6 @@ static void append_parameter_list_text(char **buf, size_t *cap, size_t *len, con
          if (!parameter) {
             continue;
          }
-         if (parameter_is_ellipsis(parameter)) {
-            append_format_text(buf, cap, len, "%s...", saw_any ? ", " : "");
-            saw_any = true;
-            continue;
-         }
          if (parameter_is_void(parameter)) {
             continue;
          }
@@ -1064,9 +1001,6 @@ static bool parameter_lists_same_signature(const ASTNode *lhs_params, const ASTN
    int li = 0;
    int ri = 0;
 
-   if (parameter_list_is_variadic(lhs_params) != parameter_list_is_variadic(rhs_params)) {
-      return false;
-   }
 
    while ((lhs_params && !is_empty(lhs_params) && li < lhs_params->count) ||
           (rhs_params && !is_empty(rhs_params) && ri < rhs_params->count)) {
@@ -1077,14 +1011,14 @@ static bool parameter_lists_same_signature(const ASTNode *lhs_params, const ASTN
 
       while (lhs_params && !is_empty(lhs_params) && li < lhs_params->count) {
          lparam = lhs_params->children[li++];
-         if (lparam && !parameter_is_void(lparam) && !parameter_is_ellipsis(lparam) && parameter_type(lparam)) {
+         if (lparam && !parameter_is_void(lparam) && parameter_type(lparam)) {
             break;
          }
          lparam = NULL;
       }
       while (rhs_params && !is_empty(rhs_params) && ri < rhs_params->count) {
          rparam = rhs_params->children[ri++];
-         if (rparam && !parameter_is_void(rparam) && !parameter_is_ellipsis(rparam) && parameter_type(rparam)) {
+         if (rparam && !parameter_is_void(rparam) && parameter_type(rparam)) {
             break;
          }
          rparam = NULL;
@@ -1165,7 +1099,6 @@ static void maybe_report_ref_non_lvalue_argument(const char *name, int arg_count
       const ASTNode *fn;
       const ASTNode *declarator;
       const ASTNode *params;
-      bool variadic;
       int seen = 0;
 
       if (strcmp(ordinary_functions[i].name, name)) {
@@ -1175,10 +1108,7 @@ static void maybe_report_ref_non_lvalue_argument(const char *name, int arg_count
       fn = ordinary_functions[i].node;
       declarator = function_declarator_node(fn);
       params = declarator_parameter_list(declarator);
-      variadic = parameter_list_is_variadic(params);
-
-      if ((!variadic && function_fixed_param_count(fn) != arg_count) ||
-          (variadic && arg_count < function_fixed_param_count(fn))) {
+      if (function_fixed_param_count(fn) != arg_count) {
          continue;
       }
 
@@ -1194,7 +1124,7 @@ static void maybe_report_ref_non_lvalue_argument(const char *name, int arg_count
          const char *aname;
          const ASTNode *loc;
 
-         if (!parameter || parameter_is_void(parameter) || parameter_is_ellipsis(parameter)) {
+         if (!parameter || parameter_is_void(parameter)) {
             continue;
          }
          if (seen >= arg_count) {
@@ -1470,7 +1400,7 @@ const ASTNode *resolve_truthiness_overload(ASTNode *expr, Context *ctx) {
 void remember_function(const ASTNode *node, const char *name) {
    bool name_present = false;
 
-   validate_function_nonreserved_variadic_names(node);
+   validate_function_nonreserved_implementation_names(node);
    validate_function_parameter_storage_modifiers(node);
 
    if (!name) {

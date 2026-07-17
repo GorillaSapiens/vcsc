@@ -1,3 +1,3 @@
 # runner: perl @TEST_ROOT@/software_stack_inventory.pl @REPO@
-# expectstdout: software-stack inventory ok: 30 push sites, 78 pop emissions
+# expectstdout: software-stack inventory ok: 28 push sites, 75 pop emissions
 # expectexit: 0

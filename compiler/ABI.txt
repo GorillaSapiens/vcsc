@@ -5,9 +5,9 @@ Current transitional function ABI
 
 This document describes the ABI while the compiler is being reduced for the
 Atari 2600. Fixed parameters and named automatic locals use callee-owned
-symbols. Ordinary nonvariadic direct calls use fixed call-site scratch.
-Expression temporaries outside that path, indirect calls, and variadic argument
-blobs still use the existing software stack for now.
+symbols. Ordinary direct calls use fixed call-site scratch. Expression
+temporaries outside that path and the temporary zero-argument indirect-call
+path still use the existing software stack for now.
 
 Function returns
 ----------------
@@ -29,7 +29,7 @@ a hidden callee-owned symbol. `return expr;` writes the converted value to
 `$$`. At the common epilogue, the compiler loads the high byte into X when
 present, loads the low byte into A, and executes RTS.
 
-Before an ordinary nonvariadic direct call, the compiler assigns the call site
+Before an ordinary direct call, the compiler assigns the call site
 a private fixed BSS symbol such as `__n65_calltmp_0`. For each fixed argument:
 
 ; save caller fp on the HARDWARE stack
@@ -67,18 +67,16 @@ sta fp+1
 lda sp
 sta fp
 ; named automatic locals already have fixed symbols
-; allocate compiler-only transitional workspace with pushN only if required
+; expression sites allocate their own transitional scratch when required
 
 Function epilogue for a value return:
 
-; release any compiler-only transitional workspace
 ; load high byte of $$ into X for a two-byte result
 ; load low byte of $$ into A
 rts
 
 Function epilogue for void:
 
-; release any compiler-only transitional workspace
 rts
 
 Reset/startup:
@@ -104,7 +102,7 @@ PLP      ; restore original status flags, including N/Z
 Direct fixed-parameter ABI
 --------------------------
 
-Every non-void, non-ellipsis parameter of a directly named function has a
+Every non-void parameter of a directly named function has a
 callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
 parameters explicitly assigned to a zero-page memory region use zero-page
 symbols. The caller evaluates arguments from left to right and writes each
@@ -126,32 +124,9 @@ compile-time error. Zero-parameter function pointers remain on the old indirect
 call path for now and are not part of the intended final VCS subset.
 
 
-Variadic call ABI
------------------
+Variadic functions
+------------------
 
-Variadic arguments are passed as a raw byte blob plus two hidden metadata slots.
-The caller lays out a variadic call frame in this order:
-
-1. raw variadic blob bytes
-2. hidden `__va_args` pointer to the first blob byte
-3. hidden `__va_arg_bytes` total byte count
-4. no fixed-parameter bytes; fixed parameters are callee-owned symbols
-
-The raw variadic blob is packed left-to-right in source argument order with no
-padding and no alignment holes. Each variadic argument contributes exactly its
-actual runtime storage size. There are no C-style default promotions for
-variadic arguments.
-
-Each variadic argument's bytes are copied in that argument's own storage order.
-The final VCS language is little-endian only, but arbitrary-endian and wide
-legacy argument types have not yet been removed from the transitional compiler.
-
-Inside a variadic callee, the compiler synthesizes two reserved implementation
-locals:
-
-- `__va_args`: `void *` pointing at the first raw variadic byte
-- `__va_arg_bytes`: pointer-sized integer metadata holding the total blob size
-
-These names are reserved and may not be used by user declarations. Variadic
-functions are not part of the intended minimal VCS subset and will be removed in
-a later controlled slice.
+Variadic functions and callable types are not part of the VCSC language.
+The lexer rejects `...` with a direct diagnostic. There is no variadic call
+frame, hidden metadata, `va_list`, `va_start`, `va_arg`, or `va_end` ABI.

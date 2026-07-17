@@ -1,9 +1,0 @@
-// Compiler-recognized variadic helper surface.
-// There is no textual preprocessor, so va_start/va_arg/va_end are builtin
-// function-like forms recognized by the compiler when this va_list type exists.
-
-struct va_list {
-   void *args;
-   void *bytes;
-   void *offset;
-};

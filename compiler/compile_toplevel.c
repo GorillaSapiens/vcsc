@@ -174,14 +174,6 @@ void compile_function_decl(ASTNode *node) {
    emit(&es_code, "    sta fp+1\n");
    emit(&es_code, "    lda sp\n");
    emit(&es_code, "    sta fp\n");
-   if (ctx.locals > 0) {
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", ctx.locals & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-   }
-
-   emit_variadic_hidden_local_setup(node, &ctx);
 
    if (!is_empty(body)) {
       if (!strcmp(body->name, "statement_list")) {
@@ -193,12 +185,6 @@ void compile_function_decl(ASTNode *node) {
    }
 
    emit(&es_code, "@fini:\n");
-   if (ctx.locals > 0) {
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", ctx.locals & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
-   }
    if (ax_return) {
       if (return_entry->size == 2) {
          emit(&es_code, "    ldy #1\n");
@@ -529,7 +515,7 @@ void compile_global_decl_item(ASTNode *node) {
    const ASTNode *addrspec = decl_node_address_spec(node);
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
-   validate_nonreserved_variadic_name(name, node);
+   validate_nonreserved_implementation_name(name, node);
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
 

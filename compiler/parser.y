@@ -43,11 +43,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
    return make_identifier_leaf(tok);
 }
 
-static ASTNode *make_ellipsis_marker(void) {
-   ASTNode *ret = make_empty_leaf();
-   ret->name = "ellipsis";
-   return ret;
-}
 
 %}
 
@@ -83,7 +78,6 @@ static ASTNode *make_ellipsis_marker(void) {
 %token DIV_ASSIGN
 %token DOLLAR_DOLLAR
 %token DO
-%token ELLIPSIS
 %token ELSE
 %token ENUM
 %token EQ
@@ -428,7 +422,6 @@ direct_declarator:
 
 parameter_list:
     parameter_list ',' parameter             { COVER; $$ = append_child($1, $3); }
-  | parameter_list ',' ELLIPSIS              { COVER; $$ = append_child($1, make_ellipsis_marker()); }
   | parameter                                { COVER; $$ = MAKE_NODE($1); }
   ;
 
