@@ -1,6 +1,6 @@
 // n65c -I .
-// expectasm: jsr _pushN
-// expectasm: ora (fp),y
+// expectasm: __n65_truthtmp_
+// expectasm: ora __n65_truthtmp_
 // expectasm: beq @if_false_
 
 include "machine_6502.n"

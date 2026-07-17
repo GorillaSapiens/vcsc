@@ -1,0 +1,9 @@
+// n65c -I .
+// expectasm: __n65_discardtmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.n"
+
+void test(int value) {
+   value;
+}

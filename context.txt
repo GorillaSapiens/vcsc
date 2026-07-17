@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_185455.tar.gz
+    vcsc.20260716_193407.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -95,6 +95,8 @@ Completed vertical slices
 9. Function pointers and indirect calls have been removed. Function-pointer
    declarators and function names used as values are rejected; `_callptr0` and
    the final software-stack call frame in `compile_call.c` are gone.
+10. General truth-value evaluation and discarded non-call expression results
+    now use fixed per-site BSS scratch instead of `_pushN`/`_popN`.
 
 Current return ABI
 ------------------
@@ -211,8 +213,8 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    27  emitted `_pushN` allocation sites
-    73  emitted `_popN` normal/error cleanup paths
+    25  emitted `_pushN` allocation sites
+    69  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
@@ -253,58 +255,33 @@ Files changed in this revision
 ------------------------------
 Modified compiler source:
 
-    compiler/abi_meta.c
-    compiler/compile.c
-    compiler/compile_call.c
-    compiler/compile_declarator.c
-    compiler/compile_declarator.h
-    compiler/compile_expr_info.c
-    compiler/compile_expr_slot.c
-    compiler/compile_init.c
-    compiler/compile_literal.c
-    compiler/compile_overload.c
-    compiler/compile_overload.h
-    compiler/compile_toplevel.c
-    compiler/compile_toplevel.h
+    compiler/compile_expr_flow.c
 
-Modified runtime source:
+Modified documentation and handoff state:
 
-    libraries/nlib/asm/stack.asm
-
-Modified documentation:
-
-    compiler/ABI.txt
     compiler/README.md
     context.txt
-    libraries/float/README.md
-    remove.txt
     software_stack_inventory.txt
 
 Modified tests:
 
-    test/default_parameter_function_pointer_error_test.n
-    test/function_pointer_indirect_call_codegen_test.n
-    test/function_pointer_member_call_codegen_test.n
-    test/function_pointer_static_parameter_error_test.n
-    test/function_pointer_void_ptr_member_call_codegen_test.n
-    test/ordinary_overload_function_pointer_test.n
+    test/assign_expr_condition_codegen_test.n
+    test/condition_truthy_expr_codegen_test.n
+    test/peephole_branch_codegen_test.n
     test/software_stack_inventory.pl
     test/software_stack_inventory.test
 
 Added tests:
 
-    test/function_pointer_declaration_rejected_test.n
-    test/function_designator_to_data_pointer_rejected_test.n
-    test/function_address_to_data_pointer_rejected_test.n
+    test/truth_fixed_scratch_codegen_test.n
+    test/discard_fixed_scratch_codegen_test.n
 
 Removed intentionally:
 
-    test/function_pointer_declaration_test.n
-    test/e2e_zero_parameter_function_pointer_verify.n
-    test/e2e_archive_function_pointer.n
-    test/e2e_archive_function_pointer__libthing.n
+    none
 
-All removed paths are appended to top-level remove.txt.
+Top-level remove.txt is unchanged and still contains the cumulative deletion
+list from prior revisions.
 
 Build environment
 -----------------
@@ -331,7 +308,7 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    271 passed, 0 failed, 271 total
+    273 passed, 0 failed, 273 total
 
 End-to-end/generic suite:
 
@@ -370,7 +347,8 @@ The first unfinished item is the default next action.
 
 [ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
         probably with fixed scratch plus register-first lowering and later
-        overlay/liveness reuse.
+        overlay/liveness reuse. Truth-value evaluation and discarded results
+        are complete; simple fixed-symbol assignment conversion is next.
 
 [ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
         retained compiler path depends on it.
@@ -496,6 +474,19 @@ Change log
 * Removed four obsolete positive tests and added three focused rejection tests.
 * Reduced the checked compiler stack inventory from 28/75 to 27/73; no
   software-stack call frame remains in `compile_call.c`.
+
+2026-07-16, fixed truth/discard expression scratch
+* Replaced general truth-value `_pushN`/`_popN` scratch with fixed per-site BSS
+  symbols named `__n65_truthtmp_N`.
+* Replaced discarded non-call expression-result stack scratch with fixed per-site
+  BSS symbols named `__n65_discardtmp_N`.
+* Temporarily redirects `fp` to each symbol, tracks nested scratch high-water,
+  restores `fp` through the 6502 hardware stack, and reads truth bytes directly
+  from fixed storage.
+* Added focused code-generation tests and updated affected assembly expectations.
+* Reduced the checked compiler stack inventory from 27/73 to 25/69.
+* Passed 273/273 compile tests and 120/120 end-to-end/generic tests.
+* No files were removed.
 
 End-of-session checklist
 ------------------------

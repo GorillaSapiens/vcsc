@@ -535,6 +535,8 @@ An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may 
 
 Each ordinary direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
 
+Condition truth-value evaluation and discarded non-call expression results also use fixed per-site BSS scratch (`__n65_truthtmp_N` and `__n65_discardtmp_N`). The compiler temporarily redirects `fp` while lowering the expression, restores it using the 6502 hardware stack, and never invokes `_pushN` or `_popN` for those outer scratch areas. Nested expression machinery may still use the transitional software stack until later slices remove it.
+
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
 Function pointers are not part of the VCS subset. Every call target must be a directly named function, so call-graph cycle analysis sees every edge and no indirect-call ABI is required.

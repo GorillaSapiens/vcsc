@@ -37,6 +37,88 @@
 
 static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
+//! @brief Save the current frame pointer on the 6502 hardware stack.
+static void emit_expr_scratch_save_fp(void) {
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+}
+
+//! @brief Point fp at a fixed compiler-generated expression scratch symbol.
+static void emit_expr_scratch_set_fp(const char *symbol) {
+   emit(&es_code, "    lda #<%s\n", symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", symbol);
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Restore the frame pointer from the 6502 hardware stack.
+static void emit_expr_scratch_restore_fp(void) {
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Evaluate an expression in fixed BSS scratch and restore the caller frame.
+static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
+                                          const ASTNode *type,
+                                          const ASTNode *declarator,
+                                          int size,
+                                          const char *prefix,
+                                          char *symbol,
+                                          size_t symbol_size,
+                                          int *allocated_size) {
+   int saved_locals = ctx ? ctx->locals : 0;
+   int saved_high_water = ctx ? ctx->locals_high_water : 0;
+   int used = size;
+   bool ok;
+   ContextEntry tmp;
+
+   if (!expr || !prefix || !symbol || symbol_size == 0 || size <= 0) {
+      return false;
+   }
+
+   snprintf(symbol, symbol_size, "__n65_%s_%d", prefix, label_counter++);
+   memset(&tmp, 0, sizeof(tmp));
+   tmp.name = "$fixedtmp";
+   tmp.type = type;
+   tmp.declarator = declarator;
+   tmp.target_typed = declarator != NULL;
+   tmp.offset = 0;
+   tmp.size = size;
+
+   if (ctx) {
+      ctx->locals = size;
+      ctx->locals_high_water = size;
+   }
+
+   emit_expr_scratch_save_fp();
+   emit_expr_scratch_set_fp(symbol);
+   ok = compile_expr_to_slot(expr, ctx, &tmp);
+   if (ctx && ctx->locals_high_water > used) {
+      used = ctx->locals_high_water;
+   }
+   emit_expr_scratch_restore_fp();
+
+   if (ctx) {
+      ctx->locals = saved_locals;
+      ctx->locals_high_water = saved_high_water;
+   }
+
+   if (used <= 0) {
+      used = 1;
+   }
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", symbol);
+   emit(&es_bss, "\t.res %d\n", used);
+   if (allocated_size) {
+      *allocated_size = used;
+   }
+   return ok;
+}
+
 //! @brief Return lvalue base identifier node data used by compiler short-circuit/control-flow expression lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *lvalue_base_identifier_node(ASTNode *base) {
    if (!base) {
@@ -204,8 +286,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
                                              const ASTNode *declarator,
                                              int size,
                                              const char *false_label) {
-   int saved_locals = ctx ? ctx->locals : 0;
-   ContextEntry tmp;
+   char scratch_sym[96];
 
    if (size <= 0) {
       size = expr_value_size(expr, ctx);
@@ -217,42 +298,17 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
       type = expr_value_type(expr, ctx);
    }
 
-   tmp = (ContextEntry){ .name = "$tmp", .type = type, .declarator = declarator, .is_static = false, .is_zeropage = false, .is_global = false, .offset = saved_locals, .size = size };
-
-   remember_runtime_import("pushN");
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _pushN\n");
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals + size);
-   }
-
-   if (!compile_expr_to_slot(expr, ctx, &tmp)) {
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
-      }
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+   if (!compile_expr_to_fixed_scratch(expr, ctx, type, declarator, size,
+                                      "truthtmp", scratch_sym,
+                                      sizeof(scratch_sym), NULL)) {
       return false;
-   }
-   if (ctx) {
-      ctx_set_locals(ctx, saved_locals);
    }
 
    emit(&es_code, "    lda #0\n");
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", tmp.offset + i);
-      emit(&es_code, "    ora (fp),y\n");
+      emit(&es_code, "    ldy #%d\n", i);
+      emit(&es_code, "    ora %s,y\n", scratch_sym);
    }
-   emit(&es_code, "    sta arg1\n");
-
-   remember_runtime_import("popN");
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    jsr _popN\n");
-   emit(&es_code, "    lda arg1\n");
    emit(&es_code, "    beq %s\n", false_label);
    return true;
 }
@@ -576,25 +632,16 @@ void compile_expr(ASTNode *node, Context *ctx) {
    if (!node || strcmp(node->name, "assign_expr") || node->count != 3) {
       const ASTNode *type = expr_value_type(node, ctx);
       int size = expr_value_size(node, ctx);
+      char scratch_sym[96];
       if (size <= 0) {
          size = 1;
       }
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      if (!compile_expr_to_slot(node, ctx, &(ContextEntry){ .name = "$tmp", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = ctx->locals, .size = size })) {
-         remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      if (!compile_expr_to_fixed_scratch(node, ctx, type, NULL, size,
+                                         "discardtmp", scratch_sym,
+                                         sizeof(scratch_sym), NULL)) {
          error_user("[%s:%d.%d] invalid expression", node->file, node->line, node->column);
          return;
       }
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
       return;
    }
 

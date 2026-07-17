@@ -7,7 +7,7 @@ my $repo = shift @ARGV;
 die "usage: $0 REPO\n" unless defined $repo && -d $repo;
 
 my %expected = (
-    'compile_expr_flow.c' => [10, 31],
+    'compile_expr_flow.c' => [8, 27],
     'compile_expr_ops.c'  => [7, 23],
     'compile_expr_slot.c' => [3, 6],
     'compile_init.c'      => [1, 1],
@@ -46,7 +46,7 @@ for my $file (sort keys %expected) {
         unless $seen{$file};
 }
 
-die "software-stack inventory total drift: got $total_push/$total_pop, expected 27/73\n"
-    unless $total_push == 27 && $total_pop == 73;
+die "software-stack inventory total drift: got $total_push/$total_pop, expected 25/69\n"
+    unless $total_push == 25 && $total_pop == 69;
 
-print "software-stack inventory ok: 27 push sites, 73 pop emissions\n";
+print "software-stack inventory ok: 25 push sites, 69 pop emissions\n";

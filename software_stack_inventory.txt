@@ -12,12 +12,12 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_180639.tar.gz
+    vcsc.20260716_193407.tar.gz
 
 Compiler emission totals:
 
-    27  `jsr _pushN` allocation sites
-    73  `jsr _popN` emissions
+    25  `jsr _pushN` allocation sites
+    69  `jsr _popN` emissions
 
 The larger pop count is expected: most allocation sites have normal cleanup and
 one or more error-path cleanups.
@@ -35,39 +35,33 @@ name collision.
 Compiler allocation sites
 -------------------------
 
-`compiler/compile_expr_flow.c` -- 10 allocations
+`compiler/compile_expr_flow.c` -- 8 allocations
 
 1. Braced assignment initializer buffer.
    Classification: initializer/aggregate scratch.
 
-2. General truth-value evaluation buffer.
-   Classification: retained scalar expression scratch.
-
-3. Two-operand comparison buffer.
+2. Two-operand comparison buffer.
    Classification: retained scalar comparison scratch; float branches are
    obsolete.
 
-4. Discarded expression-result buffer used by expression statements.
+3. Simple assignment conversion buffer for fixed symbols.
    Classification: retained scalar expression scratch.
 
-5. Simple assignment conversion buffer for fixed symbols.
-   Classification: retained scalar expression scratch.
-
-6. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
+4. Simple assignment buffer for indirect, absolute, or bit-field lvalues.
    Classification: retained lvalue/expression scratch.
 
-7. Overloaded compound-assignment result buffer.
+5. Overloaded compound-assignment result buffer.
    Classification: obsolete operator-overloading support.
 
-8. Overloaded compound-assignment conversion buffer for symbol destinations.
+6. Overloaded compound-assignment conversion buffer for symbol destinations.
    Classification: obsolete operator-overloading support.
 
-9. Overloaded compound-assignment conversion buffer for indirect lvalues.
+7. Overloaded compound-assignment conversion buffer for indirect lvalues.
    Classification: obsolete operator-overloading support.
 
-10. Built-in compound-assignment working area.
-    Classification: retained 8/16-bit expression scratch; float, wide-integer,
-    arbitrary-endian, and overload branches are obsolete.
+8. Built-in compound-assignment working area.
+   Classification: retained 8/16-bit expression scratch; float, wide-integer,
+   arbitrary-endian, and overload branches are obsolete.
 
 `compiler/compile_expr_ops.c` -- 7 allocations
 
@@ -184,6 +178,15 @@ C. Replace conditionally, after language-surface decisions:
    * absolute-reference scratch;
    * runtime global initializers.
 
+Completed expression-scratch slices
+-----------------------------------
+Truth-value evaluation and discarded expression results now use private fixed
+BSS scratch named `__n65_truthtmp_N` and `__n65_discardtmp_N`. The compiler
+temporarily redirects `fp` to each symbol, tracks nested scratch high-water,
+restores the caller frame through the 6502 hardware stack, and then reads truth
+bytes directly from the fixed symbol. These paths no longer emit `_pushN` or
+`_popN`. Scratch is per evaluation site and is not overlaid yet.
+
 Completed call-ABI removal slices
 ---------------------------------
 Ordinary direct calls use fixed BSS scratch named `__n65_calltmp_N`. Arguments
@@ -202,6 +205,6 @@ longer emits `_pushN` or `_popN`.
 
 Recommended next slice
 ----------------------
-Replace retained 8/16-bit scalar expression scratch with fixed storage, starting
-with truth-value evaluation and discarded expression results before moving into
-binary arithmetic and lvalue-heavy paths.
+Continue replacing retained 8/16-bit scalar expression scratch with fixed storage.
+The next narrow target is simple assignment conversion scratch for fixed-symbol
+destinations, followed by comparison and binary arithmetic working areas.
