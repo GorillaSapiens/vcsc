@@ -57,6 +57,8 @@ static void compile(ASTNode *program) {
       // error calls exit()
    }
 
+   reject_function_pointers(program);
+
    for (int i = 0; i < program->count; i++) {
       ASTNode *node = program->children[i];
       if (!strcmp(node->name, "include_stmt")) {

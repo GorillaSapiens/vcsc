@@ -273,9 +273,6 @@ static bool implicit_object_pointer_to_void_pointer_allowed(const ASTNode *forma
    if (declarator_pointer_depth(formal_decl) != 1 || declarator_pointer_depth(actual_decl) != 1) {
       return false;
    }
-   if (declarator_function_pointer_depth(formal_decl) > 0 || declarator_function_pointer_depth(actual_decl) > 0) {
-      return false;
-   }
    return true;
 }
 
@@ -903,19 +900,11 @@ static void append_type_declarator_text(char **buf, size_t *cap, size_t *len, co
       const ASTNode *ret_decl = function_return_declarator_from_callable(declarator);
       const ASTNode *params = declarator_parameter_list(declarator);
       int ret_ptr_depth = declarator_pointer_depth(ret_decl);
-      int fn_ptr_depth = declarator_function_pointer_depth(declarator);
 
       for (int i = 0; i < ret_ptr_depth; i++) {
          append_format_text(buf, cap, len, "*");
       }
       append_array_suffix_text(buf, cap, len, ret_decl);
-      if (fn_ptr_depth > 0) {
-         append_format_text(buf, cap, len, " (");
-         for (int i = 0; i < fn_ptr_depth; i++) {
-            append_format_text(buf, cap, len, "*");
-         }
-         append_format_text(buf, cap, len, ")");
-      }
       append_format_text(buf, cap, len, "(");
       append_parameter_list_text(buf, cap, len, params);
       append_format_text(buf, cap, len, ")");
@@ -994,95 +983,6 @@ static char *describe_same_name_overloads(const char *name) {
    }
 
    return buf;
-}
-
-//! @brief Handle parameter lists same signature logic for compiler overload resolver.
-static bool parameter_lists_same_signature(const ASTNode *lhs_params, const ASTNode *rhs_params) {
-   int li = 0;
-   int ri = 0;
-
-
-   while ((lhs_params && !is_empty(lhs_params) && li < lhs_params->count) ||
-          (rhs_params && !is_empty(rhs_params) && ri < rhs_params->count)) {
-      const ASTNode *lparam = NULL;
-      const ASTNode *rparam = NULL;
-      const char *lname;
-      const char *rname;
-
-      while (lhs_params && !is_empty(lhs_params) && li < lhs_params->count) {
-         lparam = lhs_params->children[li++];
-         if (lparam && !parameter_is_void(lparam) && parameter_type(lparam)) {
-            break;
-         }
-         lparam = NULL;
-      }
-      while (rhs_params && !is_empty(rhs_params) && ri < rhs_params->count) {
-         rparam = rhs_params->children[ri++];
-         if (rparam && !parameter_is_void(rparam) && parameter_type(rparam)) {
-            break;
-         }
-         rparam = NULL;
-      }
-
-      if (!lparam && !rparam) {
-         break;
-      }
-      if (!lparam || !rparam) {
-         return false;
-      }
-      lname = type_name_from_node(parameter_type(lparam));
-      rname = type_name_from_node(parameter_type(rparam));
-      if ((!lname || !rname) && lname != rname) {
-         return false;
-      }
-      if (lname && rname && strcmp(lname, rname)) {
-         return false;
-      }
-      if (parameter_is_ref(lparam) != parameter_is_ref(rparam)) {
-         return false;
-      }
-      if (!declarator_signature_matches(parameter_declarator(lparam), parameter_declarator(rparam))) {
-         return false;
-      }
-   }
-
-   return true;
-}
-
-//! @brief Handle function designator match cost logic for compiler overload resolver.
-static int function_designator_match_cost(const ASTNode *fn, const ASTNode *expected_type, const ASTNode *expected_decl) {
-   const ASTNode *fn_decl;
-   const ASTNode *fn_ret_type;
-   const ASTNode *fn_ret_decl;
-   const ASTNode *expected_ret_decl;
-   const char *expected_name;
-   const char *fn_name;
-
-   if (!fn || !expected_type || !expected_decl || !declarator_has_parameter_list(expected_decl)) {
-      return -1;
-   }
-
-   fn_decl = function_declarator_node(fn);
-   fn_ret_type = function_return_type(fn);
-   fn_ret_decl = function_return_declarator_from_callable(fn_decl);
-   expected_ret_decl = function_return_declarator_from_callable(expected_decl);
-   expected_name = type_name_from_node(expected_type);
-   fn_name = type_name_from_node(fn_ret_type);
-
-   if ((!expected_name || !fn_name) && expected_name != fn_name) {
-      return -1;
-   }
-   if (expected_name && fn_name && strcmp(expected_name, fn_name)) {
-      return -1;
-   }
-   if (!declarator_signature_matches(fn_ret_decl, expected_ret_decl)) {
-      return -1;
-   }
-   if (!parameter_lists_same_signature(declarator_parameter_list(fn_decl), declarator_parameter_list(expected_decl))) {
-      return -1;
-   }
-
-   return 0;
 }
 
 //! @brief Report the first exact ref-parameter candidate rejected only because the argument is not an lvalue.
@@ -1220,56 +1120,17 @@ static const ASTNode *lookup_ordinary_function_overload(const char *name, const 
    return best;
 }
 
-//! @brief Compute function designator target and update compiler overload resolver state once prerequisite pass data is available.
-const ASTNode *resolve_function_designator_target(const char *name, const ASTNode *expected_type, const ASTNode *expected_decl) {
-   const ASTNode *best = NULL;
-   const ASTNode *first = NULL;
-   int matches = 0;
-   int total = 0;
-
+//! @brief Return any visible function with this name for unsupported-function-pointer diagnostics.
+const ASTNode *resolve_function_designator_target(const char *name) {
    if (!name) {
       return NULL;
    }
 
    for (int i = 0; i < ordinary_function_count; i++) {
-      if (strcmp(ordinary_functions[i].name, name)) {
-         continue;
-      }
-      if (!first) {
-         first = ordinary_functions[i].node;
-      }
-      total++;
-      if (!expected_type || !expected_decl) {
-         continue;
-      }
-      if (function_designator_match_cost(ordinary_functions[i].node, expected_type, expected_decl) >= 0) {
-         best = ordinary_functions[i].node;
-         matches++;
+      if (!strcmp(ordinary_functions[i].name, name)) {
+         return ordinary_functions[i].node;
       }
    }
-
-   if (total == 0) {
-      return NULL;
-   }
-
-   if (!expected_type || !expected_decl) {
-      if (total == 1) {
-         return first;
-      }
-      return NULL;
-   }
-
-   if (matches > 1) {
-      error_user("ambiguous reference to overloaded function '%s'", name);
-   }
-   if (matches == 1) {
-      return best;
-   }
-   if (total == 1) {
-      return NULL;
-   }
-
-   error_user("no overload of function '%s' matches the target function pointer type", name);
    return NULL;
 }
 

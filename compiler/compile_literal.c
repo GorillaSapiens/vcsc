@@ -175,9 +175,6 @@ bool pointer_initializer_uses_backing_object(const ASTNode *type, const ASTNode 
    if (!uexpr || is_empty(uexpr) || !declarator) {
       return false;
    }
-   if (declarator_function_pointer_depth(declarator) > 0) {
-      return false;
-   }
    if (declarator_pointer_depth(declarator) <= 0 && (!type || strcmp(type_name_from_node(type), "*"))) {
       return false;
    }
@@ -187,13 +184,14 @@ bool pointer_initializer_uses_backing_object(const ASTNode *type, const ASTNode 
    if (uexpr->count == 1 && !strcmp(uexpr->name, "&")) {
       ASTNode *inner = (ASTNode *) unwrap_expr_node(uexpr->children[0]);
       InitConstValue value = {0};
-      const char *ident = expr_bare_identifier_name(inner);
+      const char *ident = (inner && inner->kind == AST_IDENTIFIER) ? inner->strval : NULL;
 
       if (inner && !strcmp(inner->name, "lvalue")) {
          return false;
       }
-      if (ident && resolve_function_designator_target(ident, NULL, NULL)) {
-         return false;
+      if (ident && resolve_function_designator_target(ident)) {
+         error_user("[%s:%d.%d] function pointers are not supported; call '%s' directly",
+                    inner->file, inner->line, inner->column, ident);
       }
       return eval_constant_initializer_expr(inner, &value) && value.kind == INIT_CONST_INT;
    }

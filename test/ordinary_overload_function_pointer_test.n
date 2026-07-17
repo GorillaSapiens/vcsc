@@ -1,6 +1,6 @@
 // n65c
 // expectfail
-// expecterr: cannot create a pointer to function 'pick' because it has symbol-backed parameters
+// expecterr: function pointers are not supported
 type void { $size:0 };
 type bool { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };

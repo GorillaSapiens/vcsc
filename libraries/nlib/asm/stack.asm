@@ -283,15 +283,3 @@
     rts
 .endproc
 
-.proc _callptr0
-    sec
-    lda ptr0
-    sbc #1
-    tax
-    lda ptr0+1
-    sbc #0
-    pha
-    txa
-    pha
-    rts
-.endproc

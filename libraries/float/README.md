@@ -60,7 +60,7 @@ The generator keeps emitted code and member-local state tight: it uses direct ty
 
 The generated custom-layout implementation is pure `.n` code. It uses a union overlay plus a bitfield struct to expose sign, exponent, and mantissa, then performs manual `SExMy` arithmetic/comparison in generated helpers. It does not call the builtin `float.a65` arithmetic helpers. The checked-in `asm/` sources provide only the compiler builtin non-`$exactops` path for the standard `half`, `float`, and `double` layouts.
 
-The generated helpers and scratch globals are ordinary user-defined `.n` symbols with an `nlf_` prefix. They intentionally do not start with `_`, and the compiler preserves that at the assembly/object-symbol layer too; raw `nlib` helper names remain separate assembly symbols like `_pushN` and `_callptr0`.
+The generated helpers and scratch globals are ordinary user-defined `.n` symbols with an `nlf_` prefix. They intentionally do not start with `_`, and the compiler preserves that at the assembly/object-symbol layer too; raw `nlib` helper names remain separate assembly symbols such as `_pushN`.
 
 Current limits:
 

@@ -148,7 +148,7 @@ The compiler supports:
 - pointers
 - arrays
 - functions
-- combinations such as arrays of pointers, pointer-to-function style declarators, and return-value arrays where the grammar allows them
+- combinations such as arrays of pointers and multidimensional arrays where the grammar allows them
 
 Current `const` behavior on declarators follows the common C reading for leading `const` on pointer declarations:
 
@@ -212,25 +212,13 @@ If no viable overload exists, the compiler rejects the call. If multiple viable 
 
 ### Function pointers and indirect calls
 
-Pointer-to-function declarators are supported.
+Function pointers are not supported. The parser still recognizes pointer-to-
+function declarators so the compiler can issue a direct diagnostic, but such
+declarations are rejected. Function names may appear only as direct call
+targets; using a function name or `&name` as a value is also rejected.
 
-```n
-int twice(int x) {
-   return x + x;
-}
-
-int (*fp)(int) := twice;
-
-int main(void) {
-   return fp(21);
-}
-```
-
-Function names decay to function pointers in ordinary expression and initializer contexts, and `&name` also works when a function pointer is wanted.
-
-Indirect calls through function pointers are implemented. The compiler lowers them through a small runtime helper so ordinary call-frame setup and result handling work.
-
-Functions that use `static` parameters are **not** allowed to have pointers formed to them. That prohibition applies both to bare decay and explicit `&name`, because the static-parameter calling convention needs caller knowledge that a plain function pointer does not carry.
+This keeps the call graph statically knowable and eliminates the indirect-call
+runtime trampoline and its software-stack frame.
 
 
 ### Variadic functions
@@ -549,7 +537,7 @@ Each ordinary direct call site receives a private fixed BSS scratch symbol named
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
-Plain function pointers do not carry the addresses of callee-owned parameter symbols. Taking the address of a parameterized direct function is therefore rejected. Zero-parameter function pointers still use the legacy indirect-call path for now; function pointers are not part of the intended minimal VCS subset.
+Function pointers are not part of the VCS subset. Every call target must be a directly named function, so call-graph cycle analysis sees every edge and no indirect-call ABI is required.
 
 ## Storage classes and memory regions
 
@@ -653,7 +641,7 @@ uint16_t twice(uint16_t value) {
 The caller never allocates callee return storage. An ordinary direct call may
 copy A:X into its fixed `__n65_calltmp_N` scratch so older expression-copy
 machinery can consume it; that scratch is not part of the function ABI.
-Zero-parameter indirect calls still use software-stack scratch temporarily.
+Indirect calls are unsupported; no call path uses an indirect-call software-stack frame.
 
 Functions returning aggregates, arrays, floating-point values, big-endian
 integers, or values larger than two bytes are rejected at compile time. The

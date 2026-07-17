@@ -1,6 +1,6 @@
 // n65c -I .
 // expectfail
-// expecterr: cannot create a pointer to function 'inc' because it has symbol-backed parameters
+// expecterr: function pointers are not supported
 include "machine_6502.n"
 
 struct holder {

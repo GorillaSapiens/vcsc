@@ -1,9 +1,0 @@
-// n65c -I .
-// expectasm: fp?:
-include "machine_6502.n"
-
-int (*fp)(int);
-
-int main(void) {
-   return 0;
-}

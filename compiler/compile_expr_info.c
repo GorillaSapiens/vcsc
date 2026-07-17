@@ -216,12 +216,6 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
                return g->children[1];
             }
          }
-         {
-            const ASTNode *fn = resolve_function_designator_target(ident, NULL, NULL);
-            if (fn) {
-               return function_return_type(fn);
-            }
-         }
       }
    }
 
@@ -255,13 +249,6 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
          const ASTNode *ret = function_return_type(fn);
          if (ret) {
             return ret;
-         }
-      }
-      else {
-         const ASTNode *callable_decl = expr_value_declarator(callee, ctx);
-         const ASTNode *callable_type = expr_value_type(callee, ctx);
-         if (callable_decl && declarator_has_parameter_list(callable_decl) && declarator_function_pointer_depth(callable_decl) > 0) {
-            return callable_type;
          }
       }
    }
@@ -360,12 +347,6 @@ const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx) {
                return g->children[2];
             }
          }
-         {
-            const ASTNode *fn = resolve_function_designator_target(ident, NULL, NULL);
-            if (fn) {
-               return function_pointer_declarator_from_callable(function_declarator_node(fn));
-            }
-         }
       }
    }
 
@@ -397,13 +378,6 @@ const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx) {
          return clone_declarator_variant(value_decl ? value_decl : lv.declarator,
                declarator_pointer_depth(lv.declarator) + 1, start);
       }
-      {
-         const char *ident = expr_bare_identifier_name(inner);
-         const ASTNode *fn = ident ? resolve_function_designator_target(ident, NULL, NULL) : NULL;
-         if (fn) {
-            return function_pointer_declarator_from_callable(function_declarator_node(fn));
-         }
-      }
    }
 
    if (!strcmp(expr->name, "()")) {
@@ -418,12 +392,6 @@ const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx) {
       }
       if (fn) {
          return function_return_declarator_from_callable(function_declarator_node(fn));
-      }
-      else {
-         const ASTNode *callable_decl = expr_value_declarator(callee, ctx);
-         if (callable_decl && declarator_has_parameter_list(callable_decl) && declarator_function_pointer_depth(callable_decl) > 0) {
-            return function_return_declarator_from_callable(callable_decl);
-         }
       }
    }
 

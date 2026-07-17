@@ -207,7 +207,7 @@ static int sizeof_operand_size(const ASTNode *operand, Context *ctx) {
       ASTNode *value = (ASTNode *) operand->children[0];
       const char *ident = expr_bare_identifier_name(value);
       int size;
-      if (ident && !ctx_lookup(ctx, ident) && !global_decl_lookup(ident) && !resolve_function_designator_target(ident, NULL, NULL)) {
+      if (ident && !ctx_lookup(ctx, ident) && !global_decl_lookup(ident) && !resolve_function_designator_target(ident)) {
          error_unknown_identifier_node(expr_bare_identifier_node(value), value, ident);
       }
       size = expr_value_size(value, ctx);
@@ -516,28 +516,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
          }
          {
-            const ASTNode *target_type = NULL;
-            const ASTNode *target_decl = NULL;
-            const ASTNode *fn;
-            if (dst && dst->declarator && declarator_has_parameter_list(dst->declarator) && declarator_function_pointer_depth(dst->declarator) > 0) {
-               target_type = dst->type;
-               target_decl = dst->declarator;
-            }
-            fn = resolve_function_designator_target(ident, target_type, target_decl);
+            const ASTNode *fn = resolve_function_designator_target(ident);
             if (fn) {
-               char sym[256];
-               if (function_has_static_parameters(fn)) {
-                  error_user("[%s:%d.%d] cannot create a pointer to function '%s' because it has symbol-backed parameters", expr->file, expr->line, expr->column, ident);
-               }
-               if (!function_symbol_name(fn, ident, sym, sizeof(sym))) {
-                  return false;
-               }
-               {
-                  char label[sizeof(sym) + 2];
-                  snprintf(label, sizeof(label), "%s", sym);
-                  emit_store_label_address_to_fp(dst->offset, dst->size, label);
-               }
-               return true;
+               error_user("[%s:%d.%d] function pointers are not supported; call '%s' directly",
+                          expr->file, expr->line, expr->column, ident);
             }
          }
          error_unknown_identifier_node(expr_bare_identifier_node(expr), expr, ident);
@@ -560,24 +542,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       {
          const char *ident = expr_bare_identifier_name(inner);
          if (ident) {
-            const ASTNode *target_type = NULL;
-            const ASTNode *target_decl = NULL;
-            const ASTNode *fn;
-            if (dst && dst->declarator && declarator_has_parameter_list(dst->declarator) && declarator_function_pointer_depth(dst->declarator) > 0) {
-               target_type = dst->type;
-               target_decl = dst->declarator;
-            }
-            fn = resolve_function_designator_target(ident, target_type, target_decl);
+            const ASTNode *fn = resolve_function_designator_target(ident);
             if (fn) {
-               char sym[256];
-               if (function_has_static_parameters(fn)) {
-                  error_user("[%s:%d.%d] cannot create a pointer to function '%s' because it has symbol-backed parameters", inner->file, inner->line, inner->column, ident);
-               }
-               if (!function_symbol_name(fn, ident, sym, sizeof(sym))) {
-                  return false;
-               }
-               emit_store_label_address_to_fp(dst->offset, dst->size, sym);
-               return true;
+               error_user("[%s:%d.%d] function pointers are not supported; call '%s' directly",
+                          inner->file, inner->line, inner->column, ident);
             }
             if (!ctx_lookup(ctx, ident) && !global_decl_lookup(ident)) {
                error_unknown_identifier_node(expr_bare_identifier_node(inner), inner, ident);

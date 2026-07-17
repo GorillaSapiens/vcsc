@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_180639.tar.gz
+    vcsc.20260716_185455.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -92,6 +92,9 @@ Completed vertical slices
 8. Variadic functions and callable types have been removed. The lexer rejects
    `...`; variadic call lowering, hidden metadata, `stdarg.n`, `sprintf.n`, and
    the legacy direct-call software-stack fallback are gone.
+9. Function pointers and indirect calls have been removed. Function-pointer
+   declarators and function names used as values are rejected; `_callptr0` and
+   the final software-stack call frame in `compile_call.c` are gone.
 
 Current return ABI
 ------------------
@@ -105,7 +108,7 @@ Relevant code:
         validate_function_return_type()
 
     compiler/compile_call.c
-        direct and indirect call result handling
+        direct-call argument/result handling
 
     compiler/abi_meta.c
         return_void / return_ax metadata
@@ -124,8 +127,7 @@ the returned value is still a 16-bit pointer.
 There is no compiler `return_value` metadata mode and no caller-owned return
 storage. An ordinary direct caller that must feed A:X into the still-memory-
 based expression engine copies it to fixed compiler-generated call-site scratch.
-That scratch is not part of the callee ABI. The temporary zero-argument
-indirect-call path still uses the software stack.
+That scratch is not part of the callee ABI. Indirect calls are unsupported.
 
 Inside a non-void function, `$$` is the source-level return object. It is a
 hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
@@ -152,20 +154,17 @@ function. Scratch is not overlaid yet, so this intentionally trades RAM for a
 clean stack-free direct-call path. Parameter symbols may be ordinary absolute
 storage or zero-page storage.
 
-Call-graph and function-pointer rules
--------------------------------------
+Call-graph and call-target rules
+--------------------------------
 No function body may be active twice because its parameters, automatic locals,
 and return object share one fixed activation record. Compiler and linker
 call-graph checks reject same-unit and cross-object cycles, including cycles
 through zero-parameter functions.
 
-A plain function pointer contains only a code address and cannot identify the
-callee-owned parameter symbols. Therefore:
-
-* taking the address of a parameterized function is rejected;
-* parameterized indirect calls are unsupported;
-* zero-parameter function pointers still work temporarily;
-* function pointers are not yet promised in the final minimal language.
+Every call target must be a directly named function. Function-pointer
+declarators are rejected, as are bare function names or `&function` used as
+values. This keeps every call edge visible to cycle analysis and eliminates the
+indirect-call ABI and `_callptr0` runtime trampoline.
 
 Atari 2600 hardware constraints
 -------------------------------
@@ -212,13 +211,11 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    28  emitted `_pushN` allocation sites
-    75  emitted `_popN` normal/error cleanup paths
+    27  emitted `_pushN` allocation sites
+    73  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
-* the temporary zero-parameter indirect-call frame; ordinary direct calls do
-  not allocate a software-stack frame;
 * retained scalar/pointer expression, conversion, lvalue, switch, and
   initializer scratch;
 * conditional aggregate, bit-field, absolute-reference, and runtime-global-
@@ -257,56 +254,55 @@ Files changed in this revision
 Modified compiler source:
 
     compiler/abi_meta.c
+    compiler/compile.c
     compiler/compile_call.c
+    compiler/compile_declarator.c
+    compiler/compile_declarator.h
     compiler/compile_expr_info.c
-    compiler/compile_function.c
-    compiler/compile_function.h
-    compiler/compile_internal.h
+    compiler/compile_expr_slot.c
+    compiler/compile_init.c
+    compiler/compile_literal.c
     compiler/compile_overload.c
     compiler/compile_overload.h
-    compiler/compile_stmt.c
     compiler/compile_toplevel.c
-    compiler/coverage_map.h
-    compiler/lexer.l
-    compiler/parser.y
+    compiler/compile_toplevel.h
+
+Modified runtime source:
+
+    libraries/nlib/asm/stack.asm
 
 Modified documentation:
 
-    NOTES.md
     compiler/ABI.txt
     compiler/README.md
     context.txt
+    libraries/float/README.md
+    remove.txt
     software_stack_inventory.txt
 
 Modified tests:
 
-    test/blanket.n
-    test/coverage.n
+    test/default_parameter_function_pointer_error_test.n
+    test/function_pointer_indirect_call_codegen_test.n
+    test/function_pointer_member_call_codegen_test.n
+    test/function_pointer_static_parameter_error_test.n
+    test/function_pointer_void_ptr_member_call_codegen_test.n
+    test/ordinary_overload_function_pointer_test.n
     test/software_stack_inventory.pl
     test/software_stack_inventory.test
 
 Added tests:
 
-    test/variadic_function_rejected_test.n
-    test/variadic_function_pointer_rejected_test.n
+    test/function_pointer_declaration_rejected_test.n
+    test/function_designator_to_data_pointer_rejected_test.n
+    test/function_address_to_data_pointer_rejected_test.n
 
 Removed intentionally:
 
-    libraries/nlib/stdarg.n
-    libraries/nlib/sprintf.n
-    test/e2e_variadic_prototype_smoke.n
-    test/reserved_va_arg_bytes_name_error_test.n
-    test/reserved_va_args_name_error_test.n
-    test/stdarg_builtin_codegen_test.n
-    test/stdarg_requires_void_pointer_error_test.n
-    test/stdarg_void_pointer_codegen_test.n
-    test/va_arg_large_pointer_error_test.n
-    test/va_end_large_va_list_error_test.n
-    test/va_start_large_va_list_error_test.n
-    test/variadic_ast_parse_test.n
-    test/variadic_hidden_temps_codegen_test.n
-    test/variadic_no_char_codegen_test.n
-    test/variadic_zero_call_codegen_test.n
+    test/function_pointer_declaration_test.n
+    test/e2e_zero_parameter_function_pointer_verify.n
+    test/e2e_archive_function_pointer.n
+    test/e2e_archive_function_pointer__libthing.n
 
 All removed paths are appended to top-level remove.txt.
 
@@ -335,15 +331,13 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    269 passed, 0 failed, 269 total
+    271 passed, 0 failed, 271 total
 
 End-to-end/generic suite:
 
-    122 passed, 0 failed, 122 total
+    120 passed, 0 failed, 120 total
 
-The monolithic E2E invocation reached the execution-wrapper time limit after
-116 passing tests. The six remaining tests were run explicitly and all passed,
-including the updated software-stack inventory guard.
+The full retained suites completed successfully in their normal invocations.
 
 Immediate TODO
 --------------
@@ -372,8 +366,7 @@ The first unfinished item is the default next action.
 [x] 8. Remove variadic functions, stdarg machinery, and the now-isolated legacy
        direct-call software-stack fallback.
 
-[ ] 9. Decide the final fate of zero-argument function pointers and remove the
-       indirect-call software-stack ABI if they are dropped.
+[x] 9. Remove function pointers and the indirect-call software-stack ABI.
 
 [ ] 10. Replace retained expression temporary storage for the 8/16-bit language,
         probably with fixed scratch plus register-first lowering and later
@@ -402,7 +395,6 @@ Open implementation questions
 * Expression scratch allocation after the software stack is removed.
 * Whether separate compilation remains throughout simplification.
 * Kernel-function syntax and cycle checking/inlining policy.
-* Final fate of zero-argument function pointers.
 
 Change log
 ----------
@@ -492,6 +484,18 @@ Change log
   `_pushN`/`_popN` emissions.
 * Reduced the checked compiler stack inventory from 30/78 to 28/75.
 * Passed 269/269 compile tests and 122/122 end-to-end/generic tests.
+
+
+2026-07-16, function-pointer removal
+* Rejected all function-pointer declarators while retaining parser recognition
+  for a direct diagnostic.
+* Rejected bare function names and `&function` used as data values, including
+  attempts to store code addresses in ordinary data pointers.
+* Deleted indirect-call lowering, function-designator overload matching,
+  function-pointer ABI fingerprinting, and the `_callptr0` runtime trampoline.
+* Removed four obsolete positive tests and added three focused rejection tests.
+* Reduced the checked compiler stack inventory from 28/75 to 27/73; no
+  software-stack call frame remains in `compile_call.c`.
 
 End-of-session checklist
 ------------------------

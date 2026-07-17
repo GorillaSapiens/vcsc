@@ -20,7 +20,7 @@ bool ordinary_function_name_is_overloaded(const char *name);
 bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *buf, size_t bufsize);
 bool format_user_asm_symbol(const char *name, char *buf, size_t bufsize);
 void append_mangled_text(char *buf, size_t bufsize, const char *text);
-const ASTNode *resolve_function_designator_target(const char *name, const ASTNode *expected_type, const ASTNode *expected_decl);
+const ASTNode *resolve_function_designator_target(const char *name);
 const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr, ASTNode *args, Context *ctx);
 const ASTNode *resolve_operator_overload_expr(ASTNode *expr, Context *ctx);
 const ASTNode *resolve_incdec_overload_expr(ASTNode *expr, Context *ctx);

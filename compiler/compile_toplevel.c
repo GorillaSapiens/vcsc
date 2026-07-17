@@ -14,6 +14,7 @@
 #include "ast.h"
 #include "abi_meta.h"
 #include "compile.h"
+#include "compile_declarator.h"
 #include "compile_function.h"
 #include "compile_init.h"
 #include "compile_internal.h"
@@ -33,6 +34,24 @@
 #include "lextern.h"
 
 void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
+
+//! @brief Reject function-pointer declarators while retaining parser coverage for a useful diagnostic.
+void reject_function_pointers(ASTNode *node) {
+   if (!node) {
+      return;
+   }
+
+   if (!strcmp(node->name, "declarator") &&
+       declarator_has_parameter_list(node) &&
+       declarator_function_pointer_depth(node) > 0) {
+      error_user("[%s:%d.%d] function pointers are not supported",
+                 node->file, node->line, node->column);
+   }
+
+   for (int i = 0; i < node->count; i++) {
+      reject_function_pointers(node->children[i]);
+   }
+}
 
 //! @brief Return decl subitem declarator data used by compile toplevel; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *decl_subitem_declarator(const ASTNode *node) {
@@ -794,7 +813,7 @@ static bool crosscheck_helper(Pair *markers, const char *name) {
          child = node->children[i];
          {
             const ASTNode *child_decl = child->children[2];
-            if (declarator_pointer_depth(child_decl) <= 0 && declarator_function_pointer_depth(child_decl) <= 0) {
+            if (declarator_pointer_depth(child_decl) <= 0) {
                childname = child->children[1]->strval;
                void *color = pair_get(markers, childname);
                if (color == 0) {
@@ -889,7 +908,7 @@ void calculate_struct_union_sizes(ASTNode *program) {
                   const char *tname = type->strval;
                   const ASTNode *decl = item->children[2];
                   int mult = declarator_array_multiplier(decl);
-                  bool isptr = declarator_pointer_depth(decl) > 0 || declarator_function_pointer_depth(decl) > 0;
+                  bool isptr = declarator_pointer_depth(decl) > 0;
                   int bit_width = declarator_bitfield_width(decl);
                   int othersize;
 
@@ -909,7 +928,7 @@ void calculate_struct_union_sizes(ASTNode *program) {
                   }
 
                   if (bit_width > 0) {
-                     if (declarator_pointer_depth(decl) > 0 || declarator_function_pointer_depth(decl) > 0 || declarator_array_count(decl) > 0) {
+                     if (declarator_pointer_depth(decl) > 0 || declarator_array_count(decl) > 0) {
                         error_user("[%s:%d.%d] bitfield '%s' must be a plain scalar field",
                               decl->file, decl->line, decl->column,
                               declarator_name(decl) ? declarator_name(decl) : "<unnamed>");

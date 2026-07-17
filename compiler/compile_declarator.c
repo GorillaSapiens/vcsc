@@ -523,54 +523,6 @@ const ASTNode *clone_declarator_variant(const ASTNode *declarator, int new_ptr_d
    return copy;
 }
 
-//! @brief Extract function pointer declarator from callable for compiler declarator handling.
-const ASTNode *function_pointer_declarator_from_callable(const ASTNode *declarator) {
-   ASTNode *copy;
-   ASTNode *nested;
-   char depth_buf[32];
-   int outer_depth = 0;
-   int param_index = -1;
-
-   if (!declarator || !declarator_has_parameter_list(declarator)) {
-      return NULL;
-   }
-
-   if (declarator_function_pointer_depth(declarator) > 0) {
-      return declarator;
-   }
-
-   if (declarator->children[0] && declarator->children[0]->strval) {
-      outer_depth = atoi(declarator->children[0]->strval);
-   }
-
-   copy = make_node(declarator->name, NULL);
-   copy->file = declarator->file;
-   copy->line = declarator->line;
-   copy->column = declarator->column;
-   copy->handled = declarator->handled;
-   copy->kind = declarator->kind;
-
-   snprintf(depth_buf, sizeof(depth_buf), "%d", outer_depth);
-   copy = append_child(copy, make_integer_leaf(strdup(depth_buf)));
-   copy->children[0]->name = "pointer";
-   nested = make_node("declarator", NULL);
-   nested = append_child(nested, make_integer_leaf(strdup("1")));
-   nested->children[0]->name = "pointer";
-   nested = append_child(nested, make_empty_leaf());
-   copy = append_child(copy, nested);
-   for (int i = 0; i < declarator->count; i++) {
-      if (declarator->children[i] && !strcmp(declarator->children[i]->name, "parameter_list")) {
-         param_index = i;
-         break;
-      }
-   }
-   for (int i = param_index; param_index >= 0 && i < declarator->count; i++) {
-      append_child(copy, (ASTNode *) declarator->children[i]);
-   }
-
-   return copy;
-}
-
 //! @brief Extract function return declarator from callable for compiler declarator handling.
 const ASTNode *function_return_declarator_from_callable(const ASTNode *declarator) {
    ASTNode *copy;
@@ -688,7 +640,7 @@ int declarator_array_multiplier(const ASTNode *declarator) {
 int declarator_storage_size(const ASTNode *type, const ASTNode *declarator) {
    int size;
 
-   if (declarator_pointer_depth(declarator) > 0 || declarator_function_pointer_depth(declarator) > 0) {
+   if (declarator_pointer_depth(declarator) > 0) {
       size = get_size("*");
    }
    else {

@@ -40,7 +40,6 @@ int declarator_array_multiplier_from(const ASTNode *declarator, int start_child)
 int declarator_array_count(const ASTNode *declarator);
 int declarator_first_element_size(const ASTNode *type, const ASTNode *declarator);
 const ASTNode *clone_declarator_variant(const ASTNode *declarator, int new_ptr_depth, int first_array_child);
-const ASTNode *function_pointer_declarator_from_callable(const ASTNode *declarator);
 const ASTNode *function_return_declarator_from_callable(const ASTNode *declarator);
 const ASTNode *declarator_after_subscript(const ASTNode *declarator);
 const ASTNode *declarator_after_deref(const ASTNode *declarator);

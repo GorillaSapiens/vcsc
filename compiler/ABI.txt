@@ -118,10 +118,10 @@ automatic locals, and return object when present. No function may be active
 twice. The compiler rejects direct and mutual cycles inside a translation unit,
 and the linker rejects cycles completed across objects.
 
-Plain function pointers cannot encode the addresses of callee-owned parameter
-symbols. Taking the address of a parameterized direct function is therefore a
-compile-time error. Zero-parameter function pointers remain on the old indirect
-call path for now and are not part of the intended final VCS subset.
+Function pointers and indirect calls are not part of the VCS ABI. Every call
+target is directly named, allowing compiler/linker call-graph analysis to see
+every edge. Function-pointer declarators and function names used as values are
+compile-time errors, and the `_callptr0` runtime trampoline no longer exists.
 
 
 Variadic functions

@@ -48,3 +48,7 @@ test/variadic_no_char_codegen_test.n
 test/variadic_zero_call_codegen_test.n
 libraries/nlib/stdarg.n
 libraries/nlib/sprintf.n
+test/function_pointer_declaration_test.n
+test/e2e_zero_parameter_function_pointer_verify.n
+test/e2e_archive_function_pointer.n
+test/e2e_archive_function_pointer__libthing.n

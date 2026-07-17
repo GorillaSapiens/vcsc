@@ -220,20 +220,6 @@ static void append_storage_mode(StrBuf *fp, StrBuf *detail, const char *mode) {
    sb_appendf(detail, "%s ", mode ? mode : "unknown");
 }
 
-//! @brief Return parameter storage mode data used by abi meta; returned pointers alias existing storage unless explicitly allocated by the function name.
-static const char *parameter_storage_mode(const ASTNode *parameter) {
-   const ASTNode *mods = parameter_decl_specifiers(parameter);
-   const ASTNode *modifiers = (mods && mods->count > 0) ? mods->children[0] : NULL;
-
-   if (parameter_is_ref(parameter))
-      return "ref";
-   if (parameter_has_symbol_storage(parameter))
-      return modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs";
-   return "stack_value";
-}
-
-//! @brief Return global storage mode data used by abi meta; returned pointers alias existing storage unless explicitly allocated by the function name.
-
 //! @brief Return storage mode for a parameter of a directly named function.
 static const char *function_parameter_storage_mode(const ASTNode *parameter) {
    const ASTNode *mods = parameter_decl_specifiers(parameter);
@@ -465,80 +451,10 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
    sb_appendf(detail, "named_type(%s,size=%d)", name, size);
 }
 
-//! @brief Add callable signature to abi meta state, growing storage or preserving uniqueness as needed.
-static void append_callable_signature(StrBuf *fp, StrBuf *detail, const ASTNode *base_type, const ASTNode *callable_decl, FingerprintCtx *ctx) {
-   const ASTNode *params = declarator_parameter_list(callable_decl);
-   const ASTNode *ret_decl = function_return_declarator_from_callable(callable_decl);
-   int fixed_count = 0;
-
-   sb_append(fp, "fn(");
-   sb_append(detail, "function(");
-
-   sb_append(fp, "ret=");
-   append_type_fingerprint(fp, detail, base_type, ret_decl, ctx);
-
-   sb_append(fp, ";params=[");
-   sb_append(detail, ", params=[");
-
-   if (params && !is_empty(params)) {
-      for (int i = 0; i < params->count; i++) {
-         const ASTNode *parameter = params->children[i];
-         const ASTNode *ptype;
-         const ASTNode *pdecl;
-         const char *mode;
-         StrBuf subfp;
-         StrBuf subdetail;
-
-         if (!parameter || parameter_is_void(parameter))
-            continue;
-
-         ptype = parameter_type(parameter);
-         pdecl = call_adjusted_parameter_declarator(parameter_declarator(parameter), parameter_is_ref(parameter));
-         mode = parameter_storage_mode(parameter);
-         fixed_count++;
-
-         if (fixed_count > 1) {
-            sb_append(fp, ",");
-            sb_append(detail, "; ");
-         }
-
-         sb_init(&subfp);
-         sb_init(&subdetail);
-         append_type_fingerprint(&subfp, &subdetail, ptype, pdecl, ctx);
-
-         sb_appendf(fp, "%s:", mode);
-         sb_append(fp, subfp.buf ? subfp.buf : "");
-         sb_appendf(detail, "%s ", mode);
-         sb_append(detail, subdetail.buf ? subdetail.buf : "");
-
-         free(subfp.buf);
-         free(subdetail.buf);
-      }
-   }
-
-   if (fixed_count == 0)
-      sb_append(detail, "void");
-
-   sb_append(fp, "])");
-   sb_append(detail, "])");
-}
-
 //! @brief Add type fingerprint to abi meta state, growing storage or preserving uniqueness as needed.
 static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *type, const ASTNode *declarator, FingerprintCtx *ctx) {
    const ASTNode *next_decl;
    const char *bound;
-
-   if (declarator && declarator_has_parameter_list(declarator) && declarator_function_pointer_depth(declarator) > 0) {
-      sb_append(fp, "fnptr(");
-      sb_append(detail, "function_pointer(");
-      append_builtin_pointer_machine(fp, detail);
-      sb_append(fp, ";sig=");
-      sb_append(detail, ", sig=");
-      append_callable_signature(fp, detail, type, declarator, ctx);
-      sb_append(fp, ")");
-      sb_append(detail, ")");
-      return;
-   }
 
    if (declarator && declarator_pointer_depth(declarator) > 0) {
       next_decl = declarator_after_deref(declarator);

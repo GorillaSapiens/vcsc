@@ -1,14 +1,11 @@
 // n65c -I .
+// phase: compile
 // expectfail
 // expecterr: function pointers are not supported
 include "machine_6502.n"
 
-int inc(int x) {
-   return x + 1;
-}
-
-int (*fp)(int) := inc;
+int (*fp)(void);
 
 int main(void) {
-   return fp(6);
+   return 0;
 }

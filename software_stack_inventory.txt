@@ -16,8 +16,8 @@ Input archive:
 
 Compiler emission totals:
 
-    28  `jsr _pushN` allocation sites
-    75  `jsr _popN` emissions
+    27  `jsr _pushN` allocation sites
+    73  `jsr _popN` emissions
 
 The larger pop count is expected: most allocation sites have normal cleanup and
 one or more error-path cleanups.
@@ -34,15 +34,6 @@ name collision.
 
 Compiler allocation sites
 -------------------------
-
-`compiler/compile_call.c` -- 1 allocation
-
-1. Zero-parameter indirect-call frame.
-   Classification: temporary indirect-call scratch. It holds the callee pointer
-   and optional A:X result bytes. Variadic calls and the legacy direct-call
-   software-stack fallback have been deleted. Parameterized function pointers
-   are already rejected because a plain code pointer cannot identify the
-   callee-owned parameter symbols.
 
 `compiler/compile_expr_flow.c` -- 10 allocations
 
@@ -174,7 +165,6 @@ Disposition and implementation order
 
 A. Remove first, because the feature itself is unwanted:
 
-   * parameterized indirect calls and likely all function pointers;
    * operator overloading and weak built-in operator calls;
    * float, wide-integer, and arbitrary-endian branches;
    * bit-field or aggregate-only scratch if those features are later rejected.
@@ -194,8 +184,8 @@ C. Replace conditionally, after language-surface decisions:
    * absolute-reference scratch;
    * runtime global initializers.
 
-Completed direct-call and variadic-removal slices
-------------------------------------------------
+Completed call-ABI removal slices
+---------------------------------
 Ordinary direct calls use fixed BSS scratch named `__n65_calltmp_N`. Arguments
 are copied into callee-owned parameter symbols, and A:X is captured there only
 when conversion into a memory-backed destination is required.
@@ -203,12 +193,15 @@ when conversion into a memory-backed destination is required.
 Variadic syntax, call lowering, hidden callee metadata, compiler builtins,
 `libraries/nlib/stdarg.n`, and `libraries/nlib/sprintf.n` have been removed.
 The lexer rejects `...`. The obsolete direct-call software-stack fallback and
-persistent per-function software frame were deleted. Only the temporary
-zero-parameter indirect-call path remains in `compile_call.c`.
+persistent per-function software frame were deleted.
+
+Function pointers and indirect calls have also been removed completely. The
+compiler rejects function-pointer declarators and function designators used as
+values, and the `_callptr0` runtime trampoline is gone. `compile_call.c` no
+longer emits `_pushN` or `_popN`.
 
 Recommended next slice
 ----------------------
-Decide whether zero-parameter function pointers justify retaining the indirect
-call trampoline and its software-stack frame. If not, reject function pointers,
-delete the final `compile_call.c` `_pushN`/`_popN` path, and remove `_callptr0`
-and its tests before attacking the broader scalar expression engine.
+Replace retained 8/16-bit scalar expression scratch with fixed storage, starting
+with truth-value evaluation and discarded expression results before moving into
+binary arithmetic and lvalue-heavy paths.

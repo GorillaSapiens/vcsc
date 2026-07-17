@@ -374,22 +374,12 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
    }
 
    {
-      const char *ident = expr_bare_identifier_name(expr);
+      const char *ident = (expr->kind == AST_IDENTIFIER) ? expr->strval : NULL;
       if (ident) {
-         const ASTNode *fn = resolve_function_designator_target(ident, NULL, NULL);
-         char sym[512];
+         const ASTNode *fn = resolve_function_designator_target(ident);
          if (fn) {
-            if (function_has_static_parameters(fn)) {
-               return false;
-            }
-            if (function_symbol_name(fn, ident, sym, sizeof(sym))) {
-               char label[sizeof(sym) + 2];
-               snprintf(label, sizeof(label), "%s", sym);
-               out->kind = INIT_CONST_ADDRESS;
-               out->symbol = strdup(label);
-               out->addend = 0;
-               return true;
-            }
+            error_user("[%s:%d.%d] function pointers are not supported; call '%s' directly",
+                       expr->file, expr->line, expr->column, ident);
          }
       }
    }
@@ -463,21 +453,11 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             return true;
          }
          {
-            const char *ident = expr_bare_identifier_name(inner);
-            char sym[512];
-            const ASTNode *fn = ident ? resolve_function_designator_target(ident, NULL, NULL) : NULL;
+            const char *ident = (inner && inner->kind == AST_IDENTIFIER) ? inner->strval : NULL;
+            const ASTNode *fn = ident ? resolve_function_designator_target(ident) : NULL;
             if (fn) {
-               if (function_has_static_parameters(fn)) {
-                  return false;
-               }
-               if (function_symbol_name(fn, ident, sym, sizeof(sym))) {
-                  char label[sizeof(sym) + 2];
-                  snprintf(label, sizeof(label), "%s", sym);
-                  out->kind = INIT_CONST_ADDRESS;
-                  out->symbol = strdup(label);
-                  out->addend = 0;
-                  return true;
-               }
+               error_user("[%s:%d.%d] function pointers are not supported; call '%s' directly",
+                          inner->file, inner->line, inner->column, ident);
             }
          }
          if (eval_constant_initializer_expr(inner, &lhs) && lhs.kind == INIT_CONST_INT) {
