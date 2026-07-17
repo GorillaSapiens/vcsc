@@ -307,11 +307,19 @@ asm loop_start:
 
 emits the remainder of the line directly into the generated assembler output at that point.
 
-Current limits:
+Current rules:
 
 - it is a single-line statement
-- it is emitted verbatim after the `asm ` prefix is removed
-- operand checking and clobber tracking are entirely the programmer's responsibility
+- ordinary assembler text is emitted unchanged after the `asm ` prefix is removed
+- source-level absolute `ref` names in instruction operands are resolved according to the opcode:
+  - loads, compares, and other read instructions use the ref read address
+  - stores use the ref write address
+  - read-modify-write instructions require identical non-`none` read and write addresses
+- reading from a write-only ref, writing to a read-only ref, or using a split-address ref with a read-modify-write instruction is a compile-time error
+- immediate/control-address uses require one identical read/write address; split refs have no canonical address
+- register and flag clobber tracking remains the programmer's responsibility
+
+For example, with the VCS TIA declarations, `asm lda CXM0P` emits `lda $30`, while `asm sta VSYNC` emits `sta $00`. `asm lda VSYNC` is rejected because VSYNC is write-only.
 
 ## Operators
 

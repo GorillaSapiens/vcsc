@@ -1,0 +1,9 @@
+// n65c -I .
+// expectfail
+// expecterr: inline asm read-modify-write 'ASL' requires both read and write addresses for ref 'WO'
+
+include "machine_6502.n"
+ref uint8_t WO @[none/0x20];
+void main(void) {
+   asm asl WO;
+}

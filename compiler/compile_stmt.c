@@ -1174,9 +1174,287 @@ static void compile_return_stmt(ASTNode *node, Context *ctx) {
 }
 
 
+typedef enum InlineAsmRefAccess {
+   INLINE_ASM_REF_UNKNOWN = 0,
+   INLINE_ASM_REF_READ,
+   INLINE_ASM_REF_WRITE,
+   INLINE_ASM_REF_READ_WRITE,
+   INLINE_ASM_REF_ADDRESS
+} InlineAsmRefAccess;
+
+//! @brief Return whether a byte may begin an inline-assembly identifier token.
+static bool inline_asm_identifier_start(unsigned char c) {
+   return c == '_' || c == '$' || c >= 0x80 || isalpha(c);
+}
+
+//! @brief Return whether a byte may continue an inline-assembly identifier token.
+static bool inline_asm_identifier_continue(unsigned char c) {
+   return inline_asm_identifier_start(c) || isdigit(c);
+}
+
+//! @brief Classify how an inline-assembly opcode accesses its memory operand.
+static InlineAsmRefAccess inline_asm_opcode_access(const char *mnemonic) {
+   static const char *const read_ops[] = {
+      "ADC", "AND", "BIT", "CMP", "CPX", "CPY", "EOR", "LDA", "LDX", "LDY", "ORA", "SBC",
+      "ALR", "ANC", "ARR", "AXS", "LAS", "LAX", NULL
+   };
+   static const char *const write_ops[] = {
+      "STA", "STX", "STY", "AHX", "SAX", "SHX", "SHY", "TAS", NULL
+   };
+   static const char *const read_write_ops[] = {
+      "ASL", "DEC", "INC", "LSR", "ROL", "ROR", "DCP", "ISC", "ISB", "RLA", "RRA", "SLO", "SRE", NULL
+   };
+   static const char *const address_ops[] = {
+      "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BRA", "BVC", "BVS", "JMP", "JSR", NULL
+   };
+
+   for (int i = 0; read_ops[i]; i++) {
+      if (!strcmp(mnemonic, read_ops[i])) {
+         return INLINE_ASM_REF_READ;
+      }
+   }
+   for (int i = 0; write_ops[i]; i++) {
+      if (!strcmp(mnemonic, write_ops[i])) {
+         return INLINE_ASM_REF_WRITE;
+      }
+   }
+   for (int i = 0; read_write_ops[i]; i++) {
+      if (!strcmp(mnemonic, read_write_ops[i])) {
+         return INLINE_ASM_REF_READ_WRITE;
+      }
+   }
+   for (int i = 0; address_ops[i]; i++) {
+      if (!strcmp(mnemonic, address_ops[i])) {
+         return INLINE_ASM_REF_ADDRESS;
+      }
+   }
+   return INLINE_ASM_REF_UNKNOWN;
+}
+
+//! @brief Resolve a source identifier to an absolute ref visible at an inline-assembly statement.
+static bool inline_asm_lookup_absolute_ref(Context *ctx, const char *name, ContextEntry *out) {
+   ContextEntry *local;
+   const ASTNode *global;
+
+   if (!name || !*name || !out) {
+      return false;
+   }
+
+   local = ctx_lookup(ctx, name);
+   if (local && local->is_absolute_ref) {
+      *out = *local;
+      return true;
+   }
+
+   global = global_decl_lookup(name);
+   return global && init_context_entry_from_global_decl(out, name, global) && out->is_absolute_ref;
+}
+
+//! @brief Select the legal address expression for one inline-assembly absolute-ref use.
+static const char *inline_asm_ref_address(const ASTNode *node, const char *mnemonic,
+                                          InlineAsmRefAccess access, const ContextEntry *entry,
+                                          char *buf, size_t buf_size) {
+   char read_buf[256];
+   char write_buf[256];
+   const char *read_expr = (entry && entry->read_expr && *entry->read_expr)
+      ? assembler_address_expr(entry->read_expr, read_buf, sizeof(read_buf)) : NULL;
+   const char *write_expr = (entry && entry->write_expr && *entry->write_expr)
+      ? assembler_address_expr(entry->write_expr, write_buf, sizeof(write_buf)) : NULL;
+
+   switch (access) {
+      case INLINE_ASM_REF_READ:
+         if (!read_expr) {
+            error_user("[%s:%d.%d] inline asm '%s' reads from write-only ref '%s'",
+                       node->file, node->line, node->column, mnemonic, entry->name);
+         }
+         snprintf(buf, buf_size, "%s", read_expr);
+         return buf;
+
+      case INLINE_ASM_REF_WRITE:
+         if (!write_expr) {
+            error_user("[%s:%d.%d] inline asm '%s' writes to read-only ref '%s'",
+                       node->file, node->line, node->column, mnemonic, entry->name);
+         }
+         snprintf(buf, buf_size, "%s", write_expr);
+         return buf;
+
+      case INLINE_ASM_REF_READ_WRITE:
+         if (!read_expr || !write_expr) {
+            error_user("[%s:%d.%d] inline asm read-modify-write '%s' requires both read and write addresses for ref '%s'",
+                       node->file, node->line, node->column, mnemonic, entry->name);
+         }
+         if (strcmp(read_expr, write_expr)) {
+            error_user("[%s:%d.%d] inline asm read-modify-write '%s' cannot use split-address ref '%s' (%s read, %s write)",
+                       node->file, node->line, node->column, mnemonic, entry->name, read_expr, write_expr);
+         }
+         snprintf(buf, buf_size, "%s", read_expr);
+         return buf;
+
+      case INLINE_ASM_REF_ADDRESS:
+         if (!read_expr || !write_expr || strcmp(read_expr, write_expr)) {
+            error_user("[%s:%d.%d] inline asm address use of ref '%s' requires one identical read/write address",
+                       node->file, node->line, node->column, entry->name);
+         }
+         snprintf(buf, buf_size, "%s", read_expr);
+         return buf;
+
+      case INLINE_ASM_REF_UNKNOWN:
+      default:
+         error_user("[%s:%d.%d] inline asm opcode '%s' has unknown ref access semantics for '%s'",
+                    node->file, node->line, node->column, mnemonic, entry->name);
+   }
+}
+
+//! @brief Append bytes to a dynamically grown inline-assembly rewrite buffer.
+static void inline_asm_append(char **buf, size_t *len, size_t *cap, const char *text, size_t text_len) {
+   size_t needed = *len + text_len + 1;
+   if (needed > *cap) {
+      size_t new_cap = *cap ? *cap : 128;
+      while (new_cap < needed) {
+         new_cap *= 2;
+      }
+      char *grown = realloc(*buf, new_cap);
+      if (!grown) {
+         free(*buf);
+         error_unreachable("out of memory rewriting inline asm");
+      }
+      *buf = grown;
+      *cap = new_cap;
+   }
+   memcpy(*buf + *len, text, text_len);
+   *len += text_len;
+   (*buf)[*len] = '\0';
+}
+
+//! @brief Resolve absolute-ref source names in one inline assembly statement.
+static char *rewrite_inline_asm_refs(const ASTNode *node, Context *ctx, const char *line) {
+   const char *p = line;
+   const char *mnemonic_start;
+   const char *mnemonic_end;
+   const char *operand_start;
+   char mnemonic[32];
+   size_t mnemonic_len;
+   InlineAsmRefAccess access;
+   char *out = NULL;
+   size_t out_len = 0;
+   size_t out_cap = 0;
+   char quote = '\0';
+
+   while (isspace((unsigned char)*p)) {
+      p++;
+   }
+   mnemonic_start = p;
+   while (*p && !isspace((unsigned char)*p)) {
+      p++;
+   }
+   mnemonic_end = p;
+
+   /* Permit an assembler label before the instruction on the same line. */
+   if (mnemonic_end > mnemonic_start && mnemonic_end[-1] == ':') {
+      while (isspace((unsigned char)*p)) {
+         p++;
+      }
+      if (!*p) {
+         return strdup(line);
+      }
+      mnemonic_start = p;
+      while (*p && !isspace((unsigned char)*p)) {
+         p++;
+      }
+      mnemonic_end = p;
+   }
+
+   mnemonic_len = (size_t)(mnemonic_end - mnemonic_start);
+   if (mnemonic_len == 0 || mnemonic_len >= sizeof(mnemonic)) {
+      return strdup(line);
+   }
+   for (size_t i = 0; i < mnemonic_len; i++) {
+      unsigned char c = (unsigned char)mnemonic_start[i];
+      if (c == '.') {
+         mnemonic_len = i;
+         break;
+      }
+      mnemonic[i] = (char)toupper(c);
+   }
+   mnemonic[mnemonic_len] = '\0';
+   operand_start = mnemonic_end;
+   while (isspace((unsigned char)*operand_start)) {
+      operand_start++;
+   }
+
+   access = inline_asm_opcode_access(mnemonic);
+   if (*operand_start == '#') {
+      access = INLINE_ASM_REF_ADDRESS;
+   }
+
+   inline_asm_append(&out, &out_len, &out_cap, line, (size_t)(operand_start - line));
+   p = operand_start;
+   while (*p) {
+      if (quote) {
+         inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         if (*p == '\\' && p[1]) {
+            p++;
+            inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         }
+         else if (*p == quote) {
+            quote = '\0';
+         }
+         p++;
+         continue;
+      }
+      if (*p == '\'' || *p == '"') {
+         quote = *p;
+         inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         p++;
+         continue;
+      }
+      if (inline_asm_identifier_start((unsigned char)*p)) {
+         const char *start = p;
+         ContextEntry entry;
+         char name[256];
+         size_t name_len;
+         char address[256];
+         const char *replacement;
+
+         while (inline_asm_identifier_continue((unsigned char)*p)) {
+            p++;
+         }
+         name_len = (size_t)(p - start);
+         if (name_len >= sizeof(name)) {
+            inline_asm_append(&out, &out_len, &out_cap, start, name_len);
+            continue;
+         }
+         memcpy(name, start, name_len);
+         name[name_len] = '\0';
+
+         /* @name is an assembler-local label, never a source ref identifier. */
+         if (start > operand_start && start[-1] == '@') {
+            inline_asm_append(&out, &out_len, &out_cap, start, name_len);
+            continue;
+         }
+
+         if (!inline_asm_lookup_absolute_ref(ctx, name, &entry)) {
+            inline_asm_append(&out, &out_len, &out_cap, start, name_len);
+            continue;
+         }
+
+         replacement = inline_asm_ref_address(node, mnemonic, access, &entry, address, sizeof(address));
+         inline_asm_append(&out, &out_len, &out_cap, replacement, strlen(replacement));
+         continue;
+      }
+      inline_asm_append(&out, &out_len, &out_cap, p, 1);
+      p++;
+   }
+
+   if (!out) {
+      return strdup(line);
+   }
+   return out;
+}
+
 //! @brief Lower asm stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_asm_stmt(ASTNode *node, Context *ctx) {
-   (void) ctx;
+   char *rewritten;
 
    if (!node || is_empty(node) || node->count < 1 || !node->children[0]) {
       return;
@@ -1188,7 +1466,12 @@ static void compile_asm_stmt(ASTNode *node, Context *ctx) {
       return;
    }
 
-   emit(&es_code, EMIT_INLINE_ASM_BEGIN_MARKER "\n%s\n" EMIT_INLINE_ASM_END_MARKER "\n", leaf->strval);
+   rewritten = rewrite_inline_asm_refs(node, ctx, leaf->strval);
+   if (!rewritten) {
+      error_unreachable("out of memory rewriting inline asm");
+   }
+   emit(&es_code, EMIT_INLINE_ASM_BEGIN_MARKER "\n%s\n" EMIT_INLINE_ASM_END_MARKER "\n", rewritten);
+   free(rewritten);
 }
 
 

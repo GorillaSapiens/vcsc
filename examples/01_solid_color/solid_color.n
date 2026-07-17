@@ -31,38 +31,38 @@ void main(void) {
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    asm @frame:;
    asm lda #2;
-   asm sta $00;
+   asm sta VSYNC;
    asm ldx #3;
    asm @vsync:;
-   asm sta $02;
+   asm sta WSYNC;
    asm dex;
    asm bne @vsync;
 
    asm lda #0;
-   asm sta $00;
+   asm sta VSYNC;
    asm lda #2;
-   asm sta $01;
+   asm sta VBLANK;
    asm lda #0;
    asm ldx #37;
    asm @vblank:;
-   asm sta $02;
+   asm sta WSYNC;
    asm dex;
    asm bne @vblank;
 
    asm lda #0;
-   asm sta $01;
+   asm sta VBLANK;
    asm ldx #192;
    asm @visible:;
-   asm sta $02;
+   asm sta WSYNC;
    asm dex;
    asm bne @visible;
 
    asm lda #2;
-   asm sta $01;
+   asm sta VBLANK;
    asm lda #0;
    asm ldx #30;
    asm @overscan:;
-   asm sta $02;
+   asm sta WSYNC;
    asm dex;
    asm bne @overscan;
    asm jmp @frame;

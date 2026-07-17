@@ -1,0 +1,9 @@
+// n65c -I .
+// expectfail
+// expecterr: inline asm 'LDA' reads from write-only ref 'WO'
+
+include "machine_6502.n"
+ref uint8_t WO @[none/0x00];
+void main(void) {
+   asm lda WO;
+}
