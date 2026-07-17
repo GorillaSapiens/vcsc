@@ -1,6 +1,6 @@
 // n65c -I .
 // expectasm: lda #$02
-// expectasm: lda #$04
+// expectasm: lda #$02
 
 include "machine_6502.n"
 
@@ -11,19 +11,19 @@ struct PackedBits {
    char code:7;
 };
 
-struct FloatBits {
-   long mantissa:23;
-   long exponent:8;
-   long sign:1;
+struct WordBits {
+   uint16_t payload:12;
+   uint16_t tag:3;
+   uint16_t sign:1;
 };
 
-union FloatOverlay {
-   long word;
-   FloatBits bits;
+union WordOverlay {
+   uint16_t word;
+   WordBits bits;
 };
 
 int main(void) {
    int a := sizeof(PackedBits);
-   int b := sizeof(FloatOverlay);
+   int b := sizeof(WordOverlay);
    return a + b;
 }

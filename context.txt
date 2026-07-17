@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_082117.tar.gz
+    vcsc.20260717_084914.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -127,6 +127,11 @@ Completed vertical slices
     integers, pointers, constants, initializers, conversions, comparisons, and
     runtime helpers are little-endian. `$endian:big`, `($big)`, and `($little)`
     remain only as direct rejection paths.
+19. Target integer widths are restricted to exactly one or two bytes. Untyped
+    integer literals must fit in 16 bits. Positive 24/32/64-bit compiler,
+    runtime, library, and test support has been removed. The machine files now
+    define int8_t, uint8_t, int16_t, and uint16_t; legacy internal names remain
+    temporarily until the compiler is switched to the canonical four names.
 
 Current return ABI
 ------------------
@@ -247,8 +252,9 @@ Compiler source now contains:
 The generic test `test/software_stack_inventory.test` scans every compiler `.c`
 file and fails if either helper reappears. `_nl_fp` remains active as the base
 pointer for fixed per-site scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
-remain only in obsolete runtime/library families, especially wide integer
-helpers, and are removed after those families are pruned.
+remain only in transitional runtime services. Generic division still uses `sp`
+as a private work area, and `_sbrk` still uses it as a collision boundary; that
+residual runtime state is now isolated from compiler-generated calls.
 
 Test policy
 -----------
@@ -271,53 +277,58 @@ For the big/mixed-endian purge:
   rejection tests were added;
 * all removed paths are in top-level remove.txt.
 
+For the wide-integer purge:
+
+* target integer declarations must be exactly one or two bytes;
+* target pointers must be two bytes;
+* untyped integer literals larger than 16 bits are rejected;
+* positive 24/32/64-bit arithmetic, promotion, extension, shift, helper, and
+  return tests were removed or rewritten to legal widths;
+* PetiteFFS was removed because its public model requires a 32-bit DWORD;
+* dead add/subtract/increment runtime assembly files were removed;
+* host-side `long long`, `uint32_t`, and `uint64_t` used inside the compiler,
+  assembler, and MD5 implementation are not target-language types and remain.
+
 Files changed in this revision
 ------------------------------
-Modified source and documentation:
+Modified compiler/runtime/documentation files include:
 
-    NOTES.md
     README.md
     compiler/ABI.txt
     compiler/README.md
-    compiler/abi_meta.c
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
-    compiler/compile_function.c
-    compiler/compile_init.c
+    compiler/compile_expr_info.c
     compiler/compile_lvalue.c
-    compiler/compile_overload.c
-    compiler/compile_stmt.c
-    compiler/compile_support.c
     compiler/compile_toplevel.c
     compiler/compile_type.c
-    compiler/compile_type.h
-    compiler/integer.c
-    compiler/integer.h
     context.txt
-    libraries/nlib/asm/add.asm
-    libraries/nlib/asm/cmp.asm
-    libraries/nlib/asm/div.asm
-    libraries/nlib/asm/incdec.asm
-    libraries/nlib/asm/mul.asm
-    libraries/nlib/asm/rem.asm
-    libraries/nlib/asm/shift.asm
-    libraries/nlib/asm/stack.asm
-    libraries/nlib/asm/sub.asm
+    libraries/nlib/README.md
+    libraries/nlib/machine_6502.n
+    libraries/vcs/vcs.n
     remove.txt
+    test/machine_6502.n
 
 Added rejection tests:
 
-    test/big_endian_shortcut_cast_rejected_test.n
-    test/big_endian_type_rejected_test.n
-    test/little_endian_shortcut_cast_rejected_test.n
+    test/integer_24bit_type_rejected_test.n
+    test/integer_32bit_type_rejected_test.n
+    test/integer_64bit_type_rejected_test.n
+    test/integer_literal_over_16bit_rejected_test.n
 
-Removed intentionally:
+Many retained tests were rewritten from obsolete wide aliases to legal one- and
+two-byte types. Pointer-scaling tests now use a three-byte aggregate so they
+continue to exercise non-power-of-two scaling without requiring a 24-bit
+integer.
 
-    24 obsolete positive big-endian/mixed-endian tests; every repository-relative
-    pathname is appended to remove.txt.
+Removed intentionally in this revision:
 
-Top-level remove.txt now contains 397 cumulative deletion paths.
+    20 obsolete positive wide-integer tests
+    all 27 files under libraries/petiteffs/
+    libraries/nlib/asm/add.asm
+    libraries/nlib/asm/sub.asm
+    libraries/nlib/asm/incdec.asm
+
+Every exact repository-relative pathname is in remove.txt. Top-level remove.txt
+now contains 447 unique cumulative deletion paths.
 
 Build environment
 -----------------
@@ -336,23 +347,24 @@ looks under the host /usr/share/bison.
 
 Build and test results
 ----------------------
-Clean tools build:
+Clean warning-as-error tools build:
 
     make -j2 tools
 
-Result: passed with the project's warning-as-error settings.
+Result: passed.
 
 Compile suite:
 
-    224 passed, 0 failed, 224 total
+    217 passed, 0 failed, 217 total
 
 End-to-end/generic suite:
 
-    97 passed, 0 failed, 97 total
+    88 passed, 0 failed, 88 total
 
-The final clean E2E validation was split into bounded runs of 49 and 48 cases;
-both passed, accounting for all 97 cases. The rebuilt nlib archive contains 71
-members and no big-endian helper member.
+The runtime archive rebuild succeeded after deleting the dead add/subtract and
+increment/decrement assembly sources. All retained pointer, bit-field,
+overload, archive ABI, arithmetic, VCS RAM-map, assembler, linker, and simulator
+tests pass.
 
 Immediate TODO
 --------------
@@ -398,8 +410,12 @@ The first unfinished item is the default next action.
         [x] 12a. Remove floating-point types, literals, compiler/runtime code,
                   driver linkage, and positive tests.
         [x] 12b. Remove big-endian and mixed-endian type/expression support.
-        [ ] 12c. Remove 32/64-bit integer types, helpers, and tests; enforce
-                  only the four final integer widths/signedness combinations.
+        [x] 12c. Remove 24/32/64-bit integer types, helpers, and positive
+                  tests; enforce one- and two-byte target integers only.
+        [ ] 12d. Replace transitional compiler-required `bool`, `char`, and
+                  `int` names with uint8_t, int8_t, and int16_t so the stock
+                  machine interface exposes only the canonical four integer
+                  names.
 
 [ ] 13. Produce and verify an unbanked 4K VCS cartridge using the static-frame
         ABI and the real 128-byte shared RAM model.
@@ -596,6 +612,21 @@ Change log
   obsolete operator-overload/weak-operator path.
 * No files were removed.
 
+2026-07-16, compound/switch/initializer fixed-scratch batch
+* Replaced built-in compound-assignment scratch with `__n65_compoundtmp_N`.
+* Replaced switch expression/case scratch with reusable `__n65_switchtmp_N`; fp
+  is restored before every generated branch and before case bodies.
+* Replaced simple indirect/absolute/bit-field assignment scratch with
+  `__n65_lvalueassigntmp_N`.
+* Replaced runtime local and return-object initialization with `__n65_inittmp_N`.
+* Replaced local absolute-reference initialization with `__n65_absinittmp_N`.
+* `compile_stmt.c` no longer emits `_pushN` or `_popN`.
+* Software-stack inventory fell from 15/41 to 10/22.
+* Moved the two obsolete 9-16-byte shift-test dump buffers from $E000 to $1800;
+  fixed-scratch code growth had reached $E000, while $1800 remains unused RAM in
+  their generic test map.
+* No files were removed.
+
 2026-07-17, operator-overload and final compiler-stack-emitter removal
 * Removed user-defined operator declarations, lookup, mangling, dispatch, `$exactops`,
   and weak built-in operator fallback while retaining ordinary function overloading.
@@ -643,6 +674,22 @@ Change log
 * Passed 224/224 compile tests and 97/97 end-to-end/generic tests; final clean
   E2E validation ran as 49-case and 48-case chunks.
 
+2026-07-17, 24/32/64-bit target-integer purge
+* Enforced exactly one- or two-byte target integer declarations and two-byte
+  pointers; untyped literals larger than 16 bits are rejected.
+* Added canonical int8_t, uint8_t, int16_t, and uint16_t definitions to the
+  generic, VCS, and test machine files. Transitional internal aliases remain
+  until TODO 12d.
+* Removed wide add/subtract/increment lowering and deleted their now-dead nlib
+  assembly sources.
+* Removed PetiteFFS because it requires a 32-bit DWORD model.
+* Removed 20 obsolete positive wide-integer tests, rewrote useful broad tests to
+  legal widths, and added four direct rejection tests.
+* Fixed pointer-pointer subtraction to produce the signed `int` difference type
+  rather than incorrectly inheriting the pointee type.
+* remove.txt now contains 447 cumulative paths.
+* Passed 217/217 compile tests and 88/88 end-to-end/generic tests.
+
 End-of-session checklist
 ------------------------
 Before returning another modified archive:
@@ -653,18 +700,3 @@ Before returning another modified archive:
 [x] Record exact build/test totals and any known failures.
 [x] Run make clean and remove test-runner scratch before packaging.
 [x] Repack with the same archive-root layout.
-
-2026-07-16, compound/switch/initializer fixed-scratch batch
-* Replaced built-in compound-assignment scratch with `__n65_compoundtmp_N`.
-* Replaced switch expression/case scratch with reusable `__n65_switchtmp_N`; fp
-  is restored before every generated branch and before case bodies.
-* Replaced simple indirect/absolute/bit-field assignment scratch with
-  `__n65_lvalueassigntmp_N`.
-* Replaced runtime local and return-object initialization with `__n65_inittmp_N`.
-* Replaced local absolute-reference initialization with `__n65_absinittmp_N`.
-* `compile_stmt.c` no longer emits `_pushN` or `_popN`.
-* Software-stack inventory fell from 15/41 to 10/22.
-* Moved the two obsolete 9-16-byte shift-test dump buffers from $E000 to $1800;
-  fixed-scratch code growth had reached $E000, while $1800 remains unused RAM in
-  their generic test map.
-* No files were removed.

@@ -263,9 +263,7 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       const ASTNode *lhs_decl = expr_value_declarator(expr->children[0], ctx);
       const ASTNode *rhs_decl = expr_value_declarator(expr->children[1], ctx);
       if (lhs_decl && rhs_decl && declarator_pointer_depth(lhs_decl) > 0 && declarator_pointer_depth(rhs_decl) > 0) {
-         lhs_type = expr_value_type(expr->children[0], ctx);
-         rhs_type = expr_value_type(expr->children[1], ctx);
-         return lhs_type ? lhs_type : rhs_type;
+         return required_typename_node("int");
       }
    }
 

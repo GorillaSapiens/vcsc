@@ -18,7 +18,6 @@
 
 include "machine_6502.n"
 
-type uint8_t { $size:1 $integer:unsigned };
 
 uint8_t id8(uint8_t value) {
    return value;

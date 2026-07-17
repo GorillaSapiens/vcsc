@@ -86,13 +86,14 @@ Integer-like scalar types use an explicit style flag: `$integer:signed` or `$int
 Examples:
 
 ```n
-type char   { $size:1 $integer:signed };
-type *      { $size:2 $integer:unsigned $endian:little };
-type int    { $size:4 $integer:signed $endian:little };
-type uint   { $size:4 $integer:unsigned $endian:little };
+type int8_t   { $size:1 $integer:signed };
+type uint8_t  { $size:1 $integer:unsigned };
+type int16_t  { $size:2 $integer:signed $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
-Type declarations use `$integer:signed` or `$integer:unsigned`. All multibyte values are little-endian. Expression-level shortcut casts `($signed)` / `($unsigned)` change signedness while preserving width.
+Integer value types are restricted to one or two bytes and use `$integer:signed` or `$integer:unsigned`. Untyped integer literals must fit in 16 bits. All multibyte values are little-endian. Expression-level shortcut casts `($signed)` / `($unsigned)` change signedness while preserving width.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
 

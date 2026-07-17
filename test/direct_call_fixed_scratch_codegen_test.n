@@ -13,8 +13,6 @@
 
 include "machine_6502.n"
 
-type uint8_t  { $size:1 $integer:unsigned };
-type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 void sink(uint8_t a, uint16_t b) {
 }

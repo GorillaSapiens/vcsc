@@ -1,6 +1,6 @@
 // n65c -I .
 // expectasm: lda #$02
-// expectasm: lda #$04
+// expectasm: lda #$02
 
 include "machine_6502.n"
 
@@ -17,6 +17,6 @@ struct S {
 int main(void) {
    S s;
    int a := sizeof(s.u.b);
-   int b := sizeof(long);
+   int b := sizeof(int16_t);
    return a + b;
 }

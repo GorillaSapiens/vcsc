@@ -6,8 +6,8 @@ struct CharBits {
    char value:4;
 };
 
-struct LongBits {
-   long value:23;
+struct IntBits {
+   int value:15;
 };
 
 void pass(void) {
@@ -19,15 +19,15 @@ void pass(void) {
 
 void main(void) {
    CharBits cb;
-   LongBits lb;
+   IntBits ib;
 
    cb.value := 0x0c;
    if (cb.value != 0xfc`char) {
       asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
    }
 
-   lb.value := 0x400000;
-   if (lb.value != 0xffc00000`long) {
+   ib.value := 0x4000;
+   if (ib.value != 0xc000`int) {
       asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff;
    }
 

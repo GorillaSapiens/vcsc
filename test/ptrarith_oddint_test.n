@@ -1,18 +1,13 @@
-// n65c
+// n65c -I .
 
-type void      { $size:0 };
-type bool     { $size:1 $integer:unsigned };
-type char      { $size:1    $integer:signed };
-type uchar     { $size:1  $integer:unsigned };
-type *         { $size:2  $integer:unsigned $endian:little };
-type short     { $size:2    $integer:signed $endian:little };
-type int       { $size:3    $integer:signed $endian:little };
-type uint      { $size:3  $integer:unsigned $endian:little };
+include "machine_6502.n"
 
-short main(void) {
-   int a[4];
-   int *p := &a[0];
-   int *q := &a[3];
+struct Triple { uint8_t b[3]; };
+
+int16_t main(void) {
+   Triple a[4];
+   Triple *p := &a[0];
+   Triple *q := &a[3];
    p := p + 2;
    q--;
    return q - p;

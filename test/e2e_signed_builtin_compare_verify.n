@@ -4,16 +4,13 @@
 include "machine_6502.n"
 
 void main(void) {
-   int i := 0;
-   long l := 0;
-   longlong ll := 0;
-   i := i - 1;
-   l := l - 1;
-   ll := ll - 1;
+   int8_t i8 := 0;
+   int16_t i16 := 0;
+   i8 := i8 - 1;
+   i16 := i16 - 1;
 
-   if (i >= 0) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
-   if (l >= 0) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
-   if (ll >= 0) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   if (i8 >= 0) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (i16 >= 0) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
 
    asm lda #$ff;
    asm ldx #0;

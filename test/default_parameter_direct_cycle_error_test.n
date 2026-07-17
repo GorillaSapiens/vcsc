@@ -3,7 +3,6 @@
 // expecterr: call graph cycle reaches function 'recur' with static activation storage
 include "machine_6502.n"
 
-type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 uint16_t recur(uint16_t x) {
    if (x) {

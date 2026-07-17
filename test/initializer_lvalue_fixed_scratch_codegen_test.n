@@ -7,8 +7,6 @@
 
 include "machine_6502.n"
 
-type uint8_t { $size:1 $integer:unsigned };
-type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 void test(uint8_t *out, uint8_t source) {
    uint16_t widened := source;

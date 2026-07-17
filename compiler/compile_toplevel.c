@@ -317,6 +317,17 @@ void compile_type_decl_stmt(ASTNode *node) {
             node->file, node->line, node->column, node->children[0]->strval);
    }
 
+   if (key && !strcmp(key, "*")) {
+      if (size != 2 || !haveInteger || !integer_style || strcmp(integer_style, "unsigned")) {
+         error_user("[%s:%d.%d] pointer type '*' must be a 2-byte unsigned integer",
+               node->file, node->line, node->column);
+      }
+   }
+   else if (haveInteger && size != 1 && size != 2) {
+      error_user("[%s:%d.%d] integer type '%s' has unsupported size %d; only 1-byte and 2-byte integers are supported",
+            node->file, node->line, node->column, node->children[0]->strval, size);
+   }
+
    if (!haveEndian && size > 1) {
       error_user("[%s:%d.%d] type_decl_stmt '%s' missing '$endian:' flag",
             node->file, node->line, node->column, node->children[0]->strval);

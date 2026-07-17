@@ -8,26 +8,22 @@ type uint8_t  { $size:1 $integer:unsigned };
 type  int8_t  { $size:1 $integer:signed };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
 type  int16_t { $size:2 $integer:signed $endian:little };
-type uint24_t { $size:3 $integer:unsigned $endian:little };
-type  int24_t { $size:3 $integer:signed $endian:little };
-type uint32_t { $size:4 $integer:unsigned $endian:little };
-type  int32_t { $size:4 $integer:signed $endian:little };
 
 
 
-uint24_t x := 5 / 5;
-int24_t  n := -6;
-uint24_t y;
+uint16_t x := 5 / 5;
+int16_t  n := -6;
+uint16_t y;
 
-static uint24_t sx := 5;
-static int24_t  sn := -6;
-static uint24_t sy;
+static uint16_t sx := 5;
+static int16_t  sn := -6;
+static uint16_t sy;
 
-const uint24_t cx := 5;
-const int24_t  cn := -6;
-const uint24_t cy := 0;
+const uint16_t cx := 5;
+const int16_t  cn := -6;
+const uint16_t cy := 0;
 
-int16_t bar(int16_t alpha, static uint8_t beta, const uint24_t gamma);
+int16_t bar(int16_t alpha, static uint8_t beta, const uint16_t gamma);
 
 void nop(void) {
 }

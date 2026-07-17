@@ -4,16 +4,16 @@
 // expectasm: or_short:
 // expectasm: 	.byte $01
 // expectasm: ternary:
-// expectasm: 	.byte $07, $00, $00
+// expectasm: 	.byte $07, $00
 
 type bool     { $size:1 $integer:unsigned };
 type void     { $size:0 };
 type *        { $size:2 $integer:unsigned $endian:little };
-type uint24_t { $size:3 $integer:unsigned $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 bool and_short := 0 && (1 / 0);
 bool or_short := 1 || (1 / 0);
-uint24_t ternary := (0 ? (1 / 0) : 7);
+uint16_t ternary := (0 ? (1 / 0) : 7);
 
 void main(void) {
 }

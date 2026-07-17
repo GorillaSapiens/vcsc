@@ -8,8 +8,6 @@ type char     { $size:1 $integer:signed };
 type bool     { $size:2 $integer:unsigned $endian:little };
 type *        { $size:2 $integer:unsigned $endian:little };
 type int      { $size:2 $integer:signed $endian:little };
-type long     { $size:4 $integer:signed $endian:little };
-type longlong { $size:8 $integer:signed $endian:little };
 
 bool helper(bool x) {
    return x;

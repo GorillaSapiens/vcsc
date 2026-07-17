@@ -103,10 +103,13 @@ Example:
 
 ```n
 type void   { $size:0 };
-type bool   { $size:1 $integer:unsigned };
-type *      { $size:2 $integer:unsigned $endian:little };
-type s2     { $size:2 $integer:signed   $endian:little };
-type u4     { $size:4 $integer:unsigned $endian:little };
+type void     { $size:0 };
+type bool     { $size:1 $integer:unsigned }; // transitional compiler-required name
+type int8_t   { $size:1 $integer:signed };
+type uint8_t  { $size:1 $integer:unsigned };
+type int16_t  { $size:2 $integer:signed $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
 ### Required type declarations
@@ -119,7 +122,7 @@ The compiler requires these declarations to exist in the program or its includes
 
 `int` is **not** required and is not a hard-coded semantic fallback type.
 
-Scalar value types say whether they are integer-like with `$integer:signed` or `$integer:unsigned`. The required `bool` type must use `$integer:unsigned`, while `void` remains flagless. Floating-point type flags are rejected.
+Integer value types must be exactly one or two bytes and say whether they are signed or unsigned with `$integer:signed` or `$integer:unsigned`. Untyped integer literals larger than 16 bits are rejected. The required `bool` type must use `$integer:unsigned`, while `void` remains flagless. Floating-point type flags are rejected.
 
 Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
 
@@ -612,9 +615,12 @@ A few sharp edges remain:
 
 ```n
 type void { $size:0 };
-type bool { $size:1 $integer:unsigned };
-type *    { $size:2 $integer:unsigned $endian:little };
-type s2   { $size:2 $integer:signed   $endian:little };
+type bool     { $size:1 $integer:unsigned };
+type int8_t   { $size:1 $integer:signed };
+type uint8_t  { $size:1 $integer:unsigned };
+type int16_t  { $size:2 $integer:signed $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+type *        { $size:2 $integer:unsigned $endian:little };
 
 void bump(ref s2 x) {
    x++;

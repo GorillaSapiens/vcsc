@@ -33,7 +33,7 @@ union union_a { union_a *a; };
 
 struct llnode { int data; llnode *next; };
 
-struct coverbits { long mantissa:23; long exponent:8; long sign:1; };
+struct coverbits { int16_t mantissa:23; int16_t exponent:8; int16_t sign:1; };
 
 static int q[12] @ 27;
 static int qq[12] @ symbol;

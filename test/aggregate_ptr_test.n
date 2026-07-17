@@ -9,7 +9,7 @@ struct Point {
 
 union Value {
    int i;
-   long l;
+   int16_t l;
 };
 
 int getx(Point *p) {

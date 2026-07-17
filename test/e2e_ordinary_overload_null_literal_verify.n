@@ -4,15 +4,15 @@
 include "machine_6502.n"
 
 type BYTE { $size:1 $integer:unsigned };
-type DWORD { $size:4 $integer:unsigned $endian:little };
+type WORD { $size:2 $integer:unsigned $endian:little };
 
 int disk_writep(int buff, int sc) {
    return 1;
 }
 
-int disk_writep(BYTE *buff, DWORD sc) {
+int disk_writep(BYTE *buff, WORD sc) {
    if (buff != 0) { return 3; }
-   if (sc != 0`DWORD) { return 4; }
+   if (sc != 0`WORD) { return 4; }
    return 2;
 }
 

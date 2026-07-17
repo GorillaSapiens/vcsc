@@ -7,7 +7,6 @@
 // expectasmordered: sta demo$__return,y
 include "machine_6502.n"
 
-type uint8_t { $size:1 $integer:unsigned };
 
 uint8_t demo(uint8_t a) {
    uint8_t x := a;

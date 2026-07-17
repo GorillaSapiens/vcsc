@@ -8,8 +8,6 @@
 
 include "machine_6502.n"
 
-type uint8_t  { $size:1 $integer:unsigned $endian:little };
-type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 ref uint8_t global_abs@[0x0600/0x0600];
 uint8_t counter;

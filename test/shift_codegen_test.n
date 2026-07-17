@@ -8,15 +8,14 @@ type void      { $size:0 };
 type bool      { $size:1 $integer:unsigned };
 type s1        { $size:1 $integer:signed $endian:little };
 type u2        { $size:2 $integer:unsigned $endian:little };
-type u4        { $size:4 $integer:unsigned $endian:little };
 type s2        { $size:2 $integer:signed $endian:little };
 type *         { $size:2 $integer:unsigned $endian:little };
 
-s1 shr_expr(s1 a, u4 b) {
+s1 shr_expr(s1 a, u2 b) {
    return a >> b;
 }
 
-u2 lshr_assign(u2 a, u4 b) {
+u2 lshr_assign(u2 a, u2 b) {
    a >>= b;
    return a;
 }

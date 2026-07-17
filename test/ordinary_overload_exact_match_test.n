@@ -1,25 +1,25 @@
 // n65c
+// expectasm: jsr pick@s1_p0_a0
 // expectasm: jsr pick@s2_p0_a0
-// expectasm: jsr pick@s4_p0_a0
 
 type void { $size:0 };
 type bool { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
+type s1   { $size:1 $integer:signed };
 type s2   { $size:2 $integer:signed $endian:little };
-type s4   { $size:4 $integer:signed $endian:little };
 
-s2 pick(s2 x) {
+s2 pick(s1 x) {
    return x;
 }
 
-s2 pick(s4 x) {
+s2 pick(s2 x) {
    return 4;
 }
 
-s2 use_small(s2 x) {
+s2 use_small(s1 x) {
    return pick(x);
 }
 
-s2 use_big(s4 x) {
+s2 use_big(s2 x) {
    return pick(x);
 }

@@ -8,7 +8,7 @@ type uint_cov { $size:2 $integer:unsigned $endian:little };
 include "map_ascii.n"
 include "map_cp437.n"
 
-struct coverbits { long mantissa:23; long exponent:8; long sign:1; };
+struct coverbits { int16_t mantissa:23; int16_t exponent:8; int16_t sign:1; };
 
 mem nulspace { };
 
@@ -21,7 +21,7 @@ node head := { .data := 0, .next := 0 };
 
 union ofthesnake {
    int idata;
-   long fdata;
+   int16_t fdata;
 };
 
 enum enumtest {
@@ -59,8 +59,8 @@ struct int { // should cause an error
    int fred;
 };
 
-union long { // should cause an error
-   long fred;
+union int16_t { // should cause an error
+   int16_t fred;
 };
 
 int ia;

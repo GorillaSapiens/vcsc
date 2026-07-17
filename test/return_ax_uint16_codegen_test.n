@@ -24,7 +24,6 @@
 
 include "machine_6502.n"
 
-type uint16_t { $size:2 $integer:unsigned $endian:little };
 
 uint16_t id16(uint16_t value) {
    return value;

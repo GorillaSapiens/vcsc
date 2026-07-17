@@ -326,21 +326,14 @@ void emit_runtime_fixed_binary_fp_fp(const char *helper, int dst_offset, int lhs
 //! @brief Return int addsub helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
 const char *int_addsub_helper_name(const ASTNode *type, int size, bool subtract, bool *is_generic_out) {
    (void) type;
+   (void) subtract;
    if (is_generic_out) {
       *is_generic_out = false;
    }
-   if (size < 3) {
-      return NULL;
+   if (size != 1 && size != 2) {
+      error_unreachable("unsupported integer width %d reached add/sub lowering", size);
    }
-   switch (size) {
-      case 3: return subtract ? "sub24le" : "add24le";
-      case 4: return subtract ? "sub32le" : "add32le";
-      default:
-         if (is_generic_out) {
-            *is_generic_out = true;
-         }
-         return subtract ? "subNle" : "addNle";
-   }
+   return NULL;
 }
 
 //! @brief Return int mul helper name data used by compiler lvalue lowering.

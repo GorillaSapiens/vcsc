@@ -7,12 +7,12 @@ type uchar     { $size:1  $integer:unsigned };
 type *         { $size:2  $integer:unsigned $endian:little };
 type short     { $size:2    $integer:signed $endian:little };
 type ushort    { $size:2  $integer:unsigned $endian:little };
-type int       { $size:4    $integer:signed $endian:little };
-type uint      { $size:4  $integer:unsigned $endian:little };
-type long      { $size:8    $integer:signed $endian:little };
-type ulong     { $size:8  $integer:unsigned $endian:little };
-type longlong  { $size:16   $integer:signed $endian:little };
-type ulonglong { $size:16 $integer:unsigned $endian:little };
+type int       { $size:2    $integer:signed $endian:little };
+type uint      { $size:2  $integer:unsigned $endian:little };
+type long      { $size:2    $integer:signed $endian:little };
+type ulong     { $size:2  $integer:unsigned $endian:little };
+type longlong  { $size:2   $integer:signed $endian:little };
+type ulonglong { $size:2 $integer:unsigned $endian:little };
 
 static char **argv;
 

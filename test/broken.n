@@ -12,8 +12,8 @@ type bool     { $size:1 $integer:unsigned };
 type char { $size:1 $integer:signed};
 type * { $size:2 $integer:unsigned $endian:little };
 type int { $size:2 $integer:signed $endian:little };
-type long { $size:4 $integer:signed $endian:little };
-type longlong { $size:4 $integer:signed $endian:little };
+type long { $size:2 $integer:signed $endian:little };
+type longlong { $size:2 $integer:signed $endian:little };
 
 xform { // default xform has no name
    // canonical escapes
