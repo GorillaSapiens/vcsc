@@ -1,14 +1,18 @@
 // n65c -I .
 // expectasm: jsr _mulNbe
 // expectasmordered: jsr _mulNbe
-// expectasmordered: ldy #6
+// expectasmordered: ldy #8
 // expectasmordered: lda (fp),y
+// expectasmordered: ldy #2
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #9
+// expectasmordered: lda (fp),y
+// expectasmordered: ldy #3
+// expectasmordered: sta (fp),y
 // expectasmordered: ldy #0
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #7
-// expectasmordered: lda (fp),y
+// expectasmordered: sta result,y
 // expectasmordered: ldy #1
-// expectasmordered: sta (fp),y
+// expectasmordered: sta result,y
 
 type void      { $size:0 };
 type bool      { $size:1 $integer:unsigned };

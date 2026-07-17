@@ -589,7 +589,7 @@ An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may 
 
 A direct caller may use one reusable software-stack scratch area while evaluating and converting arguments. That scratch is caller-private transitional machinery, not parameter storage and not part of the function ABI.
 
-Because each function owns only one parameter record, a parameterized function is non-reentrant. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
+Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
 Plain function pointers do not carry the addresses of callee-owned parameter symbols. Taking the address of a parameterized direct function is therefore rejected. Zero-parameter function pointers still use the legacy indirect-call path for now; function pointers are not part of the intended minimal VCS subset.
 
@@ -600,9 +600,11 @@ Plain function pointers do not carry the addresses of callee-owned parameter sym
 The compiler supports:
 
 - globals
-- stack locals
+- fixed-address automatic locals
 - function-scope `static`
 - mem-backed symbol storage for locals and parameters
+
+Every named automatic local receives a function-qualified symbol. Its initializer, if any, executes when control reaches the declaration on each function invocation; fixed storage does not give it C `static` duration semantics. Distinct function frames are not overlaid yet.
 
 ### Memory regions
 
@@ -658,7 +660,7 @@ Strings can initialize pointer values and byte arrays where appropriate. String 
 
 ### Local arrays
 
-Automatic local arrays reserve their full declared size.
+Automatic local arrays receive function-qualified fixed storage for their full declared size. Their initializers execute at run time whenever control reaches the declaration.
 
 
 ### Return object: `$$` and A:X
@@ -670,9 +672,8 @@ it directly, read it back, or use compound assignment on it. The spelling
 
 The only legal return types are `void`, one- or two-byte little-endian integers,
 and 16-bit pointers. A one-byte result is returned in A. For a two-byte integer
-or pointer, A holds the low byte and X holds the high byte. `$$` is currently a
-hidden callee-local scratch object, and the common epilogue loads it into A:X
-before RTS.
+or pointer, A holds the low byte and X holds the high byte. `$$` is a hidden
+callee-owned symbol, and the common epilogue loads it into A:X before RTS.
 
 Example:
 
@@ -754,9 +755,10 @@ char msg2[] = "hello";
 
 The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
 
-Direct fixed parameters are callee-owned symbols. Automatic locals, expression
-temporaries, caller argument-evaluation scratch, and variadic blobs still use
-`_nl_sp` and `_nl_fp` during this transitional stage.
+Direct fixed parameters and named automatic locals are callee-owned symbols.
+Expression temporaries, caller argument-evaluation scratch, variadic blobs, and
+a few legacy compiler-only paths still use `_nl_sp` and `_nl_fp` during this
+transitional stage.
 
 ### `_nl_sp` and `_nl_fp`
 

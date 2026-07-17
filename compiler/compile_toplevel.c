@@ -123,6 +123,7 @@ void compile_function_decl(ASTNode *node) {
    char sym[256];
    bool ax_return;
    ContextEntry *return_entry;
+   char return_sym[256];
 
    validate_function_return_type(node);
    remember_function(node, name);
@@ -156,11 +157,17 @@ void compile_function_decl(ASTNode *node) {
       if (!return_entry || return_entry->size < 1 || return_entry->size > 2) {
          error_unreachable("[%s:%d.%d] invalid A:X return object", node->file, node->line, node->column);
       }
-      return_entry->offset = ctx.locals;
-      ctx.locals += return_entry->size;
+      if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
+         error_unreachable("[%s:%d.%d] invalid A:X return symbol", node->file, node->line, node->column);
+      }
    }
 
    emit_function_parameter_storage(node, &ctx);
+   if (ax_return) {
+      emit(&es_bss, ".segment \"BSS\"\n");
+      emit(&es_bss, "%s:\n", return_sym);
+      emit(&es_bss, "\t.res %d\n", return_entry->size);
+   }
    emit(&es_code, ".proc %s\n", sym);
    emit(&es_code, "    lda sp+1\n");
    emit(&es_code, "    sta fp+1\n");
@@ -193,12 +200,12 @@ void compile_function_decl(ASTNode *node) {
    }
    if (ax_return) {
       if (return_entry->size == 2) {
-         emit(&es_code, "    ldy #$%02x\n", (return_entry->offset + 1) & 0xff);
-         emit(&es_code, "    lda (fp),y\n");
+         emit(&es_code, "    ldy #1\n");
+         emit(&es_code, "    lda %s,y\n", return_sym);
          emit(&es_code, "    tax\n");
       }
-      emit(&es_code, "    ldy #$%02x\n", return_entry->offset & 0xff);
-      emit(&es_code, "    lda (fp),y\n");
+      emit(&es_code, "    ldy #0\n");
+      emit(&es_code, "    lda %s,y\n", return_sym);
    }
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");

@@ -1,11 +1,13 @@
 // n65c -I .
-// expectasmordered: ldy #1
+// expectasm: main$sum:
+// expectasm: main$i:
+// expectasm: main$j:
 // expectasmordered: lda #$01
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #2
+// expectasmordered: sta main$i,y
 // expectasmordered: lda #$02
-// expectasmordered: sta (fp),y
+// expectasmordered: sta main$j,y
 // expectasmordered: @for_start_
+
 include "machine_6502.n"
 
 type u8 { $size:1 $integer:unsigned };

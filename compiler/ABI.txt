@@ -4,9 +4,9 @@ Current transitional function ABI
 ---------------------------------
 
 This document describes the ABI while the compiler is being reduced for the
-Atari 2600. Fixed parameters of directly named functions use callee-owned
-symbols. Automatic locals, expression temporaries, and variadic argument blobs
-still use the existing software stack for now.
+Atari 2600. Fixed parameters and named automatic locals use callee-owned
+symbols. Expression temporaries, caller argument-evaluation scratch, and
+variadic argument blobs still use the existing software stack for now.
 
 Function returns
 ----------------
@@ -24,10 +24,9 @@ types at the declaration or definition. There is no caller-owned return-slot
 ABI or `return_value` metadata mode.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
-currently a hidden callee-local scratch object because automatic locals have not
-yet been converted to static storage. `return expr;` writes the converted value
-to `$$`. At the common epilogue, after local-stack cleanup, the compiler loads
-the high byte into X when present, loads the low byte into A, and executes RTS.
+a hidden callee-owned symbol. `return expr;` writes the converted value to
+`$$`. At the common epilogue, the compiler loads the high byte into X when
+present, loads the low byte into A, and executes RTS.
 
 Before an ordinary direct call:
 
@@ -65,18 +64,19 @@ lda sp+1
 sta fp+1
 lda sp
 sta fp
-; allocate locals if any with pushN
+; named automatic locals already have fixed symbols
+; allocate compiler-only transitional workspace with pushN only if required
 
 Function epilogue for a value return:
 
-; pop locals if any with popN
+; release any compiler-only transitional workspace
 ; load high byte of $$ into X for a two-byte result
 ; load low byte of $$ into A
 rts
 
 Function epilogue for void:
 
-; pop locals if any with popN
+; release any compiler-only transitional workspace
 rts
 
 Reset/startup:
@@ -113,10 +113,10 @@ The caller may temporarily reserve one reusable evaluation scratch area sized
 to the largest fixed parameter. That scratch belongs to the caller and is not
 part of the callee ABI.
 
-Because each function has only one parameter record, a parameterized direct
-function may not be active twice. The compiler rejects direct and mutual cycles
-inside a translation unit, and the linker rejects cycles completed across
-objects.
+Every function body owns one fixed activation record containing its parameters,
+automatic locals, and return object when present. No function may be active
+twice. The compiler rejects direct and mutual cycles inside a translation unit,
+and the linker rejects cycles completed across objects.
 
 Plain function pointers cannot encode the addresses of callee-owned parameter
 symbols. Taking the address of a parameterized direct function is therefore a

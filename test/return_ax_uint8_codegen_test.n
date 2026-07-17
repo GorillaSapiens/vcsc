@@ -1,9 +1,10 @@
 // expectasm: return_ax
 // n65c -I .
 // expectasmordered: .proc id8
+// expectasm: id8$__return:
 // expectasmordered: @fini:
-// expectasmordered: ldy #$00
-// expectasmordered: lda (fp),y
+// expectasmordered: ldy #0
+// expectasmordered: lda id8$__return,y
 // expectasmordered: rts
 // expectasmordered: jsr id8
 // expectasmordered: tay
@@ -14,6 +15,7 @@
 // expectasmordered: tya
 // expectasmordered: sta (fp),y
 // forbidasm: jsr _fp2ptr1m
+
 include "machine_6502.n"
 
 type uint8_t { $size:1 $integer:unsigned };

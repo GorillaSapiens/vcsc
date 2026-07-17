@@ -38,6 +38,8 @@ static const char *pending_loop_label_name = NULL;
 
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
 static void compile_local_decl_item(ASTNode *node, Context *ctx);
+static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
+      const ASTNode *type, const ASTNode *declarator, const char *symbol, int size);
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret);
 static void compile_if_stmt(ASTNode *node, Context *ctx);
 static void compile_while_stmt(ASTNode *node, Context *ctx);
@@ -344,15 +346,69 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
    free((void *) end_label);
 }
 
-//! @brief Lower expr to the current function return object from AST/semantic state into generated assembly or linker-visible metadata.
-static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret) {
-   ContextEntry target;
-   if (!ret) {
+//! @brief Evaluate a runtime initializer in temporary frame scratch and copy it to a fixed symbol.
+static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
+      const ASTNode *type, const ASTNode *declarator, const char *symbol, int size) {
+   int saved_locals;
+   int scratch_offset;
+   bool ok;
+
+   if (!expression || is_empty(expression) || !ctx || !symbol || size <= 0) {
       return false;
    }
-   target = *ret;
-   target.target_typed = true;
-   return compile_expr_to_slot(expr, ctx, &target);
+
+   saved_locals = ctx->locals;
+   scratch_offset = saved_locals;
+   remember_runtime_import("pushN");
+   emit(&es_code, "    lda #$%02x\n", size & 0xff);
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    jsr _pushN\n");
+   ctx->locals = saved_locals + size;
+
+   if (initializer_is_list(unwrap_expr_node(expression)) ||
+       declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
+      unsigned char *zeroes = (unsigned char *) calloc(size ? size : 1, sizeof(unsigned char));
+      if (!zeroes) {
+         error_unreachable("out of memory");
+      }
+      emit_store_immediate_to_fp(scratch_offset, zeroes, size);
+      free(zeroes);
+      ok = compile_initializer_to_fp(expression, ctx, type, declarator, scratch_offset, size);
+   }
+   else {
+      ContextEntry target = {
+         .name = "$initializer",
+         .type = type,
+         .declarator = declarator,
+         .is_static = false,
+         .is_zeropage = false,
+         .is_global = false,
+         .target_typed = true,
+         .offset = scratch_offset,
+         .size = size
+      };
+      ok = compile_expr_to_slot(expression, ctx, &target);
+   }
+
+   ctx->locals = saved_locals;
+   if (ok) {
+      emit_copy_fp_to_symbol(symbol, scratch_offset, size);
+   }
+   remember_runtime_import("popN");
+   emit(&es_code, "    lda #$%02x\n", size & 0xff);
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    jsr _popN\n");
+   return ok;
+}
+
+//! @brief Lower expr to the current function return object from AST/semantic state into generated assembly or linker-visible metadata.
+static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret) {
+   char sym[256];
+
+   if (!ret || !entry_symbol_name(ctx, ret, sym, sizeof(sym))) {
+      return false;
+   }
+   return compile_runtime_initializer_to_symbol(expr, ctx, ret->type, ret->declarator, sym, ret->size);
 }
 
 //! @brief Lower break stmt from AST/semantic state into generated assembly or linker-visible metadata.
@@ -440,25 +496,18 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
-   if (has_modifier(modifiers, "static") || modifiers_imply_named_nonzeropage(modifiers)) {
-      ctx_static(ctx, type, name);
-      entry = (ContextEntry *) set_get(ctx->vars, name);
-   }
-   else if (modifiers_imply_zeropage(modifiers)) {
+   if (modifiers_imply_zeropage(modifiers)) {
       ctx_zeropage(ctx, type, name);
       entry = (ContextEntry *) set_get(ctx->vars, name);
    }
    else {
-      ctx_push(ctx, type, name);
+      ctx_static(ctx, type, name);
       entry = (ContextEntry *) set_get(ctx->vars, name);
    }
 
    if (entry != NULL) {
       entry->size = size;
       entry->declarator = declarator;
-      if (!has_modifier(modifiers, "static") && !modifiers_imply_mem_storage(modifiers)) {
-         ctx_resize_last_push(ctx, type, declarator, name);
-      }
    }
 }
 
@@ -596,29 +645,6 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       error_user("[%s:%d.%d] 'const' missing initializer", node->file, node->line, node->column);
    }
 
-   if (!entry->is_static && !entry->is_zeropage) {
-      if (!is_empty(expression)) {
-         if (initializer_is_list(unwrap_expr_node(expression)) || declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
-            unsigned char *zeroes = (unsigned char *) calloc(size ? size : 1, sizeof(unsigned char));
-            if (zeroes) {
-               emit_store_immediate_to_fp(entry->offset, zeroes, size);
-               free(zeroes);
-            }
-            if (!compile_initializer_to_fp(expression, ctx, type, declarator, entry->offset, size)) {
-               error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
-            }
-         }
-         else {
-            ContextEntry target = *entry;
-            target.target_typed = true;
-            if (!compile_expr_to_slot(expression, ctx, &target)) {
-               error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
-            }
-         }
-      }
-      return;
-   }
-
    {
       char sym[256];
       EmitSink *sink;
@@ -626,6 +652,32 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
          return;
       }
+
+      /* Non-static source locals retain automatic initialization semantics,
+         but their storage is a fixed per-function symbol. */
+      if (!has_modifier(modifiers, "static")) {
+         if (entry->is_zeropage) {
+            char segbuf[256];
+            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+            sink = &es_zp;
+            emit(sink, ".segment \"%s\"\n", segbuf);
+         }
+         else {
+            char segbuf[256];
+            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+            sink = &es_bss;
+            emit(sink, ".segment \"%s\"\n", segbuf);
+         }
+         emit(sink, "%s:\n", sym);
+         emit(sink, "\t.res %d\n", size);
+
+         if (!is_empty(expression) &&
+             !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator, sym, size)) {
+            error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
+         }
+         return;
+      }
+
       if (is_empty(expression)) {
          if (entry->is_zeropage) {
             char segbuf[256];

@@ -1,9 +1,8 @@
 // n65c -I .
-// expectasmordered: ldy #6
-// expectasmordered: lda (fp),y
+// expectasmordered: lda main$ppp + 0,y
 // expectasmordered: sta ptr0
-// expectasmordered: ldy #7
-// expectasmordered: lda (fp),y
+// expectasmordered: iny
+// expectasmordered: lda main$ppp + 0,y
 // expectasmordered: sta ptr0+1
 // expectasmordered: ldy #0
 // expectasmordered: lda (ptr0),y

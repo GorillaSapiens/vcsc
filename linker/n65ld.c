@@ -775,7 +775,7 @@ static void enforce_symbol_backed_call_graph(const input_set_t *in)
 
       for (j = 0; j < node_count; ++j) {
          if (component[j] == (int)i && nodes[j].has_symbol_backed_params) {
-            fprintf(stderr, "n65ld: call graph cycle reaches function '%s' with symbol-backed parameters\n", display_function_symbol(nodes[j].name));
+            fprintf(stderr, "n65ld: call graph cycle reaches function '%s' with static activation storage\n", display_function_symbol(nodes[j].name));
             exit(1);
          }
       }

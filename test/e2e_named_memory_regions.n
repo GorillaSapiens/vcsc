@@ -1,8 +1,8 @@
 // n65c -I .
 // linkcfg: e2e_named_memory_regions__named.cfg
-// expectmap: size=$000D
-// expectmap: DATA.banana
-// expectmap: BSS.banana       run=$0400 size=$0003
+// expectmap: BSS.banana       run=$0400 size=$0005
+// expectmap: DATA.banana      load=
+// expectmap: run=$0405 size=$000B
 // expectsim: OK
 include "machine_6502.n"
 mem banana { $start:0x0400 $size:0x0100 $rw };

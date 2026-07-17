@@ -1,8 +1,11 @@
 // n65c -I .
 // expectasm: .segment "BSS.banana"
 // expectasm: bump$x:
-// expectasm: .segment "DATA.banana"
 // expectasm: bump$q:
+// expectasm: .res 3
+// expectasm: sta bump$q,y
+// forbidasm: .segment "DATA.banana"
+
 include "machine_6502.n"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 

@@ -1,4 +1,7 @@
 // n65c -I .
+// expectasm: main$exact_hex:
+// expectasm: main$rounded_hex:
+// expectasm: main$exact_dec:
 // expectasmordered: ldy #0
 // expectasmordered: lda #$08
 // expectasmordered: sta (fp),y
@@ -8,24 +11,15 @@
 // expectasmordered: ldy #9
 // expectasmordered: lda #$3f
 // expectasmordered: sta (fp),y
-// expectasmordered: ldy #10
+// expectasmordered: sta main$exact_hex,y
 // expectasmordered: lda #$02
 // expectasmordered: sta (fp),y
-// expectasmordered: ldy #18
-// expectasmordered: lda #$f8
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #19
-// expectasmordered: lda #$3f
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #20
+// expectasmordered: sta main$rounded_hex,y
 // expectasmordered: lda #$08
 // expectasmordered: sta (fp),y
-// expectasmordered: ldy #28
-// expectasmordered: lda #$f8
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #29
 // expectasmordered: lda #$41
 // expectasmordered: sta (fp),y
+// expectasmordered: sta main$exact_dec,y
 
 include "machine_6502.n"
 

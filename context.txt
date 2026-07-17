@@ -80,6 +80,9 @@ Completed vertical slices
 4. The VCS linker now exposes only $80-$DF as allocatable RIOT RAM and reserves
    $E0-$FF for the 6502 hardware stack. The mirrored $0180-$01FF window is no
    longer modeled as separate physical memory.
+5. Every named automatic local and the hidden `$$` return object now has
+   function-qualified fixed-address storage. Automatic initializers still run
+   whenever control reaches the declaration on each invocation.
 
 Current return ABI
 ------------------
@@ -114,10 +117,8 @@ storage. A caller that consumes a result may still copy A:X to caller-private
 software-stack scratch because the old expression engine expects memory-backed
 values. That scratch is not part of the function ABI.
 
-Inside a non-void function, `$$` is the source-level return object. It is
-currently a hidden callee-local scratch object. The epilogue loads it into A:X.
-This scratch should become fixed-address storage when automatic locals are
-converted.
+Inside a non-void function, `$$` is the source-level return object. It is a
+hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
 
 Current direct-parameter ABI
 ----------------------------
@@ -136,8 +137,10 @@ Parameter symbols may be ordinary absolute storage or zero-page storage.
 
 Call-graph and function-pointer rules
 -------------------------------------
-A parameterized direct function may not be active twice. Existing compiler and
-linker call-graph checks reject same-unit and cross-object cycles.
+No function body may be active twice because its parameters, automatic locals,
+and return object share one fixed activation record. Compiler and linker
+call-graph checks reject same-unit and cross-object cycles, including cycles
+through zero-parameter functions.
 
 A plain function pointer contains only a code address and cannot identify the
 callee-owned parameter symbols. Therefore:
@@ -191,15 +194,16 @@ Old software-stack machinery still present
 ------------------------------------------
 _nl_sp/_nl_fp and _pushN/_popN are still used for:
 
-* automatic locals, including the temporary `$$` return object;
 * expression temporaries and spill slots;
+* temporary runtime-initializer buffers before copying into fixed local symbols;
 * direct-call argument-evaluation scratch;
 * caller-private scratch used to consume A:X results;
 * variadic argument blobs and metadata;
 * aggregate copy machinery and old runtime helpers.
 
-Do not remove the software stack blindly. Automatic locals and retained
-expression scratch need replacements first.
+Named automatic locals and `$$` no longer occupy the software stack. Do not
+remove the remaining stack blindly; retained expression and conversion scratch
+still need replacements first.
 
 Test policy
 -----------
@@ -222,17 +226,45 @@ In this return-restriction slice:
 
 Files changed in this revision
 ------------------------------
-Modified:
+Modified compiler/linker sources:
 
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_slot.c
+    compiler/compile_function.c
+    compiler/compile_stmt.c
+    compiler/compile_toplevel.c
+    linker/n65ld.c
+
+Modified documentation:
+
+    compiler/ABI.txt
+    compiler/README.md
     context.txt
-    libraries/vcs/README.md
-    libraries/vcs/vcs_4k.cfg
+
+Updated tests:
+
+    test/big_endian_mul_low_half_codegen_test.n
+    test/custom_float_exact_literal_codegen_test.n
+    test/default_parameter_direct_cycle_error_test.n
+    test/default_parameter_mutual_cycle_error_test.n
+    test/e2e_default_parameter_cycle_cross_tu_fail.n
+    test/e2e_named_memory_regions.n
+    test/e2e_static_parameter_cycle_cross_tu_fail.n
+    test/e2e_static_parameter_cycle_fail.n
+    test/for_decl_init_codegen_test.n
+    test/local_static_storage_test.n
+    test/multideref_codegen_test.n
+    test/named_memory_param_local_codegen_test.n
+    test/peephole_codegen_test.n
+    test/return_ax_uint16_codegen_test.n
+    test/return_ax_uint8_codegen_test.n
+    test/return_slot_scalar_compound_codegen_test.n
+    test/static_parameter_call_cycle_error_test.n
 
 Added:
 
-    test/e2e_vcs_ram_partition_verify.n
-    test/e2e_vcs_ram_reserve_overflow_fail.n
-    test/vcs_ram_config_layout.test
+    test/automatic_local_symbol_codegen_test.n
+    test/e2e_automatic_local_reinit_verify.n
 
 Removed intentionally:
 
@@ -266,14 +298,14 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    279 passed, 0 failed, 279 total
+    280 passed, 0 failed, 280 total
 
 End-to-end suite:
 
     121 passed, 0 failed, 121 total
 
-This includes three new VCS RAM-map tests: successful partition/map validation,
-link-time overflow protection, and a static configuration guard.
+This includes fixed-address automatic-local code-generation coverage and an
+execution test proving automatic initializers run again on a second call.
 
 Immediate TODO
 --------------
@@ -288,7 +320,7 @@ The first unfinished item is the default next action.
 [x] 4. Fix libraries/vcs/vcs_4k.cfg so mirrored RIOT RAM is not modeled as two
        independent memories. Reserve $E0-$FF for the hardware return stack.
 
-[ ] 5. Replace stack-backed automatic locals with fixed-address per-function
+[x] 5. Replace stack-backed automatic locals with fixed-address per-function
        storage. Start with distinct frames; defer frame overlay optimization.
 
 [ ] 6. Inventory every retained _pushN/_popN use and classify it as automatic
@@ -358,6 +390,20 @@ Change log
 * Reserved $E0-$FF, mirrored at $01E0-$01FF, for the 6502 hardware stack.
 * Mapped transitional ARGSTACK to the real RAM pool.
 * Added map, overflow, and configuration-regression tests.
+* No files were removed.
+
+2026-07-16, fixed-address automatic locals
+* Converted named automatic locals and the hidden `$$` object to function-
+  qualified fixed-address symbols.
+* Kept automatic initialization semantics: initialization executes each time
+  control reaches the declaration.
+* Expanded cycle rejection to every function body because every function now
+  owns fixed activation storage.
+* Retained balanced software-stack scratch only for expression evaluation,
+  conversions, and other transitional compiler machinery.
+* Fixed array-to-pointer decay when assignment evaluation uses temporary
+  scratch; the previous transitional lowering copied the first array byte.
+* Added focused code-generation and repeated-call execution tests.
 * No files were removed.
 
 End-of-session checklist

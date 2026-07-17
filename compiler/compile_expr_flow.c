@@ -638,6 +638,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (!lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global)) {
          char sym[256];
          LValueRef rhs_lv;
+         int saved_locals;
+         int scratch_offset;
          if (!entry_symbol_name(ctx, dst, sym, sizeof(sym))) {
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;
@@ -648,11 +650,34 @@ void compile_expr(ASTNode *node, Context *ctx) {
             }
             return;
          }
-         if (!compile_expr_to_slot(rhs, ctx, &(ContextEntry){ .name = "$tmp", .type = dst->type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = ctx->locals, .size = dst->size })) {
+         saved_locals = ctx ? ctx->locals : 0;
+         scratch_offset = saved_locals;
+         remember_runtime_import("pushN");
+         emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
+         emit(&es_code, "    sta arg0\n");
+         emit(&es_code, "    jsr _pushN\n");
+         if (ctx) {
+            ctx->locals = saved_locals + dst->size;
+         }
+         if (!compile_expr_to_slot(rhs, ctx, &(ContextEntry){ .name = "$tmp", .type = dst->type, .declarator = dst->declarator, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = scratch_offset, .size = dst->size })) {
+            if (ctx) {
+               ctx->locals = saved_locals;
+            }
+            remember_runtime_import("popN");
+            emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
+            emit(&es_code, "    sta arg0\n");
+            emit(&es_code, "    jsr _popN\n");
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
-         emit_copy_fp_to_symbol_offset(sym, lv.offset, ctx->locals, dst->size);
+         if (ctx) {
+            ctx->locals = saved_locals;
+         }
+         emit_copy_fp_to_symbol_offset(sym, lv.offset, scratch_offset, dst->size);
+         remember_runtime_import("popN");
+         emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
+         emit(&es_code, "    sta arg0\n");
+         emit(&es_code, "    jsr _popN\n");
          return;
       }
       if (lv.is_bitfield || lv.indirect || lv.needs_runtime_address || lv.is_absolute_ref) {

@@ -1,21 +1,20 @@
 // n65c -I . -X peephole
-// expectasmordered: ldy #0
-// expectasmordered: lda f$a,y
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #1
-// expectasmordered: lda f$a,y
-// expectasmordered: sta (fp),y
+// expectasmordered: lda #<{f$a + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: sta f$x,y
+// expectasmordered: lda f$x,y
+// expectasmordered: sta f$__return,y
 // expectasmordered: @fini:
-// expectasmordered: ldy #$03
-// expectasmordered: lda (fp),y
+// expectasmordered: lda f$__return,y
 // expectasmordered: tax
-// expectasmordered: ldy #$02
-// expectasmordered: lda (fp),y
+// expectasmordered: lda f$__return,y
 // expectasmordered: rts
 // expecterr: 001 peephole
-// expecterr: total_saved=7
-// expecterr: dup_load=2
+// expecterr: total_saved=15
+// expecterr: dup_load=6
 // expecterr: jump_next=1
+
 include "machine_6502.n"
 
 int f(int a) {

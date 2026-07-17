@@ -35,7 +35,7 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
 typedef struct CallGraphNode {
    const ASTNode *fn;
    char *sym;
-   bool has_static_params;
+   bool has_static_activation;
 } CallGraphNode;
 
 typedef struct CallGraphEdge {
@@ -441,14 +441,21 @@ void build_function_context(const ASTNode *node, Context *ctx) {
 
    if (function_uses_ax_return(node)) {
       ContextEntry *return_entry;
-      ctx_push(ctx, node->children[0]->children[1], "$$");
-      ctx_resize_last_push(ctx, node->children[0]->children[1], declarator, "$$");
+      ctx_static(ctx, node->children[0]->children[1], "$$");
       return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
       if (!return_entry) {
          error_unreachable("internal missing A:X return object");
       }
-      ctx->locals -= return_entry->size;
-      return_entry->offset = -1;
+      /* Keep the source-level lookup key "$$", but use a plain assembler
+         symbol component. Repeated '$' characters are ambiguous in the
+         object-format expression encoder. */
+      free((void *) return_entry->name);
+      return_entry->name = strdup("__return");
+      if (!return_entry->name) {
+         error_unreachable("out of memory");
+      }
+      return_entry->declarator = function_return_declarator_from_callable(declarator);
+      return_entry->size = declarator_value_size(return_entry->type, return_entry->declarator);
    }
 
    if (parameter_list_is_variadic(params)) {
@@ -499,7 +506,10 @@ int call_graph_node_index_for_function(const ASTNode *fn) {
    }
    call_graph_nodes[call_graph_node_count].fn = fn;
    call_graph_nodes[call_graph_node_count].sym = strdup(sym);
-   call_graph_nodes[call_graph_node_count].has_static_params = function_has_static_parameters(fn);
+   /* Every defined VCSC function has a single static activation, even when
+      that activation is empty. Recursion and mutual recursion are therefore
+      forbidden uniformly rather than only for parameterized functions. */
+   call_graph_nodes[call_graph_node_count].has_static_activation = function_has_body(fn);
    return call_graph_node_count++;
 }
 
@@ -634,7 +644,7 @@ void analyze_static_parameter_call_graph(void) {
    }
 
    for (int i = 0; i < n; i++) {
-      if (component[i] >= 0 && call_graph_nodes[i].has_static_params) {
+      if (component[i] >= 0 && call_graph_nodes[i].has_static_activation) {
          component_has_static[component[i]] = 1;
       }
    }
@@ -655,10 +665,10 @@ void analyze_static_parameter_call_graph(void) {
       }
 
       for (int j = 0; j < n; j++) {
-         if (component[j] != i || !call_graph_nodes[j].has_static_params) {
+         if (component[j] != i || !call_graph_nodes[j].has_static_activation) {
             continue;
          }
-         error_user("call graph cycle reaches function '%s' with symbol-backed parameters", declarator_name(function_declarator_node((ASTNode *) call_graph_nodes[j].fn)));
+         error_user("call graph cycle reaches function '%s' with static activation storage", declarator_name(function_declarator_node((ASTNode *) call_graph_nodes[j].fn)));
       }
    }
 
@@ -677,7 +687,7 @@ void emit_symbol_backed_call_graph_metadata(void) {
    char meta[768];
 
    for (int i = 0; i < call_graph_node_count; i++) {
-      if (!call_graph_nodes[i].has_static_params || !function_has_body(call_graph_nodes[i].fn)) {
+      if (!call_graph_nodes[i].has_static_activation || !function_has_body(call_graph_nodes[i].fn)) {
          continue;
       }
       if (!symbol_backed_metadata_function_name(meta, sizeof(meta), call_graph_nodes[i].sym)) {

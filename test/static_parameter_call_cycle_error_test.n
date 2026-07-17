@@ -1,6 +1,6 @@
 // n65c -I .
 // expectfail
-// expecterr: call graph cycle reaches function 'a' with symbol-backed parameters
+// expecterr: call graph cycle reaches function 'a' with static activation storage
 include "machine_6502.n"
 
 int b(int x);
