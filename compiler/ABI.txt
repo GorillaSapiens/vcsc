@@ -8,9 +8,8 @@ Atari 2600. Fixed parameters and named automatic locals use callee-owned
 symbols. Ordinary direct calls, truth tests, comparisons, simple fixed-symbol
 assignments, casts, absolute-reference conversion, built-in increment/decrement,
 compound assignment, pointer/index lvalues, braced and runtime-global
-initializers, bit-field helpers, switch expressions, and the main binary
-operator families use fixed per-site scratch. Only legacy operator-overload
-lowering still emits the transitional software stack.
+initializers, bit-field helpers, switch expressions, and all builtin operator
+families use fixed per-site scratch. Compiler source emits no `_pushN` or `_popN`.
 
 Function returns
 ----------------
@@ -62,15 +61,9 @@ compiling any argument at that call site, or to the consumed return width when
 larger. Scratch is allocated per call site so nested calls remain safe. It is
 not overlaid yet, so this transitional ABI can consume more RAM than necessary.
 
-Function prologue:
-
-; transfer current sp to fp
-lda sp+1
-sta fp+1
-lda sp
-sta fp
-; named automatic locals already have fixed symbols
-; expression sites allocate their own transitional scratch when required
+Function entry has no software-stack prologue. Named automatic locals already have
+fixed symbols. An expression site that needs temporary storage redirects `fp` to its
+own fixed BSS scratch and restores the caller value through the 6502 hardware stack.
 
 Function epilogue for a value return:
 
@@ -82,10 +75,10 @@ Function epilogue for void:
 
 rts
 
-Reset/startup:
-
-; initialize both sp and fp to the initial argument-stack base
-; because the argument stack grows upward, startup should seed them at __stack_start
+Reset/startup still initializes `sp` and `fp` during the transitional runtime.
+Compiler-generated code no longer allocates through `sp`; `fp` remains the addressing
+base for fixed scratch. `_nl_sp` and the runtime stack helpers are removed after the
+obsolete float/wide runtime families are deleted.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls, except that
 A and possibly X carry the function result on return. Callers must assume a

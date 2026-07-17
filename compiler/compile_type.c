@@ -149,11 +149,6 @@ bool type_is_promotable_integer(const ASTNode *type) {
    return type_is_signed_integer(type) || type_is_unsigned_integer(type);
 }
 
-//! @brief Return whether type has exactops in compiler type system.
-bool type_has_exactops(const ASTNode *type) {
-   const char *name = type_name_from_node(type);
-   return name && has_flag(name, "$exactops");
-}
 
 //! @brief Handle same named value type logic for compiler type system.
 bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
@@ -171,194 +166,11 @@ bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
    return true;
 }
 
-//! @brief Return expr same type exactops type data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-const ASTNode *expr_same_type_exactops_type(ASTNode *expr, Context *ctx) {
-   const ASTNode *lhs_type = NULL;
-   const ASTNode *lhs_decl = NULL;
-   const ASTNode *rhs_type = NULL;
-   const ASTNode *rhs_decl = NULL;
-   const ASTNode *arg_type = NULL;
-   const ASTNode *arg_decl = NULL;
 
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr)) {
-      return NULL;
-   }
 
-   if (expr->count == 1 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-") || !strcmp(expr->name, "~"))) {
-      expr_match_signature(expr->children[0], ctx, &arg_type, &arg_decl);
-      if (arg_type && !(arg_decl && declarator_pointer_depth(arg_decl) > 0) && type_has_exactops(arg_type)) {
-         return arg_type;
-      }
-      return NULL;
-   }
 
-   if (expr->count == 2 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-") ||
-                            !strcmp(expr->name, "*") || !strcmp(expr->name, "/") ||
-                            !strcmp(expr->name, "%") || !strcmp(expr->name, "&") ||
-                            !strcmp(expr->name, "|") || !strcmp(expr->name, "^") ||
-                            !strcmp(expr->name, "<<") || !strcmp(expr->name, ">>") ||
-                            !strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
-                            !strcmp(expr->name, "<") || !strcmp(expr->name, ">") ||
-                            !strcmp(expr->name, "<=") || !strcmp(expr->name, ">="))) {
-      expr_match_signature(expr->children[0], ctx, &lhs_type, &lhs_decl);
-      expr_match_signature(expr->children[1], ctx, &rhs_type, &rhs_decl);
-      if (same_named_value_type(lhs_type, lhs_decl, rhs_type, rhs_decl) && type_has_exactops(lhs_type)) {
-         return lhs_type;
-      }
-   }
 
-   return NULL;
-}
 
-//! @brief Handle mixed exactops value types logic for compiler type system.
-bool mixed_exactops_value_types(const ASTNode *lhs_type, const ASTNode *lhs_decl,
-                                       const ASTNode *rhs_type, const ASTNode *rhs_decl,
-                                       const ASTNode **exact_type_out, const ASTNode **other_type_out) {
-   bool lhs_exact;
-   bool rhs_exact;
-
-   if (exact_type_out) {
-      *exact_type_out = NULL;
-   }
-   if (other_type_out) {
-      *other_type_out = NULL;
-   }
-
-   if (!lhs_type || !rhs_type) {
-      return false;
-   }
-   if ((lhs_decl && declarator_pointer_depth(lhs_decl) > 0) ||
-       (rhs_decl && declarator_pointer_depth(rhs_decl) > 0)) {
-      return false;
-   }
-   if (same_named_value_type(lhs_type, lhs_decl, rhs_type, rhs_decl)) {
-      return false;
-   }
-
-   lhs_exact = type_has_exactops(lhs_type);
-   rhs_exact = type_has_exactops(rhs_type);
-   if (!lhs_exact && !rhs_exact) {
-      return false;
-   }
-
-   if (exact_type_out) {
-      *exact_type_out = lhs_exact ? lhs_type : rhs_type;
-   }
-   if (other_type_out) {
-      *other_type_out = lhs_exact ? rhs_type : lhs_type;
-   }
-   return true;
-}
-
-//! @brief Handle expr mixed exactops type logic for compiler type system.
-bool expr_mixed_exactops_type(ASTNode *expr, Context *ctx,
-                                     const ASTNode **exact_type_out,
-                                     const ASTNode **other_type_out) {
-   const ASTNode *lhs_type = NULL;
-   const ASTNode *lhs_decl = NULL;
-   const ASTNode *rhs_type = NULL;
-   const ASTNode *rhs_decl = NULL;
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr) || expr->count != 2) {
-      return false;
-   }
-
-   if (strcmp(expr->name, "+") && strcmp(expr->name, "-") &&
-       strcmp(expr->name, "*") && strcmp(expr->name, "/") &&
-       strcmp(expr->name, "%") && strcmp(expr->name, "&") &&
-       strcmp(expr->name, "|") && strcmp(expr->name, "^") &&
-       strcmp(expr->name, "<<") && strcmp(expr->name, ">>") &&
-       strcmp(expr->name, "==") && strcmp(expr->name, "!=") &&
-       strcmp(expr->name, "<") && strcmp(expr->name, ">") &&
-       strcmp(expr->name, "<=") && strcmp(expr->name, ">=")) {
-      return false;
-   }
-
-   expr_match_signature(expr->children[0], ctx, &lhs_type, &lhs_decl);
-   expr_match_signature(expr->children[1], ctx, &rhs_type, &rhs_decl);
-   return mixed_exactops_value_types(lhs_type, lhs_decl, rhs_type, rhs_decl, exact_type_out, other_type_out);
-}
-
-//! @brief Handle require no mixed exactops operator expr logic for compiler type system.
-void require_no_mixed_exactops_operator_expr(ASTNode *expr, Context *ctx) {
-   const ASTNode *exact_type = NULL;
-   const ASTNode *other_type = NULL;
-   const char *exact_name;
-   const char *other_name;
-
-   if (!expr_mixed_exactops_type(expr, ctx, &exact_type, &other_type)) {
-      return;
-   }
-
-   exact_name = type_name_from_node(exact_type);
-   other_name = type_name_from_node(other_type);
-   if (!exact_name || !*exact_name) {
-      exact_name = "<unnamed>";
-   }
-   if (!other_name || !*other_name) {
-      other_name = "<unnamed>";
-   }
-
-   error_user("[%s:%d.%d] type '%s' uses '$exactops' and cannot participate in mixed-type operator '%s' with type '%s'",
-              expr->file, expr->line, expr->column, exact_name, expr->name, other_name);
-}
-
-//! @brief Handle require exactops operator expr logic for compiler type system.
-void require_exactops_operator_expr(ASTNode *expr, Context *ctx) {
-   const ASTNode *type = NULL;
-   const char *name;
-   char opname[32];
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr)) {
-      return;
-   }
-
-   type = expr_same_type_exactops_type(expr, ctx);
-   if (!type) {
-      return;
-   }
-
-   name = type_name_from_node(type);
-   if (!name || !*name) {
-      return;
-   }
-
-   snprintf(opname, sizeof(opname), "operator%s", expr->name);
-   error_user("[%s:%d.%d] type '%s' uses '$exactops' and requires visible overload '%s' for same-type operands",
-              expr->file, expr->line, expr->column, name, opname);
-}
-
-//! @brief Handle require exactops truthiness expr logic for compiler type system.
-void require_exactops_truthiness_expr(ASTNode *expr, Context *ctx) {
-   const ASTNode *type;
-   const ASTNode *decl;
-   const char *name;
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr)) {
-      return;
-   }
-
-   type = expr_value_type(expr, ctx);
-   decl = expr_value_declarator(expr, ctx);
-   if (!type || !type_has_exactops(type)) {
-      return;
-   }
-   if (decl && declarator_pointer_depth(decl) > 0) {
-      return;
-   }
-
-   name = type_name_from_node(type);
-   if (!name || !*name) {
-      return;
-   }
-
-   error_user("[%s:%d.%d] type '%s' uses '$exactops' and requires visible overload 'operator{}' for truthiness",
-              expr->file, expr->line, expr->column, name);
-}
 
 //! @brief Return type endian name data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
 const char *type_endian_name(const ASTNode *type) {
@@ -411,7 +223,6 @@ bool ordinary_integer_endian_conflict(const ASTNode *lhs_type, const ASTNode *rh
    const char *rhs_endian;
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return false;
@@ -446,7 +257,7 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
       if (!node || strcmp(node->name, "type_decl_stmt")) {
          continue;
       }
-      if (type_has_exactops(node) || type_is_bool(node) || type_is_float_like(node)) {
+      if ( type_is_bool(node) || type_is_float_like(node)) {
          continue;
       }
       if (require_signed) {
@@ -492,7 +303,6 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
    const ASTNode *best;
 
    if (!type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return NULL;
@@ -568,7 +378,6 @@ const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Co
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return NULL;
@@ -620,7 +429,6 @@ bool expr_is_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return false;
@@ -663,7 +471,6 @@ const ASTNode *target_endian_integer_binary_work_type(ASTNode *lhs_expr, ASTNode
 
    if (!lhs_type || !rhs_type || !target_type ||
        !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) || !type_is_promotable_integer(target_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) || type_has_exactops(target_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) || type_is_bool(target_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type) || type_is_float_like(target_type)) {
       return NULL;
@@ -717,7 +524,6 @@ const ASTNode *value_compare_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_e
 
    if (!lhs_type || !rhs_type ||
        !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return NULL;
@@ -756,7 +562,6 @@ const ASTNode *compound_integer_work_type(const ASTNode *lhs_type, const ASTNode
    rhs_decl = expr_value_declarator(rhs_expr, ctx);
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return NULL;
@@ -807,7 +612,6 @@ void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return;
@@ -859,7 +663,6 @@ void require_no_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_has_exactops(lhs_type) || type_has_exactops(rhs_type) ||
        type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
        type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
       return;
@@ -892,8 +695,7 @@ void require_no_mixed_endian_pointer_index_expr(ASTNode *origin, ASTNode *idx_ex
 
    idx_type = expr_value_type(idx_expr, ctx);
    ptr_type = required_typename_node("*");
-   if (!ptr_type || !idx_type || !type_is_promotable_integer(idx_type) ||
-       type_has_exactops(idx_type) || type_is_bool(idx_type) || type_is_float_like(idx_type) ||
+   if (!ptr_type || !idx_type || !type_is_promotable_integer(idx_type) || type_is_bool(idx_type) || type_is_float_like(idx_type) ||
        type_size_from_node(idx_type) <= 1 || type_size_from_node(ptr_type) <= 1) {
       return;
    }
@@ -911,7 +713,6 @@ void require_no_mixed_endian_pointer_index_expr(ASTNode *origin, ASTNode *idx_ex
 //! @brief Compute endian variant type and update compiler type system state once prerequisite pass data is available.
 const ASTNode *select_endian_variant_type(const ASTNode *src_type, const char *target_endian) {
    int src_size;
-   bool src_exactops;
 
    if (!src_type) {
       return NULL;
@@ -922,8 +723,6 @@ const ASTNode *select_endian_variant_type(const ASTNode *src_type, const char *t
       return src_type;
    }
 
-   src_exactops = type_has_exactops(src_type);
-
    for (int i = 0; root && i < root->count; i++) {
       ASTNode *node = root->children[i];
       const char *cand_endian;
@@ -932,9 +731,6 @@ const ASTNode *select_endian_variant_type(const ASTNode *src_type, const char *t
          continue;
       }
       if (type_size_from_node(node) != src_size) {
-         continue;
-      }
-      if (type_has_exactops(node) != src_exactops) {
          continue;
       }
       cand_endian = type_endian_name(node);
@@ -1007,8 +803,7 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    src_decl = expr_value_declarator(operand, ctx);
    if (signedness_cast) {
       if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) ||
-          !type_is_promotable_integer(src_type) || type_is_bool(src_type) ||
-          type_has_exactops(src_type) || type_is_float_like(src_type)) {
+          !type_is_promotable_integer(src_type) || type_is_bool(src_type) || type_is_float_like(src_type)) {
          error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                     expr->file, expr->line, expr->column, flag_text);
       }

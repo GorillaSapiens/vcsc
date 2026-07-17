@@ -1,0 +1,10 @@
+// n65c
+// phase: compile
+// expectfail
+// expecterr: operator overloading is not supported
+
+type int { $size:2 $integer:signed $endian:little };
+
+int operator+(int a, int b) {
+   return a + b;
+}

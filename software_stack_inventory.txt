@@ -3,117 +3,58 @@ VCSC SOFTWARE-STACK INVENTORY
 
 Purpose
 -------
-This is the checked inventory for Immediate TODO step 6 in context.txt. It
-records every compiler site that still emits a runtime `_pushN` allocation and
-classifies why that storage exists. It is a snapshot of the transitional ABI,
-not an endorsement of the software stack.
+This checked inventory records target-runtime `_pushN` and `_popN` calls emitted
+directly by compiler source. A regression test scans every compiler `.c` file and
+fails if either helper reappears.
 
 Snapshot
 --------
 Input archive:
 
-    vcsc.20260716_224332.tar.gz
+    vcsc.20260716_232529.tar.gz
 
 Compiler emission totals:
 
-    5  `jsr _pushN` allocation sites
-    13 `jsr _popN` emissions
+    0 `jsr _pushN` allocation sites
+    0 `jsr _popN` emissions
 
-The larger pop count is expected: the surviving legacy branches have normal
-cleanup and several error-path cleanups.
-
-Named automatic locals
+Current compiler model
 ----------------------
-There are no remaining `_pushN` sites whose purpose is to allocate ordinary
-named automatic locals. Named automatic locals and the hidden `$$` return
-object use fixed-address symbols.
+Named parameters, automatic locals, return objects, call arguments, expression
+temporaries, lvalue calculations, assignments, initializers, control-flow tests,
+and switch expressions all use fixed-address symbols or fixed per-site BSS scratch.
+The compiler may temporarily redirect `_nl_fp` to a fixed scratch symbol and preserve
+the caller value with the 6502 hardware stack, but it no longer allocates target data
+through `_nl_sp`.
 
-Do not confuse the compiler's host-side `ctx_push()` bookkeeping function with
-the target runtime helper `_pushN`; they are unrelated despite the unfortunate
-name collision.
+Removed final emitters
+----------------------
+The final five `_pushN` sites and thirteen `_popN` emissions belonged only to:
 
-Compiler allocation sites
--------------------------
+* overloaded compound assignment;
+* overloaded pre/post increment and decrement;
+* weak built-in operator dispatch.
 
-`compiler/compile_expr_flow.c` -- 3 allocations
+Operator overloading, `$exactops`, weak operator dispatch, their runtime generator,
+and their positive tests have now been removed. Ordinary named-function overloading
+remains supported.
 
-1. Overloaded compound-assignment result buffer.
-   Classification: obsolete operator-overloading support.
-
-2. Overloaded compound-assignment conversion buffer for symbol destinations.
-   Classification: obsolete operator-overloading support.
-
-3. Overloaded compound-assignment conversion buffer for indirect lvalues.
-   Classification: obsolete operator-overloading support.
-
-`compiler/compile_expr_ops.c` -- 2 allocations
-
-1. Weak built-in operator call frame.
-   Classification: obsolete operator-overloading/weak-operator ABI.
-
-2. Overloaded pre/post increment/decrement working area.
-   Classification: obsolete operator-overloading support.
-
-No other compiler source file emits `_pushN` or `_popN`.
-
-Completed retained-language replacements
-----------------------------------------
-The following retained paths use fixed compiler-generated BSS scratch:
-
-* direct-call argument evaluation and A:X capture;
-* truth-value evaluation and discarded expression results;
-* scalar/pointer comparisons and arithmetic;
-* shifts, bitwise operations, multiplication, division, and remainder;
-* casts and absolute-reference conversion;
-* simple and compound assignments;
-* built-in increment/decrement;
-* switch expressions;
-* local and return-object initialization;
-* pointer/index lvalue calculation;
-* bit-field read/write helper pointer preservation;
-* braced assignments;
-* runtime global initializers.
-
-The compiler temporarily redirects `fp` to each fixed area, tracks the maximum
-nested temporary depth, restores the caller `fp` through the 6502 hardware
-stack, and copies results into the final destination. Scratch is currently
-allocated per site and is not overlaid.
-
-New scratch families in this revision include:
-
-    __n65_indextmp_N
-    __n65_bracedtmp_N
-    __n65_globalinittmp_N
-
-The bit-field helper paths no longer need scratch merely to preserve `ptr0`:
-`_fp2ptr1p` only writes `ptr1`, so the destination/source frame pointer can be
-prepared directly without disturbing the lvalue pointer in `ptr0`.
-
-Non-emitting compiler consumers
--------------------------------
-Helpers that manipulate `ctx->locals` and `(fp),y` temporary offsets without
-emitting `_pushN` own no persistent function frame. Their bytes belong to an
-enclosing fixed scratch area.
-
-Runtime and generated-library dependencies
-------------------------------------------
-The target stack mechanism itself still lives in:
+Remaining runtime/library mechanism
+-----------------------------------
+The software-stack implementation itself still exists outside compiler code:
 
     libraries/nlib/asm/stack.asm       `_pushN` and `_popN`
     libraries/nlib/nlib_zeropage.s     `_nl_sp` and `_nl_fp`
     libraries/nlib/nlib.inc            `sp` and `fp` aliases
     libraries/nlib/nrt0.s              startup initialization
 
-Additional obsolete dependency families include:
+`_nl_fp` is still actively used as the base pointer for fixed scratch addressing.
+`_nl_sp`, `_pushN`, and `_popN` survive only because obsolete runtime families—most
+notably the float library and generic wide helpers—still reference them. They can be
+removed after those unsupported type/runtime families are deleted.
 
-* `libraries/float/asm/*`, which uses `_pushN`/`_popN` extensively;
-* `libraries/nlib/genasm.pl`, `gen_weakops.pl`, and `asm/weakops.asm`, which
-  generate wide/general weak-operator helpers around the old stack ABI.
-
-Recommended next slice
-----------------------
-Remove operator overloading, `$exactops`, weak built-in operator dispatch, and
-their positive tests. Those are the only compiler paths that still emit
-`_pushN` or `_popN`. After that, delete `_nl_sp`, `_pushN`, `_popN`, and the
-software argument/local stack once no retained runtime or generated helper
-requires them.
+Next slice
+----------
+Enforce the final four basic integer types and little-endian-only model. Remove float,
+arbitrary-endian, and 32/64-bit compiler/runtime/test support in controlled groups;
+then delete `_nl_sp`, `_pushN`, `_popN`, and any dead stack-pointer helpers.

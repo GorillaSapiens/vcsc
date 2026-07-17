@@ -1763,8 +1763,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "xform"         return XFORM;
 
 operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
-   yylval.str = strdup(yytext);
-   return OPERATOR;
+   LEX_ERROR_HERE("operator overloading is not supported");
 }
 
 "+="            return ADD_ASSIGN;
@@ -1790,6 +1789,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 "-="            return SUB_ASSIGN;
 "^="            return XOR_ASSIGN;
 "..."           { LEX_ERROR_HERE("variadic declarations are not supported"); }
+"$exactops"     { LEX_ERROR_HERE("$exactops is not supported"); }
 "$$"            return DOLLAR_DOLLAR;
 
 {FLAG} {

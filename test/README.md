@@ -30,8 +30,8 @@ Run only end-to-end and generic runtime tests:
 Run one test, a few tests, or a whole subdirectory:
 
 ```sh
-./test.pl weak_builtin_operator_codegen_test.n
-./test.pl exactops_visible_operator_codegen_test.n e2e_generated_float_archive_exactops_verify.n
+./test.pl operator_overloading_rejected_test.n
+./test.pl exactops_rejected_test.n e2e_call_argument_order_overload_verify.n
 ./test.pl .
 ```
 
@@ -91,13 +91,6 @@ Useful generic expectations include:
 - `expectstdoutexact:` / `expectstderrexact:`
 - `expectfile:` / `forbidfile:`
 - `expectexit:`
-
-## Generated float fixtures
-
-Some tests read the generated float archive fixture files under `test/generated_float_archive_*`.
-`test/Makefile` and `test/test.pl` both ensure those fixtures are refreshed before the suite runs, so compile-only and e2e runs see the same generated inputs.
-
-Generated float declarations use `$exactops`, and the generated operator surface includes binary `+ - * /`, unary `+ -`, comparisons, `operator{}` truthiness, and `++ --`. The exactops-focused tests in this directory check both the generated declarations and the runtime archive behavior.
 
 ## Assembler fixture sources
 

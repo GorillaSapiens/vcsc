@@ -21,19 +21,8 @@ bool type_has_integer_style(const ASTNode *type, const char *style);
 bool type_is_signed_integer(const ASTNode *type);
 bool type_is_unsigned_integer(const ASTNode *type);
 bool type_is_promotable_integer(const ASTNode *type);
-bool type_has_exactops(const ASTNode *type);
 bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
                            const ASTNode *rhs_type, const ASTNode *rhs_decl);
-const ASTNode *expr_same_type_exactops_type(ASTNode *expr, Context *ctx);
-bool mixed_exactops_value_types(const ASTNode *lhs_type, const ASTNode *lhs_decl,
-                                const ASTNode *rhs_type, const ASTNode *rhs_decl,
-                                const ASTNode **exact_type_out, const ASTNode **other_type_out);
-bool expr_mixed_exactops_type(ASTNode *expr, Context *ctx,
-                              const ASTNode **exact_type_out,
-                              const ASTNode **other_type_out);
-void require_no_mixed_exactops_operator_expr(ASTNode *expr, Context *ctx);
-void require_exactops_operator_expr(ASTNode *expr, Context *ctx);
-void require_exactops_truthiness_expr(ASTNode *expr, Context *ctx);
 const char *type_endian_name(const ASTNode *type);
 bool type_is_big_endian(const ASTNode *type);
 int endian_mem_index_for_significance(int size, bool big_endian, int significance_index);

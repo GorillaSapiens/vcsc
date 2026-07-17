@@ -131,13 +131,10 @@ Recognized flags include:
 - `$size:N`
 - `$integer:signed`
 - `$integer:unsigned`
-- `$exactops` ... same-type operators on this type must resolve through visible exact-name `operator...` overloads; the compiler does not fall back to generic helpers for that type
 - `$float:ieee754` ... IEEE 754 packing for `$size:2`, `$size:4`, and `$size:8`
 - `$float:simple` ... generic `SExMy` packing where `x = round(3 * log2(size) + 2)` and `y` is the remaining fraction bits
 
-For generated arithmetic/comparison overloads on custom float-like types, see `libraries/float/n65_gen_float.pl`. It emits `.n` code that cracks the value through union+bitfield overlays and generates an exact-operator surface for the float type: binary `+ - * /`, unary `+ -`, `== != < > <= >=`, `operator{}` truthiness, and `++ --`. Build mode emits a `<typename>_decls.n` file that declares the type with `$exactops` plus the matching `extern operator...` prototypes. Classic single-file mode emits only the operator definitions, so the including translation unit must provide the matching `type ... $exactops` declaration itself.
-
-For non-`$exactops` builtin binary16/binary32/binary64 arithmetic, the compiler lowers `+ - * /` for `(size, expbits) = (2,5), (4,8), and (8,11)` to fixed helper entry points in `libraries/float/float.a65`: little-endian types use `_f16_add` ... `_f64_div`, while big-endian types use byte-swapping wrappers `_f16be_add` ... `_f64be_div`. Builtin comparisons lower through `_fcmp`; the archive also owns the builtin half/float/double comparison operator members that call `_fcmp`. Custom float layouts should use `$exactops` and the generated operators from `libraries/float/n65_gen_float.pl`.
+Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
 - `$endian:little`
 - `$endian:big`
 
@@ -179,7 +176,7 @@ int twice(int x) {
 
 ### Ordinary function overloading
 
-Ordinary non-operator functions can be overloaded by parameter signature. Overload resolution uses a best-viable-match search like the operator-overload matcher:
+Ordinary named functions can be overloaded by parameter signature. Overload resolution uses a best-viable-match search:
 
 - exact matches win first
 - implicit object-pointer conversion to `void*` or `const void*` is considered after exact matches
@@ -231,15 +228,7 @@ variadic metadata, or raw variadic argument blob.
 
 ### Truthiness
 
-Truth-testing is driven by `operator{}`.
-
-```n
-bool operator{}(box b) {
-   return b.valid;
-}
-```
-
-The compiler uses this hook for:
+Truth-testing uses the builtin zero/nonzero rule. The compiler applies it to:
 
 - `if (x)`
 - `while (x)`
@@ -249,7 +238,7 @@ The compiler uses this hook for:
 - `x || y`
 - conditional-expression tests
 
-`!`, `&&`, and `||` are builtin operators and are **not** overloadable. They short-circuit and use `operator{}` under the hood.
+`!`, `&&`, and `||` are builtin short-circuit operators. Truth is zero versus nonzero; there is no user-defined truthiness hook.
 
 ### Literal typing, casts, and mixed integer expressions
 
@@ -259,11 +248,10 @@ The language model for integer expressions is deliberately simpler than C:
 - a literal interacting with a typed nonliteral operand adopts that operand's type for the operation
 - a literal consumed by a typed sink such as assignment, return, or argument passing adopts the sink type at that boundary
 - two operands of the same type produce that same type
-- for ordinary non-`$exactops` integers of different widths, the narrower operand widens to the wider width first
+- for integers of different widths, the narrower operand widens to the wider width first
 - widening sign-extends signed integers and zero-extends unsigned integers
 - narrowing truncates bitwise; there is no saturation or range check by default
 - if width adjustment leaves one operand signed and the other unsigned, the expression is rejected unless the user writes an explicit cast
-- `$exactops` values do not participate in mixed-type promotions; an `$exactops` value may only interact with another type after an explicit cast
 
 This is intentionally less C-like than the usual arithmetic conversions. The compiler should widen by width automatically, but it should not guess signedness automatically.
 
@@ -281,9 +269,9 @@ There are also four shortcut casts:
 - ``($big)expr``
 - ``($little)expr``
 
-`($signed)` and `($unsigned)` preserve width and endianness while changing signedness, but only for already-typed ordinary fixed-width integers. They are never legal on literals, `$exactops` types, floats, or pointers.
+`($signed)` and `($unsigned)` preserve width and endianness while changing signedness, but only for already-typed ordinary fixed-width integers. They are never legal on literals, floats, or pointers.
 
-`($big)` and `($little)` preserve width and numeric family while changing endianness. They are legal on already-typed fixed-width integers and floats, including `$exactops` values, but they are never legal on literals, `bool`, or pointers.
+`($big)` and `($little)` preserve width and numeric family while changing endianness. They are legal on already-typed fixed-width integers and floats, but they are never legal on literals, `bool`, or pointers.
 
 ### Shifts
 
@@ -345,81 +333,17 @@ Current limits:
 - it is emitted verbatim after the `asm ` prefix is removed
 - operand checking and clobber tracking are entirely the programmer's responsibility
 
-## Operator overloading
+## Operators
 
-Operator functions are ordinary functions spelled with `operator...` names.
+All language operators use compiler-defined semantics. User-defined operator functions,
+`operator...` declarators, `$exactops`, weak operator dispatch, and operator ABI symbols
+are unsupported. The lexer retains explicit rejection rules so obsolete source receives a
+clear diagnostic rather than a generic parse error. Ordinary named-function overloading
+remains supported.
 
-Examples:
-
-```n
-vec2 operator+(vec2 lhs, vec2 rhs) {
-   vec2 out;
-   out.x := lhs.x + rhs.x;
-   out.y := lhs.y + rhs.y;
-   return out;
-}
-
-bool operator{}(vec2 v) {
-   return v.x || v.y;
-}
-```
-
-### Implemented overloads
-
-The compiler supports exact-signature operator overload resolution for:
-
-- unary `+`, `-`, `~`
-- binary `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<`, `>>`
-- binary comparisons `==`, `!=`, `<`, `>`, `<=`, `>=`
-- `operator{}` truthiness hook
-- `++` and `--`
-
-### `++` and `--`
-
-Pre and post increment/decrement use the **same** overload. The compiler owns the sequencing difference:
-
-- pre form returns the updated value
-- post form returns the previous value
-
-A typical overload looks like this:
-
-```n
-counter operator++(ref counter x) {
-   x.value := x.value + 1;
-   return x;
-}
-```
-
-### Compound assignment sugar
-
-Compound assignments are treated as syntactic sugar over the corresponding binary operator plus ordinary assignment.
-
-Examples:
-
-- `a += b` behaves like `a := a + b`
-- `a <<= b` behaves like `a := a << b`
-- `a &= b` behaves like `a := a & b`
-
-That means the compiler first tries the matching overloaded binary operator such as `operator+`, `operator<<`, or `operator&`. If no matching overload is available, it falls back to the builtin compound-assignment implementation.
-
-The left-hand side is treated as an lvalue target for the final store, so the result of the binary operator is converted and assigned back using ordinary assignment rules.
-
-### Overload matching limits
-
-Operator overload matching prefers exact matches first and then considers safe integer promotions for plain value parameters. Smaller integers may widen, and mixed signed/unsigned operands may promote to a signed type that can represent the full range of the actual argument. `ref` parameters remain strict and require an lvalue of the exact declared type.
-
-By default, same-type operators behave pragmatically:
-
-- if a visible exact overload exists, the compiler uses it
-- otherwise the compiler falls back to the builtin/generic lowering for that representation
-
-`$exactops` changes that contract for the marked type. When both operands already have that exact declared type name, or when that type is used for unary operators, truthiness, or `++`/`--`, the compiler requires a visible exact-name overload and does **not** fall back to generic helpers. That means a type such as:
-
-```n
-type wideint { $size:4 $integer:signed $endian:little $exactops };
-```
-
-must provide the overloads it actually uses, for example `operator+`, `operator==`, `operator{}`, or `operator++`. If one is used without a visible declaration or definition, compilation fails immediately instead of emitting a symbolic call and hoping the linker finds something later.
+Compound assignment is builtin syntactic sugar: for example, `a += b` computes the
+builtin `a + b` result and stores it back through the original lvalue. `++` and `--` are
+also builtin and support ordinary, indirect, absolute, pointer, and bit-field lvalues.
 
 ### User identifier symbol escaping
 
@@ -437,37 +361,6 @@ café     -> caf?u00E9?
 The escape uses only assembler-identifier-safe characters. ASCII punctuation that is not valid in N identifiers is not accepted as source identifier text; `?` is therefore reserved for compiler-generated Unicode escapes in emitted symbols.
 
 Diagnostics reverse these escapes when reporting user-facing names, so an error involving `🥹` is printed as `🥹`, not `?u0001F979?`. Diagnostic source columns are one-based. For UTF-8 identifiers, columns are counted in Unicode scalar values rather than raw bytes, so the reported column for a non-ASCII identifier points at the source character the programmer sees.
-
-### Operator ABI symbol names
-
-Operator function symbols use readable `?@op_...` operator codes. The rest of the overload signature uses the same assembler-safe identifier spelling described above, so `operator>>(int, int)` mangles as `?@op_rsh@int_p0_a0@int_p0_a0`, while `operator+(λ_type, λ_type)` mangles as `?@op_add@?u03BB?_type_p0_a0@?u03BB?_type_p0_a0`.
-
-| Source operator | ABI code | Meaning |
-| --- | --- | --- |
-| `+` binary | `add` | add |
-| `+` unary | `pos` | unary plus |
-| `-` binary | `sub` | subtract |
-| `-` unary | `neg` | negate |
-| `*` | `mul` | multiply |
-| `/` | `div` | divide |
-| `%` | `mod` | modulo/remainder |
-| `&` | `and` | bitwise and |
-| `|` | `or` | bitwise or |
-| `^` | `xor` | bitwise xor |
-| `~` | `inv` | bitwise invert |
-| `==` | `eq` | equal |
-| `!=` | `ne` | not equal |
-| `<` | `lt` | less than |
-| `<=` | `le` | less or equal |
-| `>` | `gt` | greater than |
-| `>=` | `ge` | greater or equal |
-| `<<` | `lsh` | left shift |
-| `>>` | `rsh` | right shift |
-| `++` | `inc` | increment |
-| `--` | `dec` | decrement |
-| `{}` | `tst` | truthiness test |
-
-This is not a full C++-style overload system. There is no arbitrary narrowing conversion search and no user-defined conversion machinery. Ordinary function overloading uses the same general best-viable-match style as operators for exact matches plus safe integer promotions.
 
 ## `ref` parameters
 
@@ -535,7 +428,7 @@ An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may 
 
 Each ordinary direct call site receives a private fixed BSS scratch symbol named `__n65_calltmp_N`. The caller temporarily redirects `fp` there while evaluating and converting arguments, then copies them into the callee-owned parameter symbols. The same scratch captures A:X only when the surrounding expression needs a memory-backed converted result. It is caller-private transitional machinery, not parameter storage and not part of the function ABI. Scratch is not overlaid yet, so nested calls are safe at the cost of extra RAM.
 
-Retained direct-call, expression, lvalue, statement, and initializer lowering now use fixed per-site BSS scratch rather than the N software stack. Current prefixes include `__n65_calltmp_N`, `__n65_truthtmp_N`, `__n65_comparetmp_N`, `__n65_discardtmp_N`, `__n65_assigntmp_N`, `__n65_addtmp_N`, `__n65_shifttmp_N`, `__n65_binarytmp_N`, `__n65_ptrdifftmp_N`, `__n65_casttmp_N`, `__n65_abslocaltmp_N`, `__n65_absglobaltmp_N`, `__n65_incdectmp_N`, `__n65_compoundtmp_N`, `__n65_switchtmp_N`, `__n65_indextmp_N`, `__n65_bracedtmp_N`, and `__n65_globalinittmp_N`. The compiler temporarily redirects `fp` while lowering each site, restores it using the 6502 hardware stack, and copies converted results back into caller-owned storage. Pointer/index lowering preserves the in-progress address inside its fixed scratch; bit-field helper copies no longer need a software-stack pointer save. Scratch remains allocated per site and is not overlaid. Only legacy operator-overload lowering still emits `_pushN` or `_popN`.
+Retained direct-call, expression, lvalue, statement, and initializer lowering now use fixed per-site BSS scratch rather than the N software stack. Current prefixes include `__n65_calltmp_N`, `__n65_truthtmp_N`, `__n65_comparetmp_N`, `__n65_discardtmp_N`, `__n65_assigntmp_N`, `__n65_addtmp_N`, `__n65_shifttmp_N`, `__n65_binarytmp_N`, `__n65_ptrdifftmp_N`, `__n65_casttmp_N`, `__n65_abslocaltmp_N`, `__n65_absglobaltmp_N`, `__n65_incdectmp_N`, `__n65_compoundtmp_N`, `__n65_switchtmp_N`, `__n65_indextmp_N`, `__n65_bracedtmp_N`, and `__n65_globalinittmp_N`. The compiler temporarily redirects `fp` while lowering each site, restores it using the 6502 hardware stack, and copies converted results back into caller-owned storage. Pointer/index lowering preserves the in-progress address inside its fixed scratch; bit-field helper copies no longer need a software-stack pointer save. Scratch remains allocated per site and is not overlaid. No compiler source path emits `_pushN` or `_popN`.
 
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
@@ -704,8 +597,9 @@ char msg2[] = "hello";
 The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations.
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
-Some expression, lvalue, initializer, switch, and legacy operator paths still
-use `_nl_sp` and `_nl_fp` during this transitional stage.
+Compiler-generated code no longer emits `_pushN` or `_popN`. Fixed per-site BSS scratch
+uses `_nl_fp` only as a temporary addressing base while `_nl_sp` remains solely for
+obsolete runtime/library code awaiting removal.
 
 ### `_nl_sp` and `_nl_fp`
 
@@ -734,15 +628,13 @@ The following limits are deliberate in the language and compiler design, not unk
 - There is no separate textual preprocessor phase. Variadic functions are intentionally unsupported, and the lexer rejects `...`.
 - `void*` conversion is one-way by default: typed object pointers may convert to `void*` or `const void*`, but converting `void*` back to a typed pointer requires an explicit cast.
 - Ordinary mixed signed/unsigned integer operators require an explicit cast when width adjustment leaves the signedness ambiguous. The compiler widens by width, but it does not guess signedness.
-- `$exactops` types opt out of generic mixed-type promotion. They require explicit casts and visible exact operator overloads for the operations they use.
 - `switch case` labels use the compiler's restricted constant-case grammar. Numeric literals, character literals, enum constants, floats, unary operators, and parenthesized forms are supported, but arbitrary identifier expressions such as `case y + 2:` are not.
-- Runtime float arithmetic for ordinary non-`$exactops` floats is provided only for the builtin binary16, binary32, and binary64 layouts. Custom float layouts should use `$exactops` plus generated operators.
+- Runtime float arithmetic is transitional and provided only for the builtin binary16, binary32, and binary64 layouts; all float support is scheduled for removal.
 
 ## Incomplete or limited features
 
 A few sharp edges remain:
 
-- operator overload resolution only considers exact matches plus safe integer promotions for plain value parameters
 - ordinary function overloading supports exact matches plus safe integer promotions for plain value parameters, but there is no user-defined conversion search or other C++-style ranking machinery
 - mixed-endian ordinary integer operators in free expressions require an explicit endian cast; target-typed contexts use the destination type as the endian sink
 - symbol-backed-parameter cycle checking spans the selected object files at link time, but truly dynamic call targets cannot be proven safe
@@ -755,10 +647,6 @@ type void { $size:0 };
 type bool { $size:1 $integer:unsigned };
 type *    { $size:2 $integer:unsigned $endian:little };
 type s2   { $size:2 $integer:signed   $endian:little };
-
-bool operator{}(s2 v) {
-   return v != 0;
-}
 
 void bump(ref s2 x) {
    x++;

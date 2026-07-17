@@ -46,13 +46,13 @@ make package
 
 Installed layout:
 
-- `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`, `n65_gen_float.pl`
+- `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`
 - `$(PREFIX)/lib/` ... default runtime archives such as `nlib.a65`, `float.a65`, and `nint.a65`
 - `$(PREFIX)/include/` ... installed N and assembler include files such as `machine_6502.n` and `nlib.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
 - `$(PREFIX)/share/` ... packaged library/source extras such as `nlib/n.cfg`, `float/README.md`, and `vcs/` files
 
-The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65`, and adds `float.a65` when builtin float helpers or builtin float comparison operator symbols are referenced unless `-nostdlib` is used.
+The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65`, and adds `float.a65` when transitional builtin float helpers are referenced unless `-nostdlib` is used.
 
 ## Testing
 
@@ -62,9 +62,9 @@ Run `make test` at the repository root to execute the unified `test/test.pl` har
 
 ```sh
 cd test
-./test.pl weak_builtin_operator_codegen_test.n
-./test.pl --compile-only exactops_visible_operator_codegen_test.n
-./test.pl --e2e-only e2e_generated_float_archive_exactops_verify.n
+./test.pl operator_overloading_rejected_test.n
+./test.pl --compile-only exactops_rejected_test.n
+./test.pl --e2e-only e2e_call_argument_order_overload_verify.n
 ```
 
 See `test/README.md` for the header directives, placeholder tokens, and the generic `.test` file format.
@@ -112,6 +112,4 @@ type f3     { $size:3 $endian:little $float:simple  }; // generic simple SExMy f
 `$float:ieee754` supports only `$size:2`, `$size:4`, and `$size:8`.
 `$float:simple` supports any positive size and always uses an `SExMy` layout where `x = round(3 * log2(size) + 2)` and `y` is the remaining fraction bits. For `$size:2`, `$size:4`, and `$size:8`, that yields the same exponent widths as IEEE 754 binary16/binary32/binary64.
 
-`libraries/float/n65_gen_float.pl` can generate a full exact-operator surface for a float-like type using union/bitfield `SExMy` arithmetic. In classic single-file mode it emits the operator definitions only, so the including translation unit must declare the matching type and should mark it `$exactops` to get the same compile-time contract. In build mode it emits a generated type declaration with `$exactops` plus exact overload declarations for binary `+ - * /`, unary `+ -`, `== != < > <= >=`, `operator{}` truthiness, and `++ --`. Run `n65_gen_float.pl typename little-or-big size-bytes exp-bits > mytype_ops.n` after installation, or `perl libraries/float/n65_gen_float.pl ...` from the source tree. Use `--build outdir ...` for archive-friendly split output.
-
-If a type should use exact declared-type operator names only, add `$exactops` to the `type` declaration. Without `$exactops`, same-type operators fall back to the generic builtin lowering when no visible exact overload is available. With `$exactops`, the compiler requires visible exact overloads for the operators you actually use.
+Operator overloading and `$exactops` are intentionally unsupported in the VCS subset. Arithmetic, comparisons, truth tests, and increment/decrement use only the compiler built-ins.

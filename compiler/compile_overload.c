@@ -1,5 +1,5 @@
 //! @file compiler/compile_overload.c
-//! @brief Implements operator overload resolution for the n65 compiler.
+//! @brief Implements ordinary function overload resolution for the n65 compiler.
 //! @ingroup compiler
 
 #include <stdio.h>
@@ -17,11 +17,6 @@
 #include "messages.h"
 #include "set.h"
 
-typedef struct OperatorOverload {
-   const char *name;
-   const ASTNode *node;
-} OperatorOverload;
-
 typedef struct OrdinaryFunction {
    const char *name;
    const ASTNode *node;
@@ -29,105 +24,14 @@ typedef struct OrdinaryFunction {
 
 extern Set *functions;
 
-static OperatorOverload *operator_overloads = NULL;
-static int operator_overload_count = 0;
 static OrdinaryFunction *ordinary_functions = NULL;
 static int ordinary_function_count = 0;
 
 static bool function_same_signature(const ASTNode *a, const ASTNode *b);
 static void append_type_declarator_text(char **buf, size_t *cap, size_t *len, const ASTNode *type, const ASTNode *declarator, bool is_ref);
 
-//! @brief Return whether operator function name applies in compiler overload resolver.
-bool is_operator_function_name(const char *name) {
-   return name && !strncmp(name, "operator", 8);
-}
 
-//! @brief Return the short ABI token for an overloadable operator spelling.
-const char *operator_mangle_code(const char *name, int arg_count) {
-   const char *op;
 
-   if (!is_operator_function_name(name)) {
-      return NULL;
-   }
-
-   op = name + 8;
-
-   if (!strcmp(op, "+")) {
-      return arg_count == 1 ? "pos" : "add";
-   }
-   if (!strcmp(op, "-")) {
-      return arg_count == 1 ? "neg" : "sub";
-   }
-   if (!strcmp(op, "*")) {
-      return "mul";
-   }
-   if (!strcmp(op, "/")) {
-      return "div";
-   }
-   if (!strcmp(op, "%")) {
-      return "mod";
-   }
-   if (!strcmp(op, "&")) {
-      return "and";
-   }
-   if (!strcmp(op, "|")) {
-      return "or";
-   }
-   if (!strcmp(op, "^")) {
-      return "xor";
-   }
-   if (!strcmp(op, "~")) {
-      return "inv";
-   }
-   if (!strcmp(op, "==")) {
-      return "eq";
-   }
-   if (!strcmp(op, "!=")) {
-      return "ne";
-   }
-   if (!strcmp(op, "<")) {
-      return "lt";
-   }
-   if (!strcmp(op, "<=")) {
-      return "le";
-   }
-   if (!strcmp(op, ">")) {
-      return "gt";
-   }
-   if (!strcmp(op, ">=")) {
-      return "ge";
-   }
-   if (!strcmp(op, "<<")) {
-      return "lsh";
-   }
-   if (!strcmp(op, ">>")) {
-      return "rsh";
-   }
-   if (!strcmp(op, "++")) {
-      return "inc";
-   }
-   if (!strcmp(op, "--")) {
-      return "dec";
-   }
-   if (!strcmp(op, "{}")) {
-      return "tst";
-   }
-
-   return NULL;
-}
-
-//! @brief Append the ABI mangle for a function name.
-static void append_function_name_mangle(char *buf, size_t bufsize, const char *name, int arg_count) {
-   const char *op_code = operator_mangle_code(name, arg_count);
-
-   if (op_code) {
-      strncat(buf, "?@op_", bufsize - strlen(buf) - 1);
-      strncat(buf, op_code, bufsize - strlen(buf) - 1);
-      return;
-   }
-
-   append_mangled_text(buf, bufsize, name);
-}
 
 //! @brief Return function modifiers node data used by compiler overload resolver; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *function_modifiers_node(const ASTNode *fn) {
@@ -323,8 +227,7 @@ static int parameter_argument_conversion_cost(const ASTNode *ptype, const ASTNod
 
    if (!pref && arg_expr && expr_is_mixed_endian_integer_binary_expr((ASTNode *) arg_expr, ctx) &&
        declarator_is_plain_value(pdecl) && (!adecl || declarator_is_plain_value(adecl)) &&
-       type_is_promotable_integer(ptype) && type_is_promotable_integer(atype) &&
-       !type_has_exactops(ptype) && !type_has_exactops(atype) &&
+       type_is_promotable_integer(ptype) && type_is_promotable_integer(atype) &&  
        !type_is_bool(ptype) && !type_is_bool(atype) &&
        !type_is_float_like(ptype) && !type_is_float_like(atype) &&
        type_endian_name(ptype)) {
@@ -533,46 +436,6 @@ static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
    return true;
 }
 
-//! @brief Add operator overload to compiler overload resolver state, growing storage or preserving uniqueness as needed.
-static void remember_operator_overload(const ASTNode *node, const char *name) {
-   for (int i = 0; i < operator_overload_count; i++) {
-      const ASTNode *value = operator_overloads[i].node;
-      if (strcmp(operator_overloads[i].name, name)) {
-         continue;
-      }
-      if (value == node) {
-         return;
-      }
-      if (!function_same_signature(value, node)) {
-         continue;
-      }
-      if (!function_same_declaration(value, node)) {
-         error_user("[%s:%d.%d] vs [%s:%d.%d] conflicting declarations for overloaded '%s'",
-               node->file, node->line, node->column,
-               value->file, value->line, value->column,
-               name);
-      }
-      if (function_has_body(value) && function_has_body(node)) {
-         error_user("[%s:%d.%d] vs [%s:%d.%d] multiple definitions for '%s'",
-               node->file, node->line, node->column,
-               value->file, value->line, value->column,
-               name);
-      }
-      if (!function_has_body(value) && function_has_body(node)) {
-         operator_overloads[i].node = node;
-      }
-      return;
-   }
-
-   operator_overloads = (OperatorOverload *) realloc(operator_overloads,
-         sizeof(*operator_overloads) * (operator_overload_count + 1));
-   if (!operator_overloads) {
-      error_unreachable("out of memory");
-   }
-   operator_overloads[operator_overload_count].name = strdup(name);
-   operator_overloads[operator_overload_count].node = node;
-   operator_overload_count++;
-}
 
 //! @brief Add mangled text to compiler overload resolver state, growing storage or preserving uniqueness as needed.
 void append_mangled_text(char *buf, size_t bufsize, const char *text) {
@@ -726,11 +589,11 @@ bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *bu
       return true;
    }
 
-   if (!is_operator_function_name(name) && !ordinary_function_name_is_overloaded(name)) {
+   if (!ordinary_function_name_is_overloaded(name)) {
       return format_user_asm_symbol(name, buf, bufsize);
    }
 
-   append_function_name_mangle(buf, bufsize, name, fn ? function_fixed_param_count(fn) : -1);
+   append_mangled_text(buf, bufsize, name);
    if (!fn) {
       return true;
    }
@@ -743,35 +606,6 @@ bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *bu
    }
 }
 
-//! @brief Find operator overload in compiler overload resolver tables without transferring ownership.
-const ASTNode *lookup_operator_overload(const char *name, int arg_count, const ASTNode **arg_types, const ASTNode **arg_decls, const bool *arg_lvalues, const ASTNode **arg_exprs, Context *ctx) {
-   const ASTNode *best = NULL;
-   int best_cost = INT_MAX;
-   bool ambiguous = false;
-
-   for (int i = 0; i < operator_overload_count; i++) {
-      int cost;
-      if (strcmp(operator_overloads[i].name, name)) {
-         continue;
-      }
-      cost = function_signature_match_cost(operator_overloads[i].node, arg_count, arg_types, arg_decls, arg_lvalues, arg_exprs, ctx);
-      if (cost < 0) {
-         continue;
-      }
-      if (!best || cost < best_cost) {
-         best = operator_overloads[i].node;
-         best_cost = cost;
-         ambiguous = false;
-      }
-      else if (cost == best_cost) {
-         ambiguous = true;
-      }
-   }
-   if (ambiguous && best) {
-      error_user("ambiguous overloaded operator '%s'", name);
-   }
-   return best;
-}
 
 //! @brief Return whether ordinary function name is overloaded in compiler overload resolver.
 bool ordinary_function_name_is_overloaded(const char *name) {
@@ -1163,12 +997,7 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
       arg_lvalues[i] = resolve_ref_argument_lvalue(ctx, args->children[i], NULL);
    }
 
-   if (is_operator_function_name(name)) {
-      ret = lookup_operator_overload(name, arg_count, arg_types, arg_decls, arg_lvalues, arg_exprs, ctx);
-   }
-   else {
-      ret = lookup_ordinary_function_overload(name, call_expr, arg_count, arg_types, arg_decls, arg_lvalues, arg_exprs, ctx);
-   }
+   ret = lookup_ordinary_function_overload(name, call_expr, arg_count, arg_types, arg_decls, arg_lvalues, arg_exprs, ctx);
 
    free((void *) arg_types);
    free((void *) arg_decls);
@@ -1177,85 +1006,8 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
    return ret;
 }
 
-//! @brief Compute operator overload expr and update compiler overload resolver state once prerequisite pass data is available.
-const ASTNode *resolve_operator_overload_expr(ASTNode *expr, Context *ctx) {
-   const char *op = NULL;
-   const char *name = NULL;
-   const ASTNode *arg_types[2];
-   const ASTNode *arg_decls[2];
-   bool arg_lvalues[2];
-   int arg_count;
-   char buf[64];
 
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr)) {
-      return NULL;
-   }
 
-   if (expr->count == 1 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-") || !strcmp(expr->name, "~"))) {
-      op = expr->name;
-   }
-   else if (expr->count == 2 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-") || !strcmp(expr->name, "*") ||
-             !strcmp(expr->name, "/") || !strcmp(expr->name, "%") || !strcmp(expr->name, "&") ||
-             !strcmp(expr->name, "|") || !strcmp(expr->name, "^") || !strcmp(expr->name, "<<") ||
-             !strcmp(expr->name, ">>") || !strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
-             !strcmp(expr->name, "<") || !strcmp(expr->name, ">") || !strcmp(expr->name, "<=") ||
-             !strcmp(expr->name, ">="))) {
-      op = expr->name;
-   }
-   else {
-      return NULL;
-   }
-
-   snprintf(buf, sizeof(buf), "operator%s", op);
-   name = buf;
-   arg_count = expr->count;
-   for (int i = 0; i < arg_count; i++) {
-      expr_match_signature(expr->children[i], ctx, &arg_types[i], &arg_decls[i]);
-      arg_lvalues[i] = resolve_ref_argument_lvalue(ctx, expr->children[i], NULL);
-      if (!arg_types[i]) {
-         return NULL;
-      }
-   }
-   return lookup_operator_overload(name, arg_count, arg_types, arg_decls, arg_lvalues, (const ASTNode **) expr->children, ctx);
-}
-
-//! @brief Compute incdec overload expr and update compiler overload resolver state once prerequisite pass data is available.
-const ASTNode *resolve_incdec_overload_expr(ASTNode *expr, Context *ctx) {
-   bool inc;
-   const ASTNode *arg_type;
-   const ASTNode *arg_decl;
-   bool arg_lvalue;
-
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!classify_incdec_lvalue_expr(expr, &inc, NULL)) {
-      return NULL;
-   }
-
-   expr_match_signature(expr, ctx, &arg_type, &arg_decl);
-   if (!arg_type) {
-      return NULL;
-   }
-   arg_lvalue = resolve_ref_argument_lvalue(ctx, expr, NULL);
-   return lookup_operator_overload(inc ? "operator++" : "operator--", 1, &arg_type, &arg_decl, &arg_lvalue, (const ASTNode **) &expr->children[0], ctx);
-}
-
-//! @brief Compute truthiness overload and update compiler overload resolver state once prerequisite pass data is available.
-const ASTNode *resolve_truthiness_overload(ASTNode *expr, Context *ctx) {
-   const ASTNode *arg_type;
-   const ASTNode *arg_decl;
-   bool arg_lvalue;
-   expr = (ASTNode *) unwrap_expr_node(expr);
-   if (!expr || is_empty(expr)) {
-      return NULL;
-   }
-   expr_match_signature(expr, ctx, &arg_type, &arg_decl);
-   if (!arg_type) {
-      return NULL;
-   }
-   arg_lvalue = resolve_ref_argument_lvalue(ctx, expr, NULL);
-   return lookup_operator_overload("operator{}", 1, &arg_type, &arg_decl, &arg_lvalue, (const ASTNode **) &expr->children[0], ctx);
-}
 
 //! @brief Add function to compiler overload resolver state, growing storage or preserving uniqueness as needed.
 void remember_function(const ASTNode *node, const char *name) {
@@ -1266,11 +1018,6 @@ void remember_function(const ASTNode *node, const char *name) {
 
    if (!name) {
       error_user("[%s:%d.%d] unnamed function declaration is not supported here", node->file, node->line, node->column);
-   }
-
-   if (is_operator_function_name(name)) {
-      remember_operator_overload(node, name);
-      return;
    }
 
    if (!functions) {

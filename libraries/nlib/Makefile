@@ -16,7 +16,6 @@ DOXYGEN ?= doxygen
 all: $(ASM) $(N65AR)
 	rm -rf wrk nlib.a nlib.a65
 	mkdir wrk
-	./gen_weakops.pl
 	./unbundle.pl
 	cp *.s wrk
 	set -e; find wrk -name '*.s' -print0 | sort -z | xargs -0 -n 1 -P $(JOBS) sh -c 'each="$$1"; stem=`basename "$$each" .s`; echo ===== "$$each"; $(ASM) -o "wrk/$$stem.o65" "$$each"' sh

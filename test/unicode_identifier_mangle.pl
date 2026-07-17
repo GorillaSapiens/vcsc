@@ -135,10 +135,6 @@ my $overload_src = File::Spec->catfile($tmp, 'unicode_overload.n');
 write_utf8($overload_src, <<'EOF');
 include "machine_6502.n"
 
-type λ_type { $size:2 $integer:signed $endian:little $exactops };
-λ_type operator+(λ_type a, λ_type b);
-λ_type addλ(λ_type a, λ_type b) { return a + b; }
-
 int café(int a) { return a + 1; }
 char café(char a) { return a + 1; }
 int call_cafe_int(int x) { return café(x); }
@@ -149,12 +145,10 @@ my $overload_asm = File::Spec->catfile($tmp, 'unicode_overload.s');
 ($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $overload_src, '-o', $overload_asm);
 die "n65c failed for unicode overload source:\n$err$out\n" if $rc != 0;
 $asm = slurp_bytes($overload_asm);
-require_data_contains($asm, 'jsr ?@op_add@?u03BB?_type_p0_a0@?u03BB?_type_p0_a0');
 require_data_contains($asm, '.export caf?u00E9?@int_p0_a0');
 require_data_contains($asm, '.export caf?u00E9?@char_p0_a0');
 require_data_contains($asm, 'jsr caf?u00E9?@int_p0_a0');
 require_data_contains($asm, 'jsr caf?u00E9?@char_p0_a0');
-require_data_not_contains($asm, '?@op_add__x3F');
 require_data_not_contains($asm, 'caf\xc3\xa9');
 
 

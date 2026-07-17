@@ -421,7 +421,7 @@ static const char *fixed_float_helper_name(const char *generic_helper, int size,
 void emit_runtime_float_binary_fp_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, int size, int expbits, bool big_endian) {
    const char *fixed_helper = fixed_float_helper_name(helper, size, expbits, big_endian);
    if (!fixed_helper) {
-      error_user("unsupported non-$exactops float runtime arithmetic helper '%s' for size=%d expbits=%d; use $exactops/generated float operators for custom float layouts",
+      error_user("unsupported float runtime arithmetic helper '%s' for size=%d expbits=%d",
                  helper ? helper : "<null>", size, expbits);
       return;
    }

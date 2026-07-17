@@ -296,17 +296,12 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
       bool is_float = type_is_float_like(node);
       bool is_signed = type_is_signed_integer(node);
       bool is_unsigned = type_is_unsigned_integer(node);
-      bool exactops = has_flag(name, "$exactops");
 
       if (!strcmp(name, "void")) {
          sb_appendf(fp, "void(sz=%d", size);
-         if (exactops)
-            sb_append(fp, ";exactops=1");
          sb_append(fp, ")");
 
          sb_appendf(detail, "void(size=%d", size);
-         if (exactops)
-            sb_append(detail, ", exactops");
          sb_append(detail, ")");
          return;
       }
@@ -316,16 +311,12 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
          if (endian)
             sb_appendf(fp, ";end=%s", endian);
          sb_appendf(fp, ";exp=%d", type_float_expbits(node));
-         if (exactops)
-            sb_append(fp, ";exactops=1");
          sb_append(fp, ")");
 
          sb_appendf(detail, "float_like(size=%d, style=%s", size, float_style ? float_style : "unknown");
          if (endian)
             sb_appendf(detail, ", %s-endian", endian);
          sb_appendf(detail, ", expbits=%d", type_float_expbits(node));
-         if (exactops)
-            sb_append(detail, ", exactops");
          sb_append(detail, ")");
          return;
       }
@@ -334,16 +325,12 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
          is_signed ? "signed_int" : (is_unsigned ? "unsigned_int" : "plain"));
       if (endian)
          sb_appendf(fp, ";end=%s", endian);
-      if (exactops)
-         sb_append(fp, ";exactops=1");
       sb_append(fp, ")");
 
       sb_appendf(detail, "%s(size=%d",
          is_signed ? "signed_integer" : (is_unsigned ? "unsigned_integer" : "scalar"), size);
       if (endian)
          sb_appendf(detail, ", %s-endian", endian);
-      if (exactops)
-         sb_append(detail, ", exactops");
       sb_append(detail, ")");
       return;
    }

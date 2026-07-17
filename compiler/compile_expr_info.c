@@ -296,7 +296,7 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       }
       if (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) {
          if (expr_is_literal_node(expr->children[0]) && rhs_type && type_is_promotable_integer(rhs_type) &&
-             !type_is_bool(rhs_type) && !type_has_exactops(rhs_type) && !type_is_float_like(rhs_type)) {
+             !type_is_bool(rhs_type) &&  !type_is_float_like(rhs_type)) {
             return rhs_type;
          }
          return lhs_type ? lhs_type : rhs_type;

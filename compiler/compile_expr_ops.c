@@ -38,7 +38,6 @@
 #include "compile_expr_ops.h"
 #include "compile_expr_slot.h"
 
-static ASTNode *make_synthetic_incdec_operand(ASTNode *origin);
 static int expr_byte_index(const ASTNode *type, int size, int i);
 
 typedef struct ExprFixedScratch {
@@ -118,162 +117,7 @@ static void emit_fixed_scratch_result(Context *ctx, const ExprFixedScratch *scra
                                             scratch->symbol, src_offset, src_size, src_type);
    }
 }
-//! @brief Handle weak builtin operator symbol name logic for compiler operator lowering.
-static bool weak_builtin_operator_symbol_name(const char *opname, int arg_count,
-                                              const ASTNode **arg_types,
-                                              const ASTNode **arg_decls,
-                                              char *buf, size_t bufsize) {
-   if (!opname || !buf || bufsize == 0) {
-      return false;
-   }
-   buf[0] = 0;
-   {
-      const char *op_code = operator_mangle_code(opname, arg_count);
-      if (!op_code) {
-         return false;
-      }
-      strncat(buf, "?@op_", bufsize - strlen(buf) - 1);
-      strncat(buf, op_code, bufsize - strlen(buf) - 1);
-   }
-   for (int i = 0; i < arg_count; i++) {
-      char tmp[64];
-      strncat(buf, "@", bufsize - strlen(buf) - 1);
-      append_mangled_text(buf, bufsize, type_name_from_node(arg_types[i]));
-      snprintf(tmp, sizeof(tmp), "_p%d_a%d", declarator_pointer_depth(arg_decls ? arg_decls[i] : NULL), declarator_array_count(arg_decls ? arg_decls[i] : NULL));
-      strncat(buf, tmp, bufsize - strlen(buf) - 1);
-   }
-   if (arg_count == 0) {
-      strncat(buf, "@void", bufsize - strlen(buf) - 1);
-   }
-   {
-      char raw[256];
-      snprintf(raw, sizeof(raw), "%s", buf);
-      return format_user_asm_symbol(raw, buf, bufsize);
-   }
-}
 
-//! @brief Lower weak builtin operator call to slot from AST/semantic state into generated assembly or linker-visible metadata.
-static bool compile_weak_builtin_operator_call_to_slot(const char *symbol,
-                                                       const ASTNode *ret_type,
-                                                       const ASTNode *ret_decl,
-                                                       int ret_size,
-                                                       int arg_count,
-                                                       ASTNode **arg_exprs,
-                                                       const ASTNode **arg_types,
-                                                       const ASTNode **arg_decls,
-                                                       Context *ctx,
-                                                       ContextEntry *dst) {
-   int arg_total = 0;
-   int base_locals = ctx ? ctx->locals : 0;
-   int arg_offset;
-   int call_size;
-   if (!symbol || !ret_type || !dst) {
-      return false;
-   }
-   if (ret_size <= 0) {
-      ret_size = declarator_value_size(ret_type, ret_decl);
-   }
-   if (ret_size <= 0) {
-      ret_size = type_size_from_node(ret_type);
-   }
-   if (ret_size < 0) {
-      ret_size = 0;
-   }
-   for (int i = 0; i < arg_count; i++) {
-      int psz = declarator_value_size(arg_types[i], arg_decls ? arg_decls[i] : NULL);
-      if (psz <= 0) {
-         psz = type_size_from_node(arg_types[i]);
-      }
-      if (psz < 0) {
-         return false;
-      }
-      arg_total += psz;
-   }
-   call_size = ret_size + arg_total;
-   if (call_size > 0) {
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", call_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-   }
-   if (ctx) {
-      ctx_set_locals(ctx, base_locals + call_size);
-   }
-
-   arg_offset = ret_size + arg_total;
-   for (int i = 0; i < arg_count; i++) {
-      ContextEntry tmp;
-      int psz = declarator_value_size(arg_types[i], arg_decls ? arg_decls[i] : NULL);
-      if (psz <= 0) {
-         psz = type_size_from_node(arg_types[i]);
-      }
-      arg_offset -= psz;
-      tmp = (ContextEntry){ .name = "$arg", .type = arg_types[i], .declarator = arg_decls ? arg_decls[i] : NULL,
-                            .is_static = false, .is_zeropage = false, .is_global = false,
-                            .offset = base_locals + arg_offset, .size = psz };
-      if (!compile_expr_to_slot(arg_exprs[i], ctx, &tmp)) {
-         if (ctx) {
-            ctx_set_locals(ctx, base_locals);
-         }
-         if (call_size > 0) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", call_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-         }
-         return false;
-      }
-   }
-
-   remember_symbol_import(symbol);
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    jsr %s\n", symbol);
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-
-   if (ctx) {
-      ctx_set_locals(ctx, base_locals);
-   }
-   if (ret_size > 0) {
-      emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, base_locals, ret_size, ret_type);
-   }
-   if (call_size > 0) {
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", call_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
-   }
-   return true;
-}
-//! @brief Create synthetic incdec operand for compiler operator lowering. The returned storage is owned by the caller or the object that immediately records it.
-static ASTNode *make_synthetic_incdec_operand(ASTNode *origin) {
-   ASTNode *operand;
-
-   if (!origin || strcmp(origin->name, "lvalue") || origin->count < 2) {
-      return NULL;
-   }
-
-   operand = calloc(1, sizeof(ASTNode) + sizeof(ASTNode *) * 2);
-   if (!operand) {
-      return NULL;
-   }
-
-   operand->name = origin->name;
-   operand->file = origin->file;
-   operand->line = origin->line;
-   operand->column = origin->column;
-   operand->handled = false;
-   operand->kind = origin->kind;
-   operand->count = 2;
-   operand->children[0] = origin->children[0];
-   operand->children[1] = origin->children[1];
-   return operand;
-}
 
 //! @brief Parse incdec lvalue expr into the normalized representation used by compiler operator lowering.
 bool classify_incdec_lvalue_expr(ASTNode *expr, bool *inc, bool *pre) {
@@ -491,7 +335,6 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       LValueRef lv;
       bool inc;
       bool pre;
-      const ASTNode *ofn;
       if (!resolve_lvalue(ctx, expr, &lv)) {
          return false;
       }
@@ -504,98 +347,6 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
          }
       }
       classify_incdec_lvalue_expr(expr, &inc, &pre);
-      ofn = resolve_incdec_overload_expr(expr, ctx);
-      if (!ofn && type_has_exactops(lv.type)) {
-         error_user("[%s:%d.%d] type '%s' uses '$exactops' and requires visible overload '%s'",
-                    expr->file, expr->line, expr->column,
-                    type_name_from_node(lv.type), inc ? "operator++" : "operator--");
-      }
-      if (ofn) {
-         const ASTNode *rtype = function_return_type(ofn);
-         const ASTNode *rdecl = function_declarator_node(ofn);
-         int old_size = lv.size > 0 ? lv.size : dst->size;
-         int result_size = declarator_storage_size(rtype, rdecl);
-         int store_size = lv.size > 0 ? lv.size : old_size;
-         int saved_locals = ctx ? ctx->locals : 0;
-         int result_offset;
-         int store_offset;
-         int tmp_total;
-         ContextEntry result_tmp;
-         LValueRef store_lv = lv;
-         ASTNode *operand;
-         ASTNode *argv[1] = { NULL };
-         ASTNode *call;
-
-         if (result_size <= 0) {
-            result_size = type_size_from_node(rtype);
-         }
-         if (result_size <= 0) {
-            error_user("[%s:%d.%d] overloaded %s has unknown return size", expr->file, expr->line, expr->column, inc ? "operator++" : "operator--");
-         }
-         result_offset = saved_locals + old_size;
-         store_offset = result_offset + result_size;
-         tmp_total = old_size + result_size + store_size;
-         result_tmp = (ContextEntry){ .name = "$incdec_result", .type = rtype, .declarator = rdecl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = result_offset, .size = result_size };
-         if (!store_lv.is_static && !store_lv.is_global && !store_lv.is_absolute_ref) {
-            store_lv.offset += tmp_total;
-         }
-         operand = make_synthetic_incdec_operand(expr);
-         if (!operand) {
-            return false;
-         }
-         argv[0] = operand;
-         call = make_synthetic_call_expr(expr, declarator_name(function_declarator_node(ofn)), argv, 1);
-         if (!call) {
-            return false;
-         }
-
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (!emit_copy_lvalue_to_fp(ctx, saved_locals, &lv, old_size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            return false;
-         }
-         if (!pre) {
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, saved_locals, old_size, lv.type);
-         }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals + tmp_total);
-         }
-         if (!compile_call_expr_to_slot(call, ctx, &result_tmp)) {
-            if (ctx) {
-               ctx_set_locals(ctx, saved_locals);
-            }
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            return false;
-         }
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         emit_copy_fp_to_fp_convert(store_offset, store_size, lv.type, result_offset, result_size, rtype);
-         if (!emit_copy_fp_to_lvalue(ctx, &store_lv, store_offset, store_size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            return false;
-         }
-         if (pre) {
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, store_offset, store_size, lv.type);
-         }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_total & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
-         return true;
-      }
       {
          int tmp_size;
          unsigned char *one;
@@ -647,35 +398,6 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       }
       if (!mixed_endian || (!comparison_expr && !target_resolved)) {
          require_no_mixed_endian_integer_binary_expr(expr, ctx);
-      }
-      require_no_mixed_exactops_operator_expr(expr, ctx);
-      const ASTNode *ofn = resolve_operator_overload_expr(expr, ctx);
-      if (ofn) {
-         ASTNode *argv[2] = { NULL, NULL };
-         ASTNode *call;
-         argv[0] = expr->children[0];
-         if (expr->count > 1) {
-            argv[1] = expr->children[1];
-         }
-         call = make_synthetic_call_expr(expr, declarator_name(function_declarator_node(ofn)), argv, expr->count);
-         return call ? compile_call_expr_to_slot(call, ctx, dst) : false;
-      }
-      require_exactops_operator_expr(expr, ctx);
-   }
-
-   {
-      const char *opname = NULL;
-      const ASTNode *ret_type = NULL;
-      const ASTNode *ret_decl = NULL;
-      int ret_size = 0;
-      int arg_count = 0;
-      ASTNode *arg_exprs[2] = { NULL, NULL };
-      const ASTNode *arg_types[2] = { NULL, NULL };
-      const ASTNode *arg_decls[2] = { NULL, NULL };
-      char sym[256];
-      if (expr_eligible_for_weak_builtin_operator(expr, ctx, &opname, &ret_type, &ret_decl, &ret_size, &arg_count, arg_exprs, arg_types, arg_decls) &&
-          weak_builtin_operator_symbol_name(opname, arg_count, arg_types, arg_decls, sym, sizeof(sym))) {
-         return compile_weak_builtin_operator_call_to_slot(sym, ret_type, ret_decl, ret_size, arg_count, arg_exprs, arg_types, arg_decls, ctx, dst);
       }
    }
 

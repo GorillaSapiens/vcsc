@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_224332.tar.gz
+    vcsc.20260716_232529.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -114,7 +114,11 @@ Completed vertical slices
 15. Pointer/index lvalue evaluation, bit-field helper pointer preservation,
     braced assignments, and runtime global initializers now use fixed BSS
     scratch. `compile_lvalue.c` and `compile_init.c` no longer emit `_pushN` or
-    `_popN`; only obsolete operator-overload paths still do.
+    `_popN`.
+16. Operator overloading, `$exactops`, weak built-in operator dispatch, the
+    weak-operator generator/runtime members, and generated exact-operator float
+    fixtures have been removed. Compiler source emits no `_pushN` or `_popN`.
+    Ordinary named-function overloading remains supported.
 
 Current return ABI
 ------------------
@@ -226,27 +230,19 @@ Tests verify both the map and enforcement:
 * a configuration guard rejects any reintroduced CPUSTACK memory region and
   requires ARGSTACK to share RAM.
 
-Old software-stack machinery still present
-------------------------------------------
+Transitional software-stack machinery still present
+--------------------------------------------------
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
-At this snapshot the compiler contains:
+Compiler source now contains:
 
-    5   emitted `_pushN` allocation sites
-    13  emitted `_popN` normal/error cleanup paths
+    0 emitted `_pushN` allocation sites
+    0 emitted `_popN` cleanup paths
 
-Every remaining allocation belongs to obsolete operator-overload or weak-
-operator dispatch. Retained direct-call, expression, statement, lvalue, and
-initializer lowering is software-stack-free.
-
-`compile_stmt.c`, `compile_lvalue.c`, `compile_init.c`, and `compile_call.c`
-have no remaining target software-stack emitter.
-
-There are no remaining `_pushN` sites whose purpose is to allocate ordinary
-named automatic locals or `$$`.
-
-The generic test test/software_stack_inventory.test checks the per-file and
-whole-compiler emission counts. Any later stack-removal change must update both
-the test and software_stack_inventory.txt deliberately.
+The generic test `test/software_stack_inventory.test` scans every compiler `.c`
+file and fails if either helper reappears. `_nl_fp` remains active as the base
+pointer for fixed per-site scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+remain only in obsolete runtime/library families, especially float and wide
+integer helpers, and are removed after those families are pruned.
 
 Test policy
 -----------
@@ -323,15 +319,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    280 passed, 0 failed, 280 total
+    258 passed, 0 failed, 258 total
 
 End-to-end/generic suite:
 
-    123 passed, 0 failed, 123 total
+    120 passed, 0 failed, 120 total
 
 The compile suite completed in one invocation. The full end-to-end invocation
-reached the execution wrapper timeout after 95 passing cases; the remaining 28
-cases were run explicitly and all passed, accounting for all 123 cases.
+reached the execution wrapper timeout after 118 passing cases; the remaining two
+cases were run explicitly and passed, accounting for all 120 cases.
 
 Immediate TODO
 --------------
@@ -366,9 +362,10 @@ The first unfinished item is the default next action.
         temporary storage for the 8/16-bit language with fixed BSS scratch.
         Scratch overlay/liveness reuse remains a later optimization.
 
-[ ] 11. Remove operator overloading, `$exactops`, and weak built-in operator
-        dispatch. These are the only compiler paths still emitting `_pushN` or
-        `_popN`; then remove _nl_sp/_nl_fp and the software argument/local stack.
+[x] 11. Remove operator overloading, `$exactops`, and weak built-in operator
+        dispatch. Compiler source now emits zero `_pushN`/`_popN` calls. Keep
+        `_nl_fp` temporarily for fixed-scratch addressing; remove `_nl_sp` and
+        the runtime helpers after obsolete runtime families are gone.
 
 [ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
         Remove floats, arbitrary endian, and 32/64-bit support and tests in
@@ -568,6 +565,20 @@ Change log
 * Software-stack inventory fell from 10/22 to 5/13; every survivor is an
   obsolete operator-overload/weak-operator path.
 * No files were removed.
+
+2026-07-17, operator-overload and final compiler-stack-emitter removal
+* Removed user-defined operator declarations, lookup, mangling, dispatch, `$exactops`,
+  and weak built-in operator fallback while retaining ordinary function overloading.
+* The lexer keeps explicit rejection rules for `operator...` and `$exactops`.
+* Removed the final five compiler `_pushN` sites and thirteen `_popN` emissions; the
+  checked compiler inventory is now 0/0.
+* Removed the weak-operator generator/runtime members, custom-float exact-operator
+  generator, generated fixture plumbing, and 167 obsolete source/test/fixture files.
+* Localized the transitional half/float/double subtraction sign flip inside each
+  float subtraction object, removing its dependency on the deleted weak unary-negation
+  symbol without reviving the generic weak-operator runtime.
+* Added focused rejection tests for operator overloading and `$exactops`.
+* All intentionally deleted paths are listed cumulatively in remove.txt.
 
 End-of-session checklist
 ------------------------

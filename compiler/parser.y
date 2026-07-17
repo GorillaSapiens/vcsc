@@ -57,7 +57,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token <str> IDENTIFIER
 %token <str> INTEGER       /* string, because value might be outside hosts abilities */
 %token <str> MEMNAME
-%token <str> OPERATOR
 %token <str> STRING
 %token <str> ASM
 %token <str> TYPENAME
@@ -413,7 +412,6 @@ pointer:
 direct_declarator:
     IDENTIFIER                               { COVER; $$ = MAKE_NODE(make_identifier_leaf($1)); }
   | DOLLAR_DOLLAR                            { COVER; $$ = MAKE_NODE(make_identifier_leaf(strdup("$$"))); }
-  | OPERATOR                                 { COVER; $$ = MAKE_NODE(make_identifier_leaf($1)); }
   | '(' declarator ')'                       { COVER; $$ = MAKE_NODE($2); }
   | direct_declarator '[' INTEGER ']'        { COVER; $$ = append_child($1, make_integer_leaf($3)); }
   | direct_declarator '(' parameter_list ')' { COVER; $$ = append_child($1, $3); }

@@ -150,16 +150,6 @@ void emit_runtime_float_binary_fp_fp(const char *helper, int dst_offset, int lhs
 void emit_runtime_float_compare(int lhs_offset, int rhs_offset, int size, int expbits);
 void emit_runtime_shift_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, const ASTNode *rhs_type, int rhs_size, int value_size);
 bool compile_constant_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst);
-ASTNode *make_synthetic_call_expr(ASTNode *origin, const char *callee_name, ASTNode *args[], int argc);
-bool expr_eligible_for_weak_builtin_operator(ASTNode *expr, Context *ctx,
-                                             const char **opname_out,
-                                             const ASTNode **ret_type_out,
-                                             const ASTNode **ret_decl_out,
-                                             int *ret_size_out,
-                                             int *arg_count_out,
-                                             ASTNode **arg_exprs_out,
-                                             const ASTNode **arg_types_out,
-                                             const ASTNode **arg_decls_out);
 void emit_sub_fp_from_fp(const ASTNode *type, int dst_offset, int src_offset, int size);
 bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *false_label);
 void compile_expr(ASTNode *node, Context *ctx);

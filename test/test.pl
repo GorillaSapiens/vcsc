@@ -432,18 +432,6 @@ sub require_file_expectations_result {
    return undef;
 }
 
-sub ensure_generated_float_archive_fixtures {
-   my ($outfh, $outfile) = tempfile('fixture_make_out_XXXX', UNLINK => 1);
-   my ($errfh, $errfile) = tempfile('fixture_make_err_XXXX', UNLINK => 1);
-   close($outfh);
-   close($errfh);
-   my @cmd = ('make', '-C', $repo_root, 'generated_float_archive_fixtures');
-   my ($exit_code) = run_cmd(\@cmd, $outfile, $errfile);
-   if ($exit_code != 0) {
-      die "[$FAIL] could not generate float archive test fixtures\n" . join(' ', @cmd) . "\n" . slurp_file($errfile);
-   }
-}
-
 sub compile_n_to_object {
    my ($src_name, $runner_args, $tmp, $test_name) = @_;
    my ($stem) = $src_name =~ /^(.*)\.n$/;
@@ -830,8 +818,6 @@ sub progress {
 
    return $ret;
 }
-
-ensure_generated_float_archive_fixtures();
 
 my @requested_paths = @ARGV ? resolve_requested_paths(@ARGV) : discover_default_paths();
 my @cases;

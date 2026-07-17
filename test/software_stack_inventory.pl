@@ -6,10 +6,7 @@ use File::Spec;
 my $repo = shift @ARGV;
 die "usage: $0 REPO\n" unless defined $repo && -d $repo;
 
-my %expected = (
-    'compile_expr_flow.c' => [3, 7],
-    'compile_expr_ops.c'  => [2, 6],
-);
+my %expected = ();
 
 my $compiler = File::Spec->catdir($repo, 'compiler');
 opendir(my $dh, $compiler) or die "cannot open $compiler: $!\n";
@@ -42,7 +39,7 @@ for my $file (sort keys %expected) {
         unless $seen{$file};
 }
 
-die "software-stack inventory total drift: got $total_push/$total_pop, expected 5/13\n"
-    unless $total_push == 5 && $total_pop == 13;
+die "software-stack inventory total drift: got $total_push/$total_pop, expected 0/0\n"
+    unless $total_push == 0 && $total_pop == 0;
 
-print "software-stack inventory ok: 5 push sites, 13 pop emissions\n";
+print "software-stack inventory ok: 0 push sites, 0 pop emissions\n";

@@ -14,9 +14,6 @@ all: test
 
 .NOTPARALLEL:
 
-generated_float_archive_fixtures: compiler/n65c assembler/n65asm archiver/n65ar
-	@$(MAKE) --no-print-directory -C ./test generated_float_archive_fixtures
-
 compiler/n65c:
 	@$(MAKE) --no-print-directory -C ./compiler n65c
 
@@ -62,7 +59,6 @@ install-core:
 	@$(MAKE) --no-print-directory -C ./simulator install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./driver install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	install -d $(DESTDIR)$(BINDIR)
-	install -m 0755 libraries/float/n65_gen_float.pl $(DESTDIR)$(BINDIR)/n65_gen_float.pl
 	@$(MAKE) --no-print-directory -C ./libraries/nlib install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/float install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/nint install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
@@ -86,7 +82,6 @@ uninstall:
 	@$(MAKE) --no-print-directory -C ./libraries/nint uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/nlib uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
-	rm -f $(DESTDIR)$(BINDIR)/n65_gen_float.pl
 	@$(MAKE) --no-print-directory -C ./simulator uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./compiler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./archiver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
@@ -114,8 +109,6 @@ installcheck: tools
 	stage_bin="$(INSTALLCHECK_STAGING)/opt/n/bin"; \
 	"$$stage_bin/n65cc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/n65cc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/n65_gen_float.pl" if2 little 2 5 > "$(INSTALLCHECK_STAGING)/if2_ops.n"; \
-	"$$stage_bin/n65_gen_float.pl" --build "$(INSTALLCHECK_STAGING)/if2_build" if2 little 2 5; \
 	"$$stage_bin/n65cc" -I "$(CURDIR)/test" "$(CURDIR)/test/sieve.n" -o "$(INSTALLCHECK_STAGING)/sieve.hex"; \
 	"$$stage_bin/n65sim" "$(INSTALLCHECK_STAGING)/sieve.hex" | head -n 1 >/dev/null
 
@@ -136,4 +129,4 @@ e2e: tools
 test: tools
 	@$(MAKE) --no-print-directory -C ./test test
 
-.PHONY: all generated_float_archive_fixtures tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test docs
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test docs
