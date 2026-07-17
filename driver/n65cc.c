@@ -348,7 +348,7 @@ static void usage(FILE *fp)
       "  * default linked output is a.hex\n"
       "  * -S accepts only .n inputs\n"
       "  * with -c or -S, using -o requires exactly one source input\n"
-      "  * default linking adds libraries/nlib/nlib.a65, and adds libraries/float/float.a65 when builtin float helpers or builtin float comparison operator symbols are referenced\n",
+      "  * default linking adds libraries/nlib/nlib.a65\n",
       arg0);
 }
 
@@ -437,7 +437,6 @@ static void resolve_tool_paths(const char *self_path,
    char *ar_path, size_t ar_sz,
    char *sim_path, size_t sim_sz,
    char *nlib_path, size_t nlib_sz,
-   char *float_path, size_t float_sz,
    char *nlib_inc, size_t nlib_inc_sz)
 {
    char cc_repo[PATH_MAX];
@@ -446,7 +445,6 @@ static void resolve_tool_paths(const char *self_path,
    char ar_repo[PATH_MAX];
    char sim_repo[PATH_MAX];
    char nlib_repo[PATH_MAX];
-   char float_repo[PATH_MAX];
    char nlib_inc_repo[PATH_MAX];
    char cc_inst[PATH_MAX];
    char as_inst[PATH_MAX];
@@ -454,7 +452,6 @@ static void resolve_tool_paths(const char *self_path,
    char ar_inst[PATH_MAX];
    char sim_inst[PATH_MAX];
    char nlib_inst[PATH_MAX];
-   char float_inst[PATH_MAX];
    char nlib_inc_inst[PATH_MAX];
 
    build_repo_tree_path(cc_repo, sizeof(cc_repo), self_path, "compiler", "n65c");
@@ -463,7 +460,6 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(ar_repo, sizeof(ar_repo), self_path, "archiver", "n65ar");
    build_repo_tree_path(sim_repo, sizeof(sim_repo), self_path, "simulator", "n65sim");
    build_repo_tree_path(nlib_repo, sizeof(nlib_repo), self_path, "libraries/nlib", "nlib.a65");
-   build_repo_tree_path(float_repo, sizeof(float_repo), self_path, "libraries/float", "float.a65");
    build_repo_tree_path(nlib_inc_repo, sizeof(nlib_inc_repo), self_path, "libraries/nlib", "nlib.inc");
 
    if (path_is_accessible(cc_repo, X_OK) &&
@@ -472,7 +468,6 @@ static void resolve_tool_paths(const char *self_path,
        path_is_accessible(ar_repo, X_OK) &&
        path_is_accessible(sim_repo, X_OK) &&
        path_is_accessible(nlib_repo, R_OK) &&
-       path_is_accessible(float_repo, R_OK) &&
        path_is_accessible(nlib_inc_repo, R_OK)) {
       copy_cstr(cc_path, cc_sz, cc_repo);
       copy_cstr(as_path, as_sz, as_repo);
@@ -480,7 +475,6 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(ar_path, ar_sz, ar_repo);
       copy_cstr(sim_path, sim_sz, sim_repo);
       copy_cstr(nlib_path, nlib_sz, nlib_repo);
-      copy_cstr(float_path, float_sz, float_repo);
       path_dirname(nlib_inc_repo, nlib_inc, nlib_inc_sz);
       return;
    }
@@ -491,7 +485,6 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(ar_inst, sizeof(ar_inst), self_path, "n65ar");
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "n65sim");
    build_installed_prefix_path(nlib_inst, sizeof(nlib_inst), self_path, "lib", "nlib.a65");
-   build_installed_prefix_path(float_inst, sizeof(float_inst), self_path, "lib", "float.a65");
    build_installed_prefix_path(nlib_inc_inst, sizeof(nlib_inc_inst), self_path, "include", "nlib.inc");
 
    if (path_is_accessible(cc_inst, X_OK) &&
@@ -500,7 +493,6 @@ static void resolve_tool_paths(const char *self_path,
        path_is_accessible(ar_inst, X_OK) &&
        path_is_accessible(sim_inst, X_OK) &&
        path_is_accessible(nlib_inst, R_OK) &&
-       path_is_accessible(float_inst, R_OK) &&
        path_is_accessible(nlib_inc_inst, R_OK)) {
       copy_cstr(cc_path, cc_sz, cc_inst);
       copy_cstr(as_path, as_sz, as_inst);
@@ -508,7 +500,6 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(ar_path, ar_sz, ar_inst);
       copy_cstr(sim_path, sim_sz, sim_inst);
       copy_cstr(nlib_path, nlib_sz, nlib_inst);
-      copy_cstr(float_path, float_sz, float_inst);
       path_dirname(nlib_inc_inst, nlib_inc, nlib_inc_sz);
       return;
    }
@@ -967,107 +958,6 @@ static void run_as(const char *as_path, const driver_options_t *opt, const char 
 }
 
 
-//! @brief Return whether a memory buffer contains a byte string.
-static bool buffer_contains_string(const unsigned char *buf, size_t len, const char *needle)
-{
-   size_t needle_len = strlen(needle);
-   size_t i;
-
-   if (needle_len == 0 || needle_len > len)
-      return false;
-
-   for (i = 0; i + needle_len <= len; ++i) {
-      if (memcmp(buf + i, needle, needle_len) == 0)
-         return true;
-   }
-
-   return false;
-}
-
-//! @brief Return whether an object/archive appears to reference builtin float runtime helpers.
-static bool file_contains_builtin_float_ref(const char *path)
-{
-   static const char *const markers[] = {
-      "_f16",
-      "_f32",
-      "_f64",
-      "_fcmp",
-      "?@op_eq@half_p0_a0@half_p0_a0",
-      "?@op_ne@half_p0_a0@half_p0_a0",
-      "?@op_lt@half_p0_a0@half_p0_a0",
-      "?@op_le@half_p0_a0@half_p0_a0",
-      "?@op_gt@half_p0_a0@half_p0_a0",
-      "?@op_ge@half_p0_a0@half_p0_a0",
-      "?@op_eq@float_p0_a0@float_p0_a0",
-      "?@op_ne@float_p0_a0@float_p0_a0",
-      "?@op_lt@float_p0_a0@float_p0_a0",
-      "?@op_le@float_p0_a0@float_p0_a0",
-      "?@op_gt@float_p0_a0@float_p0_a0",
-      "?@op_ge@float_p0_a0@float_p0_a0",
-      "?@op_eq@double_p0_a0@double_p0_a0",
-      "?@op_ne@double_p0_a0@double_p0_a0",
-      "?@op_lt@double_p0_a0@double_p0_a0",
-      "?@op_le@double_p0_a0@double_p0_a0",
-      "?@op_gt@double_p0_a0@double_p0_a0",
-      "?@op_ge@double_p0_a0@double_p0_a0",
-   };
-   FILE *fp;
-   unsigned char *buf;
-   long size_long;
-   size_t size;
-   size_t got;
-   size_t i;
-   bool found;
-
-   fp = fopen(path, "rb");
-   if (!fp)
-      return false;
-   if (fseek(fp, 0, SEEK_END) != 0) {
-      fclose(fp);
-      return false;
-   }
-   size_long = ftell(fp);
-   if (size_long < 0) {
-      fclose(fp);
-      return false;
-   }
-   if (fseek(fp, 0, SEEK_SET) != 0) {
-      fclose(fp);
-      return false;
-   }
-
-   size = (size_t)size_long;
-   buf = (unsigned char *)xmalloc(size ? size : 1);
-   got = fread(buf, 1, size, fp);
-   fclose(fp);
-   if (got != size) {
-      free(buf);
-      return false;
-   }
-
-   found = false;
-   for (i = 0; i < sizeof(markers) / sizeof(markers[0]); ++i) {
-      if (buffer_contains_string(buf, size, markers[i])) {
-         found = true;
-         break;
-      }
-   }
-
-   free(buf);
-   return found;
-}
-
-//! @brief Return whether any link input appears to need the builtin float runtime archive.
-static bool link_inputs_need_builtin_float(const strvec_t *link_inputs)
-{
-   size_t i;
-   for (i = 0; i < link_inputs->count; ++i) {
-      if (file_contains_builtin_float_ref(link_inputs->items[i]))
-         return true;
-   }
-   return false;
-}
-
 //! @brief Find library in driver pipeline tables without transferring ownership.
 static const char *find_library(const driver_options_t *opt, const char *name, char *buf, size_t buf_sz)
 {
@@ -1085,10 +975,9 @@ static const char *find_library(const driver_options_t *opt, const char *name, c
 }
 
 //! @brief Run the ld stage of the driver tool pipeline.
-static void run_ld(const char *ld_path, const driver_options_t *opt, const strvec_t *link_inputs, const char *default_nlib, const char *default_float)
+static void run_ld(const char *ld_path, const driver_options_t *opt, const strvec_t *link_inputs, const char *default_nlib)
 {
    strvec_t cmd = {0};
-   bool need_default_float = link_inputs_need_builtin_float(link_inputs);
    size_t i;
 
    strvec_push(&cmd, ld_path);
@@ -1112,8 +1001,6 @@ static void run_ld(const char *ld_path, const driver_options_t *opt, const strve
    }
    if (!opt->nostdlib) {
       strvec_push(&cmd, default_nlib);
-      if (need_default_float)
-         strvec_push(&cmd, default_float);
    }
    run_vec_or_die(&cmd, opt->verbose, opt->dry_run);
 }
@@ -1130,7 +1017,6 @@ int main(int argc, char **argv)
    char ar_path[PATH_MAX];
    char sim_path[PATH_MAX];
    char nlib_path[PATH_MAX];
-   char float_path[PATH_MAX];
    char nlib_inc[PATH_MAX];
    strvec_t link_inputs = {0};
    size_t i;
@@ -1145,7 +1031,6 @@ int main(int argc, char **argv)
       ar_path, sizeof(ar_path),
       sim_path, sizeof(sim_path),
       nlib_path, sizeof(nlib_path),
-      float_path, sizeof(float_path),
       nlib_inc, sizeof(nlib_inc));
 
    if (argc == 2 && strcmp(argv[1], "-V") == 0)
@@ -1216,7 +1101,7 @@ int main(int argc, char **argv)
    }
 
    if (!opt.asm_only && !opt.compile_only)
-      run_ld(ld_path, &opt, &link_inputs, nlib_path, float_path);
+      run_ld(ld_path, &opt, &link_inputs, nlib_path);
 
    temp_store_cleanup(&temps);
    return 0;

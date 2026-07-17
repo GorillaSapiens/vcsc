@@ -182,26 +182,6 @@ ASTNode *make_typename_leaf(const char *strval) {
    return ret;
 }
 
-//! @brief Create float leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
-ASTNode *make_float_leaf(const char *dval) {
-   ASTNode *ret = calloc(1, sizeof(struct ASTNode));
-   ret->name = "float_literal";
-   ret->file = strdup(current_filename);
-   ret->line = yylineno;
-   ret->column = yycolumn;
-   ret->kind = AST_FLOAT;
-   ret->strval = dval;
-   ret->handled = false;
-   return ret;
-}
-
-//! @brief Create float leaf with type for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
-ASTNode *make_float_leaf_with_type(const char *intval, ASTNode *typename) {
-   ASTNode *ret = make_float_leaf(intval);
-   ret = append_child(ret, typename);
-   return ret;
-}
-
 //! @brief Create empty leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_empty_leaf(void) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
@@ -240,7 +220,6 @@ void dump_ast_flat(const ASTNode *node,
 
        switch (node->kind) {
           case AST_INTEGER:    printf(" %s", node->strval); break;
-          case AST_FLOAT:      printf(" %s", node->strval); break;
           case AST_STRING:     printf(" \"%s\"", node->strval); break;
           case AST_IDENTIFIER: printf(" %s", node->strval); break;
           case AST_TYPENAME:   printf(" %s", node->strval); break;

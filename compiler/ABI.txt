@@ -78,7 +78,7 @@ rts
 Reset/startup still initializes `sp` and `fp` during the transitional runtime.
 Compiler-generated code no longer allocates through `sp`; `fp` remains the addressing
 base for fixed scratch. `_nl_sp` and the runtime stack helpers are removed after the
-obsolete float/wide runtime families are deleted.
+obsolete wide-runtime families are deleted.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls, except that
 A and possibly X carry the function result on return. Callers must assume a

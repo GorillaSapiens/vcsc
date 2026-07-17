@@ -1,8 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: float_literal_nonfloat_error_test.n:6.18] floating literal cannot be used as non-float type 'int'
-include "machine_6502.n"
-int main(void) {
-   int x := 1.25;
-   return x;
-}

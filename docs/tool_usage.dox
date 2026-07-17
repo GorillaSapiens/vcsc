@@ -29,7 +29,7 @@
 //! @code{.sh}
 //! n65c -quiet -I test test/sieve.n -o sieve.s -dumpbase sieve.n -dumpbase-ext .n -dumpdir ./
 //! n65asm -I libraries/nlib/ -o sieve.o65 sieve.s
-//! n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65 libraries/float/float.a65
+//! n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65
 //! n65sim sieve.hex
 //! @endcode
 //!

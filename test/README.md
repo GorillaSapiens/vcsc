@@ -81,7 +81,6 @@ Useful placeholders in `runner:` and related directives:
 - `@FILEDIR@` ... directory containing the current test file
 - `@TMP@` ... per-test temporary work directory
 - `@NLIB@` ... default `libraries/nlib/nlib.a65`
-- `@FLOAT@` ... default `libraries/float/float.a65`
 - `@NLIB_INC@` ... default `libraries/nlib/` include directory
 
 Useful generic expectations include:

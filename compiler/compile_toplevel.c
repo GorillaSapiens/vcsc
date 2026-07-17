@@ -23,7 +23,6 @@
 #include "compile_toplevel.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"
@@ -234,8 +233,6 @@ void compile_type_decl_stmt(ASTNode *node) {
    int size = -1;
    bool haveEndian = false;
    const char *endian = NULL;
-   bool haveFloat = false;
-   const char *float_style = NULL;
    bool haveInteger = false;
    const char *integer_style = NULL;
    bool integer_required;
@@ -289,25 +286,9 @@ void compile_type_decl_stmt(ASTNode *node) {
                   node->file, node->line, node->column,
                   node->children[0]->strval, item->strval);
          }
-         else if (!strcmp(item->strval, "$float")) {
-            error_user("[%s:%d.%d] type_decl_stmt '%s' must use '$float:ieee754' or '$float:simple'",
-                  node->file, node->line, node->column,
-                  node->children[0]->strval);
-         }
-         else if (!strncmp(item->strval, "$float:", 7)) {
-            const char *style = parse_float_style_flag_text(item->strval);
-            if (haveFloat) {
-               error_user("[%s:%d.%d] type_decl_stmt '%s' has multiple '$float' flags",
-                     node->file, node->line, node->column,
-                     node->children[0]->strval);
-            }
-            if (!style || !float_style_is_known(style)) {
-               error_user("[%s:%d.%d] type_decl_stmt '%s' unrecognized '%s' flag",
-                     node->file, node->line, node->column,
-                     node->children[0]->strval, item->strval);
-            }
-            haveFloat = true;
-            float_style = style;
+         else if (!strcmp(item->strval, "$float") || !strncmp(item->strval, "$float:", 7)) {
+            error_user("[%s:%d.%d] floating-point types are not supported",
+                  node->file, node->line, node->column);
          }
          else if (!strncmp(item->strval, "$integer:", 9)) {
             const char *style = parse_integer_style_flag_text(item->strval);
@@ -337,14 +318,7 @@ void compile_type_decl_stmt(ASTNode *node) {
             node->file, node->line, node->column, node->children[0]->strval);
    }
 
-   if (haveFloat && haveInteger) {
-      error_user("[%s:%d.%d] type_decl_stmt '%s' cannot combine '$float:*' with '$integer:%s'",
-            node->file, node->line, node->column,
-            node->children[0]->strval,
-            integer_style ? integer_style : "?");
-   }
-
-   if (!haveFloat && integer_required && !haveInteger) {
+   if (integer_required && !haveInteger) {
       error_user("[%s:%d.%d] type_decl_stmt '%s' missing '$integer:signed' or '$integer:unsigned' flag",
             node->file, node->line, node->column, node->children[0]->strval);
    }
@@ -352,17 +326,6 @@ void compile_type_decl_stmt(ASTNode *node) {
    if (key && !strcmp(key, "bool") && haveInteger && (!integer_style || strcmp(integer_style, "unsigned"))) {
       error_user("[%s:%d.%d] type_decl_stmt '%s' must use '$integer:unsigned'",
             node->file, node->line, node->column, node->children[0]->strval);
-   }
-
-   if (haveFloat) {
-      int expbits = float_style_expbits_for_size(float_style, size);
-      if (expbits < 0) {
-         error_user("[%s:%d.%d] type_decl_stmt '%s' float style '%s' does not support $size:%d",
-               node->file, node->line, node->column,
-               node->children[0]->strval,
-               float_style ? float_style : "(null)",
-               size);
-      }
    }
 
    if (get_xray(XRAY_TYPEINFO)) {

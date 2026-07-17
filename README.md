@@ -28,7 +28,7 @@ Direct stage-by-stage flow:
 ```sh
 n65c -quiet -I test test/sieve.n -o sieve.s -dumpbase sieve.n -dumpbase-ext .n -dumpdir ./
 n65asm -I libraries/nlib/ -o sieve.o65 sieve.s
-n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65 libraries/float/float.a65
+n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65
 n65sim sieve.hex
 ```
 
@@ -47,12 +47,12 @@ make package
 Installed layout:
 
 - `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`
-- `$(PREFIX)/lib/` ... default runtime archives such as `nlib.a65`, `float.a65`, and `nint.a65`
+- `$(PREFIX)/lib/` ... default runtime archives such as `nlib.a65`, `nint.a65`
 - `$(PREFIX)/include/` ... installed N and assembler include files such as `machine_6502.n` and `nlib.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
-- `$(PREFIX)/share/` ... packaged library/source extras such as `nlib/n.cfg`, `float/README.md`, and `vcs/` files
+- `$(PREFIX)/share/` ... packaged library/source extras such as `nlib/n.cfg` and `vcs/` files
 
-The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65`, and adds `float.a65` when transitional builtin float helpers are referenced unless `-nostdlib` is used.
+The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65` unless `-nostdlib` is used.
 
 ## Testing
 
@@ -76,7 +76,7 @@ For additional details, see the README.md files in the various subdirectories.
 ## Licensing
 
 Unless a subdirectory says otherwise, the toolchain sources and top-level build/test glue are licensed under GPL-3.0-or-later.
-The runtime libraries in `libraries/nlib/`, `libraries/float/`, and `libraries/nint/` are licensed under BSD-2-Clause so code linked into user binaries stays permissive.
+The runtime libraries in `libraries/nlib/` and `libraries/nint/` are licensed under BSD-2-Clause so code linked into user binaries stays permissive.
 The exact license texts live in the repository root `LICENSE`/`COPYING` files and in the per-library `LICENSE` files.
 
 ## Integer style flags
@@ -92,24 +92,12 @@ type int    { $size:4 $integer:signed $endian:little };
 type uint   { $size:4 $integer:unsigned $endian:little };
 ```
 
-Type declarations use `$integer:signed` or `$integer:unsigned`. Expression-level shortcut casts `($signed)` / `($unsigned)` are available, with matching endian shortcuts `($big)` / `($little)` for fixed-width integers and floats.
+Type declarations use `$integer:signed` or `$integer:unsigned`. Expression-level shortcut casts `($signed)` / `($unsigned)` are available, with matching endian shortcuts `($big)` / `($little)` for fixed-width integers.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
 
-## Floating-point style flags
+## Floating-point values
 
-Float types use a style-based flag: `$float:ieee754` or `$float:simple`.
-
-Examples:
-
-```n
-type half   { $size:2 $endian:little $float:ieee754 }; // IEEE 754 binary16
-type float  { $size:4 $endian:little $float:ieee754 }; // IEEE 754 binary32
-type double { $size:8 $endian:little $float:ieee754 }; // IEEE 754 binary64
-type f3     { $size:3 $endian:little $float:simple  }; // generic simple SExMy format
-```
-
-`$float:ieee754` supports only `$size:2`, `$size:4`, and `$size:8`.
-`$float:simple` supports any positive size and always uses an `SExMy` layout where `x = round(3 * log2(size) + 2)` and `y` is the remaining fraction bits. For `$size:2`, `$size:4`, and `$size:8`, that yields the same exponent widths as IEEE 754 binary16/binary32/binary64.
+Floating-point types and literals are not supported. Any `$float:*` type flag or floating-point literal is a compile-time error.
 
 Operator overloading and `$exactops` are intentionally unsupported in the VCS subset. Arithmetic, comparisons, truth tests, and increment/decrement use only the compiler built-ins.

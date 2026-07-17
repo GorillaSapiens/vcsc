@@ -29,7 +29,6 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./archiver all
 	@$(MAKE) --no-print-directory -C ./libraries/nint all
 	@$(MAKE) --no-print-directory -C ./libraries/nlib all
-	@$(MAKE) --no-print-directory -C ./libraries/float all
 	@$(MAKE) --no-print-directory -C ./compiler n65c
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
@@ -40,7 +39,6 @@ clean:
 	@$(MAKE) --no-print-directory -C ./archiver clean
 	@$(MAKE) --no-print-directory -C ./libraries/nint clean
 	@$(MAKE) --no-print-directory -C ./libraries/nlib clean
-	@$(MAKE) --no-print-directory -C ./libraries/float clean
 	@$(MAKE) --no-print-directory -C ./compiler clean
 	@$(MAKE) --no-print-directory -C ./simulator clean
 	@$(MAKE) --no-print-directory -C ./driver clean
@@ -60,7 +58,6 @@ install-core:
 	@$(MAKE) --no-print-directory -C ./driver install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	install -d $(DESTDIR)$(BINDIR)
 	@$(MAKE) --no-print-directory -C ./libraries/nlib install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
-	@$(MAKE) --no-print-directory -C ./libraries/float install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/nint install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
 
@@ -78,7 +75,6 @@ install-data:
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
-	@$(MAKE) --no-print-directory -C ./libraries/float uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/nint uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/nlib uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"

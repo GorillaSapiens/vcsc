@@ -12,9 +12,6 @@ type * { $size:2 $integer:unsigned $endian:little };
 type int      { $size:2 $integer:signed $endian:little };
 type long     { $size:4 $integer:signed $endian:little };
 type longlong { $size:8 $integer:signed $endian:little };
-type half     { $size:2 $endian:little $float:ieee754 };
-type float    { $size:4 $endian:little $float:ieee754 };
-type double   { $size:8 $endian:little $float:ieee754 };
 
 mem ram      { $start:0x0080 $size:0x0080 $rw $priority:2 };
 mem cpustack { $start:0x0180 $size:0x0080 $rw };

@@ -13,7 +13,6 @@ enum ASTKind {
     AST_IDENTIFIER,
     AST_TYPENAME,
     AST_INTEGER,
-    AST_FLOAT,
     AST_STRING,
     AST_ASM,
     AST_EMPTY
@@ -53,8 +52,6 @@ ASTNode *make_string_leaf(const char *strval);
 ASTNode *make_asm_leaf(const char *strval);
 ASTNode *make_identifier_leaf(const char *strval);
 ASTNode *make_typename_leaf(const char *strval);
-ASTNode *make_float_leaf(const char *dval);
-ASTNode *make_float_leaf_with_type(const char *dval, ASTNode *typename);
 ASTNode *make_empty_leaf(void);
 char *make_negative(const char *p);
 

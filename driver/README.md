@@ -15,7 +15,7 @@ It sits above `n65c`, `n65asm`, and `n65ld` and invokes them in the usual compil
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
 - `-v` and `-###` to print the subordinate commands
 
-By default it links `libraries/nlib/nlib.a65`, and adds `libraries/float/float.a65` when builtin float helpers or builtin float comparison operator symbols are referenced unless `-nostdlib` is used.
+By default it links `libraries/nlib/nlib.a65` unless `-nostdlib` is used.
 
 ## What it requires
 
@@ -29,12 +29,12 @@ When run from the built repository tree, it finds:
 - `linker/n65ld`
 - `archiver/n65ar` (only for path reporting via `-print-prog-name=ar`)
 - `simulator/n65sim` (only for path reporting via `-print-prog-name=sim`)
-- `libraries/nlib/nlib.a65` and `libraries/float/float.a65` for default linking
+- `libraries/nlib/nlib.a65` for default linking
 
 When installed, it expects this layout under the same prefix:
 
 - `bin/n65cc`, `bin/n65c`, `bin/n65asm`, `bin/n65ld`, `bin/n65ar`, `bin/n65sim`
-- `lib/nlib.a65` and `lib/float.a65`
+- `lib/nlib.a65`
 - `include/nlib.inc` for the assembler's implicit runtime include path; the same include directory is also passed to `n65c` for installed headers such as `machine_6502.n`
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.

@@ -173,17 +173,6 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       return NULL;
    }
 
-   if (expr->kind == AST_FLOAT) {
-      const ASTNode *annotated = literal_annotation_type(expr);
-      if (annotated) {
-         return annotated;
-      }
-      if (typename_exists("float")) {
-         return required_typename_node("float");
-      }
-      return NULL;
-   }
-
    if (expr->kind == AST_STRING) {
       if (string_literal_is_char_constant(expr->strval)) {
          return required_typename_node("char");
@@ -296,7 +285,7 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       }
       if (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) {
          if (expr_is_literal_node(expr->children[0]) && rhs_type && type_is_promotable_integer(rhs_type) &&
-             !type_is_bool(rhs_type) &&  !type_is_float_like(rhs_type)) {
+             !type_is_bool(rhs_type)) {
             return rhs_type;
          }
          return lhs_type ? lhs_type : rhs_type;

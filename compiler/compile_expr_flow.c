@@ -25,7 +25,6 @@
 #include "compile_support.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"
@@ -436,23 +435,9 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       ContextEntry rhs;
       const char *helper = NULL;
       bool invert = false;
-      bool is_float_compare;
-      int expbits = -1;
       bool ok;
 
-      if ((lhs_type && type_is_float_like(lhs_type)) || (rhs_type && type_is_float_like(rhs_type))) {
-         int lhs_size = lhs_type ? type_size_from_node(lhs_type) : 0;
-         int rhs_size = rhs_type ? type_size_from_node(rhs_type) : 0;
-         if (lhs_type && type_is_float_like(lhs_type) && (!rhs_type || !type_is_float_like(rhs_type) || lhs_size >= rhs_size)) {
-            type = lhs_type;
-         }
-         else {
-            type = rhs_type;
-         }
-      }
-      else {
-         type = value_compare_integer_work_type(expr->children[0], expr->children[1], ctx, expr);
-      }
+      type = value_compare_integer_work_type(expr->children[0], expr->children[1], ctx, expr);
       if (!type) {
          type = lhs_type ? lhs_type : rhs_type;
       }
@@ -471,14 +456,6 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       snprintf(scratch_sym, sizeof(scratch_sym), "__n65_comparetmp_%d", label_counter++);
       lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = 0, .size = size };
       rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = size, .size = size };
-      is_float_compare = type_is_float_like(type);
-      if (is_float_compare) {
-         expbits = type_float_expbits(type);
-         if (expbits <= 0) {
-            error_user("[%s:%d.%d] unsupported float style/size for runtime comparison", expr->file, expr->line, expr->column);
-         }
-      }
-
       if (ctx) {
          ctx->locals = compare_size;
          ctx->locals_high_water = compare_size;
@@ -500,42 +477,6 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          emit(&es_bss, "%s:\n", scratch_sym);
          emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
          return false;
-      }
-
-      if (is_float_compare) {
-         emit_runtime_float_compare(lhs.offset, rhs.offset, size, expbits);
-         emit_expr_scratch_restore_fp();
-         if (ctx) {
-            ctx->locals = saved_locals;
-            ctx->locals_high_water = saved_high_water;
-         }
-         emit(&es_bss, ".segment \"BSS\"\n");
-         emit(&es_bss, "%s:\n", scratch_sym);
-         emit(&es_bss, "\t.res %d\n", scratch_size > 0 ? scratch_size : 1);
-         emit(&es_code, "    lda arg1\n");
-         if (!strcmp(expr->name, "==")) {
-            emit(&es_code, "    bne %s\n", false_label);
-         }
-         else if (!strcmp(expr->name, "!=")) {
-            emit(&es_code, "    beq %s\n", false_label);
-         }
-         else if (!strcmp(expr->name, "<")) {
-            emit(&es_code, "    cmp #$ff\n");
-            emit(&es_code, "    bne %s\n", false_label);
-         }
-         else if (!strcmp(expr->name, ">")) {
-            emit(&es_code, "    cmp #$01\n");
-            emit(&es_code, "    bne %s\n", false_label);
-         }
-         else if (!strcmp(expr->name, "<=")) {
-            emit(&es_code, "    cmp #$01\n");
-            emit(&es_code, "    beq %s\n", false_label);
-         }
-         else if (!strcmp(expr->name, ">=")) {
-            emit(&es_code, "    cmp #$ff\n");
-            emit(&es_code, "    beq %s\n", false_label);
-         }
-         return true;
       }
 
       if (!strcmp(expr->name, "==")) {
@@ -761,7 +702,6 @@ void compile_expr(ASTNode *node, Context *ctx) {
       else {
          if (dst->type && rhs_type && type_is_promotable_integer(dst->type) && type_is_promotable_integer(rhs_type) &&  
              !type_is_bool(dst->type) && !type_is_bool(rhs_type) &&
-             !type_is_float_like(dst->type) && !type_is_float_like(rhs_type) &&
              !expr_is_literal_node(rhs) && type_is_signed_integer(dst->type) != type_is_signed_integer(rhs_type)) {
             error_user("[%s:%d.%d] mixed signed/unsigned ordinary integer operator '%c' requires an explicit cast",
                        node->file, node->line, node->column, op ? op[0] : '?');
@@ -877,16 +817,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          rhs_value_offset = int_mul_result_offset(factor_type ? factor_type : work_type, scaled_rhs_offset, work_size);
       }
 
-      if ((!strcmp(op, "+=") || !strcmp(op, "-=")) && work_type && type_is_float_like(work_type)) {
-         int expbits = type_float_expbits(work_type);
-         if (expbits < 0) {
-            flow_fixed_scratch_end(ctx, &scratch);
-            error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
-            return;
-         }
-         emit_runtime_float_binary_fp_fp(!strcmp(op, "+=") ? "faddN" : "fsubN", lhs_tmp_offset, lhs_tmp_offset, rhs_value_offset, work_size, expbits, type_is_big_endian(work_type));
-      }
-      else if (!strcmp(op, "+=")) {
+      if (!strcmp(op, "+=")) {
          emit_add_fp_to_fp(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
       }
       else if (!strcmp(op, "-=")) {
@@ -902,45 +833,21 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_runtime_binary_fp_fp("bit_xorN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "*=")) {
-         if (work_type && type_is_float_like(work_type)) {
-            int expbits = type_float_expbits(work_type);
-            if (expbits < 0) {
-               flow_fixed_scratch_end(ctx, &scratch);
-               error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
-               return;
-            }
-            emit_runtime_float_binary_fp_fp("fmulN", aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size, expbits, type_is_big_endian(work_type));
-            emit_copy_fp_to_fp(lhs_tmp_offset, aux_offset, work_size);
-         }
-         else {
-            emit_runtime_binary_fp_fp(int_mul_helper_name(work_type), aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
-            emit_copy_fp_to_fp(lhs_tmp_offset, int_mul_result_offset(work_type, aux_offset, work_size), work_size);
-         }
+         emit_runtime_binary_fp_fp(int_mul_helper_name(work_type), aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_copy_fp_to_fp(lhs_tmp_offset, int_mul_result_offset(work_type, aux_offset, work_size), work_size);
       }
       else if (!strcmp(op, "/=") || !strcmp(op, "%=")) {
-         if (!strcmp(op, "/=") && work_type && type_is_float_like(work_type)) {
-            int expbits = type_float_expbits(work_type);
-            if (expbits < 0) {
-               flow_fixed_scratch_end(ctx, &scratch);
-               error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", node->file, node->line, node->column);
-               return;
-            }
-            emit_runtime_float_binary_fp_fp("fdivN", aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size, expbits, type_is_big_endian(work_type));
-            emit_copy_fp_to_fp(lhs_tmp_offset, aux_offset, work_size);
-         }
-         else {
-            int quo_offset = aux_offset;
-            int rem_offset = aux_offset + work_size;
-            emit_prepare_fp_ptr(0, lhs_tmp_offset);
-            emit_prepare_fp_ptr(1, rhs_tmp_offset);
-            emit_prepare_fp_ptr(2, quo_offset);
-            emit_prepare_fp_ptr(3, rem_offset);
-            emit(&es_code, "    lda #$%02x\n", work_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(int_div_helper_name(work_type));
-            emit(&es_code, "    jsr _%s\n", int_div_helper_name(work_type));
-            emit_copy_fp_to_fp(lhs_tmp_offset, !strcmp(op, "/=") ? quo_offset : rem_offset, work_size);
-         }
+         int quo_offset = aux_offset;
+         int rem_offset = aux_offset + work_size;
+         emit_prepare_fp_ptr(0, lhs_tmp_offset);
+         emit_prepare_fp_ptr(1, rhs_tmp_offset);
+         emit_prepare_fp_ptr(2, quo_offset);
+         emit_prepare_fp_ptr(3, rem_offset);
+         emit(&es_code, "    lda #$%02x\n", work_size & 0xff);
+         emit(&es_code, "    sta arg0\n");
+         remember_runtime_import(int_div_helper_name(work_type));
+         emit(&es_code, "    jsr _%s\n", int_div_helper_name(work_type));
+         emit_copy_fp_to_fp(lhs_tmp_offset, !strcmp(op, "/=") ? quo_offset : rem_offset, work_size);
       }
       else if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
          helper = int_shift_helper_name(work_type, !strcmp(op, "<<="));

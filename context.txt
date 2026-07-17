@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_232529.tar.gz
+    vcsc.20260716_235459.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -119,6 +119,10 @@ Completed vertical slices
     weak-operator generator/runtime members, and generated exact-operator float
     fixtures have been removed. Compiler source emits no `_pushN` or `_popN`.
     Ordinary named-function overloading remains supported.
+17. Floating-point support has been removed from the language, compiler, driver,
+    build, runtime, machine definitions, and positive test suite. Floating-point
+    literals and `$float`/`$float:*` type flags remain only as direct rejection
+    paths.
 
 Current return ABI
 ------------------
@@ -140,7 +144,6 @@ Relevant code:
 Every function declaration and definition is validated. The compiler rejects:
 
 * aggregate and array returns;
-* floating-point returns;
 * integers larger than two bytes;
 * two-byte big-endian integer returns;
 * any other noninteger, nonpointer value return.
@@ -241,8 +244,8 @@ Compiler source now contains:
 The generic test `test/software_stack_inventory.test` scans every compiler `.c`
 file and fails if either helper reappears. `_nl_fp` remains active as the base
 pointer for fixed per-site scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
-remain only in obsolete runtime/library families, especially float and wide
-integer helpers, and are removed after those families are pruned.
+remain only in obsolete runtime/library families, especially wide integer
+helpers, and are removed after those families are pruned.
 
 Test policy
 -----------
@@ -252,47 +255,90 @@ When a feature is removed:
 2. keep or add negative tests proving the compiler rejects it cleanly;
 3. rewrite tests whose real subject remains useful to use legal types or
    out-parameters;
-4. list every intentionally deleted test path in remove.txt.
+4. list every intentionally deleted path in remove.txt.
 
-In this return-restriction slice:
+For the floating-point purge:
 
-* 7 obsolete compile/codegen positive tests were deleted;
-* 28 obsolete E2E positive tests were deleted;
-* 6 focused return-contract tests were added;
-* useful wide/float/endian arithmetic tests were converted to void functions
-  with global/out-value results, because this slice rejects those types only as
-  function returns; their complete removal is a later TODO.
+* the compiler and lexer retain only direct rejection paths for floating-point
+  type flags and literals;
+* broad parser/codegen fixtures were rewritten to use integer values where
+  their real purpose was unrelated to floating point;
+* the nlib input-preservation E2E test now covers the retained integer helper;
+* 152 files were intentionally removed in this revision, including the complete
+  float runtime, compiler float implementation, dead nlib float bundle
+  generator, and obsolete positive tests;
+* all removed paths are in top-level remove.txt.
 
 Files changed in this revision
 ------------------------------
-Modified compiler source:
+Modified source, build, documentation, and tests:
 
-    compiler/compile_expr_flow.c
-    compiler/compile_init.c
-    compiler/compile_lvalue.c
-
-Modified documentation and handoff state:
-
+    Makefile
+    NOTES.md
+    README.md
     compiler/ABI.txt
+    compiler/Makefile
     compiler/README.md
-    context.txt
+    compiler/abi_meta.c
+    compiler/ast.c
+    compiler/ast.h
+    compiler/compile_expr.c
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_info.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_function.c
+    compiler/compile_init.c
+    compiler/compile_init.h
+    compiler/compile_internal.h
+    compiler/compile_lvalue.c
+    compiler/compile_overload.c
+    compiler/compile_stmt.c
+    compiler/compile_support.c
+    compiler/compile_toplevel.c
+    compiler/compile_type.c
+    compiler/compile_type.h
+    compiler/coverage_map.h
+    compiler/expropt.c
+    compiler/lexer.l
+    compiler/parser.y
+    docs/tool_usage.dox
+    driver/README.md
+    driver/n65cc.c
+    libraries/nlib/README.md
+    libraries/nlib/machine_6502.n
+    libraries/vcs/vcs.n
     software_stack_inventory.txt
+    test/README.md
+    test/bitfield_sizeof_codegen_test.n
+    test/blanket.n
+    test/broken.n
+    test/builtin_operator_codegen_test.n
+    test/compound_test.n
+    test/coverage.n
+    test/e2e_nlib_inputs_preserved_verify.n
+    test/lexer.n
+    test/machine_6502.n
+    test/shortcut_endian_cast_codegen_test.n
+    test/shortcut_endian_cast_literal_error_test.n
+    test/simple.n
+    test/static_initializer_expr_test.n
+    test/test.pl
+    test/test_foo.n
+    test/test_input.n
+    test/unimpl_audit.pl
 
-Modified tests:
+Added rejection/retained tests:
 
-    test/software_stack_inventory.pl
-    test/software_stack_inventory.test
-
-Added tests:
-
-    test/lvalue_braced_global_fixed_scratch_codegen_test.n
+    test/floating_literal_rejected_test.n
+    test/floating_type_rejected_test.n
+    test/no_int_required_test.n
 
 Removed intentionally:
 
-    none
+    152 files; every repository-relative pathname is appended to remove.txt.
 
-Top-level remove.txt is unchanged and still contains the cumulative deletion
-list from prior revisions.
+Top-level remove.txt now contains 373 cumulative deletion paths.
 
 Build environment
 -----------------
@@ -319,15 +365,13 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    258 passed, 0 failed, 258 total
+    241 passed, 0 failed, 241 total
 
 End-to-end/generic suite:
 
-    120 passed, 0 failed, 120 total
+    101 passed, 0 failed, 101 total
 
-The compile suite completed in one invocation. The full end-to-end invocation
-reached the execution wrapper timeout after 118 passing cases; the remaining two
-cases were run explicitly and passed, accounting for all 120 cases.
+The compile suite completed in one invocation. The full E2E run reached the execution wrapper timeout after 89 passing cases; the remaining 12 cases were run explicitly and passed, accounting for all 101 cases.
 
 Immediate TODO
 --------------
@@ -367,9 +411,14 @@ The first unfinished item is the default next action.
         `_nl_fp` temporarily for fixed-scratch addressing; remove `_nl_sp` and
         the runtime helpers after obsolete runtime families are gone.
 
-[ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t.
-        Remove floats, arbitrary endian, and 32/64-bit support and tests in
-        controlled groups.
+[ ] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
+        in controlled groups.
+
+        [x] 12a. Remove floating-point types, literals, compiler/runtime code,
+                  driver linkage, and positive tests.
+        [ ] 12b. Remove big-endian and mixed-endian type/expression support.
+        [ ] 12c. Remove 32/64-bit integer types, helpers, and tests; enforce
+                  only the four final integer widths/signedness combinations.
 
 [ ] 13. Produce and verify an unbanked 4K VCS cartridge using the static-frame
         ABI and the real 128-byte shared RAM model.
@@ -579,6 +628,23 @@ Change log
   symbol without reviving the generic weak-operator runtime.
 * Added focused rejection tests for operator overloading and `$exactops`.
 * All intentionally deleted paths are listed cumulatively in remove.txt.
+
+2026-07-17, floating-point purge
+* Removed floating-point literal AST/constant handling, type-style handling,
+  code generation, initializer packing, comparison/arithmetic lowering, and
+  compiler float implementation files.
+* The lexer rejects floating-point literals and type declarations reject
+  `$float`/`$float:*` with direct diagnostics.
+* Removed the complete `libraries/float` runtime and its build/install wiring.
+* Removed automatic float-runtime discovery/linking from `n65cc` and the test
+  harness.
+* Removed float declarations from the generic, VCS, and test machine definitions.
+* Removed the dead 2 MB `libraries/nlib/genasm.pl` float bundle generator.
+* Deleted obsolete positive float tests and rewrote broad fixtures whose actual
+  purpose remains useful.
+* Added focused rejection tests for floating-point types and literals.
+* Removed 152 files in this revision; remove.txt now contains 373 cumulative paths.
+* Passed 241/241 compile tests and 101/101 end-to-end/generic tests.
 
 End-of-session checklist
 ------------------------

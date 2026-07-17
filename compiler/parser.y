@@ -53,7 +53,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
 
 %token <str> CHAR          /* string, because xform shenanigans */
 %token <str> FLAG
-%token <str> FLOAT         /* string, because value might be outside hosts abilities */
 %token <str> IDENTIFIER
 %token <str> INTEGER       /* string, because value might be outside hosts abilities */
 %token <str> MEMNAME
@@ -690,8 +689,6 @@ num_primary_expr:
   | INTEGER '`' TYPENAME                     { COVER; $$ = make_integer_leaf_with_type($1, make_typename_leaf($3)); }
   | ENUMNAME                                 { COVER; $$ = make_enumname_expr($1); }
   | ENUMNAME '`' TYPENAME                    { COVER; $$ = make_enumname_expr_with_type($1, make_typename_leaf($3)); }
-  | FLOAT                                    { COVER; $$ = make_float_leaf($1); }
-  | FLOAT '`' TYPENAME                       { COVER; $$ = make_float_leaf_with_type($1, make_typename_leaf($3)); }
   | CHAR                                     { COVER; $$ = do_xform(make_string_leaf($1), NULL); }
   | CHAR '`' XFORMNAME                       { COVER; $$ = do_xform(make_string_leaf($1), $3); }
   ;
@@ -819,8 +816,6 @@ case_primary_expr:
 case_num_primary_expr:
     INTEGER                                                { COVER; $$ = make_integer_leaf($1); }
   | INTEGER '`' TYPENAME                                   { COVER; $$ = make_integer_leaf_with_type($1, make_typename_leaf($3)); }
-  | FLOAT                                                  { COVER; $$ = make_float_leaf($1); }
-  | FLOAT '`' TYPENAME                                     { COVER; $$ = make_float_leaf_with_type($1, make_typename_leaf($3)); }
   | CHAR                                                   { COVER; $$ = do_xform(make_string_leaf($1), NULL); }
   | CHAR '`' XFORMNAME                                     { COVER; $$ = do_xform(make_string_leaf($1), $3); }
   ;

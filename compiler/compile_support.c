@@ -21,7 +21,6 @@
 #include "compile_support.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"

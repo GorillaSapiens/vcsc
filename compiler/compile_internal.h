@@ -17,14 +17,12 @@
 typedef enum InitConstKind {
    INIT_CONST_NONE = 0,
    INIT_CONST_INT,
-   INIT_CONST_FLOAT,
    INIT_CONST_ADDRESS
 } InitConstKind;
 
 typedef struct InitConstValue {
    InitConstKind kind;
    long long i;
-   double f;
    const char *symbol;
    long long addend;
    const char *int_text;
@@ -146,8 +144,6 @@ const char *int_div_helper_name(const ASTNode *type);
 const char *int_shift_helper_name(const ASTNode *type, bool left);
 const char *int_comp2_helper_name(const ASTNode *type);
 const char *int_compare_helper_name(const ASTNode *type, const char *op);
-void emit_runtime_float_binary_fp_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, int size, int expbits, bool big_endian);
-void emit_runtime_float_compare(int lhs_offset, int rhs_offset, int size, int expbits);
 void emit_runtime_shift_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, const ASTNode *rhs_type, int rhs_size, int value_size);
 bool compile_constant_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst);
 void emit_sub_fp_from_fp(const ASTNode *type, int dst_offset, int src_offset, int size);

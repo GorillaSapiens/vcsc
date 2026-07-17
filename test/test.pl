@@ -50,7 +50,6 @@ my $n65ld  = File::Spec->catfile($repo_root, 'linker', 'n65ld');
 my $n65ar  = File::Spec->catfile($repo_root, 'archiver', 'n65ar');
 my $n65sim = File::Spec->catfile($repo_root, 'simulator', 'n65sim');
 my $nlib = File::Spec->catfile($repo_root, 'libraries', 'nlib', 'nlib.a65');
-my $floatlib = File::Spec->catfile($repo_root, 'libraries', 'float', 'float.a65');
 my $nlib_inc = File::Spec->catdir($repo_root, 'libraries', 'nlib');
 
 my %tool_alias = (
@@ -487,7 +486,7 @@ sub run_compile_case {
    }
 
    my $stderr = slurp_file($errfile);
-   my $ctx = { '@REPO@' => $repo_root, '@TEST_ROOT@' => $test_root, '@FILE@' => $case->{path}, '@FILEDIR@' => dirname($case->{path}), '@TMP@' => dirname($outfile), '@NLIB@' => $nlib, '@FLOAT@' => $floatlib, '@NLIB_INC@' => $nlib_inc };
+   my $ctx = { '@REPO@' => $repo_root, '@TEST_ROOT@' => $test_root, '@FILE@' => $case->{path}, '@FILEDIR@' => dirname($case->{path}), '@TMP@' => dirname($outfile), '@NLIB@' => $nlib, '@NLIB_INC@' => $nlib_inc };
    my $err = require_substrings_result($stderr, $meta->{expecterr}, 'stderr');
    return fail_result($err) if defined $err;
    $err = require_absent_substrings_result($stderr, $meta->{forbiderr}, 'stderr');
@@ -502,7 +501,7 @@ sub run_e2e_case {
    my $file = $case->{name};
    my $runner_args = $case->{runner_args};
    my $meta = $case->{meta};
-   for my $tool ($n65c, $n65asm, $n65ld, $n65ar, $n65sim, $nlib, $floatlib) {
+   for my $tool ($n65c, $n65asm, $n65ld, $n65ar, $n65sim, $nlib) {
       return fail_result("missing required file: $tool") if !-e $tool;
    }
 
@@ -514,7 +513,6 @@ sub run_e2e_case {
       '@FILEDIR@' => dirname($case->{path}),
       '@TMP@' => $tmp,
       '@NLIB@' => $nlib,
-      '@FLOAT@' => $floatlib,
       '@NLIB_INC@' => $nlib_inc,
    };
    my @compiled_objects;
@@ -600,7 +598,7 @@ sub run_e2e_case {
    if (defined $meta->{linkcfg}) {
       push @link_cmd, '-T', File::Spec->catfile($test_root, $meta->{linkcfg});
    }
-   push @link_cmd, @compiled_objects, @archives, $nlib, $floatlib;
+   push @link_cmd, @compiled_objects, @archives, $nlib;
    my $link_out = File::Spec->catfile($tmp, 'link.out');
    my $link_err = File::Spec->catfile($tmp, 'link.err');
    my ($link_exit) = run_cmd(\@link_cmd, $link_out, $link_err);
@@ -665,7 +663,6 @@ sub run_generic_case {
       '@FILEDIR@' => dirname($case->{path}),
       '@TMP@' => $tmp,
       '@NLIB@' => $nlib,
-      '@FLOAT@' => $floatlib,
       '@NLIB_INC@' => $nlib_inc,
       '@N65C@' => $n65c,
       '@N65CC@' => $n65cc,

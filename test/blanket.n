@@ -21,7 +21,7 @@ node head := { .data := 0, .next := 0 };
 
 union ofthesnake {
    int idata;
-   float fdata;
+   long fdata;
 };
 
 enum enumtest {
@@ -59,8 +59,8 @@ struct int { // should cause an error
    int fred;
 };
 
-union float { // should cause an error
-   float fred;
+union long { // should cause an error
+   long fred;
 };
 
 int ia;
@@ -73,8 +73,8 @@ ref int splitrw@[none/12];
 
 int ig := 5`int;
 
-float fa := 3.1415;
-float fb := 3.1415`float;
+int fa := 3;
+int fb := 3`int;
 
 char *msg := "hello, world!";
 char *msg2 := "hello, world!"`ascii;
@@ -267,7 +267,7 @@ label2:
 
 
 
-void blanket_case_expr_coverage(float f) {
+void blanket_case_expr_coverage(int f) {
    switch(0) {
       case 1 || 0:
       case 1 && 1:
@@ -298,9 +298,9 @@ void blanket_case_expr_coverage(float f) {
          break;
    }
 
-   switch(0.0) {
-      case 1.0:
-      case 1.0`float:
+   switch(0) {
+      case 1:
+      case 1`int:
          break;
       default:
          break;

@@ -25,7 +25,6 @@
 #include "compile_support.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"
@@ -728,16 +727,7 @@ unary_not_done:
             value_offset = int_mul_result_offset(factor_type ? factor_type : work_type, scaled_offset, work_size);
          }
 
-         if (work_type && type_is_float_like(work_type)) {
-            int expbits = type_float_expbits(work_type);
-            if (expbits < 0) {
-               expr_fixed_scratch_end(ctx, &scratch);
-               error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
-               return false;
-            }
-            emit_runtime_float_binary_fp_fp(!strcmp(expr->name, "+") ? "faddN" : "fsubN", lhs_offset, lhs_offset, value_offset, work_size, expbits, type_is_big_endian(work_type));
-         }
-         else if (!strcmp(expr->name, "+")) {
+         if (!strcmp(expr->name, "+")) {
             emit_add_fp_to_fp(work_type, lhs_offset, value_offset, work_size);
          }
          else {
@@ -886,44 +876,20 @@ unary_not_done:
          emit_runtime_binary_fp_fp(helper, lhs_offset, lhs_offset, rhs_offset, op_size);
       }
       else if (!strcmp(op, "*")) {
-         if (op_type && type_is_float_like(op_type)) {
-            int expbits = type_float_expbits(op_type);
-            if (expbits < 0) {
-               expr_fixed_scratch_end(ctx, &scratch);
-               error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
-               return false;
-            }
-            emit_runtime_float_binary_fp_fp("fmulN", aux_offset, lhs_offset, rhs_offset, op_size, expbits, type_is_big_endian(op_type));
-            emit_copy_fp_to_fp(lhs_offset, aux_offset, op_size);
-         }
-         else {
-            emit_runtime_binary_fp_fp(int_mul_helper_name(op_type), aux_offset, lhs_offset, rhs_offset, op_size);
-            emit_copy_fp_to_fp(lhs_offset, int_mul_result_offset(op_type, aux_offset, op_size), op_size);
-         }
+         emit_runtime_binary_fp_fp(int_mul_helper_name(op_type), aux_offset, lhs_offset, rhs_offset, op_size);
+         emit_copy_fp_to_fp(lhs_offset, int_mul_result_offset(op_type, aux_offset, op_size), op_size);
       }
       else if (!strcmp(op, "/") || !strcmp(op, "%")) {
-         if (!strcmp(op, "/") && op_type && type_is_float_like(op_type)) {
-            int expbits = type_float_expbits(op_type);
-            if (expbits < 0) {
-               expr_fixed_scratch_end(ctx, &scratch);
-               error_user("[%s:%d.%d] unsupported float style/size for runtime arithmetic", expr->file, expr->line, expr->column);
-               return false;
-            }
-            emit_runtime_float_binary_fp_fp("fdivN", aux_offset, lhs_offset, rhs_offset, op_size, expbits, type_is_big_endian(op_type));
-            emit_copy_fp_to_fp(lhs_offset, aux_offset, op_size);
-         }
-         else {
-            int rem_offset = aux_offset + op_size;
-            emit_prepare_fp_ptr(0, lhs_offset);
-            emit_prepare_fp_ptr(1, rhs_offset);
-            emit_prepare_fp_ptr(2, aux_offset);
-            emit_prepare_fp_ptr(3, rem_offset);
-            emit(&es_code, "    lda #$%02x\n", op_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(int_div_helper_name(op_type));
-            emit(&es_code, "    jsr _%s\n", int_div_helper_name(op_type));
-            emit_copy_fp_to_fp(lhs_offset, !strcmp(op, "/") ? aux_offset : rem_offset, op_size);
-         }
+         int rem_offset = aux_offset + op_size;
+         emit_prepare_fp_ptr(0, lhs_offset);
+         emit_prepare_fp_ptr(1, rhs_offset);
+         emit_prepare_fp_ptr(2, aux_offset);
+         emit_prepare_fp_ptr(3, rem_offset);
+         emit(&es_code, "    lda #$%02x\n", op_size & 0xff);
+         emit(&es_code, "    sta arg0\n");
+         remember_runtime_import(int_div_helper_name(op_type));
+         emit(&es_code, "    jsr _%s\n", int_div_helper_name(op_type));
+         emit_copy_fp_to_fp(lhs_offset, !strcmp(op, "/") ? aux_offset : rem_offset, op_size);
       }
 
       emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, lhs_offset, op_size, op_type);

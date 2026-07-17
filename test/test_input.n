@@ -9,7 +9,6 @@ type bool     { $size:1 $integer:unsigned };
 type void { $size:0 };
 type uint8 { $size:1 $integer:unsigned };
 type * { $size:2 $integer:unsigned $endian:little };
-type float { $size:2 $endian:little $float:ieee754};
 type int { $size:2 $integer:signed $endian:little};
 
 struct Point {
@@ -19,7 +18,6 @@ struct Point {
 
 union Value {
     int i;
-    float f;
 };
 
 Point origin := { .x := 0, .y := 0 };

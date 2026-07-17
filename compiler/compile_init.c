@@ -18,7 +18,6 @@
 #include "compile_overload.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "messages.h"
 #include "typename.h"
@@ -179,8 +178,6 @@ static bool init_const_truthy(const InitConstValue *value) {
    switch (value->kind) {
       case INIT_CONST_INT:
          return value->i != 0;
-      case INIT_CONST_FLOAT:
-         return value->f != 0.0;
       case INIT_CONST_ADDRESS:
          return value->symbol != NULL || value->addend != 0;
       default:
@@ -249,7 +246,6 @@ static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
    const ASTNode *target_decl = cast_expr_target_declarator(expr);
    int target_size;
    bool target_is_pointer;
-   bool target_is_float;
    bool target_is_signed;
    unsigned long long bits;
    unsigned long long mask;
@@ -272,21 +268,7 @@ static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
 
    target_is_pointer = (target_decl && declarator_pointer_depth(target_decl) > 0) ||
       !strcmp(type_name_from_node(target_type), "*");
-   target_is_float = type_is_float_like(target_type);
    target_is_signed = type_is_signed_integer(target_type);
-
-   if (target_is_float) {
-      if (inner.kind == INIT_CONST_FLOAT) {
-         *out = inner;
-         return true;
-      }
-      if (inner.kind == INIT_CONST_INT) {
-         out->kind = INIT_CONST_FLOAT;
-         out->f = (double) inner.i;
-         return true;
-      }
-      return false;
-   }
 
    if (inner.kind == INIT_CONST_ADDRESS) {
       if (target_is_pointer) {
@@ -296,10 +278,7 @@ static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
       return false;
    }
 
-   if (inner.kind == INIT_CONST_FLOAT) {
-      ival = (long long) inner.f;
-   }
-   else if (inner.kind == INIT_CONST_INT) {
+   if (inner.kind == INIT_CONST_INT) {
       ival = inner.i;
    }
    else {
@@ -349,12 +328,6 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       out->kind = INIT_CONST_INT;
       out->i = parse_int(expr->strval);
       out->int_text = expr->strval;
-      return true;
-   }
-
-   if (expr->kind == AST_FLOAT) {
-      out->kind = INIT_CONST_FLOAT;
-      out->f = parse_float(expr->strval);
       return true;
    }
 
@@ -414,11 +387,6 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
          if (lhs.kind == INIT_CONST_INT) {
             out->kind = INIT_CONST_INT;
             out->i = -lhs.i;
-            return true;
-         }
-         if (lhs.kind == INIT_CONST_FLOAT) {
-            out->kind = INIT_CONST_FLOAT;
-            out->f = -lhs.f;
             return true;
          }
          return false;
@@ -512,13 +480,6 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             out->addend = rhs.addend + lhs.i;
             return true;
          }
-         if (lhs.kind == INIT_CONST_FLOAT || rhs.kind == INIT_CONST_FLOAT) {
-            double a = (lhs.kind == INIT_CONST_FLOAT) ? lhs.f : (double) lhs.i;
-            double b = (rhs.kind == INIT_CONST_FLOAT) ? rhs.f : (double) rhs.i;
-            out->kind = INIT_CONST_FLOAT;
-            out->f = add ? (a + b) : (a - b);
-            return true;
-         }
          if (lhs.kind == INIT_CONST_INT && rhs.kind == INIT_CONST_INT) {
             out->kind = INIT_CONST_INT;
             out->i = add ? (lhs.i + rhs.i) : (lhs.i - rhs.i);
@@ -528,19 +489,6 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       }
 
       if (!strcmp(expr->name, "*") || !strcmp(expr->name, "/") || !strcmp(expr->name, "%")) {
-         if (lhs.kind == INIT_CONST_FLOAT || rhs.kind == INIT_CONST_FLOAT) {
-            double a = (lhs.kind == INIT_CONST_FLOAT) ? lhs.f : (double) lhs.i;
-            double b = (rhs.kind == INIT_CONST_FLOAT) ? rhs.f : (double) rhs.i;
-            if ((!strcmp(expr->name, "/") || !strcmp(expr->name, "%")) && b == 0.0) {
-               return false;
-            }
-            if (!strcmp(expr->name, "%")) {
-               return false;
-            }
-            out->kind = INIT_CONST_FLOAT;
-            out->f = !strcmp(expr->name, "*") ? (a * b) : (a / b);
-            return true;
-         }
          if (lhs.kind == INIT_CONST_INT && rhs.kind == INIT_CONST_INT) {
             if ((!strcmp(expr->name, "/") || !strcmp(expr->name, "%")) && rhs.i == 0) {
                return false;
@@ -614,19 +562,6 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             out->i = result ? 1 : 0;
             return true;
          }
-         if (lhs.kind == INIT_CONST_FLOAT || rhs.kind == INIT_CONST_FLOAT) {
-            double a = (lhs.kind == INIT_CONST_FLOAT) ? lhs.f : (double) lhs.i;
-            double b = (rhs.kind == INIT_CONST_FLOAT) ? rhs.f : (double) rhs.i;
-            if (!strcmp(expr->name, "==")) result = a == b;
-            else if (!strcmp(expr->name, "!=")) result = a != b;
-            else if (!strcmp(expr->name, "<")) result = a < b;
-            else if (!strcmp(expr->name, ">")) result = a > b;
-            else if (!strcmp(expr->name, "<=")) result = a <= b;
-            else result = a >= b;
-            out->kind = INIT_CONST_INT;
-            out->i = result ? 1 : 0;
-            return true;
-         }
          if (lhs.kind == INIT_CONST_INT && rhs.kind == INIT_CONST_INT) {
             if (!strcmp(expr->name, "==")) result = lhs.i == rhs.i;
             else if (!strcmp(expr->name, "!=")) result = lhs.i != rhs.i;
@@ -688,27 +623,6 @@ bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf
    }
 
    return encode_integer_initializer_value(value->i, buf, size, type);
-}
-
-//! @brief Handle encode float initializer value logic for compiler initializer lowering.
-bool encode_float_initializer_value(double value, unsigned char *buf, int size, const ASTNode *type) {
-   char tmp[256];
-   const char *style;
-   if (!buf || size < 0 || !type) {
-      return false;
-   }
-   style = type_float_style(type);
-   if (!style) {
-      return false;
-   }
-   snprintf(tmp, sizeof(tmp), "%la", value);
-   if (has_flag(type_name_from_node(type), "$endian:big")) {
-      make_be_float_style(tmp, buf, size, style);
-   }
-   else {
-      make_le_float_style(tmp, buf, size, style);
-   }
-   return true;
 }
 
 //! @brief Emit symbol address initializer for compiler initializer lowering diagnostics or output files.
@@ -1057,13 +971,6 @@ static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_o
       InitConstValue value = {0};
       if (!eval_constant_initializer_expr((ASTNode *) uinit, &value)) {
          return false;
-      }
-      if (value.kind == INIT_CONST_FLOAT || type_is_float_like(type)) {
-         if (value.kind != INIT_CONST_FLOAT && value.kind != INIT_CONST_INT) {
-            return false;
-         }
-         return encode_float_initializer_value(value.kind == INIT_CONST_FLOAT ? value.f : (double) value.i,
-               buf + base_offset, size, type);
       }
       if (value.kind != INIT_CONST_INT) {
          return false;

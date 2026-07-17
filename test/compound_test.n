@@ -13,8 +13,6 @@ type long      { $size:8    $integer:signed $endian:little };
 type ulong     { $size:8  $integer:unsigned $endian:little };
 type longlong  { $size:16   $integer:signed $endian:little };
 type ulonglong { $size:16 $integer:unsigned $endian:little };
-type float     { $size:4            $endian:little $float:ieee754 };  // IEEE 754 binary32
-type double    { $size:8            $endian:little $float:ieee754 }; // IEEE 754 binary64
 
 short main(int argc, char **argv) {
    int x := 1;

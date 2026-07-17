@@ -3,8 +3,6 @@
 // expectasm: 	.byte $14, $00, $00
 // expectasm: less:
 // expectasm: 	.byte $01
-// expectasm: four:
-// expectasm: 	.byte $00, $00, $80, $40
 // expectasm: pair:
 // expectasm: 	.byte $03, $00, $00, $04, $00, $00
 // expectasm: ptr:
@@ -14,11 +12,9 @@ type bool     { $size:1 $integer:unsigned };
 type void     { $size:0 };
 type *        { $size:2 $integer:unsigned $endian:little };
 type uint24_t { $size:3 $integer:unsigned $endian:little };
-type float_t  { $size:4 $float:ieee754 $endian:little }; // IEEE 754 binary32
 
 uint24_t sum := (2 + 3) * 4;
 bool less := 2 + 1 < 5;
-float_t four := 1.5 + 2.5;
 uint24_t pair[2] := { 1 + 2, 8 >> 1 };
 uint24_t base;
 uint24_t *ptr := &base + 1;

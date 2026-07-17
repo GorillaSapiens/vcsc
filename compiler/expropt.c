@@ -11,20 +11,9 @@
 
 #include "ast.h"
 #include "expropt.h"
-#include "float.h"
 #include "integer.h"
 #include "messages.h"
 #include "xray.h"
-
-//! @brief Parse node to double into the normalized representation used by expropt.
-static double parse_node_to_double(ASTNode *node) {
-   if (node && node->kind == AST_INTEGER) {
-      return parse_int(node->strval);
-   }
-   else {
-      return parse_float(node->strval);
-   }
-}
 
 //! @brief Return whether int applies in expropt.
 static bool is_int(ASTNode *node) {
@@ -36,21 +25,11 @@ static bool is_int(ASTNode *node) {
    return false;
 }
 
-//! @brief Return whether float or int applies in expropt.
-static bool is_float_or_int(ASTNode *node) {
-   if (node && (node->kind == AST_INTEGER || node->kind == AST_FLOAT)) {
-      if (node->count == 0) { // backtick casting is done on the processor
-         return true;
-      }
-   }
-   return false;
-}
-
 //! @brief Return whether lone expr applies in expropt.
 static bool is_lone_expr(ASTNode *node) {
    if (!strcmp(node->name, "expr")) {
       if (node->count == 1) {
-         if (is_float_or_int(node->children[0])) {
+         if (is_int(node->children[0])) {
             return true;
          }
       }
@@ -70,8 +49,8 @@ static bool is_binary_op(ASTNode *node) {
             node->children[1] = node->children[1]->children[0];
          }
 
-         if (is_float_or_int(node->children[0]) &&
-             is_float_or_int(node->children[1])) {
+         if (is_int(node->children[0]) &&
+             is_int(node->children[1])) {
             return true;
          }
       }
@@ -87,7 +66,7 @@ static bool is_unary_op(ASTNode *node) {
             node->children[0] = node->children[0]->children[0];
          }
 
-         if (is_float_or_int(node->children[0])) {
+         if (is_int(node->children[0])) {
             return true;
          }
       }
@@ -111,10 +90,6 @@ static bool node_truthy(ASTNode *node, bool *truthy) {
       *truthy = parse_int(node->strval) != 0;
       return true;
    }
-   if (node && node->kind == AST_FLOAT && node->count == 0) {
-      *truthy = parse_float(node->strval) != 0.0;
-      return true;
-   }
    return false;
 }
 
@@ -122,22 +97,10 @@ static bool node_truthy(ASTNode *node, bool *truthy) {
 static void handle_binary_plus(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0]) && is_int(node->children[1])) {
-      long long left = parse_int(node->children[0]->strval);
-      long long right = parse_int(node->children[1]->strval);
-
-      long long result = left + right;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
-   }
-   else {
-      double left = parse_node_to_double(node->children[0]);
-      double right = parse_node_to_double(node->children[1]);
-
-      double result = left + right;
-      sprintf(buf, "%la", result);
-      *noderef = make_float_leaf(strdup(buf));
-   }
+   long long left = parse_int(node->children[0]->strval);
+   long long right = parse_int(node->children[1]->strval);
+   snprintf(buf, sizeof(buf), "%lld", left + right);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle handle unary plus logic for expropt.
@@ -149,110 +112,55 @@ static void handle_unary_plus(ASTNode **noderef) {
 static void handle_binary_minus(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0]) && is_int(node->children[1])) {
-      long long left = parse_int(node->children[0]->strval);
-      long long right = parse_int(node->children[1]->strval);
-
-      long long result = left - right;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
-   }
-   else {
-      double left = parse_node_to_double(node->children[0]);
-      double right = parse_node_to_double(node->children[1]);
-
-      double result = left - right;
-      sprintf(buf, "%la", result);
-      *noderef = make_float_leaf(strdup(buf));
-   }
+   long long left = parse_int(node->children[0]->strval);
+   long long right = parse_int(node->children[1]->strval);
+   snprintf(buf, sizeof(buf), "%lld", left - right);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle handle unary minus logic for expropt.
 static void handle_unary_minus(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0])) {
-      long long left = parse_int(node->children[0]->strval);
-
-      long long result = -left;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
-   }
-   else {
-      double left = parse_node_to_double(node->children[0]);
-      double result = -left;
-      sprintf(buf, "%la", result);
-      *noderef = make_float_leaf(strdup(buf));
-   }
+   long long value = parse_int(node->children[0]->strval);
+   snprintf(buf, sizeof(buf), "%lld", -value);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle handle binary times logic for expropt.
 static void handle_binary_times(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0]) && is_int(node->children[1])) {
-      long long left = parse_int(node->children[0]->strval);
-      long long right = parse_int(node->children[1]->strval);
-
-      long long result = left * right;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
-   }
-   else {
-      double left = parse_node_to_double(node->children[0]);
-      double right = parse_node_to_double(node->children[1]);
-
-      double result = left * right;
-      sprintf(buf, "%la", result);
-      *noderef = make_float_leaf(strdup(buf));
-   }
+   long long left = parse_int(node->children[0]->strval);
+   long long right = parse_int(node->children[1]->strval);
+   snprintf(buf, sizeof(buf), "%lld", left * right);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle handle binary divide logic for expropt.
 static void handle_binary_divide(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0]) && is_int(node->children[1])) {
-      long long left = parse_int(node->children[0]->strval);
-      long long right = parse_int(node->children[1]->strval);
-
-      if (right == 0) {
-         error_user("integer divide by zero at [%s:%d.%d]", node->file, node->line, node->column);
-      }
-      long long result = left / right;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
+   long long left = parse_int(node->children[0]->strval);
+   long long right = parse_int(node->children[1]->strval);
+   if (right == 0) {
+      error_user("integer divide by zero at [%s:%d.%d]", node->file, node->line, node->column);
    }
-   else {
-      double left = parse_node_to_double(node->children[0]);
-      double right = parse_node_to_double(node->children[1]);
-
-      double result = left / right;
-      sprintf(buf, "%la", result);
-      *noderef = make_float_leaf(strdup(buf));
-   }
+   snprintf(buf, sizeof(buf), "%lld", left / right);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle handle binary modulo logic for expropt.
 static void handle_binary_modulo(ASTNode **noderef) {
    ASTNode *node = *noderef;
    char buf[256];
-   if (is_int(node->children[0]) && is_int(node->children[1])) {
-      long long left = parse_int(node->children[0]->strval);
-      long long right = parse_int(node->children[1]->strval);
-
-      if (right == 0) {
-         error_user("integer modulo by zero at [%s:%d.%d]", node->file, node->line, node->column);
-      }
-      long long result = left % right;
-      sprintf(buf, "%lld", result);
-      *noderef = make_integer_leaf(strdup(buf));
+   long long left = parse_int(node->children[0]->strval);
+   long long right = parse_int(node->children[1]->strval);
+   if (right == 0) {
+      error_user("integer modulo by zero at [%s:%d.%d]", node->file, node->line, node->column);
    }
-   else {
-      error_user("float modulo undefined at [%s:%d.%d]",
-         node->file, node->line, node->column);
-      // error calls exit
-   }
+   snprintf(buf, sizeof(buf), "%lld", left % right);
+   *noderef = make_integer_leaf(strdup(buf));
 }
 
 //! @brief Handle expropt logic for expropt.

@@ -14,9 +14,6 @@ type * { $size:2 $integer:unsigned $endian:little };
 type int { $size:2 $integer:signed $endian:little };
 type long { $size:4 $integer:signed $endian:little };
 type longlong { $size:4 $integer:signed $endian:little };
-type half     { $size:2 $endian:little $float:ieee754 };  // IEEE 754 binary16
-type float    { $size:4 $endian:little $float:ieee754 };  // IEEE 754 binary32
-type double   { $size:8 $endian:little $float:ieee754 }; // IEEE 754 binary64
 
 xform { // default xform has no name
    // canonical escapes
@@ -40,7 +37,7 @@ struct hoot {
 };
 
 struct complex {
-   float real, imaginary;
+   int real, imaginary;
    int re, im;
    int hook := 5;
 };
@@ -52,7 +49,7 @@ struct linkedlistnode {
 
 int a := 3 * (2 + 2 - 2 * 2 / 2);
 int b := 4 + -5;
-int z := 0b000_111_000 + 3.141_592_653_587;
+int z := 0b000_111_000 + 3_141;
 
 int c;
 

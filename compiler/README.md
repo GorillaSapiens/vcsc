@@ -7,11 +7,11 @@ N is a mostly C-like systems language aimed at small targets, especially 8-bit m
 - Assignment uses `:=` instead of `=`.
 - Braces are required on `if`, `else`, loops, and similar statements. There is no dangling-`else` ambiguity.
 - Included files behave like `pragma once` automatically. Include-file identity is based on an MD5 of file contents, so duplicate content is only compiled once.
-- There are no built-in integer or float type names. Types are declared explicitly.
+- There are no implicit built-in integer type names. Types are declared explicitly.
 - Struct and union names become types directly. There is no separate `typedef struct foo foo;` dance.
-- Functions can return any value type supported by the compiler, including arrays.
+- Functions return `void`, an integer value no wider than two bytes, or a pointer.
 - Static function parameters are supported.
-- Some operators can be overloaded.
+- Operator overloading is intentionally unsupported.
 - Strings can be translated through named `xform` mappings.
 - Inline assembly statements are supported as raw one-line passthroughs with `asm ...` inside functions.
 
@@ -20,7 +20,7 @@ N is a mostly C-like systems language aimed at small targets, especially 8-bit m
 The compiler supports newline-terminated lexical aliases:
 
 ```n
-alias PI 3.14159
+alias LIMIT 314
 alias inc(x) (x + 1)
 alias add(a,b) (a + b)
 ```
@@ -107,7 +107,6 @@ type bool   { $size:1 $integer:unsigned };
 type *      { $size:2 $integer:unsigned $endian:little };
 type s2     { $size:2 $integer:signed   $endian:little };
 type u4     { $size:4 $integer:unsigned $endian:little };
-type f4     { $size:4 $float:ieee754 $endian:little }; // IEEE 754 binary32
 ```
 
 ### Required type declarations
@@ -118,9 +117,9 @@ The compiler requires these declarations to exist in the program or its includes
 - `bool` ... boolean result type used by comparisons and logical expressions
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-`int` and `float` are **not** required and are not hard-coded semantic fallback types.
+`int` is **not** required and is not a hard-coded semantic fallback type.
 
-Non-float scalar type declarations say whether they are integer-like with `$integer:signed` or `$integer:unsigned`. The required `bool` type must use `$integer:unsigned`, while `void` remains flagless.
+Scalar value types say whether they are integer-like with `$integer:signed` or `$integer:unsigned`. The required `bool` type must use `$integer:unsigned`, while `void` remains flagless. Floating-point type flags are rejected.
 
 Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
 
@@ -131,8 +130,8 @@ Recognized flags include:
 - `$size:N`
 - `$integer:signed`
 - `$integer:unsigned`
-- `$float:ieee754` ... IEEE 754 packing for `$size:2`, `$size:4`, and `$size:8`
-- `$float:simple` ... generic `SExMy` packing where `x = round(3 * log2(size) + 2)` and `y` is the remaining fraction bits
+
+Floating-point flags are not recognized as value types; `$float` and `$float:*` declarations are rejected.
 
 Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
 - `$endian:little`
@@ -269,9 +268,9 @@ There are also four shortcut casts:
 - ``($big)expr``
 - ``($little)expr``
 
-`($signed)` and `($unsigned)` preserve width and endianness while changing signedness, but only for already-typed ordinary fixed-width integers. They are never legal on literals, floats, or pointers.
+`($signed)` and `($unsigned)` preserve width and endianness while changing signedness, but only for already-typed ordinary fixed-width integers. They are never legal on literals or pointers.
 
-`($big)` and `($little)` preserve width and numeric family while changing endianness. They are legal on already-typed fixed-width integers and floats, but they are never legal on literals, `bool`, or pointers.
+`($big)` and `($little)` preserve width and numeric family while changing endianness. They are legal on already-typed fixed-width integers, but they are never legal on literals, `bool`, or pointers.
 
 ### Shifts
 
@@ -291,7 +290,7 @@ The intended shift rules are:
 
 Mixed-endian assignments are supported.
 
-The compiler performs endian-aware conversion when values move between slots or symbols. When source and destination integer or float endianness differ, bytes are reordered instead of blindly copied.
+The compiler performs endian-aware conversion when values move between slots or symbols. When source and destination integer endianness differ, bytes are reordered instead of blindly copied.
 
 Ordinary mixed-endian integer operators are accepted in target-typed contexts where the destination type supplies the endian choice. This includes declaration initializers, assignments, braced assignment, return values, casts, and function-call arguments. For example, when `u2be x` receives `a * b`, the mixed-endian operands are compiled through a `u2be` work type before the result is stored.
 
@@ -307,8 +306,6 @@ That means these are handled sensibly:
 
 - big-endian to little-endian assignment of equal-sized integers
 - little-endian to big-endian assignment of equal-sized integers
-- big-endian to little-endian assignment of equal-sized floats
-- little-endian to big-endian assignment of equal-sized floats
 - mixed-endian integer arithmetic in target-typed destinations
 - mixed-endian integer arithmetic after an explicit endian cast
 - mixed-endian integer comparisons
@@ -466,7 +463,6 @@ For validation to work, any used `mem` declaration must provide `$start`, either
 The compiler supports real constant-expression evaluation for static/global initializers, including:
 
 - integers
-- floats
 - booleans
 - comparisons and logical expressions
 - ternary expressions
@@ -628,8 +624,8 @@ The following limits are deliberate in the language and compiler design, not unk
 - There is no separate textual preprocessor phase. Variadic functions are intentionally unsupported, and the lexer rejects `...`.
 - `void*` conversion is one-way by default: typed object pointers may convert to `void*` or `const void*`, but converting `void*` back to a typed pointer requires an explicit cast.
 - Ordinary mixed signed/unsigned integer operators require an explicit cast when width adjustment leaves the signedness ambiguous. The compiler widens by width, but it does not guess signedness.
-- `switch case` labels use the compiler's restricted constant-case grammar. Numeric literals, character literals, enum constants, floats, unary operators, and parenthesized forms are supported, but arbitrary identifier expressions such as `case y + 2:` are not.
-- Runtime float arithmetic is transitional and provided only for the builtin binary16, binary32, and binary64 layouts; all float support is scheduled for removal.
+- `switch case` labels use the compiler's restricted constant-case grammar. Numeric literals, character literals, enum constants, unary operators, and parenthesized forms are supported, but arbitrary identifier expressions such as `case y + 2:` are not.
+- Floating-point types and literals are rejected.
 
 ## Incomplete or limited features
 

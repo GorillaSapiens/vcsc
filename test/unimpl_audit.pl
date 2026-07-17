@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-my @sources = ('../compiler/compile.c', '../compiler/float.c');
+my @sources = ('../compiler/compile.c');
 my %want;
 my %have_call;
 

@@ -1050,8 +1050,7 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             if (eval_constant_initializer_expr(low, &low_value) &&
                 eval_constant_initializer_expr(high, &high_value) &&
                 low_value.kind == high_value.kind) {
-               if ((low_value.kind == INIT_CONST_INT && low_value.i > high_value.i) ||
-                   (low_value.kind == INIT_CONST_FLOAT && low_value.f > high_value.f)) {
+               if (low_value.kind == INIT_CONST_INT && low_value.i > high_value.i) {
                   swapped = true;
                   ordered_low = high;
                   ordered_high = low;

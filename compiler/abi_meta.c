@@ -292,8 +292,6 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
 
    if (!strcmp(node->name, "type_decl_stmt")) {
       const char *endian = type_endian_name(node);
-      const char *float_style = type_float_style(node);
-      bool is_float = type_is_float_like(node);
       bool is_signed = type_is_signed_integer(node);
       bool is_unsigned = type_is_unsigned_integer(node);
 
@@ -302,21 +300,6 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
          sb_append(fp, ")");
 
          sb_appendf(detail, "void(size=%d", size);
-         sb_append(detail, ")");
-         return;
-      }
-
-      if (is_float) {
-         sb_appendf(fp, "float(sz=%d;style=%s", size, float_style ? float_style : "unknown");
-         if (endian)
-            sb_appendf(fp, ";end=%s", endian);
-         sb_appendf(fp, ";exp=%d", type_float_expbits(node));
-         sb_append(fp, ")");
-
-         sb_appendf(detail, "float_like(size=%d, style=%s", size, float_style ? float_style : "unknown");
-         if (endian)
-            sb_appendf(detail, ", %s-endian", endian);
-         sb_appendf(detail, ", expbits=%d", type_float_expbits(node));
          sb_append(detail, ")");
          return;
       }

@@ -18,7 +18,6 @@ struct FloatBits {
 };
 
 union FloatOverlay {
-   float f;
    long word;
    FloatBits bits;
 };

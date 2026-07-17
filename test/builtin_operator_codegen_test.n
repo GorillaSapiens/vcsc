@@ -3,16 +3,10 @@
 // expectasm: jsr _add32le
 // expectasm: jsr _mulNle
 // expectasm: jsr _lslNle
-// expectasm: jsr _fcmp
-// expectasm: jsr _f32_add
-// expectasm: jsr _f32_mul
 // forbidasm: ?@op_add@s4_p0_a0@s4_p0_a0
 // forbidasm: ?@op_mul@s4_p0_a0@s4_p0_a0
 // forbidasm: ?@op_le@s4_p0_a0@s4_p0_a0
 // forbidasm: ?@op_lsh@u4_p0_a0@u4_p0_a0
-// forbidasm: ?@op_eq@float_p0_a0@float_p0_a0
-// forbidasm: ?@op_add@float_p0_a0@float_p0_a0
-// forbidasm: ?@op_mul@float_p0_a0@float_p0_a0
 
 include "machine_6502.n"
 
@@ -21,7 +15,6 @@ type u4 { $size:4 $integer:unsigned $endian:little };
 
 s4 sresult;
 u4 uresult;
-float fresult;
 
 void addmulcmp(s4 a, s4 b) {
    if (a <= b) {
@@ -35,10 +28,3 @@ void shl(u4 a, u4 b) {
    uresult := a << b;
 }
 
-bool feq(float a, float b) {
-   return a == b;
-}
-
-void fmath(float a, float b) {
-   fresult := (a + b) * b;
-}

@@ -1,0 +1,8 @@
+// n65c
+// expectfail
+// expecterr: floating-point types are not supported
+
+type void { $size:0 };
+type bool { $size:1 $integer:unsigned };
+type * { $size:2 $integer:unsigned $endian:little };
+type float_t { $size:4 $float:ieee754 $endian:little };

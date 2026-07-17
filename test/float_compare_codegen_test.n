@@ -1,9 +1,0 @@
-// n65c -I .
-// expectasm: jsr _fcmp
-// expectasm: .import _fcmp
-
-include "machine_6502.n"
-
-bool less(float a, float b) {
-   return a < b;
-}

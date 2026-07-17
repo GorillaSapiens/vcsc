@@ -393,57 +393,6 @@ const char *int_compare_helper_name(const ASTNode *type, const char *op) {
    return NULL;
 }
 
-//! @brief Return fixed builtin float helper for compiler lvalue lowering; returned pointer aliases static storage.
-static const char *fixed_float_helper_name(const char *generic_helper, int size, int expbits, bool big_endian) {
-   const char *suffix = NULL;
-   const char *prefix = NULL;
-
-   if (!generic_helper) {
-      return NULL;
-   }
-   if (!strcmp(generic_helper, "faddN")) suffix = "add";
-   else if (!strcmp(generic_helper, "fsubN")) suffix = "sub";
-   else if (!strcmp(generic_helper, "fmulN")) suffix = "mul";
-   else if (!strcmp(generic_helper, "fdivN")) suffix = "div";
-   else return generic_helper;
-
-   if (size == 2 && expbits == 5) prefix = big_endian ? "f16be" : "f16";
-   else if (size == 4 && expbits == 8) prefix = big_endian ? "f32be" : "f32";
-   else if (size == 8 && expbits == 11) prefix = big_endian ? "f64be" : "f64";
-   else return NULL;
-
-   static char helper_name[32];
-   snprintf(helper_name, sizeof(helper_name), "%s_%s", prefix, suffix);
-   return helper_name;
-}
-
-//! @brief Emit runtime float binary frame pointer frame pointer for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_float_binary_fp_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, int size, int expbits, bool big_endian) {
-   const char *fixed_helper = fixed_float_helper_name(helper, size, expbits, big_endian);
-   if (!fixed_helper) {
-      error_user("unsupported float runtime arithmetic helper '%s' for size=%d expbits=%d",
-                 helper ? helper : "<null>", size, expbits);
-      return;
-   }
-   emit_prepare_fp_ptr(0, lhs_offset);
-   emit_prepare_fp_ptr(1, rhs_offset);
-   emit_prepare_fp_ptr(2, dst_offset);
-   remember_runtime_import(fixed_helper);
-   emit(&es_code, "    jsr _%s\n", fixed_helper);
-}
-
-//! @brief Emit runtime float compare for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_float_compare(int lhs_offset, int rhs_offset, int size, int expbits) {
-   emit_prepare_fp_ptr(0, lhs_offset);
-   emit_prepare_fp_ptr(1, rhs_offset);
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
-   emit(&es_code, "    lda #$%02x\n", expbits & 0xff);
-   emit(&es_code, "    sta arg1\n");
-   remember_runtime_import("fcmp");
-   emit(&es_code, "    jsr _fcmp\n");
-}
-
 //! @brief Emit runtime shift frame pointer for compiler lvalue lowering diagnostics or output files.
 void emit_runtime_shift_fp(const char *helper, int value_offset, int scratch_offset, int count_offset,
                                   const ASTNode *count_type, int count_size, int size) {

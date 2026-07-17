@@ -2,15 +2,11 @@
 // expectasm: __n65_inittmp_
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN
-// expectasm: jsr _fcmp
-// expectasm: .import _fcmp
 
 include "machine_6502.n"
 
 type u2be { $size:2 $integer:unsigned $endian:big };
 type u2le { $size:2 $integer:unsigned $endian:little };
-type f4be { $size:4 $float:ieee754 $endian:big };
-type f4le { $size:4 $float:ieee754 $endian:little };
 
 u2le result_le;
 u2be result_be;
@@ -23,6 +19,3 @@ void addbe(u2be a, u2le b) {
    result_be := a + ($big)b;
 }
 
-bool samef(f4be a, f4le b) {
-   return ($little)a == b;
-}

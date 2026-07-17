@@ -58,7 +58,7 @@ zeropage int in_the_zero_page := 5;
 int a[5], *b, c := 'a';
 
 int a := 5`int;
-float a := 5.0`float;
+int afloat := 5`int;
 
 void (*fruitloops)(int n);
 
@@ -138,14 +138,14 @@ empty_cov: ;
    a;
    ;
 
-   a := 3.14;
+   a := 3;
    a := 1;
    a := "hello";
 
    a := { 1, 2, 3, };
    a := { 1, 2, 3 };
-   a := { 3.14 };
-   a := { -3.14 };
+   a := { 3 };
+   a := { -3 };
    a := { 3 };
    a := { -3 };
    a := { "hello" };
@@ -163,8 +163,8 @@ empty_cov: ;
    a := sizeof(int *);
    a := sizeof(int $$);
 
-   float fc := 1.5;
-   float fd := 2.5;
+   int fc := 1;
+   int fd := 2;
    a := fc < fd;
    a := fc > fd;
    a := fc <= fd;
@@ -279,7 +279,7 @@ int function3(void) {
 
 int function4(void);
 
-void coverage_case_expr_coverage(float f) {
+void coverage_case_expr_coverage(int f) {
    switch(0) {
       case 1 || 0:
       case 1 && 1:
@@ -310,9 +310,9 @@ void coverage_case_expr_coverage(float f) {
          break;
    }
 
-   switch(0.0) {
-      case 1.0:
-      case 1.0`float:
+   switch(0) {
+      case 1:
+      case 1`int:
          break;
       default:
          break;

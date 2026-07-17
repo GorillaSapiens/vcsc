@@ -229,7 +229,6 @@ static int parameter_argument_conversion_cost(const ASTNode *ptype, const ASTNod
        declarator_is_plain_value(pdecl) && (!adecl || declarator_is_plain_value(adecl)) &&
        type_is_promotable_integer(ptype) && type_is_promotable_integer(atype) &&  
        !type_is_bool(ptype) && !type_is_bool(atype) &&
-       !type_is_float_like(ptype) && !type_is_float_like(atype) &&
        type_endian_name(ptype)) {
       ASTNode *binary = (ASTNode *) unwrap_expr_node((ASTNode *) arg_expr);
       const ASTNode *work_type = NULL;

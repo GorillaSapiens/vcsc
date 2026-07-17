@@ -14,7 +14,6 @@
 #include "ast.h"
 #include "compile_internal.h"
 #include "compile_type.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"
@@ -119,7 +118,7 @@ bool type_is_signed_integer(const ASTNode *type) {
    const char *name = type_name_from_node(type);
    const ASTNode *node;
 
-   if (!name || !strcmp(name, "*") || type_is_bool(type) || type_is_float_like(type)) {
+   if (!name || !strcmp(name, "*") || type_is_bool(type)) {
       return false;
    }
 
@@ -209,7 +208,7 @@ bool expr_is_literal_node(const ASTNode *expr) {
    if (!expr) {
       return false;
    }
-   if (expr->kind == AST_INTEGER || expr->kind == AST_FLOAT || expr->kind == AST_STRING) {
+   if (expr->kind == AST_INTEGER || expr->kind == AST_STRING) {
       return true;
    }
    return expr_is_integer_constant_expr(expr, NULL);
@@ -223,8 +222,7 @@ bool ordinary_integer_endian_conflict(const ASTNode *lhs_type, const ASTNode *rh
    const char *rhs_endian;
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return false;
    }
 
@@ -257,7 +255,7 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
       if (!node || strcmp(node->name, "type_decl_stmt")) {
          continue;
       }
-      if ( type_is_bool(node) || type_is_float_like(node)) {
+      if ( type_is_bool(node)) {
          continue;
       }
       if (require_signed) {
@@ -303,8 +301,7 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
    const ASTNode *best;
 
    if (!type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return NULL;
    }
 
@@ -378,8 +375,7 @@ const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Co
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return NULL;
    }
 
@@ -429,8 +425,7 @@ bool expr_is_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return false;
    }
 
@@ -471,8 +466,7 @@ const ASTNode *target_endian_integer_binary_work_type(ASTNode *lhs_expr, ASTNode
 
    if (!lhs_type || !rhs_type || !target_type ||
        !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) || !type_is_promotable_integer(target_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) || type_is_bool(target_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type) || type_is_float_like(target_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type) || type_is_bool(target_type)) {
       return NULL;
    }
 
@@ -524,8 +518,7 @@ const ASTNode *value_compare_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_e
 
    if (!lhs_type || !rhs_type ||
        !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return NULL;
    }
 
@@ -562,8 +555,7 @@ const ASTNode *compound_integer_work_type(const ASTNode *lhs_type, const ASTNode
    rhs_decl = expr_value_declarator(rhs_expr, ctx);
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return NULL;
    }
 
@@ -612,8 +604,7 @@ void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return;
    }
 
@@ -663,8 +654,7 @@ void require_no_mixed_endian_integer_binary_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!lhs_type || !rhs_type || !type_is_promotable_integer(lhs_type) || !type_is_promotable_integer(rhs_type) ||
-       type_is_bool(lhs_type) || type_is_bool(rhs_type) ||
-       type_is_float_like(lhs_type) || type_is_float_like(rhs_type)) {
+       type_is_bool(lhs_type) || type_is_bool(rhs_type)) {
       return;
    }
 
@@ -695,7 +685,7 @@ void require_no_mixed_endian_pointer_index_expr(ASTNode *origin, ASTNode *idx_ex
 
    idx_type = expr_value_type(idx_expr, ctx);
    ptr_type = required_typename_node("*");
-   if (!ptr_type || !idx_type || !type_is_promotable_integer(idx_type) || type_is_bool(idx_type) || type_is_float_like(idx_type) ||
+   if (!ptr_type || !idx_type || !type_is_promotable_integer(idx_type) || type_is_bool(idx_type) ||
        type_size_from_node(idx_type) <= 1 || type_size_from_node(ptr_type) <= 1) {
       return;
    }
@@ -737,20 +727,8 @@ const ASTNode *select_endian_variant_type(const ASTNode *src_type, const char *t
       if (target_endian && cand_endian && strcmp(target_endian, cand_endian)) {
          continue;
       }
-      if (type_is_float_like(src_type)) {
-         const char *src_style = type_float_style(src_type);
-         const char *cand_style;
-         if (!type_is_float_like(node)) {
-            continue;
-         }
-         cand_style = type_float_style(node);
-         if ((!src_style || !cand_style || strcmp(src_style, cand_style))) {
-            continue;
-         }
-         return node;
-      }
-      if (type_is_promotable_integer(src_type) && !type_is_bool(src_type) && !type_is_float_like(src_type)) {
-         if (!type_is_promotable_integer(node) || type_is_bool(node) || type_is_float_like(node)) {
+      if (type_is_promotable_integer(src_type) && !type_is_bool(src_type)) {
+         if (!type_is_promotable_integer(node) || type_is_bool(node)) {
             continue;
          }
          if (type_is_signed_integer(node) != type_is_signed_integer(src_type)) {
@@ -795,7 +773,7 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
          error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                     expr->file, expr->line, expr->column, flag_text);
       }
-      error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer or float expressions",
+      error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer expressions",
                  expr->file, expr->line, expr->column, flag_text);
    }
 
@@ -803,15 +781,15 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    src_decl = expr_value_declarator(operand, ctx);
    if (signedness_cast) {
       if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) ||
-          !type_is_promotable_integer(src_type) || type_is_bool(src_type) || type_is_float_like(src_type)) {
+          !type_is_promotable_integer(src_type) || type_is_bool(src_type)) {
          error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                     expr->file, expr->line, expr->column, flag_text);
       }
    }
    else {
       if (!src_type || (src_decl && !declarator_is_plain_value(src_decl)) || type_is_bool(src_type) ||
-          (!type_is_promotable_integer(src_type) && !type_is_float_like(src_type))) {
-         error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer or float expressions",
+          (!type_is_promotable_integer(src_type))) {
+         error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed fixed-width integer expressions",
                     expr->file, expr->line, expr->column, flag_text);
       }
    }
@@ -820,7 +798,7 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
    if (src_size <= 0) {
       error_user("[%s:%d.%d] shortcut cast '%s' requires a fixed-width %s operand",
                  expr->file, expr->line, expr->column, flag_text,
-                 signedness_cast ? "integer" : "integer or float");
+                 "integer");
    }
 
    if (signedness_cast) {
@@ -852,7 +830,7 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
       if (!dst_type) {
          error_user("[%s:%d.%d] shortcut cast '%s' has no matching %d-byte %s-endian %s type",
                     expr->file, expr->line, expr->column, flag_text, src_size, target_endian,
-                    type_is_float_like(src_type) ? "float" : "integer");
+                    "integer");
       }
       return dst_type;
    }
@@ -894,7 +872,7 @@ const ASTNode *literal_annotation_type(const ASTNode *expr) {
    if (!expr) {
       return NULL;
    }
-   if ((expr->kind == AST_INTEGER || expr->kind == AST_FLOAT) && expr->count > 0 && expr->children[0]) {
+   if ((expr->kind == AST_INTEGER) && expr->count > 0 && expr->children[0]) {
       return expr->children[0];
    }
    return NULL;
@@ -1081,67 +1059,6 @@ bool has_flag_prefix(const char *type, const char *prefix) {
       }
    }
    return false;
-}
-
-//! @brief Parse float style flag text into the normalized representation used by compiler type system.
-const char *parse_float_style_flag_text(const char *text) {
-   if (!text || strncmp(text, "$float:", 7) || !text[7]) {
-      return NULL;
-   }
-   return text + 7;
-}
-
-//! @brief Return whether type is float like in compiler type system.
-bool type_is_float_like(const ASTNode *type) {
-   const char *name = type_name_from_node(type);
-   return name && has_flag_prefix(name, "$float:");
-}
-
-//! @brief Return type float style data used by compiler type system; returned pointers alias existing storage unless explicitly allocated by the function name.
-const char *type_float_style(const ASTNode *type) {
-   const ASTNode *node;
-   const ASTNode *flags;
-
-   if (!type) {
-      return NULL;
-   }
-
-   node = get_typename_node(type_name_from_node(type));
-   if (!node || node->count < 2 || is_empty(node->children[1])) {
-      return NULL;
-   }
-
-   flags = node->children[1];
-   for (int i = 0; i < flags->count; i++) {
-      const char *style;
-      if (!flags->children[i] || !flags->children[i]->strval) {
-         continue;
-      }
-      style = parse_float_style_flag_text(flags->children[i]->strval);
-      if (style) {
-         return style;
-      }
-   }
-
-   return NULL;
-}
-
-//! @brief Handle type float expbits logic for compiler type system.
-int type_float_expbits(const ASTNode *type) {
-   const char *style;
-   int size;
-
-   if (!type) {
-      return -1;
-   }
-
-   style = type_float_style(type);
-   if (!style) {
-      return -1;
-   }
-
-   size = type_size_from_node(type);
-   return float_style_expbits_for_size(style, size);
 }
 
 //! @brief Return whether modifier applies in compiler type system.
@@ -1397,11 +1314,6 @@ int expr_value_size(ASTNode *expr, Context *ctx) {
    if (expr->kind == AST_INTEGER) {
       type = literal_annotation_type(expr);
       return type ? type_size_from_node(type) : integer_literal_min_size(expr);
-   }
-
-   if (expr->kind == AST_FLOAT) {
-      type = literal_annotation_type(expr);
-      return type ? type_size_from_node(type) : 0;
    }
 
    if (!strcmp(expr->name, "sizeof")) {

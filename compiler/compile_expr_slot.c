@@ -25,7 +25,6 @@
 #include "compile_support.h"
 #include "compile_type.h"
 #include "emit.h"
-#include "float.h"
 #include "integer.h"
 #include "memname.h"
 #include "messages.h"
@@ -168,24 +167,6 @@ bool compile_constant_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
 
    if (!dst || !eval_constant_initializer_expr(expr, &value)) {
       return false;
-   }
-
-   if (value.kind == INIT_CONST_FLOAT || type_is_float_like(dst->type)) {
-      if (value.kind != INIT_CONST_FLOAT && value.kind != INIT_CONST_INT) {
-         return false;
-      }
-      bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
-      if (!bytes) {
-         error_unreachable("out of memory");
-      }
-      if (!encode_float_initializer_value(value.kind == INIT_CONST_FLOAT ? value.f : (double) value.i,
-                                          bytes, dst->size, dst->type)) {
-         free(bytes);
-         return false;
-      }
-      emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
-      free(bytes);
-      return true;
    }
 
    if (value.kind != INIT_CONST_INT) {
@@ -432,28 +413,6 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       }
       else {
          make_le_int(expr->strval, bytes, dst->size);
-      }
-      emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
-      free(bytes);
-      return true;
-   }
-
-   if (expr->kind == AST_FLOAT) {
-      unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
-      const char *style = type_float_style(dst->type);
-      if (!bytes) {
-         error_unreachable("out of memory");
-      }
-      if (!style) {
-         error_user("[%s:%d.%d] floating literal cannot be used as non-float type '%s'",
-               expr->file ? expr->file : "<unknown>", expr->line, expr->column,
-               type_name_from_node(dst->type) ? type_name_from_node(dst->type) : "<unknown>");
-      }
-      if (has_flag(type_name_from_node(dst->type), "$endian:big")) {
-         make_be_float_style(expr->strval, bytes, dst->size, style);
-      }
-      else {
-         make_le_float_style(expr->strval, bytes, dst->size, style);
       }
       emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
       free(bytes);

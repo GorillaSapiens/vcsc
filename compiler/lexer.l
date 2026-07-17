@@ -1816,8 +1816,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 }
 
 {FLOAT} {
-   yylval.str = strip_underscores(yytext);
-   return FLOAT;
+   error_user("[%s:%d.%d] floating-point literals are not supported", current_filename, yylineno, yycolumn);
 }
 
 {IDENT} {

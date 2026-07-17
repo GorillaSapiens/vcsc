@@ -50,11 +50,11 @@ The software-stack implementation itself still exists outside compiler code:
 
 `_nl_fp` is still actively used as the base pointer for fixed scratch addressing.
 `_nl_sp`, `_pushN`, and `_popN` survive only because obsolete runtime families—most
-notably the float library and generic wide helpers—still reference them. They can be
+notably generic wide helpers—still reference them. They can be
 removed after those unsupported type/runtime families are deleted.
 
 Next slice
 ----------
-Enforce the final four basic integer types and little-endian-only model. Remove float,
+Enforce the final four basic integer types and little-endian-only model. Floating-point support is gone; remove
 arbitrary-endian, and 32/64-bit compiler/runtime/test support in controlled groups;
 then delete `_nl_sp`, `_pushN`, `_popN`, and any dead stack-pointer helpers.

@@ -37,7 +37,7 @@ These are mostly small assembly helpers that the compiler can target directly:
 - stack/frame helpers: `pushN`, `popN`, `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`, `fp2ptr*`, `sp2ptr*`
 - increment/decrement helpers
 
-The generic 6502 machine definition is in `machine_6502.n`, the assembler include glue is in `nlib.inc`, the assembly sources are in `asm/`, and the built archive members are in `wrk/` after `make`. Weak operator helpers and their generated ABI have been removed. Transitional builtin float arithmetic and `_fcmp` remain in `libraries/float/float.a65` until float support is removed.
+The generic 6502 machine definition is in `machine_6502.n`, the assembler include glue is in `nlib.inc`, the assembly sources are in `asm/`, and the built archive members are in `wrk/` after `make`. Weak operator helpers and their generated ABI have been removed. Floating-point support has been removed.
 
 ### Memory allocation
 

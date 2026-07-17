@@ -49,8 +49,6 @@ SRCSRC = \
    emit.c \
    enumname.c \
    expropt.c \
-   float.c \
-   float_bignat.c \
    integer.c \
    md5.c \
    md5seen.c \
@@ -108,7 +106,7 @@ test:
 	(cd ../test; ./test.pl --compile-only)
 
 $(TARGET): version.h coverage_map.h $(GENHDR) $(GENSRC) $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ) -lm
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
 n65c.o: version.h
 
