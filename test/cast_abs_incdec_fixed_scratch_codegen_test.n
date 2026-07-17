@@ -1,0 +1,26 @@
+// n65c -I .
+// expectasm: __n65_casttmp_
+// expectasm: __n65_abslocaltmp_
+// expectasm: __n65_absglobaltmp_
+// expectasm: __n65_incdectmp_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.n"
+
+type uint8_t  { $size:1 $integer:unsigned $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+ref uint8_t global_abs@[0x0600/0x0600];
+uint8_t counter;
+uint16_t result;
+
+void exercise(void) {
+   ref uint8_t local_abs@[0x0601/0x0601];
+
+   result := global_abs;
+   result := local_abs;
+   counter := (uint8_t) result;
+   counter++;
+   --counter;
+}

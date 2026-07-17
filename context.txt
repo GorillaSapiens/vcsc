@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260716_202355.tar.gz
+    vcsc.20260716_210552.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -104,6 +104,9 @@ Completed vertical slices
     use fixed per-site BSS scratch instead of `_pushN`/`_popN`: pointer
     subtraction, scalar/pointer addition and subtraction, shifts, bitwise
     operations, multiplication, division, and remainder.
+13. Cast conversion, function-local/global absolute-reference conversion, and
+    built-in increment/decrement now use fixed per-site BSS scratch. Fixed
+    symbol-to-lvalue helpers cover ordinary, indirect, and bit-field lvalues.
 
 Current return ABI
 ------------------
@@ -220,17 +223,15 @@ Old software-stack machinery still present
 Top-level software_stack_inventory.txt is the authoritative detailed inventory.
 At this snapshot the compiler contains:
 
-    19  emitted `_pushN` allocation sites
-    52  emitted `_popN` normal/error cleanup paths
+    15  emitted `_pushN` allocation sites
+    41  emitted `_popN` normal/error cleanup paths
 
 The remaining allocations are classified as:
 
-* retained scalar/pointer expression, conversion, lvalue, switch, and
-  initializer scratch;
-* conditional aggregate, bit-field, absolute-reference, and runtime-global-
-  initializer scratch;
-* obsolete indirect-call, operator-overload, float, wide-integer, and
-  arbitrary-endian paths.
+* retained compound-assignment, pointer/index lvalue, switch, and initializer
+  scratch;
+* conditional aggregate, bit-field, and runtime-global-initializer scratch;
+* obsolete operator-overload, float, wide-integer, and arbitrary-endian paths.
 
 There are no remaining `_pushN` sites whose purpose is to allocate ordinary
 named automatic locals or `$$`.
@@ -262,10 +263,11 @@ Files changed in this revision
 ------------------------------
 Modified compiler source:
 
-    compiler/compile_expr_flow.c
     compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_lvalue.c
+    compiler/compile_lvalue.h
     compiler/compile_support.c
-    compiler/compile_support.h
 
 Modified documentation and handoff state:
 
@@ -276,16 +278,13 @@ Modified documentation and handoff state:
 
 Modified tests:
 
-    test/big_endian_mul_low_half_codegen_test.n
     test/software_stack_inventory.pl
     test/software_stack_inventory.test
-    test/static_parameter_codegen_test.n
 
 Added tests:
 
-    test/binary_fixed_scratch_codegen_test.n
-    test/comparison_fixed_scratch_codegen_test.n
-    test/e2e_fixed_binary_compare_verify.n
+    test/cast_abs_incdec_fixed_scratch_codegen_test.n
+    test/e2e_fixed_cast_abs_incdec_verify.n
 
 Removed intentionally:
 
@@ -319,15 +318,15 @@ Result: passed with the project's warning-as-error settings.
 
 Compile suite:
 
-    276 passed, 0 failed, 276 total
+    277 passed, 0 failed, 277 total
 
 End-to-end/generic suite:
 
-    122 passed, 0 failed, 122 total
+    123 passed, 0 failed, 123 total
 
 The compile suite completed in one invocation. The end-to-end/generic runner
-reached the execution wrapper timeout after 116 passing cases; the remaining
-six cases were run explicitly and all passed, accounting for all 122 cases.
+reached the execution wrapper timeout after 117 passing cases; the remaining
+six cases were run explicitly and all passed, accounting for all 123 cases.
 
 Immediate TODO
 --------------
@@ -363,8 +362,10 @@ The first unfinished item is the default next action.
         overlay/liveness reuse. Truth-value evaluation, discarded results,
         simple fixed-symbol assignment conversion, comparisons, pointer/scalar
         addition and subtraction, shifts, bitwise operations, multiplication,
-        division, and remainder are complete. Next batch cast and absolute-
-        reference conversion scratch, then built-in increment/decrement.
+        division, remainder, casts, local/global absolute-reference conversion,
+        and built-in increment/decrement are complete. Next batch built-in
+        compound assignment and switch-expression scratch, then initializer and
+        pointer/index lvalue scratch.
 
 [ ] 11. Remove _nl_sp/_nl_fp and the software argument/local stack after no
         retained compiler path depends on it.
@@ -387,6 +388,10 @@ Open implementation questions
 * Whether the provisional 32-byte hardware-stack reserve should eventually be
   replaced by exact link-time call-depth sizing.
 * Expression scratch allocation after the software stack is removed.
+* Existing defect: in some simple assignments such as `old := value++`, the
+  assignment-expression fast path can copy the lvalue without applying the
+  increment. Standalone `value++`/`--value` works and is covered here; fix this
+  independently rather than conflating it with scratch removal.
 * Whether separate compilation remains throughout simplification.
 * Kernel-function syntax and cycle checking/inlining policy.
 
@@ -531,6 +536,23 @@ Change log
   assembly expectations.
 * Reduced the checked compiler stack inventory from 24/67 to 19/52.
 * Passed 276/276 compile tests and 122/122 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16, fixed cast/absolute-reference/increment scratch
+* Replaced cast-conversion software-stack scratch with fixed per-site BSS
+  symbols named `__n65_casttmp_N`.
+* Replaced function-local and global absolute-reference conversion scratch with
+  `__n65_abslocaltmp_N` and `__n65_absglobaltmp_N`.
+* Replaced built-in pre/post increment/decrement scratch with
+  `__n65_incdectmp_N`.
+* Added fixed symbol-to-lvalue and bit-field-lvalue-to-symbol helpers so built-in
+  increment/decrement covers ordinary, indirect, absolute, and bit-field
+  lvalues without `_pushN`/`_popN`.
+* Added focused code-generation and execution tests.
+* Reduced the checked compiler stack inventory from 19/52 to 15/41.
+* Passed 277/277 compile tests and 123/123 end-to-end/generic tests.
+* Recorded the pre-existing assignment-expression `post++` fast-path defect for
+  a later independent fix; standalone built-in increment/decrement is correct.
 * No files were removed.
 
 End-of-session checklist

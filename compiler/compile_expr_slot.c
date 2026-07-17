@@ -41,6 +41,74 @@ static int cast_expr_target_size(const ASTNode *expr);
 
 static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
+typedef struct SlotFixedScratch {
+   int saved_locals;
+   int saved_high_water;
+   int reserved;
+   char symbol[96];
+} SlotFixedScratch;
+
+//! @brief Begin fixed-address slot scratch and redirect fp to it.
+static void slot_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+                                     SlotFixedScratch *scratch) {
+   memset(scratch, 0, sizeof(*scratch));
+   scratch->saved_locals = ctx ? ctx->locals : 0;
+   scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
+   scratch->reserved = reserved > 0 ? reserved : 1;
+   snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+
+   if (ctx) {
+      ctx->locals = scratch->reserved;
+      ctx->locals_high_water = scratch->reserved;
+   }
+   emit(&es_code, "    lda fp+1\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda fp\n");
+   emit(&es_code, "    pha\n");
+   emit(&es_code, "    lda #<%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    lda #>%s\n", scratch->symbol);
+   emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Restore fp and declare fixed-address slot scratch.
+static void slot_fixed_scratch_end(Context *ctx, SlotFixedScratch *scratch) {
+   int used = scratch->reserved;
+   if (ctx && ctx->locals_high_water > used) {
+      used = ctx->locals_high_water;
+   }
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp\n");
+   emit(&es_code, "    pla\n");
+   emit(&es_code, "    sta fp+1\n");
+   if (ctx) {
+      ctx->locals = scratch->saved_locals;
+      ctx->locals_high_water = scratch->saved_high_water;
+   }
+   emit(&es_bss, ".segment \"BSS\"\n");
+   emit(&es_bss, "%s:\n", scratch->symbol);
+   emit(&es_bss, "\t.res %d\n", used > 0 ? used : 1);
+}
+
+//! @brief Copy a converted slot-scratch result into the caller destination.
+static void emit_slot_fixed_scratch_result(Context *ctx, const SlotFixedScratch *scratch,
+                                           int src_offset, int src_size, const ASTNode *src_type,
+                                           ContextEntry *dst) {
+   char dst_symbol[256];
+   if (!dst || dst->size <= 0) {
+      return;
+   }
+   if ((dst->is_static || dst->is_zeropage || dst->is_global) &&
+       entry_symbol_name(ctx, dst, dst_symbol, sizeof(dst_symbol))) {
+      emit_copy_symbol_to_symbol_convert_offset(dst_symbol, 0, dst->size, dst->type,
+                                                scratch->symbol, src_offset, src_size, src_type);
+   }
+   else {
+      emit_copy_symbol_to_fp_convert_offset(dst->offset, dst->size, dst->type,
+                                            scratch->symbol, src_offset, src_size, src_type);
+   }
+}
+
 //! @brief Return lvalue base identifier node data used by compile expr slot; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *lvalue_base_identifier_node(ASTNode *base) {
    if (!base) {
@@ -315,7 +383,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       const ASTNode *target_type = !strcmp(expr->name, "cast") ? cast_expr_target_type(expr) : flag_cast_target_type(expr, ctx);
       const ASTNode *target_decl = !strcmp(expr->name, "cast") ? cast_expr_target_declarator(expr) : flag_cast_target_declarator(expr, ctx);
       int target_size = !strcmp(expr->name, "cast") ? cast_expr_target_size(expr) : flag_cast_target_size(expr, ctx);
-      int saved_locals = ctx ? ctx->locals : 0;
+      SlotFixedScratch scratch;
       ContextEntry tmp;
       if (expr_is_plain_void_cast(expr)) {
          error_user("[%s:%d.%d] void expression has no value",
@@ -325,32 +393,16 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          error_user("[%s:%d.%d] invalid cast target type",
                expr->file ? expr->file : "<unknown>", expr->line, expr->column);
       }
-      remember_runtime_import("pushN");
-      emit(&es_code, "    lda #$%02x\n", target_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _pushN\n");
-      tmp = (ContextEntry){ .name = "$cast", .type = target_type, .declarator = target_decl, .is_static = false, .is_zeropage = false, .is_global = false, .target_typed = true, .offset = saved_locals, .size = target_size };
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals + target_size);
-      }
+      slot_fixed_scratch_begin(ctx, "casttmp", target_size, &scratch);
+      tmp = (ContextEntry){ .name = "$cast", .type = target_type, .declarator = target_decl,
+                            .is_static = false, .is_zeropage = false, .is_global = false,
+                            .target_typed = true, .offset = 0, .size = target_size };
       if (!compile_expr_to_slot(expr->children[1], ctx, &tmp)) {
-         if (ctx) {
-            ctx_set_locals(ctx, saved_locals);
-         }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", target_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
+         slot_fixed_scratch_end(ctx, &scratch);
          return false;
       }
-      if (ctx) {
-         ctx_set_locals(ctx, saved_locals);
-      }
-      emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, tmp.offset, tmp.size, tmp.type);
-      remember_runtime_import("popN");
-      emit(&es_code, "    lda #$%02x\n", target_size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    jsr _popN\n");
+      slot_fixed_scratch_end(ctx, &scratch);
+      emit_slot_fixed_scratch_result(ctx, &scratch, 0, tmp.size, tmp.type, dst);
       return true;
    }
 
@@ -447,23 +499,17 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             if (dst->size == lv.size && dst->type == lv.type) {
                return emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, lv.size);
             }
-            remember_runtime_import("pushN");
-            emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _pushN\n");
-            if (!emit_copy_lvalue_to_fp(ctx, ctx->locals, &lv, lv.size)) {
-               remember_runtime_import("popN");
-               emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-               emit(&es_code, "    sta arg0\n");
-               emit(&es_code, "    jsr _popN\n");
-               return false;
+            {
+               SlotFixedScratch scratch;
+               slot_fixed_scratch_begin(ctx, "abslocaltmp", lv.size, &scratch);
+               if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
+                  slot_fixed_scratch_end(ctx, &scratch);
+                  return false;
+               }
+               slot_fixed_scratch_end(ctx, &scratch);
+               emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+               return true;
             }
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, ctx->locals, lv.size, lv.type);
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
-            return true;
          }
          if (entry && !entry->is_static && !entry->is_zeropage) {
             emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, entry->offset, entry->size, entry->type);
@@ -488,23 +534,17 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                   if (dst->size == lv.size && dst->type == lv.type) {
                      return emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, lv.size);
                   }
-                  remember_runtime_import("pushN");
-                  emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-                  emit(&es_code, "    sta arg0\n");
-                  emit(&es_code, "    jsr _pushN\n");
-                  if (!emit_copy_lvalue_to_fp(ctx, ctx->locals, &lv, lv.size)) {
-                     remember_runtime_import("popN");
-                     emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-                     emit(&es_code, "    sta arg0\n");
-                     emit(&es_code, "    jsr _popN\n");
-                     return false;
+                  {
+                     SlotFixedScratch scratch;
+                     slot_fixed_scratch_begin(ctx, "absglobaltmp", lv.size, &scratch);
+                     if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
+                        slot_fixed_scratch_end(ctx, &scratch);
+                        return false;
+                     }
+                     slot_fixed_scratch_end(ctx, &scratch);
+                     emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+                     return true;
                   }
-                  emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, ctx->locals, lv.size, lv.type);
-                  remember_runtime_import("popN");
-                  emit(&es_code, "    lda #$%02x\n", lv.size & 0xff);
-                  emit(&es_code, "    sta arg0\n");
-                  emit(&es_code, "    jsr _popN\n");
-                  return true;
                }
                else {
                   char sym[256];

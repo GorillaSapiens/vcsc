@@ -21,5 +21,7 @@ void emit_store_ptr_to_fp(int dst_offset, int ptrno, int size);
 bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size);
 bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode mode);
 bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, int size);
+bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset, const LValueRef *src, int size);
+bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *symbol, int symbol_offset, int size);
 
 #endif

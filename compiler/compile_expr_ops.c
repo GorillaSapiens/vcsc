@@ -48,15 +48,18 @@ typedef struct ExprFixedScratch {
    char symbol[96];
 } ExprFixedScratch;
 
-//! @brief Begin one fixed-address expression working area and redirect fp to it.
-static void expr_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
-                                     ExprFixedScratch *scratch) {
+//! @brief Prepare one fixed-address expression working area without changing fp.
+static void expr_fixed_scratch_prepare(Context *ctx, const char *prefix, int reserved,
+                                       ExprFixedScratch *scratch) {
    memset(scratch, 0, sizeof(*scratch));
    scratch->saved_locals = ctx ? ctx->locals : 0;
    scratch->saved_high_water = ctx ? ctx->locals_high_water : 0;
    scratch->reserved = reserved > 0 ? reserved : 1;
    snprintf(scratch->symbol, sizeof(scratch->symbol), "__n65_%s_%d", prefix, label_counter++);
+}
 
+//! @brief Redirect fp to a prepared fixed-address expression working area.
+static void expr_fixed_scratch_activate(Context *ctx, ExprFixedScratch *scratch) {
    if (ctx) {
       ctx->locals = scratch->reserved;
       ctx->locals_high_water = scratch->reserved;
@@ -69,6 +72,13 @@ static void expr_fixed_scratch_begin(Context *ctx, const char *prefix, int reser
    emit(&es_code, "    sta fp\n");
    emit(&es_code, "    lda #>%s\n", scratch->symbol);
    emit(&es_code, "    sta fp+1\n");
+}
+
+//! @brief Begin one fixed-address expression working area and redirect fp to it.
+static void expr_fixed_scratch_begin(Context *ctx, const char *prefix, int reserved,
+                                     ExprFixedScratch *scratch) {
+   expr_fixed_scratch_prepare(ctx, prefix, reserved, scratch);
+   expr_fixed_scratch_activate(ctx, scratch);
 }
 
 //! @brief Restore fp, restore compiler frame accounting, and declare fixed scratch.
@@ -588,61 +598,39 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       }
       {
          int tmp_size;
-         ContextEntry tmp;
          unsigned char *one;
+         ExprFixedScratch scratch;
          tmp_size = lv.size > 0 ? lv.size : dst->size;
-         tmp = (ContextEntry){ .name = "$tmp", .type = lv.type, .declarator = lv.declarator, .is_static = false, .is_zeropage = false, .is_global = false, .offset = ctx->locals, .size = tmp_size };
-         remember_runtime_import("pushN");
-         emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _pushN\n");
-         if (!emit_copy_lvalue_to_fp(ctx, tmp.offset, &lv, tmp.size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         expr_fixed_scratch_prepare(ctx, "incdectmp", tmp_size, &scratch);
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, tmp_size)) {
             return false;
          }
          if (!pre) {
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, tmp.offset, tmp.size, tmp.type);
+            emit_fixed_scratch_result(ctx, &scratch, 0, tmp_size, lv.type, dst);
          }
-         one = (unsigned char *) calloc(tmp.size ? tmp.size : 1, sizeof(unsigned char));
+         one = (unsigned char *) calloc(tmp_size ? tmp_size : 1, sizeof(unsigned char));
          if (!one) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
             return false;
          }
-         if (!make_incdec_delta_bytes(tmp.type, lv.declarator, tmp.size, one)) {
+         if (!make_incdec_delta_bytes(lv.type, lv.declarator, tmp_size, one)) {
             free(one);
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
             return false;
          }
+         expr_fixed_scratch_activate(ctx, &scratch);
          if (inc) {
-            emit_add_immediate_to_fp(tmp.type, tmp.offset, one, tmp.size);
+            emit_add_immediate_to_fp(lv.type, 0, one, tmp_size);
          }
          else {
-            emit_sub_immediate_from_fp(tmp.type, tmp.offset, one, tmp.size);
+            emit_sub_immediate_from_fp(lv.type, 0, one, tmp_size);
          }
          free(one);
-         if (!emit_copy_fp_to_lvalue(ctx, &lv, tmp.offset, tmp.size)) {
-            remember_runtime_import("popN");
-            emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            emit(&es_code, "    jsr _popN\n");
+         expr_fixed_scratch_end(ctx, &scratch);
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol, 0, tmp_size)) {
             return false;
          }
          if (pre) {
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, tmp.offset, tmp.size, tmp.type);
+            emit_fixed_scratch_result(ctx, &scratch, 0, tmp_size, lv.type, dst);
          }
-         remember_runtime_import("popN");
-         emit(&es_code, "    lda #$%02x\n", tmp_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         emit(&es_code, "    jsr _popN\n");
          return true;
       }
    }

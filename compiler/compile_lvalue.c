@@ -778,6 +778,154 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
    return true;
 }
 
+//! @brief Emit copy bitfield lvalue to a fixed symbol without software-stack scratch.
+bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset,
+                                         const LValueRef *src, int size) {
+   int copy_size = size < src->size ? size : src->size;
+   bool is_signed;
+   int src_byte_offset;
+   int shift_bits;
+   int raw_copy_size;
+   int field_last_byte;
+   int field_rem;
+
+   if (!symbol || copy_size <= 0) {
+      return copy_size <= 0;
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
+      return false;
+   }
+   emit_load_address_to_ptr(1, symbol, symbol_offset);
+   emit_runtime_fill_ptr1(copy_size, 0x00);
+
+   src_byte_offset = src->bit_offset / 8;
+   shift_bits = src->bit_offset % 8;
+   raw_copy_size = src->size - src_byte_offset;
+   if (raw_copy_size > copy_size) {
+      raw_copy_size = copy_size;
+   }
+   if (raw_copy_size > 0) {
+      if (src_byte_offset > 0) {
+         emit_add_immediate_to_ptr(0, src_byte_offset);
+      }
+      emit_runtime_copy_ptr0_to_ptr1("cpyN", raw_copy_size, raw_copy_size);
+   }
+
+   if (shift_bits > 0) {
+      const char *outer_label = next_label("bitfield_symbol_shift_outer");
+      const char *inner_label = next_label("bitfield_symbol_shift_inner");
+      const char *done_label = next_label("bitfield_symbol_shift_done");
+      emit(&es_code, "    ldx #$%02x\n", shift_bits & 0xff);
+      emit(&es_code, "%s:\n", outer_label);
+      emit(&es_code, "    cpx #0\n");
+      emit(&es_code, "    beq %s\n", done_label);
+      emit(&es_code, "    clc\n");
+      emit(&es_code, "    ldy #$%02x\n", (copy_size - 1) & 0xff);
+      emit(&es_code, "%s:\n", inner_label);
+      emit(&es_code, "    lda (ptr1),y\n");
+      emit(&es_code, "    ror a\n");
+      emit(&es_code, "    sta (ptr1),y\n");
+      emit(&es_code, "    dey\n");
+      emit(&es_code, "    bpl %s\n", inner_label);
+      emit(&es_code, "    dex\n");
+      emit(&es_code, "    bne %s\n", outer_label);
+      emit(&es_code, "%s:\n", done_label);
+   }
+
+   field_last_byte = (src->bit_width - 1) / 8;
+   field_rem = src->bit_width % 8;
+   if (src->bit_width > 0 && src->bit_width < copy_size * 8) {
+      if (field_rem != 0) {
+         emit(&es_code, "    ldy #%d\n", field_last_byte);
+         emit(&es_code, "    lda (ptr1),y\n");
+         emit(&es_code, "    and #$%02x\n", ((1 << field_rem) - 1) & 0xff);
+         emit(&es_code, "    sta (ptr1),y\n");
+      }
+      if (copy_size - (field_last_byte + 1) > 0) {
+         emit_add_immediate_to_ptr(1, field_last_byte + 1);
+         emit_runtime_fill_ptr1(copy_size - (field_last_byte + 1), 0x00);
+         emit_load_address_to_ptr(1, symbol, symbol_offset);
+      }
+   }
+
+   is_signed = src->type && type_is_signed_integer(src->type);
+   if (is_signed && src->bit_width > 0 && src->bit_width < copy_size * 8) {
+      int sign_byte = (src->bit_width - 1) / 8;
+      int sign_mask = 1 << ((src->bit_width - 1) % 8);
+      int rem = src->bit_width % 8;
+      const char *skip_label = next_label("bitfield_symbol_signext_skip");
+      emit(&es_code, "    ldy #%d\n", sign_byte);
+      emit(&es_code, "    lda (ptr1),y\n");
+      emit(&es_code, "    and #$%02x\n", sign_mask & 0xff);
+      emit(&es_code, "    beq %s\n", skip_label);
+      if (rem != 0) {
+         emit(&es_code, "    ldy #%d\n", sign_byte);
+         emit(&es_code, "    lda (ptr1),y\n");
+         emit(&es_code, "    ora #$%02x\n", ((0xff << rem) & 0xff));
+         emit(&es_code, "    sta (ptr1),y\n");
+      }
+      if (copy_size - (sign_byte + 1) > 0) {
+         emit_add_immediate_to_ptr(1, sign_byte + 1);
+         emit_runtime_fill_ptr1(copy_size - (sign_byte + 1), 0xff);
+         emit_load_address_to_ptr(1, symbol, symbol_offset);
+      }
+      emit(&es_code, "%s:\n", skip_label);
+   }
+   return true;
+}
+
+//! @brief Emit copy from a fixed symbol to an lvalue without software-stack scratch.
+bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *symbol,
+                                int symbol_offset, int size) {
+   int copy_size;
+
+   if (!dst || !symbol) {
+      return false;
+   }
+   copy_size = size < dst->size ? size : dst->size;
+   if (copy_size <= 0) {
+      return true;
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
+      return false;
+   }
+
+   if (dst->is_bitfield) {
+      for (int bit = 0; bit < dst->bit_width; bit++) {
+         int dst_byte = (dst->bit_offset + bit) / 8;
+         int dst_mask = 1 << ((dst->bit_offset + bit) % 8);
+         int src_byte = bit / 8;
+         int src_mask = 1 << (bit % 8);
+         const char *clear_label = next_label("bitfield_symbol_store_clear");
+         const char *done_label = next_label("bitfield_symbol_store_done");
+         emit(&es_code, "    ldy #%d\n", symbol_offset + src_byte);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit(&es_code, "    and #$%02x\n", src_mask & 0xff);
+         emit(&es_code, "    beq %s\n", clear_label);
+         emit(&es_code, "    ldy #%d\n", dst_byte);
+         emit(&es_code, "    lda (ptr0),y\n");
+         emit(&es_code, "    ora #$%02x\n", dst_mask & 0xff);
+         emit(&es_code, "    sta (ptr0),y\n");
+         emit(&es_code, "    jmp %s\n", done_label);
+         emit(&es_code, "%s:\n", clear_label);
+         emit(&es_code, "    ldy #%d\n", dst_byte);
+         emit(&es_code, "    lda (ptr0),y\n");
+         emit(&es_code, "    and #$%02x\n", (0xff ^ dst_mask) & 0xff);
+         emit(&es_code, "    sta (ptr0),y\n");
+         emit(&es_code, "%s:\n", done_label);
+      }
+      return true;
+   }
+
+   for (int i = 0; i < copy_size; i++) {
+      emit(&es_code, "    ldy #%d\n", symbol_offset + i);
+      emit(&es_code, "    lda %s,y\n", symbol);
+      emit(&es_code, "    ldy #%d\n", i);
+      emit(&es_code, "    sta (ptr0),y\n");
+   }
+   return true;
+}
+
 //! @brief Emit copy frame pointer to bitfield lvalue for compiler lvalue lowering diagnostics or output files.
 static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
    int copy_size = size < dst->size ? size : dst->size;

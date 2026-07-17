@@ -6,9 +6,10 @@ Current transitional function ABI
 This document describes the ABI while the compiler is being reduced for the
 Atari 2600. Fixed parameters and named automatic locals use callee-owned
 symbols. Ordinary direct calls, truth tests, comparisons, simple fixed-symbol
-assignments, and the main binary operator families use fixed per-site scratch.
-Remaining cast, lvalue, initializer, compound-assignment, increment/decrement,
-and switch scratch still uses the transitional software stack for now.
+assignments, casts, absolute-reference conversion, built-in increment/decrement,
+and the main binary operator families use fixed per-site scratch. Remaining
+compound-assignment, pointer/index lvalue, initializer, bit-field helper, and
+switch scratch still uses the transitional software stack for now.
 
 Function returns
 ----------------

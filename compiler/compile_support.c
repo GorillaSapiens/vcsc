@@ -371,7 +371,7 @@ bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_off
    int copy_size = size < src->size ? size : src->size;
 
    if (src && src->is_bitfield) {
-      return false;
+      return emit_copy_bitfield_lvalue_to_symbol(ctx, symbol, symbol_offset, src, size);
    }
    if (absolute_ref_supports_direct_access(src)) {
       const char *read_expr = src->read_expr;
