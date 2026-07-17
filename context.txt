@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_110904.tar.gz
+    vcsc.20260717_124413.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -151,6 +151,12 @@ Completed vertical slices
     the write address, and read-modify-write instructions require identical
     non-`none` read/write addresses. Illegal side use and split-address RMW are
     compile-time errors. The solid-color kernel now uses TIA register names.
+
+Side quest: examples/02_ode_to_joy now keeps its 32-step, 128-byte score as a
+const ROM array while a cycle-bounded companion assembly player updates TIA
+channel 0. The player runs inside a TIM64T-governed 30-line overscan budget;
+an execution regression verifies stable 262-line NTSC frames through ordinary,
+note-change, silent-gap, and score-wrap paths.
 
 Current return ABI
 ------------------
@@ -310,25 +316,22 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler and documentation:
+Stable-timing sound example:
 
-    compiler/compile_stmt.c
-    compiler/README.md
-    libraries/vcs/README.md
+    examples/02_ode_to_joy/Makefile
+    examples/02_ode_to_joy/README.md
+    examples/02_ode_to_joy/ode_to_joy.n
+    examples/02_ode_to_joy/music_player.s                 (new)
+    libraries/vcs/sound_ntsc.n
+
+Timing regression:
+
+    test/vcs_ode_to_joy_cartridge.pl
+    test/vcs_frame_timing.cpp                             (new)
+
+Documentation:
+
     context.txt
-
-VCS example and regression wiring:
-
-    examples/01_solid_color/solid_color.n
-    test/vcs_4k_cartridge.pl
-
-New tests:
-
-    test/inline_asm_ref_codegen_test.n
-    test/inline_asm_ref_read_from_none_error_test.n
-    test/inline_asm_ref_write_to_none_error_test.n
-    test/inline_asm_ref_rmw_split_error_test.n
-    test/inline_asm_ref_rmw_missing_side_error_test.n
 
 No files were removed. remove.txt remains unchanged at 461 unique cumulative
 paths.
@@ -362,11 +365,26 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    90 passed, 0 failed, 90 total
+    91 passed, 0 failed, 91 total
 
-The first complete VCS example also builds directly from examples/vcs as a raw
-4096-byte cartridge. The cartridge regression checks the reset prefix, NMI/RESET/IRQ
-vectors, static-frame function symbol, and the $80-$DF allocatable RIOT RAM map.
+Both examples/01_solid_color and examples/02_ode_to_joy build directly as raw
+4096-byte cartridges.
+
+The Ode score now has 32 four-byte steps (128 bytes in RODATA): every musical
+step is followed by a two-frame silent gap. The C-like score remains
+linker-managed ROM data, while examples/02_ode_to_joy/music_player.s performs
+the cycle-critical counter, step, wrap, and TIA audio updates. main() starts
+TIM64T at 35 for the 30-line overscan budget, calls music_tick(), waits for
+INTIM to reach zero, then executes one final WSYNC before the next VSYNC.
+
+The timing regression wraps the repository's 6502 core with the WSYNC, VSYNC,
+RIOT interval-timer, and AUDV0 behavior required by this cartridge. A 1500-VSYNC
+run checked 1497 complete consecutive frames at exactly 262 scanlines, exercised
+ordinary/note-change/silent-gap/wrap paths, and detected no timer overrun.
+
+Moving the player out of the compiler's current general indexed-struct lowering
+also reduced the Ode cartridge's allocated RAM high-water mark from $D8 to $A1.
+The two player-state bytes are at $A0-$A1; the 128-byte score remains in ROM.
 
 Immediate TODO
 --------------
@@ -428,6 +446,12 @@ The first unfinished item is the default next action.
         require a write address, and read-modify-write instructions require
         identical non-`none` read/write addresses. Reject all mismatches rather
         than warning or falling back.
+
+[x] Side quest: add a second complete 4K example that plays a repeating
+    frame-driven classical melody from a const ROM array of volume, frequency,
+    control, and timing structs, plus reusable NTSC TIA sound aliases. The
+    corrected player runs inside a fixed TIM64T overscan budget and has an
+    execution regression proving stable 262-line frames.
 
 [ ] 15. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
@@ -818,6 +842,51 @@ reproducibly rather than the exact instant of each individual source edit.
   bottom.
 * Passed 220/220 compile tests and 90/90 end-to-end/generic tests; the cartridge
   remains exactly 4096 bytes.
+* No files were removed; remove.txt remains at 461 cumulative paths.
+
+
+2026-07-17 12:16:30 PDT, NTSC sound aliases and Ode to Joy cartridge
+* Added `libraries/vcs/sound_ntsc.n` with named TIA control, NTSC lead-voice
+  frequency, volume, and frame-duration aliases.
+* Added `examples/02_ode_to_joy`, a complete unbanked 4K cartridge that repeats
+  the opening phrase of Beethoven's Ode to Joy on TIA audio channel 0.
+* Stored the 16-step score as a 64-byte const ROM array of `MusicStep` structs
+  containing volume, frequency, control, and timing values.
+* Added `music_tick()`, called immediately before the frame-loop jump, to count
+  frames, advance or wrap the score index, and apply AUDV0/AUDF0/AUDC0 values.
+* Used symbolic VSYNC, VBLANK, and WSYNC names in the inline kernel so the new
+  example also exercises opcode-aware inline-assembly ref resolution.
+* Added a cartridge regression for exact ROM size, vectors, RAM map, score
+  bytes/RODATA placement, player symbols, call placement, and channel writes.
+* Passed 220/220 compile tests and 91/91 end-to-end/generic tests; both examples
+  build as exact 4096-byte cartridges.
+* No files were removed; remove.txt remains at 461 cumulative paths.
+
+
+2026-07-17 13:19:16 PDT, stable NTSC timer budget for Ode to Joy
+* Diagnosed the 290-line `PAL*` output: the original `music_tick()` ran outside
+  the 262 explicit WSYNC lines, so its variable execution time lengthened every
+  frame.
+* Expanded the ROM score to 32 four-byte steps (128 bytes), inserting a
+  two-frame `MUSIC_TIME_GAP` after every musical/rest step so repeated notes are
+  articulated without another RAM-hungry indexed expression.
+* Retained the C-like const array of `MusicStep` structs but moved the
+  cycle-critical player into `examples/02_ode_to_joy/music_player.s`; the
+  compiler's current general indexed-struct lowering cannot fit inside a
+  30-scanline overscan budget.
+* Started TIM64T at 35 on entry to overscan, ran `music_tick()` while it counted
+  down, waited for INTIM to reach zero, and used a final WSYNC to align the next
+  VSYNC to a scanline boundary.
+* Added a minimal VCS timing harness around the repository's 6502 core. It
+  verifies VSYNC spacing, WSYNC stalls, RIOT timer completion, and both silent
+  and sounding channel-0 updates across ordinary, note-change, gap, and wrap
+  paths.
+* Verified 1497 consecutive complete frames at exactly 262 scanlines in a
+  1500-VSYNC run with no timer overrun; both examples remain exact 4096-byte
+  cartridges.
+* Reduced the Ode RAM high-water mark from $D8 to $A1 by avoiding permanent
+  fixed scratch for the cycle-critical indexed-struct player.
+* Passed 220/220 compile tests and 91/91 end-to-end/generic tests.
 * No files were removed; remove.txt remains at 461 cumulative paths.
 
 End-of-session checklist

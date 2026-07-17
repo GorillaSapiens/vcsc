@@ -1,0 +1,37 @@
+// NTSC TIA music constants.
+//
+// Frequency aliases below use the AUDC lead voice (control 12). The TIA is
+// not equal-tempered; these are the closest useful values from the NTSC tuning
+// chart, not mathematically exact concert pitches. Values follow the NTSC
+// "Atari 2600 Frequency and Tuning Chart" v1.1, based on Paul Slocum's
+// music-and-sound setups.
+
+alias MUSIC_CONTROL_BUZZY      1
+alias MUSIC_CONTROL_SQUARE     4
+alias MUSIC_CONTROL_BASS       6
+alias MUSIC_CONTROL_PITFALL    7
+alias MUSIC_CONTROL_NOISE      8
+alias MUSIC_CONTROL_LEAD      12
+alias MUSIC_CONTROL_LOW_BASS  14
+alias MUSIC_CONTROL_SYNTH     15
+
+alias MUSIC_FREQ_C4          19
+alias MUSIC_FREQ_C_SHARP4    18
+alias MUSIC_FREQ_D4          17
+alias MUSIC_FREQ_E4          15
+alias MUSIC_FREQ_F4          14
+alias MUSIC_FREQ_F_SHARP4    13
+alias MUSIC_FREQ_G4          12
+alias MUSIC_FREQ_A4          11
+
+alias MUSIC_VOLUME_OFF        0
+alias MUSIC_VOLUME_SOFT       6
+alias MUSIC_VOLUME_MEDIUM     8
+alias MUSIC_VOLUME_LOUD      12
+
+// music_tick() advances when counter > timing, so these aliases represent
+// 2, 15, 30, and 60 NTSC frames respectively.
+alias MUSIC_TIME_GAP           1
+alias MUSIC_TIME_EIGHTH       14
+alias MUSIC_TIME_QUARTER      29
+alias MUSIC_TIME_HALF         59

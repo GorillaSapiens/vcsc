@@ -8,7 +8,9 @@ Files:
 - `tia.n` ... TIA hardware register bindings
 - `riot.n` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `../../examples/01_solid_color/solid_color.n` ... complete 4K cartridge example
+- `sound_ntsc.n` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
+- `../../examples/01_solid_color/solid_color.n` ... first complete 4K cartridge example
+- `../../examples/02_ode_to_joy/ode_to_joy.n` ... frame-driven music example using a ROM score table
 - `batari-basic/` ... vendored upstream batari Basic kernel source tree (standard, multisprite) with provenance and license notes
 
 Typical use:
