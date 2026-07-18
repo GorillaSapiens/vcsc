@@ -518,7 +518,9 @@ it directly, read it back, or use compound assignment on it. The spelling
 The only legal return types are `void`, one- or two-byte little-endian integers,
 and 16-bit pointers. A one-byte result is returned in A. For a two-byte integer
 or pointer, A holds the low byte and X holds the high byte. `$$` is a hidden
-callee-owned symbol, and the common epilogue loads it into A:X before RTS.
+callee-owned zero-page symbol. The common epilogue uses a direct `LDA` for an
+8-bit result or direct `LDA`/`LDX` loads for a 16-bit result, then executes RTS.
+On the VCS these assemble as zero-page instructions.
 
 Example:
 

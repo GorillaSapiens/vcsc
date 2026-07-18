@@ -1,13 +1,13 @@
 // expectasm: return_ax
 // n65c -I .
-// expectasmordered: .proc id16
+// expectasm: .segment "ZEROPAGE"
 // expectasm: id16$__return:
+// expectasmordered: .proc id16
 // expectasmordered: @fini:
-// expectasmordered: ldy #1
-// expectasmordered: lda id16$__return,y
-// expectasmordered: tax
-// expectasmordered: ldy #0
-// expectasmordered: lda id16$__return,y
+// expectasmordered: lda id16$__return
+// expectasmordered: ldx id16$__return+1
+// forbidasm: lda id16$__return,y
+// forbidasm: tax
 // expectasmordered: rts
 // expectasmordered: jsr id16
 // expectasmordered: tay

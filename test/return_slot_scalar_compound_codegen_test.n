@@ -7,11 +7,8 @@
 // expectasmordered: adc (fp),y
 // expectasmordered: sta bump$__return,y
 // expectasmordered: @fini:
-// expectasmordered: ldy #1
-// expectasmordered: lda bump$__return,y
-// expectasmordered: tax
-// expectasmordered: ldy #0
-// expectasmordered: lda bump$__return,y
+// expectasmordered: lda bump$__return
+// expectasmordered: ldx bump$__return+1
 // expectasmordered: rts
 
 include "machine_6502.n"

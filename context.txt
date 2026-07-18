@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_151421.tar.gz
+    vcsc.20260718_154302.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -189,6 +189,10 @@ Completed vertical slices
     `_nl_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
     initialization, and the stale per-function `fp := sp` prologue are gone.
     `_nl_fp` remains only as the temporary base for pooled fixed scratch.
+30. Scalar/pointer return epilogues use direct zero-page loads from the hidden
+    `$$` object. An 8-bit return emits `LDA zp; RTS`; a 16-bit return emits
+    `LDA zp; LDX zp+1; RTS`. The object writer now correctly records a plain
+    relocatable expression used by a one-byte operand as a low-byte relocation.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -234,7 +238,8 @@ based expression engine copies it through a live caller-function scratch lease.
 That pooled scratch is not part of the callee ABI. Indirect calls are unsupported.
 
 Inside a non-void function, `$$` is the source-level return object. It is a
-hidden callee-owned fixed-address symbol. The epilogue loads it into A:X.
+hidden callee-owned zero-page symbol. The 8-bit epilogue emits `LDA $$; RTS`;
+the 16-bit/pointer epilogue emits `LDA $$; LDX $$+1; RTS`.
 
 Current direct-parameter ABI
 ----------------------------
@@ -380,60 +385,43 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler/runtime/linker source:
+Compiler/assembler source:
 
-    compiler/compile_overload.c
+    assembler/o65.c
+    compiler/compile_function.c
     compiler/compile_toplevel.c
-    compiler/emit.c
-    libraries/nlib/asm/div.asm
-    libraries/nlib/asm/stack.asm
-    libraries/nlib/n.cfg
-    libraries/nlib/nlib.inc
-    libraries/nlib/nlib_zeropage.s
-    libraries/nlib/nrt0.s
-    libraries/vcs/vcs_4k.cfg
 
-Documentation and examples/tests:
+Documentation:
 
     context.txt
-    remove.txt
-    NOTES.md
-    assembler/README.md
-    assembler/tests/def_alias.s
     compiler/ABI.txt
     compiler/README.md
-    libraries/nint/README.md
-    libraries/nlib/README.md
-    linker/README.md
-    software_stack_inventory.txt
-    test/software_stack_inventory.pl
-    test/software_stack_inventory.test
-    test/vcs_ode_to_joy_cartridge.pl
-    test/vcs_ram_config_layout.test
+
+Updated regressions:
+
+    test/peephole_codegen_test.n
+    test/return_ax_uint8_codegen_test.n
+    test/return_ax_uint16_codegen_test.n
+    test/return_slot_scalar_compound_codegen_test.n
 
 Added regressions:
 
-    test/division_private_workspace.pl
-    test/division_private_workspace.test
-    test/function_entry_no_software_stack_codegen_test.n
+    test/vcs_return_epilogue_encoding.pl
+    test/vcs_return_epilogue_encoding.test
 
-Removed and recorded in remove.txt:
-
-    libraries/nlib/asm/sp2ptr.asm
-
-remove.txt now contains 464 unique cumulative paths.
+No files were removed. remove.txt remains at 464 unique cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_tools
+    /mnt/data/vcsc_return_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_return_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_return_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_return_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -452,17 +440,19 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    95 passed, 0 failed, 95 total
+    96 passed, 0 failed, 96 total
 
-Focused validation proved that `_divNle` and its two-byte BSS workspace are
-absent when no division/remainder operation is linked and selected together when
-`/` or `%` is used. The rebuilt runtime archive contains no `_pushN`, `_popN`,
-or `sp2ptr*` member.
+Focused validation links a VCS cartridge and checks the exact return epilogue
+bytes. The 8-bit path is `A5 zp 60` (`LDA zp; RTS`); the 16-bit path is
+`A5 zp A6 zp+1 60` (`LDA zp; LDX zp+1; RTS`). This also covers one-byte local
+zero-page relocation through the assembler/object/linker pipeline.
 
 Both examples still build directly as raw 4096-byte cartridges.
 
 `01_solid_color` has call depth 2. Its effective allocatable RIOT region is
-$80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes).
+$80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes). Runtime
+zero-page occupies $80-$91 and `choose_background` owns its one-byte hidden
+return object at $92.
 
 `02_ode_to_joy` uses direct `music[music_index].field` expressions. Its linked
 call depth is 3, so the effective allocatable RIOT region is $80-$F3 and the
@@ -1166,6 +1156,24 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 227/227 compile tests and 95/95 end-to-end/generic tests.
 * Added three test files and removed `libraries/nlib/asm/sp2ptr.asm`; remove.txt
   now contains 464 unique cumulative paths.
+
+
+2026-07-18 16:01:27 PDT, shorten scalar return epilogues for VCS zero page
+* Moved hidden one- and two-byte `$$` return objects to `ZEROPAGE` and changed
+  the common epilogue to direct loads: `LDA zp; RTS` for 8-bit values and
+  `LDA zp; LDX zp+1; RTS` for 16-bit integers and pointers.
+* Removed the old indexed epilogue's `LDY` and `TAX` instructions. Including
+  RTS, the 8-bit path fell from 6 bytes/12 cycles to 3 bytes/9 cycles, and the
+  16-bit path fell from 12 bytes/20 cycles to 5 bytes/12 cycles.
+* Fixed the assembler object writer so a plain relocatable expression used by a
+  one-byte operand is emitted as a low-byte relocation rather than an invalid
+  word relocation.
+* Added linked VCS-byte regression coverage for the exact `A5 zp 60` and
+  `A5 zp A6 zp+1 60` encodings; updated source-code generation expectations.
+* Passed 227/227 compile tests and 96/96 end-to-end/generic tests; both examples
+  remain exact 4096-byte cartridges.
+* Added two test files and removed none; remove.txt remains at 464 unique
+  cumulative paths.
 
 
 End-of-session checklist

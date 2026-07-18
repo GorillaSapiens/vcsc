@@ -849,7 +849,9 @@ static int maybe_add_expr_reloc(o65_writer_t *wr,
    part = info->part;
    if (width == 2 && part == RELOC_PART_NONE)
       part = RELOC_PART_WORD;
-   if (width == 1 && part == RELOC_PART_NONE)
+   /* A plain relocatable symbol is naturally a word expression, but a
+      one-byte instruction operand necessarily requests its low byte. */
+   if (width == 1 && (part == RELOC_PART_NONE || part == RELOC_PART_WORD))
       part = RELOC_PART_LOW;
 
    switch (part) {

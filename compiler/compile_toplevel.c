@@ -183,9 +183,9 @@ void compile_function_decl(ASTNode *node) {
 
    emit_function_parameter_storage(node, &ctx);
    if (ax_return) {
-      emit(&es_bss, ".segment \"BSS\"\n");
-      emit(&es_bss, "%s:\n", return_sym);
-      emit(&es_bss, "\t.res %d\n", return_entry->size);
+      emit(&es_zp, ".segment \"ZEROPAGE\"\n");
+      emit(&es_zp, "%s:\n", return_sym);
+      emit(&es_zp, "\t.res %d\n", return_entry->size);
    }
    emit(&es_code, ".proc %s\n", sym);
 
@@ -200,13 +200,10 @@ void compile_function_decl(ASTNode *node) {
 
    emit(&es_code, "@fini:\n");
    if (ax_return) {
+      emit(&es_code, "    lda %s\n", return_sym);
       if (return_entry->size == 2) {
-         emit(&es_code, "    ldy #1\n");
-         emit(&es_code, "    lda %s,y\n", return_sym);
-         emit(&es_code, "    tax\n");
+         emit(&es_code, "    ldx %s+1\n", return_sym);
       }
-      emit(&es_code, "    ldy #0\n");
-      emit(&es_code, "    lda %s,y\n", return_sym);
    }
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");

@@ -335,7 +335,7 @@ void build_function_context(const ASTNode *node, Context *ctx) {
 
    if (function_uses_ax_return(node)) {
       ContextEntry *return_entry;
-      ctx_static(ctx, node->children[0]->children[1], "$$");
+      ctx_zeropage(ctx, node->children[0]->children[1], "$$");
       return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
       if (!return_entry) {
          error_unreachable("internal missing A:X return object");

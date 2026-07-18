@@ -1,10 +1,11 @@
 // expectasm: return_ax
 // n65c -I .
-// expectasmordered: .proc id8
+// expectasm: .segment "ZEROPAGE"
 // expectasm: id8$__return:
+// expectasmordered: .proc id8
 // expectasmordered: @fini:
-// expectasmordered: ldy #0
-// expectasmordered: lda id8$__return,y
+// expectasmordered: lda id8$__return
+// forbidasm: lda id8$__return,y
 // expectasmordered: rts
 // expectasmordered: jsr id8
 // expectasmordered: tay

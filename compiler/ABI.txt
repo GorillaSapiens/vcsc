@@ -28,9 +28,10 @@ types at the declaration or definition. There is no caller-owned return-slot
 ABI or `return_value` metadata mode.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
-a hidden callee-owned symbol. `return expr;` writes the converted value to
-`$$`. At the common epilogue, the compiler loads the high byte into X when
-present, loads the low byte into A, and executes RTS.
+a hidden callee-owned zero-page symbol. `return expr;` writes the converted
+value to `$$`. The common epilogue uses direct zero-page loads: one-byte values
+use `LDA $$`; two-byte values use `LDA $$` and `LDX $$+1`; both then execute
+RTS.
 
 Before an ordinary direct call, the compiler leases the caller function's
 current depth slot, such as `__n65_scratch_0`. For each fixed argument:
@@ -69,11 +70,20 @@ fixed symbols. An expression site that needs temporary storage redirects `fp` to
 function/depth-pooled BSS scratch lease and restores the caller value through the
 6502 hardware stack.
 
-Function epilogue for a value return:
+Function epilogue for an 8-bit value return:
 
-; load high byte of $$ into X for a two-byte result
-; load low byte of $$ into A
+lda function$__return
 rts
+
+Function epilogue for a 16-bit integer or pointer return:
+
+lda function$__return
+ldx function$__return+1
+rts
+
+On the VCS these are zero-page instructions. The 8-bit epilogue is three bytes
+and nine cycles including RTS; the 16-bit epilogue is five bytes and twelve
+cycles including RTS.
 
 Function epilogue for void:
 
