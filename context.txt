@@ -573,8 +573,23 @@ The first unfinished item is the default next action.
         [x] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
                   fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
-        [ ] 16c. Reassess and likely remove ordinary named-function overloading.
-        [ ] 16d. Prune unused generic libraries, machine targets, tools, and
+        [ ] 16c. Fix retained compiler correctness defects inherited from N
+                  before deleting more language machinery.
+
+                  [ ] 16c1. Correct pointer-pointer subtraction typing. The
+                            result must be the signed pointer-sized integer
+                            type (`int16_t` in VCSC), not the pointed-to type.
+                            Add compile/type and execution regressions,
+                            including pointers to multi-byte elements so the
+                            intended element-difference semantics are explicit.
+                  [ ] 16c2. Preserve pointer declarators and array-to-pointer
+                            decay through assignment scratch. Assigning an
+                            array expression to a fixed/static/global pointer
+                            must store the array address, never copy its first
+                            element byte. Add direct, scratch-routed, and
+                            execution regressions.
+        [ ] 16d. Reassess and likely remove ordinary named-function overloading.
+        [ ] 16e. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
 
 [ ] 17. After the functional reduction is complete, rename the project and
@@ -606,6 +621,9 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
+The inherited pointer-subtraction and array-decay assignment defects are now
+tracked as required task 16c correctness work rather than open-ended questions.
+
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
 * Extend call-graph hardware-stack sizing to account for PHA/PHP/JSR hidden in
@@ -1174,6 +1192,19 @@ reproducibly rather than the exact instant of each individual source edit.
   remain exact 4096-byte cartridges.
 * Added two test files and removed none; remove.txt remains at 464 unique
   cumulative paths.
+
+
+2026-07-18 16:51:21 PDT, record inherited N correctness bugs as required TODOs
+* Added task 16c ahead of further functional deletion for two retained compiler
+  defects exposed during VCSC reduction.
+* Recorded pointer-pointer subtraction's required `int16_t` result type and
+  explicit multi-byte-element semantic regressions.
+* Recorded the array-to-pointer decay/scratch bug, including direct,
+  scratch-routed, and execution acceptance tests proving that pointer
+  assignment stores the array address rather than its first byte.
+* Renumbered named-function overloading review to 16d and generic pruning to
+  16e; the final project rename remains task 17.
+* Documentation only; no source, test, build, or remove.txt changes.
 
 
 End-of-session checklist
