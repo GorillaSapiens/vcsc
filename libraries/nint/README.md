@@ -81,10 +81,10 @@ That gives you a clean split:
 ## Important limitation
 
 `nint` only saves/restores the CPU-visible register state (`P`, `A`, `X`, `Y`) before calling the handler.
-It does **not** switch to a separate interrupt runtime context, and it does **not** save/restore the normal N runtime's frame pointer, argument stack pointer, or scratch workspace.
+It does **not** switch to a separate interrupt runtime context, and it does **not** save/restore the normal N runtime's frame pointer or scratch workspace.
 
 That means interrupt handlers must **not** assume they can safely run arbitrary normal compiled code.
-An interrupt can arrive between ordinary instructions while the mainline code is in the middle of updating runtime state such as `fp`, `sp`, or zero-page scratch values.
+An interrupt can arrive between ordinary instructions while the mainline code is in the middle of updating runtime state such as `fp` or zero-page scratch values.
 If the handler then re-enters the normal runtime conventions, it can observe or clobber a half-updated context.
 
 In practice, handlers should stay tiny and assembly-oriented.
@@ -95,7 +95,7 @@ Good handlers are things like:
 - acknowledging hardware
 - copying a byte into a ring buffer
 
-Bad handlers are monsters that walk stack frames, call deep compiled code, allocate runtime temporaries, or otherwise muck with the shared runtime context.
+Bad handlers are monsters that call deep compiled code, allocate runtime temporaries, or otherwise muck with the shared runtime context.
 
 If you need heavyweight interrupt-side work, do the minimum in the interrupt handler, set a flag, and let the mainline code handle the real work later.
 

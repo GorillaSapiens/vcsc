@@ -188,10 +188,6 @@ void compile_function_decl(ASTNode *node) {
       emit(&es_bss, "\t.res %d\n", return_entry->size);
    }
    emit(&es_code, ".proc %s\n", sym);
-   emit(&es_code, "    lda sp+1\n");
-   emit(&es_code, "    sta fp+1\n");
-   emit(&es_code, "    lda sp\n");
-   emit(&es_code, "    sta fp\n");
 
    if (!is_empty(body)) {
       if (!strcmp(body->name, "statement_list")) {

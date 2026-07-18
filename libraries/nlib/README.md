@@ -13,7 +13,7 @@ If you are not replacing the runtime yourself, this is the library you use.
   - initializes the 6502 hardware stack
   - copies `DATA` from ROM to RAM using `__copy_table`
   - zeros `BSS` using `__zero_table`
-  - initializes the N argument stack from `__stack_start`
+  - initializes the pooled-scratch frame pointer from `__stack_start`
   - walks the linker-generated `__init_table`
   - calls `main`
 - `nrt0_noint.s`
@@ -21,7 +21,7 @@ If you are not replacing the runtime yourself, this is the library you use.
   - these are fallback interrupt entries when nothing stronger is linked
 - `nlib_zeropage.s`
   - exports the zero-page runtime workspace used by startup code and many helper routines
-  - current symbols are `_nl_sp`, `_nl_fp`, `_nl_arg0`, `_nl_arg1`, `_nl_ptr0`..`_nl_ptr3`, `_nl_tmp0`..`_nl_tmp5`
+  - current symbols are `_nl_fp`, `_nl_arg0`, `_nl_arg1`, `_nl_ptr0`..`_nl_ptr3`, `_nl_tmp0`..`_nl_tmp5`
 - `asm/handler.asm`
   - default `_handle_nmi` and `_handle_irq`
   - both are do-nothing `rts` handlers meant to be overridden by application code if needed
@@ -30,11 +30,11 @@ If you are not replacing the runtime yourself, this is the library you use.
 
 These are mostly small assembly helpers that the compiler can target directly:
 
-- arithmetic: `mul`, `div`, `rem` (one- and two-byte add/subtract are emitted inline)
+- arithmetic: `mul`, `div`, `rem` (one- and two-byte add/subtract are emitted inline; division owns a private two-byte BSS workspace that is archive-selected with `_divNle`)
 - comparisons: `eq`, `lt`, `le`
 - bitwise ops: `and`, `or`, `xor`, `not`
 - shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts
-- stack/frame helpers: `pushN`, `popN`, `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`, `fp2ptr*`, `sp2ptr*`
+- buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`, `fp2ptr*`
 
 The generic 6502 machine definition is in `machine_6502.n`, the assembler include glue is in `nlib.inc`, the assembly sources are in `asm/`, and the built archive members are in `wrk/` after `make`. Weak operator helpers, floating-point support, big-endian helpers, and obsolete wide add/subtract/increment helpers have been removed.
 
@@ -54,13 +54,13 @@ In practice that means:
 - the linker config defines the standard runtime segments the startup code expects
 
 At minimum, the project's linker expects the usual core segments (`CODE`, `DATA`, `BSS`, `ZEROPAGE`).
-For the stock runtime layout used by `nlib/n.cfg`, you also want `STARTUP`, `ARGSTACK`, and a vector area.
+For the stock runtime layout used by `nlib/n.cfg`, you also want `STARTUP` and a vector area.
 
 ### Machine assumptions
 
 - 6502-family target
 - hardware stack at page `$01xx`
-- transitional argument-stack state grows upward from `__stack_start`
+- `_nl_fp` receives a deterministic baseline from `__stack_start`
 - zero page is available for the runtime workspace exported by `nlib_zeropage.s`
 
 ### Link-time roots

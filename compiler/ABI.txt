@@ -79,11 +79,10 @@ Function epilogue for void:
 
 rts
 
-Reset/startup still initializes `sp` and `fp` during the transitional runtime.
-Compiler-generated code no longer allocates through `sp`; `fp` remains the addressing
-base for pooled fixed scratch. The target language now has only one- and two-byte integers,
-but retained generic division still references `sp`; removing that residual runtime
-stack state is a separate cleanup step.
+Reset/startup initializes only `fp`, which remains the temporary addressing base for
+pooled fixed scratch. There is no software stack pointer. Division and remainder use a
+private two-byte BSS workspace in the `_divNle` archive member, so that storage is linked
+only when `/` or `%` is actually used.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls, except that
 A and possibly X carry the function result on return. Callers must assume a

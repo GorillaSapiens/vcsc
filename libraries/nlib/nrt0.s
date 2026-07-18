@@ -136,12 +136,10 @@ _zero_dec_lo:
    jmp _zero_record
 
 _start_init:
-   ; argument stack grows upward from linker-selected stack start
+   ; deterministic baseline for temporary fp redirection
    lda #<__stack_start
-   sta sp
    sta fp
    lda #>__stack_start
-   sta sp+1
    sta fp+1
 
    lda #<__init_table

@@ -42,4 +42,28 @@ for my $file (sort keys %expected) {
 die "software-stack inventory total drift: got $total_push/$total_pop, expected 0/0\n"
     unless $total_push == 0 && $total_pop == 0;
 
-print "software-stack inventory ok: 0 push sites, 0 pop emissions\n";
+my @runtime_files = (
+    File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib.inc'),
+    File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib_zeropage.s'),
+    File::Spec->catfile($repo, 'libraries', 'nlib', 'nrt0.s'),
+    glob(File::Spec->catfile($repo, 'libraries', 'nlib', 'asm', '*.asm')),
+);
+for my $path (@runtime_files) {
+    open(my $fh, '<', $path) or die "cannot read $path: $!\n";
+    local $/;
+    my $text = <$fh>;
+    close($fh);
+    die "removed software-stack symbol remains in $path\n"
+        if $text =~ /(?:\b_nl_sp\b|\b_pushN\b|\b_popN\b|\b_sp2ptr[0-9])/;
+}
+
+my $ar = File::Spec->catfile($repo, 'archiver', 'n65ar');
+my $archive = File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib.a65');
+open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
+local $/;
+my $members = <$afh>;
+close($afh) or die "archive listing failed for $archive\n";
+die "removed software-stack archive member remains\n"
+    if $members =~ /(?:_pushN|_popN|_sp2ptr)/;
+
+print "software-stack inventory ok: compiler 0/0, runtime removed\n";

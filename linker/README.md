@@ -99,7 +99,7 @@ bss = __bss_start
 bss_end = __bss_end
 ```
 
-If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The transitional runtime initializes its residual software-stack state from `__stack_start`; the stock runtime no longer provides a heap allocator.
+If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime uses `__stack_start` only as the deterministic baseline for `_nl_fp`; it provides neither a software stack nor a heap allocator.
 
 ## Default memory layout
 

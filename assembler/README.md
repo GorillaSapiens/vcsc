@@ -310,7 +310,7 @@ LAX $10,Y     ; requires --illegals or an extra opcode config file
 `.def` performs a simple source-level textual replacement on identifier boundaries before lexing/parsing.
 
 ```asm
-.def sp _nl_sp
+.def work _runtime_zp
 .def XYZ LDA
 ```
 

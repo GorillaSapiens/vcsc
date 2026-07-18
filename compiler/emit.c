@@ -61,8 +61,6 @@ static const char *compiler_zp_operand_names[] = {
    "arg1",
    "fp",
    "fp+1",
-   "sp",
-   "sp+1",
    "ptr0",
    "ptr0+1",
    "ptr1",

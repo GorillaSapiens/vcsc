@@ -1,0 +1,14 @@
+// n65c -I .
+// forbidasm: lda sp
+// forbidasm: sta sp
+// forbidasm: _nl_sp
+
+include "machine_6502.n"
+
+uint8_t id(uint8_t value) {
+   return value;
+}
+
+void main(void) {
+   id(7);
+}

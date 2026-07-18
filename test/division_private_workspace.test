@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/division_private_workspace.pl @REPO@ @TMP@
+# phase: e2e
+# expectstdout: division private workspace ok
+# expectexit: 0

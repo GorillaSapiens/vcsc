@@ -18,7 +18,5 @@ $cfg !~ /\bCPUSTACK\b/
    or die "vcs_4k.cfg must not model mirrored RIOT stack RAM as a separate CPUSTACK region\n";
 $cfg =~ /RAM:\s+start\s*=\s*\$0080,\s*size\s*=\s*\$0080[^;]*callstack\s*=\s*callgraph/
    or die "vcs_4k.cfg must declare all RIOT RAM and request call-graph stack sizing\n";
-$cfg =~ /ARGSTACK:\s+load\s*=\s*RAM\b/
-   or die "transitional ARGSTACK must share the real RAM allocation\n";
 
 exit 0;

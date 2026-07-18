@@ -1,22 +1,26 @@
-; div.asm - Arbitrary-length unsigned division
+; div.asm - One- and two-byte unsigned division
 ;
 ; Little-endian helper: _divNle
 ;
 ; Divides ptr0 (dividend) by ptr1 (divisor), arg0 bytes each.
 ; Stores quotient in ptr2, remainder in ptr3.
-; Clobbers: A, X, Y, and zero page temps
-; NB: also writes to the stack.
+; Clobbers: A, X, Y, and zero page temps.
+; The private two-byte BSS copy is linked only when division/remainder is used.
 
 .include "nlib.inc"
 .def tmpX  _nl_tmp0
 .def carry _nl_tmp1
 
 .proc _divNle
+.segment "BSS"
+@dividend:
+    .res 2
+.segment "CODE"
     ldx arg0
     ldy #0
 @cpy_loop:
     lda (ptr0), y
-    sta (sp), y
+    sta @dividend, y
     iny
     dex
     bne @cpy_loop
@@ -43,9 +47,9 @@
     dex
     ldy #0
 @shift_div:
-    lda (sp), y
+    lda @dividend, y
     rol a
-    sta (sp), y
+    sta @dividend, y
     iny
     dex
     bpl @shift_div
@@ -69,8 +73,8 @@
     ldy #0
     lda carry
     and #1
-    ora (sp), y
-    sta (sp), y
+    ora @dividend, y
+    sta @dividend, y
 
     jsr @cmp_rem_div
     bcc @skip_subtract

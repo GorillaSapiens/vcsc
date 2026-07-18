@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260717_161143.tar(1).gz
+    vcsc.20260718_151421.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -183,6 +183,12 @@ Completed vertical slices
     compile-time positive power of two greater than one emit a performance
     warning. Code generation and C-compatible signed division/remainder
     semantics remain unchanged; literal-only expressions still fold silently.
+29. The residual target software stack has been removed. Division/remainder
+    use a private two-byte BSS workspace owned by the archive-selected `_divNle`
+    member; programs without `/` or `%` link neither the helper nor its workspace.
+    `_nl_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
+    initialization, and the stale per-function `fp := sp` prologue are gone.
+    `_nl_fp` remains only as the temporary base for pooled fixed scratch.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -321,20 +327,23 @@ Tests verify dynamic map sizing, a four-level path, overflow enforcement, and
 that the configuration declares the full RIOT block without a separate
 CPUSTACK region.
 
-Transitional software-stack machinery still present
---------------------------------------------------
-Top-level software_stack_inventory.txt is the authoritative detailed inventory.
-Compiler source now contains:
+Software-stack status
+---------------------
+Top-level software_stack_inventory.txt is the authoritative checked inventory.
+Compiler source contains zero `_pushN` allocation sites and zero `_popN` cleanup
+paths, and the runtime implementation has now been removed completely:
 
-    0 emitted `_pushN` allocation sites
-    0 emitted `_popN` cleanup paths
+* `_nl_sp` is not allocated, exported, or initialized;
+* `_pushN`, `_popN`, and every `sp2ptr*` helper are absent from source and the
+  runtime archive;
+* linker configurations no longer declare an `ARGSTACK` segment;
+* compiled functions have no software-stack entry prologue;
+* retained division/remainder uses a private two-byte BSS object in `_divNle`,
+  selected from the runtime archive only when `/` or `%` is linked.
 
-The generic test `test/software_stack_inventory.test` scans every compiler `.c`
-file and fails if either helper reappears. `_nl_fp` remains active as the base
-pointer for lifetime-pooled scratch. `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
-remain only in transitional runtime services. Generic division still uses `sp`
-as a private work area; heap/`sbrk` support and its collision-boundary use are
-already gone.
+`_nl_fp` remains active solely as the temporary addressing base for pooled fixed
+scratch. The generic regression scans compiler/runtime source and the rebuilt
+archive so the removed stack machinery cannot quietly return.
 
 Test policy
 -----------
@@ -371,36 +380,60 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler diagnostics:
+Compiler/runtime/linker source:
 
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_ops.c
-    compiler/compile_support.c
-    compiler/compile_support.h
+    compiler/compile_overload.c
+    compiler/compile_toplevel.c
+    compiler/emit.c
+    libraries/nlib/asm/div.asm
+    libraries/nlib/asm/stack.asm
+    libraries/nlib/n.cfg
+    libraries/nlib/nlib.inc
+    libraries/nlib/nlib_zeropage.s
+    libraries/nlib/nrt0.s
+    libraries/vcs/vcs_4k.cfg
 
-Documentation:
+Documentation and examples/tests:
 
-    compiler/README.md
     context.txt
+    remove.txt
+    NOTES.md
+    assembler/README.md
+    assembler/tests/def_alias.s
+    compiler/ABI.txt
+    compiler/README.md
+    libraries/nint/README.md
+    libraries/nlib/README.md
+    linker/README.md
+    software_stack_inventory.txt
+    test/software_stack_inventory.pl
+    test/software_stack_inventory.test
+    test/vcs_ode_to_joy_cartridge.pl
+    test/vcs_ram_config_layout.test
 
 Added regressions:
 
-    test/power_of_two_division_warning_test.n
-    test/power_of_two_division_no_warning_test.n
+    test/division_private_workspace.pl
+    test/division_private_workspace.test
+    test/function_entry_no_software_stack_codegen_test.n
 
-No files were removed. remove.txt remains at 463 unique cumulative paths.
+Removed and recorded in remove.txt:
+
+    libraries/nlib/asm/sp2ptr.asm
+
+remove.txt now contains 464 unique cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_toolprefix
+    /mnt/data/vcsc_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_toolprefix/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_toolprefix/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_toolprefix/usr/share/bison
+    export PATH=/mnt/data/vcsc_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -409,34 +442,37 @@ Build and test results
 ----------------------
 Clean warning-as-error tools build:
 
-    make -j2 tools
+    make tools -j1
 
 Result: passed.
 
 Compile suite:
 
-    223 passed, 0 failed, 223 total
+    227 passed, 0 failed, 227 total
 
 End-to-end/generic suite:
 
-    94 passed, 0 failed, 94 total
+    95 passed, 0 failed, 95 total
 
-Both examples build directly as raw 4096-byte cartridges.
+Focused validation proved that `_divNle` and its two-byte BSS workspace are
+absent when no division/remainder operation is linked and selected together when
+`/` or `%` is used. The rebuilt runtime archive contains no `_pushN`, `_popN`,
+or `sp2ptr*` member.
+
+Both examples still build directly as raw 4096-byte cartridges.
 
 `01_solid_color` has call depth 2. Its effective allocatable RIOT region is
 $80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes).
 
 `02_ode_to_joy` uses direct `music[music_index].field` expressions. Its linked
 call depth is 3, so the effective allocatable RIOT region is $80-$F3 and the
-hardware-stack reserve is $F4-$FF (12 bytes). Runtime/compiler zero-page occupies
-$80-$95; the only player state is `music_index` at $96 and `music_counter` at
-$97. BSS size is zero, and the 128-byte score remains in RODATA.
+hardware-stack reserve is $F4-$FF (12 bytes). Runtime zero-page occupies
+$80-$91; the only player state is `music_index` at $92 and `music_counter` at
+$93. BSS size is zero, and the 128-byte score remains in RODATA.
 
-The timing regression ran through 1500 VSYNC assertions, checked 1497 complete
-frames at exactly 262 Stella-reported lines, exercised ordinary ticks, note
-transitions, silent gaps, and score wrap, and detected no overscan timer
-underflow. The corresponding raw assertion-to-assertion interval is 263 whole
-scanlines. A one-WSYNC tail remains rejected as 261 displayed lines.
+The timing regression continues to exercise ordinary ticks, note transitions,
+silent gaps, and score wrap at stable Stella-reported 262-line frames with no
+overscan timer underflow.
 
 Immediate TODO
 --------------
@@ -544,7 +580,7 @@ The first unfinished item is the default next action.
         green.
 
         [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
-        [ ] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+        [x] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
                   fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
         [ ] 16c. Reassess and likely remove ordinary named-function overloading.
@@ -1112,6 +1148,24 @@ reproducibly rather than the exact instant of each individual source edit.
 * Added focused positive and negative diagnostic regressions.
 * Passed 226/226 compile tests and 94/94 end-to-end/generic tests.
 * No files were removed; remove.txt remains at 463 unique cumulative paths.
+
+
+2026-07-18 15:31:03 PDT, remove residual software stack
+* Gave `_divNle` a private two-byte BSS dividend workspace. The archive member
+  and workspace are linked only when division or remainder is used.
+* Removed `_nl_sp`, `_pushN`, `_popN`, every `sp2ptr*` helper, the obsolete
+  `ARGSTACK` linker segments, startup `sp` initialization, and the stale
+  per-function `fp := sp` prologue.
+* Kept `_nl_fp` only as the temporary base used by lifetime-pooled fixed
+  scratch. Stock runtime zero-page usage fell from 20 bytes to 18 bytes.
+* Added regressions proving ordinary function entry is stack-free, division
+  workspace is archive-local and optional, and removed runtime symbols cannot
+  reappear in source or archive members.
+* Updated the Ode map expectations after reclaiming two zero-page bytes; the
+  player still has zero BSS scratch and exactly two persistent state bytes.
+* Passed 227/227 compile tests and 95/95 end-to-end/generic tests.
+* Added three test files and removed `libraries/nlib/asm/sp2ptr.asm`; remove.txt
+  now contains 464 unique cumulative paths.
 
 
 End-of-session checklist

@@ -1,6 +1,5 @@
 ; nlib.inc
 
-.importzp _nl_sp
 .importzp _nl_fp
 .importzp _nl_arg0
 .importzp _nl_arg1
@@ -15,7 +14,6 @@
 .importzp _nl_tmp4
 .importzp _nl_tmp5
 
-.def sp _nl_sp
 .def fp _nl_fp
 .def arg0 _nl_arg0
 .def arg1 _nl_arg1

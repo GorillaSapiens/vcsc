@@ -24,8 +24,8 @@ Named parameters, automatic locals, return objects, call arguments, expression
 temporaries, lvalue calculations, assignments, initializers, control-flow tests,
 and switch expressions all use fixed-address symbols or function/depth-pooled BSS
 scratch. The compiler may temporarily redirect `_nl_fp` to a pooled scratch symbol
-and preserve the caller value with the 6502 hardware stack, but it no longer
-allocates target data through `_nl_sp`.
+and preserve the caller value with the 6502 hardware stack. There is no target
+software-stack pointer.
 
 Removed final emitters
 ----------------------
@@ -39,22 +39,17 @@ Operator overloading, `$exactops`, weak operator dispatch, their runtime generat
 and their positive tests have now been removed. Ordinary named-function overloading
 remains supported.
 
-Remaining runtime/library mechanism
------------------------------------
-The software-stack implementation itself still exists outside compiler code:
+Runtime/library status
+----------------------
+The target software stack has been removed completely:
 
-    libraries/nlib/asm/stack.asm       `_pushN` and `_popN`
-    libraries/nlib/nlib_zeropage.s     `_nl_sp` and `_nl_fp`
-    libraries/nlib/nlib.inc            `sp` and `fp` aliases
-    libraries/nlib/nrt0.s              startup initialization
+* `_nl_sp` is no longer allocated or exported;
+* `_pushN` and `_popN` are absent from the runtime archive;
+* all `sp2ptr*` helpers and their source file are gone;
+* startup initializes `_nl_fp` directly and compiled functions have no `fp := sp`
+  prologue;
+* retained division/remainder copies its dividend into a private two-byte BSS
+  object inside the `_divNle` archive member. That object is linked only when
+  division or remainder selects the member.
 
-`_nl_fp` is still actively used as the base pointer for pooled scratch addressing.
-`_nl_sp`, `_pushN`, `_popN`, and the `sp2ptr*` helpers now survive only for the
-retained generic division/remainder implementation and transitional startup state.
-Heap/`_sbrk` support and its dedicated zero-page pointer have been removed.
-
-Next slice
-----------
-Give retained division/remainder a private fixed workspace, then delete `_nl_sp`,
-`_pushN`, `_popN`, `sp2ptr*`, and residual startup initialization of `sp`. Keep
-`_nl_fp` while compiler-generated pooled scratch still uses it.
+`_nl_fp` remains active only as the temporary addressing base for pooled scratch.

@@ -1,15 +1,14 @@
 ; nlib_zeropage.s
 
-.exportzp _nl_sp, _nl_fp
+.exportzp _nl_fp
 .exportzp _nl_arg0, _nl_arg1
 .exportzp _nl_ptr0, _nl_ptr1, _nl_ptr2, _nl_ptr3
 .exportzp _nl_tmp0, _nl_tmp1, _nl_tmp2, _nl_tmp3, _nl_tmp4, _nl_tmp5
 
 .segment "ZEROPAGE"
 
-; 20 bytes total
+; 18 bytes total
 
-_nl_sp:    .res 2 ; the argument stack pointer
 _nl_fp:    .res 2 ; the frame pointer
 
 _nl_arg0:  .res 1 ; byte argument 0 ; size

@@ -1,31 +1,9 @@
-; stack.asm - Arbitrary-length stack and buffer helpers
+; stack.asm - Arbitrary-length buffer helpers
 
 .include "nlib.inc"
 .def src_idx _nl_tmp0
 .def dst_idx _nl_tmp1
 .def fillval _nl_tmp2
-
-.proc _pushN
-    clc
-    lda sp
-    adc arg0
-    sta sp
-    lda sp+1
-    adc #0
-    sta sp+1
-    rts
-.endproc
-
-.proc _popN
-    sec
-    lda sp
-    sbc arg0
-    sta sp
-    lda sp+1
-    sbc #0
-    sta sp+1
-    rts
-.endproc
 
 .proc _cpyN
     ldx arg0

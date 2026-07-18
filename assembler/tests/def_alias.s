@@ -1,8 +1,8 @@
-.importzp _nl_sp
-.def sp _nl_sp
+.importzp _runtime_zp
+.def work _runtime_zp
 
 .segment "CODE"
 .proc demo
-   lda sp
+   lda work
    rts
 .endproc
