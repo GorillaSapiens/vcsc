@@ -28,9 +28,8 @@ Every legal function return is one of:
 * 16-bit pointer.
 
 Functions may not return aggregates, arrays, floating-point values, or other
-non-scalar objects. The stock interface exposes ordinary binary integers
-through 24 bits, and the compiler/memory-return ABI supports ordinary integer
-scalars through four bytes. `bcd24_t` is also a legal return type.
+non-scalar objects. The stock interface and compiler/memory-return ABI expose
+ordinary binary integers through 32 bits. `bcd24_t` is also a legal return type.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
 an exact-sized hidden callee-owned zero-page symbol named

@@ -11,6 +11,8 @@ include "vcs.vcsc"
 
 uint24_t frame_count := 0x123456;
 int24_t frame_delta := -1;
+uint32_t long_count := 0x12345678;
+int32_t long_delta := -1;
 
 int16_t main(void) {
    int8_t x := INPT4;
@@ -18,6 +20,8 @@ int16_t main(void) {
    score += 1;
    frame_count += 1;
    frame_delta--;
+   long_count += 1;
+   long_delta--;
    VBLANK := x;
    TIM64T := 42;
    return INTIM + SWCHB;

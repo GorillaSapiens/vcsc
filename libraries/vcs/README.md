@@ -32,23 +32,27 @@ int16_t main(void) {
 }
 ```
 
-## 24-bit binary integers
+## 24- and 32-bit binary integers
 
-`vcs.vcsc` defines `int24_t` and `uint24_t` in addition to the 8- and 16-bit
-ordinary types. They are little-endian three-byte integers with ranges
--8388608..8388607 and 0..16777215. They support the same ordinary integer
-operations, parameters, and callee-owned memory returns as the smaller widths.
-Values of the same signedness widen automatically; mixed signed/unsigned runtime
-operations still require an explicit cast rather than C's usual conversions.
+`vcs.vcsc` defines `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` in addition
+to the 8- and 16-bit ordinary types. The three-byte types range from
+-8388608..8388607 and 0..16777215; the four-byte types range from
+-2147483648..2147483647 and 0..4294967295. They support the same ordinary
+integer operations, parameters, and callee-owned memory returns as the smaller
+widths. Values of the same signedness widen automatically; mixed
+signed/unsigned runtime operations still require an explicit cast rather than
+C's usual conversions.
 
 Literal encoding is width-based, matching the established smaller ordinary
-integer types. Three-byte high-bit patterns and negative two's-complement
-literals are legal; a magnitude requiring four bytes is rejected in a 24-bit
-context.
+integer types. High-bit patterns and negative two's-complement literals are
+legal when they fit the destination width; a literal exceeding 32 bits is
+rejected.
 
 ```vcsc
 uint24_t frames := 1000000;
 int24_t delta := -1;
+uint32_t lifetime_frames := 0x12345678;
+int32_t accumulator := -2000000000;
 frames += 60;
 ```
 

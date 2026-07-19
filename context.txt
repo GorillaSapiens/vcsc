@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_145346.tar.gz
+    vcsc.20260719_155642.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -45,12 +45,13 @@ Settled final-language decisions
 --------------------------------
 * Target: Atari 2600/VCS using the 6507 CPU.
 * All multibyte values are little-endian.
-* The stock machine interface exposes six ordinary binary integer types and
+* The stock machine interface exposes eight ordinary binary integer types and
   three unsigned packed-decimal integer types:
 
       int8_t      uint8_t
       int16_t     uint16_t
       int24_t     uint24_t
+      int32_t     uint32_t
       bcd8_t      bcd16_t
       bcd24_t
 
@@ -64,11 +65,10 @@ Settled final-language decisions
   They decay to `uint8_t *` in pointer initializers; writing through such a
   pointer is invalid even though `const` is not yet enforced by the type system.
 * No float or double.
-* The stock VCS headers expose canonical signed and unsigned 8-, 16-, and
-  24-bit ordinary types. The compiler core handles user-declared ordinary signed
-  or unsigned little-endian integer widths from one through four bytes;
-  canonical `int32_t` and `uint32_t` remain queued. `bcd24_t` remains the
-  largest currently exposed packed-decimal type.
+* The stock VCS headers expose canonical signed and unsigned 8-, 16-, 24-,
+  and 32-bit ordinary types. The compiler core handles user-declared ordinary
+  signed or unsigned little-endian integer widths from one through four bytes.
+  `bcd24_t` remains the largest currently exposed packed-decimal type.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * The vendored batari Basic kernel tree is retained as source/reference
   material for possible conversion to VCSC; it is intentionally not dead-code
@@ -89,7 +89,7 @@ Settled final-language decisions
 * Function returns use exact-sized callee-owned zero-page memory:
 
       void:                         no return object
-      8/16/24-bit binary integer:   function$__return, 1, 2, or 3 bytes
+      8/16/24/32-bit binary integer: function$__return, 1, 2, 3, or 4 bytes
       8/16/24-bit packed BCD:       function$__return, 1, 2, or 3 bytes
       pointer:                      function$__return, 2 bytes
 
@@ -98,9 +98,8 @@ Settled final-language decisions
   caller copies directly from the callee object. A, X, and Y are caller-
   clobbered and carry no ordinary language return value.
 
-* `bcd24_t` may be returned. Ordinary binary memory returns support widths
-  from one through four bytes; the stock headers expose canonical names through
-  24 bits, with 32-bit names queued next.
+* `bcd24_t` may be returned. Ordinary binary memory returns and stock type
+  names support widths from one through four bytes.
 * Struct, union, and array returns remain forbidden even when small. Use an
   explicit result pointer.
 
@@ -294,6 +293,12 @@ Completed vertical slices
     encoding preserves VCSC's established width-sized bit-pattern behavior, and
     negative runtime literals now encode correctly instead of reaching the
     unsigned text parser.
+41. Added first-class stock `int32_t` and `uint32_t` declarations. Four-byte
+    literals, parameters, arithmetic, comparisons, shifts, multiplication,
+    division/remainder, and callee-owned memory returns use the already proven
+    width-generic paths. Boundary regressions cover exact little-endian layout,
+    signed and unsigned limits, fifth-byte rejection, widening, mixed-signedness
+    rejection, and cross-object returns.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -329,7 +334,7 @@ Every function declaration and definition is validated. The compiler currently
 accepts void, one-through-four-byte ordinary binary integers, one/two/three-byte
 packed BCD integers, and 16-bit pointers. It rejects aggregates, arrays, and
 other noninteger/nonpointer returns. The stock interface names ordinary widths
-through 24 bits; canonical 32-bit names are the next queued language-surface step.
+through 32 bits.
 
 Inside a non-void function, `$$` is the source-level return object. It is an
 exact-sized hidden callee-owned zero-page symbol named `function$__return`.
@@ -554,11 +559,11 @@ Result: passed.
 
 Compile suite:
 
-    260 passed, 0 failed, 260 total
+    266 passed, 0 failed, 266 total
 
 End-to-end/generic suite:
 
-    115 passed, 0 failed, 115 total
+    117 passed, 0 failed, 117 total
 
 Staged install check:
 
@@ -566,7 +571,8 @@ Staged install check:
 
 Both examples still build directly as raw 4096-byte cartridges without an
 explicit `-T`. The staged installed toolchain also compiles the VCS header smoke
-program using `int24_t` and `uint24_t` and produces an exact 4096-byte cartridge.
+program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` and produces
+an exact 4096-byte cartridge.
 Bare `vcsc-ld` invocation without a script still fails with a focused diagnostic,
 while retained generic e2e tests use `test/generic_6502.cfg`.
 
@@ -766,7 +772,7 @@ The first unfinished item is the default next action.
         [x] 18d. Add first-class `int24_t` and `uint24_t`, retaining VCSC's
                   existing rule that mixed signed/unsigned runtime operations
                   require an explicit cast rather than C's usual conversions.
-        [ ] 18e. Add first-class `int32_t` and `uint32_t` after the width-generic
+        [x] 18e. Add first-class `int32_t` and `uint32_t` after the width-generic
                   paths are proven. Keep pointers 16-bit.
         [ ] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
                   four-byte scalar storage and copying are established.
@@ -802,9 +808,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Tasks 18a through 18d are complete; the next queued action is 18e, adding the
-canonical `int32_t` and `uint32_t` names and their stock-interface tests. Batari
-conversion inventory follows the 24/32-bit scalar work as task 19.
+Tasks 18a through 18e are complete; the next queued action is 18f, adding
+unsigned packed-decimal `bcd32_t` for eight digits. Batari conversion inventory
+follows the scalar-width work as task 19.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1702,3 +1708,29 @@ Before returning another modified archive:
   timed out at 111 passes. The staged installation check and exact 4096-byte
   installed-toolchain cartridge builds also passed. `remove.txt` remains at 871
   unique paths, and the retained batari Basic trees are unchanged.
+
+
+2026-07-19 16:10:12 PDT, add first-class 32-bit binary integer types
+------------------------------------------------------------------------
+* Add canonical `int32_t` and `uint32_t` declarations to
+  `libraries/vcs/vcs.vcsc` and `test/machine_6502.vcsc` while keeping pointers
+  16-bit.
+* Extend `test/vcs_headers_smoke_test.vcsc` so the staged installed toolchain
+  compiles ordinary 24- and 32-bit values together.
+* Add `int32_stock_literals_codegen_test.vcsc`,
+  `int32_positive_literal_width_error_test.vcsc`,
+  `int32_negative_literal_width_error_test.vcsc`,
+  `uint32_literal_width_error_test.vcsc`, and
+  `int32_mixed_signed_error_test.vcsc`.
+* Add `e2e_int32_stock_types_verify.vcsc` and the
+  `e2e_int32_memory_return_cross_tu_verify.vcsc`/`__def.vcsc` pair. Coverage
+  includes exact little-endian literal layout, signed/unsigned limits,
+  fifth-byte rejection, widening, arithmetic, comparisons, signed shifts,
+  multiply/divide/remainder, and same- and cross-object four-byte returns.
+* Update `README.md`, `compiler/README.md`, `compiler/ABI.txt`,
+  `libraries/vcs/README.md`, `NOTES.md`, and this durable context so the stock
+  ordinary family now spans 8, 16, 24, and 32 bits.
+* Pass 266/266 compile tests and 117/117 end-to-end/generic tests. The staged
+  install check builds exact 4096-byte cartridges with the installed VCS
+  headers. `remove.txt` remains at 871 unique paths, and the retained batari
+  Basic trees are unchanged.
