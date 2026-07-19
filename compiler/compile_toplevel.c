@@ -229,6 +229,7 @@ void compile_type_decl_stmt(ASTNode *node) {
    const char *endian = NULL;
    bool haveInteger = false;
    const char *integer_style = NULL;
+   bool haveBcd = false;
    bool integer_required;
 
    integer_required = key && strcmp(key, "void");
@@ -303,6 +304,14 @@ void compile_type_decl_stmt(ASTNode *node) {
             haveInteger = true;
             integer_style = style;
          }
+         else if (!strcmp(item->strval, "$bcd")) {
+            if (haveBcd) {
+               error_user("[%s:%d.%d] type_decl_stmt '%s' has multiple '$bcd' flags",
+                     node->file, node->line, node->column,
+                     node->children[0]->strval);
+            }
+            haveBcd = true;
+         }
       }
    }
 
@@ -312,9 +321,23 @@ void compile_type_decl_stmt(ASTNode *node) {
    }
 
    if (key && !strcmp(key, "*")) {
+      if (haveBcd) {
+         error_user("[%s:%d.%d] pointer type '*' cannot use '$bcd'",
+               node->file, node->line, node->column);
+      }
       if (size != 2 || !haveInteger || !integer_style || strcmp(integer_style, "unsigned")) {
          error_user("[%s:%d.%d] pointer type '*' must be a 2-byte unsigned integer",
                node->file, node->line, node->column);
+      }
+   }
+   else if (haveBcd) {
+      if (!haveInteger || !integer_style || strcmp(integer_style, "unsigned")) {
+         error_user("[%s:%d.%d] packed-BCD type '%s' must use '$integer:unsigned'",
+               node->file, node->line, node->column, node->children[0]->strval);
+      }
+      if (size < 1 || size > 3) {
+         error_user("[%s:%d.%d] packed-BCD type '%s' has unsupported size %d; only 1-byte, 2-byte, and 3-byte packed-BCD types are supported",
+               node->file, node->line, node->column, node->children[0]->strval, size);
       }
    }
    else if (haveInteger && size != 1 && size != 2) {
@@ -365,7 +388,7 @@ static bool enum_candidate_is_integer_type(const ASTNode *node) {
       return false;
    }
 
-   return type_is_promotable_integer(node);
+   return type_is_promotable_integer(node) && !type_is_bcd_integer(node);
 }
 
 //! @brief Return whether enum candidate can hold range in compile toplevel.

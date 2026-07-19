@@ -77,7 +77,7 @@ Unless a subdirectory says otherwise, the toolchain sources and top-level build/
 The runtime library in `libraries/nlib/` is licensed under BSD-2-Clause so code linked into user binaries stays permissive.
 The exact license texts live in the repository root `LICENSE`/`COPYING` files and in the per-library `LICENSE` files.
 
-## Integer style flags
+## Integer and packed-BCD type flags
 
 Integer-like scalar types use an explicit style flag: `$integer:signed` or `$integer:unsigned`.
 
@@ -88,10 +88,36 @@ type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
+type bcd8_t   { $size:1 $integer:unsigned $bcd };
+type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
+type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
 type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
-Integer value types are restricted to one or two bytes and use `$integer:signed` or `$integer:unsigned`. Untyped integer literals must fit in 16 bits. All multibyte values are little-endian. Expression-level shortcut casts `($signed)` / `($unsigned)` change signedness while preserving width.
+Ordinary binary integer value types are restricted to one or two bytes and use
+`$integer:signed` or `$integer:unsigned`. The stock VCS target additionally
+defines unsigned packed-decimal `bcd8_t`, `bcd16_t`, and `bcd24_t`, holding two,
+four, and six decimal digits. `$bcd` is valid only on one-, two-, or three-byte
+unsigned integer declarations. All multibyte values are little-endian.
+
+BCD literals are converted by numeric value, not copied as binary bytes. Thus
+decimal `42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all store
+as packed BCD `$42`. `1234` stores as `$34,$12`, and `567890` stores as
+`$90,$78,$56`. Range checking follows decimal capacity: 0..99, 0..9999, and
+0..999999.
+
+Packed-BCD values support assignment, widening/truncating BCD copies, `+`, `-`,
+`+=`, `-=`, `++`, `--`, comparisons, truth tests, and `switch`. The compiler
+emits tightly scoped `SED`/`CLD` around each BCD `ADC`/`SBC` chain and leaves
+decimal mode clear afterward. Multiplication, division, remainder, shifts,
+bitwise operations, unary minus, BCD bitfields, and runtime BCD/binary
+conversions are rejected. `bcd24_t` may be stored and passed as a parameter but
+cannot be returned because the current A:X return ABI is limited to two bytes.
+
+Untyped ordinary integer literals must fit in 16 bits unless a BCD destination
+or annotation supplies the wider six-digit context. Expression-level shortcut
+casts `($signed)` / `($unsigned)` change signedness while preserving width and
+are not valid for BCD values.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
 

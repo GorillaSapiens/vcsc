@@ -285,6 +285,7 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
    if (!strcmp(node->name, "type_decl_stmt")) {
       bool is_signed = type_is_signed_integer(node);
       bool is_unsigned = type_is_unsigned_integer(node);
+      bool is_bcd = type_is_bcd_integer(node);
 
       if (!strcmp(name, "void")) {
          sb_appendf(fp, "void(sz=%d", size);
@@ -296,10 +297,12 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
       }
 
       sb_appendf(fp, "scalar(sz=%d;kind=%s)", size,
-         is_signed ? "signed_int" : (is_unsigned ? "unsigned_int" : "plain"));
+         is_bcd ? "packed_bcd" :
+         (is_signed ? "signed_int" : (is_unsigned ? "unsigned_int" : "plain")));
 
       sb_appendf(detail, "%s(size=%d%s)",
-         is_signed ? "signed_integer" : (is_unsigned ? "unsigned_integer" : "scalar"), size,
+         is_bcd ? "packed_bcd_integer" :
+         (is_signed ? "signed_integer" : (is_unsigned ? "unsigned_integer" : "scalar")), size,
          size > 1 ? ", little-endian" : "");
       return;
    }

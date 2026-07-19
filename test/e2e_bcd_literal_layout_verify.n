@@ -1,0 +1,99 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+bcd8_t dec8 := 42;
+bcd8_t hex8 := 0x2a;
+bcd8_t oct8 := 052;
+bcd8_t bin8 := 0b101010;
+bcd16_t dec16 := 1234;
+bcd16_t hex16 := 0x4d2;
+bcd24_t dec24 := 567890;
+bcd16_t short16 := 42;
+bcd24_t short24 := 42;
+
+struct BcdRecord {
+   bcd8_t a;
+   bcd16_t b;
+   bcd24_t c;
+};
+
+BcdRecord record := { 42, 1234, 567890 };
+bcd8_t array8[4] := { 42, 0x2a, 052, 0b101010 };
+
+bcd16_t return_literal16(void) { return 42; }
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   uint8_t *p8;
+   uint8_t *p16;
+   uint8_t *p24;
+   uint8_t *pr;
+   bcd8_t local8 := 42;
+   bcd16_t local16 := 1234;
+   bcd24_t local24 := 567890;
+
+   p8 := (uint8_t *)&dec8;
+   if (p8[0] != 0x42) { fail(1); }
+   p8 := (uint8_t *)&hex8;
+   if (p8[0] != 0x42) { fail(2); }
+   p8 := (uint8_t *)&oct8;
+   if (p8[0] != 0x42) { fail(3); }
+   p8 := (uint8_t *)&bin8;
+   if (p8[0] != 0x42) { fail(4); }
+
+   p16 := (uint8_t *)&dec16;
+   if (p16[0] != 0x34 || p16[1] != 0x12) { fail(5); }
+   p16 := (uint8_t *)&hex16;
+   if (p16[0] != 0x34 || p16[1] != 0x12) { fail(6); }
+
+   p24 := (uint8_t *)&dec24;
+   if (p24[0] != 0x90 || p24[1] != 0x78 || p24[2] != 0x56) { fail(7); }
+
+   p16 := (uint8_t *)&short16;
+   if (p16[0] != 0x42 || p16[1] != 0x00) { fail(18); }
+   p24 := (uint8_t *)&short24;
+   if (p24[0] != 0x42 || p24[1] != 0x00 || p24[2] != 0x00) { fail(19); }
+
+   short16 := return_literal16();
+   p16 := (uint8_t *)&short16;
+   if (p16[0] != 0x42 || p16[1] != 0x00) { fail(20); }
+
+   p8 := (uint8_t *)&local8;
+   if (p8[0] != 0x42) { fail(8); }
+   p16 := (uint8_t *)&local16;
+   if (p16[0] != 0x34 || p16[1] != 0x12) { fail(9); }
+   p24 := (uint8_t *)&local24;
+   if (p24[0] != 0x90 || p24[1] != 0x78 || p24[2] != 0x56) { fail(10); }
+
+   pr := (uint8_t *)&record;
+   if (pr[0] != 0x42) { fail(11); }
+   if (pr[1] != 0x34 || pr[2] != 0x12) { fail(12); }
+   if (pr[3] != 0x90 || pr[4] != 0x78 || pr[5] != 0x56) { fail(13); }
+
+   p8 := (uint8_t *)&array8;
+   if (p8[0] != 0x42 || p8[1] != 0x42 || p8[2] != 0x42 || p8[3] != 0x42) { fail(14); }
+
+   dec8 := 0x2a;
+   dec16 := 0x4d2;
+   dec24 := 0x8aa52;
+   p8 := (uint8_t *)&dec8;
+   p16 := (uint8_t *)&dec16;
+   p24 := (uint8_t *)&dec24;
+   if (p8[0] != 0x42) { fail(15); }
+   if (p16[0] != 0x34 || p16[1] != 0x12) { fail(16); }
+   if (p24[0] != 0x90 || p24[1] != 0x78 || p24[2] != 0x56) { fail(17); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

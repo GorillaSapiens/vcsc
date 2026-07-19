@@ -25,6 +25,32 @@ int16_t main(void) {
 }
 ```
 
+## Packed-decimal score and counter types
+
+`vcs.n` defines three unsigned packed-BCD types backed directly by the 6507's
+decimal-mode `ADC` and `SBC` instructions:
+
+```n
+bcd8_t  lives := 3;          // 00..99, byte $03
+bcd16_t timer := 1234;       // 0000..9999, bytes $34,$12
+bcd24_t score := 567890;     // 000000..999999, bytes $90,$78,$56
+
+score += 125;                // compiler emits SED, ADC chain, then CLD
+```
+
+Literal values are converted numerically to packed decimal. In particular,
+`bcd8_t x := 0x2a;` stores `$42`, because hexadecimal `0x2a` has numeric value
+42. This makes source-base choice independent of storage representation and
+prevents the common binary-byte/BCD-digit mix-up.
+
+BCD values support copy/assignment, addition, subtraction,
+increment/decrement, comparisons, truth tests, and switch cases. Arithmetic
+wraps at the decimal width. Runtime mixing with ordinary binary integers is
+rejected, as are multiply/divide/remainder, bitwise operations, shifts, unary
+minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores;
+it may be passed to functions but cannot be returned under the current two-byte
+A:X return limit.
+
 Compile with an include path that can see this directory, for example:
 
 ```sh
@@ -43,6 +69,7 @@ layout produces exactly 4096 bytes mapped at `$F000-$FFFF`.
 Notes:
 
 - `vcs.n` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.n` and `riot.n`.
+- Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
 - `tia.n` and `riot.n` can also be included separately if you already have your own base machine definition.
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
 - `n65cc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.

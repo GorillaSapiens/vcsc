@@ -1,0 +1,36 @@
+// n65c -I .
+// expectexit: 0
+include "machine_6502.n"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t source;
+uint8_t destination;
+
+void main(void) {
+   source := 9;
+   destination := source++;
+   if (destination != 9 || source != 10) { fail(1); }
+
+   destination := --source;
+   if (destination != 9 || source != 9) { fail(2); }
+
+   source := 9;
+   destination := source--;
+   if (destination != 9 || source != 8) { fail(3); }
+
+   destination := ++source;
+   if (destination != 9 || source != 9) { fail(4); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

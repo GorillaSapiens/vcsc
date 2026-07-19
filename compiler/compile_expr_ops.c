@@ -313,11 +313,15 @@ static int expr_byte_index(const ASTNode *type, int size, int i) {
 //! @brief Emit add immediate to frame pointer for compiler operator lowering diagnostics or output files.
 void emit_add_immediate_to_fp(const ASTNode *type, int offset, const unsigned char *bytes, int size) {
    bool direct = offset >= 0 && offset + size <= 256;
+   bool bcd = type_is_bcd_integer(type);
 
    if (!direct) {
       emit_prepare_fp_ptr(0, offset);
    }
 
+   if (bcd) {
+      emit(&es_code, "    sed\n");
+   }
    emit(&es_code, "    clc\n");
    for (int i = 0; i < size; i++) {
       int j = expr_byte_index(type, size, i);
@@ -326,16 +330,23 @@ void emit_add_immediate_to_fp(const ASTNode *type, int offset, const unsigned ch
       emit(&es_code, "    adc #$%02x\n", bytes[j]);
       emit(&es_code, "    sta %s,y\n", direct ? "(fp)" : "(ptr0)");
    }
+   if (bcd) {
+      emit(&es_code, "    cld\n");
+   }
 }
 
 //! @brief Extract emit sub immediate from frame pointer for compiler operator lowering.
 static void emit_sub_immediate_from_fp(const ASTNode *type, int offset, const unsigned char *bytes, int size) {
    bool direct = offset >= 0 && offset + size <= 256;
+   bool bcd = type_is_bcd_integer(type);
 
    if (!direct) {
       emit_prepare_fp_ptr(0, offset);
    }
 
+   if (bcd) {
+      emit(&es_code, "    sed\n");
+   }
    emit(&es_code, "    sec\n");
    for (int i = 0; i < size; i++) {
       int j = expr_byte_index(type, size, i);
@@ -343,6 +354,9 @@ static void emit_sub_immediate_from_fp(const ASTNode *type, int offset, const un
       emit(&es_code, "    lda %s,y\n", direct ? "(fp)" : "(ptr0)");
       emit(&es_code, "    sbc #$%02x\n", bytes[j]);
       emit(&es_code, "    sta %s,y\n", direct ? "(fp)" : "(ptr0)");
+   }
+   if (bcd) {
+      emit(&es_code, "    cld\n");
    }
 }
 
@@ -352,6 +366,7 @@ void emit_add_fp_to_fp(const ASTNode *type, int dst_offset, int src_offset, int 
    const char *helper = int_addsub_helper_name(type, size, false, &helper_is_generic);
    bool dst_direct = dst_offset >= 0 && dst_offset + size <= 256;
    bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+   bool bcd = type_is_bcd_integer(type);
 
    if (helper) {
       if (helper_is_generic) {
@@ -370,6 +385,9 @@ void emit_add_fp_to_fp(const ASTNode *type, int dst_offset, int src_offset, int 
       emit_prepare_fp_ptr(1, src_offset);
    }
 
+   if (bcd) {
+      emit(&es_code, "    sed\n");
+   }
    emit(&es_code, "    clc\n");
    for (int i = 0; i < size; i++) {
       int j = expr_byte_index(type, size, i);
@@ -380,6 +398,9 @@ void emit_add_fp_to_fp(const ASTNode *type, int dst_offset, int src_offset, int 
       emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
       emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr0)");
    }
+   if (bcd) {
+      emit(&es_code, "    cld\n");
+   }
 }
 
 //! @brief Extract emit sub frame pointer from frame pointer for compiler operator lowering.
@@ -388,6 +409,7 @@ void emit_sub_fp_from_fp(const ASTNode *type, int dst_offset, int src_offset, in
    const char *helper = int_addsub_helper_name(type, size, true, &helper_is_generic);
    bool dst_direct = dst_offset >= 0 && dst_offset + size <= 256;
    bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+   bool bcd = type_is_bcd_integer(type);
 
    if (helper) {
       if (helper_is_generic) {
@@ -406,6 +428,9 @@ void emit_sub_fp_from_fp(const ASTNode *type, int dst_offset, int src_offset, in
       emit_prepare_fp_ptr(1, src_offset);
    }
 
+   if (bcd) {
+      emit(&es_code, "    sed\n");
+   }
    emit(&es_code, "    sec\n");
    for (int i = 0; i < size; i++) {
       int j = expr_byte_index(type, size, i);
@@ -415,6 +440,9 @@ void emit_sub_fp_from_fp(const ASTNode *type, int dst_offset, int src_offset, in
       emit(&es_code, "    sbc %s,y\n", src_direct ? "(fp)" : "(ptr1)");
       emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
       emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr0)");
+   }
+   if (bcd) {
+      emit(&es_code, "    cld\n");
    }
 }
 

@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_235108.tar.gz
+    vcsc.20260719_062747.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -40,12 +40,16 @@ Settled final-language decisions
 --------------------------------
 * Target: Atari 2600/VCS using the 6507 CPU.
 * All multibyte values are little-endian.
-* The only user-visible basic integer types will be:
+* The stock machine interface exposes four ordinary binary integer types and
+  three unsigned packed-decimal integer types:
 
-      int8_t
-      uint8_t
-      int16_t
+      int8_t      bcd8_t
+      uint8_t     bcd16_t
+      int16_t     bcd24_t
       uint16_t
+
+  The BCD types store two decimal digits per byte in little-endian digit-pair
+  order and have numeric ranges 0..99, 0..9999, and 0..999999.
 
 * `int`, `char`, and `bool` are ordinary identifiers rather than built-in or
   reserved type names. Programs may introduce them as transparent typedef
@@ -54,7 +58,9 @@ Settled final-language decisions
   They decay to `uint8_t *` in pointer initializers; writing through such a
   pointer is invalid even though `const` is not yet enforced by the type system.
 * No float or double.
-* No int32_t, uint32_t, or wider integers.
+* No int32_t, uint32_t, or wider ordinary binary integers. `bcd24_t` is a
+  deliberate packed-decimal six-digit exception, not restored generic 24-bit
+  binary arithmetic.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * The vendored batari Basic kernel tree is retained as source/reference
   material for possible conversion to VCSC; it is intentionally not dead-code
@@ -74,10 +80,12 @@ Settled final-language decisions
 * JSR/RTS still use the 6502 hardware stack for return addresses.
 * Function returns:
 
-      void:            no value
-      8-bit integer:   A; X unspecified
-      16-bit integer:  A low byte, X high byte
-      pointer:         A low byte, X high byte
+      void:                         no value
+      8-bit binary or BCD integer:  A; X unspecified
+      16-bit binary or BCD integer: A low byte, X high byte
+      pointer:                      A low byte, X high byte
+
+  `bcd24_t` is legal object and parameter storage but cannot be returned.
 
 * No function may return a value larger than two bytes.
 * Struct, union, and array returns are forbidden even when the aggregate is one
@@ -142,9 +150,10 @@ Completed vertical slices
     integers, pointers, constants, initializers, conversions, comparisons, and
     runtime helpers are little-endian. `$endian:big`, `($big)`, and `($little)`
     remain only as direct rejection paths.
-19. Target integer widths are restricted to exactly one or two bytes. Untyped
-    integer literals must fit in 16 bits. Positive 24/32/64-bit compiler,
-    runtime, library, and test support has been removed.
+19. Ordinary binary target integer widths are restricted to exactly one or two
+    bytes. Untyped integer literals must fit in 16 bits unless a typed packed-BCD
+    context supplies a wider decimal range. Positive generic 24/32/64-bit
+    binary compiler, runtime, library, and test support has been removed.
 20. The stock language and machine interface now use only int8_t, uint8_t,
     int16_t, and uint16_t as built-in integer names. Comparisons and logical
     expressions produce an ordinary uint8_t; there is no special boolean type.
@@ -225,6 +234,16 @@ Completed vertical slices
     and supplies `vcs_4k.cfg` from the source tree or installed `share/vcs`
     directory when the user does not pass `-T`. Generic end-to-end tests use
     the explicit test-only `test/generic_6502.cfg` layout.
+35. Added unsigned packed-decimal `bcd8_t`, `bcd16_t`, and `bcd24_t`.
+    `$bcd` is valid only with `$integer:unsigned` on one-, two-, or three-byte
+    little-endian scalar declarations. Literal values are range-checked and
+    encoded numerically into packed digit pairs, so `42`, `0x2a`, `052`, and
+    `0b101010` all store as `$42`. Addition and subtraction use tightly scoped
+    `SED`/`CLD` around the actual `ADC`/`SBC` chain; assignment, BCD-width
+    conversion, increment/decrement, comparisons, truth tests, fixed parameters,
+    and switch are supported. Unsupported arithmetic and runtime BCD/binary
+    conversion are rejected. ABI metadata distinguishes BCD from same-sized
+    binary integers, and `bcd24_t` remains non-returnable under the A:X ABI.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -258,7 +277,8 @@ Relevant code:
 Every function declaration and definition is validated. The compiler rejects:
 
 * aggregate and array returns;
-* integers larger than two bytes;
+* ordinary binary integers larger than two bytes;
+* packed-BCD integers larger than two bytes when used as return values;
 * any other noninteger, nonpointer value return.
 
 Pointers to aggregate or otherwise unsupported pointee types are legal because
@@ -403,11 +423,14 @@ For the big/mixed-endian purge:
   rejection tests were added;
 * all removed paths are in top-level remove.txt.
 
-For the wide-integer purge:
+For the wide-binary-integer purge:
 
-* target integer declarations must be exactly one or two bytes;
+* ordinary binary target integer declarations must be exactly one or two bytes;
+* `$bcd` declarations are the deliberate unsigned one-, two-, and three-byte
+  packed-decimal exception;
 * target pointers must be two bytes;
-* untyped integer literals larger than 16 bits are rejected;
+* untyped integer literals larger than 16 bits are rejected unless a BCD
+  destination or explicit BCD annotation provides a wider decimal context;
 * positive 24/32/64-bit arithmetic, promotion, extension, shift, helper, and
   return tests were removed or rewritten to legal widths;
 * PetiteFFS was removed because its public model requires a 32-bit DWORD;
@@ -417,49 +440,87 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Build/runtime and documentation:
+Compiler and ABI:
 
-    Makefile
+    compiler/abi_meta.c
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
+    compiler/compile_function_registry.c
+    compiler/compile_init.c
+    compiler/compile_init.h
+    compiler/compile_lvalue.c
+    compiler/compile_toplevel.c
+    compiler/compile_type.c
+    compiler/compile_type.h
+
+Machine definitions and documentation:
+
     README.md
-    LICENSE
     NOTES.md
-    libraries/nlib/Makefile
-    libraries/nlib/README.md
-    libraries/nlib/nrt0.s
+    compiler/ABI.txt
+    compiler/README.md
+    libraries/vcs/README.md
+    libraries/vcs/vcs.n
+    test/machine_6502.n
 
-Tests and handoff state:
+Packed-BCD compile/code-generation tests added:
 
-    test/interrupt_runtime_pruned.pl             (added)
-    test/interrupt_runtime_pruned.test           (added)
+    test/bcd8_literal_range_error_test.n
+    test/bcd16_literal_range_error_test.n
+    test/bcd24_literal_range_error_test.n
+    test/bcd24_return_rejected_test.n
+    test/bcd_argument_literal_range_error_test.n
+    test/bcd_arithmetic_codegen_test.n
+    test/bcd_bitwise_rejected_test.n
+    test/bcd_constant_expression_initializer_codegen_test.n
+    test/bcd_literal_initializer_codegen_test.n
+    test/bcd_mixed_arithmetic_rejected_test.n
+    test/bcd_mixed_assignment_rejected_test.n
+    test/bcd_multiply_rejected_test.n
+    test/bcd_negative_literal_error_test.n
+    test/bcd_pointer_type_error_test.n
+    test/bcd_runtime_cast_rejected_test.n
+    test/bcd_runtime_literal_range_error_test.n
+    test/bcd_shift_rejected_test.n
+    test/bcd_signed_type_error_test.n
+    test/bcd_static_binary_constant_conversion_codegen_test.n
+    test/bcd_static_multiply_rejected_test.n
+    test/bcd_typedef_codegen_test.n
+    test/bcd_unary_minus_rejected_test.n
+    test/bcd_width_type_error_test.n
+
+Packed-BCD and related end-to-end tests added:
+
+    test/e2e_bcd_abi_mismatch_fail.n
+    test/e2e_bcd_abi_mismatch_fail__def.n
+    test/e2e_bcd_arithmetic_verify.n
+    test/e2e_bcd_literal_layout_verify.n
+    test/e2e_bcd_switch_verify.n
+    test/e2e_incdec_assignment_side_effect_verify.n
+
+Existing VCS header regression extended:
+
+    test/vcs_headers_smoke_test.n
+
+Handoff state:
+
     context.txt
-    remove.txt
 
-Removed interrupt-runtime paths:
-
-    libraries/nint/.gitignore
-    libraries/nint/LICENSE
-    libraries/nint/Makefile
-    libraries/nint/README.md
-    libraries/nint/nint.a65
-    libraries/nint/nrt0_int.o65
-    libraries/nint/nrt0_int.s
-    libraries/nlib/asm/handler.asm
-    libraries/nlib/nrt0_noint.s
-
-All removed/renamed old paths are recorded in remove.txt, now at 487 unique
-cumulative paths.
+No files were intentionally removed. The retained batari Basic trees were not
+changed. remove.txt remains at 487 unique cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_tools
+    /mnt/data/vcsc_toolchain
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_toolchain/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_toolchain/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_toolchain/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -468,27 +529,32 @@ Build and test results
 ----------------------
 Clean warning-as-error tools build:
 
-    make tools -j1
+    make tools -j2
 
 Result: passed.
 
+Packed-BCD focused suite:
+
+    27 passed, 0 failed, 27 total
+
 Compile suite:
 
-    227 passed, 0 failed, 227 total
+    250 passed, 0 failed, 250 total
 
 End-to-end/generic suite:
 
-    101 passed, 0 failed, 101 total
+    106 passed, 0 failed, 106 total
 
 Staged install check:
 
     passed
 
-Both examples build directly as raw 4096-byte cartridges without an explicit
-`-T`; this verifies the source-tree driver default. The staged install check
-builds the solid-color cartridge through the installed driver and its
-`share/vcs/vcs_4k.cfg`. Bare `n65ld` invocation without a script fails with a
-focused diagnostic, while retained generic e2e tests use `test/generic_6502.cfg`.
+Both examples still build directly as raw 4096-byte cartridges without an
+explicit `-T`. A separate staged-toolchain smoke build included installed
+`vcs.n`, declared a `bcd24_t`, performed packed-BCD addition, and produced an
+exact 4096-byte cartridge. Bare `n65ld` invocation without a script still fails
+with a focused diagnostic, while retained generic e2e tests use
+`test/generic_6502.cfg`.
 
 Immediate TODO
 --------------
@@ -591,7 +657,7 @@ The first unfinished item is the default next action.
                   aggregate element under strict side-effect-free conditions.
                   Unsupported index forms use generic pooled scratch.
 
-[ ] 16. Delete unsupported tools/runtime/language features one group at a time,
+[x] 16. Delete unsupported tools/runtime/language features one group at a time,
         recording all removed paths in remove.txt and keeping retained tests
         green.
 
@@ -642,11 +708,33 @@ The first unfinished item is the default next action.
                             Generic end-to-end tests use an explicit test-only
                             layout.
 
+        [x] 16f. Add hardware-backed unsigned packed-BCD types `bcd8_t`,
+                  `bcd16_t`, and `bcd24_t`, including numeric literal packing,
+                  decimal-mode add/subtract, restrictions, ABI identity,
+                  documentation, and focused/full regressions. This is a new
+                  Atari-specific capability requested after pruning, not a
+                  restoration of generic wide binary integers.
+
 [ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
         filenames, binary names, paths, and user-visible identifiers as
         appropriate. Preserve useful history where needed. Project tagline:
         "a brutally pared-down Atari VCS C-like compiler".
+
+Proposed task-17 command names (not yet applied):
+
+    n65cc   -> vcsc          public compiler driver / normal entry point
+    n65c    -> vcsc-cc1      internal language front end
+    n65asm  -> vcsc-as       assembler
+    n65ld   -> vcsc-ld       linker
+    n65ar   -> vcsc-ar       archive tool
+    n65sim  -> vcsc-sim      compiler regression CPU simulator, not Stella
+
+Related proposed branding: rename source suffix `.n` to `.vcsc`; rename
+`libraries/nlib` to `libraries/runtime`, `nlib.a65` to `libvcsc.a65`, and
+`nlib.inc` to `vcsc-runtime.inc`. Keep `.o65` and `.a65` as format suffixes
+because they describe 6502 object/archive files rather than N branding. Prefer
+a hard cut rather than permanent compatibility wrappers.
 
 Inline assembly absolute-ref rules
 ----------------------------------
@@ -684,10 +772,12 @@ branding from user-visible names and paths while preserving useful history.
   boundaries. The current implementation deliberately reuses only two operands
   inside one binary expression, where identical index trees and intervening
   clobbers can be ruled out mechanically.
-* Existing defect: in some simple assignments such as `old := value++`, the
-  assignment-expression fast path can copy the lvalue without applying the
-  increment. Standalone `value++`/`--value` works and is covered here; fix this
-  independently rather than conflating it with scratch removal.
+* Whether to add explicit runtime conversion operations between packed BCD and
+  ordinary binary integers. Current casts deliberately reject representation
+  changes; compile-time constants convert numerically.
+* Whether later demand justifies BCD multiplication/division helpers. The
+  current hardware-backed feature deliberately supports only add/subtract and
+  operations that preserve valid packed digits.
 * Whether separate compilation remains throughout simplification.
 * Kernel-function syntax and cycle checking/inlining policy.
 
@@ -1369,6 +1459,39 @@ reproducibly rather than the exact instant of each individual source edit.
   4096-byte cartridge regressions, and the staged install check.
 * Added three test files and removed no files; remove.txt remains at 487 unique
   cumulative paths. Task 16e is complete; task 17 is next.
+
+
+2026-07-19 07:11:04 PDT, add packed-BCD integer family
+* Added `$bcd` as an unsigned one-, two-, or three-byte scalar type flag and
+  defined stock `bcd8_t`, `bcd16_t`, and `bcd24_t` types for two-, four-, and
+  six-digit packed decimal values. The three-byte type is a deliberate
+  Atari-specific decimal exception, not restored generic 24-bit binary math.
+* Added one numeric literal encoder for static initializers, automatic
+  initializers, runtime assignments, aggregate/array elements, typed constants,
+  and fixed arguments. Decimal `42`, hexadecimal `0x2a`, octal `052`, and binary
+  `0b101010` all become packed byte `$42`; multibyte values use least-significant
+  decimal pairs first. Range diagnostics enforce 0..99, 0..9999, and 0..999999.
+* Added tightly scoped decimal-mode lowering for BCD `ADC`/`SBC` chains,
+  including `+`, `-`, `+=`, `-=`, and valued/discarded `++`/`--`. Generated code
+  executes `CLD` immediately after each operation; an execution regression
+  verifies the following ordinary binary addition remains binary.
+* Added BCD-aware assignment, widening/truncation, comparisons, truth tests,
+  switch lowering, parameters, `bcd8_t`/`bcd16_t` returns, and ABI fingerprints.
+  Rejected signed/pointer/invalid-width BCD declarations, BCD bitfields,
+  multiply/divide/remainder, bitwise operations, shifts, unary minus, runtime
+  BCD/binary representation changes, and `bcd24_t` returns.
+* Fixed the inherited direct-copy assignment shortcut so `old := value++` and
+  its decrement/prefix variants preserve the source side effect; added an
+  ordinary-binary end-to-end regression in addition to BCD coverage.
+* Added 27 runnable BCD-specific tests plus the generic inc/dec assignment
+  regression, and extended the native VCS header smoke test to exercise the
+  stock BCD declaration. Passed 250/250 compile tests, 106/106 end-to-end and
+  generic tests, the staged install check, both exact 4096-byte cartridge
+  regressions, and an installed-toolchain BCD cartridge smoke build.
+* Documented representation, literal semantics, supported operations, decimal
+  mode invariants, conversion boundaries, and the A:X return limitation. No
+  files were removed; remove.txt remains at 487 cumulative paths, and the
+  retained batari Basic trees were untouched.
 
 
 End-of-session checklist

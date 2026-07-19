@@ -444,14 +444,24 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    if (rhs_expr && rhs_expr->kind == AST_INTEGER) {
       char *end = NULL;
       rhs_value = strtol(rhs_expr->strval, &end, 0);
-      rhs_immediate = end && *end == '\0' && rhs_value >= 0 && rhs_value <= 255;
+      rhs_immediate = end && *end == '\0' && rhs_value >= 0 &&
+                      integer_value_fits_type(rhs_value, lhs.lv.type);
       if (!rhs_immediate) {
          return false;
       }
       if (!emit_load_direct_byte_operand(ctx, &lhs)) {
          return false;
       }
-      emit(&es_code, "    cmp #$%02lx\n", rhs_value & 0xff);
+      if (type_is_bcd_integer(lhs.lv.type)) {
+         unsigned char packed = 0;
+         if (!encode_integer_initializer_value(rhs_value, &packed, 1, lhs.lv.type)) {
+            return false;
+         }
+         emit(&es_code, "    cmp #$%02x\n", (unsigned int) packed);
+      }
+      else {
+         emit(&es_code, "    cmp #$%02lx\n", rhs_value & 0xff);
+      }
    }
    else {
       rhs = classify_direct_byte_operand(ctx, expr->children[1], true);
@@ -716,14 +726,18 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    InitConstValue value = {0};
    ContextEntry entry;
    char symbol[256];
+   unsigned char encoded = 0;
    unsigned int byte_value;
 
    if (!dst || dst->size != 1 || dst->is_bitfield ||
        !eval_constant_initializer_expr(rhs, &value) ||
-       value.kind != INIT_CONST_INT || value.i < -128 || value.i > 255) {
+       value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, dst->type)) {
       return false;
    }
-   byte_value = (unsigned int) value.i & 0xff;
+   if (!encode_integer_initializer_value(value.i, &encoded, 1, dst->type)) {
+      return false;
+   }
+   byte_value = encoded;
 
    if (dst->is_absolute_ref) {
       if (!dst->write_expr || !*dst->write_expr) {
@@ -811,6 +825,7 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    const char *op;
    bool increment;
    char symbol[256];
+   bool bcd;
 
    expr = (ASTNode *) unwrap_expr_node(expr);
    if (!expr || strcmp(expr->name, "lvalue") || expr->count < 3 ||
@@ -826,13 +841,16 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    if (!resolve_lvalue(ctx, expr, &lv) || lv.size != 1 || lv.is_bitfield) {
       return false;
    }
+   bcd = type_is_bcd_integer(lv.type);
 
    if (lv.is_absolute_ref) {
       if (!lv.read_expr || !lv.write_expr || strcmp(lv.read_expr, lv.write_expr)) {
          return false;
       }
       emit_load_a_from_expr_address(lv.read_expr, lv.offset);
+      if (bcd) emit(&es_code, "    sed\n");
       emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+      if (bcd) emit(&es_code, "    cld\n");
       emit_store_a_to_expr_address(lv.write_expr, lv.offset);
       return true;
    }
@@ -853,7 +871,9 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
             emit(&es_code, lv.is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
          else
             emit(&es_code, lv.is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", formatted, lv.offset);
+         if (bcd) emit(&es_code, "    sed\n");
          emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+         if (bcd) emit(&es_code, "    cld\n");
          if (lv.offset == 0)
             emit(&es_code, lv.is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
          else
@@ -866,7 +886,9 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
        !lv.is_zeropage && !lv.is_global && lv.offset >= 0 && lv.offset <= 255) {
       emit(&es_code, "    ldy #%d\n", lv.offset);
       emit(&es_code, "    lda (fp),y\n");
+      if (bcd) emit(&es_code, "    sed\n");
       emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+      if (bcd) emit(&es_code, "    cld\n");
       emit(&es_code, "    sta (fp),y\n");
       return true;
    }
@@ -876,7 +898,9 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    }
    emit(&es_code, "    ldy #0\n");
    emit(&es_code, "    lda (ptr0),y\n");
+   if (bcd) emit(&es_code, "    sed\n");
    emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
+   if (bcd) emit(&es_code, "    cld\n");
    emit(&es_code, "    sta (ptr0),y\n");
    return true;
 }
@@ -960,6 +984,36 @@ void compile_expr(ASTNode *node, Context *ctx) {
       return;
    }
 
+   {
+      const ASTNode *literal_type = literal_annotation_type(rhs);
+      bool constant_without_bcd_type = expr_is_integer_constant_expr(rhs, NULL) &&
+                                       (!literal_type || !type_is_bcd_integer(literal_type));
+      const ASTNode *rhs_type = NULL;
+      const ASTNode *rhs_decl = NULL;
+
+      if (type_is_bcd_integer(dst->type) || !constant_without_bcd_type) {
+         rhs_type = expr_value_type(rhs, ctx);
+         rhs_decl = expr_value_declarator(rhs, ctx);
+      }
+
+      if (type_is_bcd_integer(dst->type) && lv.is_bitfield) {
+         error_user("[%s:%d.%d] packed-BCD bitfields are not supported",
+                    node->file, node->line, node->column);
+      }
+      if ((type_is_bcd_integer(dst->type) || rhs_type) &&
+          !bcd_implicit_conversion_allowed(dst->type, dst->declarator,
+                                           rhs_type, rhs_decl, rhs)) {
+         error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                    node->file, node->line, node->column);
+      }
+      if (op && strcmp(op, ":=") &&
+          (type_is_bcd_integer(dst->type) || type_is_bcd_integer(rhs_type)) &&
+          strcmp(op, "+=") && strcmp(op, "-=")) {
+         error_user("[%s:%d.%d] compound operator '%s' is not supported for packed-BCD values",
+                    node->file, node->line, node->column, op);
+      }
+   }
+
    if (!op || !strcmp(op, ":=")) {
       if (compile_direct_byte_constant_assignment(ctx, &lv, rhs)) {
          return;
@@ -975,6 +1029,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
          if (!assignment_requires_array_decay(ctx, dst, rhs) &&
+             !classify_incdec_lvalue_expr(rhs, NULL, NULL) &&
              resolve_ref_argument_lvalue(ctx, rhs, &rhs_lv) && rhs_lv.size == dst->size &&
              !strcmp(type_name_from_node(rhs_lv.type), type_name_from_node(dst->type)) && !rhs_lv.is_bitfield) {
             if (!emit_copy_lvalue_to_symbol(ctx, sym, lv.offset, &rhs_lv, dst->size)) {

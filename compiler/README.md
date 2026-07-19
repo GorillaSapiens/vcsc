@@ -97,7 +97,8 @@ As with aliases, keep conditional compilation boring and local. It is useful for
 
 ## Type system
 
-The stock machine interface exposes four integer types, one pointer type, and `void`:
+The stock VCS machine interface exposes four ordinary binary integer types,
+three unsigned packed-BCD types, one pointer type, and `void`:
 
 ```n
 type void     { $size:0 };
@@ -106,6 +107,9 @@ type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
+type bcd8_t   { $size:1 $integer:unsigned $bcd };
+type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
+type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
 ```
 
 ### Required type declarations
@@ -118,7 +122,9 @@ The compiler requires these declarations when their language semantics need them
 - `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-The stock machine definition also supplies `uint16_t`. The names `bool`, `char`, and `int` are not built in or reserved. A source file may introduce them as transparent aliases, for example:
+The stock machine definition also supplies `uint16_t` and the three BCD types.
+The names `bool`, `char`, and `int` are not built in or reserved. A source file
+may introduce them as transparent aliases, for example:
 
 ```n
 typedef uint8_t bool;
@@ -128,7 +134,14 @@ typedef int16_t int;
 
 Until such a typedef appears, those names are ordinary identifiers rather than types.
 
-Integer value types must be exactly one or two bytes and say whether they are signed or unsigned with `$integer:signed` or `$integer:unsigned`. Untyped integer literals larger than 16 bits are rejected. Comparisons and logical expressions produce an ordinary `uint8_t`, not a special boolean-only type. `void` remains flagless. Floating-point type flags are rejected.
+Ordinary binary integer value types must be exactly one or two bytes and say
+whether they are signed or unsigned with `$integer:signed` or
+`$integer:unsigned`. Packed-BCD types are a deliberate exception: they must be
+unsigned and may occupy one, two, or three bytes. Untyped integer literals
+larger than 16 bits are rejected unless a BCD destination or explicit BCD
+annotation supplies the wider decimal context. Comparisons and logical
+expressions produce an ordinary `uint8_t`, not a special boolean-only type.
+`void` remains flagless. Floating-point type flags are rejected.
 
 Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
 
@@ -139,12 +152,63 @@ Recognized flags include:
 - `$size:N`
 - `$integer:signed`
 - `$integer:unsigned`
+- `$bcd` on one-, two-, or three-byte unsigned integer types
 
 Floating-point flags are not recognized as value types; `$float` and `$float:*` declarations are rejected.
 
 Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
 
 Multibyte integer and pointer types use `$endian:little`. `$endian:big` is rejected; the target language has no selectable byte order.
+
+### Packed-BCD integers
+
+`$bcd` declares a packed binary-coded-decimal scalar. Each byte stores two
+decimal digits, with the least-significant digit pair in the lowest-addressed
+byte:
+
+```n
+bcd8_t  two_digits := 42;      // byte:        $42
+bcd16_t four_digits := 1234;   // little-endian $34, $12
+bcd24_t six_digits := 567890;  // little-endian $90, $78, $56
+```
+
+The stock ranges are:
+
+- `bcd8_t`: 0..99
+- `bcd16_t`: 0..9999
+- `bcd24_t`: 0..999999
+
+Literal spelling never changes the numeric value being converted. Decimal
+`42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all initialize a
+`bcd8_t` with byte `$42`, not binary byte `$2a`. Static initializers, automatic
+initializers, assignments, aggregate/array elements, function arguments, and
+typed constant expressions use the same encoder and range checks. Compile-time
+integer constants may cross between binary and BCD destinations by numeric
+value; runtime variables may not cross representations, even through a cast,
+because no binary/decimal conversion routine is currently defined.
+
+Supported BCD operations are:
+
+- assignment and same-representation widening or truncation;
+- `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`;
+- `==`, `!=`, `<`, `<=`, `>`, `>=`, truth tests, logical operators, and
+  `switch`/case comparison.
+
+Addition and subtraction wrap modulo 100, 10,000, or 1,000,000 according to
+the destination width. The compiler brackets only the actual `ADC`/`SBC` byte
+chain with `SED` and `CLD`; pointer arithmetic, frame-pointer housekeeping, and
+other compiler-generated arithmetic remain binary. A compiled operation always
+leaves decimal mode clear.
+
+The compiler rejects BCD multiplication, division, remainder, shifts, bitwise
+operators, unary minus, shortcut signedness casts, and BCD bitfields. Raw byte
+writes through a cast pointer can still manufacture invalid digit nibbles; such
+values are outside the language guarantee and subsequent BCD arithmetic is not
+defined.
+
+`bcd8_t` and `bcd16_t` may be returned in A and A:X respectively. `bcd24_t` is
+valid for objects and fixed parameters, but the current return ABI rejects it
+because scalar returns are limited to two bytes.
 
 ## Declarators
 

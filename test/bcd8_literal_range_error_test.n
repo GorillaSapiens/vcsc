@@ -1,0 +1,5 @@
+// n65c -I .
+// expectfail
+// expecterr: packed-BCD value 100 is outside the range 0..99 for a 1-byte type
+include "machine_6502.n"
+bcd8_t bad := 100;

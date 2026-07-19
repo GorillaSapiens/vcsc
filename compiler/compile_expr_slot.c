@@ -296,6 +296,26 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       return true;
    }
 
+   if (dst && dst->type && (!dst->declarator || declarator_is_plain_value(dst->declarator))) {
+      const ASTNode *literal_type = literal_annotation_type(expr);
+      bool constant_without_bcd_type = expr_is_integer_constant_expr(expr, NULL) &&
+                                       (!literal_type || !type_is_bcd_integer(literal_type));
+
+      /* Untyped constants adopt the destination representation.  Avoid asking
+       * expr_value_type() for their legacy int16_t default because freestanding
+       * machine descriptions are allowed to use different integer type names. */
+      if (type_is_bcd_integer(dst->type) || !constant_without_bcd_type) {
+         const ASTNode *src_type = expr_value_type(expr, ctx);
+         const ASTNode *src_decl = expr_value_declarator(expr, ctx);
+
+         if (!bcd_implicit_conversion_allowed(dst->type, dst->declarator,
+                                              src_type, src_decl, expr)) {
+            error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                       expr->file ? expr->file : "<unknown>", expr->line, expr->column);
+         }
+      }
+   }
+
    if (dst && dst->declarator && declarator_pointer_depth(dst->declarator) > 0) {
       const ASTNode *src_decl = expr_value_declarator(expr, ctx);
       if (src_decl && declarator_pointer_depth(src_decl) == 0 && declarator_array_count(src_decl) > 0) {
@@ -387,7 +407,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (expr->kind == AST_INTEGER) {
       unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
-      make_le_int(expr->strval, bytes, dst->size);
+      if (!encode_integer_literal_text(expr->strval, bytes, dst->size, dst->type)) {
+         free(bytes);
+         return false;
+      }
       emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
       free(bytes);
       return true;
@@ -398,9 +421,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
       if (decode_char_constant_value(expr->strval, &ch_value)) {
          unsigned char *bytes = (unsigned char *) calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
-         char tmp[64];
-         snprintf(tmp, sizeof(tmp), "%lld", ch_value);
-         make_le_int(tmp, bytes, dst->size);
+         if (!encode_integer_initializer_value(ch_value, bytes, dst->size, dst->type)) {
+            free(bytes);
+            return false;
+         }
          emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
          free(bytes);
       }

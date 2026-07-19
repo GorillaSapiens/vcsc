@@ -41,6 +41,59 @@ typedef struct PendingGlobalInit {
 static PendingGlobalInit *pending_global_inits = NULL;
 static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_offset, const ASTNode *init, const ASTNode *type, const ASTNode *declarator, int total_size);
 
+//! @brief Return whether a constant initializer explicitly names a packed-BCD type.
+static bool initializer_expr_mentions_bcd_type(const ASTNode *expr) {
+   const ASTNode *literal_type;
+
+   expr = unwrap_expr_node((ASTNode *) expr);
+   if (!expr) {
+      return false;
+   }
+
+   literal_type = literal_annotation_type(expr);
+   if (literal_type && type_is_bcd_integer(literal_type)) {
+      return true;
+   }
+   if (!strcmp(expr->name, "cast")) {
+      const ASTNode *target_type = cast_expr_target_type(expr);
+      if (target_type && type_is_bcd_integer(target_type)) {
+         return true;
+      }
+   }
+
+   for (int i = 0; i < expr->count; i++) {
+      if (initializer_expr_mentions_bcd_type(expr->children[i])) {
+         return true;
+      }
+   }
+   return false;
+}
+
+//! @brief Enforce packed-BCD representation rules before folding a scalar initializer.
+static void validate_bcd_scalar_initializer(const ASTNode *expr, const ASTNode *type, const ASTNode *declarator) {
+   bool mentions_bcd;
+
+   if (!expr || !type || (declarator && !declarator_is_plain_value(declarator))) {
+      return;
+   }
+
+   mentions_bcd = initializer_expr_mentions_bcd_type(expr);
+   if (!type_is_bcd_integer(type) && !mentions_bcd) {
+      return;
+   }
+
+   require_valid_bcd_operator_expr((ASTNode *) expr, NULL);
+
+   if (mentions_bcd) {
+      const ASTNode *src_type = expr_value_type((ASTNode *) expr, NULL);
+      const ASTNode *src_decl = expr_value_declarator((ASTNode *) expr, NULL);
+      if (!bcd_implicit_conversion_allowed(type, declarator, src_type, src_decl, expr)) {
+         error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                    expr->file ? expr->file : "<unknown>", expr->line, expr->column);
+      }
+   }
+}
+
 static int pending_global_init_count = 0;
 static int pending_global_init_max_size = 0;
 static char runtime_global_init_symbol_buf[64];
@@ -590,6 +643,24 @@ bool encode_integer_initializer_value(long long value, unsigned char *buf, int s
       return false;
    }
 
+   if (type_is_bcd_integer(type)) {
+      unsigned long long remaining;
+      unsigned long long max_value = bcd_max_value_for_size(size);
+
+      if (value < 0 || (unsigned long long) value > max_value) {
+         error_user("packed-BCD value %lld is outside the range 0..%llu for a %d-byte type",
+                    value, max_value, size);
+      }
+      memset(buf, 0, (size_t) size);
+      remaining = (unsigned long long) value;
+      for (int i = 0; i < size; i++) {
+         unsigned int pair = (unsigned int) (remaining % 100ULL);
+         buf[i] = (unsigned char) (((pair / 10U) << 4) | (pair % 10U));
+         remaining /= 100ULL;
+      }
+      return true;
+   }
+
    mag = value < 0 ? (unsigned long long) (-(value + 1)) + 1ULL : (unsigned long long) value;
    snprintf(tmp, sizeof(tmp), "%llu", mag);
    make_le_int(tmp, buf, size);
@@ -599,10 +670,26 @@ bool encode_integer_initializer_value(long long value, unsigned char *buf, int s
    return true;
 }
 
+//! @brief Encode an integer literal according to the destination representation.
+bool encode_integer_literal_text(const char *text, unsigned char *buf, int size, const ASTNode *type) {
+   if (!text || !buf || size < 0 || !type) {
+      return false;
+   }
+   if (type_is_bcd_integer(type)) {
+      return encode_integer_initializer_value(parse_int(text), buf, size, type);
+   }
+   make_le_int(text, buf, size);
+   return true;
+}
+
 //! @brief Handle encode init const int value logic for compiler initializer lowering.
 bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf, int size, const ASTNode *type) {
    if (!value) {
       return false;
+   }
+
+   if (type_is_bcd_integer(type)) {
+      return encode_integer_initializer_value(value->i, buf, size, type);
    }
 
    if (value->int_text && value->i >= 0) {
@@ -938,6 +1025,7 @@ static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_o
 
    if (!initializer_is_list(uinit)) {
       InitConstValue value = {0};
+      validate_bcd_scalar_initializer(uinit, type, declarator);
       if (!eval_constant_initializer_expr((ASTNode *) uinit, &value)) {
          return false;
       }

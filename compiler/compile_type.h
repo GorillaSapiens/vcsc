@@ -18,7 +18,14 @@ const char *parse_integer_style_flag_text(const char *text);
 bool type_has_integer_style(const ASTNode *type, const char *style);
 bool type_is_signed_integer(const ASTNode *type);
 bool type_is_unsigned_integer(const ASTNode *type);
+bool type_is_bcd_integer(const ASTNode *type);
 bool type_is_promotable_integer(const ASTNode *type);
+unsigned long long bcd_max_value_for_size(int size);
+bool integer_value_fits_type(long long value, const ASTNode *type);
+bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst_decl,
+                                     const ASTNode *src_type, const ASTNode *src_decl,
+                                     const ASTNode *src_expr);
+void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx);
 bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
                            const ASTNode *rhs_type, const ASTNode *rhs_decl);
 bool pointer_types_compatible(const ASTNode *lhs_type, const ASTNode *lhs_decl,

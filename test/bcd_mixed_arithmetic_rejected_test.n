@@ -1,0 +1,7 @@
+// n65c -I .
+// expectfail
+// expecterr: packed-BCD and binary integer values cannot be mixed implicitly
+include "machine_6502.n"
+bcd8_t a;
+uint8_t b;
+void main(void) { a := a + b; }

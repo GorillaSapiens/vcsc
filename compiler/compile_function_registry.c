@@ -62,6 +62,9 @@ static bool integer_type_can_represent_type(const ASTNode *formal_type, const AS
    if (!type_is_promotable_integer(formal_type) || !type_is_promotable_integer(actual_type)) {
       return false;
    }
+   if (type_is_bcd_integer(formal_type) != type_is_bcd_integer(actual_type)) {
+      return false;
+   }
 
    formal_size = type_size_from_node(formal_type);
    actual_size = type_size_from_node(actual_type);
@@ -160,6 +163,7 @@ static bool parameter_accepts_argument(const ASTNode *parameter,
    }
    return type_is_promotable_integer(actual_type) &&
           type_is_promotable_integer(formal_type) &&
+          type_is_bcd_integer(actual_type) == type_is_bcd_integer(formal_type) &&
           type_size_from_node(actual_type) == type_size_from_node(formal_type) &&
           declarator_is_plain_value(formal_decl) &&
           (!actual_decl || declarator_is_plain_value(actual_decl));
@@ -361,6 +365,16 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
          }
          if (!parameter_accepts_argument(parameter, actual_type, actual_decl,
                                          actual_lvalue, actual_expr)) {
+            long long constant_value = 0;
+            const ASTNode *param_type = parameter_type(parameter);
+            if (type_is_bcd_integer(param_type) &&
+                expr_is_integer_constant_expr(actual_expr, &constant_value) &&
+                !integer_value_fits_type(constant_value, param_type)) {
+               int param_size = type_size_from_node(param_type);
+               error_user("packed-BCD value %lld is outside the range 0..%llu for parameter %d of function '%s'",
+                          constant_value, bcd_max_value_for_size(param_size),
+                          actual_index + 1, name);
+            }
             set_call_location(name, call_expr);
             error_user("argument %d is incompatible with parameter %d of function '%s'",
                        actual_index + 1, actual_index + 1, name);

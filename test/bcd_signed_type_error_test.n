@@ -1,0 +1,6 @@
+// n65c
+// expectfail
+// expecterr: packed-BCD type 'bad' must use '$integer:unsigned'
+ type void { $size:0 };
+ type * { $size:2 $integer:unsigned $endian:little };
+ type bad { $size:1 $integer:signed $bcd };

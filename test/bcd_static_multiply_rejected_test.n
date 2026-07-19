@@ -1,0 +1,5 @@
+// n65c -I .
+// expectfail
+// expecterr: operator '*' is not supported for packed-BCD values
+include "machine_6502.n"
+bcd8_t bad := 2`bcd8_t * 3`bcd8_t;

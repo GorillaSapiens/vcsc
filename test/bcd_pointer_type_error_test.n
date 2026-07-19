@@ -1,0 +1,5 @@
+// n65c
+// expectfail
+// expecterr: pointer type '*' cannot use '$bcd'
+ type void { $size:0 };
+ type * { $size:2 $integer:unsigned $endian:little $bcd };

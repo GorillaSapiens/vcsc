@@ -1,0 +1,5 @@
+// n65c -I .
+// expectasm: binary:
+// expectasm: 	.byte $2a
+include "machine_6502.n"
+uint8_t binary := 42`bcd8_t;

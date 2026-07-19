@@ -151,9 +151,188 @@ bool type_is_unsigned_integer(const ASTNode *type) {
    return name && strcmp(name, "*") && type_has_integer_style(type, "unsigned");
 }
 
+//! @brief Return whether type uses packed unsigned binary-coded decimal storage.
+bool type_is_bcd_integer(const ASTNode *type) {
+   const char *name = type_name_from_node(type);
+
+   return name && strcmp(name, "*") && type_is_unsigned_integer(type) &&
+          has_flag(name, "$bcd");
+}
+
 //! @brief Return whether type is promotable integer in compiler type system.
 bool type_is_promotable_integer(const ASTNode *type) {
    return type_is_signed_integer(type) || type_is_unsigned_integer(type);
+}
+
+//! @brief Return the largest numeric value representable by a packed-BCD width.
+unsigned long long bcd_max_value_for_size(int size) {
+   unsigned long long limit = 1;
+
+   if (size <= 0 || size > 9) {
+      return 0;
+   }
+   for (int i = 0; i < size * 2; i++) {
+      limit *= 10ULL;
+   }
+   return limit - 1ULL;
+}
+
+//! @brief Return whether a non-pointer integer type can represent a numeric value.
+bool integer_value_fits_type(long long value, const ASTNode *type) {
+   int size;
+   unsigned long long max_value;
+
+   if (!type || !type_is_promotable_integer(type)) {
+      return false;
+   }
+
+   size = type_size_from_node(type);
+   if (size <= 0) {
+      return false;
+   }
+
+   if (type_is_bcd_integer(type)) {
+      return value >= 0 && (unsigned long long) value <= bcd_max_value_for_size(size);
+   }
+
+   if (type_is_signed_integer(type)) {
+      int bits = size * 8;
+      long long min_value;
+      long long signed_max;
+
+      if (bits >= 64) {
+         return true;
+      }
+      min_value = -(1LL << (bits - 1));
+      signed_max = (1LL << (bits - 1)) - 1LL;
+      return value >= min_value && value <= signed_max;
+   }
+
+   if (value < 0) {
+      return false;
+   }
+   if (size >= 8) {
+      return true;
+   }
+   max_value = (1ULL << (size * 8)) - 1ULL;
+   return (unsigned long long) value <= max_value;
+}
+
+//! @brief Return whether an implicit scalar conversion preserves BCD representation semantics.
+bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst_decl,
+                                     const ASTNode *src_type, const ASTNode *src_decl,
+                                     const ASTNode *src_expr) {
+   long long value;
+
+   if (!dst_type || !src_type) {
+      return true;
+   }
+   if ((dst_decl && !declarator_is_plain_value(dst_decl)) ||
+       (src_decl && !declarator_is_plain_value(src_decl))) {
+      return true;
+   }
+   if (!type_is_promotable_integer(dst_type) || !type_is_promotable_integer(src_type)) {
+      return true;
+   }
+   if (type_is_bcd_integer(dst_type) == type_is_bcd_integer(src_type)) {
+      return true;
+   }
+   if (src_expr && expr_is_integer_constant_expr(src_expr, &value)) {
+      (void) value;
+      return true;
+   }
+   return false;
+}
+
+//! @brief Reject operations that would treat packed BCD as ordinary binary integers.
+void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx) {
+   const ASTNode *lhs_type;
+   const ASTNode *rhs_type;
+   const ASTNode *lhs_decl;
+   const ASTNode *rhs_decl;
+   bool lhs_bcd;
+   bool rhs_bcd;
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!expr) {
+      return;
+   }
+
+   for (int i = 0; i < expr->count; i++) {
+      require_valid_bcd_operator_expr(expr->children[i], ctx);
+   }
+
+   if (expr->count <= 0) {
+      return;
+   }
+
+   if (expr->count == 1) {
+      if (strcmp(expr->name, "~") && strcmp(expr->name, "-")) {
+         return;
+      }
+      lhs_type = expr_value_type(expr->children[0], ctx);
+      lhs_decl = expr_value_declarator(expr->children[0], ctx);
+      lhs_bcd = type_is_bcd_integer(lhs_type) &&
+                (!lhs_decl || declarator_is_plain_value(lhs_decl));
+      if (lhs_bcd && (!strcmp(expr->name, "~") || !strcmp(expr->name, "-"))) {
+         error_user("[%s:%d.%d] operator '%s' is not supported for packed-BCD values",
+                    expr->file, expr->line, expr->column, expr->name);
+      }
+      return;
+   }
+
+   if (expr->count != 2) {
+      return;
+   }
+
+   if (strcmp(expr->name, "+") && strcmp(expr->name, "-") &&
+       strcmp(expr->name, "*") && strcmp(expr->name, "/") &&
+       strcmp(expr->name, "%") && strcmp(expr->name, "&") &&
+       strcmp(expr->name, "|") && strcmp(expr->name, "^") &&
+       strcmp(expr->name, "<<") && strcmp(expr->name, ">>") &&
+       strcmp(expr->name, "==") && strcmp(expr->name, "!=") &&
+       strcmp(expr->name, "<") && strcmp(expr->name, ">") &&
+       strcmp(expr->name, "<=") && strcmp(expr->name, ">=") &&
+       strcmp(expr->name, "&&") && strcmp(expr->name, "||")) {
+      return;
+   }
+
+   lhs_type = expr_value_type(expr->children[0], ctx);
+   rhs_type = expr_value_type(expr->children[1], ctx);
+   lhs_decl = expr_value_declarator(expr->children[0], ctx);
+   rhs_decl = expr_value_declarator(expr->children[1], ctx);
+   lhs_bcd = type_is_bcd_integer(lhs_type) &&
+             (!lhs_decl || declarator_is_plain_value(lhs_decl));
+   rhs_bcd = type_is_bcd_integer(rhs_type) &&
+             (!rhs_decl || declarator_is_plain_value(rhs_decl));
+
+   if (!lhs_bcd && !rhs_bcd) {
+      return;
+   }
+
+   if (!strcmp(expr->name, "&&") || !strcmp(expr->name, "||")) {
+      return;
+   }
+
+   if (strcmp(expr->name, "+") && strcmp(expr->name, "-") &&
+       strcmp(expr->name, "==") && strcmp(expr->name, "!=") &&
+       strcmp(expr->name, "<") && strcmp(expr->name, ">") &&
+       strcmp(expr->name, "<=") && strcmp(expr->name, ">=")) {
+      error_user("[%s:%d.%d] operator '%s' is not supported for packed-BCD values",
+                 expr->file, expr->line, expr->column, expr->name);
+   }
+
+   if (lhs_bcd != rhs_bcd) {
+      ASTNode *other = lhs_bcd ? expr->children[1] : expr->children[0];
+      long long value;
+      const ASTNode *bcd_type = lhs_bcd ? lhs_type : rhs_type;
+
+      if (!expr_is_integer_constant_expr(other, &value) ||
+          !integer_value_fits_type(value, bcd_type)) {
+         error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                    expr->file, expr->line, expr->column);
+      }
+   }
 }
 
 
@@ -215,6 +394,7 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
    const ASTNode *best = NULL;
    int best_size = INT_MAX;
    int best_penalty = INT_MAX;
+   bool require_bcd = type_is_bcd_integer(prefer_a) || type_is_bcd_integer(prefer_b);
 
    for (int i = 0; root && i < root->count; i++) {
       ASTNode *node = root->children[i];
@@ -230,6 +410,9 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
          }
       }
       else if (!type_is_unsigned_integer(node)) {
+         continue;
+      }
+      if (type_is_bcd_integer(node) != require_bcd) {
          continue;
       }
 
@@ -279,6 +462,12 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
       return NULL;
    }
 
+   if (type_is_bcd_integer(lhs_type) != type_is_bcd_integer(rhs_type)) {
+      error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                 origin ? origin->file : __FILE__, origin ? origin->line : __LINE__,
+                 origin ? origin->column : 0);
+   }
+
    {
       const char *lhs_name = type_name_from_node(lhs_type);
       const char *rhs_name = type_name_from_node(rhs_type);
@@ -308,17 +497,47 @@ const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const A
 
 //! @brief Return binary integer work type data used by compiler type system.
 const ASTNode *binary_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Context *ctx, ASTNode *origin) {
-   const ASTNode *lhs_type;
-   const ASTNode *rhs_type;
+   const ASTNode *lhs_type = NULL;
+   const ASTNode *rhs_type = NULL;
    const ASTNode *lhs_decl;
    const ASTNode *rhs_decl;
+   long long lhs_value = 0;
+   long long rhs_value = 0;
+   bool lhs_untyped_constant;
+   bool rhs_untyped_constant;
 
    (void) origin;
 
    lhs_expr = (ASTNode *) unwrap_expr_node(lhs_expr);
    rhs_expr = (ASTNode *) unwrap_expr_node(rhs_expr);
-   lhs_type = expr_value_type(lhs_expr, ctx);
-   rhs_type = expr_value_type(rhs_expr, ctx);
+   lhs_untyped_constant = expr_is_integer_constant_expr(lhs_expr, &lhs_value) &&
+                          !literal_annotation_type(lhs_expr);
+   rhs_untyped_constant = expr_is_integer_constant_expr(rhs_expr, &rhs_value) &&
+                          !literal_annotation_type(rhs_expr);
+
+   /* A numeric constant next to a BCD value adopts that BCD representation.
+    * This must happen before asking an untyped literal for its legacy int16_t
+    * default, and it also makes two-literal forms such as 99`bcd16_t + 1
+    * behave the same way as a BCD variable plus 1. */
+   if (lhs_untyped_constant) {
+      rhs_type = expr_value_type(rhs_expr, ctx);
+      if (type_is_bcd_integer(rhs_type) && integer_value_fits_type(lhs_value, rhs_type)) {
+         return rhs_type;
+      }
+   }
+   if (rhs_untyped_constant) {
+      lhs_type = expr_value_type(lhs_expr, ctx);
+      if (type_is_bcd_integer(lhs_type) && integer_value_fits_type(rhs_value, lhs_type)) {
+         return lhs_type;
+      }
+   }
+
+   if (!lhs_type) {
+      lhs_type = expr_value_type(lhs_expr, ctx);
+   }
+   if (!rhs_type) {
+      rhs_type = expr_value_type(rhs_expr, ctx);
+   }
    lhs_decl = expr_value_declarator(lhs_expr, ctx);
    rhs_decl = expr_value_declarator(rhs_expr, ctx);
 
@@ -380,6 +599,7 @@ void require_no_mixed_signed_integer_binary_expr(ASTNode *expr, Context *ctx) {
    ASTNode *rhs_expr;
 
    expr = (ASTNode *) unwrap_expr_node(expr);
+   require_valid_bcd_operator_expr(expr, ctx);
    if (!expr || expr->count != 2) {
       return;
    }
@@ -455,6 +675,10 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx) {
        !type_is_promotable_integer(src_type)) {
       error_user("[%s:%d.%d] shortcut cast '%s' is only legal on already-typed ordinary fixed-width integer expressions",
                  expr->file, expr->line, expr->column, flag_text);
+   }
+   if (type_is_bcd_integer(src_type)) {
+      error_user("[%s:%d.%d] shortcut signedness casts are not supported for packed-BCD values",
+                 expr->file, expr->line, expr->column);
    }
 
    src_size = type_size_from_node(src_type);
@@ -592,9 +816,7 @@ bool integer_literal_is_zero_expr(const ASTNode *expr) {
 
 //! @brief Handle integer literal fits plain integer type logic for compiler type system.
 bool integer_literal_fits_plain_integer_type(const ASTNode *expr, const ASTNode *formal_type, const ASTNode *formal_decl) {
-   unsigned long long value;
-   unsigned long long max_value;
-   int formal_size;
+   long long value;
    char *end = NULL;
 
    expr = unwrap_expr_node(expr);
@@ -603,36 +825,11 @@ bool integer_literal_fits_plain_integer_type(const ASTNode *expr, const ASTNode 
       return false;
    }
 
-   value = strtoull(expr->strval, &end, 0);
+   value = strtoll(expr->strval, &end, 0);
    if (!end || end == expr->strval || *end != 0) {
       return false;
    }
-
-   formal_size = type_size_from_node(formal_type);
-   if (formal_size <= 0) {
-      return false;
-   }
-
-   if (type_is_signed_integer(formal_type)) {
-      int bits = formal_size * 8;
-      if (bits >= 64) {
-         max_value = (unsigned long long) LLONG_MAX;
-      }
-      else {
-         max_value = (1ULL << (bits - 1)) - 1ULL;
-      }
-   }
-   else {
-      int bits = formal_size * 8;
-      if (bits >= 64) {
-         max_value = ULLONG_MAX;
-      }
-      else {
-         max_value = (1ULL << bits) - 1ULL;
-      }
-   }
-
-   return value <= max_value;
+   return integer_value_fits_type(value, formal_type);
 }
 
 // for parameterless flags (e.g. "$signed")

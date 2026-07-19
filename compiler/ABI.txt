@@ -18,12 +18,14 @@ Function returns
 Every legal function return is one of:
 
 * `void`: no returned value;
-* one-byte integer: A contains the value and X is unspecified;
-* two-byte little-endian integer: A contains the low byte and X the high byte;
+* one-byte ordinary or packed-BCD integer: A contains the value and X is unspecified;
+* two-byte little-endian ordinary or packed-BCD integer: A contains the low byte and X the high byte;
 * 16-bit pointer: A contains the low byte and X the high byte.
 
 Functions may not return aggregates, arrays, floating-point values, or any
-value larger than two bytes. All legal multibyte return values are little-endian. The compiler rejects those return
+value larger than two bytes. In particular, `bcd24_t` is legal object and
+parameter storage but is not a legal return type. All legal multibyte return
+values are little-endian. The compiler rejects those return
 types at the declaration or definition. There is no caller-owned return-slot
 ABI or `return_value` metadata mode.
 
@@ -99,6 +101,12 @@ A and possibly X carry the function result on return. Callers must assume a
 callee may freely overwrite all registers before producing that result unless
 an API explicitly documents stronger guarantees.
 
+The decimal-mode flag is not part of the call ABI. Startup executes CLD, and
+compiler-generated packed-BCD addition/subtraction emits a local SED/CLD pair
+around only its ADC/SBC chain. Compiled code therefore enters and leaves normal
+expression and call boundaries with decimal mode clear. Inline assembly that
+sets decimal mode must clear it before returning control to generated code.
+
 NOTE: If a special-case wrapper needs to preserve both A and P, and wants P
 exactly as it was, it must pull P last:
 
@@ -117,6 +125,11 @@ callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
 parameters explicitly assigned to a zero-page memory region use zero-page
 symbols. The caller evaluates arguments from left to right and writes each
 converted value to the corresponding symbol before JSR.
+
+Parameters may use `bcd8_t`, `bcd16_t`, or `bcd24_t`. Linker-visible ABI
+fingerprints distinguish packed-BCD storage from same-sized ordinary unsigned
+integers, so separately compiled declarations cannot silently disagree about
+the representation.
 
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion and optional

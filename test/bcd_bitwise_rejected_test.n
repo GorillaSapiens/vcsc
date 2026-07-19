@@ -1,0 +1,6 @@
+// n65c -I .
+// expectfail
+// expecterr: operator '&' is not supported for packed-BCD values
+include "machine_6502.n"
+bcd8_t a;
+void main(void) { a := a & 1; }

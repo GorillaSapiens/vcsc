@@ -15,6 +15,7 @@ bool initializer_is_list(const ASTNode *init);
 void diagnose_constant_shift_count(ASTNode *count_expr, int lhs_bits);
 bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out);
 bool encode_integer_initializer_value(long long value, unsigned char *buf, int size, const ASTNode *type);
+bool encode_integer_literal_text(const char *text, unsigned char *buf, int size, const ASTNode *type);
 bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf, int size, const ASTNode *type);
 void emit_initializer_bytes_line(EmitSink *sink, const unsigned char *bytes, int size);
 bool emit_global_initializer(EmitSink *sink, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size);
