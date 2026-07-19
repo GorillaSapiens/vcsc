@@ -149,6 +149,8 @@ libraries/nlib/asm/sub.asm
 libraries/nlib/asm/weakops.asm
 libraries/nlib/gen_weakops.pl
 libraries/nlib/genasm.pl
+libraries/nlib/machine_6502.n
+libraries/nlib/n.cfg
 libraries/nlib/nrt0_noint.s
 libraries/nlib/sprintf.n
 libraries/nlib/stdarg.n
@@ -179,6 +181,7 @@ libraries/petiteffs/source/diskio.nh
 libraries/petiteffs/source/pff.n
 libraries/petiteffs/source/pff.nh
 libraries/petiteffs/source/pffconf.nh
+linker/default.cfg
 test/abi_metadata_exactops_codegen_test.n
 test/array_return_codegen_test.n
 test/big_endian_helper_codegen_test.n

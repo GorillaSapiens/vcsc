@@ -48,9 +48,9 @@ Installed layout:
 
 - `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`
 - `$(PREFIX)/lib/` ... the default runtime archive `nlib.a65`
-- `$(PREFIX)/include/` ... installed N and assembler include files such as `machine_6502.n` and `nlib.inc`
+- `$(PREFIX)/include/` ... the assembler runtime include `nlib.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
-- `$(PREFIX)/share/` ... packaged library/source extras such as `nlib/n.cfg` and `vcs/` files
+- `$(PREFIX)/share/` ... packaged VCS bindings, linker configuration, and retained batari Basic conversion references
 
 The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65` unless `-nostdlib` is used.
 

@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_230301.tar.gz
+    vcsc.20260718_233632.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -56,6 +56,9 @@ Settled final-language decisions
 * No float or double.
 * No int32_t, uint32_t, or wider integers.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
+* The vendored batari Basic kernel tree is retained as source/reference
+  material for possible conversion to VCSC; it is intentionally not dead-code
+  pruning fodder merely because it is not yet wired into the build.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
 * Subtracting compatible pointers yields `int16_t` and a C-style element count.
@@ -212,6 +215,11 @@ Completed vertical slices
     still requires vector addresses. The VCS 6507 has no connected hardware IRQ
     or NMI inputs, and the reduced runtime exposes no compiled interrupt-handler
     ABI.
+33. The installed generic 6502 machine definition and the two unwired
+    generic linker-layout files have been removed. `test/machine_6502.n`
+    remains only as an isolated compiler-test fixture. Native VCS bindings,
+    `vcs_4k.cfg`, and both retained batari Basic kernel families are guarded
+    by a regression test.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -613,9 +621,21 @@ The first unfinished item is the default next action.
                   [x] 16e1. Remove the generic interrupt-entry library and
                             handler ABI. Keep only mandatory weak RTI vector
                             fillers in the stock VCS startup member.
-                  [ ] 16e2. Remove the unwired vendored batari Basic kernel
-                            reference tree. Retain the native VCS bindings,
-                            linker configuration, and project examples.
+                  [x] 16e2. Preserve the vendored batari Basic kernel
+                            reference tree for possible conversion/adaptation.
+                            It remains intentionally unwired for now, but tests
+                            guard both standard and multisprite kernel families.
+                  [x] 16e3. Remove the generic installed `machine_6502.n` target
+                            and the unwired `libraries/nlib/n.cfg` and
+                            `linker/default.cfg` layouts. Keep the test-local
+                            generic machine fixture and all native VCS material.
+                  [ ] 16e4. Eliminate the linker's implicit generic non-VCS
+                            memory-map fallback. Make the stock driver discover
+                            and use `vcs_4k.cfg` by default when no `-T` is
+                            supplied; direct linker use without a script should
+                            fail clearly. Give generic end-to-end tests an
+                            explicit test-only layout instead of preserving a
+                            production generic target by accident.
 
 [ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
@@ -646,9 +666,11 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
-The interrupt-runtime group under task 16e is complete. The next
-functional-reduction action is task 16e2: remove the unwired vendored batari
-Basic kernel reference tree while retaining the native VCS support files.
+The batari Basic tree is intentionally retained for later conversion work.
+The next functional-reduction action is task 16e4: make `vcs_4k.cfg` the stock
+high-level-driver default and remove the linker's implicit generic memory-map
+fallback. Generic compiler/linker regressions should use an explicit test-only
+layout rather than keeping a production non-VCS target alive accidentally.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1301,6 +1323,26 @@ reproducibly rather than the exact instant of each individual source edit.
   4096-byte cartridge regressions, and the staged install check.
 * Added two test files and removed nine paths; remove.txt now contains 484
   unique cumulative paths.
+
+
+2026-07-18 23:42:47 PDT, remove installed generic target bundle
+* Recorded the user decision to retain the complete vendored batari Basic
+  standard and multisprite kernel trees for possible later conversion. The
+  pruning regression now treats those files as required project material.
+* Removed `libraries/nlib/machine_6502.n`; the similarly named file under
+  `test/` remains an isolated compiler-test fixture rather than an installed
+  production target.
+* Removed the unwired generic linker layouts `libraries/nlib/n.cfg` and
+  `linker/default.cfg`. Native `libraries/vcs/vcs.n` and `vcs_4k.cfg` remain.
+* Removed stale install/uninstall and documentation references to the generic
+  target bundle, and clarified that platform definitions are selected
+  explicitly.
+* Added `generic_target_bundle_pruned` coverage proving the removed files stay
+  gone while the VCS target, test fixture, and both batari kernel families stay.
+* Passed 227/227 compile tests and 99/99 end-to-end/generic tests, including both
+  exact 4096-byte cartridge regressions.
+* Added two test files and removed three target/layout files; remove.txt now
+  contains 487 unique cumulative paths.
 
 
 End-of-session checklist

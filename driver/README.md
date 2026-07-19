@@ -35,7 +35,7 @@ When installed, it expects this layout under the same prefix:
 
 - `bin/n65cc`, `bin/n65c`, `bin/n65asm`, `bin/n65ld`, `bin/n65ar`, `bin/n65sim`
 - `lib/nlib.a65`
-- `include/nlib.inc` for the assembler's implicit runtime include path; the same include directory is also passed to `n65c` for installed headers such as `machine_6502.n`
+- `include/nlib.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 

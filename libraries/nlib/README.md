@@ -36,9 +36,10 @@ These are small assembly helpers that the compiler targets directly:
 - shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts
 - buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`, `fp2ptr*`
 
-The generic 6502 machine definition is in `machine_6502.n`, assembler include
-glue is in `nlib.inc`, assembly sources are in `asm/`, and built archive members
-appear in `wrk/` after `make`.
+Assembler include glue is in `nlib.inc`, assembly sources are in `asm/`, and
+built archive members appear in `wrk/` after `make`. Machine definitions and
+linker layouts are platform-owned; the stock project target lives under
+`libraries/vcs/`.
 
 ### Dynamic allocation
 
