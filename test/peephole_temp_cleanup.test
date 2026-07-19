@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/peephole_temp_cleanup.pl @TMP@
+# phase: compile
+# timeout: 30
+# expectexit: 0
+# expectstdout: peephole temp cleanup passed

@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_135651.tar.gz
+    vcsc.20260719_145346.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1686,3 +1686,19 @@ Before returning another modified archive:
   `remove.txt` remains at 871 unique cumulative paths, and the retained batari
   Basic trees are unchanged.
 
+2026-07-19 15:03:14 PDT, clean peephole unit-test temporaries
+------------------------------------------------------------------------
+* Reproduced that `test/peephole_unit.pl` left
+  `/tmp/VCSC_peephole_unit_<pid>` behind after every successful run because the
+  harness manually created the directory and then replaced Perl with the test
+  binary via `exec`.
+* Use `File::Temp::tempdir(..., TMPDIR => 1, CLEANUP => 1)` and run the compiled
+  child with status-preserving `system()` instead. Cleanup now runs on success,
+  compile failure, test failure, and catchable child signals.
+* Add `peephole_temp_cleanup.test`, which runs the harness under an isolated
+  TMPDIR and rejects any surviving `VCSC_peephole_unit_*` directory.
+* Pass 261/261 compile tests and all 115/115 end-to-end/generic tests. The e2e
+  suite was completed with its final four cases after the execution wrapper
+  timed out at 111 passes. The staged installation check and exact 4096-byte
+  installed-toolchain cartridge builds also passed. `remove.txt` remains at 871
+  unique paths, and the retained batari Basic trees are unchanged.

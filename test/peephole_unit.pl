@@ -3,12 +3,12 @@ use strict;
 use warnings;
 use File::Basename qw(dirname);
 use File::Spec;
+use File::Temp qw(tempdir);
 use Cwd qw(abs_path);
 
 my $test_root = dirname(abs_path($0));
 my $repo_root = abs_path(File::Spec->catdir($test_root, '..'));
-my $build = File::Spec->catdir('/tmp', 'VCSC_peephole_unit_' . $$);
-mkdir $build or die "mkdir $build: $!";
+my $build = tempdir('VCSC_peephole_unit_XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $c = File::Spec->catfile($build, 'peephole_unit.c');
 my $exe = File::Spec->catfile($build, 'peephole_unit');
 
@@ -248,4 +248,9 @@ my @cmd = (
    $exe
 );
 system(@cmd) == 0 or die "compile failed: @cmd\n";
-exec $exe or die "exec $exe: $!";
+my $status = system($exe);
+die "could not run $exe: $!\n" if $status == -1;
+if ($status & 127) {
+   exit(128 + ($status & 127));
+}
+exit($status >> 8);
