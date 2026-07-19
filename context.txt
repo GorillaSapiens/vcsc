@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_154302.tar.gz
+    vcsc.20260718_174543.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -58,6 +58,8 @@ Settled final-language decisions
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
+* Subtracting compatible pointers yields `int16_t` and a C-style element count.
+  Differences outside the representable `int16_t` range are undefined.
 * Functions retain normal source-level parameters and lexical scope.
 * The final ABI has no software argument/local stack.
 * Parameters and automatic locals use statically allocated storage.
@@ -576,12 +578,13 @@ The first unfinished item is the default next action.
         [ ] 16c. Fix retained compiler correctness defects inherited from N
                   before deleting more language machinery.
 
-                  [ ] 16c1. Correct pointer-pointer subtraction typing. The
-                            result must be the signed pointer-sized integer
-                            type (`int16_t` in VCSC), not the pointed-to type.
-                            Add compile/type and execution regressions,
-                            including pointers to multi-byte elements so the
-                            intended element-difference semantics are explicit.
+                  [x] 16c1. Correct pointer-pointer subtraction typing and
+                            lowering. Compatible pointers now produce `int16_t`
+                            element counts. Byte elements skip division; larger
+                            elements use sign-preserving division by object size.
+                            Incompatible pointed-to types are rejected. Tests
+                            cover positive and negative byte and three-byte
+                            element differences plus result width.
                   [ ] 16c2. Preserve pointer declarators and array-to-pointer
                             decay through assignment scratch. Assigning an
                             array expression to a fixed/static/global pointer
@@ -621,8 +624,9 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
-The inherited pointer-subtraction and array-decay assignment defects are now
-tracked as required task 16c correctness work rather than open-ended questions.
+The remaining inherited array-decay assignment defect is tracked as required
+task 16c2 correctness work rather than an open-ended question. Pointer
+subtraction task 16c1 is complete.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1205,6 +1209,20 @@ reproducibly rather than the exact instant of each individual source edit.
 * Renumbered named-function overloading review to 16d and generic pruning to
   16e; the final project rename remains task 17.
 * Documentation only; no source, test, build, or remove.txt changes.
+
+2026-07-18 18:10:34 PDT, signed element-count pointer subtraction
+* Centralized pointer-difference result selection on the signed pointer-width
+  type, which is `int16_t` in VCSC, and rejected incompatible pointed-to types.
+* Changed lowering to subtract addresses using the pointer representation and
+  return a C-style element count. Byte elements require no scaling; larger
+  elements preserve the sign while dividing by their object size.
+* Fixed the inherited divider-buffer alias where the remainder output cleared
+  the divisor before pointer-distance scaling.
+* Added focused compile and simulator regressions for result width, incompatible
+  types, and positive/negative distances for one- and three-byte objects.
+* Passed 228/228 compile tests and 97/97 end-to-end/generic tests, including both
+  exact 4096-byte cartridge regressions.
+* No files were removed; remove.txt remains at 464 unique cumulative paths.
 
 
 End-of-session checklist

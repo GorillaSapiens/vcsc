@@ -173,6 +173,23 @@ bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
    return true;
 }
 
+//! @brief Return whether two pointer operands have compatible pointee types.
+bool pointer_types_compatible(const ASTNode *lhs_type, const ASTNode *lhs_decl,
+                              const ASTNode *rhs_type, const ASTNode *rhs_decl) {
+   const char *lhs_name;
+   const char *rhs_name;
+
+   if (!lhs_decl || !rhs_decl || declarator_pointer_depth(lhs_decl) <= 0 ||
+       declarator_pointer_depth(rhs_decl) <= 0) {
+      return false;
+   }
+
+   lhs_name = type_name_from_node(lhs_type);
+   rhs_name = type_name_from_node(rhs_type);
+   return lhs_name && rhs_name && !strcmp(lhs_name, rhs_name) &&
+          declarator_signature_matches(lhs_decl, rhs_decl);
+}
+
 
 
 
@@ -232,6 +249,21 @@ static const ASTNode *select_integer_type_by_shape(int required_size, bool requi
    }
 
    return best;
+}
+
+//! @brief Return the signed integer type used for pointer subtraction.
+const ASTNode *pointer_difference_type(const ASTNode *origin) {
+   const ASTNode *pointer_type = required_typename_node("*");
+   const ASTNode *result;
+   int pointer_size = type_size_from_node(pointer_type);
+
+   result = select_integer_type_by_shape(pointer_size, true, NULL, NULL);
+   if (!result || type_size_from_node(result) != pointer_size) {
+      error_user("[%s:%d.%d] no signed integer type has the pointer width of %d byte%s",
+                 origin ? origin->file : __FILE__, origin ? origin->line : __LINE__,
+                 origin ? origin->column : 0, pointer_size, pointer_size == 1 ? "" : "s");
+   }
+   return result;
 }
 
 //! @brief Return promoted integer type for binary data used by compiler type system.

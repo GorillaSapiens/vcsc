@@ -164,6 +164,16 @@ Current `const` behavior on declarators follows the common C reading for leading
 
 Struct and union declarations immediately introduce their names as usable types.
 
+
+### Pointer arithmetic
+
+Subtracting two compatible object pointers yields `int16_t`, the signed type with
+the same width as a VCS pointer. The value is an element count, not a byte count:
+the compiler subtracts the 16-bit addresses and divides the result by the size of
+the pointed-to type. Byte-sized element pointers therefore need no scaling.
+Pointer subtraction between incompatible pointed-to types is rejected. As in C,
+a result outside the range of `int16_t` is undefined.
+
 ### Function declarations
 
 Ordinary function declarations work. Multiple compatible declarations are allowed, and a later definition may follow an earlier declaration. Incompatible redeclarations are rejected.

@@ -257,10 +257,16 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
    }
 
    if (expr->count == 2 && !strcmp(expr->name, "-")) {
-      const ASTNode *lhs_decl = expr_value_declarator(expr->children[0], ctx);
-      const ASTNode *rhs_decl = expr_value_declarator(expr->children[1], ctx);
+      const ASTNode *lhs_decl = NULL;
+      const ASTNode *rhs_decl = NULL;
+      expr_match_signature(expr->children[0], ctx, &lhs_type, &lhs_decl);
+      expr_match_signature(expr->children[1], ctx, &rhs_type, &rhs_decl);
       if (lhs_decl && rhs_decl && declarator_pointer_depth(lhs_decl) > 0 && declarator_pointer_depth(rhs_decl) > 0) {
-         return required_typename_node("int16_t");
+         if (!pointer_types_compatible(lhs_type, lhs_decl, rhs_type, rhs_decl)) {
+            error_user("[%s:%d.%d] incompatible pointer types in subtraction",
+                       expr->file, expr->line, expr->column);
+         }
+         return pointer_difference_type(expr);
       }
    }
 

@@ -714,15 +714,21 @@ unary_not_done:
       }
 
       if (!strcmp(expr->name, "-") && lhs_decl && declarator_pointer_depth(lhs_decl) > 0 && rhs_decl && declarator_pointer_depth(rhs_decl) > 0) {
+         const ASTNode *pointer_type = required_typename_node("*");
+         const ASTNode *difference_type = pointer_difference_type(expr);
          int ptr_size = declarator_storage_size(lhs_type, lhs_decl);
          int elem_size = pointer_scale > 0 ? pointer_scale : 1;
-         int work_total = ptr_size * 3;
+         bool divide_by_element_size = elem_size != 1;
+         int work_total = ptr_size * 4 + (divide_by_element_size ? 1 : 0);
+         int remainder_offset = ptr_size * 3;
+         int sign_offset = ptr_size * 4;
          int out_offset = work_total;
+         int result_offset = 0;
          ExprFixedScratch scratch;
          ContextEntry lhs_tmp = { .name = "$lhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = 0, .size = ptr_size };
-         ContextEntry rhs_tmp = { .name = "$rhs", .type = lhs_type, .declarator = lhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = ptr_size, .size = ptr_size };
-         unsigned char *factor_bytes;
-         char factor_buf[64];
+         ContextEntry rhs_tmp = { .name = "$rhs", .type = rhs_type, .declarator = rhs_decl, .is_static = false, .is_zeropage = false, .is_global = false, .offset = ptr_size, .size = ptr_size };
+         const char *absolute_done = NULL;
+         const char *quotient_done = NULL;
 
          expr_fixed_scratch_begin(ctx, work_total + dst->size, &scratch);
          if (!compile_expr_to_slot(expr->children[0], ctx, &lhs_tmp) ||
@@ -730,29 +736,82 @@ unary_not_done:
             expr_fixed_scratch_abort(ctx, &scratch);
             return false;
          }
-         emit_sub_fp_from_fp(lhs_type, 0, ptr_size, ptr_size);
-         factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
-         if (!factor_bytes) {
-            expr_fixed_scratch_abort(ctx, &scratch);
-            return false;
+         emit_sub_fp_from_fp(pointer_type, 0, ptr_size, ptr_size);
+
+         if (divide_by_element_size) {
+            unsigned char *factor_bytes;
+            char factor_buf[64];
+            int sign_index = ptr_size - 1;
+
+            absolute_done = next_label("ptrdiff_absolute_done");
+            quotient_done = next_label("ptrdiff_quotient_done");
+            if (!absolute_done || !quotient_done) {
+               free((void *) absolute_done);
+               free((void *) quotient_done);
+               expr_fixed_scratch_abort(ctx, &scratch);
+               return false;
+            }
+
+            emit_prepare_fp_ptr(3, sign_offset);
+            emit(&es_code, "    ldy #0\n");
+            emit(&es_code, "    lda #0\n");
+            emit(&es_code, "    sta (ptr3),y\n");
+            emit_prepare_fp_ptr(0, 0);
+            emit(&es_code, "    ldy #%d\n", sign_index);
+            emit(&es_code, "    lda (ptr0),y\n");
+            emit(&es_code, "    bpl %s\n", absolute_done);
+            emit_prepare_fp_ptr(3, sign_offset);
+            emit(&es_code, "    ldy #0\n");
+            emit(&es_code, "    lda #1\n");
+            emit(&es_code, "    sta (ptr3),y\n");
+            emit_prepare_fp_ptr(0, 0);
+            emit_prepare_fp_ptr(1, 0);
+            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
+            emit(&es_code, "    sta arg0\n");
+            remember_runtime_import(int_comp2_helper_name(difference_type));
+            emit(&es_code, "    jsr _%s\n", int_comp2_helper_name(difference_type));
+            emit(&es_code, "%s:\n", absolute_done);
+
+            factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
+            if (!factor_bytes) {
+               free((void *) absolute_done);
+               free((void *) quotient_done);
+               expr_fixed_scratch_abort(ctx, &scratch);
+               return false;
+            }
+            snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
+            make_le_int(factor_buf, factor_bytes, ptr_size);
+            emit_store_immediate_to_fp(ptr_size, factor_bytes, ptr_size);
+            free(factor_bytes);
+            emit_prepare_fp_ptr(0, 0);
+            emit_prepare_fp_ptr(1, ptr_size);
+            emit_prepare_fp_ptr(2, ptr_size * 2);
+            emit_prepare_fp_ptr(3, remainder_offset);
+            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
+            emit(&es_code, "    sta arg0\n");
+            remember_runtime_import(int_div_helper_name(difference_type));
+            emit(&es_code, "    jsr _%s\n", int_div_helper_name(difference_type));
+
+            emit_prepare_fp_ptr(3, sign_offset);
+            emit(&es_code, "    ldy #0\n");
+            emit(&es_code, "    lda (ptr3),y\n");
+            emit(&es_code, "    beq %s\n", quotient_done);
+            emit_prepare_fp_ptr(0, ptr_size * 2);
+            emit_prepare_fp_ptr(1, ptr_size * 2);
+            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
+            emit(&es_code, "    sta arg0\n");
+            remember_runtime_import(int_comp2_helper_name(difference_type));
+            emit(&es_code, "    jsr _%s\n", int_comp2_helper_name(difference_type));
+            emit(&es_code, "%s:\n", quotient_done);
+            result_offset = ptr_size * 2;
          }
-         snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
-         make_le_int(factor_buf, factor_bytes, ptr_size);
-         emit_store_immediate_to_fp(ptr_size, factor_bytes, ptr_size);
-         free(factor_bytes);
-         emit_prepare_fp_ptr(0, 0);
-         emit_prepare_fp_ptr(1, ptr_size);
-         emit_prepare_fp_ptr(2, ptr_size * 2);
-         emit_prepare_fp_ptr(3, ptr_size);
-         emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
-         remember_runtime_import(int_div_helper_name(lhs_type));
-         emit(&es_code, "    jsr _%s\n", int_div_helper_name(lhs_type));
-         emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, ptr_size * 2, ptr_size,
-                                    dst->type ? dst->type : lhs_type);
+
+         emit_copy_fp_to_fp_convert(out_offset, dst->size, dst->type, result_offset, ptr_size, difference_type);
          expr_fixed_scratch_deactivate(ctx, &scratch);
          emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
          expr_fixed_scratch_finish(&scratch);
+         free((void *) absolute_done);
+         free((void *) quotient_done);
          return true;
       }
 

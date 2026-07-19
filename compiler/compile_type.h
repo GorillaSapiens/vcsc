@@ -21,6 +21,9 @@ bool type_is_unsigned_integer(const ASTNode *type);
 bool type_is_promotable_integer(const ASTNode *type);
 bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
                            const ASTNode *rhs_type, const ASTNode *rhs_decl);
+bool pointer_types_compatible(const ASTNode *lhs_type, const ASTNode *lhs_decl,
+                              const ASTNode *rhs_type, const ASTNode *rhs_decl);
+const ASTNode *pointer_difference_type(const ASTNode *origin);
 const ASTNode *promoted_integer_type_for_binary(const ASTNode *lhs_type, const ASTNode *rhs_type, ASTNode *origin);
 bool expr_is_literal_node(const ASTNode *expr);
 const ASTNode *value_compare_integer_work_type(ASTNode *lhs_expr, ASTNode *rhs_expr, Context *ctx, ASTNode *origin);
