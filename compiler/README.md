@@ -213,9 +213,7 @@ writes through a cast pointer can still manufacture invalid digit nibbles; such
 values are outside the language guarantee and subsequent BCD arithmetic is not
 defined.
 
-`bcd8_t` and `bcd16_t` may be returned in A and A:X respectively. `bcd24_t` is
-valid for objects and fixed parameters, but the current return ABI rejects it
-because scalar returns are limited to two bytes.
+`bcd8_t`, `bcd16_t`, and `bcd24_t` may all be returned. Each value-returning function owns an exact-sized zero-page return object, and callers copy its bytes directly after the call.
 
 ## Declarators
 
@@ -476,13 +474,13 @@ Absolute address binding is only meaningful on `ref` declarations. Using `@...` 
 
 ### Direct functions
 
-Every ordinary parameter of a directly named function is symbol-backed by default. The callee owns one fixed storage symbol for each parameter, and the caller evaluates arguments left-to-right and writes each converted value directly into the corresponding symbol before `jsr`. Fixed direct-call parameters do not occupy the N software stack.
+Every ordinary parameter of a directly named function is symbol-backed by default. The callee owns one fixed storage symbol for each parameter, and the caller evaluates arguments left-to-right and writes each converted value directly into the corresponding symbol before `jsr`. Fixed direct-call parameters do not occupy a software argument stack.
 
 An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
 Compiler-generated temporary storage is pooled by function and nesting depth. Symbols are named `__vcsc_scratch_N`; sequential expressions in the same non-reentrant function reuse the same depth slot, while nested expressions receive deeper slots. Different functions receive distinct physical slots because caller scratch can remain live across a callee invocation. Each slot is emitted once at the maximum size observed for that depth.
 
-An ordinary direct call leases the caller function's current scratch depth while evaluating and converting arguments, then copies values into callee-owned parameter symbols. The same live lease may capture A:X when the surrounding expression needs a memory-backed converted result. The lease remains caller-private transitional machinery, not parameter storage and not part of the function ABI. LIFO lease checks and an end-of-compilation zero-depth check turn accidental lifetime overlap into a compiler error.
+An ordinary direct call leases the caller function's current scratch depth only while evaluating and converting arguments, then copies values into callee-owned parameter symbols. After `jsr`, a valued call reads the callee-owned return object directly into the surrounding destination; no register-result capture or extra return scratch is required. The argument lease remains caller-private transitional machinery, not parameter or return storage and not part of the function ABI. LIFO lease checks and an end-of-compilation zero-depth check turn accidental lifetime overlap into a compiler error.
 
 Several common one-byte paths bypass scratch entirely. Discarded `uint8_t` increment/decrement, unsigned byte comparisons against constants or byte lvalues, constant byte stores, and byte stores into absolute hardware refs emit direct 6502 instructions. A simple unsigned one-byte runtime index into an array whose element size is a power of two is scaled inline through compiler-owned `arg0:arg1`; the resulting element address is left in `ptr0`, with no generic multiplication helper. This is sufficient for natural `music[music_index].field` access in the VCS sound example, including indices whose scaled offset crosses a page.
 
@@ -567,19 +565,18 @@ and indirect pointer destinations receive the array address rather than bytes
 copied from the first element.
 
 
-### Return object: `$$` and A:X
+### Return object: `$$` and callee-owned memory
 
 Inside a function that returns a value, `$$` names the current function's
 return object. It behaves like a scalar or pointer lvalue, so code may assign to
 it directly, read it back, or use compound assignment on it. The spelling
 `return expr;` writes the converted expression into the same object.
 
-The only legal return types are `void`, one- or two-byte little-endian integers,
-and 16-bit pointers. A one-byte result is returned in A. For a two-byte integer
-or pointer, A holds the low byte and X holds the high byte. `$$` is a hidden
-callee-owned zero-page symbol. The common epilogue uses a direct `LDA` for an
-8-bit result or direct `LDA`/`LDX` loads for a 16-bit result, then executes RTS.
-On the VCS these assemble as zero-page instructions.
+Each value-returning function owns an exact-sized hidden zero-page symbol named
+`function$__return`. Current legal return values are one- or two-byte ordinary
+binary integers, one-, two-, or three-byte packed-BCD integers, and 16-bit
+pointers. The callee writes this object and its common epilogue is simply `RTS`;
+it does not reload the value into A, X, or Y.
 
 Example:
 
@@ -598,14 +595,16 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-The caller never allocates callee return storage. An ordinary direct call may
-copy A:X into a live caller-function `__vcsc_scratch_N` lease so the
-memory-based expression machinery can consume it; that scratch is not part of
-the function ABI.
-Indirect calls are unsupported; no call path uses an indirect-call software-stack frame.
+After `jsr`, the caller restores `fp` normally and copies bytes directly from
+the callee's exported return symbol into the surrounding expression destination.
+A separately compiled declaration imports that zero-page return symbol when the
+call result is consumed. Ignoring a returned value does not copy it anywhere.
 
-Functions returning aggregates, arrays, floating-point values, or values larger than two bytes are rejected at compile time. The
-`$$` name is reserved; it cannot be declared as a global, local, function, or
+Because return transport is memory-backed, `bcd24_t` is a normal return type.
+The remaining width limits come from the currently implemented scalar type and
+operator machinery, not from the function ABI. Aggregates and arrays remain
+forbidden as return types; use an explicit result pointer for those. The `$$`
+name is reserved and cannot be declared as a global, local, function, or
 parameter name, and it is invalid in `void` functions or outside a function
 body.
 

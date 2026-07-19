@@ -17,8 +17,9 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
                                     char *buf, size_t bufsize, bool *is_zeropage_out);
 bool return_type_is_void(const ASTNode *type, const ASTNode *declarator);
 bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator);
-bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator);
-bool function_uses_ax_return(const ASTNode *fn);
+bool return_type_has_value(const ASTNode *type, const ASTNode *declarator);
+bool function_has_return_object(const ASTNode *fn);
+bool function_return_symbol_name(const ASTNode *fn, char *buf, size_t bufsize);
 void validate_function_return_type(const ASTNode *fn);
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee);
 void analyze_static_parameter_call_graph(void);

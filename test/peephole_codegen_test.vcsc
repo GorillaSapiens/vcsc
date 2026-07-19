@@ -6,8 +6,8 @@
 // expectasmordered: lda f$x,y
 // expectasmordered: sta f$__return,y
 // expectasmordered: @fini:
-// expectasmordered: lda f$__return
-// expectasmordered: ldx f$__return+1
+// forbidasm: lda f$__return
+// forbidasm: ldx f$__return+1
 // expectasmordered: rts
 // expecterr: 001 peephole
 // expecterr: total_saved=15

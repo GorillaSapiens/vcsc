@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// expectasm: return_memory
+// expectasm: .zpexport score$__return
+// expectasm: score$__return:
+// expectasmordered: .res 3
+// expectasmordered: lda #$56
+// expectasmordered: lda #$34
+// expectasmordered: lda #$12
+// expectasmordered: sta score$__return,y
+// expectasmordered: @fini:
+// expectasmordered: rts
+// forbidasm: ldx score$__return+1
+// forbidasm: ldy score$__return+2
+include "machine_6502.vcsc"
+
+bcd24_t score(void) {
+   return 123456;
+}

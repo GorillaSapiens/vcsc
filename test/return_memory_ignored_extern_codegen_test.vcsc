@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasm: .import foreign
+// forbidasm: .zpimport foreign$__return
+// expectasmordered: jsr foreign
+// expectasmordered: pla
+// expectasmordered: sta fp
+// expectasmordered: pla
+// expectasmordered: sta fp+1
+// forbidasm: lda foreign$__return,y
+include "machine_6502.vcsc"
+
+extern bcd24_t foreign(void);
+
+void main(void) {
+   foreign();
+}

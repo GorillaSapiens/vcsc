@@ -9,6 +9,8 @@
 
 `vcsc` is a brutally pared-down Atari VCS C-like compiler. The language and toolchain are intentionally specialized for the 6507, the VCS memory model, and tiny cartridge programs rather than general-purpose 6502 compatibility.
 
+VCSC is the Atari-focused child of the broader [N project](https://github.com/GorillaSapiens/n). N remains the parent/general-purpose line; VCSC deliberately hard-specializes that compiler architecture for the Atari 2600 rather than preserving source, tool, or ABI compatibility.
+
 The public command is `vcsc`. It drives the internal compiler front end (`vcsc-cc1`), assembler (`vcsc-as`), archiver (`vcsc-ar`), linker (`vcsc-ld`), simulator (`vcsc-sim`), and the stock VCS runtime.
 
 ## Tool CLI Notes
@@ -118,8 +120,10 @@ Packed-BCD values support assignment, widening/truncating BCD copies, `+`, `-`,
 emits tightly scoped `SED`/`CLD` around each BCD `ADC`/`SBC` chain and leaves
 decimal mode clear afterward. Multiplication, division, remainder, shifts,
 bitwise operations, unary minus, BCD bitfields, and runtime BCD/binary
-conversions are rejected. `bcd24_t` may be stored and passed as a parameter but
-cannot be returned because the current A:X return ABI is limited to two bytes.
+conversions are rejected. `bcd24_t` may be stored, passed as a parameter, and
+returned. Value-returning functions expose an exact-sized callee-owned
+`function$__return` object; callers copy from that object after `jsr`, so the
+ABI no longer has a register-width ceiling.
 
 Untyped ordinary integer literals must fit in 16 bits unless a BCD destination
 or annotation supplies the wider six-digit context. Expression-level shortcut

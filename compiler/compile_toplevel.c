@@ -139,7 +139,7 @@ void compile_function_decl(ASTNode *node) {
    const ASTNode *saved_call_graph_function = current_call_graph_function;
    int saved_call_graph_node = current_call_graph_node;
    char sym[256];
-   bool ax_return;
+   bool has_return_object;
    ContextEntry *return_entry;
    char return_sym[256];
 
@@ -149,9 +149,18 @@ void compile_function_decl(ASTNode *node) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
 
+   has_return_object = function_has_return_object(node);
+   if (has_return_object &&
+       !function_return_symbol_name(node, return_sym, sizeof(return_sym))) {
+      error_unreachable("[%s:%d.%d] invalid memory return symbol", node->file, node->line, node->column);
+   }
+
    if (!has_modifier(modifiers, "static")) {
       emit(&es_export, ".export %s\n", sym);
       emit_function_parameter_exports(node);
+      if (has_return_object) {
+         emit(&es_export, ".zpexport %s\n", return_sym);
+      }
       emit_function_abi_metadata(node, sym, true);
    }
 
@@ -164,7 +173,6 @@ void compile_function_decl(ASTNode *node) {
    ctx.break_label = NULL;
    ctx.continue_label = NULL;
    build_function_context(node, &ctx);
-   ax_return = function_uses_ax_return(node);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
    current_call_graph_node = call_graph_node_index_for_function(node);
@@ -172,17 +180,17 @@ void compile_function_decl(ASTNode *node) {
    if (!is_empty(body) && !strcmp(body->name, "statement_list")) {
       predeclare_statement_list(body, &ctx);
    }
-   if (ax_return) {
-      if (!return_entry || return_entry->size < 1 || return_entry->size > 2) {
-         error_unreachable("[%s:%d.%d] invalid A:X return object", node->file, node->line, node->column);
+   if (has_return_object) {
+      if (!return_entry || return_entry->size < 1 || return_entry->size > 3) {
+         error_unreachable("[%s:%d.%d] invalid memory return object", node->file, node->line, node->column);
       }
       if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
-         error_unreachable("[%s:%d.%d] invalid A:X return symbol", node->file, node->line, node->column);
+         error_unreachable("[%s:%d.%d] invalid memory return symbol", node->file, node->line, node->column);
       }
    }
 
    emit_function_parameter_storage(node, &ctx);
-   if (ax_return) {
+   if (has_return_object) {
       emit(&es_zp, ".segment \"ZEROPAGE\"\n");
       emit(&es_zp, "%s:\n", return_sym);
       emit(&es_zp, "\t.res %d\n", return_entry->size);
@@ -199,12 +207,6 @@ void compile_function_decl(ASTNode *node) {
    }
 
    emit(&es_code, "@fini:\n");
-   if (ax_return) {
-      emit(&es_code, "    lda %s\n", return_sym);
-      if (return_entry->size == 2) {
-         emit(&es_code, "    ldx %s+1\n", return_sym);
-      }
-   }
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
    current_call_graph_function = saved_call_graph_function;

@@ -7,8 +7,6 @@
 // expectasmordered: adc (fp),y
 // expectasmordered: sta bump$__return,y
 // expectasmordered: @fini:
-// expectasmordered: lda bump$__return
-// expectasmordered: ldx bump$__return+1
 // expectasmordered: rts
 
 include "machine_6502.vcsc"

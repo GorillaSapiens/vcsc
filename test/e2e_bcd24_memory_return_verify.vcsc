@@ -1,0 +1,33 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+void fail1(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+bcd24_t inner(void) {
+   return 567890;
+}
+
+bcd24_t outer(void) {
+   return inner() + 1;
+}
+
+void main(void) {
+   bcd24_t value := outer();
+   if (value != 567891) {
+      fail1();
+   }
+   pass();
+}

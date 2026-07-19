@@ -58,12 +58,12 @@ my $vcs_dir=File::Spec->catdir($repo,'libraries','vcs');
 my $runtime_dir=File::Spec->catdir($repo,'libraries','runtime');
 my $cfg=File::Spec->catfile($vcs_dir,'vcs_4k.cfg');
 my $runtime=File::Spec->catfile($runtime_dir,'libvcsc.a65');
-my $source=File::Spec->catfile($tmp,'return_epilogue.vcsc');
-my $assembly=File::Spec->catfile($tmp,'return_epilogue.s');
-my $object=File::Spec->catfile($tmp,'return_epilogue.o65');
-my $asm_map=File::Spec->catfile($tmp,'return_epilogue.asmap');
-my $link_map=File::Spec->catfile($tmp,'return_epilogue.map');
-my $binary=File::Spec->catfile($tmp,'return_epilogue.bin');
+my $source=File::Spec->catfile($tmp,'return_memory.vcsc');
+my $assembly=File::Spec->catfile($tmp,'return_memory.s');
+my $object=File::Spec->catfile($tmp,'return_memory.o65');
+my $asm_map=File::Spec->catfile($tmp,'return_memory.asmap');
+my $link_map=File::Spec->catfile($tmp,'return_memory.map');
+my $binary=File::Spec->catfile($tmp,'return_memory.bin');
 
 write_file($source, <<'SOURCE');
 include "vcs.vcsc"
@@ -76,10 +76,15 @@ uint16_t return16(void) {
    return 0x1234`uint16_t;
 }
 
+bcd24_t return24(void) {
+   return 567890;
+}
+
 void main(void) {
    uint8_t a := return8();
    uint16_t b := return16();
-   if (a == 0 && b == 0) {
+   bcd24_t c := return24();
+   if (a == 0 && b == 0 && c == 0) {
       asm nop;
    }
    asm @forever:;
@@ -109,8 +114,10 @@ length($rom)==4096 or die "raw cartridge size is ".length($rom).", expected 4096
 
 my $return8_slot_off=asm_symbol($asmap,'return8$__return');
 my $return16_slot_off=asm_symbol($asmap,'return16$__return');
+my $return24_slot_off=asm_symbol($asmap,'return24$__return');
 my $return8_fini_off=asm_symbol($asmap,'return8::@fini');
 my $return16_fini_off=asm_symbol($asmap,'return16::@fini');
+my $return24_fini_off=asm_symbol($asmap,'return24::@fini');
 
 $ldmap =~ /MEMORY\s+.*?ROM\s+start=\$([0-9A-Fa-f]+)/s
    or die "linker map is missing ROM start\n";
@@ -128,23 +135,30 @@ my $code_load=hex($1);
 
 my $return8_slot=$zp_run+$return8_slot_off;
 my $return16_slot=$zp_run+$return16_slot_off;
+my $return24_slot=$zp_run+$return24_slot_off;
 $return8_slot <= 0xff or die sprintf("8-bit return object is not zero page: %04x\n",$return8_slot);
 $return16_slot+1 <= 0xff or die sprintf("16-bit return object is not zero page: %04x\n",$return16_slot);
+$return24_slot+2 <= 0xff or die sprintf("24-bit return object is not zero page: %04x\n",$return24_slot);
+$return16_slot-$return8_slot == 1
+   or die "8-bit return object does not reserve exactly one byte\n";
+$return24_slot-$return16_slot == 2
+   or die "16-bit return object does not reserve exactly two bytes\n";
 
-my $return8_pos=$code_load+$return8_fini_off-$rom_start;
-my $return16_pos=$code_load+$return16_fini_off-$rom_start;
-my @return8=unpack('C3',substr($rom,$return8_pos,3));
-my @expect8=(0xA5,$return8_slot,0x60);       # LDA zp; RTS
-my @return16=unpack('C5',substr($rom,$return16_pos,5));
-my @expect16=(0xA5,$return16_slot,0xA6,$return16_slot+1,0x60); # LDA zp; LDX zp; RTS
+for my $item (
+   [ return8 => $return8_fini_off ],
+   [ return16 => $return16_fini_off ],
+   [ return24 => $return24_fini_off ],
+) {
+   my ($name,$off)=@$item;
+   my $pos=$code_load+$off-$rom_start;
+   my $byte=unpack('C',substr($rom,$pos,1));
+   $byte == 0x60 or die sprintf("%s epilogue byte is %02X, expected RTS (60)\n",$name,$byte);
+}
 
-join(',',@return8) eq join(',',@expect8)
-   or die sprintf("8-bit epilogue bytes are %s, expected %s\n",
-      join(' ',map {sprintf('%02X',$_)} @return8),
-      join(' ',map {sprintf('%02X',$_)} @expect8));
-join(',',@return16) eq join(',',@expect16)
-   or die sprintf("16-bit epilogue bytes are %s, expected %s\n",
-      join(' ',map {sprintf('%02X',$_)} @return16),
-      join(' ',map {sprintf('%02X',$_)} @expect16));
+my $assembly_text=read_file($assembly);
+$assembly_text !~ /\@fini:\n\s+(?:lda|ldx|ldy)\s+[^\n]*\$__return/
+   or die "a value-return epilogue still reloads a return object into registers\n";
+$assembly_text =~ /jsr return24\n\s+pla\n\s+sta fp\n\s+pla\n\s+sta fp\+1\n(?:\s+ldy #\d+\n\s+lda return24\$__return,y\n\s+sta \(fp\),y\n){3}/
+   or die "caller does not consume the three-byte callee-owned return object directly\n";
 
-print "vcs return epilogue encoding ok\n";
+print "vcs return memory encoding ok\n";

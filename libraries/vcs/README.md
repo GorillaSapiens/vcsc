@@ -54,9 +54,7 @@ BCD values support copy/assignment, addition, subtraction,
 increment/decrement, comparisons, truth tests, and switch cases. Arithmetic
 wraps at the decimal width. Runtime mixing with ordinary binary integers is
 rejected, as are multiply/divide/remainder, bitwise operations, shifts, unary
-minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores;
-it may be passed to functions but cannot be returned under the current two-byte
-A:X return limit.
+minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores; it may be stored, passed, and returned through the callee-owned memory-return ABI.
 
 Compile with an include path that can see this directory, for example:
 

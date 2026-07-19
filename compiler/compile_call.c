@@ -20,18 +20,12 @@
 #include "integer.h"
 #include "messages.h"
 
-//! @brief Restore the caller frame pointer while preserving an A:X return value.
-static void emit_restore_fp_after_call(bool preserve_ax) {
-   if (preserve_ax) {
-      emit(&es_code, "    tay\n");
-   }
+//! @brief Restore the caller frame pointer after a direct call.
+static void emit_restore_fp_after_call(void) {
    emit(&es_code, "    pla\n");
    emit(&es_code, "    sta fp\n");
    emit(&es_code, "    pla\n");
    emit(&es_code, "    sta fp+1\n");
-   if (preserve_ax) {
-      emit(&es_code, "    tya\n");
-   }
 }
 
 //! @brief Save the current frame pointer on the 6502 hardware stack.
@@ -42,37 +36,24 @@ static void emit_save_fp(void) {
    emit(&es_code, "    pha\n");
 }
 
-//! @brief Store a one- or two-byte A:X value in fixed storage.
-static void emit_store_ax_to_symbol(const char *symbol, int size) {
-   emit(&es_code, "    ldy #0\n");
-   emit(&es_code, "    sta %s,y\n", symbol);
-   if (size == 2) {
-      emit(&es_code, "    txa\n");
-      emit(&es_code, "    iny\n");
-      emit(&es_code, "    sta %s,y\n", symbol);
-   }
-}
-
-//! @brief Lower an ordinary direct call using fixed call-site scratch rather than the N software stack.
+//! @brief Lower an ordinary direct call using callee-owned symbols and fixed call-site scratch.
 static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
                                        ASTNode *callee, ASTNode *args,
                                        const ASTNode *fn, const ASTNode *declarator,
-                                       const ASTNode *ret_type, int ret_size, bool ax_return) {
+                                       const ASTNode *ret_type, int ret_size) {
    const ASTNode *params = declarator_parameter_list(declarator);
    int arg_count = (args && !is_empty(args)) ? args->count : 0;
    int actual_index = 0;
-   int initial_scratch = (dst && ret_size > 0) ? ret_size : 0;
-   bool have_scratch = arg_count > 0 || initial_scratch > 0;
+   bool have_scratch = arg_count > 0;
    CompilerScratchLease scratch;
-   const char *scratch_sym = NULL;
    char callee_sym[256];
+   char return_sym[256];
 
    if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym))) {
       return false;
    }
    if (have_scratch) {
-      compiler_scratch_acquire(ctx, initial_scratch > 0 ? initial_scratch : 1, &scratch);
-      scratch_sym = scratch.symbol;
+      compiler_scratch_acquire(ctx, 1, &scratch);
    }
 
    if (params && !is_empty(params)) {
@@ -131,19 +112,25 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
       }
    }
 
+   if (dst && ret_size > 0) {
+      if (!function_return_symbol_name(fn, return_sym, sizeof(return_sym))) {
+         if (have_scratch) compiler_scratch_release(&scratch);
+         return false;
+      }
+      if (!function_has_body(fn)) {
+         remember_symbol_import_mode(return_sym, true);
+      }
+   }
+
    record_call_graph_edge(current_call_graph_function, fn);
    remember_symbol_import(callee_sym);
    emit_save_fp();
    emit(&es_code, "    jsr %s\n", callee_sym);
-   emit_restore_fp_after_call(ax_return);
+   emit_restore_fp_after_call();
 
    if (dst && ret_size > 0) {
-      if (!have_scratch) {
-         error_unreachable("direct call return missing compiler scratch");
-      }
-      emit_store_ax_to_symbol(scratch_sym, ret_size);
       emit_copy_symbol_to_fp_convert(dst->offset, dst->size, dst->type,
-                                     scratch_sym, ret_size, ret_type);
+                                     return_sym, ret_size, ret_type);
    }
 
    if (have_scratch) {
@@ -167,7 +154,6 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    int ret_size = dst ? dst->size : 0;
    int arg_count = (args && !is_empty(args)) ? args->count : 0;
    int fixed_params = 0;
-   bool ax_return = false;
 
    {
       const char *callee_name = expr_bare_identifier_name(callee);
@@ -208,7 +194,6 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                            expr->file, expr->line, expr->column,
                            callee->strval ? callee->strval : "<unknown>");
       }
-      ax_return = function_uses_ax_return(fn);
       params = declarator_parameter_list(declarator);
       if (params && !is_empty(params)) {
          for (int i = 0; i < params->count; i++) {
@@ -231,7 +216,7 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       ret_size = 0;
    }
    return compile_direct_symbol_call(ctx, dst, callee, args, fn, declarator,
-                                     ret_type, ret_size, ax_return);
+                                     ret_type, ret_size);
 }
 
 

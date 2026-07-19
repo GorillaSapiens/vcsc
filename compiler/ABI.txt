@@ -23,25 +23,30 @@ Function returns
 Every legal function return is one of:
 
 * `void`: no returned value;
-* one-byte ordinary or packed-BCD integer: A contains the value and X is unspecified;
-* two-byte little-endian ordinary or packed-BCD integer: A contains the low byte and X the high byte;
-* 16-bit pointer: A contains the low byte and X the high byte.
+* one- or two-byte ordinary little-endian integer;
+* one-, two-, or three-byte packed-BCD little-endian integer;
+* 16-bit pointer.
 
-Functions may not return aggregates, arrays, floating-point values, or any
-value larger than two bytes. In particular, `bcd24_t` is legal object and
-parameter storage but is not a legal return type. All legal multibyte return
-values are little-endian. The compiler rejects those return
-types at the declaration or definition. There is no caller-owned return-slot
-ABI or `return_value` metadata mode.
+Functions may not return aggregates, arrays, floating-point values, or other
+non-scalar objects. Ordinary binary integers are still limited to the widths
+currently implemented by the type system, while `bcd24_t` is now a legal return
+type. The memory-return ABI itself does not impose a two-byte ceiling.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
-a hidden callee-owned zero-page symbol. `return expr;` writes the converted
-value to `$$`. The common epilogue uses direct zero-page loads: one-byte values
-use `LDA $$`; two-byte values use `LDA $$` and `LDX $$+1`; both then execute
-RTS.
+an exact-sized hidden callee-owned zero-page symbol named
+`function$__return`. `return expr;` writes the converted value to `$$`;
+`return;` leaves any value explicitly written there intact. The common epilogue
+for every value width is simply:
+
+rts
+
+The callee does not load A, X, or Y with the result. The return-object symbol is
+exported with every non-static definition. A separately compiled caller imports
+that zero-page symbol only when it consumes the call result.
 
 Before an ordinary direct call, the compiler leases the caller function's
-current depth slot, such as `__vcsc_scratch_0`. For each fixed argument:
+current depth slot, such as `__vcsc_scratch_0`, only when arguments need
+evaluation or conversion. For each fixed argument:
 
 ; save caller fp on the HARDWARE stack
 lda fp+1
@@ -61,50 +66,43 @@ sta fp
 pla
 sta fp+1
 
-The caller then saves `fp`, executes JSR, and restores `fp` without destroying
-A:X. If the enclosing expression needs a memory-backed result, A:X is copied to
-the still-live caller scratch lease and converted into its destination.
+The caller then saves `fp`, executes JSR, and restores `fp` normally:
 
-Scratch is pooled by function and lexical emission depth. Sequential uses in one
-function reuse a slot; nested uses get deeper slots; different functions get
-distinct physical symbols so caller data remains valid during a callee. Each
-slot is emitted at the maximum size observed for that depth. Scratch leases are
-released in LIFO order and compilation fails if any lease remains live at the
-end of code generation.
+lda fp+1
+pha
+lda fp
+pha
+jsr function
+pla
+sta fp
+pla
+sta fp+1
 
-Function entry has no software-stack prologue. Named automatic locals already have
-fixed symbols. An expression site that needs temporary storage redirects `fp` to its active
-function/depth-pooled BSS scratch lease and restores the caller value through the
-6502 hardware stack.
+If the enclosing expression consumes the value, the caller copies the exact
+return width directly from `function$__return` into its destination. No A:X
+preservation dance and no return-only scratch lease are required. Ignored
+return values require no copy.
 
-Function epilogue for an 8-bit value return:
+Scratch remains pooled by function and lexical emission depth for arguments and
+other expression temporaries. Sequential uses in one function reuse a slot;
+nested uses get deeper slots; different functions get distinct physical symbols
+so caller data remains valid during a callee. Each slot is emitted at the
+maximum size observed for that depth. Scratch leases are released in LIFO order
+and compilation fails if any lease remains live at the end of code generation.
 
-lda function$__return
-rts
+Function entry has no software-stack prologue. Named automatic locals and the
+return object already have fixed symbols. An expression site that needs
+temporary storage redirects `fp` to its active function/depth-pooled BSS scratch
+lease and restores the caller value through the 6502 hardware stack.
 
-Function epilogue for a 16-bit integer or pointer return:
+Reset/startup initializes only `fp`, which remains the temporary addressing base
+for pooled fixed scratch. There is no software stack pointer. Division and
+remainder use a private two-byte BSS workspace in the `_divNle` archive member,
+so that storage is linked only when `/` or `%` is actually used.
 
-lda function$__return
-ldx function$__return+1
-rts
-
-On the VCS these are zero-page instructions. The 8-bit epilogue is three bytes
-and nine cycles including RTS; the 16-bit epilogue is five bytes and twelve
-cycles including RTS.
-
-Function epilogue for void:
-
-rts
-
-Reset/startup initializes only `fp`, which remains the temporary addressing base for
-pooled fixed scratch. There is no software stack pointer. Division and remainder use a
-private two-byte BSS workspace in the `_divNle` archive member, so that storage is linked
-only when `/` or `%` is actually used.
-
-A, P, X, and Y are caller-clobbered across ordinary function calls, except that
-A and possibly X carry the function result on return. Callers must assume a
-callee may freely overwrite all registers before producing that result unless
-an API explicitly documents stronger guarantees.
+A, P, X, and Y are caller-clobbered across ordinary function calls. None carries
+a language-level return value. Special assembly APIs may document stronger
+register contracts, but ordinary VCSC calls do not.
 
 The decimal-mode flag is not part of the call ABI. Startup executes CLD, and
 compiler-generated packed-BCD addition/subtraction emits a local SED/CLD pair
@@ -121,7 +119,6 @@ PHA      ; save A
 PLA      ; restore A (and flags get set from A)
 PLP      ; restore original status flags, including N/Z
 
-
 Direct fixed-parameter ABI
 --------------------------
 
@@ -137,9 +134,7 @@ integers, so separately compiled declarations cannot silently disagree about
 the representation.
 
 A direct call therefore places no fixed parameter bytes on the software stack
-and allocates no software-stack call frame. Argument conversion and optional
-A:X consumption use a live caller-function `__vcsc_scratch_N` lease. That scratch
-belongs to the caller and is not part of the callee ABI.
+and allocates no software-stack call frame. Argument conversion uses a live caller-function `__vcsc_scratch_N` lease when needed. Return values are read directly from the callee-owned `function$__return` symbol; scratch belongs to the caller and is not part of the callee ABI.
 
 Every function body owns one fixed activation record containing its parameters,
 automatic locals, and return object when present. No function may be active

@@ -83,27 +83,33 @@ Settled final-language decisions
 * Each source-level function name has exactly one signature. Matching prototypes
   and a later definition are legal; ordinary named-function overloading is not.
 * JSR/RTS still use the 6502 hardware stack for return addresses.
-* Function returns:
+* Function returns use exact-sized callee-owned zero-page memory:
 
-      void:                         no value
-      8-bit binary or BCD integer:  A; X unspecified
-      16-bit binary or BCD integer: A low byte, X high byte
-      pointer:                      A low byte, X high byte
+      void:                         no return object
+      8/16-bit binary integer:      function$__return, 1 or 2 bytes
+      8/16/24-bit packed BCD:       function$__return, 1, 2, or 3 bytes
+      pointer:                      function$__return, 2 bytes
 
-  `bcd24_t` is legal object and parameter storage but cannot be returned.
+  The callee writes `$$`, whose linker-visible symbol is
+  `function$__return`, and every value-returning epilogue is plain `RTS`. The
+  caller restores `fp` normally and copies directly from the callee object.
+  A, X, and Y are caller-clobbered and carry no ordinary language return value.
 
-* No function may return a value larger than two bytes.
-* Struct, union, and array returns are forbidden even when the aggregate is one
-  or two bytes. Use an explicit result pointer.
+* `bcd24_t` may be returned. The remaining one/two-byte ordinary binary limit
+  belongs to the current scalar/operator implementation, not the return ABI.
+* Struct, union, and array returns remain forbidden even when small. Use an
+  explicit result pointer.
 
 Completed vertical slices
 -------------------------
-1. One- and two-byte little-endian integer and pointer returns use A:X.
+1. Value-returning functions own exact-sized zero-page `function$__return`
+   objects. Callers consume those objects directly; registers are not part of
+   the ordinary return ABI.
 2. Every fixed parameter of a directly named function is callee-owned symbol
    storage rather than software-stack storage.
-3. Function return types are now restricted to void, supported 8/16-bit
-   little-endian integers, and 16-bit pointers. The old caller-owned return-slot
-   ABI has been deleted.
+3. Function return types are restricted to void, currently supported binary
+   integers, packed-BCD integers through `bcd24_t`, and 16-bit pointers.
+   Aggregates and arrays remain forbidden.
 4. The VCS linker stopped modeling mirrored $0180-$01FF stack addresses as
    separate physical memory. The first implementation used a fixed $E0-$FF
    reserve; completed slice 24 supersedes that partition with call-graph sizing.
@@ -113,9 +119,9 @@ Completed vertical slices
 6. Every remaining compiler `_pushN` allocation site has been inventoried and
    classified in top-level software_stack_inventory.txt. A regression test
    detects unrecorded additions, removals, or count changes.
-7. Ordinary direct calls now evaluate arguments and consume A:X through fixed
-   compiler-generated call-site scratch rather than allocating a software-stack
-   call frame.
+7. Ordinary direct calls evaluate arguments through fixed compiler-generated
+   call-site scratch rather than a software-stack call frame. Results are copied
+   directly from callee-owned return objects, so return-only scratch is gone.
 8. Variadic functions and callable types have been removed. The lexer rejects
    `...`; variadic call lowering, hidden metadata, `stdarg.vcsc`, `sprintf.vcsc`, and
    the legacy direct-call software-stack fallback are gone.
@@ -211,10 +217,10 @@ Completed vertical slices
     `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
     initialization, and the stale per-function `fp := sp` prologue are gone.
     `_vcsc_fp` remains only as the temporary base for pooled fixed scratch.
-30. Scalar/pointer return epilogues use direct zero-page loads from the hidden
-    `$$` object. An 8-bit return emits `LDA zp; RTS`; a 16-bit return emits
-    `LDA zp; LDX zp+1; RTS`. The object writer now correctly records a plain
-    relocatable expression used by a one-byte operand as a low-byte relocation.
+30. [Superseded by slice 37.] Scalar/pointer return epilogues temporarily used
+    direct zero-page loads from the hidden `$$` object. Slice 37 removed those
+    loads and made the callee-owned object itself the ABI result. The object
+    writer fix for one-byte relocatable operands remains required.
 31. Ordinary named-function overloading has been removed. Each source name now
     identifies one declaration/definition signature and one unmangled assembler
     symbol. Matching prototypes remain legal; a second signature is rejected.
@@ -248,13 +254,19 @@ Completed vertical slices
     conversion, increment/decrement, comparisons, truth tests, fixed parameters,
     and switch are supported. Unsupported arithmetic and runtime BCD/binary
     conversion are rejected. ABI metadata distinguishes BCD from same-sized
-    binary integers, and `bcd24_t` remains non-returnable under the A:X ABI.
+    binary integers. `bcd24_t` is returnable through the memory-return ABI.
 36. Valued prefix/postfix increment and decrement expressions are no longer
     treated as ordinary reference lvalues by shortcut classifiers. This
     preserves required side effects in compact byte comparisons, direct stores
     to absolute refs, and optimized one-byte array indexes. Ref parameters now
     correctly reject `value++`/`value--` arguments because those expressions are
     values, not lvalues.
+37. Function results now remain in each callee's exact-sized hidden zero-page
+    `function$__return` object. Non-static definitions export that object;
+    separately compiled callers import it when consuming the result. Callers
+    restore `fp` without preserving registers and copy directly from the return
+    symbol. Value epilogues are plain `RTS`, ABI metadata uses `return_memory`,
+    and `bcd24_t` returns work within and across translation units.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -275,34 +287,34 @@ Relevant code:
     compiler/compile_function.c
         return_type_is_void()
         return_type_is_supported()
-        return_type_uses_ax()
-        function_uses_ax_return()
+        return_type_has_value()
+        function_has_return_object()
+        function_return_symbol_name()
         validate_function_return_type()
 
     compiler/compile_call.c
         direct-call argument/result handling
 
     compiler/abi_meta.c
-        return_void / return_ax metadata
+        return_void / return_memory metadata
 
-Every function declaration and definition is validated. The compiler rejects:
+Every function declaration and definition is validated. The compiler currently
+accepts void, one/two-byte ordinary binary integers, one/two/three-byte packed
+BCD integers, and 16-bit pointers. It rejects aggregates, arrays, and other
+noninteger/nonpointer returns. Wider ordinary binary types remain unavailable
+until the queued scalar-width work is completed.
 
-* aggregate and array returns;
-* ordinary binary integers larger than two bytes;
-* packed-BCD integers larger than two bytes when used as return values;
-* any other noninteger, nonpointer value return.
+Inside a non-void function, `$$` is the source-level return object. It is an
+exact-sized hidden callee-owned zero-page symbol named `function$__return`.
+`return expr;` writes it, and the common epilogue is plain `RTS` for every
+current width. Non-static definitions `.zpexport` the symbol. A caller in another
+object `.zpimport`s it only when the result is consumed.
 
-Pointers to aggregate or otherwise unsupported pointee types are legal because
-the returned value is still a 16-bit pointer.
-
-There is no compiler `return_value` metadata mode and no caller-owned return
-storage. An ordinary direct caller that must feed A:X into the still-memory-
-based expression engine copies it through a live caller-function scratch lease.
-That pooled scratch is not part of the callee ABI. Indirect calls are unsupported.
-
-Inside a non-void function, `$$` is the source-level return object. It is a
-hidden callee-owned zero-page symbol. The 8-bit epilogue emits `LDA $$; RTS`;
-the 16-bit/pointer epilogue emits `LDA $$; LDX $$+1; RTS`.
+After `JSR`, the caller restores `fp` with ordinary PLA/STA instructions and
+copies directly from `function$__return` into the enclosing destination. A, X,
+and Y are ordinary caller-clobbered registers, not result registers. Ignored
+return values cause no copy. There is no `return_value` metadata mode, no
+caller-owned return slot, and no register-result scratch lease.
 
 Current direct-parameter ABI
 ----------------------------
@@ -315,9 +327,9 @@ scratch-depth slot. The caller:
 3. evaluates each argument left-to-right and copies the converted value to the
    corresponding callee parameter symbol;
 4. restores `fp` after each argument;
-5. executes JSR while preserving the returned A:X across `fp` restoration;
-6. copies A:X through the same live lease only when the enclosing expression
-   needs a memory-backed converted value.
+5. executes JSR and restores `fp` normally;
+6. when the result is used, copies directly from the callee-owned
+   `function$__return` symbol into the enclosing destination.
 
 Scratch is pooled per function and nesting depth. Sequential uses in one
 non-reentrant function reuse the same slot, nested uses receive deeper slots,
@@ -513,11 +525,11 @@ Result: passed.
 
 Compile suite:
 
-    251 passed, 0 failed, 251 total
+    254 passed, 0 failed, 254 total
 
 End-to-end/generic suite:
 
-    108 passed, 0 failed, 108 total
+    110 passed, 0 failed, 110 total
 
 Staged install check:
 
@@ -525,16 +537,17 @@ Staged install check:
 
 Both examples still build directly as raw 4096-byte cartridges without an
 explicit `-T`. A separate staged-toolchain smoke build included installed
-`vcs.vcsc`, declared a `bcd24_t`, performed packed-BCD addition, and produced an
-exact 4096-byte cartridge. Bare `vcsc-ld` invocation without a script still fails
-with a focused diagnostic, while retained generic e2e tests use
-`test/generic_6502.cfg`.
+`vcs.vcsc`, returned a `bcd24_t` through the callee-owned memory ABI,
+and produced an exact 4096-byte cartridge. Bare `vcsc-ld` invocation
+without a script still fails with a focused diagnostic, while retained generic
+e2e tests use `test/generic_6502.cfg`.
 
 Immediate TODO
 --------------
 The first unfinished item is the default next action.
 
-[x] 1. Return retained scalar/pointer values in A:X.
+[x] 1. Initially return retained scalar/pointer values in A:X. Task 18a
+       now supersedes this with callee-owned memory returns.
 
 [x] 2. Make direct fixed parameters callee-owned symbols and reject call cycles.
 
@@ -703,7 +716,27 @@ The first unfinished item is the default next action.
         `vcsc` Standard-font FIGlet banner. Historical changelog entries retain
         old spellings where needed to describe what actually happened.
 
-[ ] 18. Inventory the retained batari Basic standard and multisprite kernels for
+[ ] 18. Generalize scalar widths now that function returns are memory-backed.
+
+        [x] 18a. Replace the A:X scalar return convention with exact-sized
+                  callee-owned `function$__return` objects. Export/import the
+                  hidden zero-page object across translation units, make every
+                  value epilogue plain `RTS`, consume results directly from
+                  memory, and allow `bcd24_t` returns.
+        [ ] 18b. Generalize ordinary binary scalar handling from hard-coded
+                  one/two-byte assumptions to widths one through four. Audit
+                  literals, extension/truncation, assignment, parameters,
+                  arithmetic, comparisons, shifts, compound assignment,
+                  increment/decrement, constant folding, and helper interfaces.
+        [ ] 18c. Add first-class `int24_t` and `uint24_t`, retaining VCSC's
+                  existing rule that mixed signed/unsigned runtime operations
+                  require an explicit cast rather than C's usual conversions.
+        [ ] 18d. Add first-class `int32_t` and `uint32_t` after the width-generic
+                  paths are proven. Keep pointers 16-bit.
+        [ ] 18e. Add unsigned packed-decimal `bcd32_t` for eight digits once
+                  four-byte scalar storage and copying are established.
+
+[ ] 19. Inventory the retained batari Basic standard and multisprite kernels for
         conversion to VCSC. Identify required language, assembler, linker, and
         runtime capabilities; separate mechanical syntax conversion from real
         kernel-model incompatibilities; then propose an incremental conversion
@@ -734,8 +767,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-The next queued action is task 18: inventory conversion requirements and produce
-an incremental plan before changing any vendored kernel source.
+Task 18a is complete; the next queued action is 18b, generalizing ordinary binary
+scalar machinery to widths one through four before adding the new 24/32-bit
+types. Batari conversion inventory follows as task 19.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1511,6 +1545,36 @@ reproducibly rather than the exact instant of each individual source edit.
   not remove or translate any batari kernel source.
 * Passed 251/251 compile tests and 108/108 end-to-end/generic tests, both exact
   4096-byte cartridge regressions, and the staged installation check.
+
+
+2026-07-19 11:55:11 PDT, replace register returns with callee-owned memory
+* Replaced the A:X scalar/pointer return ABI with exact-sized hidden
+  `function$__return` zero-page objects owned by each value-returning function.
+  One- and two-byte binary values, pointers, and one-, two-, or three-byte BCD
+  values now use the same memory-backed mechanism.
+* Changed value epilogues to plain `RTS`; callers restore the frame pointer
+  normally and consume the callee return object directly instead of preserving,
+  spilling, or reconstructing A:X. Ignored results do not import or copy the
+  hidden object.
+* Exported non-static return objects and imported them only when an external
+  call's value is consumed, so separately compiled functions follow the same
+  ABI without creating unnecessary cross-object references. Static functions
+  retain private return objects.
+* Changed ABI metadata from `return_ax` to `return_memory` and updated compiler,
+  runtime, and ABI documentation. Added same-translation-unit and
+  cross-translation-unit `bcd24_t` return execution tests, plus code-generation
+  tests for static, external, ignored, one-byte, and two-byte return cases.
+* Added scalar-width roadmap task 18 before the retained batari Basic conversion
+  inventory: generalize one- through four-byte scalar machinery, then add
+  `int24_t`/`uint24_t`, `int32_t`/`uint32_t`, and `bcd32_t`. Marked memory returns
+  complete as task 18a and left batari conversion as task 19.
+* Updated the main README to identify VCSC as the Atari-focused child of the N
+  parent project and link `https://github.com/GorillaSapiens/n`.
+* Passed 254/254 compile tests, 110/110 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, the staged installation check, and an
+  installed-toolchain 4096-byte cartridge using a returned `bcd24_t`. Added six
+  superseded test paths to `remove.txt`, which now contains 867 unique cumulative
+  paths. The retained batari Basic trees were untouched.
 
 End-of-session checklist
 ------------------------

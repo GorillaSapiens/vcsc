@@ -1,29 +1,25 @@
-// expectasm: return_ax
+// expectasm: return_memory
 // vcsc-cc1 -I .
+// expectasm: .zpexport id16$__return
 // expectasm: .segment "ZEROPAGE"
 // expectasm: id16$__return:
 // expectasmordered: .proc id16
 // expectasmordered: @fini:
-// expectasmordered: lda id16$__return
-// expectasmordered: ldx id16$__return+1
-// forbidasm: lda id16$__return,y
-// forbidasm: tax
 // expectasmordered: rts
 // expectasmordered: jsr id16
-// expectasmordered: tay
 // expectasmordered: pla
 // expectasmordered: sta fp
 // expectasmordered: pla
 // expectasmordered: sta fp+1
-// expectasmordered: tya
 // expectasmordered: ldy #0
-// expectasmordered: sta __vcsc_scratch_
-// expectasmordered: txa
-// expectasmordered: iny
-// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: lda id16$__return,y
+// expectasmordered: ldy #1
+// expectasmordered: lda id16$__return,y
+// forbidasm: tay
+// forbidasm: tya
+// forbidasm: txa
 
 include "machine_6502.vcsc"
-
 
 uint16_t id16(uint16_t value) {
    return value;

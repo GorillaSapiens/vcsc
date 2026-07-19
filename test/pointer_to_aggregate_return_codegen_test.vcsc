@@ -1,5 +1,5 @@
 // vcsc-cc1
-// expectasm: return_ax
+// expectasm: return_memory
 // forbidasm: return_value
 
 type void { $size:0 };

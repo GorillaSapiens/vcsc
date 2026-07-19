@@ -517,7 +517,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
    snprintf(summary_detail, sizeof(summary_detail), "parameters=%d", fixed_count);
    emit_metadata_symbol("function", state, sym, "summary", summary_fp, summary_detail);
    emit_type_record("function", state, sym, "return",
-                    return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_ax",
+                    return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_memory",
                     ret_type, ret_decl);
 
    if (params && !is_empty(params)) {

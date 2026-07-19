@@ -248,6 +248,7 @@ test/automatic_local_symbol_codegen_test.n
 test/bcd16_literal_range_error_test.n
 test/bcd24_literal_range_error_test.n
 test/bcd24_return_rejected_test.n
+test/bcd24_return_rejected_test.vcsc
 test/bcd8_literal_range_error_test.n
 test/bcd_argument_literal_range_error_test.n
 test/bcd_arithmetic_codegen_test.n
@@ -447,6 +448,7 @@ test/e2e_pointer_machine_helper_overload_verify.n
 test/e2e_pointer_machine_helpers_verify.n
 test/e2e_register_parameter_verify.n
 test/e2e_return_ax_verify.n
+test/e2e_return_ax_verify.vcsc
 test/e2e_return_slot_verify.n
 test/e2e_sbrk_smoke.n
 test/e2e_scalar_braced_init_verify.n
@@ -768,7 +770,9 @@ test/register_parameter_zeropage_codegen_test.n
 test/reserved_va_arg_bytes_name_error_test.n
 test/reserved_va_args_name_error_test.n
 test/return_ax_uint16_codegen_test.n
+test/return_ax_uint16_codegen_test.vcsc
 test/return_ax_uint8_codegen_test.n
+test/return_ax_uint8_codegen_test.vcsc
 test/return_slot_decl_error_test.n
 test/return_slot_global_error_test.n
 test/return_slot_param_decl_error_test.n
@@ -847,6 +851,8 @@ test/variadic_hidden_temps_codegen_test.n
 test/variadic_no_char_codegen_test.n
 test/variadic_zero_call_codegen_test.n
 test/vcs_headers_smoke_test.n
+test/vcs_return_epilogue_encoding.pl
+test/vcs_return_epilogue_encoding.test
 test/visible_same_type_operator_beats_helper_codegen_test.n
 test/void_cast_assignment_error_test.n
 test/void_cast_condition_error_test.n

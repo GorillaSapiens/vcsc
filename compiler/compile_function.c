@@ -65,7 +65,7 @@ bool return_type_is_void(const ASTNode *type, const ASTNode *declarator) {
           declarator_array_count(declarator) == 0;
 }
 
-//! @brief Return whether a function return type is supported by the VCSC ABI.
+//! @brief Return whether a function return type is supported by the VCSC memory-return ABI.
 bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
    int size;
 
@@ -92,20 +92,21 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
       return false;
    }
 
-   if (size < 1 || size > 2) {
-      return false;
+   if (type_is_bcd_integer(type)) {
+      return size >= 1 && size <= 3;
    }
-   return true;
+
+   return size >= 1 && size <= 2;
 }
 
-//! @brief Return whether a value is returned in A (low byte) and X (high byte).
-bool return_type_uses_ax(const ASTNode *type, const ASTNode *declarator) {
+//! @brief Return whether a supported function type has a value return object.
+bool return_type_has_value(const ASTNode *type, const ASTNode *declarator) {
    return return_type_is_supported(type, declarator) &&
           !return_type_is_void(type, declarator);
 }
 
-//! @brief Return whether a function uses the VCSC A:X scalar return convention.
-bool function_uses_ax_return(const ASTNode *fn) {
+//! @brief Return whether a function owns a callee-side return object.
+bool function_has_return_object(const ASTNode *fn) {
    const ASTNode *declarator;
 
    if (!fn) {
@@ -113,11 +114,27 @@ bool function_uses_ax_return(const ASTNode *fn) {
    }
 
    declarator = function_declarator_node(fn);
-   return return_type_uses_ax(function_return_type(fn),
-                              function_return_declarator_from_callable(declarator));
+   return return_type_has_value(function_return_type(fn),
+                                function_return_declarator_from_callable(declarator));
 }
 
-//! @brief Reject function return types outside the VCSC A:X ABI.
+//! @brief Build the hidden callee-owned return-object symbol for a function.
+bool function_return_symbol_name(const ASTNode *fn, char *buf, size_t bufsize) {
+   char function_sym[256];
+   char raw[320];
+
+   if (!fn || !buf || bufsize == 0 ||
+       !function_symbol_name(fn, declarator_name(function_declarator_node(fn)),
+                             function_sym, sizeof(function_sym))) {
+      return false;
+   }
+   if ((size_t) snprintf(raw, sizeof(raw), "%s$__return", function_sym) >= sizeof(raw)) {
+      return false;
+   }
+   return format_user_asm_symbol(raw, buf, bufsize);
+}
+
+//! @brief Reject function return types outside the VCSC memory-return ABI.
 void validate_function_return_type(const ASTNode *fn) {
    const ASTNode *type;
    const ASTNode *declarator;
@@ -136,7 +153,7 @@ void validate_function_return_type(const ASTNode *fn) {
    }
 
    name = declarator_name(declarator);
-   error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, an 8- or 16-bit little-endian integer, or a 16-bit pointer",
+   error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, a supported binary integer, a packed-BCD integer through bcd24_t, or a 16-bit pointer",
               fn->file, fn->line, fn->column,
               (name && *name) ? name : "<unnamed>");
 }
@@ -333,12 +350,12 @@ void build_function_context(const ASTNode *node, Context *ctx) {
    }
 
 
-   if (function_uses_ax_return(node)) {
+   if (function_has_return_object(node)) {
       ContextEntry *return_entry;
       ctx_zeropage(ctx, node->children[0]->children[1], "$$");
       return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
       if (!return_entry) {
-         error_unreachable("internal missing A:X return object");
+         error_unreachable("internal missing memory return object");
       }
       /* Keep the source-level lookup key "$$", but use a plain assembler
          symbol component. Repeated '$' characters are ambiguous in the

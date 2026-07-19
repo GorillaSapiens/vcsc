@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectasm: local_score$__return:
+// forbidasm: .zpexport local_score$__return
+// expectasmordered: .proc local_score
+// expectasmordered: @fini:
+// expectasmordered: rts
+include "machine_6502.vcsc"
+
+static bcd24_t local_score(void) {
+   return 345678;
+}
+
+void main(void) {
+   bcd24_t value := local_score();
+}
