@@ -1,5 +1,5 @@
 //! @file assembler/asm_state.c
-//! @brief Implements assembler state management for the n65 assembler.
+//! @brief Implements assembler state management for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

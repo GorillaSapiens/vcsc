@@ -1,5 +1,5 @@
 //! @file assembler/xray.h
-//! @brief Declares diagnostic tracing for the n65 assembler.
+//! @brief Declares diagnostic tracing for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef ASM_XRAY_H

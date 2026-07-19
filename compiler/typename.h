@@ -1,5 +1,5 @@
 //! @file compiler/typename.h
-//! @brief Declares type-name registry for the n65 compiler.
+//! @brief Declares type-name registry for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_TYPENAME_H_

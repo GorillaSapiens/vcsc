@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+include "machine_6502.vcsc"
+int16_t main(void) {
+   int16_t x;
+   x := { 1 };
+   return 0;
+}

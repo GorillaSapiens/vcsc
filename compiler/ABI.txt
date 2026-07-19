@@ -1,3 +1,8 @@
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+
 If you're not respecting the ABI, you're one segfault away from chaos.
 
 Current transitional function ABI
@@ -36,7 +41,7 @@ use `LDA $$`; two-byte values use `LDA $$` and `LDX $$+1`; both then execute
 RTS.
 
 Before an ordinary direct call, the compiler leases the caller function's
-current depth slot, such as `__n65_scratch_0`. For each fixed argument:
+current depth slot, such as `__vcsc_scratch_0`. For each fixed argument:
 
 ; save caller fp on the HARDWARE stack
 lda fp+1
@@ -44,9 +49,9 @@ pha
 lda fp
 pha
 ; redirect fp to the active caller scratch lease
-lda #<__n65_scratch_0
+lda #<__vcsc_scratch_0
 sta fp
-lda #>__n65_scratch_0
+lda #>__vcsc_scratch_0
 sta fp+1
 ; evaluate and convert the argument through that scratch
 ; copy it into the callee-owned parameter symbol
@@ -133,7 +138,7 @@ the representation.
 
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion and optional
-A:X consumption use a live caller-function `__n65_scratch_N` lease. That scratch
+A:X consumption use a live caller-function `__vcsc_scratch_N` lease. That scratch
 belongs to the caller and is not part of the callee ABI.
 
 Every function body owns one fixed activation record containing its parameters,

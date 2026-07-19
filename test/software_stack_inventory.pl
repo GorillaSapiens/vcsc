@@ -43,10 +43,10 @@ die "software-stack inventory total drift: got $total_push/$total_pop, expected 
     unless $total_push == 0 && $total_pop == 0;
 
 my @runtime_files = (
-    File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib.inc'),
-    File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib_zeropage.s'),
-    File::Spec->catfile($repo, 'libraries', 'nlib', 'nrt0.s'),
-    glob(File::Spec->catfile($repo, 'libraries', 'nlib', 'asm', '*.asm')),
+    File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-runtime.inc'),
+    File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-zeropage.s'),
+    File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-rt0.s'),
+    glob(File::Spec->catfile($repo, 'libraries', 'runtime', 'asm', '*.asm')),
 );
 for my $path (@runtime_files) {
     open(my $fh, '<', $path) or die "cannot read $path: $!\n";
@@ -54,11 +54,11 @@ for my $path (@runtime_files) {
     my $text = <$fh>;
     close($fh);
     die "removed software-stack symbol remains in $path\n"
-        if $text =~ /(?:\b_nl_sp\b|\b_pushN\b|\b_popN\b|\b_sp2ptr[0-9])/;
+        if $text =~ /(?:\b_vcsc_sp\b|\b_pushN\b|\b_popN\b|\b_sp2ptr[0-9])/;
 }
 
-my $ar = File::Spec->catfile($repo, 'archiver', 'n65ar');
-my $archive = File::Spec->catfile($repo, 'libraries', 'nlib', 'nlib.a65');
+my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
+my $archive = File::Spec->catfile($repo, 'libraries', 'runtime', 'libvcsc.a65');
 open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
 local $/;
 my $members = <$afh>;

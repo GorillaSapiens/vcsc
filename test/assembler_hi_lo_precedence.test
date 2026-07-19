@@ -1,4 +1,4 @@
-# runner: n65asm --hex=@TMP@/hi_lo.hex @TEST_ROOT@/assembler_hi_lo_precedence.s
+# runner: vcsc-as --hex=@TMP@/hi_lo.hex @TEST_ROOT@/assembler_hi_lo_precedence.s
 # phase: e2e
 # expectexit: 0
 # expectfile: @TMP@/hi_lo.hex :0900FD00A903A901A901A957EA10

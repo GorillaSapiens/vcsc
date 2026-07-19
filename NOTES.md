@@ -1,3 +1,10 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # Additional missing / incomplete / limited features
 
 | Area                      | Additional limitation                                                                                                                                                                                                              | Evidence                                                                                     |

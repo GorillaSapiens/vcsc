@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectasm: __memmeta$V1$register$S0000$Z0010$Trw = 0
+// expectasm: .export __memmeta$V1$register$S0000$Z0010$Trw
+// expectasm: .zpexport capture$x
+// expectasmordered: .segment "ZEROPAGE.register"
+// expectasmordered: capture$x:
+// expectasmordered: 	.res 2
+// expectasmordered: .proc main
+// expectasmordered: lda #<__vcsc_scratch_
+// expectasmordered: sta fp
+// expectasmordered: lda #>__vcsc_scratch_
+// expectasmordered: sta fp+1
+// expectasmordered: ldy #0
+// expectasmordered: lda #$34
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #1
+// expectasmordered: lda #$12
+// expectasmordered: sta (fp),y
+// expectasmordered: ldy #0
+// expectasmordered: lda (fp),y
+// expectasmordered: sta capture$x,y
+// expectasmordered: ldy #1
+// expectasmordered: lda (fp),y
+// expectasmordered: sta capture$x,y
+// forbidasm: .export capture$x
+include "machine_6502.vcsc"
+mem register { $start:0x0000 $size:0x0010 $rw };
+
+int16_t capture(register int16_t x) {
+   return x;
+}
+
+int16_t main(void) {
+   return capture(0x1234);
+}

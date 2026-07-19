@@ -1,0 +1,8 @@
+// vcsc-cc1 -quiet -X parseonly -dumpbase cc1_cli_compat_test.vcsc -dumpbase-ext .vcsc -dumpdir obj/
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+
+void main(void) {
+}

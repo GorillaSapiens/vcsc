@@ -51,14 +51,14 @@ usage() if @ARGV;
 $repo=abs_path($repo) // die "could not resolve repo root\n";
 $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 
-my $driver=File::Spec->catfile($repo,'driver','n65cc');
-my $assembler=File::Spec->catfile($repo,'assembler','n65asm');
-my $linker=File::Spec->catfile($repo,'linker','n65ld');
+my $driver=File::Spec->catfile($repo,'driver','vcsc');
+my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
+my $linker=File::Spec->catfile($repo,'linker','vcsc-ld');
 my $vcs_dir=File::Spec->catdir($repo,'libraries','vcs');
-my $nlib_dir=File::Spec->catdir($repo,'libraries','nlib');
+my $runtime_dir=File::Spec->catdir($repo,'libraries','runtime');
 my $cfg=File::Spec->catfile($vcs_dir,'vcs_4k.cfg');
-my $runtime=File::Spec->catfile($nlib_dir,'nlib.a65');
-my $source=File::Spec->catfile($tmp,'return_epilogue.n');
+my $runtime=File::Spec->catfile($runtime_dir,'libvcsc.a65');
+my $source=File::Spec->catfile($tmp,'return_epilogue.vcsc');
 my $assembly=File::Spec->catfile($tmp,'return_epilogue.s');
 my $object=File::Spec->catfile($tmp,'return_epilogue.o65');
 my $asm_map=File::Spec->catfile($tmp,'return_epilogue.asmap');
@@ -66,7 +66,7 @@ my $link_map=File::Spec->catfile($tmp,'return_epilogue.map');
 my $binary=File::Spec->catfile($tmp,'return_epilogue.bin');
 
 write_file($source, <<'SOURCE');
-include "vcs.n"
+include "vcs.vcsc"
 
 uint8_t return8(void) {
    return 0xa5`uint8_t;
@@ -93,7 +93,7 @@ my ($exit,$signal,$stdout,$stderr)=run_capture(
 require_ok('compiler',$exit,$signal,$stdout,$stderr);
 
 ($exit,$signal,$stdout,$stderr)=run_capture(
-   $assembler,'-I',$vcs_dir,'-I',$nlib_dir,"--map=$asm_map",'-o',$object,$assembly,
+   $assembler,'-I',$vcs_dir,'-I',$runtime_dir,"--map=$asm_map",'-o',$object,$assembly,
 );
 require_ok('assembler',$exit,$signal,$stdout,$stderr);
 

@@ -1,5 +1,5 @@
 //! @file compiler/expropt.c
-//! @brief Implements expression optimization for the n65 compiler.
+//! @brief Implements expression optimization for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

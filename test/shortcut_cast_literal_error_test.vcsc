@@ -1,0 +1,12 @@
+// vcsc-cc1
+// expectfail
+// expecterr: shortcut cast '$unsigned' is only legal on already-typed ordinary fixed-width integer expressions
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u2   { $size:2 $integer:unsigned $endian:little };
+
+u2 bad(void) {
+   return ($unsigned)1;
+}

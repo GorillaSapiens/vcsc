@@ -1,5 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: function 'bad' has an unsupported return type
-include "machine_6502.n"
-bcd24_t bad(void) { return 123456; }

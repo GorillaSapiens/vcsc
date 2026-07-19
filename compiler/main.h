@@ -1,5 +1,5 @@
 //! @file compiler/main.h
-//! @brief Declares compiler command-line entry point for the n65 compiler.
+//! @brief Declares compiler command-line entry point for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_MAIN_H_

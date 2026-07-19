@@ -1,0 +1,10 @@
+// vcsc-cc1
+// phase: compile
+// expectfail
+// expecterr: operator overloading is not supported
+
+type int16_t { $size:2 $integer:signed $endian:little };
+
+int16_t operator+(int16_t a, int16_t b) {
+   return a + b;
+}

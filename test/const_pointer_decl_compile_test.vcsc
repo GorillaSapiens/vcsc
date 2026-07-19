@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+
+type void  { $size:0 };
+type uint8_t  { $size:1 $integer:unsigned };
+type *     { $size:2 $integer:unsigned $endian:little };
+type int8_t  { $size:1 $integer:signed };
+type int16_t   { $size:2 $integer:signed $endian:little };
+
+const int8_t* gp;
+
+int16_t main(void) {
+   int8_t a[1], b[1];
+   const int8_t* p;
+
+   p := a;
+   p := b;
+
+   return 0;
+}

@@ -1,5 +1,5 @@
 //! @file compiler/md5seen.c
-//! @brief Implements MD5 duplicate tracking for the n65 compiler.
+//! @brief Implements MD5 duplicate tracking for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

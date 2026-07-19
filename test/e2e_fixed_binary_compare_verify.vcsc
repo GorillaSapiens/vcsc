@@ -1,0 +1,40 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+
+uint16_t u16;
+int16_t s16;
+uint8_t u8;
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   u16 := ((0x1234`uint16_t + 0x0011`uint16_t) << 1`uint16_t) ^ 0x00ff`uint16_t;
+   if (u16 != 0x2475`uint16_t) { fail(1); }
+
+   u16 := (300`uint16_t * 7`uint16_t) / 5`uint16_t;
+   if (u16 != 420`uint16_t) { fail(2); }
+
+   u16 := 1000`uint16_t % 37`uint16_t;
+   if (u16 != 1`uint16_t) { fail(3); }
+
+   s16 := -10`int16_t + 3`int16_t;
+   if (!(s16 < 0`int16_t)) { fail(4); }
+   if (s16 != -7`int16_t) { fail(5); }
+
+   u8 := (0xf0`uint8_t | 0x0a`uint8_t) & 0xfc`uint8_t;
+   if (u8 != 0xf8`uint8_t) { fail(6); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

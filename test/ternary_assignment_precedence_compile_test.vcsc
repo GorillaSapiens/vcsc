@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.vcsc"
+
+void main(void) {
+   int16_t cond;
+   int16_t iftrue := 11;
+   int16_t iffalse := 22;
+   int16_t out;
+
+   cond := 0;
+   out := cond ? iftrue : iffalse;
+
+   cond := 1;
+   out := cond ? iftrue : iffalse;
+}

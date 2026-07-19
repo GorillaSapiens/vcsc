@@ -1,3 +1,8 @@
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+
 VCSC SOFTWARE-STACK INVENTORY
 =============================
 
@@ -23,7 +28,7 @@ Current compiler model
 Named parameters, automatic locals, return objects, call arguments, expression
 temporaries, lvalue calculations, assignments, initializers, control-flow tests,
 and switch expressions all use fixed-address symbols or function/depth-pooled BSS
-scratch. The compiler may temporarily redirect `_nl_fp` to a pooled scratch symbol
+scratch. The compiler may temporarily redirect `_vcsc_fp` to a pooled scratch symbol
 and preserve the caller value with the 6502 hardware stack. There is no target
 software-stack pointer.
 
@@ -43,13 +48,13 @@ Runtime/library status
 ----------------------
 The target software stack has been removed completely:
 
-* `_nl_sp` is no longer allocated or exported;
+* `_vcsc_sp` is no longer allocated or exported;
 * `_pushN` and `_popN` are absent from the runtime archive;
 * all `sp2ptr*` helpers and their source file are gone;
-* startup initializes `_nl_fp` directly and compiled functions have no `fp := sp`
+* startup initializes `_vcsc_fp` directly and compiled functions have no `fp := sp`
   prologue;
 * retained division/remainder copies its dividend into a private two-byte BSS
   object inside the `_divNle` archive member. That object is linked only when
   division or remainder selects the member.
 
-`_nl_fp` remains active only as the temporary addressing base for pooled scratch.
+`_vcsc_fp` remains active only as the temporary addressing base for pooled scratch.

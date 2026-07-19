@@ -1,13 +1,13 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -O2
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen
 
-all: version.h n65cc
+all: version.h vcsc
 
 .PHONY: version FORCE
 version: version.h
@@ -38,20 +38,20 @@ version.h: FORCE
 	      > version.h; \
 	fi
 
-n65cc: n65cc.c version.h
-	$(CC) $(CFLAGS) n65cc.c -o n65cc
+vcsc: vcsc.c version.h
+	$(CC) $(CFLAGS) vcsc.c -o vcsc
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
 
-install: n65cc
+install: vcsc
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL_PROGRAM) n65cc $(DESTDIR)$(BINDIR)/n65cc
+	$(INSTALL_PROGRAM) vcsc $(DESTDIR)$(BINDIR)/vcsc
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/n65cc
+	rm -f $(DESTDIR)$(BINDIR)/vcsc
 
 clean:
-	rm -f n65cc version.h
+	rm -f vcsc version.h
 
 .PHONY: docs

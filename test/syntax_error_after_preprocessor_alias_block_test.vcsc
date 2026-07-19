@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: Error at syntax_error_after_preprocessor_alias_block_test.vcsc:15.10
+// expecterr: syntax error, unexpected invalid token
+
+alias FLAG 1
+
+#if FLAG
+alias T WORD
+#else
+alias T BYTE
+#endif
+
+enum E {
+   VALUE = 0
+}

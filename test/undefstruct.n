@@ -1,5 +1,0 @@
-// n65c -X invert
-
-include "machine_6502.n"
-
-struct undefined;

@@ -1,0 +1,22 @@
+// vcsc-cc1 -I .
+// expectasm: lda #$02
+// expectasm: lda #$02
+
+include "machine_6502.vcsc"
+
+union U {
+   int16_t i;
+   int8_t b[2];
+};
+
+struct S {
+   int8_t a[4];
+   U u;
+};
+
+int16_t main(void) {
+   S s;
+   int16_t a := sizeof(s.u.b);
+   int16_t b := sizeof(int16_t);
+   return a + b;
+}

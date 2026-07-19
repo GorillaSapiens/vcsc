@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: '$$' is the current function's return object
+// expecterr: only valid inside a function that returns a value
+// expecterr: return <expr>
+include "machine_6502.vcsc"
+int16_t global := $$;

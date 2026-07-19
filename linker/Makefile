@@ -1,16 +1,16 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -O2
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 
-OBJS = n65ld.o n65ld_input.o n65ld_abi.o
+OBJS = vcsc_ld.o vcsc_ld_input.o vcsc_ld_abi.o
 DEPS = $(OBJS:.o=.d)
 DOXYGEN ?= doxygen
 
-all: version.h n65ld
+all: version.h vcsc-ld
 
 .PHONY: version FORCE
 version: version.h
@@ -41,10 +41,10 @@ version.h: FORCE
 	      > version.h; \
 	fi
 
-n65ld: version.h $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o n65ld
+vcsc-ld: version.h $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o vcsc-ld
 
-n65ld.o: version.h
+vcsc_ld.o: version.h
 
 %.o: %.c
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
@@ -52,15 +52,15 @@ n65ld.o: version.h
 docs:
 	$(MAKE) --no-print-directory -C .. docs
 
-install: n65ld
+install: vcsc-ld
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL_PROGRAM) n65ld $(DESTDIR)$(BINDIR)/n65ld
+	$(INSTALL_PROGRAM) vcsc-ld $(DESTDIR)$(BINDIR)/vcsc-ld
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/n65ld
+	rm -f $(DESTDIR)$(BINDIR)/vcsc-ld
 
 clean:
-	rm -f n65ld $(OBJS) $(DEPS) version.h
+	rm -f vcsc-ld $(OBJS) $(DEPS) version.h
 
 -include $(DEPS)
 

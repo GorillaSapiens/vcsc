@@ -1,5 +1,5 @@
 //! @file assembler/asm_pass.c
-//! @brief Implements assembly pass orchestration for the n65 assembler.
+//! @brief Implements assembly pass orchestration for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

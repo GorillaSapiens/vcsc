@@ -1,0 +1,17 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.vcsc"
+
+struct Point {
+   int16_t x;
+   int16_t y;
+};
+
+int16_t main(void) {
+   Point p;
+   Point q;
+   p.x := 3;
+   p.y := 4;
+   q := p;
+   return q.y;
+}

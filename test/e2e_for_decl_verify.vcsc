@@ -1,0 +1,42 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+type u8 { $size:1 $integer:unsigned };
+type intlit { $size:2 $integer:signed $endian:little };
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   u8 sum := 0;
+
+   for (u8 i := 1, j := 2; i < 4; i++) {
+      sum += i;
+      sum += j;
+   }
+
+   if (sum != 12) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+
+   for (u8 k := 1; k <= 3; k++) {
+      sum += k;
+   }
+
+   if (sum != 18) {
+      asm lda #$ff;
+      asm ldx #2;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+
+   pass();
+}

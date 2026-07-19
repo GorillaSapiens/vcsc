@@ -1,5 +1,5 @@
 //! @file compiler/integer.h
-//! @brief Declares integer literal conversion for the n65 compiler.
+//! @brief Declares integer literal conversion for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_INTEGER_H_

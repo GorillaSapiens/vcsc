@@ -1,0 +1,8 @@
+// vcsc-cc1
+// expectfail
+// expecterr: big-endian types are not supported
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type bad  { $size:2 $integer:unsigned $endian:big };

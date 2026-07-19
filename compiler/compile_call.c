@@ -1,5 +1,5 @@
 //! @file compiler/compile_call.c
-//! @brief Implements function call lowering for the n65 compiler.
+//! @brief Implements function call lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

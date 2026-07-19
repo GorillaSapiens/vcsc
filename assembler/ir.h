@@ -1,5 +1,5 @@
 //! @file assembler/ir.h
-//! @brief Declares assembler intermediate representation for the n65 assembler.
+//! @brief Declares assembler intermediate representation for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef IR_H

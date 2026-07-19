@@ -1,34 +1,41 @@
+//! @verbatim
+//!  __   __ ___  ___   ___
+//!  \ \ / // __|/ __| / __|
+//!   \ V /| (__ \__ \| (__
+//!    \_/  \___||___/ \___|
+//! @endverbatim
+//!
 //! @page tool_usage Tool usage guide
 //!
 //! @brief User-facing map of the command-line tools and their normal flow.
 //!
-//! The usual entry point is `n65cc`. It accepts source, assembly, object,
+//! The usual entry point is `vcsc`. It accepts source, assembly, object,
 //! and archive inputs, dispatches the lower-level tools, and writes the final
 //! Intel HEX image unless stopped at an earlier stage.
 //!
 //! @section tool_usage_pipeline Normal pipeline
 //!
-//! - `n65c` compiles `.n` source into assembly.
-//! - `n65asm` assembles source into relocatable `.o65` objects or Intel HEX.
-//! - `n65ar` bundles `.o65` objects into `.a65` archives for lazy linking.
-//! - `n65ld` links objects and archives, lays out memory, resolves relocations,
+//! - `vcsc-cc1` compiles `.vcsc` source into assembly.
+//! - `vcsc-as` assembles source into relocatable `.o65` objects or Intel HEX.
+//! - `vcsc-ar` bundles `.o65` objects into `.a65` archives for lazy linking.
+//! - `vcsc-ld` links objects and archives, lays out memory, resolves relocations,
 //!   emits Intel HEX, and optionally writes a map file.
-//! - `n65sim` can run an emitted HEX image for smoke and regression checks.
+//! - `vcsc-sim` can run an emitted HEX image for smoke and regression checks.
 //!
 //! @section tool_usage_examples Examples
 //!
 //! High-level flow:
 //!
 //! @code{.sh}
-//! n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
+//! vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
 //! @endcode
 //!
 //! Direct stage-by-stage flow:
 //!
 //! @code{.sh}
-//! n65c -quiet -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.s -dumpbase solid_color.n -dumpbase-ext .n -dumpdir ./
-//! n65asm -I libraries/nlib/ -o solid_color.o65 solid_color.s
-//! n65ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/nlib/nlib.a65
+//! vcsc-cc1 -quiet -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.s -dumpbase solid_color.vcsc -dumpbase-ext .vcsc -dumpdir ./
+//! vcsc-as -I libraries/runtime/ -o solid_color.o65 solid_color.s
+//! vcsc-ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/runtime/libvcsc.a65
 //! @endcode
 //!
 //! @section tool_usage_docs More detailed command references

@@ -1,4 +1,4 @@
-# runner: perl @TEST_ROOT@/peephole_inline_asm_codegen.pl @N65C@ @TEST_ROOT@
+# runner: perl @TEST_ROOT@/peephole_inline_asm_codegen.pl @VCSC_CC1@ @TEST_ROOT@
 # phase: compile
 # timeout: 20
 # expectexit: 0

@@ -1,0 +1,29 @@
+// expectasm: return_ax
+// vcsc-cc1 -I .
+// expectasm: .segment "ZEROPAGE"
+// expectasm: id8$__return:
+// expectasmordered: .proc id8
+// expectasmordered: @fini:
+// expectasmordered: lda id8$__return
+// forbidasm: lda id8$__return,y
+// expectasmordered: rts
+// expectasmordered: jsr id8
+// expectasmordered: tay
+// expectasmordered: pla
+// expectasmordered: sta fp
+// expectasmordered: pla
+// expectasmordered: sta fp+1
+// expectasmordered: tya
+// expectasmordered: sta (fp),y
+// forbidasm: jsr _fp2ptr1m
+
+include "machine_6502.vcsc"
+
+
+uint8_t id8(uint8_t value) {
+   return value;
+}
+
+uint8_t main(void) {
+   return id8(0x5a`uint8_t);
+}

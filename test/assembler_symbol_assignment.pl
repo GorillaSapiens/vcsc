@@ -13,7 +13,7 @@ $repo = abs_path($repo) // die "could not resolve repo root\n";
 make_path($tmp);
 $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
-my $asm = File::Spec->catfile($repo, 'assembler', 'n65asm');
+my $asm = File::Spec->catfile($repo, 'assembler', 'vcsc-as');
 -x $asm or die "missing executable assembler: $asm\n";
 
 sub write_file {

@@ -1,5 +1,5 @@
 //! @file compiler/md5.c
-//! @brief Implements MD5 hashing for the n65 compiler.
+//! @brief Implements MD5 hashing for the VCSC compiler.
 //! @ingroup compiler
 
 /*

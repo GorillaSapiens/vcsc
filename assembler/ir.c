@@ -1,5 +1,5 @@
 //! @file assembler/ir.c
-//! @brief Implements assembler intermediate representation for the n65 assembler.
+//! @brief Implements assembler intermediate representation for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

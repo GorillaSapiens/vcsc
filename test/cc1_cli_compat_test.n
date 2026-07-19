@@ -1,8 +1,0 @@
-// n65c -quiet -X parseonly -dumpbase cc1_cli_compat_test.n -dumpbase-ext .n -dumpdir obj/
-
-type void { $size:0 };
-type uint8_t { $size:1 $integer:unsigned };
-type *    { $size:2 $integer:unsigned $endian:little };
-
-void main(void) {
-}

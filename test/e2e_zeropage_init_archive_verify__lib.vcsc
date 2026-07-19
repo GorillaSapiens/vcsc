@@ -1,0 +1,12 @@
+include "machine_6502.vcsc"
+
+zeropage int8_t lib_bytes[3] := { 7, 8, 9 };
+zeropage int8_t lib_zero;
+
+int16_t lib_sum(void) {
+   return lib_bytes[0] + lib_bytes[1] + lib_bytes[2];
+}
+
+int16_t lib_pad(void) {
+   return lib_zero;
+}

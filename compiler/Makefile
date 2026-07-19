@@ -12,9 +12,9 @@ CFLAGS += -g
 # for optimization
 #CFLAGS += -O2
 
-TARGET = n65c
+TARGET = vcsc-cc1
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
@@ -59,7 +59,7 @@ SRCSRC = \
    typename.c \
    xform.c \
    xray.c \
-   n65c.c
+   vcsc_cc1.c
 
 SRC = $(SRCSRC) $(GENSRC)
 OBJ = $(SRC:.c=.o)
@@ -108,7 +108,7 @@ test:
 $(TARGET): version.h coverage_map.h $(GENHDR) $(GENSRC) $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
-n65c.o: version.h
+vcsc_cc1.o: version.h
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@

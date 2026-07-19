@@ -1,5 +1,5 @@
 //! @file compiler/compile_type.c
-//! @brief Implements type declaration and layout handling for the n65 compiler.
+//! @brief Implements type declaration and layout handling for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

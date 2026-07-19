@@ -1,0 +1,24 @@
+// vcsc-cc1
+// expectasm: sum:
+// expectasm: 	.byte $14, $00
+// expectasm: less:
+// expectasm: 	.byte $01
+// expectasm: pair:
+// expectasm: 	.byte $03, $00, $04, $00
+// expectasm: ptr:
+// expectasm: 	.byte <{base+1}, >{base+1}
+
+type uint8_t     { $size:1 $integer:unsigned };
+type void     { $size:0 };
+type *        { $size:2 $integer:unsigned $endian:little };
+type int16_t  { $size:2 $integer:signed $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint16_t sum := (2 + 3) * 4;
+uint8_t less := 2 + 1 < 5;
+uint16_t pair[2] := { 1 + 2, 8 >> 1 };
+uint16_t base;
+uint16_t *ptr := &base + 1;
+
+void main(void) {
+}

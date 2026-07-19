@@ -1,5 +1,5 @@
 //! @file compiler/compile_internal.h
-//! @brief Declares internal compiler interfaces for the n65 compiler.
+//! @brief Declares internal compiler interfaces for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_INTERNAL_H_

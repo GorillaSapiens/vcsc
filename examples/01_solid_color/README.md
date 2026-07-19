@@ -1,6 +1,13 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # First VCSC cartridge
 
-`solid_color.n` is the first complete unbanked 4K Atari 2600/VCS cartridge
+`solid_color.vcsc` is the first complete unbanked 4K Atari 2600/VCS cartridge
 produced by this reduced compiler.
 
 It uses the source-level static-frame ABI to call `choose_background()` and

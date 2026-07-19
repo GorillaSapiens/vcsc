@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.vcsc"
+
+alias DATA { 1, 2, \
+             3, 4 }
+
+void main(void) {
+   int8_t x[4] := DATA;
+}

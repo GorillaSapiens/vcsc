@@ -1,5 +1,5 @@
 //! @file compiler/compile_toplevel.c
-//! @brief Implements top-level declaration lowering for the n65 compiler.
+//! @brief Implements top-level declaration lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

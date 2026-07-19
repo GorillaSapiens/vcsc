@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda main$ppp + 0,y
+// expectasmordered: sta ptr0
+// expectasmordered: iny
+// expectasmordered: lda main$ppp + 0,y
+// expectasmordered: sta ptr0+1
+// expectasmordered: ldy #0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: sta arg0
+// expectasmordered: lda arg0
+// expectasmordered: sta ptr0
+// expectasmordered: ldy #0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: sta arg0
+// expectasmordered: lda arg0
+// expectasmordered: sta ptr0
+// expectasmordered: sta (ptr0),y
+
+include "machine_6502.vcsc"
+
+int16_t main(void) {
+   int16_t x;
+   int16_t *p;
+   int16_t **pp;
+   int16_t ***ppp;
+   p := &x;
+   pp := &p;
+   ppp := &pp;
+   ***ppp := 7;
+   return ***ppp;
+}

@@ -1,5 +1,5 @@
 //! @file assembler/directive.c
-//! @brief Implements assembler directive handling for the n65 assembler.
+//! @brief Implements assembler directive handling for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

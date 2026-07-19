@@ -1,3 +1,10 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # batari Basic kernel import
 
 This directory vendors the current batari Basic Atari 2600 kernel source tree into

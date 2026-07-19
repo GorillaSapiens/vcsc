@@ -12,9 +12,9 @@ CFLAGS += -DILLEGAL_OPCODES
 # for optimization
 #CFLAGS += -O2
 
-TARGET = n65sim
+TARGET = vcsc-sim
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755

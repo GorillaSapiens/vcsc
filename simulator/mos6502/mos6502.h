@@ -1,5 +1,5 @@
 //! @file simulator/mos6502/mos6502.h
-//! @brief Declares the embedded MOS 6502 CPU emulator interface used by n65sim.
+//! @brief Declares the embedded MOS 6502 CPU emulator interface used by vcsc-sim.
 //! @ingroup simulator
 
 //============================================================================
@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-//! Callback-driven MOS 6502 emulator used by the n65 simulator frontend.
+//! Callback-driven MOS 6502 emulator used by the VCSC simulator frontend.
 class mos6502
 {
    private:

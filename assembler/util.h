@@ -1,5 +1,5 @@
 //! @file assembler/util.h
-//! @brief Declares shared assembler utilities for the n65 assembler.
+//! @brief Declares shared assembler utilities for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef UTIL_H

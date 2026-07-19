@@ -1,0 +1,66 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.vcsc"
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   int16_t x := 3;
+   int16_t y := 0;
+
+   switch (x) {
+      case 1 + 2:
+         y := y + 1;
+         break;
+      default:
+         asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
+   }
+
+   x := 8;
+   switch (x) {
+      case ((1 + 2) * 3 == 9) ? 8 : 7:
+         y := y + 2;
+         break;
+      default:
+         asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff;
+   }
+
+   x := 5;
+   switch (x) {
+      case 6 - 1 to 2 * 3:
+         y := y + 4;
+         break;
+      default:
+         asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff;
+   }
+
+   x := 5;
+   switch (x) {
+      case 1 | 4 ^ 1 & 7:
+         y := y + 8;
+         break;
+      default:
+         asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff;
+   }
+
+   x := 4;
+   switch (x) {
+      case 1 << 2:
+         y := y + 16;
+         break;
+      default:
+         asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff;
+   }
+
+   if (y != 31) {
+      asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff;
+   }
+
+   pass();
+}

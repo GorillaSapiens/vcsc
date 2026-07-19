@@ -1,0 +1,47 @@
+// vcsc-cc1 -I .
+// linkcfg: e2e_named_memory_regions__named.cfg
+// expectmap: BSS.banana       run=$0400 size=$0005
+// expectmap: DATA.banana      load=
+// expectmap: run=$0405 size=$000B
+// expectsim: OK
+include "machine_6502.vcsc"
+mem banana { $start:0x0400 $size:0x0100 $rw };
+
+banana int16_t x := 5;
+banana int8_t z;
+
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+int16_t read_banana(banana int16_t p) {
+   banana int16_t q := 7;
+   if (p == 5 && q == 7 && z == 0) {
+      return 1;
+   }
+   return 0;
+}
+
+void main(void) {
+   if (x == 5 && read_banana(x)) {
+      print_ok();
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

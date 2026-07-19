@@ -1,8 +1,15 @@
-# n65asm
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
+# vcsc-as
 
 ## Overview
 
-`n65asm` is a custom two-pass 6502 assembler with:
+`vcsc-as` is a custom two-pass 6502 assembler with:
 
 - Intel HEX output
 - relocatable o65 object output
@@ -34,7 +41,7 @@ Assembler identifiers may contain `?` and `@`, but symbols beginning with `@` ar
 
 ## Command Line Parameters
 
-`n65asm` follows the usual GNU `as` command-line shape:
+`vcsc-as` follows the usual GNU `as` command-line shape:
 
 - the input source is a positional operand
 - `-o` selects the primary relocatable object output
@@ -43,7 +50,7 @@ Assembler identifiers may contain `?` and `@`, but symbols beginning with `@` ar
 ### Usage
 
 ```sh
-n65asm [options] file
+vcsc-as [options] file
 ```
 
 ### Primary options
@@ -57,13 +64,13 @@ Input assembly source file.
 Write relocatable o65 object output to `<file>`.
 
 ```sh
-n65asm -o program.o65 program.s
+vcsc-as -o program.o65 program.s
 ```
 
-If neither `-o` nor `--hex` is given, `n65asm` writes relocatable output using the GNU-`as` style default name `a.out`.
+If neither `-o` nor `--hex` is given, `vcsc-as` writes relocatable output using the GNU-`as` style default name `a.out`.
 
 ```sh
-n65asm program.s
+vcsc-as program.s
 ```
 
 #### `-I <dir>`, `--include <dir>`
@@ -71,20 +78,20 @@ n65asm program.s
 Add a directory to the include search path. May be repeated.
 
 ```sh
-n65asm -I common -I board -o program.o65 program.s
+vcsc-as -I common -I board -o program.o65 program.s
 ```
 
 ### Auxiliary outputs
 
-These outputs are optional and keep the existing n65-specific spelling.
+These outputs are optional and keep the existing VCSC-specific spelling.
 
 #### `--hex[=file]`
 
 Write Intel HEX output. If no filename is supplied, the name is derived from the input path with a `.hex` extension.
 
 ```sh
-n65asm --hex program.s
-n65asm --hex=program.hex program.s
+vcsc-as --hex program.s
+vcsc-as --hex=program.hex program.s
 ```
 
 #### `--lst[=file]`
@@ -92,8 +99,8 @@ n65asm --hex=program.hex program.s
 Write a listing file. If no filename is supplied, the name is derived from the input path with a `.lst` extension.
 
 ```sh
-n65asm --lst program.s
-n65asm --lst=program.lst program.s
+vcsc-as --lst program.s
+vcsc-as --lst=program.lst program.s
 ```
 
 #### `--map[=file]`
@@ -101,8 +108,8 @@ n65asm --lst=program.lst program.s
 Write a map file. If no filename is supplied, the name is derived from the input path with a `.map` extension.
 
 ```sh
-n65asm --map program.s
-n65asm --map=program.map program.s
+vcsc-as --map program.s
+vcsc-as --map=program.map program.s
 ```
 
 ### Opcode-table options
@@ -112,7 +119,7 @@ n65asm --map=program.map program.s
 Load an additional opcode configuration file after the bundled `default.cfg`. May be repeated. Later files can extend or override earlier mnemonic ... mode mappings, but they cannot assign an already-described opcode byte to a different addressing mode.
 
 ```sh
-n65asm --opcode-cfg cpu65c02.cfg -o program.o65 program.s
+vcsc-as --opcode-cfg cpu65c02.cfg -o program.o65 program.s
 ```
 
 #### `--illegals`
@@ -120,7 +127,7 @@ n65asm --opcode-cfg cpu65c02.cfg -o program.o65 program.s
 Load the bundled `illegals.cfg` in addition to the always-loaded `default.cfg`. This enables named unofficial or illegal opcodes such as `LAX`, `SAX`, `DCP`, `ISC`, `SLO`, `RLA`, `SRE`, `RRA`, representative unofficial `NOP` forms, and representative halt names `KIL`, `JAM`, and `HLT`. Raw `opXX` byte validation does not require this flag, because `default.cfg` already contains operand-shape metadata for all 256 opcode bytes.
 
 ```sh
-n65asm --illegals --hex=program.hex program.s
+vcsc-as --illegals --hex=program.hex program.s
 ```
 
 ### Input/output aliases
@@ -132,19 +139,19 @@ These forms are accepted in addition to the primary command-line shape.
 Alias for the positional input file.
 
 ```sh
-n65asm --input program.s --lst
+vcsc-as --input program.s --lst
 ```
 
 #### `--o65[=file]`
 
 Alias for object output.
 
-- `n65asm --o65 program.s` writes `program.o65`
-- `n65asm --o65=custom.o65 program.s` writes `custom.o65`
+- `vcsc-as --o65 program.s` writes `program.o65`
+- `vcsc-as --o65=custom.o65 program.s` writes `custom.o65`
 
 ```sh
-n65asm --o65 program.s
-n65asm --o65=program.o65 program.s
+vcsc-as --o65 program.s
+vcsc-as --o65=program.o65 program.s
 ```
 
 ### Help
@@ -154,7 +161,7 @@ n65asm --o65=program.o65 program.s
 Show usage and exit.
 
 ```sh
-n65asm --help
+vcsc-as --help
 ```
 
 ## Examples
@@ -162,25 +169,25 @@ n65asm --help
 Generate a default object file named `a.out`:
 
 ```sh
-n65asm program.s
+vcsc-as program.s
 ```
 
 Generate a named object file:
 
 ```sh
-n65asm -o program.o65 program.s
+vcsc-as -o program.o65 program.s
 ```
 
 Generate Intel HEX plus listing and map files using derived names:
 
 ```sh
-n65asm --hex --lst --map program.s
+vcsc-as --hex --lst --map program.s
 ```
 
 Generate every output explicitly:
 
 ```sh
-n65asm -o out.o65 --hex=out.hex --lst=out.lst --map=out.map test.s
+vcsc-as -o out.o65 --hex=out.hex --lst=out.lst --map=out.map test.s
 ```
 
 ## Behavior Notes
@@ -190,13 +197,13 @@ n65asm -o out.o65 --hex=out.hex --lst=out.lst --map=out.map test.s
 For `--hex`, `--lst`, `--map`, and `--o65`, use the `=` form when supplying an optional filename:
 
 ```sh
-n65asm --hex=program.hex --lst=program.lst --map=program.map --o65=program.o65 program.s
+vcsc-as --hex=program.hex --lst=program.lst --map=program.map --o65=program.o65 program.s
 ```
 
 Avoid relying on a space-separated optional value such as:
 
 ```sh
-n65asm --hex program.hex program.s
+vcsc-as --hex program.hex program.s
 ```
 
 With `getopt_long()`, that extra token may be treated as a positional operand instead of an option value.
@@ -222,10 +229,10 @@ The assembler preprocesses the root source before lexing/parsing:
 8. relaxation
 9. pass 2 emission
 
-By default `n65asm` stays quiet on success. If you want to trace the relaxation work, enable the assembler xray:
+By default `vcsc-as` stays quiet on success. If you want to trace the relaxation work, enable the assembler xray:
 
 ```text
-n65asm -X passes --hex=program.hex program.s
+vcsc-as -X passes --hex=program.hex program.s
 ```
 
 That prints a pass-oriented trace: the first pass shows the full component sizes one item per line, later passes show only the fields that changed, and the stable pass prints the final sizes again. For example:
@@ -266,7 +273,7 @@ This means `.include` and macros are **source-level features**, not parser-level
 
 ### Rich opcode support
 
-`n65asm` loads its opcode table from config files:
+`vcsc-as` loads its opcode table from config files:
 
 - `default.cfg` is always loaded automatically from the source-tree assembler directory or installed `share/cfg` directory
 - `default.cfg` contains the official 6502 mnemonics plus `opXX` placeholder entries for otherwise unnamed opcode bytes, so raw opcode validation has metadata for all 256 byte values

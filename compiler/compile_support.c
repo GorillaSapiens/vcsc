@@ -1,5 +1,5 @@
 //! @file compiler/compile_support.c
-//! @brief Implements shared compiler support routines for the n65 compiler.
+//! @brief Implements shared compiler support routines for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>
@@ -137,7 +137,7 @@ void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *
    lease->saved_high_water = ctx ? ctx->locals_high_water : 0;
    lease->reserved = reserved > 0 ? reserved : 1;
    lease->used = lease->reserved;
-   snprintf(lease->symbol, sizeof(lease->symbol), "__n65_scratch_%d", slot->symbol_id);
+   snprintf(lease->symbol, sizeof(lease->symbol), "__vcsc_scratch_%d", slot->symbol_id);
 }
 
 void compiler_scratch_note_used(CompilerScratchLease *lease, int used) {
@@ -228,7 +228,7 @@ void compiler_scratch_emit_bss(void) {
             continue;
          }
          emit(&es_bss, ".segment \"BSS\"\n");
-         emit(&es_bss, "__n65_scratch_%d:\n", slot->symbol_id);
+         emit(&es_bss, "__vcsc_scratch_%d:\n", slot->symbol_id);
          emit(&es_bss, "\t.res %d\n", slot->max_size);
       }
    }
@@ -351,7 +351,7 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
    type = mem_metadata_type_flag(flags);
 
    if (!have_start || (!have_size && !have_end) || !type || !strcmp(type, "conflict")) {
-      error_user("[%s:%d.%d] mem region '%s' is used for storage and must declare $start plus $size or $end and exactly one of $rw/$ro so n65ld can validate it against the linker cfg",
+      error_user("[%s:%d.%d] mem region '%s' is used for storage and must declare $start plus $size or $end and exactly one of $rw/$ro so vcsc-ld can validate it against the linker cfg",
             origin ? origin->file : mem_decl->file,
             origin ? origin->line : mem_decl->line,
             origin ? origin->column : mem_decl->column,

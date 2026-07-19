@@ -1,5 +1,5 @@
 //! @file compiler/set.h
-//! @brief Declares string-keyed set/map collection for the n65 compiler.
+//! @brief Declares string-keyed set/map collection for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_SET_H_

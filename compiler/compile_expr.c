@@ -1,5 +1,5 @@
 //! @file compiler/compile_expr.c
-//! @brief Implements expression lowering entry points for the n65 compiler.
+//! @brief Implements expression lowering entry points for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

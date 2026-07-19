@@ -1,0 +1,15 @@
+// vcsc-cc1 -I ../libraries/vcs
+// linkcfg: ../libraries/vcs/vcs_4k.cfg
+// expectlinkfail
+// expectlinkerr: RAM overflow while placing BSS
+
+include "vcs.vcsc"
+
+// The linker dynamically reserves the hardware stack from the top of the
+// 128-byte RIOT RAM block. A 128-byte global must fail rather than overlap the
+// call-graph-derived reserve or the runtime's own storage.
+int8_t payload[128];
+
+void main(void) {
+   payload[0] := 1;
+}

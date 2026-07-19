@@ -1,5 +1,5 @@
 //! @file compiler/compile_function.c
-//! @brief Implements function ABI lowering for the n65 compiler.
+//! @brief Implements function ABI lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

@@ -1,11 +1,18 @@
-# n65sim
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-`n65sim` loads a linked Intel HEX image into a 64 KiB 6502 memory array, resets the bundled MOS 6502 core, and runs until the simulated program exits through the simulator dispatch hook.
+# vcsc-sim
+
+`vcsc-sim` loads a linked Intel HEX image into a 64 KiB 6502 memory array, resets the bundled MOS 6502 core, and runs until the simulated program exits through the simulator dispatch hook.
 
 ## Command line
 
 ```sh
-./n65sim [options] program.hex
+./vcsc-sim [options] program.hex
 ```
 
 The simulator expects an Intel HEX input file.
@@ -13,11 +20,11 @@ It accepts the input `.hex`, optional trace mask, and optional linker-style cfg 
 Supported forms are:
 
 ```sh
-./n65sim program.hex
-./n65sim program.hex 0x0c
-./n65sim --trace 0x0c program.hex
-./n65sim --trace=0x20 program.hex -T linker/cfg/sim.cfg
-./n65sim linker/cfg/sim.cfg program.hex 0x20
+./vcsc-sim program.hex
+./vcsc-sim program.hex 0x0c
+./vcsc-sim --trace 0x0c program.hex
+./vcsc-sim --trace=0x20 program.hex -T linker/cfg/sim.cfg
+./vcsc-sim linker/cfg/sim.cfg program.hex 0x20
 ```
 
 The trace argument is parsed with `strtoul(..., 0)`, so decimal, hex, and octal forms all work.
@@ -38,9 +45,9 @@ The trace bit assignments in `simulator/main.cpp` are:
 Examples:
 
 ```sh
-./n65sim program.hex 0x0c
-./n65sim --trace=0x2f program.hex
-./n65sim --trace 0x20 program.hex -T linker/cfg/sim.cfg
+./vcsc-sim program.hex 0x0c
+./vcsc-sim --trace=0x2f program.hex
+./vcsc-sim --trace 0x20 program.hex -T linker/cfg/sim.cfg
 ```
 
 With tracing enabled, the simulator prints lines like:
@@ -63,10 +70,10 @@ Notes:
 
 ## Optional cfg-based ROM protection
 
-When a linker-style cfg is supplied with `-T`, `--config`, `--script`, or as a positional `.cfg` file, `n65sim` reads its `MEMORY` block and treats every `type = ro` region as read-only for guest writes. A guest write into one of those regions stops the simulator with a diagnostic such as:
+When a linker-style cfg is supplied with `-T`, `--config`, `--script`, or as a positional `.cfg` file, `vcsc-sim` reads its `MEMORY` block and treats every `type = ro` region as read-only for guest writes. A guest write into one of those regions stops the simulator with a diagnostic such as:
 
 ```text
-n65sim: write to read-only memory at $2FFF
+vcsc-sim: write to read-only memory at $2FFF
 ```
 
 This protection applies only to guest-side writes through the emulated CPU. The simulator allows its own image loader and internal `$FFFF` dispatch shim to touch memory as needed.
@@ -74,7 +81,7 @@ This protection applies only to guest-side writes through the emulated CPU. The 
 ## Dispatch hook
 
 The simulator reserves `JSR $FFFF` as a host-call escape hatch.
-When the CPU reaches program counter `$FFFF`, `n65sim` does **not** execute whatever byte happens to live there. Instead it:
+When the CPU reaches program counter `$FFFF`, `vcsc-sim` does **not** execute whatever byte happens to live there. Instead it:
 
 1. reads the dispatch opcode from register `A`
 2. reads a 16-bit argument from `Y:X` (`X` = low byte, `Y` = high byte)

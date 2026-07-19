@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_
+// expectasm: jsr _ltNsle
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.vcsc"
+
+void compare(int16_t a, int16_t b) {
+   if (a < b) {
+   }
+}

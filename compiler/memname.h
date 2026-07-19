@@ -1,5 +1,5 @@
 //! @file compiler/memname.h
-//! @brief Declares memory-name declaration support for the n65 compiler.
+//! @brief Declares memory-name declaration support for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_MEMNAME_H_

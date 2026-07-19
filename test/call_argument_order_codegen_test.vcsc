@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$01
+// expectasmordered: sta ord4$a,y
+// expectasmordered: lda #$02
+// expectasmordered: sta ord4$b,y
+// expectasmordered: lda #$03
+// expectasmordered: sta ord4$c,y
+// expectasmordered: lda #$04
+// expectasmordered: sta ord4$d,y
+include "machine_6502.vcsc"
+
+int16_t ord4(int16_t a, int16_t b, int16_t c, int16_t d) {
+   return a + b + c + d;
+}
+
+int16_t main(void) {
+   return ord4(1, 2, 3, 4);
+}

@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// object: e2e_abi_struct_mismatch_fail__def.vcsc
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for global symbol 'shared' object type
+// expectlinkerr: e2e_abi_struct_mismatch_fail.o65: declaration -> memory struct#1(size=3){tag @0 storage=1 signed_integer(size=1); value @1 storage=2 signed_integer(size=2, little-endian)}
+// expectlinkerr: e2e_abi_struct_mismatch_fail__def.o65: definition -> memory struct#1(size=3){value @0 storage=2 signed_integer(size=2, little-endian); tag @2 storage=1 signed_integer(size=1)}
+include "machine_6502.vcsc"
+
+struct Packet {
+   int8_t tag;
+   int16_t value;
+};
+
+extern Packet shared;
+
+int16_t main(void) {
+   return shared.value;
+}

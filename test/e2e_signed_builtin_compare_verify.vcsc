@@ -1,0 +1,19 @@
+// vcsc-cc1 -I . -I ../libraries/runtime
+// expectexit: 0
+
+include "machine_6502.vcsc"
+
+void main(void) {
+   int8_t i8 := 0;
+   int16_t i16 := 0;
+   i8 := i8 - 1;
+   i16 := i16 - 1;
+
+   if (i8 >= 0) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (i16 >= 0) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

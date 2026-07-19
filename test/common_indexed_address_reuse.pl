@@ -18,10 +18,10 @@ sub run_capture {
 
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
 $repo=abs_path($repo) // die "bad repo\n"; $tmp=abs_path($tmp) // die "bad tmp\n";
-my $src=File::Spec->catfile($tmp,'common_indexed_address_reuse.n');
+my $src=File::Spec->catfile($tmp,'common_indexed_address_reuse.vcsc');
 my $asm=File::Spec->catfile($tmp,'common_indexed_address_reuse.s');
 write_file($src, <<'SRC');
-include "machine_6502.n"
+include "machine_6502.vcsc"
 struct Pair { uint16_t a; uint16_t b; };
 Pair pairs[4];
 uint8_t i;
@@ -35,9 +35,9 @@ void different_index(void) {
    different_result := pairs[i].a + pairs[j].b;
 }
 SRC
-my $n65c=File::Spec->catfile($repo,'compiler','n65c');
+my $vcsc_cc1=File::Spec->catfile($repo,'compiler','vcsc-cc1');
 my $inc=File::Spec->catdir($repo,'test');
-my ($exit,$sig,$stdout,$stderr)=run_capture($n65c,'-quiet','-I',$inc,$src,'-o',$asm);
+my ($exit,$sig,$stdout,$stderr)=run_capture($vcsc_cc1,'-quiet','-I',$inc,$src,'-o',$asm);
 die "compiler exited $exit signal $sig\nstdout:\n$stdout\nstderr:\n$stderr" if $exit || $sig;
 die "unexpected compiler output\n$stdout$stderr" if $stdout ne '' || $stderr ne '';
 my $text=read_file($asm);

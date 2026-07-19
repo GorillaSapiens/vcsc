@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: multiple definitions for alias 'foo'
+
+include "machine_6502.vcsc"
+
+alias foo 1
+alias foo 2

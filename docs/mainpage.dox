@@ -1,11 +1,18 @@
-//! @mainpage n65 Toolchain
+//! @verbatim
+//!  __   __ ___  ___   ___
+//!  \ \ / // __|/ __| / __|
+//!   \ V /| (__ \__ \| (__
+//!    \_/  \___||___/ \___|
+//! @endverbatim
 //!
-//! @brief Developer documentation for the n65 compiler toolchain.
+//! @mainpage VCSC Toolchain
+//!
+//! @brief Developer documentation for the VCSC compiler toolchain.
 //!
 //! The tree is organized around small command-line tools that hand off plain
-//! intermediate artifacts: n65c compiles `.n` source to assembly, n65asm
-//! assembles source to Intel HEX or o65 objects, n65ld links o65 inputs,
-//! n65ar packages object archives, and n65cc coordinates the tools for
+//! intermediate artifacts: vcsc-cc1 compiles `.vcsc` source to assembly, vcsc-as
+//! assembles source to Intel HEX or o65 objects, vcsc-ld links o65 inputs,
+//! vcsc-ar packages object archives, and vcsc coordinates the tools for
 //! normal command-line use. Runtime support code and the simulator live beside
 //! those tools because they are installed or used by end-to-end builds, but the
 //! public tool modules below are the primary entry points for maintainers.
@@ -25,28 +32,28 @@
 //! - @ref simulator
 //!
 //! @defgroup compiler Compiler
-//! @brief Sources for n65c, including parsing, semantic checks, ABI metadata,
+//! @brief Sources for vcsc-cc1, including parsing, semantic checks, ABI metadata,
 //! AST transforms, and assembly emission.
 //!
 //! @defgroup assembler Assembler
-//! @brief Sources for n65asm, including lexer/parser glue, instruction
+//! @brief Sources for vcsc-as, including lexer/parser glue, instruction
 //! selection, relaxation, symbol management, listings, Intel HEX, and o65
 //! object emission.
 //!
 //! @defgroup linker Linker
-//! @brief Sources for n65ld, including o65/archive loading, configuration,
+//! @brief Sources for vcsc-ld, including o65/archive loading, configuration,
 //! relocation, layout, map output, and ABI metadata validation.
 //!
 //! @defgroup archiver Archiver
-//! @brief Sources for n65ar, the simple NAR65 archive reader/writer used by
+//! @brief Sources for vcsc-ar, the simple VCSCAR archive reader/writer used by
 //! the linker.
 //!
 //! @defgroup driver Driver
-//! @brief Sources for n65cc, the orchestration front-end that invokes the
+//! @brief Sources for vcsc, the orchestration front-end that invokes the
 //! compiler, assembler, linker, and archiver with installed search paths.
 //!
 //! @defgroup runtime Runtime support
 //! @brief Runtime headers and support sources used by compiled programs.
 //!
 //! @defgroup simulator Simulator
-//! @brief Simulator support used by n65sim for end-to-end execution checks.
+//! @brief Simulator support used by vcsc-sim for end-to-end execution checks.

@@ -1,3 +1,8 @@
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+
 VCSC PROJECT CONTEXT
 ====================
 
@@ -18,10 +23,10 @@ restart. When asked to "look at context.txt and figure out what to do next":
 
 Project goal
 ------------
-Reduce the existing general-purpose N 6502 toolchain to a small C-like language
-and toolchain aimed specifically at the Atari 2600/VCS. Compatibility with the
-old general-purpose language is not a goal. Features are being removed in
-controlled, testable vertical slices.
+Maintain VCSC as a brutally pared-down Atari VCS C-like compiler and companion
+toolchain aimed specifically at the Atari 2600/VCS. Compatibility with the old
+general-purpose N language or n65 tool names is not a goal. Features are changed
+in controlled, testable vertical slices.
 
 Current source lineage
 ----------------------
@@ -31,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_073232.tar.gz
+    vcsc.20260719_084516.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -43,10 +48,10 @@ Settled final-language decisions
 * The stock machine interface exposes four ordinary binary integer types and
   three unsigned packed-decimal integer types:
 
-      int8_t      bcd8_t
-      uint8_t     bcd16_t
-      int16_t     bcd24_t
-      uint16_t
+      int8_t      uint8_t
+      int16_t     uint16_t
+      bcd8_t      bcd16_t
+      bcd24_t
 
   The BCD types store two decimal digits per byte in little-endian digit-pair
   order and have numeric ranges 0..99, 0..9999, and 0..999999.
@@ -112,7 +117,7 @@ Completed vertical slices
    compiler-generated call-site scratch rather than allocating a software-stack
    call frame.
 8. Variadic functions and callable types have been removed. The lexer rejects
-   `...`; variadic call lowering, hidden metadata, `stdarg.n`, `sprintf.n`, and
+   `...`; variadic call lowering, hidden metadata, `stdarg.vcsc`, `sprintf.vcsc`, and
    the legacy direct-call software-stack fallback are gone.
 9. Function pointers and indirect calls have been removed. Function-pointer
    declarators and function names used as values are rejected; `_callptr0` and
@@ -160,7 +165,7 @@ Completed vertical slices
 21. Simple transparent typedef aliases are supported. `int`, `char`, and `bool`
     are ordinary identifiers and may be introduced as aliases for canonical
     types. String literals used through pointers are emitted in RODATA/ROM.
-22. The linker can emit flat `.bin` files, and examples/01_solid_color/solid_color.n builds
+22. The linker can emit flat `.bin` files, and examples/01_solid_color/solid_color.vcsc builds
     and verifies as a complete unbanked 4096-byte VCS cartridge with reset code
     at $F000, valid vectors, the static-frame ABI, and the real shared RIOT RAM
     map.
@@ -171,7 +176,7 @@ Completed vertical slices
     compile-time errors. The solid-color kernel now uses TIA register names.
 24. The VCS linker configuration declares all 128 physical RIOT RAM bytes and
     marks the region `callstack = callgraph`. After archive selection and
-    cross-object cycle validation, n65ld computes the longest linked call path,
+    cross-object cycle validation, vcsc-ld computes the longest linked call path,
     reserves four top-of-RAM bytes per function level, and reports/exports the
     resulting hardware-stack range. This includes return addresses and the
     compiler's known fp-preservation allowance; inline assembly and separately
@@ -181,11 +186,11 @@ Completed vertical slices
     byte stores, and byte-to-hardware-register stores lower directly. A simple
     uint8_t runtime index into a power-of-two-sized array element is scaled
     inline through compiler-owned arg0:arg1 and added to ptr0, with no
-    `__n65_indextmp_N` or generic multiply helper. The Ode player uses the
+    `__vcsc_indextmp_N` or generic multiply helper. The Ode player uses the
     natural `music[music_index].field` form, allocates zero BSS scratch, and
     retains only its two persistent state bytes.
 26. All remaining compiler-generated temporary BSS is pooled by function and
-    nesting depth as `__n65_scratch_N`. Sequential expressions in one function
+    nesting depth as `__vcsc_scratch_N`. Sequential expressions in one function
     reuse a depth slot; nested expressions receive deeper slots; caller and
     callee functions retain distinct physical storage. Leases remain live
     through final copy-out, are released LIFO, and are checked at translation-
@@ -193,7 +198,7 @@ Completed vertical slices
     same runtime-indexed aggregate element now compute the common address once
     and load both fields by offsets when strict side-effect-free conditions hold.
 27. Heap/`sbrk` support has been removed. The `_sbrk` and `__init_sbrk`
-    archive members, `_nl_sbrk` zero-page pointer, compiler name-mangling
+    archive members, `_vcsc_sbrk` zero-page pointer, compiler name-mangling
     exception, and allocator documentation are gone. `sbrk` is now an ordinary
     user identifier, and the runtime workspace shrank from 22 to 20 bytes.
 28. Explicit runtime `/`, `%`, `/=`, and `%=` operations whose divisor is a
@@ -203,9 +208,9 @@ Completed vertical slices
 29. The residual target software stack has been removed. Division/remainder
     use a private two-byte BSS workspace owned by the archive-selected `_divNle`
     member; programs without `/` or `%` link neither the helper nor its workspace.
-    `_nl_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
+    `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
     initialization, and the stale per-function `fp := sp` prologue are gone.
-    `_nl_fp` remains only as the temporary base for pooled fixed scratch.
+    `_vcsc_fp` remains only as the temporary base for pooled fixed scratch.
 30. Scalar/pointer return epilogues use direct zero-page loads from the hidden
     `$$` object. An 8-bit return emits `LDA zp; RTS`; a 16-bit return emits
     `LDA zp; LDX zp+1; RTS`. The object writer now correctly records a plain
@@ -219,18 +224,18 @@ Completed vertical slices
     overload resolver was replaced by a compact direct-function registry.
 32. Generic interrupt-entry support has been removed. The optional `nint`
     archive, compiled `_handle_nmi`/`_handle_irq` defaults, and separate
-    `nrt0_noint.s` member are gone. The stock startup archive member retains
+    `vcsc-rt0-noint.s` member are gone. The stock startup archive member retains
     only weak `__nmi` and `__irqbrk` RTI vector fillers because every 6502 image
     still requires vector addresses. The VCS 6507 has no connected hardware IRQ
     or NMI inputs, and the reduced runtime exposes no compiled interrupt-handler
     ABI.
 33. The installed generic 6502 machine definition and the two unwired
-    generic linker-layout files have been removed. `test/machine_6502.n`
+    generic linker-layout files have been removed. `test/machine_6502.vcsc`
     remains only as an isolated compiler-test fixture. Native VCS bindings,
     `vcs_4k.cfg`, and both retained batari Basic kernel families are guarded
     by a regression test.
 34. The linker's implicit generic machine map has been removed. Direct
-    `n65ld` use now requires an explicit script/config, while `n65cc` discovers
+    `vcsc-ld` use now requires an explicit script/config, while `vcsc` discovers
     and supplies `vcs_4k.cfg` from the source tree or installed `share/vcs`
     directory when the user does not pass `-T`. Generic end-to-end tests use
     the explicit test-only `test/generic_6502.cfg` layout.
@@ -306,7 +311,7 @@ At each ordinary direct call, the compiler leases the caller function's current
 scratch-depth slot. The caller:
 
 1. saves the current `fp` on the 6502 hardware stack;
-2. temporarily points `fp` at the live `__n65_scratch_N` lease;
+2. temporarily points `fp` at the live `__vcsc_scratch_N` lease;
 3. evaluates each argument left-to-right and copies the converted value to the
    corresponding callee parameter symbol;
 4. restores `fp` after each argument;
@@ -362,7 +367,7 @@ CPUSTACK regions. `vcs_4k.cfg` declares the full block:
 
     $80-$FF   128 physical bytes, with `callstack = callgraph`
 
-Before layout, n65ld shrinks that region from the top. For a maximum linked
+Before layout, vcsc-ld shrinks that region from the top. For a maximum linked
 source call depth D, the current reserve is `4 * D` bytes:
 
 * two bytes for each active JSR return address, including the assembly startup
@@ -396,7 +401,7 @@ Top-level software_stack_inventory.txt is the authoritative checked inventory.
 Compiler source contains zero `_pushN` allocation sites and zero `_popN` cleanup
 paths, and the runtime implementation has now been removed completely:
 
-* `_nl_sp` is not allocated, exported, or initialized;
+* `_vcsc_sp` is not allocated, exported, or initialized;
 * `_pushN`, `_popN`, and every `sp2ptr*` helper are absent from source and the
   runtime archive;
 * linker configurations no longer declare an `ARGSTACK` segment;
@@ -404,7 +409,7 @@ paths, and the runtime implementation has now been removed completely:
 * retained division/remainder uses a private two-byte BSS object in `_divNle`,
   selected from the runtime archive only when `/` or `%` is linked.
 
-`_nl_fp` remains active solely as the temporary addressing base for pooled fixed
+`_vcsc_fp` remains active solely as the temporary addressing base for pooled fixed
 scratch. The generic regression scans compiler/runtime source and the rebuilt
 archive so the removed stack machinery cannot quietly return.
 
@@ -446,75 +451,42 @@ For the wide-binary-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler and ABI:
+Hard-renamed tool implementations and build products:
 
-    compiler/abi_meta.c
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
-    compiler/compile_function_registry.c
-    compiler/compile_init.c
-    compiler/compile_init.h
-    compiler/compile_lvalue.c
-    compiler/compile_toplevel.c
-    compiler/compile_type.c
-    compiler/compile_type.h
+    driver/n65cc.c                -> driver/vcsc.c
+    compiler/n65c.c               -> compiler/vcsc_cc1.c
+    assembler/n65asm.c            -> assembler/vcsc_as.c
+    archiver/n65ar.c              -> archiver/vcsc_ar.c
+    linker/n65ld*.c/h             -> linker/vcsc_ld*.c/h
+    n65cc/n65c/n65asm/n65ld/...   -> vcsc/vcsc-cc1/vcsc-as/vcsc-ld/...
 
-Machine definitions and documentation:
+Hard-renamed runtime and installed layout:
 
-    README.md
-    NOTES.md
-    compiler/ABI.txt
-    compiler/README.md
-    libraries/vcs/README.md
-    libraries/vcs/vcs.n
-    test/machine_6502.n
+    libraries/nlib/               -> libraries/runtime/
+    nlib.a65                      -> libvcsc.a65
+    nlib.inc                      -> vcsc-runtime.inc
+    nrt0.s                        -> vcsc-rt0.s
+    nlib_zeropage.s               -> vcsc-zeropage.s
+    /opt/n                        -> /opt/vcsc
 
-Packed-BCD compile/code-generation tests added:
+All 347 language source, include, example, and test files formerly ending in
+`.n` now end in `.vcsc`. Their 347 old paths, plus 27 other renamed tool/runtime
+paths, are recorded individually in `remove.txt`.
 
-    test/bcd8_literal_range_error_test.n
-    test/bcd16_literal_range_error_test.n
-    test/bcd24_literal_range_error_test.n
-    test/bcd24_return_rejected_test.n
-    test/bcd_argument_literal_range_error_test.n
-    test/bcd_arithmetic_codegen_test.n
-    test/bcd_bitwise_rejected_test.n
-    test/bcd_constant_expression_initializer_codegen_test.n
-    test/bcd_literal_initializer_codegen_test.n
-    test/bcd_mixed_arithmetic_rejected_test.n
-    test/bcd_mixed_assignment_rejected_test.n
-    test/bcd_multiply_rejected_test.n
-    test/bcd_negative_literal_error_test.n
-    test/bcd_pointer_type_error_test.n
-    test/bcd_runtime_cast_rejected_test.n
-    test/bcd_runtime_literal_range_error_test.n
-    test/bcd_shift_rejected_test.n
-    test/bcd_signed_type_error_test.n
-    test/bcd_static_binary_constant_conversion_codegen_test.n
-    test/bcd_static_multiply_rejected_test.n
-    test/bcd_typedef_codegen_test.n
-    test/bcd_unary_minus_rejected_test.n
-    test/bcd_width_type_error_test.n
+Current source/build/documentation files were updated throughout the repository,
+including top-level and component Makefiles, driver/tool diagnostics, parser/test
+source discovery, ABI/runtime symbol names, archive reader/writer magic, install
+rules, examples, Doxygen configuration, and all maintained documentation.
 
-Packed-BCD and related end-to-end tests added:
+Tests added:
 
-    test/e2e_bcd_abi_mismatch_fail.n
-    test/e2e_bcd_abi_mismatch_fail__def.n
-    test/e2e_bcd_arithmetic_verify.n
-    test/e2e_bcd_literal_layout_verify.n
-    test/e2e_bcd_switch_verify.n
-    test/e2e_incdec_assignment_side_effect_verify.n
+    test/vcsc_branding.pl
+    test/vcsc_branding.test
 
-Existing VCS header regression extended:
-
-    test/vcs_headers_smoke_test.n
-
-Handoff state:
-
-    context.txt
-
-No files were intentionally removed. The retained batari Basic trees were not
-changed. remove.txt remains at 487 unique cumulative paths.
+The branding regression verifies the hard-cut paths and suffixes, the renamed
+archive signature, the documentation banners, and continued presence of both
+batari Basic kernel families. The vendored batari kernel source itself was not
+removed or translated. `remove.txt` now contains 861 unique cumulative paths.
 
 Build environment
 -----------------
@@ -539,17 +511,13 @@ Clean warning-as-error tools build:
 
 Result: passed.
 
-Packed-BCD focused suite:
-
-    27 passed, 0 failed, 27 total
-
 Compile suite:
 
     251 passed, 0 failed, 251 total
 
 End-to-end/generic suite:
 
-    107 passed, 0 failed, 107 total
+    108 passed, 0 failed, 108 total
 
 Staged install check:
 
@@ -557,8 +525,8 @@ Staged install check:
 
 Both examples still build directly as raw 4096-byte cartridges without an
 explicit `-T`. A separate staged-toolchain smoke build included installed
-`vcs.n`, declared a `bcd24_t`, performed packed-BCD addition, and produced an
-exact 4096-byte cartridge. Bare `n65ld` invocation without a script still fails
+`vcs.vcsc`, declared a `bcd24_t`, performed packed-BCD addition, and produced an
+exact 4096-byte cartridge. Bare `vcsc-ld` invocation without a script still fails
 with a focused diagnostic, while retained generic e2e tests use
 `test/generic_6502.cfg`.
 
@@ -598,7 +566,7 @@ The first unfinished item is the default next action.
 
 [x] 11. Remove operator overloading, `$exactops`, and weak built-in operator
         dispatch. Compiler source now emits zero `_pushN`/`_popN` calls. Keep
-        `_nl_fp` temporarily for pooled-scratch addressing; remove `_nl_sp` and
+        `_vcsc_fp` temporarily for pooled-scratch addressing; remove `_vcsc_sp` and
         the runtime helpers after obsolete runtime families are gone.
 
 [x] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
@@ -638,7 +606,7 @@ The first unfinished item is the default next action.
 
         Acceptance criteria:
 
-        [x] 15a. Express `music_tick()` in `ode_to_joy.n`; retain the const ROM
+        [x] 15a. Express `music_tick()` in `ode_to_joy.vcsc`; retain the const ROM
                   array of `MusicStep` structs and remove the companion player
                   assembly once the source version passes.
         [x] 15b. Fit the complete cartridge in the VCS RAM map without relying
@@ -668,9 +636,9 @@ The first unfinished item is the default next action.
         green.
 
         [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
-        [x] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
+        [x] 16b. Remove residual `_vcsc_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
-                  fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
+                  fixed workspace. Keep `_vcsc_fp` while pooled scratch uses it.
         [x] 16c. Fix retained compiler correctness defects inherited from N
                   before deleting more language machinery.
 
@@ -703,8 +671,8 @@ The first unfinished item is the default next action.
                             reference tree for possible conversion/adaptation.
                             It remains intentionally unwired for now, but tests
                             guard both standard and multisprite kernel families.
-                  [x] 16e3. Remove the generic installed `machine_6502.n` target
-                            and the unwired `libraries/nlib/n.cfg` and
+                  [x] 16e3. Remove the generic installed `machine_6502.vcsc` target
+                            and the unwired `libraries/runtime/n.cfg` and
                             `linker/default.cfg` layouts. Keep the test-local
                             generic machine fixture and all native VCS material.
                   [x] 16e4. Eliminated the linker's implicit generic non-VCS
@@ -725,26 +693,21 @@ The first unfinished item is the default next action.
                   increment/decrement expressions out of direct compare,
                   absolute-ref copy, byte-index, and `ref`-argument shortcuts.
 
-[ ] 17. After the functional reduction is complete, rename the project and
-        toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
-        filenames, binary names, paths, and user-visible identifiers as
-        appropriate. Preserve useful history where needed. Project tagline:
-        "a brutally pared-down Atari VCS C-like compiler".
+[x] 17. Rename the project and toolchain to `vcsc` as a hard cut. The public
+        driver is `vcsc`; companion tools are `vcsc-cc1`, `vcsc-as`, `vcsc-ld`,
+        `vcsc-ar`, and `vcsc-sim`. Source files use `.vcsc`; the runtime lives in
+        `libraries/runtime` and installs `libvcsc.a65` plus `vcsc-runtime.inc`.
+        Generated/runtime symbols use VCSC prefixes, the archive magic is
+        `VCSCAR\x01`, and no compatibility wrappers preserve obsolete commands.
+        Every maintained documentation file starts with the canonical lowercase
+        `vcsc` Standard-font FIGlet banner. Historical changelog entries retain
+        old spellings where needed to describe what actually happened.
 
-Proposed task-17 command names (not yet applied):
-
-    n65cc   -> vcsc          public compiler driver / normal entry point
-    n65c    -> vcsc-cc1      internal language front end
-    n65asm  -> vcsc-as       assembler
-    n65ld   -> vcsc-ld       linker
-    n65ar   -> vcsc-ar       archive tool
-    n65sim  -> vcsc-sim      compiler regression CPU simulator, not Stella
-
-Related proposed branding: rename source suffix `.n` to `.vcsc`; rename
-`libraries/nlib` to `libraries/runtime`, `nlib.a65` to `libvcsc.a65`, and
-`nlib.inc` to `vcsc-runtime.inc`. Keep `.o65` and `.a65` as format suffixes
-because they describe 6502 object/archive files rather than N branding. Prefer
-a hard cut rather than permanent compatibility wrappers.
+[ ] 18. Inventory the retained batari Basic standard and multisprite kernels for
+        conversion to VCSC. Identify required language, assembler, linker, and
+        runtime capabilities; separate mechanical syntax conversion from real
+        kernel-model incompatibilities; then propose an incremental conversion
+        plan before modifying the vendored kernel source.
 
 Inline assembly absolute-ref rules
 ----------------------------------
@@ -770,9 +733,9 @@ still does not track register or flag clobbers.
 Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
-Functional reduction task 16 is complete. The next queued action is task 17:
-rename the project and toolchain to `vcsc`, removing obsolete N/n65/nlib
-branding from user-visible names and paths while preserving useful history.
+Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
+The next queued action is task 18: inventory conversion requirements and produce
+an incremental plan before changing any vendored kernel source.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1524,6 +1487,30 @@ reproducibly rather than the exact instant of each individual source edit.
   installation check. No files were removed; remove.txt remains at 487 unique
   cumulative paths, and the retained batari Basic trees were untouched.
 
+2026-07-19 09:04:39 PDT, complete hard VCSC project and toolchain rename
+* Renamed the public driver and companion binaries to `vcsc`, `vcsc-cc1`,
+  `vcsc-as`, `vcsc-ld`, `vcsc-ar`, and `vcsc-sim`; renamed their implementation
+  files without trying to use executable hyphens as C identifiers.
+* Renamed all 347 language sources from `.n` to `.vcsc`, changed driver and test
+  discovery accordingly, and renamed the production runtime from
+  `libraries/nlib` to `libraries/runtime` with `libvcsc.a65`,
+  `vcsc-runtime.inc`, `vcsc-rt0.s`, and `vcsc-zeropage.s`.
+* Renamed generated compiler/runtime symbols from the obsolete N prefixes to
+  `__vcsc_*` and `_vcsc_*`, changed the default installation prefix to
+  `/opt/vcsc`, and changed the archive signature to the intentionally
+  incompatible seven-byte `VCSCAR\x01` magic. No old-command wrappers or archive
+  compatibility path remains.
+* Added the canonical lowercase `vcsc` FIGlet Standard banner to all 22
+  maintained Markdown, text, and Doxygen documentation files. Legal license
+  texts and machine-readable `remove.txt` remain unbannered.
+* Added a hard-rename regression that rejects stale `.n`, n65, and nlib artifacts,
+  verifies all documentation banners and archive magic, and requires both
+  retained batari Basic kernel families.
+* Added 374 renamed old paths to `remove.txt`; it now contains 861 unique
+  cumulative paths. Added two branding-regression files and deliberately did
+  not remove or translate any batari kernel source.
+* Passed 251/251 compile tests and 108/108 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, and the staged installation check.
 
 End-of-session checklist
 ------------------------

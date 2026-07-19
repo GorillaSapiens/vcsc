@@ -1,10 +1,17 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # Test harness notes
 
 `test/test.pl` is the single test runner for this tree.
 
 It runs two kinds of files:
 
-- `.n` source tests ... compiler-only checks by default, or full end-to-end `n65c -> n65asm -> n65ld -> n65sim` when the header requests link/sim behavior
+- `.vcsc` source tests ... compiler-only checks by default, or full end-to-end `vcsc-cc1 -> vcsc-as -> vcsc-ld -> vcsc-sim` when the header requests link/sim behavior
 - `.test` script-style tests ... generic command wrappers driven entirely by header comments
 
 ## Common usage
@@ -30,8 +37,8 @@ Run only end-to-end and generic runtime tests:
 Run one test, a few tests, or a whole subdirectory:
 
 ```sh
-./test.pl operator_overloading_rejected_test.n
-./test.pl exactops_rejected_test.n e2e_call_argument_order_verify.n
+./test.pl operator_overloading_rejected_test.vcsc
+./test.pl exactops_rejected_test.vcsc e2e_call_argument_order_verify.vcsc
 ./test.pl .
 ```
 
@@ -41,12 +48,12 @@ The runner does not stop at the first failure. It prints per-test progress and s
 
 The harness reads leading comment lines from each test file.
 
-### `.n` tests
+### `.vcsc` tests
 
-Most `.n` tests use the first header line to describe the compile command, for example:
+Most `.vcsc` tests use the first header line to describe the compile command, for example:
 
-```n
-// n65c -I .
+```vcsc
+// vcsc-cc1 -I .
 ```
 
 Useful expectations include:
@@ -59,11 +66,11 @@ Useful expectations include:
 - `linkcfg:` / `simcfg:` / `simargs:` ... linker and simulator extras
 - `phase: compile|e2e|any` ... force how the runner classifies the test
 
-A plain `.n` file with only compile-side expectations is treated as a compile-only test. A `.n` file with link/sim expectations is treated as an e2e test.
+A plain `.vcsc` file with only compile-side expectations is treated as a compile-only test. A `.vcsc` file with link/sim expectations is treated as an e2e test.
 
 E2E tests without a `linkcfg:` directive use `test/generic_6502.cfg`, an
 explicit test-only layout matching the retained generic simulator fixtures.
-Production `n65ld` has no implicit layout, and production `n65cc` defaults to
+Production `vcsc-ld` has no implicit layout, and production `vcsc` defaults to
 the bundled VCS 4K script instead.
 
 `unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
@@ -73,7 +80,7 @@ the bundled VCS 4K script instead.
 Generic tests use an explicit runner command:
 
 ```text
-# runner: n65asm --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s
+# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s
 # expectstdout: wrote
 # expectexit: 0
 ```
@@ -85,8 +92,8 @@ Useful placeholders in `runner:` and related directives:
 - `@FILE@` ... current test file
 - `@FILEDIR@` ... directory containing the current test file
 - `@TMP@` ... per-test temporary work directory
-- `@NLIB@` ... default `libraries/nlib/nlib.a65`
-- `@NLIB_INC@` ... default `libraries/nlib/` include directory
+- `@RUNTIME@` ... default `libraries/runtime/libvcsc.a65`
+- `@RUNTIME_INC@` ... default `libraries/runtime/` include directory
 - `@GENERIC_LINK_CFG@` ... explicit test-only generic 6502 linker layout
 
 Useful generic expectations include:
@@ -99,7 +106,7 @@ Useful generic expectations include:
 
 ## Assembler fixture sources
 
-`assembler/tests/` contains assembler source fixtures that exercise `n65asm` directly rather than the N compiler. They are part of the normal harness through `test/assembler_fixture_suite.test`.  Some fixtures are intentionally invalid and
+`assembler/tests/` contains assembler source fixtures that exercise `vcsc-as` directly rather than the N compiler. They are part of the normal harness through `test/assembler_fixture_suite.test`.  Some fixtures are intentionally invalid and
 verify assembler diagnostics.
 
-- `driver_version_format.test` verifies that `n65cc -V` aligns tool-name colons and prints the resolved executable path for each tool.
+- `driver_version_format.test` verifies that `vcsc -V` aligns tool-name colons and prints the resolved executable path for each tool.

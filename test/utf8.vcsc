@@ -1,0 +1,5 @@
+// vcsc-cc1 -X parseonly -X dumpast
+
+include "machine_6502.vcsc"
+
+int16_t ε := 5;

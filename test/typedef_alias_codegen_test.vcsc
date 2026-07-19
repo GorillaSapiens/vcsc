@@ -1,0 +1,21 @@
+// vcsc-cc1 -I .
+// expectasm: .export add
+// expectasm: .byte $48, $65, $6c, $6c, $6f, $2c, $20, $57, $6f, $72, $6c, $64, $21, $0a, $00
+// expectasm: .segment "RODATA"
+// forbidasm: __data_
+include "machine_6502.vcsc"
+
+typedef int16_t int;
+typedef uint8_t char;
+typedef uint8_t bool;
+
+uint8_t *string := "Hello, World!\n";
+
+int add(int a, int b) {
+   bool nonzero := (a + b) != 0;
+   char low := a;
+   if (nonzero && low != 0) {
+      return a + b;
+   }
+   return 0;
+}

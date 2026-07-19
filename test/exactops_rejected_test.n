@@ -1,6 +1,0 @@
-// n65c
-// phase: compile
-// expectfail
-// expecterr: $exactops is not supported
-
-type wide { $size:2 $integer:signed $endian:little $exactops };

@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectasm: binary:
+// expectasm: 	.byte $2a
+include "machine_6502.vcsc"
+uint8_t binary := 42`bcd8_t;

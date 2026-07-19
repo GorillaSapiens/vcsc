@@ -1,5 +1,5 @@
 //! @file compiler/compile_expr_ops.h
-//! @brief Declares operator lowering helpers for the n65 compiler.
+//! @brief Declares operator lowering helpers for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_EXPR_OPS_H_

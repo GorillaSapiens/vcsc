@@ -1,5 +1,5 @@
 //! @file compiler/coverage.c
-//! @brief Implements grammar coverage instrumentation for the n65 compiler.
+//! @brief Implements grammar coverage instrumentation for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

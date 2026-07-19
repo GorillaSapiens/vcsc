@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.vcsc"
+
+int16_t set_ptr(int8_t *a, int8_t value) {
+   a[0] := value;
+   return 1;
+}
+
+int16_t set_arr(int8_t a[4], int8_t value) {
+   a[0] := value;
+   return 1;
+}
+
+void main(void) {
+   int8_t buf[6];
+   int8_t *p := buf;
+
+   set_ptr(buf, 'a');
+   set_arr(buf + 1, 'b');
+   set_ptr(p + 2, 'c');
+
+   if (buf[0] != 'a') { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (buf[1] != 'b') { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (buf[2] != 'c') { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

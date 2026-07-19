@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// object: e2e_abi_pointer_mismatch_fail__def.vcsc
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
+// expectlinkerr: e2e_abi_pointer_mismatch_fail.o65: declaration -> symbol_abs pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=1))
+// expectlinkerr: e2e_abi_pointer_mismatch_fail__def.o65: definition -> symbol_abs pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=2, little-endian))
+include "machine_6502.vcsc"
+
+int8_t *helper(int8_t *p);
+
+int16_t main(void) {
+   return helper((int8_t *)0) != (int8_t *)0;
+}

@@ -1,0 +1,28 @@
+// vcsc-cc1
+// expectasm: .export __init_
+// expectasm: .proc __init_
+// expectasm: jsr twice
+// expectasmordered: jsr twice
+// expectasmordered: sta  $0600
+// expectasmordered: sta  $0600 + 1
+// expectasmordered: lda #$34
+// expectasmordered: lda #$12
+// expectasmordered: sta  $0608
+// expectasmordered: sta  $0608 + 1
+
+include "machine_6502.vcsc"
+
+type u8 { $size:1 $integer:unsigned };
+
+type intlit { $size:2 $integer:signed $endian:little };
+
+int16_t twice(int16_t x) {
+   return x + x;
+}
+
+ref int16_t direct@0x0600 := twice(3) + 1;
+ref u8 split[2]@[none/0x0608] := { 52, 18 };
+
+int16_t main(void) {
+   return 0;
+}

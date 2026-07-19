@@ -1,5 +1,5 @@
 //! @file compiler/compile.c
-//! @brief Implements compiler front-end orchestration for the n65 compiler.
+//! @brief Implements compiler front-end orchestration for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>
@@ -161,8 +161,8 @@ void do_compile(FILE *out) {
    compiler_scratch_reset();
    enumbackings = pair_create();
 
-   emit(&es_header, "; this file produced by \"n65c\" compiler\n");
-   emit(&es_header, ".include \"nlib.inc\"\n");
+   emit(&es_header, "; this file produced by \"vcsc-cc1\" compiler\n");
+   emit(&es_header, ".include \"vcsc-runtime.inc\"\n");
    emit(&es_code,   ".segment \"CODE\"\n");
    emit(&es_rodata, ".segment \"RODATA\"\n");
    emit(&es_data,   ".segment \"DATA\"\n");

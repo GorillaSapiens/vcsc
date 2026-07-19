@@ -55,12 +55,12 @@ usage() if @ARGV;
 $repo = abs_path($repo) // die "could not resolve repo root: $repo\n";
 
 my @expected = (
-   [ 'n65cc',  File::Spec->catfile($repo, 'driver', 'n65cc') ],
-   [ 'n65c',   File::Spec->catfile($repo, 'compiler', 'n65c') ],
-   [ 'n65asm', File::Spec->catfile($repo, 'assembler', 'n65asm') ],
-   [ 'n65ld',  File::Spec->catfile($repo, 'linker', 'n65ld') ],
-   [ 'n65ar',  File::Spec->catfile($repo, 'archiver', 'n65ar') ],
-   [ 'n65sim', File::Spec->catfile($repo, 'simulator', 'n65sim') ],
+   [ 'vcsc',  File::Spec->catfile($repo, 'driver', 'vcsc') ],
+   [ 'vcsc-cc1',   File::Spec->catfile($repo, 'compiler', 'vcsc-cc1') ],
+   [ 'vcsc-as', File::Spec->catfile($repo, 'assembler', 'vcsc-as') ],
+   [ 'vcsc-ld',  File::Spec->catfile($repo, 'linker', 'vcsc-ld') ],
+   [ 'vcsc-ar',  File::Spec->catfile($repo, 'archiver', 'vcsc-ar') ],
+   [ 'vcsc-sim', File::Spec->catfile($repo, 'simulator', 'vcsc-sim') ],
 );
 
 for my $entry (@expected) {
@@ -71,10 +71,10 @@ for my $entry (@expected) {
 }
 
 my ($exit, $signal, $stdout, $stderr) = run_capture($expected[0]->[1], '-V');
-die "n65cc -V exited $exit signal $signal\n$stderr" if $exit != 0 || $signal != 0;
-die "n65cc -V wrote stderr:\n$stderr" if $stderr ne '';
-die "n65cc -V output is missing final newline\n" if $stdout !~ /\n\z/;
-die "n65cc -V output contains blank lines\n" if $stdout =~ /\n\n/;
+die "vcsc -V exited $exit signal $signal\n$stderr" if $exit != 0 || $signal != 0;
+die "vcsc -V wrote stderr:\n$stderr" if $stderr ne '';
+die "vcsc -V output is missing final newline\n" if $stdout !~ /\n\z/;
+die "vcsc -V output contains blank lines\n" if $stdout =~ /\n\n/;
 
 chomp(my $text = $stdout);
 my @lines = split(/\n/, $text, -1);

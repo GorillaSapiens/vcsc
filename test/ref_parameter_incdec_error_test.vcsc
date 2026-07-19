@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: argument 1 passed to ref parameter of function 'bump' must be an lvalue
+include "machine_6502.vcsc"
+
+void bump(ref uint8_t x) {
+   x++;
+}
+
+uint8_t value;
+
+void main(void) {
+   bump(value++);
+}

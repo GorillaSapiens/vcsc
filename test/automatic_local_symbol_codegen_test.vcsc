@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectasm: demo$x:
+// expectasm: .res 1
+// expectasmordered: lda demo$a,y
+// expectasmordered: sta demo$x,y
+// expectasmordered: lda demo$x,y
+// expectasmordered: sta demo$__return,y
+include "machine_6502.vcsc"
+
+
+uint8_t demo(uint8_t a) {
+   uint8_t x := a;
+   return x;
+}

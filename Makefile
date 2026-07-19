@@ -1,11 +1,11 @@
-PREFIX ?= /opt/n
+PREFIX ?= /opt/vcsc
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib
 INCLUDEDIR ?= $(PREFIX)/include
 DATADIR ?= $(PREFIX)/share
 CFGDIR ?= $(DATADIR)/cfg
-PACKAGE_PREFIX ?= /opt/n
+PACKAGE_PREFIX ?= /opt/vcsc
 PACKAGE_STAGING ?= $(CURDIR)/pkgroot
 INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
 DOXYGEN ?= doxygen
@@ -14,21 +14,21 @@ all: test
 
 .NOTPARALLEL:
 
-compiler/n65c:
-	@$(MAKE) --no-print-directory -C ./compiler n65c
+compiler/vcsc-cc1:
+	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1
 
-assembler/n65asm:
-	@$(MAKE) --no-print-directory -C ./assembler n65asm
+assembler/vcsc-as:
+	@$(MAKE) --no-print-directory -C ./assembler vcsc-as
 
-archiver/n65ar:
-	@$(MAKE) --no-print-directory -C ./archiver n65ar
+archiver/vcsc-ar:
+	@$(MAKE) --no-print-directory -C ./archiver vcsc-ar
 
 tools: clean
 	@$(MAKE) --no-print-directory -C ./assembler all
 	@$(MAKE) --no-print-directory -C ./linker all
 	@$(MAKE) --no-print-directory -C ./archiver all
-	@$(MAKE) --no-print-directory -C ./libraries/nlib all
-	@$(MAKE) --no-print-directory -C ./compiler n65c
+	@$(MAKE) --no-print-directory -C ./libraries/runtime all
+	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
 
@@ -36,7 +36,7 @@ clean:
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
-	@$(MAKE) --no-print-directory -C ./libraries/nlib clean
+	@$(MAKE) --no-print-directory -C ./libraries/runtime clean
 	@$(MAKE) --no-print-directory -C ./compiler clean
 	@$(MAKE) --no-print-directory -C ./simulator clean
 	@$(MAKE) --no-print-directory -C ./driver clean
@@ -55,15 +55,15 @@ install-core:
 	@$(MAKE) --no-print-directory -C ./simulator install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./driver install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	install -d $(DESTDIR)$(BINDIR)
-	@$(MAKE) --no-print-directory -C ./libraries/nlib install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
+	@$(MAKE) --no-print-directory -C ./libraries/runtime install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
 
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
-	install -m 0644 libraries/vcs/riot.n $(DESTDIR)$(DATADIR)/vcs/riot.n
-	install -m 0644 libraries/vcs/tia.n $(DESTDIR)$(DATADIR)/vcs/tia.n
-	install -m 0644 libraries/vcs/vcs.n $(DESTDIR)$(DATADIR)/vcs/vcs.n
+	install -m 0644 libraries/vcs/riot.vcsc $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
+	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
+	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	install -d $(DESTDIR)$(DATADIR)/vcs/batari-basic
 	install -m 0644 libraries/vcs/batari-basic/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/batari-basic/LICENSE.txt
@@ -72,7 +72,7 @@ install-data:
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
-	@$(MAKE) --no-print-directory -C ./libraries/nlib uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
+	@$(MAKE) --no-print-directory -C ./libraries/runtime uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./simulator uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./compiler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
@@ -82,9 +82,9 @@ uninstall:
 
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.n
-	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.n
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.n
+	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/batari-basic/LICENSE.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/batari-basic/OMITTED-UPSTREAM-ARTIFACTS.txt
@@ -93,16 +93,16 @@ uninstall-data:
 package: tools
 	rm -rf $(PACKAGE_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
-	tar -C $(PACKAGE_STAGING) -czf ./n.install.`date -u "+%Y-%m-%dT%H:%M:%SZ"`.tar.gz .
+	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y-%m-%dT%H:%M:%SZ"`.tar.gz .
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
-	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/n" BINDIR="/opt/n/bin" LIBDIR="/opt/n/lib" INCLUDEDIR="/opt/n/include" DATADIR="/opt/n/share" CFGDIR="/opt/n/share/cfg"
-	stage_bin="$(INSTALLCHECK_STAGING)/opt/n/bin"; \
-	stage_vcs="$(INSTALLCHECK_STAGING)/opt/n/share/vcs"; \
-	"$$stage_bin/n65cc" -print-prog-name=cc1 >/dev/null; \
-	"$$stage_bin/n65cc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/n65cc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.n" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
+	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" LIBDIR="/opt/vcsc/lib" INCLUDEDIR="/opt/vcsc/include" DATADIR="/opt/vcsc/share" CFGDIR="/opt/vcsc/share/cfg"
+	stage_bin="$(INSTALLCHECK_STAGING)/opt/vcsc/bin"; \
+	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
+	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
+	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.vcsc" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/solid_color.bin"` -eq 4096
 
 tar:
@@ -113,8 +113,8 @@ unit: tools
 	@$(MAKE) --no-print-directory -C ./test unit
 
 sieve: tools
-	./driver/n65cc -I test -T test/generic_6502.cfg test/sieve.n -o sieve.hex
-	simulator/n65sim sieve.hex | head
+	./driver/vcsc -I test -T test/generic_6502.cfg test/sieve.vcsc -o sieve.hex
+	simulator/vcsc-sim sieve.hex | head
 
 e2e: tools
 	@$(MAKE) --no-print-directory -C ./test e2e

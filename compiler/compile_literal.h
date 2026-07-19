@@ -1,5 +1,5 @@
 //! @file compiler/compile_literal.h
-//! @brief Declares literal lowering for the n65 compiler.
+//! @brief Declares literal lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_LITERAL_H_

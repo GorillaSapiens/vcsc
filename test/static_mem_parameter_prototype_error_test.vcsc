@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: parameter 'bar' of function 'foo' combines 'static' with mem region 'register'
+// expecterr: do not write both
+include "machine_6502.vcsc"
+mem register { $start:0x0000 $size:0x0010 $rw };
+
+extern int16_t foo(static register int16_t bar);
+
+int16_t main(void) {
+   return 0;
+}

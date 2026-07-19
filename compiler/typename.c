@@ -1,5 +1,5 @@
 //! @file compiler/typename.c
-//! @brief Implements type-name registry for the n65 compiler.
+//! @brief Implements type-name registry for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

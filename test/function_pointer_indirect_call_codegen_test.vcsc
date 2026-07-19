@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function pointers are not supported
+include "machine_6502.vcsc"
+
+int16_t inc(int16_t x) {
+   return x + 1;
+}
+
+int16_t (*fp)(int16_t) := inc;
+
+int16_t main(void) {
+   return fp(6);
+}

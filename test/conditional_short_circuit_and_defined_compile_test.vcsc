@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.vcsc"
+
+alias FLAG 0
+
+#if FLAG && !defined(MISSING_SYMBOL)
+this is broken
+#else
+void main(void) {
+   int16_t ok;
+   ok := 1;
+}
+#endif

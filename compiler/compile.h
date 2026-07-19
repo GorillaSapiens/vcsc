@@ -1,5 +1,5 @@
 //! @file compiler/compile.h
-//! @brief Declares compiler front-end orchestration for the n65 compiler.
+//! @brief Declares compiler front-end orchestration for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_H_

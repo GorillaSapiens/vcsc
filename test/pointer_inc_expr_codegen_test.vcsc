@@ -1,0 +1,17 @@
+// vcsc-cc1 -I .
+// expectasm: adc #$03
+// expectasm: sbc #$03
+
+include "machine_6502.vcsc"
+
+struct Triple { uint8_t b[3]; };
+
+int16_t main(void) {
+   Triple a[4];
+   Triple *p := &a[0];
+   Triple *q := p++;
+   Triple *r := ++p;
+   Triple *s := p--;
+   Triple *t := --p;
+   return (q - t) + (r - s);
+}

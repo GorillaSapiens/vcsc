@@ -1,11 +1,11 @@
 ROOT ?= ../..
-N65CC ?= $(ROOT)/driver/n65cc
+VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: solid_color.bin
 
-solid_color.bin: solid_color.n $(VCS_DIR)/vcs.n $(VCS_DIR)/tia.n $(VCS_DIR)/riot.n $(VCS_DIR)/vcs_4k.cfg
-	$(N65CC) -I $(VCS_DIR) -Map solid_color.map solid_color.n -o $@
+solid_color.bin: solid_color.vcsc $(VCS_DIR)/vcs.vcsc $(VCS_DIR)/tia.vcsc $(VCS_DIR)/riot.vcsc $(VCS_DIR)/vcs_4k.cfg
+	$(VCSC) -I $(VCS_DIR) -Map solid_color.map solid_color.vcsc -o $@
 	@test `wc -c < $@` -eq 4096
 
 clean:

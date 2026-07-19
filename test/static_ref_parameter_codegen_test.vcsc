@@ -1,0 +1,20 @@
+// vcsc-cc1
+// expectasm: bump$x:
+// expectasm: 	.res 2
+// expectasm: sta bump$x,y
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type u1   { $size:1 $integer:unsigned $endian:little };
+type int16_t  { $size:2 $integer:signed $endian:little };
+
+int16_t bump(static ref u1 x, u1 y) {
+   x += y;
+   return x;
+}
+
+int16_t main(void) {
+   u1 a := 7;
+   return bump(a, 2`u1);
+}

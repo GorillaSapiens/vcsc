@@ -1,0 +1,19 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: lda  $3C
+// expectasm: sta  $01
+// expectasm: lda #$2a
+// expectasm: sta  $0296
+// expectasm: sed
+// expectasm: cld
+// forbidasm: lda #<{$01 + 0}
+// forbidasm: lda #<{$0296 + 0}
+include "vcs.vcsc"
+
+int16_t main(void) {
+   int8_t x := INPT4;
+   bcd8_t score := 42;
+   score += 1;
+   VBLANK := x;
+   TIM64T := 42;
+   return INTIM + SWCHB;
+}

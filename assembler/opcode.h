@@ -1,5 +1,5 @@
 //! @file assembler/opcode.h
-//! @brief Declares 6502 opcode tables and lookup for the n65 assembler.
+//! @brief Declares 6502 opcode tables and lookup for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef OPCODE_H

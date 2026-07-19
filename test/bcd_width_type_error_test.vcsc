@@ -1,0 +1,6 @@
+// vcsc-cc1
+// expectfail
+// expecterr: packed-BCD type 'bad' has unsupported size 4
+ type void { $size:0 };
+ type * { $size:2 $integer:unsigned $endian:little };
+ type bad { $size:4 $integer:unsigned $endian:little $bcd };

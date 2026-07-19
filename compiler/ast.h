@@ -1,5 +1,5 @@
 //! @file compiler/ast.h
-//! @brief Declares abstract syntax tree support for the n65 compiler.
+//! @brief Declares abstract syntax tree support for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_AST_H_

@@ -1,5 +1,5 @@
 //! @file assembler/symtab.h
-//! @brief Declares assembler symbol table for the n65 assembler.
+//! @brief Declares assembler symbol table for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef SYMTAB_H

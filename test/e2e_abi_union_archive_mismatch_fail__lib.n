@@ -1,8 +1,0 @@
-include "machine_6502.n"
-
-union Shared {
-   int8_t bytes[3];
-   int16_t whole;
-};
-
-Shared shared_union;

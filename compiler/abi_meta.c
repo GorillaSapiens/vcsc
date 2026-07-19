@@ -1,5 +1,5 @@
 //! @file compiler/abi_meta.c
-//! @brief Implements ABI metadata emission for the n65 compiler.
+//! @brief Implements ABI metadata emission for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

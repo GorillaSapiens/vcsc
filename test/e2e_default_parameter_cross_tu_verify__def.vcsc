@@ -1,0 +1,6 @@
+include "machine_6502.vcsc"
+
+
+uint16_t cross_add(uint8_t a, uint16_t b) {
+   return a + b;
+}

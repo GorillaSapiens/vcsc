@@ -1,5 +1,5 @@
 //! @file assembler/expr.c
-//! @brief Implements assembler expression parsing and evaluation for the n65 assembler.
+//! @brief Implements assembler expression parsing and evaluation for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

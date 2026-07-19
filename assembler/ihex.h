@@ -1,5 +1,5 @@
 //! @file assembler/ihex.h
-//! @brief Declares Intel HEX emission for the n65 assembler.
+//! @brief Declares Intel HEX emission for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef IHEX_H

@@ -1,5 +1,5 @@
 //! @file compiler/set.c
-//! @brief Implements string-keyed set/map collection for the n65 compiler.
+//! @brief Implements string-keyed set/map collection for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

@@ -43,23 +43,23 @@ die usage() if $compile_only && $e2e_only;
 my $test_root = abs_path('.');
 my $repo_root = abs_path(File::Spec->catdir($test_root, '..'));
 
-my $n65c  = File::Spec->catfile($repo_root, 'compiler', 'n65c');
-my $n65cc = File::Spec->catfile($repo_root, 'driver', 'n65cc');
-my $n65asm = File::Spec->catfile($repo_root, 'assembler', 'n65asm');
-my $n65ld  = File::Spec->catfile($repo_root, 'linker', 'n65ld');
-my $n65ar  = File::Spec->catfile($repo_root, 'archiver', 'n65ar');
-my $n65sim = File::Spec->catfile($repo_root, 'simulator', 'n65sim');
-my $nlib = File::Spec->catfile($repo_root, 'libraries', 'nlib', 'nlib.a65');
-my $nlib_inc = File::Spec->catdir($repo_root, 'libraries', 'nlib');
+my $vcsc_cc1  = File::Spec->catfile($repo_root, 'compiler', 'vcsc-cc1');
+my $vcsc = File::Spec->catfile($repo_root, 'driver', 'vcsc');
+my $vcsc_as = File::Spec->catfile($repo_root, 'assembler', 'vcsc-as');
+my $vcsc_ld  = File::Spec->catfile($repo_root, 'linker', 'vcsc-ld');
+my $vcsc_ar  = File::Spec->catfile($repo_root, 'archiver', 'vcsc-ar');
+my $vcsc_sim = File::Spec->catfile($repo_root, 'simulator', 'vcsc-sim');
+my $runtime = File::Spec->catfile($repo_root, 'libraries', 'runtime', 'libvcsc.a65');
+my $runtime_inc = File::Spec->catdir($repo_root, 'libraries', 'runtime');
 my $generic_link_cfg = File::Spec->catfile($test_root, 'generic_6502.cfg');
 
 my %tool_alias = (
-   n65c  => $n65c,
-   n65cc => $n65cc,
-   n65asm => $n65asm,
-   n65ld  => $n65ld,
-   n65ar  => $n65ar,
-   n65sim => $n65sim,
+   'vcsc-cc1'  => $vcsc_cc1,
+   'vcsc' => $vcsc,
+   'vcsc-as' => $vcsc_as,
+   'vcsc-ld'  => $vcsc_ld,
+   'vcsc-ar'  => $vcsc_ar,
+   'vcsc-sim' => $vcsc_sim,
 );
 
 sub usage {
@@ -122,7 +122,7 @@ sub parse_runner_from_header {
          my @words = parse_words_safe($file, $1);
          return \@words if @words;
       }
-      if ($body =~ /^(n65c|n65cc|n65asm|n65ld|n65ar|n65sim|perl|make|stdbuf)\b(.*)$/) {
+      if ($body =~ /^(vcsc-cc1|vcsc|vcsc-as|vcsc-ld|vcsc-ar|vcsc-sim|perl|make|stdbuf)\b(.*)$/) {
          my @words = parse_words_safe($file, $body);
          return \@words if @words;
       }
@@ -434,18 +434,18 @@ sub require_file_expectations_result {
 
 sub compile_n_to_object {
    my ($src_name, $runner_args, $tmp, $test_name) = @_;
-   my ($stem) = $src_name =~ /^(.*)\.n$/;
+   my ($stem) = $src_name =~ /^(.*)\.vcsc$/;
    my $src_path = File::Spec->catfile($test_root, $src_name);
    my $s_path   = File::Spec->catfile($tmp, "$stem.s");
    my $o_path   = File::Spec->catfile($tmp, "$stem.o65");
    my $out_path = File::Spec->catfile($tmp, "$stem.compile.out");
    my $err_path = File::Spec->catfile($tmp, "$stem.compile.err");
-   my @cmd = ($n65c, '-quiet', @$runner_args, $src_path, '-o', $s_path, '-dumpbase', $src_name, '-dumpbase-ext', '.n', '-dumpdir', $tmp);
+   my @cmd = ($vcsc_cc1, '-quiet', @$runner_args, $src_path, '-o', $s_path, '-dumpbase', $src_name, '-dumpbase-ext', '.vcsc', '-dumpdir', $tmp);
    my ($exit_code) = run_cmd(\@cmd, $out_path, $err_path);
    if ($exit_code != 0) {
       return (undef, "$test_name extra compile exit code $exit_code\n" . join(' ', @cmd) . "\n" . slurp_file($err_path));
    }
-   my @asm_cmd = ($n65asm, '-I', $nlib_inc, '-o', $o_path, $s_path);
+   my @asm_cmd = ($vcsc_as, '-I', $runtime_inc, '-o', $o_path, $s_path);
    my ($asm_exit) = run_cmd(\@asm_cmd, File::Spec->catfile($tmp, "$stem.asm.out"), File::Spec->catfile($tmp, "$stem.asm.err"));
    if ($asm_exit != 0) {
       return (undef, "$test_name extra assemble exit code $asm_exit\n" . join(' ', @asm_cmd) . "\n" . slurp_file(File::Spec->catfile($tmp, "$stem.asm.err")));
@@ -464,7 +464,7 @@ sub run_compile_case {
    close($outfh);
    close($errfh);
 
-   my @cmd = ($n65c, '-quiet', @$runner_args, $case->{path});
+   my @cmd = ($vcsc_cc1, '-quiet', @$runner_args, $case->{path});
    my ($exit_code) = run_cmd(\@cmd, $outfile, $errfile);
 
    if ($meta->{expectfail}) {
@@ -487,7 +487,7 @@ sub run_compile_case {
    }
 
    my $stderr = slurp_file($errfile);
-   my $ctx = { '@REPO@' => $repo_root, '@TEST_ROOT@' => $test_root, '@FILE@' => $case->{path}, '@FILEDIR@' => dirname($case->{path}), '@TMP@' => dirname($outfile), '@NLIB@' => $nlib, '@NLIB_INC@' => $nlib_inc };
+   my $ctx = { '@REPO@' => $repo_root, '@TEST_ROOT@' => $test_root, '@FILE@' => $case->{path}, '@FILEDIR@' => dirname($case->{path}), '@TMP@' => dirname($outfile), '@RUNTIME@' => $runtime, '@RUNTIME_INC@' => $runtime_inc };
    my $err = require_substrings_result($stderr, $meta->{expecterr}, 'stderr');
    return fail_result($err) if defined $err;
    $err = require_absent_substrings_result($stderr, $meta->{forbiderr}, 'stderr');
@@ -502,7 +502,7 @@ sub run_e2e_case {
    my $file = $case->{name};
    my $runner_args = $case->{runner_args};
    my $meta = $case->{meta};
-   for my $tool ($n65c, $n65asm, $n65ld, $n65ar, $n65sim, $nlib, $generic_link_cfg) {
+   for my $tool ($vcsc_cc1, $vcsc_as, $vcsc_ld, $vcsc_ar, $vcsc_sim, $runtime, $generic_link_cfg) {
       return fail_result("missing required file: $tool") if !-e $tool;
    }
 
@@ -513,14 +513,14 @@ sub run_e2e_case {
       '@FILE@' => $case->{path},
       '@FILEDIR@' => dirname($case->{path}),
       '@TMP@' => $tmp,
-      '@NLIB@' => $nlib,
-      '@NLIB_INC@' => $nlib_inc,
+      '@RUNTIME@' => $runtime,
+      '@RUNTIME_INC@' => $runtime_inc,
       '@GENERIC_LINK_CFG@' => $generic_link_cfg,
    };
    my @compiled_objects;
    my @archives;
 
-   my ($stem) = $file =~ /^(.*)\.n$/;
+   my ($stem) = $file =~ /^(.*)\.vcsc$/;
    my $main_s   = File::Spec->catfile($tmp, "$stem.s");
    my $main_o65 = File::Spec->catfile($tmp, "$stem.o65");
    my $hex_path = File::Spec->catfile($tmp, 'out.hex');
@@ -528,7 +528,7 @@ sub run_e2e_case {
 
    my $compile_out = File::Spec->catfile($tmp, 'compile.out');
    my $compile_err = File::Spec->catfile($tmp, 'compile.err');
-   my @compile_cmd = ($n65c, '-quiet', @$runner_args, $case->{path}, '-o', $main_s, '-dumpbase', $file, '-dumpbase-ext', '.n', '-dumpdir', $tmp);
+   my @compile_cmd = ($vcsc_cc1, '-quiet', @$runner_args, $case->{path}, '-o', $main_s, '-dumpbase', $file, '-dumpbase-ext', '.vcsc', '-dumpdir', $tmp);
    my ($compile_exit) = run_cmd(\@compile_cmd, $compile_out, $compile_err);
    my $compile_stderr = slurp_file($compile_err);
 
@@ -545,7 +545,7 @@ sub run_e2e_case {
       return fail_result("compiler exit code $compile_exit\n" . join(' ', @compile_cmd) . "\n" . $compile_stderr);
    }
 
-   my @asm_cmd = ($n65asm, '-I', $nlib_inc, '-o', $main_o65, $main_s);
+   my @asm_cmd = ($vcsc_as, '-I', $runtime_inc, '-o', $main_o65, $main_s);
    my ($asm_exit) = run_cmd(\@asm_cmd, File::Spec->catfile($tmp, 'main_asm.out'), File::Spec->catfile($tmp, 'main_asm.err'));
    if ($asm_exit != 0) {
       return fail_result("assembler exit code $asm_exit\n" . join(' ', @asm_cmd) . "\n" . slurp_file(File::Spec->catfile($tmp, 'main_asm.err')));
@@ -559,14 +559,14 @@ sub run_e2e_case {
    }
 
    for my $arc_src_name (@{$meta->{archive}}) {
-      my ($stem2) = $arc_src_name =~ /^(.*)\.n$/;
+      my ($stem2) = $arc_src_name =~ /^(.*)\.vcsc$/;
       my ($o_path, $obj_err) = compile_n_to_object($arc_src_name, $runner_args, $tmp, $file);
       return fail_result($obj_err) if defined $obj_err;
       my $a_path = File::Spec->catfile($tmp, "$stem2.a65");
-      my @ncmd = ($n65ar, 'rcs', $a_path, $o_path);
-      my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$stem2.n65ar.out"), File::Spec->catfile($tmp, "$stem2.n65ar.err"));
+      my @ncmd = ($vcsc_ar, 'rcs', $a_path, $o_path);
+      my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$stem2.vcsc-ar.out"), File::Spec->catfile($tmp, "$stem2.vcsc-ar.err"));
       if ($nexit != 0) {
-         return fail_result("archive creation exit code $nexit\n" . join(' ', @ncmd) . "\n" . slurp_file(File::Spec->catfile($tmp, "$stem2.n65ar.err")));
+         return fail_result("archive creation exit code $nexit\n" . join(' ', @ncmd) . "\n" . slurp_file(File::Spec->catfile($tmp, "$stem2.vcsc-ar.err")));
       }
       push @archives, $a_path;
    }
@@ -587,20 +587,20 @@ sub run_e2e_case {
          my $archive_name = $group;
          $archive_name .= '.a65' if $archive_name !~ /\.a65$/;
          my $a_path = File::Spec->catfile($tmp, $archive_name);
-         my @ncmd = ($n65ar, 'rcs', $a_path, @group_objects);
-         my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$group.n65ar.out"), File::Spec->catfile($tmp, "$group.n65ar.err"));
+         my @ncmd = ($vcsc_ar, 'rcs', $a_path, @group_objects);
+         my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$group.vcsc-ar.out"), File::Spec->catfile($tmp, "$group.vcsc-ar.err"));
          if ($nexit != 0) {
-            return fail_result("archivegroup creation exit code $nexit\n" . join(' ', @ncmd) . "\n" . slurp_file(File::Spec->catfile($tmp, "$group.n65ar.err")));
+            return fail_result("archivegroup creation exit code $nexit\n" . join(' ', @ncmd) . "\n" . slurp_file(File::Spec->catfile($tmp, "$group.vcsc-ar.err")));
          }
          push @archives, $a_path;
       }
    }
 
-   my @link_cmd = ($n65ld, '-o', $hex_path, '-Map', $map_path, '-T',
+   my @link_cmd = ($vcsc_ld, '-o', $hex_path, '-Map', $map_path, '-T',
       defined($meta->{linkcfg})
          ? File::Spec->catfile($test_root, $meta->{linkcfg})
          : $generic_link_cfg);
-   push @link_cmd, @compiled_objects, @archives, $nlib;
+   push @link_cmd, @compiled_objects, @archives, $runtime;
    my $link_out = File::Spec->catfile($tmp, 'link.out');
    my $link_err = File::Spec->catfile($tmp, 'link.err');
    my ($link_exit) = run_cmd(\@link_cmd, $link_out, $link_err);
@@ -625,7 +625,7 @@ sub run_e2e_case {
 
    my $sim_out = File::Spec->catfile($tmp, 'sim.out');
    my $sim_err = File::Spec->catfile($tmp, 'sim.err');
-   my @sim_cmd = ('stdbuf', '-o0', $n65sim, @{$meta->{simargs}}, $hex_path);
+   my @sim_cmd = ('stdbuf', '-o0', $vcsc_sim, @{$meta->{simargs}}, $hex_path);
    if (defined $meta->{simcfg}) {
       push @sim_cmd, '-T', File::Spec->catfile($test_root, $meta->{simcfg});
    }
@@ -664,15 +664,15 @@ sub run_generic_case {
       '@FILE@' => $case->{path},
       '@FILEDIR@' => dirname($case->{path}),
       '@TMP@' => $tmp,
-      '@NLIB@' => $nlib,
-      '@NLIB_INC@' => $nlib_inc,
+      '@RUNTIME@' => $runtime,
+      '@RUNTIME_INC@' => $runtime_inc,
       '@GENERIC_LINK_CFG@' => $generic_link_cfg,
-      '@N65C@' => $n65c,
-      '@N65CC@' => $n65cc,
-      '@N65ASM@' => $n65asm,
-      '@N65LD@' => $n65ld,
-      '@N65AR@' => $n65ar,
-      '@N65SIM@' => $n65sim,
+      '@VCSC_CC1@' => $vcsc_cc1,
+      '@VCSC@' => $vcsc,
+      '@VCSC_AS@' => $vcsc_as,
+      '@VCSC_LD@' => $vcsc_ld,
+      '@VCSC_AR@' => $vcsc_ar,
+      '@VCSC_SIM@' => $vcsc_sim,
    };
    my @cmd = expand_tokens($case->{runner_words}, $ctx);
    my $out_path = File::Spec->catfile($tmp, 'stdout.txt');
@@ -718,11 +718,11 @@ sub load_case {
    return undef if !defined $runner_words;
    my $meta = parse_directives($path, $header_lines);
    my $name = File::Spec->abs2rel($path, $test_root);
-   my $is_n_source = ($path =~ /\.n$/);
-   my $kind = $is_n_source ? (is_e2e_case($meta) ? 'n-e2e' : 'n-compile') : 'generic';
+   my $is_vcsc_source = ($path =~ /\.vcsc$/);
+   my $kind = $is_vcsc_source ? (is_e2e_case($meta) ? 'vcsc-e2e' : 'vcsc-compile') : 'generic';
    my @runner_words_copy = @$runner_words;
    my @runner_args = @runner_words_copy;
-   if ($is_n_source && @runner_args && $runner_args[0] eq 'n65c') {
+   if ($is_vcsc_source && @runner_args && $runner_args[0] eq 'vcsc-cc1') {
       shift @runner_args;
    }
    return {
@@ -738,7 +738,7 @@ sub load_case {
 sub should_include_case {
    my ($case) = @_;
    my $phase = $case->{meta}->{phase};
-   my $is_e2e = ($case->{kind} eq 'n-e2e') || ($case->{kind} eq 'generic' && (!defined($phase) || $phase eq 'e2e'));
+   my $is_e2e = ($case->{kind} eq 'vcsc-e2e') || ($case->{kind} eq 'generic' && (!defined($phase) || $phase eq 'e2e'));
    $is_e2e = 0 if defined($phase) && $phase eq 'compile';
    return 0 if $compile_only && $is_e2e;
    return 0 if $e2e_only && !$is_e2e;
@@ -747,7 +747,7 @@ sub should_include_case {
 
 sub supported_test_filename {
    my ($name) = @_;
-   return ($name =~ /\.(?:n|test)$/);
+   return ($name =~ /\.(?:vcsc|test)$/);
 }
 
 sub resolve_requested_paths {
@@ -850,10 +850,10 @@ else {
 for my $case (@cases) {
    $index++;
    my $result;
-   if ($case->{kind} eq 'n-compile') {
+   if ($case->{kind} eq 'vcsc-compile') {
       $result = run_compile_case($case);
    }
-   elsif ($case->{kind} eq 'n-e2e') {
+   elsif ($case->{kind} eq 'vcsc-e2e') {
       $result = run_e2e_case($case);
    }
    else {

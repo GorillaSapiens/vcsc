@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectasm: @user_blk:
+// expectasm: nop
+// expectasm: @user_here:
+// expectasm: rts
+
+include "machine_6502.vcsc"
+
+void helper(void) {
+blk: {
+      asm nop;
+   }
+here: asm rts;
+}
+
+int16_t main(void) {
+   helper();
+   return 0;
+}

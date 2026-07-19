@@ -1,0 +1,33 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+int16_t ord2(int16_t a, int16_t b) {
+   return a + 10 * b;
+}
+
+int16_t ord3(int16_t a, int16_t b, int16_t c) {
+   return a + 10 * b + 100 * c;
+}
+
+int16_t ord4(int16_t a, int16_t b, int16_t c, int16_t d) {
+   return a + 10 * b + 100 * c + 1000 * d;
+}
+
+void main(void) {
+   int16_t r2;
+   int16_t r3;
+   int16_t r4;
+
+   r2 := ord2(1, 2);
+   r3 := ord3(1, 2, 3);
+   r4 := ord4(1, 2, 3, 4);
+
+   if (r2 != 21) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (r3 != 321) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (r4 != 4321) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

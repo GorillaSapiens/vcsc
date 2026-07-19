@@ -1,5 +1,5 @@
 //! @file compiler/compile_lvalue.c
-//! @brief Implements lvalue resolution and storage access for the n65 compiler.
+//! @brief Implements lvalue resolution and storage access for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

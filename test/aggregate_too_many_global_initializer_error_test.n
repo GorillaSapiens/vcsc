@@ -1,8 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: too many initializers for 'Pair'
-include "machine_6502.n"
-struct Pair {
-   int16_t a;
-};
-Pair g := { 1, 2 };

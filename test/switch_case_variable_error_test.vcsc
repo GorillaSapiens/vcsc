@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: syntax error, unexpected IDENTIFIER
+
+include "machine_6502.vcsc"
+
+int16_t main(void) {
+   int16_t x := 3;
+   int16_t y := 1;
+   switch (x) {
+      case y + 2:
+         return 1;
+      default:
+         return 0;
+   }
+}

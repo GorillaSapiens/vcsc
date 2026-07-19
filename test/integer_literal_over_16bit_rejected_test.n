@@ -1,9 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: integer '0x10000' is too big for 2 bytes!
-
-include "machine_6502.n"
-
-void main(void) {
-   uint16_t x := 0x10000;
-}

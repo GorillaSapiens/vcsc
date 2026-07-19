@@ -1,0 +1,21 @@
+// vcsc-cc1 -I .
+// expectasm: .zpexport a?
+// expectasm: .export b
+// expectasm: a?:
+// expectasm: .byte $05, $00
+// expectasm: b:
+mem banana   { $start:0x0000 $size:0x0100 $rw };
+mem zeropage { $start:0x0100 $size:0x0100 $rw };
+
+ type void { $size:0 };
+ type uint8_t { $size:1 $integer:unsigned };
+ type int8_t { $size:1 $integer:signed};
+ type * { $size:2 $integer:unsigned $endian:little };
+ type int16_t { $size:2 $integer:signed $endian:little };
+
+banana int16_t a := 5;
+zeropage int16_t b := 6;
+
+int16_t main(void) {
+   return a;
+}

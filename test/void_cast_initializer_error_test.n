@@ -1,9 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: void_cast_initializer_error_test.n:7.25] void expression has no value
-include "machine_6502.n"
-int16_t g;
-int16_t main(void) {
-   int16_t x := (void)g;
-   return x;
-}

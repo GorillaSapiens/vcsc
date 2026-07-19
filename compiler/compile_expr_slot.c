@@ -1,5 +1,5 @@
 //! @file compiler/compile_expr_slot.c
-//! @brief Implements expression-to-storage-slot lowering for the n65 compiler.
+//! @brief Implements expression-to-storage-slot lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

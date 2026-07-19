@@ -1,0 +1,37 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.vcsc"
+
+struct Triple {
+   uint8_t a;
+   uint8_t b;
+   uint8_t c;
+};
+
+void main(void) {
+   uint8_t bytes[8];
+   Triple triples[8];
+   uint8_t *b1 := &bytes[1];
+   uint8_t *b6 := &bytes[6];
+   Triple *t1 := &triples[1];
+   Triple *t6 := &triples[6];
+   int16_t d;
+
+   if (sizeof(b6 - b1) != sizeof(b1)) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   d := b6 - b1;
+   if (d != 5) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   d := b1 - b6;
+   if (d + 5 != 0) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+
+   if (sizeof(t6 - t1) != sizeof(t1)) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   d := t6 - t1;
+   if (d != 5) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   d := t1 - t6;
+   if (d + 5 != 0) { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

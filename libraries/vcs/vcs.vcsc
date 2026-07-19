@@ -1,0 +1,40 @@
+// Atari 2600 / VCS machine definition.
+//
+// This describes the common unbanked 6507-visible view of the machine:
+// - 128 physical RIOT RAM bytes at $80-$FF
+// - the linker dynamically reserves the top bytes for the hardware stack
+// - page-1 stack addresses are mirrors of the same physical RAM
+// - 4K cartridge ROM conventionally linked at $F000-$FFFF
+
+type void     { $size:0 };
+type *        { $size:2 $integer:unsigned $endian:little };
+type int8_t   { $size:1 $integer:signed };
+type uint8_t  { $size:1 $integer:unsigned };
+type int16_t  { $size:2 $integer:signed $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+// Packed decimal: two digits per byte, least-significant pair first.
+type bcd8_t   { $size:1 $integer:unsigned $bcd };
+type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
+type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
+
+mem ram      { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem rom      { $start:0xF000 $size:0x1000 $ro $priority:1 };
+
+xform {
+   '\a' 0x07,
+   '\b' 0x08,
+   '\e' 0x1B,
+   '\f' 0x0C,
+   '\n' 0x0A,
+   '\r' 0x0D,
+   '\t' 0x09,
+   '\v' 0x0B,
+   '\\' 0x5C,
+   '\'' 0x27,
+   '\"' 0x22,
+   '\?' 0x3F,
+   '\0' 0x00,
+};
+
+include "tia.vcsc"
+include "riot.vcsc"

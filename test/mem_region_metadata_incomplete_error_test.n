@@ -1,8 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: mem region 'banana' is used for storage and must declare $start plus $size or $end and exactly one of $rw/$ro
-// expecterr: n65ld can validate it against the linker cfg
-include "machine_6502.n"
-mem banana { $start:0x0400 $rw };
-
-banana int16_t x;

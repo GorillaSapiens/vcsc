@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.vcsc"
+
+alias A 1 /* one */
+alias B 2 // two
+
+#if (A == 1) && (B == 2)
+void main(void) {
+   int16_t x;
+   x := A + B;
+}
+#else
+this is broken
+#endif

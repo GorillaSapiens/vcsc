@@ -1,0 +1,19 @@
+// vcsc-cc1
+// expectasm: and_short:
+// expectasm: 	.byte $00
+// expectasm: or_short:
+// expectasm: 	.byte $01
+// expectasm: ternary:
+// expectasm: 	.byte $07, $00
+
+type uint8_t     { $size:1 $integer:unsigned };
+type void     { $size:0 };
+type *        { $size:2 $integer:unsigned $endian:little };
+type uint16_t { $size:2 $integer:unsigned $endian:little };
+
+uint8_t and_short := 0 && (1 / 0);
+uint8_t or_short := 1 || (1 / 0);
+uint16_t ternary := (0 ? (1 / 0) : 7);
+
+void main(void) {
+}

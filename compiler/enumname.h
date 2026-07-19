@@ -1,5 +1,5 @@
 //! @file compiler/enumname.h
-//! @brief Declares enum declaration support for the n65 compiler.
+//! @brief Declares enum declaration support for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_ENUMNAME_H_

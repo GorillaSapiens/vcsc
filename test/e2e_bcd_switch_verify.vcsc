@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t classify(bcd24_t value) {
+   switch (value) {
+      case 0: return 1;
+      case 123456: return 2;
+      case 900000 to 999999: return 3;
+      default: return 4;
+   }
+}
+
+void main(void) {
+   if (classify(0) != 1) { fail(1); }
+   if (classify(123456) != 2) { fail(2); }
+   if (classify(950000) != 3) { fail(3); }
+   if (classify(42) != 4) { fail(4); }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

@@ -1,9 +1,0 @@
-// n65c -I . -X invert
-// expecterr: integer '0400' is too big for 1 bytes!
-
-include "machine_6502.n"
-
-int8_t oct_over := 0400;
-
-void main(void) {
-}

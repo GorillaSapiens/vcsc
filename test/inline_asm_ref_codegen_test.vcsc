@@ -1,0 +1,27 @@
+// vcsc-cc1 -I .
+// expectasm: lda $30
+// expectasm: lda $30,x
+// expectasm: @same: lda $30
+// expectasm: sta $00
+// expectasm: inc $80
+// expectasm: bne @frame
+// forbidasm: lda RO
+// forbidasm: sta WO
+// forbidasm: inc RW
+
+include "machine_6502.vcsc"
+
+ref uint8_t RO @[0x30/none];
+ref uint8_t WO @[none/0x00];
+ref uint8_t RW @[0x80/0x80];
+ref uint8_t frame @[0x44/0x44];
+
+void main(void) {
+   asm lda RO;
+   asm lda RO,x;
+   asm @same: lda RO;
+   asm sta WO;
+   asm inc RW;
+   asm @frame:;
+   asm bne @frame;
+}

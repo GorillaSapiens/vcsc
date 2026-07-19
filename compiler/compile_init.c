@@ -1,5 +1,5 @@
 //! @file compiler/compile_init.c
-//! @brief Implements initializer lowering for the n65 compiler.
+//! @brief Implements initializer lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

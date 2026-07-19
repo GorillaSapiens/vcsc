@@ -1,5 +1,5 @@
 //! @file compiler/pair.h
-//! @brief Declares pointer pair collection for the n65 compiler.
+//! @brief Declares pointer pair collection for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_PAIR_H_

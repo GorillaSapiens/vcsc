@@ -1,6 +1,6 @@
-# Doxygen configuration for the n65 toolchain source tree.
-PROJECT_NAME           = "n65 Toolchain"
-PROJECT_BRIEF          = "Compiler, assembler, linker, archiver, and driver for n65"
+# Doxygen configuration for the VCSC toolchain source tree.
+PROJECT_NAME           = "VCSC Toolchain"
+PROJECT_BRIEF          = "A brutally pared-down Atari VCS C-like compiler"
 OUTPUT_DIRECTORY       = doxygen
 CREATE_SUBDIRS         = NO
 
@@ -12,8 +12,7 @@ INPUT                  = README.md \
                          linker \
                          archiver \
                          driver \
-                         libraries/nlib \
-                         libraries/petiteffs/source \
+                         libraries/runtime \
                          simulator/mos6502
 RECURSIVE              = YES
 FILE_PATTERNS          = *.c *.h *.dox *.md
@@ -21,7 +20,7 @@ FILE_PATTERNS          = *.c *.h *.dox *.md
 EXCLUDE                = test \
                          assembler/tests \
                          libraries/vcs \
-                         libraries/nlib/wrk \
+                         libraries/runtime/wrk \
                          build
 EXCLUDE_PATTERNS       = */lex.yy.c \
                          */parser.tab.c \
@@ -31,12 +30,12 @@ EXCLUDE_PATTERNS       = */lex.yy.c \
                          */delexer.h \
                          */*.o \
                          */*.d \
-                         */n65c \
-                         */n65asm \
-                         */n65ld \
-                         */n65ar \
-                         */n65cc \
-                         */n65sim \
+                         */vcsc-cc1 \
+                         */vcsc-as \
+                         */vcsc-ld \
+                         */vcsc-ar \
+                         */vcsc \
+                         */vcsc-sim \
                          */build/* \
                          */test/* \
                          */tests/*

@@ -1,7 +1,0 @@
-// n65c -I .
-// expectfail
-// expecterr: unknown_identifier_deref_error_test.n:6.19] unknown identifier 'missing'
-include "machine_6502.n"
-int16_t main(void) {
-   return *missing;
-}

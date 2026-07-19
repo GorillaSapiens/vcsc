@@ -1,13 +1,20 @@
-# n65ld
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-`n65ld` is a small standalone linker for the 6502-oriented `.o65` objects emitted by this project family, plus `.a65` archives produced by `n65ar`.
+# vcsc-ld
+
+`vcsc-ld` is a small standalone linker for the 6502-oriented `.o65` objects emitted by this project family, plus `.a65` archives produced by `vcsc-ar`.
 
 ## Command line
 
-`n65ld` uses a GNU-`ld`-style command line.
+`vcsc-ld` uses a GNU-`ld`-style command line.
 
 ```sh
-./n65ld [options] file...
+./vcsc-ld [options] file...
 ```
 
 Supported options:
@@ -23,21 +30,21 @@ Inputs are ordinary positional `.o65` and `.a65` files and may appear before or 
 Examples:
 
 ```sh
-./n65ld -T runtime.cfg -o out.hex -Map out.map crt0.o65 main.o65 libstuff.a65
-./n65ld -T runtime.cfg -o out.hex crt0.o65 main.o65
-./n65ld runtime.cfg crt0.o65 main.o65 out.hex
+./vcsc-ld -T runtime.cfg -o out.hex -Map out.map crt0.o65 main.o65 libstuff.a65
+./vcsc-ld -T runtime.cfg -o out.hex crt0.o65 main.o65
+./vcsc-ld runtime.cfg crt0.o65 main.o65 out.hex
 ```
 
 The linker also accepts this positional form:
 
 ```sh
-./n65ld [layout.cfg] input1.o65 [input2.a65 ... inputN.o65] output.hex [output.map]
+./vcsc-ld [layout.cfg] input1.o65 [input2.a65 ... inputN.o65] output.hex [output.map]
 ```
 
 ## What it does
 
 - reads relocatable `.o65` object files
-- reads `.a65` archives created by `n65ar`
+- reads `.a65` archives created by `vcsc-ar`
 - treats both command-line `.o65` files and `.a65` archive members lazily
 - pulls in only objects that satisfy required symbols or later unresolved imports
 - warns when a command-line `.o65` file is not used
@@ -54,7 +61,7 @@ The linker also accepts this positional form:
 - optionally writes a map file
 
 Selection starts from the root symbols `__reset`, `__nmi`, and `__irqbrk`.
-From there, `n65ld` repeatedly scans inputs to satisfy unresolved imports, pulling in only the object files that define needed symbols, until no new objects are selected.
+From there, `vcsc-ld` repeatedly scans inputs to satisfy unresolved imports, pulling in only the object files that define needed symbols, until no new objects are selected.
 
 Vector order is the normal 6502 order:
 - `$FFFA/$FFFB` ... NMI
@@ -63,7 +70,7 @@ Vector order is the normal 6502 order:
 
 ## Linker-generated symbols
 
-`n65ld` generates these absolute symbols automatically:
+`vcsc-ld` generates these absolute symbols automatically:
 
 - `__data_load_start`
 - `__data_load_end`
@@ -79,7 +86,7 @@ Vector order is the normal 6502 order:
 
 These are intended for startup code. `__init_table` points at a null-terminated table of 16-bit function addresses collected from selected object files that export `__init` or `__init_*`.
 
-Typical `n65ld` usage:
+Typical `vcsc-ld` usage:
 - copy initialized writable data from ROM at `__data_load_start` to RAM at `__data_run_start`
 - copy `__data_size` bytes
 - zero BSS starting at `__bss_start`
@@ -99,19 +106,19 @@ bss = __bss_start
 bss_end = __bss_end
 ```
 
-If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime uses `__stack_start` only as the deterministic baseline for `_nl_fp`; it provides neither a software stack nor a heap allocator.
+If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime uses `__stack_start` only as the deterministic baseline for `_vcsc_fp`; it provides neither a software stack nor a heap allocator.
 
 ## Linker script requirement
 
-`n65ld` has no implicit machine or memory map. Direct use requires `-T FILE`,
+`vcsc-ld` has no implicit machine or memory map. Direct use requires `-T FILE`,
 `--script=FILE`, or the compatibility positional `.cfg` argument. This keeps a
 generic host-style layout from silently leaking into VCS builds. The high-level
-`n65cc` driver supplies the bundled unbanked 4K VCS script automatically when
+`vcsc` driver supplies the bundled unbanked 4K VCS script automatically when
 the user does not provide `-T`.
 
 ## Config support
 
-`n65ld` intentionally keeps the config parser simple. It understands the style shown above:
+`vcsc-ld` intentionally keeps the config parser simple. It understands the style shown above:
 - `MEMORY { ... }`
 - `SEGMENTS { ... }`
 - `start = $1234`
@@ -133,7 +140,7 @@ inside separately assembled routines are not represented yet.
 It is not trying to be a full `ld65` config parser.
 ## Compiler mem-region validation
 
-Objects produced by `n65c` include hidden metadata for each `mem` region that was used for symbol-backed storage. Before layout, `n65ld` compares that metadata with the config `MEMORY` table.
+Objects produced by `vcsc-cc1` include hidden metadata for each `mem` region that was used for symbol-backed storage. Before layout, `vcsc-ld` compares that metadata with the config `MEMORY` table.
 
 The linker rejects the image if the config is missing the region, or if the `start`, `size`, or `type` differs from the compiler's `mem` declaration. The diagnostic reports both sides and tells the user to update either the N source declaration or the linker cfg so they match.
 
@@ -142,7 +149,7 @@ Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.regist
 
 ## Segment mapping
 
-For the current object format subset, `n65ld` maps o65 segments like this:
+For the current object format subset, `vcsc-ld` maps o65 segments like this:
 - o65 `TEXT` -> linker `CODE`
 - o65 `DATA` -> linker `DATA`
 - o65 `BSS` -> linker `BSS`
@@ -152,7 +159,7 @@ For the current object format subset, `n65ld` maps o65 segments like this:
 
 ## Map file
 
-When you request a map file, `n65ld` writes:
+When you request a map file, `vcsc-ld` writes:
 - effective memory regions after any call-graph stack reservation
 - object placement
 - the selected call-stack region, graph depth, byte reserve, and physical range
@@ -189,7 +196,7 @@ make
 
 ## Weak symbols
 
-`n65ld` supports a custom weak-symbol convention.
+`vcsc-ld` supports a custom weak-symbol convention.
 When a reference to `foo` cannot be satisfied by a strong exported `foo`, the linker falls back to `__weak_foo`.
 Resolution is symbol-driven and left-to-right over the command line, but strong definitions are preferred globally over weak fallbacks for the same symbol.
 For `.a65` inputs, only the single member object that defines the selected symbol is pulled in.

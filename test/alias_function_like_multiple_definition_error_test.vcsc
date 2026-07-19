@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: multiple definitions for alias 'sum'
+
+include "machine_6502.vcsc"
+
+alias sum(a,b) (a + b)
+alias sum 7

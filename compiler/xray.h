@@ -1,5 +1,5 @@
 //! @file compiler/xray.h
-//! @brief Declares diagnostic tracing for the n65 compiler.
+//! @brief Declares diagnostic tracing for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_XRAY_H_

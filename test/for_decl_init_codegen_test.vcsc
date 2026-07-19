@@ -1,0 +1,23 @@
+// vcsc-cc1 -I .
+// expectasm: main$sum:
+// expectasm: main$i:
+// expectasm: main$j:
+// expectasmordered: lda #$01
+// expectasmordered: sta main$i,y
+// expectasmordered: lda #$02
+// expectasmordered: sta main$j,y
+// expectasmordered: @for_start_
+
+include "machine_6502.vcsc"
+
+type u8 { $size:1 $integer:unsigned };
+type intlit { $size:2 $integer:signed $endian:little };
+
+int16_t main(void) {
+   u8 sum := 0;
+   for (u8 i := 1, j := 2; i < 4; i++) {
+      sum += i;
+      sum += j;
+   }
+   return sum;
+}

@@ -12,9 +12,9 @@ my $repo = shift @ARGV // File::Spec->rel2abs(File::Spec->catdir(File::Spec->cur
 my $tmp_root = shift @ARGV // File::Spec->tmpdir();
 my $tmp = tempdir('unicode_ident_XXXXXX', DIR => $tmp_root, CLEANUP => 1);
 
-my $n65c = File::Spec->catfile($repo, 'compiler', 'n65c');
-my $n65cc = File::Spec->catfile($repo, 'driver', 'n65cc');
-my $n65sim = File::Spec->catfile($repo, 'simulator', 'n65sim');
+my $vcsc_cc1 = File::Spec->catfile($repo, 'compiler', 'vcsc-cc1');
+my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
+my $vcsc_sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $test_inc = File::Spec->catdir($repo, 'test');
 
 sub slurp_bytes {
@@ -65,13 +65,13 @@ sub require_data_not_contains {
    die "found forbidden text: $needle\n" if index($data, $needle) >= 0;
 }
 
-for my $tool ($n65c, $n65cc, $n65sim) {
+for my $tool ($vcsc_cc1, $vcsc, $vcsc_sim) {
    die "required tool not executable: $tool\n" if !-x $tool;
 }
 
-my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.n');
+my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.vcsc');
 write_utf8($e2e_src, <<'EOF');
-include "machine_6502.n"
+include "machine_6502.vcsc"
 
 ref uint8_t gfailcode@[none/0x02f0];
 
@@ -113,8 +113,8 @@ void main(void) {
 EOF
 
 my $e2e_asm = File::Spec->catfile($tmp, 'unicode_e2e.s');
-my ($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $e2e_src, '-o', $e2e_asm);
-die "n65c failed for unicode e2e source:\n$err$out\n" if $rc != 0;
+my ($rc, $out, $err) = run_capture($vcsc_cc1, '-quiet', '-I', $test_inc, $e2e_src, '-o', $e2e_asm);
+die "vcsc-cc1 failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 my $asm = slurp_bytes($e2e_asm);
 require_data_contains($asm, '.export caf?u00E9?');
 require_data_contains($asm, '.proc ?u03BB?_count');
@@ -126,43 +126,43 @@ require_data_not_contains($asm, "\xce\xbb_count");
 require_data_not_contains($asm, "\xf0\x9f\xa6\x8d");
 
 my $hex = File::Spec->catfile($tmp, 'unicode_e2e.hex');
-($rc, $out, $err) = run_capture($n65cc, '-I', $test_inc, $e2e_src, '-o', $hex);
-die "n65cc failed for unicode e2e source:\n$err$out\n" if $rc != 0;
-($rc, $out, $err) = run_capture($n65sim, $hex);
+($rc, $out, $err) = run_capture($vcsc, '-I', $test_inc, $e2e_src, '-o', $hex);
+die "vcsc failed for unicode e2e source:\n$err$out\n" if $rc != 0;
+($rc, $out, $err) = run_capture($vcsc_sim, $hex);
 die "simulator failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 
-my $unknown_src = File::Spec->catfile($tmp, 'unicode_unknown_identifier.n');
+my $unknown_src = File::Spec->catfile($tmp, 'unicode_unknown_identifier.vcsc');
 write_utf8($unknown_src, <<'EOF');
-include "machine_6502.n"
+include "machine_6502.vcsc"
 void main(void) {
    🥹 := 1;
 }
 EOF
-($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $unknown_src, '-o', File::Spec->catfile($tmp, 'unicode_unknown_identifier.s'));
+($rc, $out, $err) = run_capture($vcsc_cc1, '-quiet', '-I', $test_inc, $unknown_src, '-o', File::Spec->catfile($tmp, 'unicode_unknown_identifier.s'));
 die "unicode unknown identifier unexpectedly compiled\n" if $rc == 0;
 require_data_contains($err . $out, ":3.4]");
 require_data_contains($err . $out, encode('UTF-8', "unknown identifier '🥹'"));
 require_data_not_contains($err . $out, "?u0001F979?");
 
-my $bad_col_src = File::Spec->catfile($tmp, 'unicode_bad_column.n');
-write_bytes($bad_col_src, "include \"machine_6502.n\"\nint16_t a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
-($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $bad_col_src, '-o', File::Spec->catfile($tmp, 'unicode_bad_column.s'));
+my $bad_col_src = File::Spec->catfile($tmp, 'unicode_bad_column.vcsc');
+write_bytes($bad_col_src, "include \"machine_6502.vcsc\"\nint16_t a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
+($rc, $out, $err) = run_capture($vcsc_cc1, '-quiet', '-I', $test_inc, $bad_col_src, '-o', File::Spec->catfile($tmp, 'unicode_bad_column.s'));
 die "malformed UTF-8 column case unexpectedly compiled\n" if $rc == 0;
 require_data_contains($err . $out, 'invalid UTF-8 in identifier');
 require_data_contains($err . $out, ':2.11 ');
 
 for my $case (
-   ["incomplete trailing UTF-8", "include \"machine_6502.n\"\nint16_t bad\xc3 := 0;\n"],
-   ["stray continuation byte", "include \"machine_6502.n\"\nint16_t bad\x80 := 0;\n"],
-   ["stray starting continuation byte", "include \"machine_6502.n\"\nint16_t \x80bad := 0;\n"],
+   ["incomplete trailing UTF-8", "include \"machine_6502.vcsc\"\nint16_t bad\xc3 := 0;\n"],
+   ["stray continuation byte", "include \"machine_6502.vcsc\"\nint16_t bad\x80 := 0;\n"],
+   ["stray starting continuation byte", "include \"machine_6502.vcsc\"\nint16_t \x80bad := 0;\n"],
 ) {
    my ($name, $bytes) = @$case;
-   my $bad_src = File::Spec->catfile($tmp, "bad_$name.n");
+   my $bad_src = File::Spec->catfile($tmp, "bad_$name.vcsc");
    $bad_src =~ s/[^A-Za-z0-9_.\/-]/_/g;
    write_bytes($bad_src, $bytes);
    my $bad_asm = File::Spec->catfile($tmp, "bad_$name.s");
    $bad_asm =~ s/[^A-Za-z0-9_.\/-]/_/g;
-   ($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $bad_src, '-o', $bad_asm);
+   ($rc, $out, $err) = run_capture($vcsc_cc1, '-quiet', '-I', $test_inc, $bad_src, '-o', $bad_asm);
    die "malformed UTF-8 case '$name' unexpectedly compiled\n" if $rc == 0;
    require_data_contains($err . $out, 'invalid UTF-8 in identifier');
 }

@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: definition$less$return$modeQ3Dreturn_axQ3BscalarQ28szQ3D1Q3BkindQ3Dunsigned_int
+// expectasm: definition$both$return$modeQ3Dreturn_axQ3BscalarQ28szQ3D1Q3BkindQ3Dunsigned_int
+include "machine_6502.vcsc"
+
+uint8_t less(int16_t a, int16_t b) {
+   return a < b;
+}
+
+uint8_t both(uint8_t a, uint8_t b) {
+   return a && b;
+}

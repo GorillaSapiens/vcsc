@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_
+// expectasm: __vcsc_scratch_
+// expectasm: __vcsc_scratch_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.vcsc"
+
+
+void test(uint8_t *out, uint8_t source) {
+   uint16_t widened := source;
+   ref uint8_t port@0x0080 := source;
+   *out := widened;
+}

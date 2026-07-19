@@ -1,6 +1,13 @@
-# N compiler and language notes
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-N is a mostly C-like systems language aimed at small targets, especially 8-bit machines. This document describes the language model and the current compiler/runtime behavior as implemented in this tree.
+# VCSC compiler and language notes
+
+VCSC is a deliberately small C-like systems language for the Atari 2600/VCS. This document describes the language model and the current compiler/runtime behavior implemented by `vcsc-cc1`.
 
 ## Big differences from C
 
@@ -19,7 +26,7 @@ N is a mostly C-like systems language aimed at small targets, especially 8-bit m
 
 The compiler supports newline-terminated lexical aliases:
 
-```n
+```vcsc
 alias LIMIT 314
 alias inc(x) (x + 1)
 alias add(a,b) (a + b)
@@ -49,7 +56,7 @@ Use aliases for small, local convenience rewrites... not for hiding control flow
 
 The lexer also supports simple beginning-of-line conditional directives inspired by the C preprocessor:
 
-```n
+```vcsc
 alias FEATURE 2
 
 #if defined(FEATURE) && (FEATURE >= 2)
@@ -100,7 +107,7 @@ As with aliases, keep conditional compilation boring and local. It is useful for
 The stock VCS machine interface exposes four ordinary binary integer types,
 three unsigned packed-BCD types, one pointer type, and `void`:
 
-```n
+```vcsc
 type void     { $size:0 };
 type *        { $size:2 $integer:unsigned $endian:little };
 type int8_t   { $size:1 $integer:signed };
@@ -126,7 +133,7 @@ The stock machine definition also supplies `uint16_t` and the three BCD types.
 The names `bool`, `char`, and `int` are not built in or reserved. A source file
 may introduce them as transparent aliases, for example:
 
-```n
+```vcsc
 typedef uint8_t bool;
 typedef uint8_t char;
 typedef int16_t int;
@@ -166,7 +173,7 @@ Multibyte integer and pointer types use `$endian:little`. `$endian:big` is rejec
 decimal digits, with the least-significant digit pair in the lowest-addressed
 byte:
 
-```n
+```vcsc
 bcd8_t  two_digits := 42;      // byte:        $42
 bcd16_t four_digits := 1234;   // little-endian $34, $12
 bcd24_t six_digits := 567890;  // little-endian $90, $78, $56
@@ -242,7 +249,7 @@ a result outside the range of `int16_t` is undefined.
 
 Ordinary function declarations work. Multiple compatible declarations are allowed, and a later definition may follow an earlier declaration. Incompatible redeclarations are rejected.
 
-```n
+```vcsc
 int16_t twice(int16_t x);
 
 int16_t main(void) {
@@ -348,7 +355,7 @@ All multibyte integers and pointers are little-endian. Assignments, casts, arith
 
 Inside a function body, a line of the form:
 
-```n
+```vcsc
 asm nop
 asm lda #$01
 asm loop_start:
@@ -419,7 +426,7 @@ Diagnostics reverse these escapes when reporting user-facing names, so an error 
 
 Example:
 
-```n
+```vcsc
 void swap(ref s2 a, ref s2 b) {
    s2 t;
    t := a;
@@ -438,7 +445,7 @@ The compiler supports `ref` declarations bound directly to absolute addresses. T
 
 Supported forms:
 
-```n
+```vcsc
 ref u8 port@0x10;
 ref u8 status@STATUS_REG;
 ref u8 vsync@[none/0x00];
@@ -473,7 +480,7 @@ Every ordinary parameter of a directly named function is symbol-backed by defaul
 
 An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
 
-Compiler-generated temporary storage is pooled by function and nesting depth. Symbols are named `__n65_scratch_N`; sequential expressions in the same non-reentrant function reuse the same depth slot, while nested expressions receive deeper slots. Different functions receive distinct physical slots because caller scratch can remain live across a callee invocation. Each slot is emitted once at the maximum size observed for that depth.
+Compiler-generated temporary storage is pooled by function and nesting depth. Symbols are named `__vcsc_scratch_N`; sequential expressions in the same non-reentrant function reuse the same depth slot, while nested expressions receive deeper slots. Different functions receive distinct physical slots because caller scratch can remain live across a callee invocation. Each slot is emitted once at the maximum size observed for that depth.
 
 An ordinary direct call leases the caller function's current scratch depth while evaluating and converting arguments, then copies values into callee-owned parameter symbols. The same live lease may capture A:X when the surrounding expression needs a memory-backed converted result. The lease remains caller-private transitional machinery, not parameter storage and not part of the function ABI. LIFO lease checks and an end-of-compilation zero-depth check turn accidental lifetime overlap into a compiler error.
 
@@ -506,7 +513,7 @@ A declaration is treated as zero-page only if its referenced `mem` declaration f
 
 So a region named `banana` can be zero-page if its declared address range fits there, and a region literally named `zeropage` is **not** magically zero-page if its range does not fit.
 
-When a `mem` region is actually used for symbol storage, the compiler emits object metadata describing the region name, `$start`, size, and `$rw`/`$ro` type. `n65ld` validates that metadata against the linker config `MEMORY` entry before laying out the image. This turns stale cfg/source mismatches into link-time errors instead of silent placement surprises.
+When a `mem` region is actually used for symbol storage, the compiler emits object metadata describing the region name, `$start`, size, and `$rw`/`$ro` type. `vcsc-ld` validates that metadata against the linker config `MEMORY` entry before laying out the image. This turns stale cfg/source mismatches into link-time errors instead of silent placement surprises.
 
 For validation to work, any used `mem` declaration must provide `$start`, either `$size` or `$end`, and exactly one of `$rw` or `$ro`.
 
@@ -531,7 +538,7 @@ Simple assignment also accepts braced initializers. The compiler lowers these th
 
 Examples:
 
-```n
+```vcsc
 int16_t x;
 int16_t a[3];
 Pair p;
@@ -554,7 +561,7 @@ Strings can initialize pointer values and byte arrays where appropriate. String 
 Automatic local arrays receive function-qualified fixed storage for their full declared size. Their initializers execute at run time whenever control reaches the declaration.
 
 In a pointer-targeted initializer or assignment, an array expression decays to
-its first-element address. Compiler-generated `__n65_scratch_N` temporaries
+its first-element address. Compiler-generated `__vcsc_scratch_N` temporaries
 retain the destination pointer declarator, so local, static, global, member,
 and indirect pointer destinations receive the array address rather than bytes
 copied from the first element.
@@ -576,7 +583,7 @@ On the VCS these assemble as zero-page instructions.
 
 Example:
 
-```n
+```vcsc
 uint16_t twice(uint16_t value) {
    $$ := value + value;
    return;
@@ -585,14 +592,14 @@ uint16_t twice(uint16_t value) {
 
 A conventional return is equivalent:
 
-```n
+```vcsc
 uint16_t twice(uint16_t value) {
    return value + value;
 }
 ```
 
 The caller never allocates callee return storage. An ordinary direct call may
-copy A:X into a live caller-function `__n65_scratch_N` lease so the
+copy A:X into a live caller-function `__vcsc_scratch_N` lease so the
 memory-based expression machinery can consume it; that scratch is not part of
 the function ABI.
 Indirect calls are unsupported; no call path uses an indirect-call software-stack frame.
@@ -624,7 +631,7 @@ The compiler supports:
 
 `case` labels accept either a single numeric primary expression or an inclusive range:
 
-```n
+```vcsc
 switch (x) {
    case 1:
       break;
@@ -643,7 +650,7 @@ Range bounds are inclusive on both ends. If the programmer writes a reversed ran
 
 A string literal may optionally specify an `xform` name after a backtick.
 
-```n
+```vcsc
 int8_t msg1[] = "hello"`cp437;
 int8_t msg2[] = "hello";
 ```
@@ -658,12 +665,12 @@ Inline-assembly stack operations and stack use hidden inside separately assemble
 
 Direct fixed parameters and named automatic locals are callee-owned symbols.
 Compiler-generated code emits no `_pushN` or `_popN`, and the runtime no longer
-provides `_nl_sp` or any software-stack helper. Lifetime-pooled BSS scratch uses
-`_nl_fp` only as a temporary addressing base.
+provides `_vcsc_sp` or any software-stack helper. Lifetime-pooled BSS scratch uses
+`_vcsc_fp` only as a temporary addressing base.
 
-### `_nl_fp`
+### `_vcsc_fp`
 
-Startup initializes `_nl_fp` from `__stack_start` to give temporary scratch redirection a
+Startup initializes `_vcsc_fp` from `__stack_start` to give temporary scratch redirection a
 deterministic baseline. Compiled functions have no software-stack entry prologue.
 
 ### Frame pointer preservation
@@ -699,7 +706,7 @@ A few sharp edges remain:
 
 ## Minimal example
 
-```n
+```vcsc
 type void     { $size:0 };
 type *        { $size:2 $integer:unsigned $endian:little };
 type int8_t   { $size:1 $integer:signed };

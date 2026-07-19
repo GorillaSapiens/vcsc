@@ -1,5 +1,5 @@
 //! @file compiler/compile_expr_info.h
-//! @brief Declares expression type and value-size queries for the n65 compiler.
+//! @brief Declares expression type and value-size queries for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_EXPR_INFO_H_

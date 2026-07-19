@@ -7,7 +7,7 @@ use Cwd qw(abs_path);
 
 my $test_root = dirname(abs_path($0));
 my $repo_root = abs_path(File::Spec->catdir($test_root, '..'));
-my $build = File::Spec->catdir('/tmp', 'n65_peephole_unit_' . $$);
+my $build = File::Spec->catdir('/tmp', 'VCSC_peephole_unit_' . $$);
 mkdir $build or die "mkdir $build: $!";
 my $c = File::Spec->catfile($build, 'peephole_unit.c');
 my $exe = File::Spec->catfile($build, 'peephole_unit');
@@ -212,7 +212,7 @@ int main(void) {
    require_true(count_of(out, "sta ptr0") == 2, "changing arg0 must invalidate tracked memory facts that reference arg0", out);
 
    out = run_pass("    lda #$01\n" EMIT_INLINE_ASM_BEGIN_MARKER "\n    lda #$01\n" EMIT_INLINE_ASM_END_MARKER "\n    lda #$01\n");
-   require_true(count_of(out, "lda #$01") == 3 && !contains(out, "n65c:inline-asm"), "inline asm markers must protect indented programmer assembly and disappear", out);
+   require_true(count_of(out, "lda #$01") == 3 && !contains(out, "vcsc-cc1:inline-asm"), "inline asm markers must protect indented programmer assembly and disappear", out);
 
    out = run_pass("    lda #$01\n    cmp #$02\n    lda #$01\n" EMIT_INLINE_ASM_BEGIN_MARKER "\n    nop\n" EMIT_INLINE_ASM_END_MARKER "\n    lda #$00\n");
    require_true(count_of(out, "lda #$01") == 2, "inline asm must be an N/Z liveness barrier even when the raw line looks harmless", out);

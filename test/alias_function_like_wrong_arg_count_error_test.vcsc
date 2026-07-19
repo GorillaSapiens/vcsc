@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: alias 'foo' expects 2 arguments but got 1
+
+include "machine_6502.vcsc"
+
+alias foo(a,b) (a + b)
+
+void main(void) {
+   int16_t x;
+   x := foo(5);
+}

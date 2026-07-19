@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: sizeof_void_error_test.vcsc:6.19] invalid application of sizeof to void type
+include "machine_6502.vcsc"
+int16_t main(void) {
+   if (sizeof(void)) {
+      return 1;
+   }
+   return 0;
+}

@@ -1,5 +1,5 @@
 //! @file assembler/o65.c
-//! @brief Implements o65 object file emission for the n65 assembler.
+//! @brief Implements o65 object file emission for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

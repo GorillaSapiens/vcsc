@@ -1,11 +1,18 @@
-# driver (`n65cc`)
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-`n65cc` is a small GCC-like front-end for the `n` 6502 toolchain.
-It sits above `n65c`, `n65asm`, and `n65ld` and invokes them in the usual compile ... assemble ... link pipeline, much like `gcc` drives `cc1`, `as`, and `ld`.
+# driver (`vcsc`)
+
+`vcsc` is the GCC-like public front end for the VCSC Atari 2600 toolchain.
+It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual compile ... assemble ... link pipeline, much like `gcc` drives `cc1`, `as`, and `ld`.
 
 ## What it does
 
-`n65cc` understands the most useful high-level build modes:
+`vcsc` understands the most useful high-level build modes:
 
 - compile and link by default
 - `-c` to stop after producing `.o65`
@@ -16,77 +23,77 @@ It sits above `n65c`, `n65asm`, and `n65ld` and invokes them in the usual compil
 - `-v` and `-###` to print the subordinate commands
 
 When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is
-supplied and links `libraries/nlib/nlib.a65` unless `-nostdlib` is used.
+supplied and links `libraries/runtime/libvcsc.a65` unless `-nostdlib` is used.
 
 ## What it requires
 
-`n65cc` is only a coordinator.
+`vcsc` is only a coordinator.
 It needs the rest of the toolchain plus the default runtime archives.
 
 When run from the built repository tree, it finds:
 
-- `compiler/n65c`
-- `assembler/n65asm`
-- `linker/n65ld`
-- `archiver/n65ar` (only for path reporting via `-print-prog-name=ar`)
-- `simulator/n65sim` (only for path reporting via `-print-prog-name=sim`)
-- `libraries/nlib/nlib.a65` for default linking
+- `compiler/vcsc-cc1`
+- `assembler/vcsc-as`
+- `linker/vcsc-ld`
+- `archiver/vcsc-ar` (only for path reporting via `-print-prog-name=ar`)
+- `simulator/vcsc-sim` (only for path reporting via `-print-prog-name=sim`)
+- `libraries/runtime/libvcsc.a65` for default linking
 - `libraries/vcs/vcs_4k.cfg` for the default unbanked VCS cartridge layout
 
 When installed, it expects this layout under the same prefix:
 
-- `bin/n65cc`, `bin/n65c`, `bin/n65asm`, `bin/n65ld`, `bin/n65ar`, `bin/n65sim`
-- `lib/nlib.a65`
-- `include/nlib.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
+- `bin/vcsc`, `bin/vcsc-cc1`, `bin/vcsc-as`, `bin/vcsc-ld`, `bin/vcsc-ar`, `bin/vcsc-sim`
+- `lib/libvcsc.a65`
+- `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
 - `share/vcs/vcs_4k.cfg` for the default linker layout
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 
 ## Input kinds
 
-`n65cc` classifies inputs by suffix:
+`vcsc` classifies inputs by suffix:
 
-- `.n` ... compile with `n65c`
-- `.s` or `.asm` ... assemble with `n65asm`
-- `.o65` ... pass directly to `n65ld`
-- `.a65` ... pass directly to `n65ld`
+- `.vcsc` ... compile with `vcsc-cc1`
+- `.s` or `.asm` ... assemble with `vcsc-as`
+- `.o65` ... pass directly to `vcsc-ld`
+- `.a65` ... pass directly to `vcsc-ld`
 
 ## Examples
 
 Build and link a program:
 
 ```sh
-./driver/n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
+./driver/vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
 ```
 
 Compile only:
 
 ```sh
-./driver/n65cc -c -I libraries/nlib demo.n
+./driver/vcsc -c -I libraries/runtime demo.vcsc
 ```
 
 Stop after assembly:
 
 ```sh
-./driver/n65cc -S demo.n
+./driver/vcsc -S demo.vcsc
 ```
 
 Link extra archives from a search directory:
 
 ```sh
-./driver/n65cc crt0.o65 main.o65 -T custom.cfg -L libraries/nlib -lnlib -nostdlib -o app.hex
+./driver/vcsc crt0.o65 main.o65 -T custom.cfg -L libraries/runtime -lruntime -nostdlib -o app.hex
 ```
 
 Show the exact subordinate commands without running them:
 
 ```sh
-./driver/n65cc -### -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
+./driver/vcsc -### -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
 ```
 
 Show aligned driver/subtool versions and the exact tool paths being used:
 
 ```sh
-./driver/n65cc -V
+./driver/vcsc -V
 ```
 
 The `-V` output prints one line per tool, aligns the first colon after the tool name, and includes the resolved executable path before that tool's version string.

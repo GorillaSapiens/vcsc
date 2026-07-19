@@ -1,5 +1,5 @@
 //! @file compiler/emit.h
-//! @brief Declares assembly emission buffers for the n65 compiler.
+//! @brief Declares assembly emission buffers for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_EMIT_H_
@@ -7,8 +7,8 @@
 
 #include <stdio.h>
 
-#define EMIT_INLINE_ASM_BEGIN_MARKER "; n65c:inline-asm-begin"
-#define EMIT_INLINE_ASM_END_MARKER   "; n65c:inline-asm-end"
+#define EMIT_INLINE_ASM_BEGIN_MARKER "; vcsc-cc1:inline-asm-begin"
+#define EMIT_INLINE_ASM_END_MARKER   "; vcsc-cc1:inline-asm-end"
 
 //! One chunk in an emission sink; allocated by emit() and linked in output order.
 struct EmitPiece;

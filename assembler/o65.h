@@ -1,5 +1,5 @@
 //! @file assembler/o65.h
-//! @brief Declares o65 object file emission for the n65 assembler.
+//! @brief Declares o65 object file emission for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef O65_H

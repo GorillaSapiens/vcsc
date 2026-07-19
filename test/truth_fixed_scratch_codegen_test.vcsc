@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_
+// expectasm: ora __vcsc_scratch_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.vcsc"
+
+void test(int16_t value) {
+   if (value) {
+   }
+}

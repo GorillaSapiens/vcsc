@@ -1,8 +1,0 @@
-// n65c -I .
-include "machine_6502.n"
-int16_t main(void) {
-   int16_t x;
-   int16_t *p := &x;
-   *p := { 1 };
-   return 0;
-}

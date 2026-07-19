@@ -1,5 +1,5 @@
 //! @file compiler/compile_declarator.h
-//! @brief Declares declarator analysis for the n65 compiler.
+//! @brief Declares declarator analysis for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_DECLARATOR_H_

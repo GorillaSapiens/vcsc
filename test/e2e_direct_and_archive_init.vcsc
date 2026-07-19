@@ -1,0 +1,46 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+// archive: e2e_direct_and_archive_init__libthing.vcsc
+include "machine_6502.vcsc"
+
+int16_t lib_value(void);
+
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+int16_t twice(int16_t x) {
+   return x + x;
+}
+
+int16_t seed := 2;
+int16_t direct_g := twice(seed) + 1;
+
+void main(void) {
+   if (direct_g == 5) {
+      if (lib_value() == 9) {
+         print_ok();
+      }
+      else {
+         print_bad();
+      }
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

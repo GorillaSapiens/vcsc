@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: '$$' is reserved for the current function's return object
+// expecterr: do not declare it
+// expecterr: assign to '$$' directly
+include "machine_6502.vcsc"
+int16_t $$(void) { return 1; }

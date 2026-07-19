@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: required type 'void' is not defined
+type uint8_t { $size:1 $integer:unsigned };
+type * { $size:2 $integer:unsigned $endian:little };
+type int16_t { $size:2 $integer:signed $endian:little };
+int16_t main() {
+   return 0;
+}

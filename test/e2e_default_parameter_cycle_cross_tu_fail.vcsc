@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// object: e2e_default_parameter_cycle_cross_tu_fail__a.vcsc
+// object: e2e_default_parameter_cycle_cross_tu_fail__b.vcsc
+// expectlinkfail
+// expectlinkerr: call graph cycle reaches function 'a' with static activation storage
+include "machine_6502.vcsc"
+
+
+uint16_t a(uint16_t x);
+
+int16_t main(void) {
+   return a(1);
+}

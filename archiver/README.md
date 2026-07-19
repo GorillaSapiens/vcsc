@@ -1,6 +1,13 @@
-# n65ar
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-`n65ar` is a small standalone archiver for bundling `.o65` object files into a single `.a65` library file and unpacking them later. Its command line follows the usual GNU `ar` shape for the operations this tool supports.
+# vcsc-ar
+
+`vcsc-ar` is a small standalone archiver for bundling `.o65` object files into a single `.a65` library file and unpacking them later. Its command line follows the usual GNU `ar` shape for the operations this tool supports.
 
 ## Build
 
@@ -13,20 +20,20 @@ make
 Create or update an archive:
 
 ```sh
-./n65ar rcs output.a65 obj1.o65 obj2.o65 ... objN.o65
+./vcsc-ar rcs output.a65 obj1.o65 obj2.o65 ... objN.o65
 ```
 
 List members:
 
 ```sh
-./n65ar t input.a65
+./vcsc-ar t input.a65
 ```
 
 Extract all members, or only named members:
 
 ```sh
-./n65ar x input.a65
-./n65ar x input.a65 obj1.o65
+./vcsc-ar x input.a65
+./vcsc-ar x input.a65 obj1.o65
 ```
 
 ## Supported operation letters
@@ -48,7 +55,7 @@ The operation-string form above is the preferred interface. The tool also accept
 
 The format is intentionally simple:
 
-- 7-byte magic: `NAR65\0\1`
+- 7-byte magic: `VCSCAR\x01`
 - repeated member records until end of file:
   - 16-bit little-endian file name length
   - 32-bit little-endian file size

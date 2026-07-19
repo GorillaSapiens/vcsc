@@ -1,5 +1,5 @@
 //! @file assembler/listing.h
-//! @brief Declares assembly listing generation for the n65 assembler.
+//! @brief Declares assembly listing generation for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef LISTING_H

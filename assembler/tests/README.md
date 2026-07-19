@@ -1,4 +1,11 @@
-# n65asm fixture sources
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
+# vcsc-as fixture sources
 
 This directory contains source fixtures for the assembler tests.  They are not
 standalone test runner scripts; `test/assembler_fixture_suite.test` runs them

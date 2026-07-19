@@ -12,11 +12,11 @@ CFLAGS += -g
 # for optimization
 #CFLAGS += -O2
 
-TARGET = n65asm
+TARGET = vcsc-as
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
-CFGDIR ?= /opt/n/share/cfg
+CFGDIR ?= /opt/vcsc/share/cfg
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen
@@ -39,7 +39,7 @@ SRCSRC = \
    symtab.c \
    util.c \
    xray.c \
-   n65asm.c
+   vcsc_as.c
 
 SRC = $(SRCSRC) $(GENSRC)
 OBJ = $(SRC:.c=.o)
@@ -80,7 +80,7 @@ version.h: FORCE
 $(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
-n65asm.o: version.h
+vcsc_as.o: version.h
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@

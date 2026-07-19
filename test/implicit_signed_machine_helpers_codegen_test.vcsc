@@ -1,0 +1,21 @@
+// vcsc-cc1
+// expectasm: .import _copysxNle
+// expectasm: jsr _copysxNle
+// expectasm: jsr _asrNle
+// expectasm: jsr _leNsle
+
+include "machine_6502.vcsc"
+
+int16_t widen_result;
+
+void widen(int8_t c) {
+   widen_result := c;
+}
+
+int16_t shr(int16_t value, int16_t bits) {
+   return value >> bits;
+}
+
+uint8_t ge_zero(int16_t value) {
+   return value >= 0;
+}

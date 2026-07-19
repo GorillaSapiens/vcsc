@@ -67,7 +67,7 @@ void trace_disasm(uint16_t pc);
 static void usage(FILE *fp) {
    fprintf(fp,
       "Usage:\n"
-      "  n65sim [options] file.hex\n"
+      "  vcsc-sim [options] file.hex\n"
       "\n"
       "Options:\n"
       "  -t MASK              Enable trace bitmask MASK\n"
@@ -79,8 +79,8 @@ static void usage(FILE *fp) {
       "  -V, --version        Show version information\n"
       "\n"
       "Compatibility:\n"
-      "  n65sim file.hex [trace]\n"
-      "  n65sim [layout.cfg] [trace] file.hex\n");
+      "  vcsc-sim file.hex [trace]\n"
+      "  vcsc-sim [layout.cfg] [trace] file.hex\n");
 }
 
 static int ends_with(const char *s, const char *suffix) {
@@ -146,7 +146,7 @@ static void parse_memory_property(memory_region_t *mem_region, const char *key, 
    if (str_ieq(key, "start")) {
       n = parse_number(value);
       if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "n65sim: bad memory start '%s'\n", value);
+         fprintf(stderr, "vcsc-sim: bad memory start '%s'\n", value);
          exit(1);
       }
       mem_region->start = (uint16_t)n.value;
@@ -154,7 +154,7 @@ static void parse_memory_property(memory_region_t *mem_region, const char *key, 
    else if (str_ieq(key, "size")) {
       n = parse_number(value);
       if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "n65sim: bad memory size '%s'\n", value);
+         fprintf(stderr, "vcsc-sim: bad memory size '%s'\n", value);
          exit(1);
       }
       mem_region->size = (uint16_t)n.value;
@@ -173,7 +173,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
    enum { NONE, MEMORY, SKIP_BLOCK } block = NONE;
 
    if (!fp) {
-      fprintf(stderr, "n65sim: cannot open '%s': %s\n", path, strerror(errno));
+      fprintf(stderr, "vcsc-sim: cannot open '%s': %s\n", path, strerror(errno));
       exit(1);
    }
 
@@ -217,7 +217,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
             *semi = '\0';
 
          if (cfg->mem_count >= (sizeof(cfg->mem) / sizeof(cfg->mem[0]))) {
-            fprintf(stderr, "n65sim: too many MEMORY entries\n");
+            fprintf(stderr, "vcsc-sim: too many MEMORY entries\n");
             exit(1);
          }
 
@@ -261,7 +261,7 @@ static int address_is_read_only(uint16_t addr) {
 
 static void store_mem(uint16_t addr, uint8_t val, int allow_ro_write) {
    if (!allow_ro_write && address_is_read_only(addr)) {
-      fprintf(stderr, "n65sim: write to read-only memory at $%04X\n", addr);
+      fprintf(stderr, "vcsc-sim: write to read-only memory at $%04X\n", addr);
       trace_regs();
       trace_disasm(gpc);
       exit(1);
@@ -275,7 +275,7 @@ static int assign_option_value(const char **out, const char *current, int *argi,
       return 1;
    }
    if (*argi + 1 >= argc) {
-      fprintf(stderr, "n65sim: missing argument for %s\n", label);
+      fprintf(stderr, "vcsc-sim: missing argument for %s\n", label);
       exit(1);
    }
    *out = argv[++(*argi)];
@@ -301,7 +301,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          assign_option_value(&value, "", &argi, argc, argv, "-t");
          parse_result_t parsed = parse_number(value);
          if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
-            fprintf(stderr, "n65sim: bad trace mask '%s'\n", value);
+            fprintf(stderr, "vcsc-sim: bad trace mask '%s'\n", value);
             exit(1);
          }
          opts->trace = (uint16_t)parsed.value;
@@ -311,7 +311,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          const char *value = arg + 8;
          parse_result_t parsed = parse_number(value);
          if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
-            fprintf(stderr, "n65sim: bad trace mask '%s'\n", value);
+            fprintf(stderr, "vcsc-sim: bad trace mask '%s'\n", value);
             exit(1);
          }
          opts->trace = (uint16_t)parsed.value;
@@ -322,7 +322,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          assign_option_value(&value, "", &argi, argc, argv, "--trace");
          parse_result_t parsed = parse_number(value);
          if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
-            fprintf(stderr, "n65sim: bad trace mask '%s'\n", value);
+            fprintf(stderr, "vcsc-sim: bad trace mask '%s'\n", value);
             exit(1);
          }
          opts->trace = (uint16_t)parsed.value;
@@ -350,7 +350,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          opts->cfg_path = value;
       }
       else if (arg[0] == '-') {
-         fprintf(stderr, "n65sim: unknown option '%s'\n", arg);
+         fprintf(stderr, "vcsc-sim: unknown option '%s'\n", arg);
          usage(stderr);
          exit(1);
       }
@@ -370,7 +370,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
             opts->hex_path = arg;
          }
          else {
-            fprintf(stderr, "n65sim: unexpected argument '%s'\n", arg);
+            fprintf(stderr, "vcsc-sim: unexpected argument '%s'\n", arg);
             usage(stderr);
             exit(1);
          }

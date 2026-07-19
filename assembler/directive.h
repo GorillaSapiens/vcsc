@@ -1,5 +1,5 @@
 //! @file assembler/directive.h
-//! @brief Declares assembler directive handling for the n65 assembler.
+//! @brief Declares assembler directive handling for the VCSC assembler.
 //! @ingroup assembler
 
 #ifndef DIRECTIVE_H

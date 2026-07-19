@@ -1,5 +1,5 @@
 //! @file compiler/xform.h
-//! @brief Declares AST transformation passes for the n65 compiler.
+//! @brief Declares AST transformation passes for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_XFORM_H_

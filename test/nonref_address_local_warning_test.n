@@ -1,7 +1,0 @@
-// n65c -I .
-// expecterr: '@' on non-ref declaration 'port' is ignored
-include "machine_6502.n"
-
-void main(void) {
-   int8_t port@0x10;
-}

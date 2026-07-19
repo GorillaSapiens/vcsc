@@ -1,3 +1,10 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 ## MOS6502 Emulator in C++
 
 This is my C++ implementation of the MOS Technology 6502 CPU. The code is written to be more readable than fast, however some minor tricks have been introduced to greatly reduce the overall execution time.

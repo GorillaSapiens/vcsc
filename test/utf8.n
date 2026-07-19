@@ -1,5 +1,0 @@
-// n65c -X parseonly -X dumpast
-
-include "machine_6502.n"
-
-int16_t ε := 5;

@@ -1,68 +1,75 @@
-# n Toolchain (`n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`)
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
 
-`n` is a small C-like programming language designed for simplicity, low-level clarity, and embedded use. The project focuses on human-readable syntax, a minimal type system, and ease of compiler implementation... good for teaching, systems tinkering, or writing your own language from scratch.
+# VCSC Toolchain
 
-This repository contains the `n` language compiler (`n65c`) plus a companion 6502 assembler (`n65asm`), archiver (`n65ar`), linker (`n65ld`), simulator (`n65sim`), a GCC-like driver (`n65cc`), and support libraries.
+`vcsc` is a brutally pared-down Atari VCS C-like compiler. The language and toolchain are intentionally specialized for the 6507, the VCS memory model, and tiny cartridge programs rather than general-purpose 6502 compatibility.
+
+The public command is `vcsc`. It drives the internal compiler front end (`vcsc-cc1`), assembler (`vcsc-as`), archiver (`vcsc-ar`), linker (`vcsc-ld`), simulator (`vcsc-sim`), and the stock VCS runtime.
 
 ## Tool CLI Notes
 
 The command-line tools follow the usual GCC/binutils habits where practical:
 
-- `n65cc` is the high-level GCC-like entry point; it drives `n65c`, `n65asm`, and `n65ld` for the normal compile/assemble/link flow
-- `n65c` accepts a GCC-`cc1`-style single input file anywhere on the line, uses `-o output.s`, and accepts `-quiet`, `-dumpbase`, `-dumpbase-ext`, and `-dumpdir`
-- `n65asm` takes a positional input file and uses `-o output.o65` for relocatable object output, similar to GNU `as`; it auto-loads the bundled `default.cfg` from the source tree or installed `share/cfg`, can add the bundled `illegals.cfg` with `--illegals`, supports extra opcode tables with `--opcode-cfg`, and supports `.def` aliases plus raw `opXX` tokens
-- `n65ar` accepts GNU-`ar` style operation strings such as `rcs`
-- `n65ld` accepts GNU-`ld` style `-o`, `-T`, and `-Map`
+- `vcsc` is the high-level GCC-like entry point; it drives `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` for the normal compile/assemble/link flow
+- `vcsc-cc1` accepts a GCC-`cc1`-style single input file anywhere on the line, uses `-o output.s`, and accepts `-quiet`, `-dumpbase`, `-dumpbase-ext`, and `-dumpdir`
+- `vcsc-as` takes a positional input file and uses `-o output.o65` for relocatable object output, similar to GNU `as`; it auto-loads the bundled `default.cfg` from the source tree or installed `share/cfg`, can add the bundled `illegals.cfg` with `--illegals`, supports extra opcode tables with `--opcode-cfg`, and supports `.def` aliases plus raw `opXX` tokens
+- `vcsc-ar` accepts GNU-`ar` style operation strings such as `rcs`
+- `vcsc-ld` accepts GNU-`ld` style `-o`, `-T`, and `-Map`
 
 Examples:
 
 High-level driver flow:
 
 ```sh
-n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
+vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
 ```
 
 Direct stage-by-stage flow:
 
 ```sh
-n65c -quiet -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.s -dumpbase solid_color.n -dumpbase-ext .n -dumpdir ./
-n65asm -I libraries/nlib/ -o solid_color.o65 solid_color.s
-n65ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/nlib/nlib.a65
+vcsc-cc1 -quiet -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.s -dumpbase solid_color.vcsc -dumpbase-ext .vcsc -dumpdir ./
+vcsc-as -I libraries/runtime/ -o solid_color.o65 solid_color.s
+vcsc-ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/runtime/libvcsc.a65
 ```
 
 
 ## Installing
 
-The tree supports staged installs and relocatable packaging. The default prefix is `/opt/n`:
+The tree supports staged installs and relocatable packaging. The default prefix is `/opt/vcsc`:
 
 ```sh
 make install
-make install DESTDIR=/tmp/n-pkg
+make install DESTDIR=/tmp/vcsc-pkg
 make uninstall
 make package
 ```
 
 Installed layout:
 
-- `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`
-- `$(PREFIX)/lib/` ... the default runtime archive `nlib.a65`
-- `$(PREFIX)/include/` ... the assembler runtime include `nlib.inc`
+- `$(PREFIX)/bin/` ... `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ar`, `vcsc-ld`, `vcsc-sim`
+- `$(PREFIX)/lib/` ... the default runtime archive `libvcsc.a65`
+- `$(PREFIX)/include/` ... the assembler runtime include `vcsc-runtime.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
 - `$(PREFIX)/share/` ... packaged VCS bindings, linker configuration, and retained batari Basic conversion references
 
-The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/`, runtime assets under `lib/` and `include/`, and the VCS linker script under `share/vcs/`. By default it uses `vcs_4k.cfg` and links `nlib.a65` unless `-nostdlib` is used. Direct `n65ld` use always requires an explicit linker script.
+The installed `vcsc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/`, runtime assets under `lib/` and `include/`, and the VCS linker script under `share/vcs/`. By default it uses `vcs_4k.cfg` and links `libvcsc.a65` unless `-nostdlib` is used. Direct `vcsc-ld` use always requires an explicit linker script.
 
 ## Testing
 
-Run `make test` at the repository root to execute the unified `test/test.pl` harness across both compiler-side source tests and end-to-end `n65c -> n65asm -> n65ld -> n65sim` regression tests. Use `make unit` for compile-only cases, `make e2e` for end-to-end cases, and `make sieve` for a quick `n65cc` smoke build.
+Run `make test` at the repository root to execute the unified `test/test.pl` harness across both compiler-side source tests and end-to-end `vcsc-cc1 -> vcsc-as -> vcsc-ld -> vcsc-sim` regression tests. Use `make unit` for compile-only cases, `make e2e` for end-to-end cases, and `make sieve` for a quick `vcsc` smoke build.
 
-`test/test.pl` is the runner for both `.n` source tests and generic `.test` wrapper tests. It does not stop at the first failure, shows progress for every case, and prints a final summary of all failures. You can also run one file, a few files, or a whole subdirectory directly, for example:
+`test/test.pl` is the runner for both `.vcsc` source tests and generic `.test` wrapper tests. It does not stop at the first failure, shows progress for every case, and prints a final summary of all failures. You can also run one file, a few files, or a whole subdirectory directly, for example:
 
 ```sh
 cd test
-./test.pl operator_overloading_rejected_test.n
-./test.pl --compile-only exactops_rejected_test.n
-./test.pl --e2e-only e2e_call_argument_order_overload_verify.n
+./test.pl operator_overloading_rejected_test.vcsc
+./test.pl --compile-only exactops_rejected_test.vcsc
+./test.pl --e2e-only e2e_call_argument_order_overload_verify.vcsc
 ```
 
 See `test/README.md` for the header directives, placeholder tokens, and the generic `.test` file format.
@@ -74,7 +81,7 @@ For additional details, see the README.md files in the various subdirectories.
 ## Licensing
 
 Unless a subdirectory says otherwise, the toolchain sources and top-level build/test glue are licensed under GPL-3.0-or-later.
-The runtime library in `libraries/nlib/` is licensed under BSD-2-Clause so code linked into user binaries stays permissive.
+The runtime library in `libraries/runtime/` is licensed under BSD-2-Clause so code linked into user binaries stays permissive.
 The exact license texts live in the repository root `LICENSE`/`COPYING` files and in the per-library `LICENSE` files.
 
 ## Integer and packed-BCD type flags
@@ -83,7 +90,7 @@ Integer-like scalar types use an explicit style flag: `$integer:signed` or `$int
 
 Examples:
 
-```n
+```vcsc
 type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };

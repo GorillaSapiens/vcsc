@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'const' missing initializer
+
+type void  { $size:0 };
+type uint8_t  { $size:1 $integer:unsigned };
+type *     { $size:2 $integer:unsigned $endian:little };
+type int8_t  { $size:1 $integer:signed };
+
+const int8_t x;
+
+void main(void) {
+}

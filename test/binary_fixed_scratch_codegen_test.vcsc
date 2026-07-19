@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_
+// expectasm: __vcsc_scratch_
+// expectasm: __vcsc_scratch_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+include "machine_6502.vcsc"
+
+
+uint16_t result;
+
+void calculate(uint16_t a, uint16_t b, uint8_t count) {
+   result := ((a + b) << count) ^ (a * b);
+}

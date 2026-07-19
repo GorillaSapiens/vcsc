@@ -1,0 +1,43 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.vcsc"
+
+type u1x { $size:1 $integer:unsigned $endian:little };
+type u2x { $size:2 $integer:unsigned $endian:little };
+
+int16_t helper_u1(int8_t *dst, u1x value) {
+   dst[0] := 'u';
+   dst[1] := '0' + value;
+   return 2;
+}
+
+int16_t helper_u2(int8_t *dst, u2x value) {
+   dst[0] := 'v';
+   dst[1] := '0' + (value & 15`u2x);
+   return 2;
+}
+
+void main(void) {
+   int8_t buf[8];
+   int8_t *p := buf;
+   int16_t used;
+
+   used := helper_u1(buf, 3`u1x);
+   if (used != 2) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   used := helper_u2(buf + 2, 258`u2x);
+   if (used != 2) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   used := helper_u1(p + 4, 5`u1x);
+   if (used != 2) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+
+   if (buf[0] != 'u') { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   if (buf[1] != '3') { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   if (buf[2] != 'v') { asm lda #$ff; asm ldx #6; asm ldy #0; asm jsr $ffff; }
+   if (buf[3] != '2') { asm lda #$ff; asm ldx #7; asm ldy #0; asm jsr $ffff; }
+   if (buf[4] != 'u') { asm lda #$ff; asm ldx #8; asm ldy #0; asm jsr $ffff; }
+   if (buf[5] != '5') { asm lda #$ff; asm ldx #9; asm ldy #0; asm jsr $ffff; }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

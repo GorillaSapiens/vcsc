@@ -1,5 +1,5 @@
 //! @file compiler/compile_expr.h
-//! @brief Declares expression lowering entry points for the n65 compiler.
+//! @brief Declares expression lowering entry points for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_EXPR_H_

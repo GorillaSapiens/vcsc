@@ -1,5 +1,5 @@
 //! @file compiler/coverage.h
-//! @brief Declares grammar coverage instrumentation for the n65 compiler.
+//! @brief Declares grammar coverage instrumentation for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COVERAGE_H_

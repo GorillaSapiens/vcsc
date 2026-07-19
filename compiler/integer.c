@@ -1,5 +1,5 @@
 //! @file compiler/integer.c
-//! @brief Implements integer literal conversion for the n65 compiler.
+//! @brief Implements integer literal conversion for the VCSC compiler.
 //! @ingroup compiler
 
 #include <string.h>

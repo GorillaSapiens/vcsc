@@ -1,5 +1,5 @@
 //! @file assembler/symtab.c
-//! @brief Implements assembler symbol table for the n65 assembler.
+//! @brief Implements assembler symbol table for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

@@ -17,8 +17,8 @@ sub slurp {
 }
 
 my @removed = (
-   [qw(libraries nlib machine_6502.n)],
-   [qw(libraries nlib n.cfg)],
+   [qw(libraries runtime machine_6502.vcsc)],
+   [qw(libraries runtime n.cfg)],
    [qw(linker default.cfg)],
 );
 for my $parts (@removed) {
@@ -27,21 +27,21 @@ for my $parts (@removed) {
 }
 
 for my $parts (
-   [qw(libraries vcs vcs.n)],
+   [qw(libraries vcs vcs.vcsc)],
    [qw(libraries vcs vcs_4k.cfg)],
    [qw(libraries vcs batari-basic standard std_kernel.asm)],
    [qw(libraries vcs batari-basic multisprite multisprite_kernel.asm)],
-   [qw(test machine_6502.n)],
+   [qw(test machine_6502.vcsc)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required VCS/conversion/test material is missing: $path\n";
 }
 
-my $nlib_make = slurp(File::Spec->catfile($repo, 'libraries', 'nlib', 'Makefile'));
-$nlib_make !~ /\bmachine_6502\.n\b/ or die "nlib install still exports the generic machine target\n";
-$nlib_make !~ /\bn\.cfg\b/ or die "nlib install still exports the generic linker layout\n";
+my $runtime_make = slurp(File::Spec->catfile($repo, 'libraries', 'runtime', 'Makefile'));
+$runtime_make !~ /\bmachine_6502\.vcsc\b/ or die "runtime install still exports the generic machine target\n";
+$runtime_make !~ /\bn\.cfg\b/ or die "runtime install still exports the generic linker layout\n";
 
 my $top_readme = slurp(File::Spec->catfile($repo, 'README.md'));
-$top_readme !~ /\bnlib\/n\.cfg\b/ or die "top-level install documentation still advertises nlib/n.cfg\n";
+$top_readme !~ /\bruntime\/n\.cfg\b/ or die "top-level install documentation still advertises runtime/n.cfg\n";
 
 print "generic target bundle pruned; VCS and batari references retained\n";

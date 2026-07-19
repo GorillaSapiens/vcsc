@@ -1,0 +1,19 @@
+// vcsc-cc1
+// expectasm: jsr _copysxNle
+// expectasm: jsr _leNule
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s1   { $size:1 $integer:signed };
+type s2   { $size:2 $integer:signed $endian:little };
+type u2   { $size:2 $integer:unsigned $endian:little };
+
+s2 widen(s1 x) {
+   s2 out := x;
+   return out;
+}
+
+uint8_t ge(u2 a, u2 b) {
+   return a >= b;
+}

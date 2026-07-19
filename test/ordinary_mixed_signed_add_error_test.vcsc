@@ -1,0 +1,14 @@
+// vcsc-cc1
+// expectfail
+// expecterr: mixed signed/unsigned ordinary integer operator '+' requires an explicit cast
+
+type void { $size:0 };
+type uint8_t { $size:1 $integer:unsigned };
+type *    { $size:2 $integer:unsigned $endian:little };
+type s2   { $size:2 $integer:signed $endian:little };
+type u2   { $size:2 $integer:unsigned $endian:little };
+
+void bad(s2 a, u2 b) {
+   u2 result;
+   result := a + b;
+}

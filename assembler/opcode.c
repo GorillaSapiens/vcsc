@@ -1,5 +1,5 @@
 //! @file assembler/opcode.c
-//! @brief Implements 6502 opcode tables and lookup for the n65 assembler.
+//! @brief Implements 6502 opcode tables and lookup for the VCSC assembler.
 //! @ingroup assembler
 
 #include <ctype.h>

@@ -1,5 +1,5 @@
 //! @file compiler/compile_stmt.h
-//! @brief Declares statement lowering for the n65 compiler.
+//! @brief Declares statement lowering for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_COMPILE_STMT_H_

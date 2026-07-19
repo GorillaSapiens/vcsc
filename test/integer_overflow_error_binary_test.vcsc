@@ -1,0 +1,9 @@
+// vcsc-cc1 -I . -X invert
+// expecterr: integer '0b100000000' is too big for 1 bytes!
+
+include "machine_6502.vcsc"
+
+int8_t bin_over := 0b100000000;
+
+void main(void) {
+}

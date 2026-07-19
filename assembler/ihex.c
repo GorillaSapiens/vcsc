@@ -1,5 +1,5 @@
 //! @file assembler/ihex.c
-//! @brief Implements Intel HEX emission for the n65 assembler.
+//! @brief Implements Intel HEX emission for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

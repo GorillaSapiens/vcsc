@@ -1,5 +1,5 @@
 //! @file assembler/util.c
-//! @brief Implements shared assembler utilities for the n65 assembler.
+//! @brief Implements shared assembler utilities for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

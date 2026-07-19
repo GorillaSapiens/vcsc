@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot dereference non-pointer 'y'
+include "machine_6502.vcsc"
+int16_t main(void) {
+   int16_t y;
+   return *y;
+}

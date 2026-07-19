@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: inline asm read-modify-write 'INC' cannot use split-address ref 'SPLIT'
+
+include "machine_6502.vcsc"
+ref uint8_t SPLIT @[0x40/0x41];
+void main(void) {
+   asm inc SPLIT;
+}

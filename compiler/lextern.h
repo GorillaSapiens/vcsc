@@ -1,5 +1,5 @@
 //! @file compiler/lextern.h
-//! @brief Declares lexer/parser external declarations for the n65 compiler.
+//! @brief Declares lexer/parser external declarations for the VCSC compiler.
 //! @ingroup compiler
 
 #ifndef _INCLUDE_LEXTERN_H_

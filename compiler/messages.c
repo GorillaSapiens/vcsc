@@ -1,5 +1,5 @@
 //! @file compiler/messages.c
-//! @brief Implements compiler diagnostics for the n65 compiler.
+//! @brief Implements compiler diagnostics for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

@@ -1,5 +1,5 @@
 //! @file assembler/source_loader.c
-//! @brief Implements assembler source loading for the n65 assembler.
+//! @brief Implements assembler source loading for the VCSC assembler.
 //! @ingroup assembler
 
 #include <stdio.h>

@@ -1,5 +1,5 @@
 //! @file compiler/pair.c
-//! @brief Implements pointer pair collection for the n65 compiler.
+//! @brief Implements pointer pair collection for the VCSC compiler.
 //! @ingroup compiler
 
 #include <stdio.h>

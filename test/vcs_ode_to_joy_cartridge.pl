@@ -32,11 +32,11 @@ usage() if @ARGV;
 $repo=abs_path($repo) // die "could not resolve repo root\n";
 $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 
-my $driver=File::Spec->catfile($repo,'driver','n65cc');
+my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs_dir=File::Spec->catfile($repo,'libraries','vcs');
-my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.n');
+my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.vcsc');
 my $example_dir=File::Spec->catdir($repo,'examples','02_ode_to_joy');
-my $source=File::Spec->catfile($example_dir,'ode_to_joy.n');
+my $source=File::Spec->catfile($example_dir,'ode_to_joy.vcsc');
 my $binary=File::Spec->catfile($tmp,'ode_to_joy.bin');
 my $map=File::Spec->catfile($tmp,'ode_to_joy.map');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');

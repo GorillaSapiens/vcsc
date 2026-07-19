@@ -2,13 +2,13 @@ CC ?= cc
 CFLAGS ?= -O2
 WARNINGS = -Wall -Wextra -Werror -pedantic
 
-BINDIR ?= /opt/n/bin
+BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen
 
-all: version.h n65ar
+all: version.h vcsc-ar
 
 .PHONY: version FORCE
 version: version.h
@@ -39,20 +39,20 @@ version.h: FORCE
 	      > version.h; \
 	fi
 
-n65ar: n65ar.c version.h
-	$(CC) $(CFLAGS) $(WARNINGS) -o $@ n65ar.c
+vcsc-ar: vcsc_ar.c version.h
+	$(CC) $(CFLAGS) $(WARNINGS) -o $@ vcsc_ar.c
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
 
-install: n65ar
+install: vcsc-ar
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL_PROGRAM) n65ar $(DESTDIR)$(BINDIR)/n65ar
+	$(INSTALL_PROGRAM) vcsc-ar $(DESTDIR)$(BINDIR)/vcsc-ar
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/n65ar
+	rm -f $(DESTDIR)$(BINDIR)/vcsc-ar
 
 clean:
-	rm -f n65ar version.h
+	rm -f vcsc-ar version.h
 
 .PHONY: docs
