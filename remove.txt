@@ -462,3 +462,14 @@ test/visible_same_type_operator_beats_helper_codegen_test.n
 test/weak_builtin_operator_codegen_test.n
 libraries/nlib/asm/sbrk.asm
 libraries/nlib/asm/sp2ptr.asm
+compiler/compile_overload.c
+compiler/compile_overload.h
+assembler/tests/op_namespace.s
+test/ordinary_overload_ambiguous_test.n
+test/ordinary_overload_exact_match_test.n
+test/ordinary_overload_function_pointer_test.n
+test/ordinary_overload_null_literal_codegen_test.n
+test/ordinary_overload_pointer_machine_codegen_test.n
+test/e2e_call_argument_order_overload_verify.n
+test/e2e_ordinary_overload_null_literal_verify.n
+test/e2e_pointer_machine_helper_overload_verify.n

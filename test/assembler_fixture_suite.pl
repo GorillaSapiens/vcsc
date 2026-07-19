@@ -40,7 +40,7 @@ my @cases = (
    [ 'import_fail.s object', 'obj', 'import_fail.s',    0, [] ],
    [ 'obj.s object',         'obj', 'obj.s',            0, [] ],
    [ 'obj2.s object',        'obj', 'obj2.s',           0, [] ],
-   [ '@op namespace object', 'obj', 'op_namespace.s',   0, [] ],
+   [ 'extended symbol namespace object', 'obj', 'extended_symbol_namespace.s', 0, [] ],
    [ 'selection.s object',   'obj', 'selection.s',      0, [] ],
    [ 'zp_annot.s object',    'obj', 'zp_annot.s',       0, [] ],
 

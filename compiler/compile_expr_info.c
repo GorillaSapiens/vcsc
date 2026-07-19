@@ -8,7 +8,7 @@
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_internal.h"
-#include "compile_overload.h"
+#include "compile_function_registry.h"
 #include "compile_type.h"
 #include "messages.h"
 #include "typename.h"

@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_174543.tar.gz
+    vcsc.20260718_211831.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -66,6 +66,8 @@ Settled final-language decisions
 * A function has one activation record and is intentionally non-reentrant.
 * Direct recursion, mutual recursion, callback re-entry, and any other path that
   activates the same function twice must be rejected.
+* Each source-level function name has exactly one signature. Matching prototypes
+  and a later definition are legal; ordinary named-function overloading is not.
 * JSR/RTS still use the 6502 hardware stack for return addresses.
 * Function returns:
 
@@ -127,7 +129,8 @@ Completed vertical slices
 16. Operator overloading, `$exactops`, weak built-in operator dispatch, the
     weak-operator generator/runtime members, and generated exact-operator float
     fixtures have been removed. Compiler source emits no `_pushN` or `_popN`.
-    Ordinary named-function overloading remains supported.
+    Ordinary named-function overloading was retained temporarily and removed in
+    completed slice 31.
 17. Floating-point support has been removed from the language, compiler, driver,
     build, runtime, machine definitions, and positive test suite. Floating-point
     literals and `$float`/`$float:*` type flags remain only as direct rejection
@@ -195,6 +198,13 @@ Completed vertical slices
     `$$` object. An 8-bit return emits `LDA zp; RTS`; a 16-bit return emits
     `LDA zp; LDX zp+1; RTS`. The object writer now correctly records a plain
     relocatable expression used by a one-byte operand as a low-byte relocation.
+31. Ordinary named-function overloading has been removed. Each source name now
+    identifies one declaration/definition signature and one unmangled assembler
+    symbol. Matching prototypes remain legal; a second signature is rejected.
+    Direct calls retain fixed-parameter count checks, safe integer widening,
+    null-pointer literal conversion, typed-object-pointer to `void*` conversion,
+    and exact-lvalue enforcement for `ref` parameters. The thousand-line
+    overload resolver was replaced by a compact direct-function registry.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -387,43 +397,74 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler/assembler source:
+Compiler source/build:
 
-    assembler/o65.c
+    compiler/Makefile
+    compiler/abi_meta.c
+    compiler/compile_call.c
+    compiler/compile_expr.c
+    compiler/compile_expr_flow.c
+    compiler/compile_expr_info.c
+    compiler/compile_expr_ops.c
+    compiler/compile_expr_slot.c
     compiler/compile_function.c
+    compiler/compile_init.c
+    compiler/compile_literal.c
+    compiler/compile_lvalue.c
+    compiler/compile_support.c
     compiler/compile_toplevel.c
+    compiler/compile_function_registry.c          (added)
+    compiler/compile_function_registry.h          (added)
+    compiler/compile_overload.c                    (removed)
+    compiler/compile_overload.h                    (removed)
 
-Documentation:
+Documentation/fixtures:
 
-    context.txt
-    compiler/ABI.txt
+    assembler/README.md
+    assembler/tests/README.md
+    assembler/tests/extended_symbol_namespace.s   (added/renamed)
+    assembler/tests/op_namespace.s                 (removed)
     compiler/README.md
+    test/README.md
+    test/assembler_fixture_suite.pl
+    test/unicode_identifier_mangle.pl
+    software_stack_inventory.txt
+    context.txt
+    remove.txt
 
-Updated regressions:
+Tests added or rewritten:
 
-    test/peephole_codegen_test.n
-    test/return_ax_uint8_codegen_test.n
-    test/return_ax_uint16_codegen_test.n
-    test/return_slot_scalar_compound_codegen_test.n
+    test/named_function_overloading_rejected_test.n       (added)
+    test/function_argument_count_error_test.n             (added)
+    test/e2e_null_pointer_literal_argument_verify.n       (added)
+    test/e2e_pointer_machine_helpers_verify.n             (added)
+    test/void_pointer_argument_reverse_error_test.n       (updated)
 
-Added regressions:
+Obsolete positive overload tests removed:
 
-    test/vcs_return_epilogue_encoding.pl
-    test/vcs_return_epilogue_encoding.test
+    test/ordinary_overload_ambiguous_test.n
+    test/ordinary_overload_exact_match_test.n
+    test/ordinary_overload_function_pointer_test.n
+    test/ordinary_overload_null_literal_codegen_test.n
+    test/ordinary_overload_pointer_machine_codegen_test.n
+    test/e2e_call_argument_order_overload_verify.n
+    test/e2e_ordinary_overload_null_literal_verify.n
+    test/e2e_pointer_machine_helper_overload_verify.n
 
-No files were removed. remove.txt remains at 464 unique cumulative paths.
+All removed/renamed old paths are recorded in remove.txt, now at 475 unique
+cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_return_tools
+    /mnt/data/vcsc_next_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_return_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_return_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_return_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_next_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_next_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_next_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -442,29 +483,13 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    96 passed, 0 failed, 96 total
+    97 passed, 0 failed, 97 total
 
-Focused validation links a VCS cartridge and checks the exact return epilogue
-bytes. The 8-bit path is `A5 zp 60` (`LDA zp; RTS`); the 16-bit path is
-`A5 zp A6 zp+1 60` (`LDA zp; LDX zp+1; RTS`). This also covers one-byte local
-zero-page relocation through the assembler/object/linker pipeline.
-
-Both examples still build directly as raw 4096-byte cartridges.
-
-`01_solid_color` has call depth 2. Its effective allocatable RIOT region is
-$80-$F7 and its computed hardware-stack reserve is $F8-$FF (8 bytes). Runtime
-zero-page occupies $80-$91 and `choose_background` owns its one-byte hidden
-return object at $92.
-
-`02_ode_to_joy` uses direct `music[music_index].field` expressions. Its linked
-call depth is 3, so the effective allocatable RIOT region is $80-$F3 and the
-hardware-stack reserve is $F4-$FF (12 bytes). Runtime zero-page occupies
-$80-$91; the only player state is `music_index` at $92 and `music_counter` at
-$93. BSS size is zero, and the 128-byte score remains in RODATA.
-
-The timing regression continues to exercise ordinary ticks, note transitions,
-silent gaps, and score wrap at stable Stella-reported 262-line frames with no
-overscan timer underflow.
+Both examples still build directly as raw 4096-byte cartridges. The focused
+function-registry coverage verifies same-signature prototype/definition support,
+rejection of a second signature, direct argument-count diagnostics, retained
+pointer/integer call conversions, exact `ref` lvalue enforcement, Unicode-safe
+unmangled symbols, cross-object ABI checks, and the existing call graph.
 
 Immediate TODO
 --------------
@@ -575,7 +600,7 @@ The first unfinished item is the default next action.
         [x] 16b. Remove residual `_nl_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
                   fixed workspace. Keep `_nl_fp` while pooled scratch uses it.
-        [ ] 16c. Fix retained compiler correctness defects inherited from N
+        [x] 16c. Fix retained compiler correctness defects inherited from N
                   before deleting more language machinery.
 
                   [x] 16c1. Correct pointer-pointer subtraction typing and
@@ -594,7 +619,9 @@ The first unfinished item is the default next action.
                             Tests cover local, global, file-static, function-
                             static, and indirect pointer destinations with one-
                             and two-byte element arrays.
-        [ ] 16d. Reassess and likely remove ordinary named-function overloading.
+        [x] 16d. Remove ordinary named-function overloading. Each function name
+                  now has one signature and one unmangled assembler symbol;
+                  matching declarations plus one definition remain supported.
         [ ] 16e. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
 
@@ -1243,6 +1270,30 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 230/230 compile tests and 98/98 end-to-end/generic tests, including both
   exact 4096-byte cartridge regressions.
 * No files were removed; remove.txt remains at 464 unique cumulative paths.
+
+
+2026-07-18 21:30:19 PDT, remove ordinary named-function overloading
+* Replaced the 996-line ordinary overload resolver with a 410-line direct
+  function registry. Each source name now has one signature and one unmangled
+  assembler symbol; matching prototypes and a later definition remain legal.
+* Preserved direct-call validation for argument count, exact `ref` lvalues,
+  safe integer widening, null pointer literals, object-pointer conversion to
+  `void*`, and rejection of the reverse conversion without an explicit cast.
+* Added direct rejection coverage for a second function signature and argument-
+  count mismatch. Reworked useful null-pointer and pointer-helper execution
+  tests to use distinct function names, and removed pure overload-selection
+  tests.
+* Removed overload-signature mangling from the Unicode identifier test while
+  retaining Unicode symbol escaping, assembler/linker acceptance, diagnostics,
+  and simulator execution.
+* Renamed the assembler `op_namespace.s` fixture to
+  `extended_symbol_namespace.s` and removed stale operator-overload wording
+  while preserving coverage for linker-visible `?@...` symbols versus local
+  `@...` labels.
+* Passed 227/227 compile tests and 97/97 end-to-end/generic tests, including both
+  exact 4096-byte cartridge regressions.
+* Added seven source/test files and removed or renamed eleven old paths;
+  remove.txt now contains 475 unique cumulative paths.
 
 
 End-of-session checklist

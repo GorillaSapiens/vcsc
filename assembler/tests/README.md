@@ -9,6 +9,6 @@ Some files are intentionally invalid.  Those fixtures verify diagnostics for
 bad addressing modes, duplicate symbols, unresolved final-output imports, and
 parser errors.
 
-`op_namespace.s` specifically verifies that compiler-generated `?@op_...`
-operator symbols are linker-visible, while ordinary `@local` labels remain
+`extended_symbol_namespace.s` specifically verifies that linker-visible `?@...`
+symbols are linker-visible, while ordinary `@local` labels remain
 local/scoped assembler labels.

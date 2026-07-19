@@ -11,7 +11,7 @@ Snapshot
 --------
 Input archive:
 
-    vcsc.20260717_154505.tar.gz
+    vcsc.20260718_211831.tar.gz
 
 Compiler emission totals:
 
@@ -37,7 +37,7 @@ The final five `_pushN` sites and thirteen `_popN` emissions belonged only to:
 
 Operator overloading, `$exactops`, weak operator dispatch, their runtime generator,
 and their positive tests have now been removed. Ordinary named-function overloading
-remains supported.
+has also been removed; each function name has one direct signature.
 
 Runtime/library status
 ----------------------

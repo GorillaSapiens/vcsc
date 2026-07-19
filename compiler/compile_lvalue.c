@@ -14,7 +14,7 @@
 #include "compile_internal.h"
 #include "compile_support.h"
 #include "compile_lvalue.h"
-#include "compile_overload.h"
+#include "compile_function_registry.h"
 #include "compile_type.h"
 #include "emit.h"
 #include "integer.h"

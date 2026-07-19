@@ -30,7 +30,7 @@ Listing and map output can be requested alongside either mode.
 
 ## Symbol names and local labels
 
-Assembler identifiers may contain `@`, but symbols beginning with `@` are scoped/local labels and cannot be imported, exported, or marked weak.  The compiler-generated operator namespace starts with `?@op_...`, so those symbols are ordinary linker-visible identifiers while reading as compiler-owned names; generated overload entry points such as `?@op_add@int_p0_a0@int_p0_a0` can live in objects and archives.
+Assembler identifiers may contain `?` and `@`, but symbols beginning with `@` are scoped/local labels and cannot be imported, exported, or marked weak. A linker-visible compiler-owned symbol may instead begin with `?@`; the leading `?` keeps it out of the local-label namespace.
 
 ## Command Line Parameters
 

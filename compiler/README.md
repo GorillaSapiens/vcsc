@@ -192,38 +192,11 @@ int16_t twice(int16_t x) {
 
 `extern` function declarations are also supported and cause the compiler to emit an import for the referenced symbol. Direct calls require a visible function signature in the current translation unit or via an `extern` declaration; the compiler rejects bare calls to unknown symbols instead of guessing at a call ABI.
 
-### Ordinary function overloading
+### One function signature per name
 
-Ordinary named functions can be overloaded by parameter signature. Overload resolution uses a best-viable-match search:
+Each source-level function name identifies exactly one signature. Matching declarations and a later definition are allowed, but declaring the same name with different parameter or return types is rejected. Ordinary function overloading is intentionally unsupported.
 
-- exact matches win first
-- implicit object-pointer conversion to `void*` or `const void*` is considered after exact matches
-- safe integer promotions for plain value parameters are considered after exact matches
-- `ref` parameters remain strict and require an lvalue of the exact declared type
-- the reverse direction (`void*` to some typed pointer) requires an explicit cast
-- ambiguous best matches are rejected
-
-Examples:
-
-```n
-s2 pick(s2 x) {
-   return x;
-}
-
-s4 pick(s4 x) {
-   return x;
-}
-
-s2 a(s2 x) {
-   return pick(x);
-}
-
-s4 b(s4 x) {
-   return pick(x);
-}
-```
-
-If no viable overload exists, the compiler rejects the call. If multiple viable overloads tie for best cost, the compiler reports the call as ambiguous.
+Direct calls are checked against that single visible signature. Exact matches, safe widening integer conversions, null pointer literals, and object-pointer conversion to `void*` are accepted. `ref` parameters require an lvalue of the exact declared type, and converting `void*` back to a typed pointer requires an explicit cast.
 
 ### Function pointers and indirect calls
 
@@ -349,8 +322,7 @@ intended. Literal-only expressions are folded before lowering and do not warn;
 divisor one and non-power-of-two constants also remain silent.
 
 The lexer retains explicit rejection rules so obsolete source receives a
-clear diagnostic rather than a generic parse error. Ordinary named-function overloading
-remains supported.
+clear diagnostic rather than a generic parse error.
 
 Compound assignment is builtin syntactic sugar: for example, `a += b` computes the
 builtin `a + b` result and stores it back through the original lvalue. `++` and `--` are
@@ -360,7 +332,7 @@ also builtin and support ordinary, indirect, absolute, pointer, and bit-field lv
 
 Source identifiers may contain valid UTF-8 non-ASCII characters. The lexer validates UTF-8 inside the `{IDENT}` rule before alias lookup, typedef lookup, symbol table insertion, or any other processing. Malformed UTF-8 in an identifier is a compile-time error.
 
-The compiler keeps assembler-safe ASCII identifiers unchanged, but each non-ASCII Unicode scalar in an identifier is escaped in place before it reaches assembly or overload ABI names:
+The compiler keeps assembler-safe ASCII identifiers unchanged, but each non-ASCII Unicode scalar in an identifier is escaped in place before it reaches assembler and linker symbols:
 
 ```text
 cafe     -> cafe
@@ -379,7 +351,7 @@ Diagnostics reverse these escapes when reporting user-facing names, so an error 
 
 - callers pass an address, not a copied value
 - reads and writes in the callee dereference the referenced object
-- mangling and overload matching distinguish `ref` parameters
+- direct-call validation distinguishes `ref` parameters from value parameters
 
 Example:
 
@@ -658,7 +630,6 @@ The following limits are deliberate in the language and compiler design, not unk
 
 A few sharp edges remain:
 
-- ordinary function overloading supports exact matches plus safe integer promotions for plain value parameters, but there is no user-defined conversion search or other C++-style ranking machinery
 - symbol-backed-parameter cycle checking spans the selected object files at link time, but truly dynamic call targets cannot be proven safe
 - shift-count diagnostics are lax
 

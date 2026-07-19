@@ -131,27 +131,6 @@ die "n65cc failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 ($rc, $out, $err) = run_capture($n65sim, $hex);
 die "simulator failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 
-my $overload_src = File::Spec->catfile($tmp, 'unicode_overload.n');
-write_utf8($overload_src, <<'EOF');
-include "machine_6502.n"
-
-int16_t café(int16_t a) { return a + 1; }
-int8_t café(int8_t a) { return a + 1; }
-int16_t call_cafe_int(int16_t x) { return café(x); }
-int8_t call_cafe_char(int8_t x) { return café(x); }
-EOF
-
-my $overload_asm = File::Spec->catfile($tmp, 'unicode_overload.s');
-($rc, $out, $err) = run_capture($n65c, '-quiet', '-I', $test_inc, $overload_src, '-o', $overload_asm);
-die "n65c failed for unicode overload source:\n$err$out\n" if $rc != 0;
-$asm = slurp_bytes($overload_asm);
-require_data_contains($asm, '.export caf?u00E9?@int16_t_p0_a0');
-require_data_contains($asm, '.export caf?u00E9?@int8_t_p0_a0');
-require_data_contains($asm, 'jsr caf?u00E9?@int16_t_p0_a0');
-require_data_contains($asm, 'jsr caf?u00E9?@int8_t_p0_a0');
-require_data_not_contains($asm, 'caf\xc3\xa9');
-
-
 my $unknown_src = File::Spec->catfile($tmp, 'unicode_unknown_identifier.n');
 write_utf8($unknown_src, <<'EOF');
 include "machine_6502.n"

@@ -31,7 +31,7 @@ Run one test, a few tests, or a whole subdirectory:
 
 ```sh
 ./test.pl operator_overloading_rejected_test.n
-./test.pl exactops_rejected_test.n e2e_call_argument_order_overload_verify.n
+./test.pl exactops_rejected_test.n e2e_call_argument_order_verify.n
 ./test.pl .
 ```
 
@@ -61,7 +61,7 @@ Useful expectations include:
 
 A plain `.n` file with only compile-side expectations is treated as a compile-only test. A `.n` file with link/sim expectations is treated as an e2e test.
 
-`unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, overload ABI mangling, assembler/linker acceptance, and simulator execution.
+`unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 ### `.test` files
 
