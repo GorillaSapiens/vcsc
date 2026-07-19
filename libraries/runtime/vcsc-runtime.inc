@@ -1,6 +1,5 @@
 ; vcsc-runtime.inc
 
-.importzp _vcsc_fp
 .importzp _vcsc_arg0
 .importzp _vcsc_arg1
 .importzp _vcsc_ptr0
@@ -14,7 +13,6 @@
 .importzp _vcsc_tmp4
 .importzp _vcsc_tmp5
 
-.def fp _vcsc_fp
 .def arg0 _vcsc_arg0
 .def arg1 _vcsc_arg1
 .def ptr0 _vcsc_ptr0

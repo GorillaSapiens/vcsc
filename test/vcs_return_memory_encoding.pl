@@ -158,7 +158,7 @@ for my $item (
 my $assembly_text=read_file($assembly);
 $assembly_text !~ /\@fini:\n\s+(?:lda|ldx|ldy)\s+[^\n]*\$__return/
    or die "a value-return epilogue still reloads a return object into registers\n";
-$assembly_text =~ /jsr return24\n\s+pla\n\s+sta fp\n\s+pla\n\s+sta fp\+1\n(?:\s+ldy #\d+\n\s+lda return24\$__return,y\n\s+sta \(fp\),y\n){3}/
+$assembly_text =~ /jsr return24\n(?:\s+ldy #\d+\n\s+lda return24\$__return,y\n\s+sta __vcsc_scratch_\d+,y\n){3}/
    or die "caller does not consume the three-byte callee-owned return object directly\n";
 
 print "vcs return memory encoding ok\n";

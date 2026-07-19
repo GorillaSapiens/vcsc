@@ -783,7 +783,7 @@ cleanup:
 }
 
 //! @brief Shrink the configured RAM arena by the stack requirement derived from the call graph.
-static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t depth)
+static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t depth, size_t init_count)
 {
    memory_region_t *target = NULL;
    size_t i;
@@ -803,12 +803,13 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t de
    if (!target)
       return;
 
-   /* Each active source function accounts for a two-byte JSR return address.
-      The current compiler also uses up to two bytes per active level while
-      preserving fp around fixed-scratch lowering. Inline assembly and stack
-      use hidden inside separately assembled routines are intentionally not
-      represented yet. */
-   bytes = (uint32_t)depth * 4u;
+   /* Each active source function accounts for one two-byte JSR return address.
+      The stock startup also preserves its two-byte init-table cursor while an
+      init function runs. Inline assembly and stack use hidden inside separately
+      assembled routines are intentionally not represented yet. */
+   bytes = (uint32_t)depth * 2u;
+   if (init_count > 0)
+      bytes += 2u;
    end = (uint32_t)target->start + (uint32_t)target->size;
    if (end > 0x10000u) {
       fprintf(stderr, "vcsc-ld: MEMORY region '%s' extends beyond address space\n", target->name);
@@ -1712,7 +1713,8 @@ int main(int argc, char **argv)
    validate_mem_region_metadata(&cfg, &inputs);
    {
       uint16_t call_depth = enforce_symbol_backed_call_graph(&inputs);
-      reserve_call_stack_from_call_graph(&cfg, call_depth);
+      size_t init_count = count_init_functions_in_input(&inputs);
+      reserve_call_stack_from_call_graph(&cfg, call_depth, init_count);
    }
    warn_unused_cmdline_objects(&inputs);
    layout_objects(&cfg, &inputs, &layout);

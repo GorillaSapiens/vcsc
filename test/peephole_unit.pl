@@ -142,7 +142,7 @@ int main(void) {
    out = run_pass("    lda #$01\n    cmp #$02\n    lda #$01\n");
    require_true(count_of(out, "lda #$01") == 2, "cmp preserves A but invalidates flags, so the second lda must stay", out);
 
-   out = run_pass("    ldy #0\n    lda (ptr0),y\n    ldy #0\n    sta (fp),y\n    ldy #1\n");
+   out = run_pass("    ldy #0\n    lda (ptr0),y\n    ldy #0\n    sta __vcsc_scratch_0,y\n    ldy #1\n");
    require_true(count_of(out, "ldy #0") == 1, "duplicate ldy with dead N/Z flags before a later flag-setting load should be removed", out);
 
    out = run_pass("    ldy #0\n    lda (ptr0),y\n    ldy #0\n    bne @taken\n@taken:\n");
@@ -151,7 +151,7 @@ int main(void) {
    out = run_pass("    lda #$01\n    cmp #$02\n    lda #$01\n    bcc @uses_nz\n    inx\n@uses_nz:\n    bne @done\n@done:\n");
    require_true(count_of(out, "lda #$01") == 2, "C/V-only conditional branches must block dead-N/Z load removal because they can skip a later N/Z overwrite", out);
 
-   out = run_pass("    ldy #1\n    lda (fp),y\n    ldy #1\n    sta (ptr1),y\n    jmp @fini\n@fini:\n    lda #$02\n");
+   out = run_pass("    ldy #1\n    lda __vcsc_scratch_0,y\n    ldy #1\n    sta (ptr1),y\n    jmp @fini\n@fini:\n    lda #$02\n");
    require_true(count_of(out, "ldy #1") == 1 && !contains(out, "jmp @fini"), "dead flag scan should see through a removable jump-to-next-label", out);
 
    out = run_pass("    lda #$03\n    tax\n    ldx #$03\n");

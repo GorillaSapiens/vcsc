@@ -20,13 +20,13 @@ workspace expected by generated code.
   - initializes the 6502 hardware stack
   - copies `DATA` from ROM to RAM using `__copy_table`
   - zeros `BSS` using `__zero_table`
-  - initializes the pooled-scratch frame pointer from `__stack_start`
   - walks the linker-generated `__init_table`
   - calls `main`
   - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
 - `vcsc-zeropage.s`
   - exports the zero-page runtime workspace used by startup code and helper routines
-  - current symbols are `_vcsc_fp`, `_vcsc_arg0`, `_vcsc_arg1`, `_vcsc_ptr0`..`_vcsc_ptr3`, `_vcsc_tmp0`..`_vcsc_tmp5`
+  - current symbols are `_vcsc_arg0`, `_vcsc_arg1`, `_vcsc_ptr0`..`_vcsc_ptr3`, and `_vcsc_tmp0`..`_vcsc_tmp5`
+  - the complete stock zero-page workspace is 16 bytes
 
 The VCS 6507 has no connected hardware IRQ or NMI inputs. The stock runtime
 therefore has no compiled interrupt-handler ABI or interrupt-entry library.
@@ -41,7 +41,7 @@ These are small assembly helpers that the compiler targets directly:
 - comparisons: `eq`, `lt`, `le`
 - bitwise operations: `and`, `or`, `xor`, `not`
 - shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts
-- buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`, `fp2ptr*`
+- buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`
 
 Assembler include glue is in `vcsc-runtime.inc`, assembly sources are in `asm/`, and
 built archive members appear in `wrk/` after `make`. Machine definitions and
@@ -56,15 +56,13 @@ that need dynamic allocation must supply their own allocator and storage policy.
 ## What it requires
 
 `runtime` assumes this linker and its startup conventions. The linker must provide
-`__copy_table`, `__zero_table`, `__init_table`, and `__stack_start`, and its
-configuration must define the normal `CODE`, `DATA`, `BSS`, `ZEROPAGE`,
+`__copy_table`, `__zero_table`, and `__init_table`, and its configuration must define the normal `CODE`, `DATA`, `BSS`, `ZEROPAGE`,
 `STARTUP`, and vector regions.
 
 Machine assumptions:
 
 - 6502-family target
 - hardware stack at page `$01xx`
-- `_vcsc_fp` receives a deterministic baseline from `__stack_start`
 - zero page is available for the runtime workspace exported by `vcsc-zeropage.s`
 
 The linker selects the startup archive member through `__reset`, `__nmi`, and

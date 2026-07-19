@@ -82,7 +82,7 @@ $main =~ /__vcsc_scratch_2/ && $main =~ /__vcsc_scratch_3/ && $main =~ /__vcsc_s
    or die "main does not use its expected nested scratch levels\n";
 $main !~ /__vcsc_scratch_[01]/
    or die "main incorrectly shares callee scratch storage\n";
-my $sequential_uses=()=$main =~ /#<__vcsc_scratch_2\b/g;
+my $sequential_uses=()=$main =~ /(?:lda|sta) __vcsc_scratch_2,y/g;
 $sequential_uses >= 3
    or die "sequential main expressions did not reuse scratch level 0\n";
 $text !~ /__vcsc_(?:calltmp|truthtmp|comparetmp|discardtmp|assigntmp|addtmp|binarytmp|casttmp|indextmp|incdectmp)_/

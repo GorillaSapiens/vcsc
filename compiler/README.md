@@ -595,8 +595,9 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-After `jsr`, the caller restores `fp` normally and copies bytes directly from
-the callee's exported return symbol into the surrounding expression destination.
+After `jsr`, the caller copies bytes directly from the callee's exported return
+symbol into the surrounding expression destination. No frame-pointer state or
+language return registers are restored.
 A separately compiled declaration imports that zero-page return symbol when the
 call result is consumed. Ignoring a returned value does not copy it anywhere.
 
@@ -656,31 +657,19 @@ int8_t msg2[] = "hello";
 
 ## ABI and runtime notes
 
-### Hardware stack vs N stack
+### Hardware stack vs static storage
 
-The 6502 hardware stack is used for `jsr`, `rts`, temporary saves, and similar low-level operations. A linker `MEMORY` region marked `callstack = callgraph` is shortened from the top according to the longest linked source-level call path. The present reserve is four bytes per active function level: a two-byte return address plus a two-byte allowance for compiler-generated `fp` preservation/transient saves.
+The 6502 hardware stack is used for `jsr`, `rts`, and the stock startup's temporary preservation of its two-byte init-table cursor. A linker `MEMORY` region marked `callstack = callgraph` is shortened from the top according to the longest linked source-level call path. The automatically computed reserve is two bytes per active function level for JSR return addresses, plus one fixed two-byte startup allowance when the linked image contains runtime initializer functions.
 
-Inline-assembly stack operations and stack use hidden inside separately assembled routines are not included in that calculation yet and must be treated as future work.
+Compiler-generated ordinary expression and call lowering emits no stack saves. Inline-assembly stack operations and stack use hidden inside separately assembled routines are not included in that calculation yet and must be treated as future work.
 
-Direct fixed parameters and named automatic locals are callee-owned symbols.
-Compiler-generated code emits no `_pushN` or `_popN`, and the runtime no longer
-provides `_vcsc_sp` or any software-stack helper. Lifetime-pooled BSS scratch uses
-`_vcsc_fp` only as a temporary addressing base.
-
-### `_vcsc_fp`
-
-Startup initializes `_vcsc_fp` from `__stack_start` to give temporary scratch redirection a
-deterministic baseline. Compiled functions have no software-stack entry prologue.
-
-### Frame pointer preservation
-
-Compiled calls save and restore the caller's frame pointer around calls so nested calls do not smash the caller's frame-relative addressing.
+Direct fixed parameters, named automatic locals, return objects, and compiler scratch are linker-resolved static symbols. Compiler-generated code emits no `_pushN` or `_popN`, and the runtime provides neither a software-stack pointer nor a frame pointer. Lifetime-pooled BSS scratch is selected at compile time and addressed directly as `__vcsc_scratch_N,y`; calls need no scratch-base save/restore sequence.
 
 ### Peephole optimization
 
 The compiler runs a conservative peephole pass over compiler-generated assembly after code generation. It removes duplicate `lda`, `ldx`, and `ldy` loads when the register value and the load's N/Z flag effects are already proven equivalent or the load's N/Z flag effects are proven dead, removes redundant stores to compiler-owned scratch bytes when the same value is already known to be there, removes redundant `tax`, `tay`, `txa`, and `tya` transfers when the destination register and observable N/Z flag effects are already equivalent, removes redundant repeated simple status-flag setters (`clc`, `sec`, `cld`, `sed`, `cli`, `sei`, and `clv`) when the same flag state is already proven, folds adjacent `lda #byte` plus immediate `and`, `eor`, or `ora` into a single equivalent `lda #byte`, removes a dead adjacent `lda`/`ldx`/`ldy` when it is immediately overwritten by another load into the same register before the earlier value or N/Z flags can be observed, removes conditional branches that are provably never taken from known N/Z, C, or V flag facts, removes `jmp` and all 6502 conditional branches (`bcc`, `bcs`, `beq`, `bmi`, `bne`, `bpl`, `bvc`, `bvs`) that target the immediately following label or an adjacent label in the same following label run, and keeps byte-saved statistics for `-X peephole`.
 
-The pass tracks compiler-owned zero-page scratch operands such as `arg0`, `fp`, and `ptr0` conservatively. Stores to a tracked scratch byte update or invalidate the corresponding known memory value, so a later load or duplicate scratch-store is removed only when the store proves the same value is present. If the source register's exact value is unknown, a store to tracked scratch still proves that the source register and scratch byte contain the same byte; a following reload of that scratch byte can therefore be removed only when the reload's N/Z flag effects are proven dead. Dead adjacent load removal is limited to side-effect-free compiler-known loads, namely immediates and compiler-owned zero-page scratch bytes; untracked memory reads are preserved. `brk` is treated as observing N/Z through the status byte it pushes. Conditional branches are treated as N/Z liveness barriers unless the branch itself is removed as a branch to the next label or as provably never taken, because a C/V-only branch can skip a later N/Z overwrite. The never-taken branch cleanup is intentionally one-sided: it removes false `beq`/`bne`/`bmi`/`bpl` branches when N/Z is known from a plain immediate byte, false `bcc`/`bcs` branches after known `sec`/`clc`, and false `bvs` branches after known `clv`; it does not replace always-taken conditional branches with `jmp`, because that is usually larger on 6502. Stores through unknown addresses and calls reset the tracked memory facts rather than guessing. Peephole byte accounting recognizes one-byte implied/register instructions, accumulator shifts/rotates, relative branches, `jmp`/`jsr`, immediate operands, compiler zero-page operands, compiler zero-page indexed operands such as `arg0,x`, and indirect zero-page forms. The immediate ALU fold is deliberately limited to plain byte literals so expression-valued assembler operands are not guessed at by the compiler.
+The pass tracks compiler-owned zero-page scratch operands such as `arg0`, `ptr0`, and `tmp0` conservatively. Stores to a tracked scratch byte update or invalidate the corresponding known memory value, so a later load or duplicate scratch-store is removed only when the store proves the same value is present. If the source register's exact value is unknown, a store to tracked scratch still proves that the source register and scratch byte contain the same byte; a following reload of that scratch byte can therefore be removed only when the reload's N/Z flag effects are proven dead. Dead adjacent load removal is limited to side-effect-free compiler-known loads, namely immediates and compiler-owned zero-page scratch bytes; untracked memory reads are preserved. `brk` is treated as observing N/Z through the status byte it pushes. Conditional branches are treated as N/Z liveness barriers unless the branch itself is removed as a branch to the next label or as provably never taken, because a C/V-only branch can skip a later N/Z overwrite. The never-taken branch cleanup is intentionally one-sided: it removes false `beq`/`bne`/`bmi`/`bpl` branches when N/Z is known from a plain immediate byte, false `bcc`/`bcs` branches after known `sec`/`clc`, and false `bvs` branches after known `clv`; it does not replace always-taken conditional branches with `jmp`, because that is usually larger on 6502. Stores through unknown addresses and calls reset the tracked memory facts rather than guessing. Peephole byte accounting recognizes one-byte implied/register instructions, accumulator shifts/rotates, relative branches, `jmp`/`jsr`, immediate operands, compiler zero-page operands, compiler zero-page indexed operands such as `arg0,x`, and indirect zero-page forms. The immediate ALU fold is deliberately limited to plain byte literals so expression-valued assembler operands are not guessed at by the compiler.
 
 Inline `asm` statements are bracketed internally and treated as raw programmer assembly, even when the assembler text begins with whitespace. The peephole pass removes those internal markers from final assembly and resets its facts around the programmer-owned line instead of rewriting it.
 

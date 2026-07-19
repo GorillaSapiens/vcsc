@@ -50,6 +50,8 @@ typedef struct CompilerScratchScope {
 static CompilerScratchScope compiler_scratch_scopes[COMPILER_SCRATCH_MAX_SCOPES];
 static int compiler_scratch_scope_count = 0;
 static int compiler_scratch_symbol_count = 0;
+static CompilerScratchLease *compiler_scratch_active_stack[COMPILER_SCRATCH_MAX_SLOTS];
+static int compiler_scratch_active_depth = 0;
 
 //! @brief Warn when explicit runtime division/remainder uses a constant power-of-two divisor.
 void diagnose_runtime_power_of_two_divisor(const ASTNode *origin,
@@ -105,6 +107,15 @@ void compiler_scratch_reset(void) {
    memset(compiler_scratch_scopes, 0, sizeof(compiler_scratch_scopes));
    compiler_scratch_scope_count = 0;
    compiler_scratch_symbol_count = 0;
+   memset(compiler_scratch_active_stack, 0, sizeof(compiler_scratch_active_stack));
+   compiler_scratch_active_depth = 0;
+}
+
+const char *compiler_scratch_active_symbol(void) {
+   if (compiler_scratch_active_depth <= 0) {
+      error_unreachable("compiler scratch access without an active lease");
+   }
+   return compiler_scratch_active_stack[compiler_scratch_active_depth - 1]->symbol;
 }
 
 void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *lease) {
@@ -167,32 +178,26 @@ void compiler_scratch_activate(Context *ctx, CompilerScratchLease *lease) {
    if (!lease || lease->active) {
       error_unreachable("invalid compiler scratch activation");
    }
+   if (compiler_scratch_active_depth >= COMPILER_SCRATCH_MAX_SLOTS) {
+      error_unreachable("compiler scratch activation nesting exceeds %d", COMPILER_SCRATCH_MAX_SLOTS);
+   }
    if (ctx) {
       ctx->locals = lease->reserved;
       ctx->locals_high_water = lease->reserved;
    }
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda #<%s\n", lease->symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", lease->symbol);
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_active_stack[compiler_scratch_active_depth++] = lease;
    lease->active = true;
 }
 
 void compiler_scratch_deactivate(Context *ctx, CompilerScratchLease *lease) {
    int used;
-   if (!lease || !lease->active) {
+   if (!lease || !lease->active || compiler_scratch_active_depth <= 0 ||
+       compiler_scratch_active_stack[compiler_scratch_active_depth - 1] != lease) {
       error_unreachable("invalid compiler scratch deactivation");
    }
    used = ctx ? ctx->locals_high_water : lease->reserved;
    compiler_scratch_note_used(lease, used);
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
+   compiler_scratch_active_stack[--compiler_scratch_active_depth] = NULL;
    if (ctx) {
       ctx->locals = lease->saved_locals;
       ctx->locals_high_water = lease->saved_high_water;
@@ -217,6 +222,9 @@ void compiler_scratch_release(CompilerScratchLease *lease) {
 }
 
 void compiler_scratch_emit_bss(void) {
+   if (compiler_scratch_active_depth != 0) {
+      error_unreachable("active compiler scratch remains at end of code generation");
+   }
    for (int i = 0; i < compiler_scratch_scope_count; i++) {
       CompilerScratchScope *scope = &compiler_scratch_scopes[i];
       if (scope->depth != 0) {
@@ -517,23 +525,23 @@ bool entry_symbol_name(Context *ctx, const ContextEntry *entry, char *buf, size_
    return false;
 }
 
-//! @brief Emit copy frame pointer to symbol offset for compiler code-generation support diagnostics or output files.
-void emit_copy_fp_to_symbol_offset(const char *symbol, int symbol_offset, int src_offset, int size) {
+//! @brief Emit copy scratch to symbol offset for compiler code-generation support diagnostics or output files.
+void emit_copy_scratch_to_symbol_offset(const char *symbol, int symbol_offset, int src_offset, int size) {
    bool src_direct = src_offset >= 0 && src_offset + size <= 256;
    if (!src_direct) {
-      emit_prepare_fp_ptr(1, src_offset);
+      emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int i = 0; i < size; i++) {
       emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
       emit(&es_code, "    ldy #%d\n", symbol_offset + i);
       emit(&es_code, "    sta %s,y\n", symbol);
    }
 }
 
-//! @brief Emit copy frame pointer to symbol for compiler code-generation support diagnostics or output files.
-void emit_copy_fp_to_symbol(const char *symbol, int src_offset, int size) {
-   emit_copy_fp_to_symbol_offset(symbol, 0, src_offset, size);
+//! @brief Emit copy scratch to symbol for compiler code-generation support diagnostics or output files.
+void emit_copy_scratch_to_symbol(const char *symbol, int src_offset, int size) {
+   emit_copy_scratch_to_symbol_offset(symbol, 0, src_offset, size);
 }
 
 //! @brief Extract emit load a from expr address for compiler code-generation support.
@@ -659,13 +667,13 @@ void emit_runtime_copy_ptr0_to_ptr1(const char *helper, int src_size, int dst_si
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
-//! @brief Emit fill frame pointer bytes for compiler code-generation support diagnostics or output files.
-void emit_fill_fp_bytes(int dst_offset, int start, int count, unsigned char value) {
+//! @brief Emit fill scratch bytes for compiler code-generation support diagnostics or output files.
+void emit_fill_scratch_bytes(int dst_offset, int start, int count, unsigned char value) {
    if (count <= 0) {
       return;
    }
 
-   emit_prepare_fp_ptr(1, dst_offset + start);
+   emit_prepare_scratch_ptr(1, dst_offset + start);
    emit_runtime_fill_ptr1(count, value);
 }
 
@@ -682,8 +690,8 @@ static void emit_sign_fill_from_masked_a(void) {
    emit(&es_code, "%s:\n", done_label);
 }
 
-//! @brief Emit copy frame pointer to frame pointer convert for little-endian values.
-void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst_type, int src_offset, int src_size, const ASTNode *src_type) {
+//! @brief Emit copy scratch to scratch convert for little-endian values.
+void emit_copy_scratch_to_scratch_convert(int dst_offset, int dst_size, const ASTNode *dst_type, int src_offset, int src_size, const ASTNode *src_type) {
    bool is_signed = type_is_signed_integer(src_type);
    bool dst_direct;
    bool src_direct;
@@ -700,40 +708,38 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
    helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
 
    if (helper) {
-      emit_prepare_fp_ptr(0, src_offset);
-      emit_prepare_fp_ptr(1, dst_offset);
+      emit_prepare_scratch_ptr(0, src_offset);
+      emit_prepare_scratch_ptr(1, dst_offset);
       emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
       return;
    }
 
    if (!src_direct) {
-      emit_prepare_fp_ptr(0, src_offset);
+      emit_prepare_scratch_ptr(0, src_offset);
    }
    if (!dst_direct) {
-      emit_prepare_fp_ptr(1, dst_offset);
+      emit_prepare_scratch_ptr(1, dst_offset);
    }
 
    if (dst_offset == src_offset) {
-      for (int j = dst_size - 1; j >= 0; j--) {
-         if (j < src_size) {
-            emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + j) : j);
-            emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
-         }
-         else if (is_signed) {
-            emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + sign_src_mem) : sign_src_mem);
-            emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
-            emit(&es_code, "    and #$80\n");
-            emit_sign_fill_from_masked_a();
-         }
-         else {
-            emit(&es_code, "    lda #$00\n");
-         }
-         emit(&es_code, "    pha\n");
+      /* Little-endian in-place truncation needs no copy.  In-place widening
+         preserves the existing low bytes and writes only the new high bytes,
+         so no hardware-stack shuffle is required. */
+      if (dst_size <= src_size) {
+         return;
       }
-      for (int j = 0; j < dst_size; j++) {
-         emit(&es_code, "    pla\n");
+      if (is_signed) {
+         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + sign_src_mem) : sign_src_mem);
+         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
+         emit(&es_code, "    and #$80\n");
+         emit_sign_fill_from_masked_a();
+      }
+      else {
+         emit(&es_code, "    lda #$00\n");
+      }
+      for (int j = src_size; j < dst_size; j++) {
          emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-         emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
+         emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
       }
       return;
    }
@@ -741,11 +747,11 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
    for (int j = 0; j < dst_size; j++) {
       if (j < src_size) {
          emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + j) : j);
-         emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
+         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
       }
       else if (is_signed) {
          emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + sign_src_mem) : sign_src_mem);
-         emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr0)");
+         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
          emit(&es_code, "    and #$80\n");
          emit_sign_fill_from_masked_a();
       }
@@ -753,12 +759,12 @@ void emit_copy_fp_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst
          emit(&es_code, "    lda #$00\n");
       }
       emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
    }
 }
 
-//! @brief Emit copy symbol to frame pointer convert offset for little-endian values.
-void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const ASTNode *dst_type, const char *symbol, int src_offset, int src_size, const ASTNode *src_type) {
+//! @brief Emit copy symbol to scratch convert offset for little-endian values.
+void emit_copy_symbol_to_scratch_convert_offset(int dst_offset, int dst_size, const ASTNode *dst_type, const char *symbol, int src_offset, int src_size, const ASTNode *src_type) {
    bool is_signed = type_is_signed_integer(src_type);
    bool dst_direct;
    int sign_src_mem;
@@ -773,12 +779,12 @@ void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const A
    helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
    if (helper) {
       emit_load_address_to_ptr(0, symbol, src_offset);
-      emit_prepare_fp_ptr(1, dst_offset);
+      emit_prepare_scratch_ptr(1, dst_offset);
       emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
       return;
    }
    if (!dst_direct) {
-      emit_prepare_fp_ptr(1, dst_offset);
+      emit_prepare_scratch_ptr(1, dst_offset);
    }
 
    for (int j = 0; j < dst_size; j++) {
@@ -796,13 +802,13 @@ void emit_copy_symbol_to_fp_convert_offset(int dst_offset, int dst_size, const A
          emit(&es_code, "    lda #$00\n");
       }
       emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
    }
 }
 
-//! @brief Emit copy symbol to frame pointer convert for compiler code-generation support diagnostics or output files.
-void emit_copy_symbol_to_fp_convert(int dst_offset, int dst_size, const ASTNode *dst_type, const char *symbol, int src_size, const ASTNode *src_type) {
-   emit_copy_symbol_to_fp_convert_offset(dst_offset, dst_size, dst_type, symbol, 0, src_size, src_type);
+//! @brief Emit copy symbol to scratch convert for compiler code-generation support diagnostics or output files.
+void emit_copy_symbol_to_scratch_convert(int dst_offset, int dst_size, const ASTNode *dst_type, const char *symbol, int src_size, const ASTNode *src_type) {
+   emit_copy_symbol_to_scratch_convert_offset(dst_offset, dst_size, dst_type, symbol, 0, src_size, src_type);
 }
 
 //! @brief Emit a converted copy between two fixed little-endian symbols.
@@ -1016,23 +1022,12 @@ void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name) {
 
 
 
-//! @brief Emit prepare frame pointer ptr for compiler code-generation support diagnostics or output files.
-void emit_prepare_fp_ptr(int ptrno, int offset) {
-   static const char *plus_helpers[] = { "fp2ptr0p", "fp2ptr1p", "fp2ptr2p", "fp2ptr3p" };
-   static const char *minus_helpers[] = { "fp2ptr0m", "fp2ptr1m", "fp2ptr2m", "fp2ptr3m" };
-   const char *helper;
-   int abs_offset = offset < 0 ? -offset : offset;
-
+//! @brief Emit prepare scratch ptr for compiler code-generation support diagnostics or output files.
+void emit_prepare_scratch_ptr(int ptrno, int offset) {
    if (ptrno < 0 || ptrno > 3) {
       ptrno = 0;
    }
-
-   emit(&es_code, "    lda #$%02x\n", abs_offset & 0xff);
-   emit(&es_code, "    sta arg0\n");
-
-   helper = offset < 0 ? minus_helpers[ptrno] : plus_helpers[ptrno];
-   remember_runtime_import(helper);
-   emit(&es_code, "    jsr _%s\n", helper);
+   emit_load_address_to_ptr(ptrno, compiler_scratch_active_symbol(), offset);
 }
 
 //! @brief Emit load address to ptr for compiler code-generation support diagnostics or output files.
@@ -1111,14 +1106,14 @@ void emit_deref_ptr(int ptrno) {
    emit(&es_code, "    sta ptr%d+1\n", ptrno);
 }
 
-//! @brief Emit add frame pointer to ptr for compiler code-generation support diagnostics or output files.
-void emit_add_fp_to_ptr(int ptrno, int src_offset, int src_size) {
+//! @brief Emit add scratch to ptr for compiler code-generation support diagnostics or output files.
+void emit_add_scratch_to_ptr(int ptrno, int src_offset, int src_size) {
    bool direct = src_offset >= 0 && src_offset + src_size <= 256;
    int src_ptr = ptrno == 0 ? 1 : 0;
    int ptr_size = get_size("*");
 
    if (!direct) {
-      emit_prepare_fp_ptr(src_ptr, src_offset);
+      emit_prepare_scratch_ptr(src_ptr, src_offset);
    }
 
    emit(&es_code, "    clc\n");
@@ -1126,7 +1121,7 @@ void emit_add_fp_to_ptr(int ptrno, int src_offset, int src_size) {
       emit(&es_code, "    lda ptr%d%s\n", ptrno, i == 0 ? "" : "+1");
       if (i < src_size) {
          emit(&es_code, "    ldy #%d\n", direct ? (src_offset + i) : i);
-         emit(&es_code, "    adc %s,y\n", direct ? "(fp)" : (src_ptr == 0 ? "(ptr0)" : "(ptr1)"));
+         emit(&es_code, "    adc %s,y\n", direct ? compiler_scratch_active_symbol() : (src_ptr == 0 ? "(ptr0)" : "(ptr1)"));
       }
       else {
          emit(&es_code, "    adc #0\n");
@@ -1135,18 +1130,18 @@ void emit_add_fp_to_ptr(int ptrno, int src_offset, int src_size) {
    }
 }
 
-//! @brief Emit store immediate to frame pointer for compiler code-generation support diagnostics or output files.
-void emit_store_immediate_to_fp(int offset, const unsigned char *bytes, int size) {
+//! @brief Emit store immediate to scratch for compiler code-generation support diagnostics or output files.
+void emit_store_immediate_to_scratch(int offset, const unsigned char *bytes, int size) {
    if (offset >= 0 && offset + size <= 256) {
       for (int i = 0; i < size; i++) {
          emit(&es_code, "    ldy #%d\n", offset + i);
          emit(&es_code, "    lda #$%02x\n", bytes[i]);
-         emit(&es_code, "    sta (fp),y\n");
+         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
       }
       return;
    }
 
-   emit_prepare_fp_ptr(0, offset);
+   emit_prepare_scratch_ptr(0, offset);
    for (int i = 0; i < size; i++) {
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    lda #$%02x\n", bytes[i]);

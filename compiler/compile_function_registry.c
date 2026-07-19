@@ -259,7 +259,7 @@ static bool assembler_user_symbol_needs_escape(const char *name) {
       "clc", "cld", "cli", "clv", "cmp", "cpx", "cpy", "dec", "dex", "dey", "eor", "inc", "inx", "iny",
       "jmp", "jsr", "lda", "ldx", "ldy", "lsr", "nop", "ora", "pha", "php", "pla", "plp", "rol", "ror",
       "rti", "rts", "sbc", "sec", "sed", "sei", "sta", "stx", "sty", "tax", "tay", "tsx", "txa", "txs", "tya",
-      "fp", "arg0", "arg1", "ptr0", "ptr1", "ptr2", "ptr3", "tmp0", "tmp1", "tmp2", "tmp3", "tmp4", "tmp5"
+      "arg0", "arg1", "ptr0", "ptr1", "ptr2", "ptr3", "tmp0", "tmp1", "tmp2", "tmp3", "tmp4", "tmp5"
    };
    char lower[256];
    size_t n;

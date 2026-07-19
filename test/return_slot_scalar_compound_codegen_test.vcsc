@@ -4,7 +4,7 @@
 // expectasmordered: lda (ptr0),y
 // expectasmordered: sta bump$__return,y
 // expectasmordered: clc
-// expectasmordered: adc (fp),y
+// expectasmordered: adc __vcsc_scratch_
 // expectasmordered: sta bump$__return,y
 // expectasmordered: @fini:
 // expectasmordered: rts

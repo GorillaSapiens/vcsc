@@ -11,6 +11,7 @@
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_literal.h"
+#include "compile_support.h"
 #include "compile_function_registry.h"
 #include "compile_type.h"
 #include "emit.h"
@@ -246,26 +247,26 @@ const char *emit_pointer_initializer_backing_object(const ASTNode *type, const A
    return NULL;
 }
 
-//! @brief Emit store label address to frame pointer for compile literal diagnostics or output files.
-void emit_store_label_address_to_fp(int dst_offset, int dst_size, const char *label) {
+//! @brief Emit store label address to scratch for compile literal diagnostics or output files.
+void emit_store_label_address_to_scratch(int dst_offset, int dst_size, const char *label) {
    if (!label || dst_size <= 0) {
       return;
    }
    emit(&es_code, "    lda #<%s\n", label);
    emit(&es_code, "    ldy #%d\n", dst_offset);
-   emit(&es_code, "    sta (fp),y\n");
+   emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
    if (dst_size > 1) {
       emit(&es_code, "    lda #>%s\n", label);
       emit(&es_code, "    ldy #%d\n", dst_offset + 1);
-      emit(&es_code, "    sta (fp),y\n");
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
    }
    if (dst_size > 2) {
-      emit_fill_fp_bytes(dst_offset, 2, dst_size - 2, 0);
+      emit_fill_scratch_bytes(dst_offset, 2, dst_size - 2, 0);
    }
 }
 
-//! @brief Emit string initializer to frame pointer for compile literal diagnostics or output files.
-bool emit_string_initializer_to_fp(const ASTNode *type, const ASTNode *declarator, int base_offset, int total_size, const char *text) {
+//! @brief Emit string initializer to scratch for compile literal diagnostics or output files.
+bool emit_string_initializer_to_scratch(const ASTNode *type, const ASTNode *declarator, int base_offset, int total_size, const char *text) {
    int elem_count, elem_size, copy_len;
    (void) total_size;
    if (!text) {
@@ -285,13 +286,13 @@ bool emit_string_initializer_to_fp(const ASTNode *type, const ASTNode *declarato
          unsigned char b = (unsigned char) (i < (int) strlen(text) ? text[i] : 0);
          emit(&es_code, "    lda #$%02x\n", (unsigned int) b);
          emit(&es_code, "    ldy #%d\n", base_offset + i);
-         emit(&es_code, "    sta (fp),y\n");
+         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
       }
       return true;
    }
    if (declarator_pointer_depth(declarator) > 0 || (type && !strcmp(type_name_from_node(type), "*"))) {
       const char *label = remember_string_literal(text);
-      emit_store_label_address_to_fp(base_offset, total_size > 0 ? total_size : declarator_storage_size(type, declarator), label);
+      emit_store_label_address_to_scratch(base_offset, total_size > 0 ? total_size : declarator_storage_size(type, declarator), label);
       return true;
    }
    return false;

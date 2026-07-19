@@ -143,12 +143,6 @@ _zero_dec_lo:
    jmp _zero_record
 
 _start_init:
-   ; deterministic baseline for temporary fp redirection
-   lda #<__stack_start
-   sta fp
-   lda #>__stack_start
-   sta fp+1
-
    lda #<__init_table
    sta ptr0
    lda #>__init_table

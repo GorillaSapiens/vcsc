@@ -7,16 +7,14 @@
 // expectasmordered: @fini:
 // expectasmordered: rts
 // expectasmordered: jsr id8
-// expectasmordered: pla
-// expectasmordered: sta fp
-// expectasmordered: pla
-// expectasmordered: sta fp+1
 // expectasmordered: ldy #0
 // expectasmordered: lda id8$__return,y
 // expectasmordered: sta main$__return,y
 // forbidasm: tay
 // forbidasm: tya
-// forbidasm: jsr _fp2ptr1m
+// forbidasm: fp
+// forbidasm: pha
+// forbidasm: pla
 
 include "machine_6502.vcsc"
 

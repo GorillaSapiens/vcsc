@@ -38,42 +38,18 @@ static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
 typedef CompilerScratchLease FlowFixedScratch;
 
-//! @brief Save the current frame pointer on the 6502 hardware stack.
-static void emit_expr_scratch_save_fp(void) {
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-}
-
-//! @brief Point fp at a fixed compiler-generated expression scratch symbol.
-static void emit_expr_scratch_set_fp(const char *symbol) {
-   emit(&es_code, "    lda #<%s\n", symbol);
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    lda #>%s\n", symbol);
-   emit(&es_code, "    sta fp+1\n");
-}
-
-//! @brief Restore the frame pointer from the 6502 hardware stack.
-static void emit_expr_scratch_restore_fp(void) {
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-}
-
-//! @brief Prepare one fixed-address flow-expression working area without changing fp.
+//! @brief Prepare one fixed-address flow-expression working area without activating it.
 static void flow_fixed_scratch_prepare(Context *ctx, int reserved,
                                        FlowFixedScratch *scratch) {
    compiler_scratch_acquire(ctx, reserved, scratch);
 }
 
-//! @brief Redirect fp to a prepared fixed-address flow-expression working area.
+//! @brief Activate a prepared fixed-address flow-expression working area.
 static void flow_fixed_scratch_activate(Context *ctx, FlowFixedScratch *scratch) {
    compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp while keeping the flow scratch lease live for copy-out.
+//! @brief Deactivate the flow scratch lease live for copy-out.
 static void flow_fixed_scratch_deactivate(Context *ctx, FlowFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
 }
@@ -83,7 +59,7 @@ static void flow_fixed_scratch_finish(FlowFixedScratch *scratch) {
    compiler_scratch_release(scratch);
 }
 
-//! @brief Restore fp and release a flow scratch lease on an error path.
+//! @brief Deactivate and release a flow scratch lease on an error path.
 static void flow_fixed_scratch_abort(Context *ctx, FlowFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
    compiler_scratch_release(scratch);
@@ -221,11 +197,11 @@ static void error_unresolved_assignment_target(Context *ctx, ASTNode *target, AS
 
 
 //! @brief Zero a frame-pointer initializer target before applying a braced initializer.
-static void emit_zero_assignment_initializer_fp_target(int offset, int size) {
+static void emit_zero_assignment_initializer_scratch_target(int offset, int size) {
    if (size <= 0) {
       return;
    }
-   emit_fill_fp_bytes(offset, 0, size, 0x00);
+   emit_fill_scratch_bytes(offset, 0, size, 0x00);
 }
 
 //! @brief Lower simple assignment from a braced initializer into an lvalue target.
@@ -256,14 +232,14 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
       bool dst_symbol = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                         !lv->is_absolute_ref && (dst->is_static || dst->is_zeropage || dst->is_global) &&
                         entry_symbol_name(ctx, dst, sym, sizeof(sym));
-      bool dst_direct_fp = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
+      bool dst_direct_scratch = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                            !lv->is_absolute_ref && !dst->is_static && !dst->is_zeropage && !dst->is_global;
 
       flow_fixed_scratch_prepare(ctx, size, &scratch);
       flow_fixed_scratch_activate(ctx, &scratch);
 
-      emit_zero_assignment_initializer_fp_target(tmp_offset, size);
-      if (!compile_initializer_to_fp(rhs, ctx, dst->type, dst->declarator, tmp_offset, size)) {
+      emit_zero_assignment_initializer_scratch_target(tmp_offset, size);
+      if (!compile_initializer_to_scratch(rhs, ctx, dst->type, dst->declarator, tmp_offset, size)) {
          flow_fixed_scratch_abort(ctx, &scratch);
          error_user("[%s:%d.%d] invalid assignment initializer", node->file, node->line, node->column);
          return false;
@@ -274,8 +250,8 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
          emit_copy_symbol_to_symbol_convert_offset(sym, lv->offset, size, dst->type,
                                                    scratch.symbol, tmp_offset, size, dst->type);
       }
-      else if (dst_direct_fp) {
-         emit_copy_symbol_to_fp_convert_offset(dst->offset, size, dst->type,
+      else if (dst_direct_scratch) {
+         emit_copy_symbol_to_scratch_convert_offset(dst->offset, size, dst->type,
                                                scratch.symbol, tmp_offset, size, dst->type);
       }
       else if (!emit_copy_symbol_to_lvalue(ctx, lv, scratch.symbol, tmp_offset, size)) {
@@ -294,7 +270,7 @@ typedef struct DirectByteOperand {
    LValueRef lv;
    bool valid;
    bool direct_memory;
-   bool local_fp;
+   bool local_scratch;
    int symbol_mode; /* 0 expression, 1 zero page, 2 absolute */
    char expr[256];
    int offset;
@@ -346,7 +322,7 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
    if (!out.lv.indirect && !out.lv.needs_runtime_address && !out.lv.is_static &&
        !out.lv.is_zeropage && !out.lv.is_global && out.lv.offset >= 0 &&
        out.lv.offset <= 255) {
-      out.local_fp = true;
+      out.local_scratch = true;
       return out;
    }
 
@@ -375,9 +351,9 @@ static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand 
       }
       return true;
    }
-   if (op->local_fp) {
+   if (op->local_scratch) {
       emit(&es_code, "    ldy #%d\n", op->offset);
-      emit(&es_code, "    lda (fp),y\n");
+      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
       return true;
    }
    if (!emit_prepare_lvalue_ptr(ctx, &op->lv, LVALUE_ACCESS_READ)) {
@@ -410,9 +386,9 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
       }
       return true;
    }
-   if (op->local_fp) {
+   if (op->local_scratch) {
       emit(&es_code, "    ldy #%d\n", op->offset);
-      emit(&es_code, "    cmp (fp),y\n");
+      emit(&es_code, "    cmp %s,y\n", compiler_scratch_active_symbol());
       return true;
    }
    /* ptr0 must already have been prepared before loading A. */
@@ -474,7 +450,7 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
       if (!rhs.valid) {
          return false;
       }
-      if (!rhs.direct_memory && !rhs.local_fp) {
+      if (!rhs.direct_memory && !rhs.local_scratch) {
          if (!emit_prepare_lvalue_ptr(ctx, &rhs.lv, LVALUE_ACCESS_READ)) {
             return false;
          }
@@ -705,8 +681,8 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
          ContextEntry t = lhs; lhs = rhs; rhs = t;
       }
 
-      emit_prepare_fp_ptr(0, lhs.offset);
-      emit_prepare_fp_ptr(1, rhs.offset);
+      emit_prepare_scratch_ptr(0, lhs.offset);
+      emit_prepare_scratch_ptr(1, rhs.offset);
       emit(&es_code, "    lda #$%02x\n", size & 0xff);
       emit(&es_code, "    sta arg0\n");
       remember_runtime_import(helper);
@@ -780,7 +756,7 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
        dst->offset <= 255) {
       emit(&es_code, "    lda #$%02x\n", byte_value);
       emit(&es_code, "    ldy #%d\n", dst->offset);
-      emit(&es_code, "    sta (fp),y\n");
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
       return true;
    }
 
@@ -891,11 +867,11 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    if (!lv.indirect && !lv.needs_runtime_address && !lv.is_static &&
        !lv.is_zeropage && !lv.is_global && lv.offset >= 0 && lv.offset <= 255) {
       emit(&es_code, "    ldy #%d\n", lv.offset);
-      emit(&es_code, "    lda (fp),y\n");
+      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
       if (bcd) emit(&es_code, "    sed\n");
       emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
       if (bcd) emit(&es_code, "    cld\n");
-      emit(&es_code, "    sta (fp),y\n");
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
       return true;
    }
 
@@ -1051,10 +1027,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
-         emit_expr_scratch_save_fp();
-         emit_expr_scratch_set_fp(scratch_sym);
-         emit_copy_fp_to_symbol_offset(sym, lv.offset, 0, dst->size);
-         emit_expr_scratch_restore_fp();
+         emit_copy_symbol_to_symbol_convert_offset(sym, lv.offset, dst->size, dst->type,
+                                                   scratch_sym, 0, dst->size, dst->type);
          compiler_scratch_release(&scratch);
          return;
       }
@@ -1220,7 +1194,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       flow_fixed_scratch_activate(ctx, &scratch);
       if (!dst_symbol) {
          int lhs_src_size = dst->size < work_size ? dst->size : work_size;
-         emit_copy_fp_to_fp_convert(lhs_tmp_offset, work_size, work_type, lhs_tmp_offset, lhs_src_size, dst->type);
+         emit_copy_scratch_to_scratch_convert(lhs_tmp_offset, work_size, work_type, lhs_tmp_offset, lhs_src_size, dst->type);
       }
       if (!compile_expr_to_slot(rhs, ctx, &rhs_tmp)) {
          flow_fixed_scratch_abort(ctx, &scratch);
@@ -1238,49 +1212,49 @@ void compile_expr(ASTNode *node, Context *ctx) {
          }
          snprintf(scaled_buf, sizeof(scaled_buf), "%d", pointer_scale);
          make_le_int(scaled_buf, factor_bytes, work_size);
-         emit_store_immediate_to_fp(factor_offset, factor_bytes, work_size);
+         emit_store_immediate_to_scratch(factor_offset, factor_bytes, work_size);
          free(factor_bytes);
-         emit_runtime_binary_fp_fp(int_mul_helper_name(factor_type ? factor_type : work_type), scaled_rhs_offset, rhs_tmp_offset, factor_offset, work_size);
+         emit_runtime_binary_scratch(int_mul_helper_name(factor_type ? factor_type : work_type), scaled_rhs_offset, rhs_tmp_offset, factor_offset, work_size);
          rhs_value_offset = int_mul_result_offset(factor_type ? factor_type : work_type, scaled_rhs_offset, work_size);
       }
 
       if (!strcmp(op, "+=")) {
-         emit_add_fp_to_fp(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
+         emit_add_scratch_to_scratch(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
       }
       else if (!strcmp(op, "-=")) {
-         emit_sub_fp_from_fp(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
+         emit_sub_scratch_from_scratch(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
       }
       else if (!strcmp(op, "&=")) {
-         emit_runtime_binary_fp_fp("bit_andN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_runtime_binary_scratch("bit_andN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "|=")) {
-         emit_runtime_binary_fp_fp("bit_orN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_runtime_binary_scratch("bit_orN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "^=")) {
-         emit_runtime_binary_fp_fp("bit_xorN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_runtime_binary_scratch("bit_xorN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "*=")) {
-         emit_runtime_binary_fp_fp(int_mul_helper_name(work_type), aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
-         emit_copy_fp_to_fp(lhs_tmp_offset, int_mul_result_offset(work_type, aux_offset, work_size), work_size);
+         emit_runtime_binary_scratch(int_mul_helper_name(work_type), aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_copy_scratch_to_scratch(lhs_tmp_offset, int_mul_result_offset(work_type, aux_offset, work_size), work_size);
       }
       else if (!strcmp(op, "/=") || !strcmp(op, "%=")) {
          int quo_offset = aux_offset;
          int rem_offset = aux_offset + work_size;
          diagnose_runtime_power_of_two_divisor(node, rhs, op);
-         emit_prepare_fp_ptr(0, lhs_tmp_offset);
-         emit_prepare_fp_ptr(1, rhs_tmp_offset);
-         emit_prepare_fp_ptr(2, quo_offset);
-         emit_prepare_fp_ptr(3, rem_offset);
+         emit_prepare_scratch_ptr(0, lhs_tmp_offset);
+         emit_prepare_scratch_ptr(1, rhs_tmp_offset);
+         emit_prepare_scratch_ptr(2, quo_offset);
+         emit_prepare_scratch_ptr(3, rem_offset);
          emit(&es_code, "    lda #$%02x\n", work_size & 0xff);
          emit(&es_code, "    sta arg0\n");
          remember_runtime_import(int_div_helper_name(work_type));
          emit(&es_code, "    jsr _%s\n", int_div_helper_name(work_type));
-         emit_copy_fp_to_fp(lhs_tmp_offset, !strcmp(op, "/=") ? quo_offset : rem_offset, work_size);
+         emit_copy_scratch_to_scratch(lhs_tmp_offset, !strcmp(op, "/=") ? quo_offset : rem_offset, work_size);
       }
       else if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
          helper = int_shift_helper_name(work_type, !strcmp(op, "<<="));
-         emit_runtime_shift_fp(helper, lhs_tmp_offset, aux_offset, rhs_tmp_offset, rhs_slot_type, rhs_work_size, work_size);
-         emit_copy_fp_to_fp(lhs_tmp_offset, aux_offset, work_size);
+         emit_runtime_shift_scratch(helper, lhs_tmp_offset, aux_offset, rhs_tmp_offset, rhs_slot_type, rhs_work_size, work_size);
+         emit_copy_scratch_to_scratch(lhs_tmp_offset, aux_offset, work_size);
       }
       else {
          flow_fixed_scratch_abort(ctx, &scratch);
@@ -1289,7 +1263,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
 
       if (need_store_tmp) {
-         emit_copy_fp_to_fp_convert(store_offset, dst->size, dst->type, lhs_tmp_offset, work_size, work_type);
+         emit_copy_scratch_to_scratch_convert(store_offset, dst->size, dst->type, lhs_tmp_offset, work_size, work_type);
       }
       flow_fixed_scratch_deactivate(ctx, &scratch);
       if (dst_symbol) {

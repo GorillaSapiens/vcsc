@@ -10,8 +10,8 @@
 // forbidasm: ldx f$__return+1
 // expectasmordered: rts
 // expecterr: 001 peephole
-// expecterr: total_saved=15
-// expecterr: dup_load=6
+// expecterr: total_saved=13
+// expecterr: dup_load=5
 // expecterr: jump_next=1
 
 include "machine_6502.vcsc"

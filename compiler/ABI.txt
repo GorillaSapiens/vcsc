@@ -44,61 +44,46 @@ The callee does not load A, X, or Y with the result. The return-object symbol is
 exported with every non-static definition. A separately compiled caller imports
 that zero-page symbol only when it consumes the call result.
 
-Before an ordinary direct call, the compiler leases the caller function's
-current depth slot, such as `__vcsc_scratch_0`, only when arguments need
-evaluation or conversion. For each fixed argument:
+Before an ordinary direct call, the compiler may lease the caller function's
+current depth slot, such as `__vcsc_scratch_0`, when arguments need evaluation
+or conversion. The lease is a compile-time choice of a fixed symbol; it has no
+runtime pointer and emits no activation/deactivation instructions. Generated
+code addresses the selected object directly, for example:
 
-; save caller fp on the HARDWARE stack
-lda fp+1
-pha
-lda fp
-pha
-; redirect fp to the active caller scratch lease
-lda #<__vcsc_scratch_0
-sta fp
-lda #>__vcsc_scratch_0
-sta fp+1
-; evaluate and convert the argument through that scratch
-; copy it into the callee-owned parameter symbol
-; restore caller fp
-pla
-sta fp
-pla
-sta fp+1
-
-The caller then saves `fp`, executes JSR, and restores `fp` normally:
-
-lda fp+1
-pha
-lda fp
-pha
+ldy #0
+lda __vcsc_scratch_0,y
+sta function$value,y
 jsr function
-pla
-sta fp
-pla
-sta fp+1
 
 If the enclosing expression consumes the value, the caller copies the exact
-return width directly from `function$__return` into its destination. No A:X
-preservation dance and no return-only scratch lease are required. Ignored
+return width directly from `function$__return` into its destination. No
+register preservation and no return-only scratch lease are required. Ignored
 return values require no copy.
 
 Scratch remains pooled by function and lexical emission depth for arguments and
 other expression temporaries. Sequential uses in one function reuse a slot;
 nested uses get deeper slots; different functions get distinct physical symbols
 so caller data remains valid during a callee. Each slot is emitted at the
-maximum size observed for that depth. Scratch leases are released in LIFO order
-and compilation fails if any lease remains live at the end of code generation.
+maximum size observed for that depth. Scratch leases are compile-time LIFO
+records, and compilation fails if any lease remains live at the end of code
+generation.
 
 Function entry has no software-stack prologue. Named automatic locals and the
-return object already have fixed symbols. An expression site that needs
-temporary storage redirects `fp` to its active function/depth-pooled BSS scratch
-lease and restores the caller value through the 6502 hardware stack.
+return object already have fixed symbols. Expression temporaries are addressed
+directly through their linker-resolved `__vcsc_scratch_N` symbols. A purpose-
+specific `ptr0`/`ptr1` indirect address is prepared only when a dynamic or
+out-of-range offset actually requires one.
 
-Reset/startup initializes only `fp`, which remains the temporary addressing base
-for pooled fixed scratch. There is no software stack pointer. Division and
-remainder use a private two-byte BSS workspace in the `_divNle` archive member,
-so that storage is linked only when `/` or `%` is actually used.
+Reset/startup initializes the 6502 hardware stack, DATA, BSS, and init tables.
+There is no runtime frame pointer or software stack pointer. The stock runtime
+zero-page workspace is 16 bytes: `arg0`, `arg1`, `ptr0` through `ptr3`, and
+`tmp0` through `tmp5`. Division and remainder use a private two-byte BSS
+workspace in the `_divNle` archive member, so that storage is linked only when
+`/` or `%` is actually used.
+The linker reserves two hardware-stack bytes per active source function for JSR
+return addresses. If one or more runtime initializer functions are linked, it also
+reserves one fixed two-byte allowance because startup preserves its init-table
+cursor while calling each initializer.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls. None carries
 a language-level return value. Special assembly APIs may document stronger

@@ -45,12 +45,12 @@ static void stmt_fixed_scratch_prepare(Context *ctx, int reserved,
    compiler_scratch_acquire(ctx, reserved, scratch);
 }
 
-//! @brief Redirect fp to a prepared fixed-address statement working area.
+//! @brief Activate a prepared fixed-address statement working area.
 static void stmt_fixed_scratch_activate(Context *ctx, StmtFixedScratch *scratch) {
    compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp after one use of a reusable statement scratch area.
+//! @brief Deactivate a reusable statement scratch area after one use.
 static void stmt_fixed_scratch_deactivate(Context *ctx, StmtFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
 }
@@ -389,9 +389,9 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
       if (!zeroes) {
          error_unreachable("out of memory");
       }
-      emit_store_immediate_to_fp(0, zeroes, size);
+      emit_store_immediate_to_scratch(0, zeroes, size);
       free(zeroes);
-      ok = compile_initializer_to_fp(expression, ctx, type, declarator, 0, size);
+      ok = compile_initializer_to_scratch(expression, ctx, type, declarator, 0, size);
    }
    else {
       ContextEntry target = {
@@ -409,7 +409,7 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
    }
 
    if (ok) {
-      emit_copy_fp_to_symbol(symbol, 0, size);
+      emit_copy_scratch_to_symbol(symbol, 0, size);
    }
    stmt_fixed_scratch_deactivate(ctx, &scratch);
    stmt_fixed_scratch_finish(&scratch);
@@ -624,8 +624,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       stmt_fixed_scratch_activate(ctx, &scratch);
       if (initializer_is_list(unwrap_expr_node(expression)) ||
           declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
-         emit_fill_fp_bytes(0, 0, size, 0x00);
-         ok = compile_initializer_to_fp(expression, ctx, type, declarator, 0, size);
+         emit_fill_scratch_bytes(0, 0, size, 0x00);
+         ok = compile_initializer_to_scratch(expression, ctx, type, declarator, 0, size);
       }
       else {
          ContextEntry tmp = {
@@ -987,8 +987,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case expression", low->file, low->line, low->column);
                continue;
             }
-            emit_prepare_fp_ptr(0, lhs.offset);
-            emit_prepare_fp_ptr(1, rhs.offset);
+            emit_prepare_scratch_ptr(0, lhs.offset);
+            emit_prepare_scratch_ptr(1, rhs.offset);
             emit(&es_code, "    lda #$%02x\n", size & 0xff);
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import("eqN");
@@ -1036,8 +1036,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case range start", ordered_low->file, ordered_low->line, ordered_low->column);
                continue;
             }
-            emit_prepare_fp_ptr(0, rhs.offset);
-            emit_prepare_fp_ptr(1, lhs.offset);
+            emit_prepare_scratch_ptr(0, rhs.offset);
+            emit_prepare_scratch_ptr(1, lhs.offset);
             emit(&es_code, "    lda #$%02x\n", size & 0xff);
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import(le_helper);
@@ -1054,8 +1054,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case range end", ordered_high->file, ordered_high->line, ordered_high->column);
                continue;
             }
-            emit_prepare_fp_ptr(0, lhs.offset);
-            emit_prepare_fp_ptr(1, rhs.offset);
+            emit_prepare_scratch_ptr(0, lhs.offset);
+            emit_prepare_scratch_ptr(1, rhs.offset);
             emit(&es_code, "    lda #$%02x\n", size & 0xff);
             emit(&es_code, "    sta arg0\n");
             remember_runtime_import(le_helper);
@@ -1075,8 +1075,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
          error_user("[%s:%d.%d] invalid case expression", case_expr->file, case_expr->line, case_expr->column);
          continue;
       }
-      emit_prepare_fp_ptr(0, lhs.offset);
-      emit_prepare_fp_ptr(1, rhs.offset);
+      emit_prepare_scratch_ptr(0, lhs.offset);
+      emit_prepare_scratch_ptr(1, rhs.offset);
       emit(&es_code, "    lda #$%02x\n", size & 0xff);
       emit(&es_code, "    sta arg0\n");
       remember_runtime_import("eqN");

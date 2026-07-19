@@ -853,15 +853,15 @@ void emit_runtime_global_init_function(void) {
       PendingGlobalInit *entry = &pending_global_inits[i];
 
       if (entry->size > 0) {
-         emit_fill_fp_bytes(0, 0, entry->size, 0x00);
+         emit_fill_scratch_bytes(0, 0, entry->size, 0x00);
       }
-      if (!compile_initializer_to_fp(entry->expression, &ctx, entry->type, entry->declarator, 0, entry->size)) {
+      if (!compile_initializer_to_scratch(entry->expression, &ctx, entry->type, entry->declarator, 0, entry->size)) {
          error_user("[%s:%d.%d] invalid runtime global initializer for '%s'",
                entry->expression->file, entry->expression->line, entry->expression->column, entry->name);
       }
       if (entry->is_absolute_ref) {
          LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = false, .is_zeropage = false, .is_global = true, .is_ref = true, .is_absolute_ref = true, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = 0, .size = entry->size };
-         if (!emit_copy_fp_to_lvalue(&ctx, &lv, 0, entry->size)) {
+         if (!emit_copy_scratch_to_lvalue(&ctx, &lv, 0, entry->size)) {
             error_user("[%s:%d.%d] could not store runtime initializer for absolute ref '%s'",
                   entry->expression->file, entry->expression->line, entry->expression->column, entry->name);
          }
@@ -872,7 +872,7 @@ void emit_runtime_global_init_function(void) {
                   entry->expression->file, entry->expression->line, entry->expression->column, entry->name);
          }
 
-         emit_copy_fp_to_symbol(entry->symbol, 0, entry->size);
+         emit_copy_scratch_to_symbol(entry->symbol, 0, entry->size);
       }
    }
 
@@ -888,8 +888,8 @@ static const char *aggregate_initializer_target_name(const ASTNode *type) {
    return name ? name : "aggregate";
 }
 
-//! @brief Lower initializer to frame pointer from AST/semantic state into generated assembly or linker-visible metadata.
-bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode *type, const ASTNode *declarator, int base_offset, int total_size) {
+//! @brief Lower initializer to scratch from AST/semantic state into generated assembly or linker-visible metadata.
+bool compile_initializer_to_scratch(const ASTNode *init, Context *ctx, const ASTNode *type, const ASTNode *declarator, int base_offset, int total_size) {
    const ASTNode *uinit = unwrap_expr_node((ASTNode *) init);
    int size = scalar_storage_size(type, declarator, total_size);
 
@@ -898,7 +898,7 @@ bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode 
    }
 
    if (uinit->kind == AST_STRING && !string_literal_is_char_constant(uinit->strval)) {
-      return emit_string_initializer_to_fp(type, declarator, base_offset, size, uinit->strval);
+      return emit_string_initializer_to_scratch(type, declarator, base_offset, size, uinit->strval);
    }
 
    if (!initializer_is_list(uinit)) {
@@ -909,7 +909,7 @@ bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode 
    {
       const ASTNode *scalar_init = scalar_braced_initializer_value(uinit, type, declarator);
       if (scalar_init) {
-         return compile_initializer_to_fp(scalar_init, ctx, type, declarator, base_offset, total_size);
+         return compile_initializer_to_scratch(scalar_init, ctx, type, declarator, base_offset, total_size);
       }
    }
 
@@ -930,7 +930,7 @@ bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode 
             ok = false;
             break;
          }
-         ok = compile_initializer_to_fp(item->children[1], ctx, type, NULL, base_offset + i * elem_size, elem_size);
+         ok = compile_initializer_to_scratch(item->children[1], ctx, type, NULL, base_offset + i * elem_size, elem_size);
          if (!ok) {
             break;
          }
@@ -991,7 +991,7 @@ bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode 
                      aggregate_initializer_target_name(type));
             }
          }
-         ok = compile_initializer_to_fp(item->children[1], ctx, ftype, fdecl, base_offset + offset, declarator_storage_size(ftype, fdecl));
+         ok = compile_initializer_to_scratch(item->children[1], ctx, ftype, fdecl, base_offset + offset, declarator_storage_size(ftype, fdecl));
          if (!ok || is_union) {
             break;
          }

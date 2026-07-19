@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_084516.tar.gz
+    vcsc.20260719_120555.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -92,8 +92,8 @@ Settled final-language decisions
 
   The callee writes `$$`, whose linker-visible symbol is
   `function$__return`, and every value-returning epilogue is plain `RTS`. The
-  caller restores `fp` normally and copies directly from the callee object.
-  A, X, and Y are caller-clobbered and carry no ordinary language return value.
+  caller copies directly from the callee object. A, X, and Y are caller-
+  clobbered and carry no ordinary language return value.
 
 * `bcd24_t` may be returned. The remaining one/two-byte ordinary binary limit
   belongs to the current scalar/operator implementation, not the return ABI.
@@ -183,10 +183,10 @@ Completed vertical slices
 24. The VCS linker configuration declares all 128 physical RIOT RAM bytes and
     marks the region `callstack = callgraph`. After archive selection and
     cross-object cycle validation, vcsc-ld computes the longest linked call path,
-    reserves four top-of-RAM bytes per function level, and reports/exports the
-    resulting hardware-stack range. This includes return addresses and the
-    compiler's known fp-preservation allowance; inline assembly and separately
-    assembled routine internals remain unaccounted future work.
+    reserves two top-of-RAM bytes per function level, and reports/exports the
+    resulting hardware-stack range. This covers JSR return addresses only;
+    inline assembly and separately assembled routine internals remain
+    unaccounted future work.
 25. Common VCS byte operations now bypass permanent expression scratch.
     Discarded uint8_t increment/decrement, unsigned byte comparisons, constant
     byte stores, and byte-to-hardware-register stores lower directly. A simple
@@ -214,9 +214,9 @@ Completed vertical slices
 29. The residual target software stack has been removed. Division/remainder
     use a private two-byte BSS workspace owned by the archive-selected `_divNle`
     member; programs without `/` or `%` link neither the helper nor its workspace.
-    `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup `sp`
-    initialization, and the stale per-function `fp := sp` prologue are gone.
-    `_vcsc_fp` remains only as the temporary base for pooled fixed scratch.
+    `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup stack-base
+    initialization, and the stale per-function frame prologue are gone. Slice
+    38 later removed the remaining runtime frame pointer as well.
 30. [Superseded by slice 37.] Scalar/pointer return epilogues temporarily used
     direct zero-page loads from the hidden `$$` object. Slice 37 removed those
     loads and made the callee-owned object itself the ABI result. The object
@@ -264,9 +264,17 @@ Completed vertical slices
 37. Function results now remain in each callee's exact-sized hidden zero-page
     `function$__return` object. Non-static definitions export that object;
     separately compiled callers import it when consuming the result. Callers
-    restore `fp` without preserving registers and copy directly from the return
-    symbol. Value epilogues are plain `RTS`, ABI metadata uses `return_memory`,
-    and `bcd24_t` returns work within and across translation units.
+    copy directly from the return symbol. Value epilogues are plain `RTS`, ABI
+    metadata uses `return_memory`, and `bcd24_t` returns work within and across
+    translation units.
+38. The inherited runtime frame pointer has been removed. Scratch leases now
+    select fixed `__vcsc_scratch_N` symbols entirely at compile time, generated
+    code addresses those symbols directly, and ordinary calls no longer push or
+    restore scratch-base state. `_vcsc_fp`, `fp2ptr*`, startup initialization,
+    and the two-byte-per-depth preservation allowance are gone. The stock
+    runtime zero-page workspace is 16 bytes, and the linked hardware-stack
+    reserve is two bytes per source call depth, plus one fixed two-byte
+    startup cursor allowance when runtime initializer functions are linked.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -310,8 +318,9 @@ exact-sized hidden callee-owned zero-page symbol named `function$__return`.
 current width. Non-static definitions `.zpexport` the symbol. A caller in another
 object `.zpimport`s it only when the result is consumed.
 
-After `JSR`, the caller restores `fp` with ordinary PLA/STA instructions and
-copies directly from `function$__return` into the enclosing destination. A, X,
+After `JSR`, the caller copies directly from `function$__return` into the
+enclosing destination. Ordinary generated calls do not push or restore compiler
+state. A, X,
 and Y are ordinary caller-clobbered registers, not result registers. Ignored
 return values cause no copy. There is no `return_value` metadata mode, no
 caller-owned return slot, and no register-result scratch lease.
@@ -319,16 +328,15 @@ caller-owned return slot, and no register-result scratch lease.
 Current direct-parameter ABI
 ----------------------------
 Every fixed parameter of a directly named function has a callee-owned symbol.
-At each ordinary direct call, the compiler leases the caller function's current
-scratch-depth slot. The caller:
+At each ordinary direct call, the compiler may lease the caller function's
+current scratch-depth slot. The lease selects a fixed `__vcsc_scratch_N` symbol
+at compile time. The caller:
 
-1. saves the current `fp` on the 6502 hardware stack;
-2. temporarily points `fp` at the live `__vcsc_scratch_N` lease;
-3. evaluates each argument left-to-right and copies the converted value to the
-   corresponding callee parameter symbol;
-4. restores `fp` after each argument;
-5. executes JSR and restores `fp` normally;
-6. when the result is used, copies directly from the callee-owned
+1. evaluates each argument left-to-right through directly addressed scratch
+   when conversion or temporary storage is required;
+2. copies each converted value to the corresponding callee parameter symbol;
+3. executes JSR with no compiler-state pushes;
+4. when the result is used, copies directly from the callee-owned
    `function$__return` symbol into the enclosing destination.
 
 Scratch is pooled per function and nesting depth. Sequential uses in one
@@ -380,16 +388,16 @@ CPUSTACK regions. `vcs_4k.cfg` declares the full block:
     $80-$FF   128 physical bytes, with `callstack = callgraph`
 
 Before layout, vcsc-ld shrinks that region from the top. For a maximum linked
-source call depth D, the current reserve is `4 * D` bytes:
+source call depth D, the base reserve is `2 * D` bytes: two bytes for each
+active JSR return address, including the assembly startup call into a source
+root. If the linked image contains one or more runtime initializer functions,
+vcsc-ld adds one fixed two-byte allowance because startup preserves its
+init-table cursor while calling them. Ordinary generated calls push no
+parameter, return, or scratch-base state.
 
-* two bytes for each active JSR return address, including the assembly startup
-  call into a source root;
-* two bytes per active level for the compiler's known fp-preservation/transient
-  hardware-stack use.
-
-For `01_solid_color`, D=2, so ordinary allocation receives $80-$F7 (120 bytes)
-and $F8-$FF is reserved. For the fully source-level Ode player, D=3, so ordinary
-allocation receives $80-$F3 (116 bytes) and $F4-$FF is reserved. The bytes are
+For `01_solid_color`, D=2, so ordinary allocation receives $80-$FB (124 bytes)
+and $FC-$FF is reserved. For the fully source-level Ode player, D=3, so ordinary
+allocation receives $80-$F9 (122 bytes) and $FA-$FF is reserved. The bytes are
 accessed through their page-1 mirrors by the 6502 stack pointer.
 
 The map reports a `CALL STACK` block and the linker exports:
@@ -421,9 +429,11 @@ paths, and the runtime implementation has now been removed completely:
 * retained division/remainder uses a private two-byte BSS object in `_divNle`,
   selected from the runtime archive only when `/` or `%` is linked.
 
-`_vcsc_fp` remains active solely as the temporary addressing base for pooled fixed
-scratch. The generic regression scans compiler/runtime source and the rebuilt
-archive so the removed stack machinery cannot quietly return.
+Pooled fixed scratch is selected by a compile-time lease stack and addressed
+directly through linker-resolved `__vcsc_scratch_N` symbols. `_vcsc_fp`, its
+startup/runtime storage, the `fp2ptr*` helpers, and call-site save/restore code
+are gone. The generic regression scans compiler/runtime source, generated code,
+and the rebuilt archive so the removed machinery cannot quietly return.
 
 Test policy
 -----------
@@ -529,7 +539,7 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    110 passed, 0 failed, 110 total
+    111 passed, 0 failed, 111 total
 
 Staged install check:
 
@@ -579,8 +589,8 @@ The first unfinished item is the default next action.
 
 [x] 11. Remove operator overloading, `$exactops`, and weak built-in operator
         dispatch. Compiler source now emits zero `_pushN`/`_popN` calls. Keep
-        `_vcsc_fp` temporarily for pooled-scratch addressing; remove `_vcsc_sp` and
-        the runtime helpers after obsolete runtime families are gone.
+        pooled scratch temporarily used `_vcsc_fp`; task 18b later removed that
+        final runtime indirection after `_vcsc_sp` and the stack helpers were gone.
 
 [x] 12. Enforce the final basic-type set: int8_t, uint8_t, int16_t, uint16_t
         in controlled groups.
@@ -651,7 +661,8 @@ The first unfinished item is the default next action.
         [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
         [x] 16b. Remove residual `_vcsc_sp`, `_pushN`, `_popN`, and `sp2ptr*`
                   runtime machinery after giving retained division a private
-                  fixed workspace. Keep `_vcsc_fp` while pooled scratch uses it.
+                  fixed workspace. Task 18b later removed `_vcsc_fp` after
+                  pooled scratch became directly addressed static storage.
         [x] 16c. Fix retained compiler correctness defects inherited from N
                   before deleting more language machinery.
 
@@ -723,17 +734,23 @@ The first unfinished item is the default next action.
                   hidden zero-page object across translation units, make every
                   value epilogue plain `RTS`, consume results directly from
                   memory, and allow `bcd24_t` returns.
-        [ ] 18b. Generalize ordinary binary scalar handling from hard-coded
+        [x] 18b. Remove the inherited runtime frame pointer. Make scratch
+                  activation a compile-time symbol stack, address
+                  `__vcsc_scratch_N` directly, remove `_vcsc_fp` and `fp2ptr*`,
+                  eliminate call-site save/restore pushes, and size the hardware
+                  call stack at two bytes per linked call depth, plus the
+                  fixed startup cursor allowance required by runtime initializers.
+        [ ] 18c. Generalize ordinary binary scalar handling from hard-coded
                   one/two-byte assumptions to widths one through four. Audit
                   literals, extension/truncation, assignment, parameters,
                   arithmetic, comparisons, shifts, compound assignment,
                   increment/decrement, constant folding, and helper interfaces.
-        [ ] 18c. Add first-class `int24_t` and `uint24_t`, retaining VCSC's
+        [ ] 18d. Add first-class `int24_t` and `uint24_t`, retaining VCSC's
                   existing rule that mixed signed/unsigned runtime operations
                   require an explicit cast rather than C's usual conversions.
-        [ ] 18d. Add first-class `int32_t` and `uint32_t` after the width-generic
+        [ ] 18e. Add first-class `int32_t` and `uint32_t` after the width-generic
                   paths are proven. Keep pointers 16-bit.
-        [ ] 18e. Add unsigned packed-decimal `bcd32_t` for eight digits once
+        [ ] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
                   four-byte scalar storage and copying are established.
 
 [ ] 19. Inventory the retained batari Basic standard and multisprite kernels for
@@ -767,9 +784,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Task 18a is complete; the next queued action is 18b, generalizing ordinary binary
-scalar machinery to widths one through four before adding the new 24/32-bit
-types. Batari conversion inventory follows as task 19.
+Tasks 18a and 18b are complete; the next queued action is 18c, generalizing
+ordinary binary scalar machinery to widths one through four before adding the
+new 24/32-bit types. Batari conversion inventory follows as task 19.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1575,6 +1592,34 @@ reproducibly rather than the exact instant of each individual source edit.
   installed-toolchain 4096-byte cartridge using a returned `bcd24_t`. Added six
   superseded test paths to `remove.txt`, which now contains 867 unique cumulative
   paths. The retained batari Basic trees were untouched.
+
+
+2026-07-19 12:20:05 PDT, remove inherited runtime frame pointer
+* Replaced runtime scratch-base redirection with a compile-time active-lease
+  stack. Scratch helpers now address the selected linker-resolved
+  `__vcsc_scratch_N` symbol directly and prepare `ptr0`/`ptr1` only for dynamic
+  or offsets beyond the direct indexed range.
+* Removed `_vcsc_fp` from the zero-page runtime workspace, startup initialization,
+  assembler include aliases, compiler reserved names, peephole scratch tracking,
+  and ordinary call lowering. Deleted `libraries/runtime/asm/fp2ptr.asm` and the
+  generated helper family.
+* Removed frame-pointer save/restore around argument evaluation and JSR. Ordinary
+  generated calls now use only the hardware stack's two-byte return address, so
+  call-graph RAM reservation changed from four bytes to two bytes per linked
+  source call depth. Images with runtime initializer functions add one fixed
+  two-byte allowance for startup's preserved init-table cursor.
+* Reclaimed two bytes of RIOT RAM from the stock runtime workspace, now 16 bytes.
+  Updated VCS map expectations: the two-deep 4K example reserves $FC-$FF and the
+  three-deep Ode example reserves $FA-$FF.
+* Renamed compiler helper APIs and stale comments from fp-relative terminology to
+  direct scratch terminology. The ordinary source identifier `fp` is legal again.
+* Added `fp_removed.test`, which compiles an `fp` variable, checks direct static
+  scratch addressing and push-free calls, scans runtime/linker sources, and
+  verifies the rebuilt archive contains no fp helper.
+* Passed 254/254 compile tests and 112/112 end-to-end/generic tests. The staged
+  installation check and both exact 4096-byte cartridge regressions passed.
+  Added two removed paths to `remove.txt`, now 869 unique cumulative paths. The
+  retained batari Basic trees were unchanged.
 
 End-of-session checklist
 ------------------------

@@ -42,14 +42,14 @@ static const ASTNode *expr_lvalue_base_identifier_node(ASTNode *expr);
 
 typedef CompilerScratchLease SlotFixedScratch;
 
-//! @brief Begin fixed-address slot scratch and redirect fp to it.
+//! @brief Begin and activate fixed-address slot scratch.
 static void slot_fixed_scratch_begin(Context *ctx, int reserved,
                                      SlotFixedScratch *scratch) {
    compiler_scratch_acquire(ctx, reserved, scratch);
    compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp while keeping the slot scratch lease live for copy-out.
+//! @brief Deactivate the slot scratch lease live for copy-out.
 static void slot_fixed_scratch_deactivate(Context *ctx, SlotFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
 }
@@ -59,7 +59,7 @@ static void slot_fixed_scratch_finish(SlotFixedScratch *scratch) {
    compiler_scratch_release(scratch);
 }
 
-//! @brief Restore fp and release a slot scratch lease on an error path.
+//! @brief Deactivate and release a slot scratch lease on an error path.
 static void slot_fixed_scratch_abort(Context *ctx, SlotFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
    compiler_scratch_release(scratch);
@@ -79,7 +79,7 @@ static void emit_slot_fixed_scratch_result(Context *ctx, const SlotFixedScratch 
                                                 scratch->symbol, src_offset, src_size, src_type);
    }
    else {
-      emit_copy_symbol_to_fp_convert_offset(dst->offset, dst->size, dst->type,
+      emit_copy_symbol_to_scratch_convert_offset(dst->offset, dst->size, dst->type,
                                             scratch->symbol, src_offset, src_size, src_type);
    }
 }
@@ -157,7 +157,7 @@ bool compile_constant_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       free(bytes);
       return false;
    }
-   emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
+   emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
    free(bytes);
    return true;
 }
@@ -324,7 +324,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
                return false;
             }
-            emit_store_ptr_to_fp(dst->offset, 0, dst->size);
+            emit_store_ptr_to_scratch(dst->offset, 0, dst->size);
             return true;
          }
       }
@@ -347,10 +347,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          return false;
       }
 
-      if (!emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, load_size)) {
+      if (!emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, load_size)) {
          return false;
       }
-      emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, dst->offset, load_size, lv.type);
+      emit_copy_scratch_to_scratch_convert(dst->offset, dst->size, dst->type, dst->offset, load_size, lv.type);
       return true;
    }
 
@@ -400,7 +400,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          free(bytes);
          return false;
       }
-      emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
+      emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
       free(bytes);
       return true;
    }
@@ -411,7 +411,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          free(bytes);
          return false;
       }
-      emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
+      emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
       free(bytes);
       return true;
    }
@@ -425,7 +425,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             free(bytes);
             return false;
          }
-         emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
+         emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
          free(bytes);
       }
       else {
@@ -434,7 +434,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          if (!label) {
             label = remember_string_literal(expr->strval);
          }
-         emit_store_label_address_to_fp(dst->offset, dst->size, label);
+         emit_store_label_address_to_scratch(dst->offset, dst->size, label);
       }
       return true;
    }
@@ -449,12 +449,12 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
             }
             if (dst->size == lv.size && dst->type == lv.type) {
-               return emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, lv.size);
+               return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
             }
             {
                SlotFixedScratch scratch;
                slot_fixed_scratch_begin(ctx, lv.size, &scratch);
-               if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
+               if (!emit_copy_lvalue_to_scratch(ctx, 0, &lv, lv.size)) {
                   slot_fixed_scratch_abort(ctx, &scratch);
                   return false;
                }
@@ -465,13 +465,13 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
          }
          if (entry && !entry->is_static && !entry->is_zeropage) {
-            emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, entry->offset, entry->size, entry->type);
+            emit_copy_scratch_to_scratch_convert(dst->offset, dst->size, dst->type, entry->offset, entry->size, entry->type);
             return true;
          }
          if (entry) {
             char sym[256];
             if (entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
-               emit_copy_symbol_to_fp_convert(dst->offset, dst->size, dst->type, sym, entry->size, entry->type);
+               emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type, sym, entry->size, entry->type);
                return true;
             }
          }
@@ -485,12 +485,12 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                      error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
                   }
                   if (dst->size == lv.size && dst->type == lv.type) {
-                     return emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, lv.size);
+                     return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
                   }
                   {
                      SlotFixedScratch scratch;
                      slot_fixed_scratch_begin(ctx, lv.size, &scratch);
-                     if (!emit_copy_lvalue_to_fp(ctx, 0, &lv, lv.size)) {
+                     if (!emit_copy_lvalue_to_scratch(ctx, 0, &lv, lv.size)) {
                         slot_fixed_scratch_abort(ctx, &scratch);
                         return false;
                      }
@@ -504,7 +504,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                   char sym[256];
                   int gsize = declarator_storage_size(g->children[1], decl_node_declarator(g));
                   format_user_asm_symbol(ident, sym, sizeof(sym));
-                  emit_copy_symbol_to_fp_convert(dst->offset, dst->size, dst->type, sym, gsize, g->children[1]);
+                  emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type, sym, gsize, g->children[1]);
                   return true;
                }
             }
@@ -530,7 +530,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
             return false;
          }
-         emit_store_ptr_to_fp(dst->offset, 0, dst->size);
+         emit_store_ptr_to_scratch(dst->offset, 0, dst->size);
          return true;
       }
       {
@@ -551,7 +551,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                dst ? dst->declarator : NULL, expr);
          InitConstValue value = {0};
          if (label) {
-            emit_store_label_address_to_fp(dst->offset, dst->size, label);
+            emit_store_label_address_to_scratch(dst->offset, dst->size, label);
             return true;
          }
          if (eval_constant_initializer_expr(inner, &value) && value.kind == INIT_CONST_INT) {
@@ -559,7 +559,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             char tmp[64];
             snprintf(tmp, sizeof(tmp), "%lld", value.i);
             make_le_int(tmp, bytes, dst->size);
-            emit_store_immediate_to_fp(dst->offset, bytes, dst->size);
+            emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
             free(bytes);
             return true;
          }
@@ -579,12 +579,12 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          if (lv.size == dst->size && !strcmp(type_name_from_node(lv.type), type_name_from_node(dst->type)) &&
              declarator_pointer_depth(lv.declarator) == declarator_pointer_depth(dst->declarator) &&
              declarator_array_count(lv.declarator) == declarator_array_count(dst->declarator)) {
-            return emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, lv.size);
+            return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
          }
-         if (!emit_copy_lvalue_to_fp(ctx, dst->offset, &lv, load_size)) {
+         if (!emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, load_size)) {
             return false;
          }
-         emit_copy_fp_to_fp_convert(dst->offset, dst->size, dst->type, dst->offset, load_size, lv.type);
+         emit_copy_scratch_to_scratch_convert(dst->offset, dst->size, dst->type, dst->offset, load_size, lv.type);
          return true;
       }
       {

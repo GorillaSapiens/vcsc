@@ -2,20 +2,21 @@
 // linkcfg: ../libraries/vcs/vcs_4k.cfg
 // expectmap: RAM        start=$0080 size=$007C type=rw
 // expectmap: __stack_top   $00FB
-// expectmap: region=RAM depth=2 bytes=$0004 physical=$00FC-$00FF
-// expectmap: __call_stack_depth
-// expectmap: __call_stack_size
+// expectmap: region=RAM depth=1 bytes=$0004 physical=$00FC-$00FF
 // expectexit: 0
 
 include "vcs.vcsc"
 
-void pass(void) {
+uint8_t twice(uint8_t value) {
+   return value + value;
+}
+
+uint8_t seed := 3;
+uint8_t initialized := twice(seed);
+
+void main(void) {
    asm lda #$ff;
    asm ldx #0;
    asm ldy #0;
    asm jsr $ffff;
-}
-
-void main(void) {
-   pass();
 }

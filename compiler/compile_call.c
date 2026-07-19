@@ -20,22 +20,6 @@
 #include "integer.h"
 #include "messages.h"
 
-//! @brief Restore the caller frame pointer after a direct call.
-static void emit_restore_fp_after_call(void) {
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp\n");
-   emit(&es_code, "    pla\n");
-   emit(&es_code, "    sta fp+1\n");
-}
-
-//! @brief Save the current frame pointer on the 6502 hardware stack.
-static void emit_save_fp(void) {
-   emit(&es_code, "    lda fp+1\n");
-   emit(&es_code, "    pha\n");
-   emit(&es_code, "    lda fp\n");
-   emit(&es_code, "    pha\n");
-}
-
 //! @brief Lower an ordinary direct call using callee-owned symbols and fixed call-site scratch.
 static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
                                        ASTNode *callee, ASTNode *args,
@@ -101,7 +85,7 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
             ok = compile_expr_to_slot(args->children[actual_index], ctx, &tmp);
          }
          if (ok) {
-            emit_copy_fp_to_symbol(param_sym, 0, psz);
+            emit_copy_scratch_to_symbol(param_sym, 0, psz);
          }
          compiler_scratch_deactivate(ctx, &scratch);
          if (!ok) {
@@ -124,12 +108,10 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
 
    record_call_graph_edge(current_call_graph_function, fn);
    remember_symbol_import(callee_sym);
-   emit_save_fp();
    emit(&es_code, "    jsr %s\n", callee_sym);
-   emit_restore_fp_after_call();
 
    if (dst && ret_size > 0) {
-      emit_copy_symbol_to_fp_convert(dst->offset, dst->size, dst->type,
+      emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type,
                                      return_sym, ret_size, ret_type);
    }
 

@@ -203,6 +203,7 @@ libraries/petiteffs/source/diskio.nh
 libraries/petiteffs/source/pff.n
 libraries/petiteffs/source/pff.nh
 libraries/petiteffs/source/pffconf.nh
+libraries/runtime/asm/fp2ptr.asm
 libraries/vcs/riot.n
 libraries/vcs/sound_ntsc.n
 libraries/vcs/tia.n
@@ -288,6 +289,7 @@ test/builtin_operator_codegen_test.n
 test/c_style_cast_codegen_test.n
 test/call_argument_order_codegen_test.n
 test/call_fp_preserve_codegen_test.n
+test/call_fp_preserve_codegen_test.vcsc
 test/call_without_signature_error_test.n
 test/case_expr_location_error_test.n
 test/cast_abs_incdec_fixed_scratch_codegen_test.n

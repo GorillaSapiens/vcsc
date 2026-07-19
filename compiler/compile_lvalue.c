@@ -25,14 +25,14 @@
 
 typedef CompilerScratchLease LValueFixedScratch;
 
-//! @brief Begin fixed-address lvalue scratch and redirect fp to it.
+//! @brief Begin and activate fixed-address lvalue scratch.
 static void lvalue_fixed_scratch_begin(Context *ctx, int reserved,
                                        LValueFixedScratch *scratch) {
    compiler_scratch_acquire(ctx, reserved, scratch);
    compiler_scratch_activate(ctx, scratch);
 }
 
-//! @brief Restore fp and declare fixed-address lvalue scratch.
+//! @brief Deactivate and release fixed-address lvalue scratch.
 static void lvalue_fixed_scratch_end(Context *ctx, LValueFixedScratch *scratch) {
    compiler_scratch_deactivate(ctx, scratch);
    compiler_scratch_release(scratch);
@@ -130,15 +130,15 @@ bool find_aggregate_member(const ASTNode *type, const char *member, const ASTNod
    return true;
 }
 
-//! @brief Extract emit load ptr from fpvar for compiler lvalue lowering.
-void emit_load_ptr_from_fpvar(int ptrno, int src_offset) {
+//! @brief Extract emit load ptr from active scratch for compiler lvalue lowering.
+void emit_load_ptr_from_scratch(int ptrno, int src_offset) {
    bool direct = src_offset >= 0 && src_offset + 2 <= 256;
    if (!direct) {
-      emit_prepare_fp_ptr(ptrno == 0 ? 1 : 0, src_offset);
+      emit_prepare_scratch_ptr(ptrno == 0 ? 1 : 0, src_offset);
    }
    for (int i = 0; i < 2; i++) {
       emit(&es_code, "    ldy #%d\n", direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", direct ? "(fp)" : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
+      emit(&es_code, "    lda %s,y\n", direct ? compiler_scratch_active_symbol() : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
       emit(&es_code, "    sta ptr%d%s\n", ptrno, i == 0 ? "" : "+1");
    }
 }
@@ -157,8 +157,8 @@ static void emit_add_immediate_to_ptr(int ptrno, int adjust) {
    emit(&es_code, "    sta ptr%d+1\n", ptrno);
 }
 
-//! @brief Emit store ptr to frame pointer for compiler lvalue lowering diagnostics or output files.
-void emit_store_ptr_to_fp(int dst_offset, int ptrno, int size) {
+//! @brief Emit store ptr to scratch for compiler lvalue lowering diagnostics or output files.
+void emit_store_ptr_to_scratch(int dst_offset, int ptrno, int size) {
    bool direct = dst_offset >= 0 && dst_offset + size <= 256;
 
    if (size <= 0) {
@@ -166,7 +166,7 @@ void emit_store_ptr_to_fp(int dst_offset, int ptrno, int size) {
    }
 
    if (!direct) {
-      emit_prepare_fp_ptr(ptrno == 0 ? 1 : 0, dst_offset);
+      emit_prepare_scratch_ptr(ptrno == 0 ? 1 : 0, dst_offset);
    }
 
    for (int i = 0; i < size; i++) {
@@ -177,7 +177,7 @@ void emit_store_ptr_to_fp(int dst_offset, int ptrno, int size) {
          emit(&es_code, "    lda #0\n");
       }
       emit(&es_code, "    ldy #%d\n", direct ? (dst_offset + i) : i);
-      emit(&es_code, "    sta %s,y\n", direct ? "(fp)" : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
+      emit(&es_code, "    sta %s,y\n", direct ? compiler_scratch_active_symbol() : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
    }
 }
 
@@ -251,12 +251,12 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
    if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
       return false;
    }
-   emit_store_ptr_to_fp(dst_offset, 0, dst_size);
+   emit_store_ptr_to_scratch(dst_offset, 0, dst_size);
    return true;
 }
 
-//! @brief Emit load count lowbyte frame pointer to arg1 for compiler lvalue lowering diagnostics or output files.
-static void emit_load_count_lowbyte_fp_to_arg1(int src_offset, const ASTNode *src_type, int src_size) {
+//! @brief Emit load count lowbyte scratch to arg1 for compiler lvalue lowering diagnostics or output files.
+static void emit_load_count_lowbyte_scratch_to_arg1(int src_offset, const ASTNode *src_type, int src_size) {
    bool direct;
    int mem_index = 0;
 
@@ -266,33 +266,33 @@ static void emit_load_count_lowbyte_fp_to_arg1(int src_offset, const ASTNode *sr
    }
    direct = src_offset >= 0 && src_offset + src_size <= 256;
    if (!direct) {
-      emit_prepare_fp_ptr(0, src_offset);
+      emit_prepare_scratch_ptr(0, src_offset);
       emit(&es_code, "    ldy #%d\n", mem_index);
       emit(&es_code, "    lda (ptr0),y\n");
    }
    else {
       emit(&es_code, "    ldy #%d\n", src_offset + mem_index);
-      emit(&es_code, "    lda (fp),y\n");
+      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
    }
    emit(&es_code, "    sta arg1\n");
 }
 
-//! @brief Emit runtime binary frame pointer frame pointer for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_binary_fp_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, int size) {
-   emit_prepare_fp_ptr(0, lhs_offset);
-   emit_prepare_fp_ptr(1, rhs_offset);
-   emit_prepare_fp_ptr(2, dst_offset);
+//! @brief Emit runtime binary scratch scratch for compiler lvalue lowering diagnostics or output files.
+void emit_runtime_binary_scratch(const char *helper, int dst_offset, int lhs_offset, int rhs_offset, int size) {
+   emit_prepare_scratch_ptr(0, lhs_offset);
+   emit_prepare_scratch_ptr(1, rhs_offset);
+   emit_prepare_scratch_ptr(2, dst_offset);
    emit(&es_code, "    lda #$%02x\n", size & 0xff);
    emit(&es_code, "    sta arg0\n");
    remember_runtime_import(helper);
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
-//! @brief Emit runtime fixed binary frame pointer frame pointer for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_fixed_binary_fp_fp(const char *helper, int dst_offset, int lhs_offset, int rhs_offset) {
-   emit_prepare_fp_ptr(0, lhs_offset);
-   emit_prepare_fp_ptr(1, rhs_offset);
-   emit_prepare_fp_ptr(2, dst_offset);
+//! @brief Emit runtime fixed binary scratch scratch for compiler lvalue lowering diagnostics or output files.
+void emit_runtime_fixed_binary_scratch(const char *helper, int dst_offset, int lhs_offset, int rhs_offset) {
+   emit_prepare_scratch_ptr(0, lhs_offset);
+   emit_prepare_scratch_ptr(1, rhs_offset);
+   emit_prepare_scratch_ptr(2, dst_offset);
    remember_runtime_import(helper);
    emit(&es_code, "    jsr _%s\n", helper);
 }
@@ -358,12 +358,12 @@ const char *int_compare_helper_name(const ASTNode *type, const char *op) {
    return NULL;
 }
 
-//! @brief Emit runtime shift frame pointer for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_shift_fp(const char *helper, int value_offset, int scratch_offset, int count_offset,
+//! @brief Emit runtime shift scratch for compiler lvalue lowering diagnostics or output files.
+void emit_runtime_shift_scratch(const char *helper, int value_offset, int scratch_offset, int count_offset,
                                   const ASTNode *count_type, int count_size, int size) {
-   emit_prepare_fp_ptr(0, value_offset);
-   emit_prepare_fp_ptr(1, scratch_offset);
-   emit_load_count_lowbyte_fp_to_arg1(count_offset, count_type, count_size);
+   emit_prepare_scratch_ptr(0, value_offset);
+   emit_prepare_scratch_ptr(1, scratch_offset);
+   emit_load_count_lowbyte_scratch_to_arg1(count_offset, count_type, count_size);
    emit(&es_code, "    lda #$%02x\n", size & 0xff);
    emit(&es_code, "    sta arg0\n");
    remember_runtime_import(helper);
@@ -418,7 +418,7 @@ static bool emit_load_simple_u8_index_to_a(Context *ctx, ASTNode *idx) {
       return false;
    }
    emit(&es_code, "    ldy #%d\n", lv.offset);
-   emit(&es_code, "    lda (fp),y\n");
+   emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
    return true;
 }
 
@@ -505,12 +505,12 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          LValueFixedScratch scratch;
 
          lvalue_fixed_scratch_begin(ctx, total, &scratch);
-         emit_store_ptr_to_fp(save_ptr0_offset, 0, ptr_size);
+         emit_store_ptr_to_scratch(save_ptr0_offset, 0, ptr_size);
          if (!compile_expr_to_slot((ASTNode *) idx, ctx, &idx_tmp)) {
             lvalue_fixed_scratch_end(ctx, &scratch);
             return false;
          }
-         emit_load_ptr_from_fpvar(0, save_ptr0_offset);
+         emit_load_ptr_from_scratch(0, save_ptr0_offset);
          if (elem_size != 1) {
             unsigned char *factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
             char factor_buf[64];
@@ -520,14 +520,14 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
             }
             snprintf(factor_buf, sizeof(factor_buf), "%d", elem_size);
             make_le_int(factor_buf, factor_bytes, ptr_size);
-            emit_store_immediate_to_fp(factor_offset, factor_bytes, ptr_size);
+            emit_store_immediate_to_scratch(factor_offset, factor_bytes, ptr_size);
             free(factor_bytes);
-            emit_runtime_binary_fp_fp(int_mul_helper_name(idx_type ? idx_type : required_typename_node("int16_t")), scaled_offset, idx_offset, factor_offset, ptr_size);
-            emit_load_ptr_from_fpvar(0, save_ptr0_offset);
-            emit_add_fp_to_ptr(0, int_mul_result_offset(idx_type ? idx_type : required_typename_node("int16_t"), scaled_offset, ptr_size), ptr_size);
+            emit_runtime_binary_scratch(int_mul_helper_name(idx_type ? idx_type : required_typename_node("int16_t")), scaled_offset, idx_offset, factor_offset, ptr_size);
+            emit_load_ptr_from_scratch(0, save_ptr0_offset);
+            emit_add_scratch_to_ptr(0, int_mul_result_offset(idx_type ? idx_type : required_typename_node("int16_t"), scaled_offset, ptr_size), ptr_size);
          }
          else {
-            emit_add_fp_to_ptr(0, idx_offset, ptr_size);
+            emit_add_scratch_to_ptr(0, idx_offset, ptr_size);
          }
          lvalue_fixed_scratch_end(ctx, &scratch);
       }
@@ -613,7 +613,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
             emit_load_ptr_from_symbol(0, sym, 0);
          }
          else {
-            emit_load_ptr_from_fpvar(0, lv->offset);
+            emit_load_ptr_from_scratch(0, lv->offset);
          }
          emit_add_immediate_to_ptr(0, lv->ptr_adjust);
          return true;
@@ -626,7 +626,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
          emit_load_address_to_ptr(0, sym, 0);
       }
       else {
-         emit_prepare_fp_ptr(0, lv->offset);
+         emit_prepare_scratch_ptr(0, lv->offset);
       }
       emit_add_immediate_to_ptr(0, lv->ptr_adjust);
       return true;
@@ -657,7 +657,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    else {
       if (lv->deref_depth > 0 || lv->is_ref) {
          int extra_derefs = lv->deref_depth;
-         emit_load_ptr_from_fpvar(0, lv->base_offset);
+         emit_load_ptr_from_scratch(0, lv->base_offset);
          if (!lv->is_ref && extra_derefs > 0) {
             extra_derefs--;
          }
@@ -666,15 +666,15 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
          }
       }
       else {
-         emit_prepare_fp_ptr(0, lv->base_offset);
+         emit_prepare_scratch_ptr(0, lv->base_offset);
       }
    }
 
    return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl);
 }
 
-//! @brief Emit copy bitfield lvalue to frame pointer for compiler lvalue lowering diagnostics or output files.
-static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, int size) {
+//! @brief Emit copy bitfield lvalue to scratch for compiler lvalue lowering diagnostics or output files.
+static bool emit_copy_bitfield_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size) {
    int copy_size = size < src->size ? size : src->size;
    bool is_signed;
    int src_byte_offset;
@@ -689,7 +689,7 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
    if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
       return false;
    }
-   emit_prepare_fp_ptr(1, dst_offset);
+   emit_prepare_scratch_ptr(1, dst_offset);
 
    emit_runtime_fill_ptr1(copy_size, 0x00);
 
@@ -740,7 +740,7 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
       if (copy_size - (field_last_byte + 1) > 0) {
          emit_add_immediate_to_ptr(1, field_last_byte + 1);
          emit_runtime_fill_ptr1(copy_size - (field_last_byte + 1), 0x00);
-         emit_prepare_fp_ptr(1, dst_offset);
+         emit_prepare_scratch_ptr(1, dst_offset);
       }
    }
 
@@ -763,7 +763,7 @@ static bool emit_copy_bitfield_lvalue_to_fp(Context *ctx, int dst_offset, const 
       if (copy_size - (sign_byte + 1) > 0) {
          emit_add_immediate_to_ptr(1, sign_byte + 1);
          emit_runtime_fill_ptr1(copy_size - (sign_byte + 1), 0xff);
-         emit_prepare_fp_ptr(1, dst_offset);
+         emit_prepare_scratch_ptr(1, dst_offset);
       }
       emit(&es_code, "%s:\n", skip_label);
    }
@@ -918,8 +918,8 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
    return true;
 }
 
-//! @brief Emit copy frame pointer to bitfield lvalue for compiler lvalue lowering diagnostics or output files.
-static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
+//! @brief Emit copy scratch to bitfield lvalue for compiler lvalue lowering diagnostics or output files.
+static bool emit_copy_scratch_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
    int copy_size = size < dst->size ? size : dst->size;
    bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
 
@@ -930,7 +930,7 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
       return false;
    }
    if (!src_direct) {
-      emit_prepare_fp_ptr(1, src_offset);
+      emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int bit = 0; bit < dst->bit_width; bit++) {
       int dst_byte = (dst->bit_offset + bit) / 8;
@@ -940,7 +940,7 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
       const char *clear_label = next_label("bitfield_store_clear");
       const char *done_label = next_label("bitfield_store_done");
       emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + src_byte) : src_byte);
-      emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
       emit(&es_code, "    and #$%02x\n", src_mask & 0xff);
       emit(&es_code, "    beq %s\n", clear_label);
       emit(&es_code, "    ldy #%d\n", dst_byte);
@@ -958,15 +958,15 @@ static bool emit_copy_fp_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, 
    return true;
 }
 
-//! @brief Emit copy lvalue to frame pointer for compiler lvalue lowering diagnostics or output files.
-bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, int size) {
+//! @brief Emit copy lvalue to scratch for compiler lvalue lowering diagnostics or output files.
+bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size) {
    int copy_size = size < src->size ? size : src->size;
    bool dst_direct = dst_offset >= 0 && dst_offset + copy_size <= 256;
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
 
    if (src && src->is_bitfield) {
-      return emit_copy_bitfield_lvalue_to_fp(ctx, dst_offset, src, size);
+      return emit_copy_bitfield_lvalue_to_scratch(ctx, dst_offset, src, size);
    }
    if (absolute_ref_supports_direct_access(src)) {
       const char *read_expr = src->read_expr;
@@ -975,12 +975,12 @@ bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, 
          return false;
       }
       if (!dst_direct) {
-         emit_prepare_fp_ptr(1, dst_offset);
+         emit_prepare_scratch_ptr(1, dst_offset);
       }
       for (int i = 0; i < copy_size; i++) {
          emit_load_a_from_expr_address(read_expr, src->offset + i);
          emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + i) : i);
-         emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
+         emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
       }
       return true;
    }
@@ -1000,13 +1000,13 @@ bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, 
       return false;
    }
    if (!dst_direct) {
-      emit_prepare_fp_ptr(1, dst_offset);
+      emit_prepare_scratch_ptr(1, dst_offset);
    }
    for (int i = 0; i < copy_size; i++) {
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    lda (ptr0),y\n");
       emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + i) : i);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
    }
    if (ctx) {
       ctx_set_locals(ctx, saved_locals);
@@ -1014,15 +1014,15 @@ bool emit_copy_lvalue_to_fp(Context *ctx, int dst_offset, const LValueRef *src, 
    return true;
 }
 
-//! @brief Emit copy frame pointer to lvalue for compiler lvalue lowering diagnostics or output files.
-bool emit_copy_fp_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
+//! @brief Emit copy scratch to lvalue for compiler lvalue lowering diagnostics or output files.
+bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
    int copy_size = size < dst->size ? size : dst->size;
    bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
 
    if (dst && dst->is_bitfield) {
-      return emit_copy_fp_to_bitfield_lvalue(ctx, dst, src_offset, size);
+      return emit_copy_scratch_to_bitfield_lvalue(ctx, dst, src_offset, size);
    }
    if (absolute_ref_supports_direct_access(dst)) {
       const char *write_expr = dst->write_expr;
@@ -1031,11 +1031,11 @@ bool emit_copy_fp_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, 
          return false;
       }
       if (!src_direct) {
-         emit_prepare_fp_ptr(1, src_offset);
+         emit_prepare_scratch_ptr(1, src_offset);
       }
       for (int i = 0; i < copy_size; i++) {
          emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-         emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr1)");
+         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
          emit_store_a_to_expr_address(write_expr, dst->offset + i);
       }
       return true;
@@ -1056,11 +1056,11 @@ bool emit_copy_fp_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, 
       return false;
    }
    if (!src_direct) {
-      emit_prepare_fp_ptr(1, src_offset);
+      emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int i = 0; i < copy_size; i++) {
       emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", src_direct ? "(fp)" : "(ptr1)");
+      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    sta (ptr0),y\n");
    }

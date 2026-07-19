@@ -6,22 +6,15 @@
 // expectasmordered: capture$x:
 // expectasmordered: 	.res 2
 // expectasmordered: .proc main
-// expectasmordered: lda #<__vcsc_scratch_
-// expectasmordered: sta fp
-// expectasmordered: lda #>__vcsc_scratch_
-// expectasmordered: sta fp+1
-// expectasmordered: ldy #0
 // expectasmordered: lda #$34
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #1
+// expectasmordered: sta __vcsc_scratch_
 // expectasmordered: lda #$12
-// expectasmordered: sta (fp),y
-// expectasmordered: ldy #0
-// expectasmordered: lda (fp),y
+// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: lda __vcsc_scratch_
 // expectasmordered: sta capture$x,y
-// expectasmordered: ldy #1
-// expectasmordered: lda (fp),y
+// expectasmordered: lda __vcsc_scratch_
 // expectasmordered: sta capture$x,y
+// forbidasm: fp
 // forbidasm: .export capture$x
 include "machine_6502.vcsc"
 mem register { $start:0x0000 $size:0x0010 $rw };

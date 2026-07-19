@@ -59,8 +59,6 @@ static char *xstrndup_local(const char *s, size_t n) {
 static const char *compiler_zp_operand_names[] = {
    "arg0",
    "arg1",
-   "fp",
-   "fp+1",
    "ptr0",
    "ptr0+1",
    "ptr1",

@@ -2,11 +2,10 @@
 // expectasm: .import foreign
 // forbidasm: .zpimport foreign$__return
 // expectasmordered: jsr foreign
-// expectasmordered: pla
-// expectasmordered: sta fp
-// expectasmordered: pla
-// expectasmordered: sta fp+1
 // forbidasm: lda foreign$__return,y
+// forbidasm: fp
+// forbidasm: pha
+// forbidasm: pla
 include "machine_6502.vcsc"
 
 extern bcd24_t foreign(void);

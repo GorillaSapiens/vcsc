@@ -1,13 +1,10 @@
 // vcsc-cc1
-// expectasm:     lda fp+1
-// expectasm:     pha
-// expectasm:     lda fp
-// expectasm:     pha
-// expectasm:     jsr id
-// expectasm:     pla
-// expectasm:     sta fp
-// expectasm:     pla
-// expectasm:     sta fp+1
+// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: jsr id
+// expectasmordered: lda id$__return,y
+// forbidasm: fp
+// forbidasm: pha
+// forbidasm: pla
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

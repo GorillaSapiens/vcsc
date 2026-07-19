@@ -24,7 +24,7 @@ void remember_pending_global_init(const char *name, const char *symbol, const AS
                                   ASTNode *expression, int size, bool is_zeropage, bool is_absolute_ref,
                                   const char *read_expr, const char *write_expr);
 void emit_runtime_global_init_function(void);
-bool compile_initializer_to_fp(const ASTNode *init, Context *ctx, const ASTNode *type, const ASTNode *declarator,
+bool compile_initializer_to_scratch(const ASTNode *init, Context *ctx, const ASTNode *type, const ASTNode *declarator,
                                int base_offset, int total_size);
 
 #endif

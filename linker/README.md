@@ -106,7 +106,7 @@ bss = __bss_start
 bss_end = __bss_end
 ```
 
-If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime uses `__stack_start` only as the deterministic baseline for `_vcsc_fp`; it provides neither a software stack nor a heap allocator.
+If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime provides neither a software stack, a frame pointer, nor a heap allocator.
 
 ## Linker script requirement
 
@@ -132,10 +132,13 @@ the user does not provide `-T`.
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
 acyclic source-level call path and shrinks that region from the top before
-placing DATA/BSS/ZEROPAGE. The current reserve is four bytes per function level:
-two for the active JSR return address and two for the compiler's known `fp`
-preservation/transient use. Inline-assembly stack operations and stack use
-inside separately assembled routines are not represented yet.
+placing DATA/BSS/ZEROPAGE. The current reserve is two bytes per function level for active JSR return
+addresses, plus one fixed two-byte allowance when the selected objects contain
+one or more runtime initializer functions. The extra pair holds the stock
+startup's init-table cursor while it calls an initializer. Compiler-generated
+ordinary calls do not push parameter, return, or scratch-base state. Inline-
+assembly stack operations and stack use inside separately assembled routines
+are not represented yet.
 
 It is not trying to be a full `ld65` config parser.
 ## Compiler mem-region validation
