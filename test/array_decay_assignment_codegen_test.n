@@ -1,0 +1,22 @@
+// n65c -I .
+// expectasmordered: lda #<{bytes + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda ptr0
+// expectasmordered: sta (fp),y
+// expectasmordered: lda #<{words + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda ptr0
+// expectasmordered: sta (fp),y
+// forbidasm: lda (ptr0),y
+
+include "machine_6502.n"
+
+int8_t bytes[2];
+int16_t words[2];
+int8_t *bytep;
+int16_t *wordp;
+
+void main(void) {
+   bytep := bytes;
+   wordp := words;
+}

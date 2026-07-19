@@ -517,6 +517,12 @@ Strings can initialize pointer values and byte arrays where appropriate. String 
 
 Automatic local arrays receive function-qualified fixed storage for their full declared size. Their initializers execute at run time whenever control reaches the declaration.
 
+In a pointer-targeted initializer or assignment, an array expression decays to
+its first-element address. Compiler-generated `__n65_scratch_N` temporaries
+retain the destination pointer declarator, so local, static, global, member,
+and indirect pointer destinations receive the array address rather than bytes
+copied from the first element.
+
 
 ### Return object: `$$` and A:X
 

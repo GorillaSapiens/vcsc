@@ -297,14 +297,16 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
    }
 
    if (dst && dst->declarator && declarator_pointer_depth(dst->declarator) > 0) {
-      LValueRef lv;
-      if (resolve_ref_argument_lvalue(ctx, expr, &lv) && lv.declarator &&
-          declarator_pointer_depth(lv.declarator) == 0 && declarator_array_count(lv.declarator) > 0) {
-         if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
-            return false;
+      const ASTNode *src_decl = expr_value_declarator(expr, ctx);
+      if (src_decl && declarator_pointer_depth(src_decl) == 0 && declarator_array_count(src_decl) > 0) {
+         LValueRef lv;
+         if (resolve_ref_argument_lvalue(ctx, expr, &lv)) {
+            if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
+               return false;
+            }
+            emit_store_ptr_to_fp(dst->offset, 0, dst->size);
+            return true;
          }
-         emit_store_ptr_to_fp(dst->offset, 0, dst->size);
-         return true;
       }
    }
 

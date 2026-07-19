@@ -194,6 +194,17 @@ static void error_unknown_identifier_node(const ASTNode *idnode, const ASTNode *
          ident ? ident : "<unknown>");
 }
 
+//! @brief Return whether a pointer-targeted assignment must decay an array RHS to its address.
+static bool assignment_requires_array_decay(Context *ctx, const ContextEntry *dst, ASTNode *rhs) {
+   const ASTNode *src_decl;
+
+   if (!dst || !dst->declarator || declarator_pointer_depth(dst->declarator) <= 0) {
+      return false;
+   }
+   src_decl = expr_value_declarator(rhs, ctx);
+   return src_decl && declarator_pointer_depth(src_decl) == 0 && declarator_array_count(src_decl) > 0;
+}
+
 //! @brief Report unresolved assignment target diagnostics with the location/context expected by compiler short-circuit/control-flow expression lowering callers.
 static void error_unresolved_assignment_target(Context *ctx, ASTNode *target, ASTNode *fallback) {
    const ASTNode *idnode = expr_lvalue_base_identifier_node(target);
@@ -963,7 +974,9 @@ void compile_expr(ASTNode *node, Context *ctx) {
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;
          }
-         if (resolve_ref_argument_lvalue(ctx, rhs, &rhs_lv) && rhs_lv.size == dst->size && !strcmp(type_name_from_node(rhs_lv.type), type_name_from_node(dst->type)) && !rhs_lv.is_bitfield) {
+         if (!assignment_requires_array_decay(ctx, dst, rhs) &&
+             resolve_ref_argument_lvalue(ctx, rhs, &rhs_lv) && rhs_lv.size == dst->size &&
+             !strcmp(type_name_from_node(rhs_lv.type), type_name_from_node(dst->type)) && !rhs_lv.is_bitfield) {
             if (!emit_copy_lvalue_to_symbol(ctx, sym, lv.offset, &rhs_lv, dst->size)) {
                error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             }

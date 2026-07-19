@@ -585,12 +585,15 @@ The first unfinished item is the default next action.
                             Incompatible pointed-to types are rejected. Tests
                             cover positive and negative byte and three-byte
                             element differences plus result width.
-                  [ ] 16c2. Preserve pointer declarators and array-to-pointer
-                            decay through assignment scratch. Assigning an
-                            array expression to a fixed/static/global pointer
-                            must store the array address, never copy its first
-                            element byte. Add direct, scratch-routed, and
-                            execution regressions.
+                  [x] 16c2. Preserve pointer declarators and array-to-pointer
+                            decay through assignment scratch. Array detection
+                            now uses the original expression declarator before
+                            lvalue adjustment, and the direct lvalue-copy fast
+                            path cannot intercept pointer-targeted decay.
+                            Fixed scratch retains the destination declarator.
+                            Tests cover local, global, file-static, function-
+                            static, and indirect pointer destinations with one-
+                            and two-byte element arrays.
         [ ] 16d. Reassess and likely remove ordinary named-function overloading.
         [ ] 16e. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
@@ -624,9 +627,9 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
-The remaining inherited array-decay assignment defect is tracked as required
-task 16c2 correctness work rather than an open-ended question. Pointer
-subtraction task 16c1 is complete.
+Both inherited correctness defects tracked under task 16c are complete.
+The next functional-reduction action is task 16d, reassessing ordinary named-
+function overloading.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1221,6 +1224,23 @@ reproducibly rather than the exact instant of each individual source edit.
 * Added focused compile and simulator regressions for result width, incompatible
   types, and positive/negative distances for one- and three-byte objects.
 * Passed 228/228 compile tests and 97/97 end-to-end/generic tests, including both
+  exact 4096-byte cartridge regressions.
+* No files were removed; remove.txt remains at 464 unique cumulative paths.
+
+
+2026-07-18 19:13:34 PDT, preserve array decay through assignment temporaries
+* Changed pointer-targeted array detection to use the source expression's
+  original array declarator before lvalue adjustment.
+* Prevented the direct same-type lvalue-copy fast path from copying array bytes
+  into pointer destinations; fixed scratch continues to retain the destination
+  pointer declarator.
+* Added direct and indirect code-generation tests plus simulator coverage for
+  local, global, file-static, function-static, and indirect pointer targets with
+  one- and two-byte element arrays:
+  `test/array_decay_assignment_codegen_test.n`,
+  `test/array_decay_indirect_assignment_codegen_test.n`, and
+  `test/e2e_array_decay_assignment_temp_verify.n`.
+* Passed 230/230 compile tests and 98/98 end-to-end/generic tests, including both
   exact 4096-byte cartridge regressions.
 * No files were removed; remove.txt remains at 464 unique cumulative paths.
 
