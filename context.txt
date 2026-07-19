@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_211831.tar.gz
+    vcsc.20260718_230301.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -205,6 +205,13 @@ Completed vertical slices
     null-pointer literal conversion, typed-object-pointer to `void*` conversion,
     and exact-lvalue enforcement for `ref` parameters. The thousand-line
     overload resolver was replaced by a compact direct-function registry.
+32. Generic interrupt-entry support has been removed. The optional `nint`
+    archive, compiled `_handle_nmi`/`_handle_irq` defaults, and separate
+    `nrt0_noint.s` member are gone. The stock startup archive member retains
+    only weak `__nmi` and `__irqbrk` RTI vector fillers because every 6502 image
+    still requires vector addresses. The VCS 6507 has no connected hardware IRQ
+    or NMI inputs, and the reduced runtime exposes no compiled interrupt-handler
+    ABI.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -397,61 +404,36 @@ For the wide-integer purge:
 
 Files changed in this revision
 ------------------------------
-Compiler source/build:
+Build/runtime and documentation:
 
-    compiler/Makefile
-    compiler/abi_meta.c
-    compiler/compile_call.c
-    compiler/compile_expr.c
-    compiler/compile_expr_flow.c
-    compiler/compile_expr_info.c
-    compiler/compile_expr_ops.c
-    compiler/compile_expr_slot.c
-    compiler/compile_function.c
-    compiler/compile_init.c
-    compiler/compile_literal.c
-    compiler/compile_lvalue.c
-    compiler/compile_support.c
-    compiler/compile_toplevel.c
-    compiler/compile_function_registry.c          (added)
-    compiler/compile_function_registry.h          (added)
-    compiler/compile_overload.c                    (removed)
-    compiler/compile_overload.h                    (removed)
+    Makefile
+    README.md
+    LICENSE
+    NOTES.md
+    libraries/nlib/Makefile
+    libraries/nlib/README.md
+    libraries/nlib/nrt0.s
 
-Documentation/fixtures:
+Tests and handoff state:
 
-    assembler/README.md
-    assembler/tests/README.md
-    assembler/tests/extended_symbol_namespace.s   (added/renamed)
-    assembler/tests/op_namespace.s                 (removed)
-    compiler/README.md
-    test/README.md
-    test/assembler_fixture_suite.pl
-    test/unicode_identifier_mangle.pl
-    software_stack_inventory.txt
+    test/interrupt_runtime_pruned.pl             (added)
+    test/interrupt_runtime_pruned.test           (added)
     context.txt
     remove.txt
 
-Tests added or rewritten:
+Removed interrupt-runtime paths:
 
-    test/named_function_overloading_rejected_test.n       (added)
-    test/function_argument_count_error_test.n             (added)
-    test/e2e_null_pointer_literal_argument_verify.n       (added)
-    test/e2e_pointer_machine_helpers_verify.n             (added)
-    test/void_pointer_argument_reverse_error_test.n       (updated)
+    libraries/nint/.gitignore
+    libraries/nint/LICENSE
+    libraries/nint/Makefile
+    libraries/nint/README.md
+    libraries/nint/nint.a65
+    libraries/nint/nrt0_int.o65
+    libraries/nint/nrt0_int.s
+    libraries/nlib/asm/handler.asm
+    libraries/nlib/nrt0_noint.s
 
-Obsolete positive overload tests removed:
-
-    test/ordinary_overload_ambiguous_test.n
-    test/ordinary_overload_exact_match_test.n
-    test/ordinary_overload_function_pointer_test.n
-    test/ordinary_overload_null_literal_codegen_test.n
-    test/ordinary_overload_pointer_machine_codegen_test.n
-    test/e2e_call_argument_order_overload_verify.n
-    test/e2e_ordinary_overload_null_literal_verify.n
-    test/e2e_pointer_machine_helper_overload_verify.n
-
-All removed/renamed old paths are recorded in remove.txt, now at 475 unique
+All removed/renamed old paths are recorded in remove.txt, now at 484 unique
 cumulative paths.
 
 Build environment
@@ -483,13 +465,16 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    97 passed, 0 failed, 97 total
+    98 passed, 0 failed, 98 total
+
+Staged install check:
+
+    passed
 
 Both examples still build directly as raw 4096-byte cartridges. The focused
-function-registry coverage verifies same-signature prototype/definition support,
-rejection of a second signature, direct argument-count diagnostics, retained
-pointer/integer call conversions, exact `ref` lvalue enforcement, Unicode-safe
-unmangled symbols, cross-object ABI checks, and the existing call graph.
+interrupt-runtime regression verifies that `nint`, the default handler members,
+and the separate no-interrupt startup member are absent while the stock startup
+still supplies the mandatory weak vector fillers.
 
 Immediate TODO
 --------------
@@ -625,6 +610,13 @@ The first unfinished item is the default next action.
         [ ] 16e. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
 
+                  [x] 16e1. Remove the generic interrupt-entry library and
+                            handler ABI. Keep only mandatory weak RTI vector
+                            fillers in the stock VCS startup member.
+                  [ ] 16e2. Remove the unwired vendored batari Basic kernel
+                            reference tree. Retain the native VCS bindings,
+                            linker configuration, and project examples.
+
 [ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
         filenames, binary names, paths, and user-visible identifiers as
@@ -654,9 +646,9 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
-Both inherited correctness defects tracked under task 16c are complete.
-The next functional-reduction action is task 16d, reassessing ordinary named-
-function overloading.
+The interrupt-runtime group under task 16e is complete. The next
+functional-reduction action is task 16e2: remove the unwired vendored batari
+Basic kernel reference tree while retaining the native VCS support files.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1294,6 +1286,21 @@ reproducibly rather than the exact instant of each individual source edit.
   exact 4096-byte cartridge regressions.
 * Added seven source/test files and removed or renamed eleven old paths;
   remove.txt now contains 475 unique cumulative paths.
+
+
+2026-07-18 23:13:21 PDT, remove generic interrupt runtime
+* Removed the optional `libraries/nint` archive, source, build/install plumbing,
+  and documentation. The VCS 6507 has no connected hardware IRQ or NMI inputs,
+  and the reduced runtime no longer advertises a compiled interrupt-handler ABI.
+* Removed `libraries/nlib/asm/handler.asm` and the separate `nrt0_noint.s`
+  archive member. Folded weak `__nmi` and `__irqbrk` RTI vector fillers into
+  `nrt0.s`, which is already selected by `__reset`.
+* Added a regression proving that the old library and archive members are gone
+  while the mandatory vector targets remain.
+* Passed 227/227 compile tests, 98/98 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, and the staged install check.
+* Added two test files and removed nine paths; remove.txt now contains 484
+  unique cumulative paths.
 
 
 End-of-session checklist

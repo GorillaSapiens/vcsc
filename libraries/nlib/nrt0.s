@@ -1,8 +1,15 @@
 ; nrt0.s
 
+.weak __nmi
+.weak __irqbrk
+
 .global __reset
+.global __nmi
+.global __irqbrk
 
 .export __reset
+.export __nmi
+.export __irqbrk
 
 .import main
 
@@ -182,3 +189,11 @@ _start_main:
 
 _forever:
    jmp _forever
+
+; The 6502 image format still requires NMI and IRQ/BRK vector targets.
+; The 6507 used by the VCS has no connected hardware interrupt inputs, and
+; compiled interrupt handlers are unsupported, so the stock runtime supplies
+; only weak RTI fillers. A completely custom runtime may replace them.
+__nmi:
+__irqbrk:
+   rti

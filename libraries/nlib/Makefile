@@ -39,7 +39,6 @@ install: all
 	$(INSTALL_DATA) machine_6502.n $(DESTDIR)$(INCLUDEDIR)/machine_6502.n
 	$(INSTALL_DATA) n.cfg $(DESTDIR)$(DATADIR)/nlib/n.cfg
 	$(INSTALL_DATA) nrt0.s $(DESTDIR)$(DATADIR)/nlib/nrt0.s
-	$(INSTALL_DATA) nrt0_noint.s $(DESTDIR)$(DATADIR)/nlib/nrt0_noint.s
 	$(INSTALL_DATA) nlib_zeropage.s $(DESTDIR)$(DATADIR)/nlib/nlib_zeropage.s
 	$(INSTALL_DATA) README.md $(DESTDIR)$(DATADIR)/nlib/README.md
 	$(INSTALL_DATA) LICENSE $(DESTDIR)$(DATADIR)/nlib/LICENSE
@@ -50,7 +49,6 @@ uninstall:
 	rm -f $(DESTDIR)$(INCLUDEDIR)/machine_6502.n
 	rm -f $(DESTDIR)$(DATADIR)/nlib/n.cfg
 	rm -f $(DESTDIR)$(DATADIR)/nlib/nrt0.s
-	rm -f $(DESTDIR)$(DATADIR)/nlib/nrt0_noint.s
 	rm -f $(DESTDIR)$(DATADIR)/nlib/nlib_zeropage.s
 	rm -f $(DESTDIR)$(DATADIR)/nlib/README.md
 	rm -f $(DESTDIR)$(DATADIR)/nlib/LICENSE

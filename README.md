@@ -47,7 +47,7 @@ make package
 Installed layout:
 
 - `$(PREFIX)/bin/` ... `n65cc`, `n65c`, `n65asm`, `n65ar`, `n65ld`, `n65sim`
-- `$(PREFIX)/lib/` ... default runtime archives such as `nlib.a65`, `nint.a65`
+- `$(PREFIX)/lib/` ... the default runtime archive `nlib.a65`
 - `$(PREFIX)/include/` ... installed N and assembler include files such as `machine_6502.n` and `nlib.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
 - `$(PREFIX)/share/` ... packaged library/source extras such as `nlib/n.cfg` and `vcs/` files
@@ -76,7 +76,7 @@ For additional details, see the README.md files in the various subdirectories.
 ## Licensing
 
 Unless a subdirectory says otherwise, the toolchain sources and top-level build/test glue are licensed under GPL-3.0-or-later.
-The runtime libraries in `libraries/nlib/` and `libraries/nint/` are licensed under BSD-2-Clause so code linked into user binaries stays permissive.
+The runtime library in `libraries/nlib/` is licensed under BSD-2-Clause so code linked into user binaries stays permissive.
 The exact license texts live in the repository root `LICENSE`/`COPYING` files and in the per-library `LICENSE` files.
 
 ## Integer style flags

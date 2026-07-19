@@ -16,7 +16,6 @@ The full GPL-3.0 license text is provided in COPYING.
 
 The runtime libraries in these directories are instead licensed under the BSD 2-Clause License:
 - libraries/nlib/
-- libraries/nint/
 
 See the local LICENSE files in those directories for the exact BSD-2-Clause text.
 
