@@ -20,6 +20,7 @@ type uint32_t { $size:4 $integer:unsigned $endian:little };
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
 type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
+type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
 
 xform { // default xform has no name
    // canonical escapes

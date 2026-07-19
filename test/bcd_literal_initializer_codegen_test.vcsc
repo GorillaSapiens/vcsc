@@ -19,6 +19,10 @@
 // expectasm: 	.byte $99, $99
 // expectasm: max24:
 // expectasm: 	.byte $99, $99, $99
+// expectasm: dec32:
+// expectasm: 	.byte $78, $56, $34, $12
+// expectasm: max32:
+// expectasm: 	.byte $99, $99, $99, $99
 include "machine_6502.vcsc"
 
 bcd8_t dec8 := 42;
@@ -31,12 +35,16 @@ bcd24_t dec24 := 567890;
 bcd8_t max8 := 99;
 bcd16_t max16 := 9999;
 bcd24_t max24 := 999999;
+bcd32_t dec32 := 12345678;
+bcd32_t max32 := 99999999;
 
 void main(void) {
    bcd8_t local8 := 42;
    bcd16_t local16 := 1234;
    bcd24_t local24 := 567890;
+   bcd32_t local32 := 12345678;
    dec8 := 0x2a;
    dec16 := 0x4d2;
    dec24 := 0x8aa52;
+   dec32 := 0xbc614e;
 }

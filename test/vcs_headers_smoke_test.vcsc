@@ -17,7 +17,9 @@ int32_t long_delta := -1;
 int16_t main(void) {
    int8_t x := INPT4;
    bcd8_t score := 42;
+   bcd32_t total := 12345678;
    score += 1;
+   total += 1;
    frame_count += 1;
    frame_delta--;
    long_count += 1;

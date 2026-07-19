@@ -93,7 +93,7 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
    }
 
    if (type_is_bcd_integer(type)) {
-      return size >= 1 && size <= 3;
+      return size >= 1 && size <= 4;
    }
 
    return size >= 1 && size <= 4;
@@ -153,7 +153,7 @@ void validate_function_return_type(const ASTNode *fn) {
    }
 
    name = declarator_name(declarator);
-   error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, a supported binary integer, a packed-BCD integer through bcd24_t, or a 16-bit pointer",
+   error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, a supported binary integer, a packed-BCD integer through bcd32_t, or a 16-bit pointer",
               fn->file, fn->line, fn->column,
               (name && *name) ? name : "<unnamed>");
 }

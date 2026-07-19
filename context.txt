@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_155642.tar.gz
+    vcsc.20260719_161954.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -46,17 +46,17 @@ Settled final-language decisions
 * Target: Atari 2600/VCS using the 6507 CPU.
 * All multibyte values are little-endian.
 * The stock machine interface exposes eight ordinary binary integer types and
-  three unsigned packed-decimal integer types:
+  four unsigned packed-decimal integer types:
 
       int8_t      uint8_t
       int16_t     uint16_t
       int24_t     uint24_t
       int32_t     uint32_t
       bcd8_t      bcd16_t
-      bcd24_t
+      bcd24_t     bcd32_t
 
   The BCD types store two decimal digits per byte in little-endian digit-pair
-  order and have numeric ranges 0..99, 0..9999, and 0..999999.
+  order and have numeric ranges 0..99, 0..9999, 0..999999, and 0..99999999.
 
 * `int`, `char`, and `bool` are ordinary identifiers rather than built-in or
   reserved type names. Programs may introduce them as transparent typedef
@@ -68,7 +68,7 @@ Settled final-language decisions
 * The stock VCS headers expose canonical signed and unsigned 8-, 16-, 24-,
   and 32-bit ordinary types. The compiler core handles user-declared ordinary
   signed or unsigned little-endian integer widths from one through four bytes.
-  `bcd24_t` remains the largest currently exposed packed-decimal type.
+  `bcd32_t` is the largest currently exposed packed-decimal type.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * The vendored batari Basic kernel tree is retained as source/reference
   material for possible conversion to VCSC; it is intentionally not dead-code
@@ -90,7 +90,7 @@ Settled final-language decisions
 
       void:                         no return object
       8/16/24/32-bit binary integer: function$__return, 1, 2, 3, or 4 bytes
-      8/16/24-bit packed BCD:       function$__return, 1, 2, or 3 bytes
+      8/16/24/32-bit packed BCD:    function$__return, 1, 2, 3, or 4 bytes
       pointer:                      function$__return, 2 bytes
 
   The callee writes `$$`, whose linker-visible symbol is
@@ -98,8 +98,8 @@ Settled final-language decisions
   caller copies directly from the callee object. A, X, and Y are caller-
   clobbered and carry no ordinary language return value.
 
-* `bcd24_t` may be returned. Ordinary binary memory returns and stock type
-  names support widths from one through four bytes.
+* All four stock packed-BCD types may be returned. Ordinary binary memory
+  returns and stock type names support widths from one through four bytes.
 * Struct, union, and array returns remain forbidden even when small. Use an
   explicit result pointer.
 
@@ -268,8 +268,8 @@ Completed vertical slices
     `function$__return` object. Non-static definitions export that object;
     separately compiled callers import it when consuming the result. Callers
     copy directly from the return symbol. Value epilogues are plain `RTS`, ABI
-    metadata uses `return_memory`, and `bcd24_t` returns work within and across
-    translation units.
+    metadata uses `return_memory`, and all four BCD widths return within and
+    across translation units.
 38. The inherited runtime frame pointer has been removed. Scratch leases now
     select fixed `__vcsc_scratch_N` symbols entirely at compile time, generated
     code addresses those symbols directly, and ordinary calls no longer push or
@@ -299,6 +299,10 @@ Completed vertical slices
     width-generic paths. Boundary regressions cover exact little-endian layout,
     signed and unsigned limits, fifth-byte rejection, widening, mixed-signedness
     rejection, and cross-object returns.
+42. Added first-class stock `bcd32_t` for eight packed decimal digits. Four-byte
+    BCD literals encode numeric values as little-endian digit pairs; arithmetic,
+    comparisons, widening/truncation, parameters, and memory returns use the
+    existing width-generic BCD paths. The legal range is 0..99999999.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -751,7 +755,7 @@ The first unfinished item is the default next action.
         `vcsc` Standard-font FIGlet banner. Historical changelog entries retain
         old spellings where needed to describe what actually happened.
 
-[ ] 18. Generalize scalar widths now that function returns are memory-backed.
+[x] 18. Generalize scalar widths now that function returns are memory-backed.
 
         [x] 18a. Replace the A:X scalar return convention with exact-sized
                   callee-owned `function$__return` objects. Export/import the
@@ -774,7 +778,7 @@ The first unfinished item is the default next action.
                   require an explicit cast rather than C's usual conversions.
         [x] 18e. Add first-class `int32_t` and `uint32_t` after the width-generic
                   paths are proven. Keep pointers 16-bit.
-        [ ] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
+        [x] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
                   four-byte scalar storage and copying are established.
 
 [ ] 19. Inventory the retained batari Basic standard and multisprite kernels for
@@ -808,9 +812,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Tasks 18a through 18e are complete; the next queued action is 18f, adding
-unsigned packed-decimal `bcd32_t` for eight digits. Batari conversion inventory
-follows the scalar-width work as task 19.
+Tasks 18a through 18f are complete. The next queued action is task 19: inventory
+the retained batari Basic kernels and propose a conversion plan before changing
+vendored kernel source.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1734,3 +1738,24 @@ Before returning another modified archive:
   install check builds exact 4096-byte cartridges with the installed VCS
   headers. `remove.txt` remains at 871 unique paths, and the retained batari
   Basic trees are unchanged.
+
+2026-07-19 16:28:50 PDT, add first-class eight-digit packed BCD
+------------------------------------------------------------------------
+* Add canonical `bcd32_t` declarations to `libraries/vcs/vcs.vcsc` and the
+  generic compiler-test machine fixture. `$bcd` now accepts unsigned
+  little-endian integer widths from one through four bytes.
+* Extend function-return validation and documentation so four-byte packed BCD
+  uses the existing exact-sized callee-owned memory-return ABI.
+* Verify numeric literal packing across decimal, hexadecimal, octal, and binary
+  spellings. `12345678` stores as `$78,$56,$34,$12`; the legal range is
+  0..99999999, and 100000000 is rejected.
+* Add focused compile and execution coverage for static and automatic
+  initialization, assignments, arrays, structs, parameters, same- and
+  cross-translation-unit returns, carry/borrow across all four bytes, decimal
+  wraparound, cross-width BCD operations, comparisons, truth tests, and CLD
+  restoration before following binary arithmetic.
+* Extend the installed-header smoke cartridge and the raw return-memory encoding
+  test to exercise `bcd32_t`.
+* Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
+  install check builds both exact 4096-byte cartridges. `remove.txt` remains at
+  871 unique paths, and the retained batari Basic trees are unchanged.

@@ -337,8 +337,8 @@ void compile_type_decl_stmt(ASTNode *node) {
          error_user("[%s:%d.%d] packed-BCD type '%s' must use '$integer:unsigned'",
                node->file, node->line, node->column, node->children[0]->strval);
       }
-      if (size < 1 || size > 3) {
-         error_user("[%s:%d.%d] packed-BCD type '%s' has unsupported size %d; only 1-byte, 2-byte, and 3-byte packed-BCD types are supported",
+      if (size < 1 || size > 4) {
+         error_user("[%s:%d.%d] packed-BCD type '%s' has unsupported size %d; only 1-byte through 4-byte packed-BCD types are supported",
                node->file, node->line, node->column, node->children[0]->strval, size);
       }
    }

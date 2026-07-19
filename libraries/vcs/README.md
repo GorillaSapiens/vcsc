@@ -58,13 +58,14 @@ frames += 60;
 
 ## Packed-decimal score and counter types
 
-`vcs.vcsc` defines three unsigned packed-BCD types backed directly by the 6507's
+`vcs.vcsc` defines four unsigned packed-BCD types backed directly by the 6507's
 decimal-mode `ADC` and `SBC` instructions:
 
 ```vcsc
 bcd8_t  lives := 3;          // 00..99, byte $03
 bcd16_t timer := 1234;       // 0000..9999, bytes $34,$12
 bcd24_t score := 567890;     // 000000..999999, bytes $90,$78,$56
+bcd32_t total := 12345678;    // 00000000..99999999, bytes $78,$56,$34,$12
 
 score += 125;                // compiler emits SED, ADC chain, then CLD
 ```
@@ -78,7 +79,7 @@ BCD values support copy/assignment, addition, subtraction,
 increment/decrement, comparisons, truth tests, and switch cases. Arithmetic
 wraps at the decimal width. Runtime mixing with ordinary binary integers is
 rejected, as are multiply/divide/remainder, bitwise operations, shifts, unary
-minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores; it may be stored, passed, and returned through the callee-owned memory-return ABI.
+minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores, while `bcd32_t` provides eight decimal digits. Both may be stored, passed, and returned through the callee-owned memory-return ABI.
 
 Compile with an include path that can see this directory, for example:
 

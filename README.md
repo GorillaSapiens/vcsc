@@ -104,29 +104,30 @@ type uint32_t { $size:4 $integer:unsigned $endian:little };
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
 type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
+type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
 type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
 Ordinary binary integer value types may occupy one through four bytes and use
 `$integer:signed` or `$integer:unsigned`. The stock VCS target exposes canonical
 8-, 16-, 24-, and 32-bit signed/unsigned names. It also defines unsigned
-packed-decimal `bcd8_t`, `bcd16_t`, and `bcd24_t`, holding two,
-four, and six decimal digits. `$bcd` is valid only on one-, two-, or three-byte
-unsigned integer declarations. All multibyte values are little-endian.
+packed-decimal `bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t`, holding two,
+four, six, and eight decimal digits. `$bcd` is valid only on unsigned integer
+declarations from one through four bytes. All multibyte values are little-endian.
 
 BCD literals are converted by numeric value, not copied as binary bytes. Thus
 decimal `42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all store
-as packed BCD `$42`. `1234` stores as `$34,$12`, and `567890` stores as
-`$90,$78,$56`. Range checking follows decimal capacity: 0..99, 0..9999, and
-0..999999.
+as packed BCD `$42`. `1234` stores as `$34,$12`, `567890` stores as
+`$90,$78,$56`, and `12345678` stores as `$78,$56,$34,$12`. Range checking
+follows decimal capacity: 0..99, 0..9999, 0..999999, and 0..99999999.
 
 Packed-BCD values support assignment, widening/truncating BCD copies, `+`, `-`,
 `+=`, `-=`, `++`, `--`, comparisons, truth tests, and `switch`. The compiler
 emits tightly scoped `SED`/`CLD` around each BCD `ADC`/`SBC` chain and leaves
 decimal mode clear afterward. Multiplication, division, remainder, shifts,
 bitwise operations, unary minus, BCD bitfields, and runtime BCD/binary
-conversions are rejected. `bcd24_t` may be stored, passed as a parameter, and
-returned. Value-returning functions expose an exact-sized callee-owned
+conversions are rejected. All four BCD widths may be stored, passed as parameters,
+and returned. Value-returning functions expose an exact-sized callee-owned
 `function$__return` object; callers copy from that object after `jsr`, so the
 ABI no longer has a register-width ceiling.
 

@@ -16,7 +16,7 @@ VCSC is a deliberately small C-like systems language for the Atari 2600/VCS. Thi
 - Included files behave like `pragma once` automatically. Include-file identity is based on an MD5 of file contents, so duplicate content is only compiled once.
 - There are no implicit built-in integer type names. Types are declared explicitly.
 - Struct and union names become types directly. There is no separate `typedef struct foo foo;` dance.
-- Functions return `void`, an ordinary integer value through four bytes, a packed-BCD value through three bytes, or a pointer.
+- Functions return `void`, an ordinary integer value through four bytes, a packed-BCD value through four bytes, or a pointer.
 - Static function parameters are supported.
 - Operator overloading is intentionally unsupported.
 - Strings can be translated through named `xform` mappings.
@@ -105,7 +105,7 @@ As with aliases, keep conditional compilation boring and local. It is useful for
 ## Type system
 
 The stock VCS machine interface exposes eight ordinary binary integer types,
-three unsigned packed-BCD types, one pointer type, and `void`:
+four unsigned packed-BCD types, one pointer type, and `void`:
 
 ```vcsc
 type void     { $size:0 };
@@ -121,6 +121,7 @@ type uint32_t { $size:4 $integer:unsigned $endian:little };
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
 type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
+type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
 ```
 
 ### Required type declarations
@@ -133,7 +134,7 @@ The compiler requires these declarations when their language semantics need them
 - `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-The stock machine definition also supplies `uint16_t`, `int24_t`, `uint24_t`, `int32_t`, `uint32_t`, and the three BCD types.
+The stock machine definition also supplies `uint16_t`, `int24_t`, `uint24_t`, `int32_t`, `uint32_t`, and the four BCD types.
 
 The compiler core accepts ordinary signed or unsigned little-endian integer type declarations from one through four bytes. The stock VCS interface exposes canonical signed and unsigned names at 8, 16, 24, and 32 bits.
 The names `bool`, `char`, and `int` are not built in or reserved. A source file
@@ -150,7 +151,7 @@ Until such a typedef appears, those names are ordinary identifiers rather than t
 Ordinary binary integer value types may be one through four bytes and say
 whether they are signed or unsigned with `$integer:signed` or
 `$integer:unsigned`. Packed-BCD types are a deliberate exception: they must be
-unsigned and may occupy one, two, or three bytes. Untyped integer literals
+unsigned and may occupy one through four bytes. Untyped integer literals
 default to `int16_t`; a typed 24- or 32-bit destination, operand, parameter,
 return, or explicit annotation supplies the wider context. The mathematical
 ranges are `int24_t` -8388608..8388607, `uint24_t` 0..16777215, `int32_t`
@@ -170,7 +171,7 @@ Recognized flags include:
 - `$size:N`
 - `$integer:signed`
 - `$integer:unsigned`
-- `$bcd` on one-, two-, or three-byte unsigned integer types
+- `$bcd` on one- through four-byte unsigned integer types
 
 Floating-point flags are not recognized as value types; `$float` and `$float:*` declarations are rejected.
 
@@ -211,6 +212,7 @@ byte:
 bcd8_t  two_digits := 42;      // byte:        $42
 bcd16_t four_digits := 1234;   // little-endian $34, $12
 bcd24_t six_digits := 567890;  // little-endian $90, $78, $56
+bcd32_t eight_digits := 12345678; // little-endian $78, $56, $34, $12
 ```
 
 The stock ranges are:
@@ -218,6 +220,7 @@ The stock ranges are:
 - `bcd8_t`: 0..99
 - `bcd16_t`: 0..9999
 - `bcd24_t`: 0..999999
+- `bcd32_t`: 0..99999999
 
 Literal spelling never changes the numeric value being converted. Decimal
 `42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all initialize a
@@ -247,7 +250,7 @@ writes through a cast pointer can still manufacture invalid digit nibbles; such
 values are outside the language guarantee and subsequent BCD arithmetic is not
 defined.
 
-`bcd8_t`, `bcd16_t`, and `bcd24_t` may all be returned. Each value-returning function owns an exact-sized zero-page return object, and callers copy its bytes directly after the call.
+`bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t` may all be returned. Each value-returning function owns an exact-sized zero-page return object, and callers copy its bytes directly after the call.
 
 ## Declarators
 
@@ -608,7 +611,7 @@ it directly, read it back, or use compound assignment on it. The spelling
 
 Each value-returning function owns an exact-sized hidden zero-page symbol named
 `function$__return`. Current legal return values are one- through four-byte ordinary
-binary integers, one-, two-, or three-byte packed-BCD integers, and 16-bit
+binary integers, one- through four-byte packed-BCD integers, and 16-bit
 pointers. The callee writes this object and its common epilogue is simply `RTS`;
 it does not reload the value into A, X, or Y.
 
@@ -635,7 +638,7 @@ language return registers are restored.
 A separately compiled declaration imports that zero-page return symbol when the
 call result is consumed. Ignoring a returned value does not copy it anywhere.
 
-Because return transport is memory-backed, `bcd24_t` is a normal return type.
+Because return transport is memory-backed, `bcd24_t` and `bcd32_t` are normal return types.
 The remaining width limits come from the currently implemented scalar type and
 operator machinery, not from the function ABI. Aggregates and arrays remain
 forbidden as return types; use an explicit result pointer for those. The `$$`

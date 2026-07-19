@@ -24,12 +24,12 @@ Every legal function return is one of:
 
 * `void`: no returned value;
 * one- through four-byte ordinary little-endian integer;
-* one-, two-, or three-byte packed-BCD little-endian integer;
+* one- through four-byte packed-BCD little-endian integer;
 * 16-bit pointer.
 
 Functions may not return aggregates, arrays, floating-point values, or other
 non-scalar objects. The stock interface and compiler/memory-return ABI expose
-ordinary binary integers through 32 bits. `bcd24_t` is also a legal return type.
+ordinary binary integers through 32 bits. `bcd24_t` and `bcd32_t` are also legal return types.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
 an exact-sized hidden callee-owned zero-page symbol named
@@ -113,7 +113,7 @@ symbols. The caller evaluates arguments from left to right and writes each
 converted value to the corresponding symbol before JSR.
 
 Parameters may use ordinary binary integers through four bytes and `bcd8_t`,
-`bcd16_t`, or `bcd24_t`. Linker-visible ABI
+`bcd16_t`, `bcd24_t`, or `bcd32_t`. Linker-visible ABI
 fingerprints distinguish packed-BCD storage from same-sized ordinary unsigned
 integers, so separately compiled declarations cannot silently disagree about
 the representation.
