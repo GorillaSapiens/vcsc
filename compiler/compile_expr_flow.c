@@ -307,6 +307,12 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
    ContextEntry entry;
 
    memset(&out, 0, sizeof(out));
+   /* The compact compare path reads an lvalue directly and therefore must not
+      accept valued ++/-- expressions whose required side effect is carried by
+      the expression lowering path. */
+   if (classify_incdec_lvalue_expr(expr, NULL, NULL)) {
+      return out;
+   }
    if (!resolve_ref_argument_lvalue(ctx, expr, &out.lv) || out.lv.size != 1 ||
        type_is_signed_integer(out.lv.type) || out.lv.is_bitfield) {
       return out;

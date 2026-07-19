@@ -188,6 +188,12 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
    if (!expr) {
       return false;
    }
+   /* Valued ++/-- expressions name an underlying object, but the expression
+      itself is not an lvalue.  Treating it as one lets direct-copy/index/ref
+      shortcuts silently erase the required side effect. */
+   if (classify_incdec_lvalue_expr(expr, NULL, NULL)) {
+      return false;
+   }
    if (!strcmp(expr->name, "lvalue") && expr->count > 0) {
       if (!out) {
          LValueRef tmp;

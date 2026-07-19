@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_062747.tar.gz
+    vcsc.20260719_073232.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -244,6 +244,12 @@ Completed vertical slices
     and switch are supported. Unsupported arithmetic and runtime BCD/binary
     conversion are rejected. ABI metadata distinguishes BCD from same-sized
     binary integers, and `bcd24_t` remains non-returnable under the A:X ABI.
+36. Valued prefix/postfix increment and decrement expressions are no longer
+    treated as ordinary reference lvalues by shortcut classifiers. This
+    preserves required side effects in compact byte comparisons, direct stores
+    to absolute refs, and optimized one-byte array indexes. Ref parameters now
+    correctly reject `value++`/`value--` arguments because those expressions are
+    values, not lvalues.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -514,13 +520,13 @@ Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_toolchain
+    /mnt/data/vcsc_local_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_toolchain/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_toolchain/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_toolchain/usr/share/bison
+    export PATH=/mnt/data/vcsc_local_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_local_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_local_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -539,11 +545,11 @@ Packed-BCD focused suite:
 
 Compile suite:
 
-    250 passed, 0 failed, 250 total
+    251 passed, 0 failed, 251 total
 
 End-to-end/generic suite:
 
-    106 passed, 0 failed, 106 total
+    107 passed, 0 failed, 107 total
 
 Staged install check:
 
@@ -714,6 +720,10 @@ The first unfinished item is the default next action.
                   documentation, and focused/full regressions. This is a new
                   Atari-specific capability requested after pruning, not a
                   restoration of generic wide binary integers.
+        [x] 16g. Fix valued `++`/`--` side effects outside ordinary
+                  assignment lowering. Central lvalue classification now keeps
+                  increment/decrement expressions out of direct compare,
+                  absolute-ref copy, byte-index, and `ref`-argument shortcuts.
 
 [ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
@@ -1492,6 +1502,27 @@ reproducibly rather than the exact instant of each individual source edit.
   mode invariants, conversion boundaries, and the A:X return limitation. No
   files were removed; remove.txt remains at 487 cumulative paths, and the
   retained batari Basic trees were untouched.
+
+
+2026-07-19 07:40:01 PDT, preserve valued increment/decrement side effects in all shortcut paths
+* Confirmed the ordinary assignment bug fixed during BCD work was not the only
+  inherited variant. Compact one-byte comparisons could compare `value++`
+  correctly while silently skipping the increment; direct byte copies into an
+  absolute ref and the optimized one-byte array-index path could do the same.
+* Changed reference-lvalue classification so valued prefix/postfix increment and
+  decrement expressions are not considered lvalues. This centrally forces
+  side-effecting expressions through normal lowering instead of direct-copy or
+  direct-index shortcuts.
+* Added an explicit compact-comparison guard as defense in depth and made `ref`
+  parameter calls reject `value++`/`value--` as non-lvalue arguments.
+* Added `e2e_incdec_valued_storage_matrix_verify.n`, covering all four valued
+  forms across globals, zero page, locals, function statics, 8/16-bit values,
+  arrays, indirect lvalues, bitfields, absolute refs, nested arithmetic,
+  function arguments/returns, comparisons, truth tests, and byte/word pointers.
+* Added `ref_parameter_incdec_error_test.n` for the corrected lvalue diagnostic.
+* Passed 251/251 compile tests, 107/107 end-to-end/generic tests, and the staged
+  installation check. No files were removed; remove.txt remains at 487 unique
+  cumulative paths, and the retained batari Basic trees were untouched.
 
 
 End-of-session checklist
