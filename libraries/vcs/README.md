@@ -32,6 +32,26 @@ int16_t main(void) {
 }
 ```
 
+## 24-bit binary integers
+
+`vcs.vcsc` defines `int24_t` and `uint24_t` in addition to the 8- and 16-bit
+ordinary types. They are little-endian three-byte integers with ranges
+-8388608..8388607 and 0..16777215. They support the same ordinary integer
+operations, parameters, and callee-owned memory returns as the smaller widths.
+Values of the same signedness widen automatically; mixed signed/unsigned runtime
+operations still require an explicit cast rather than C's usual conversions.
+
+Literal encoding is width-based, matching the established smaller ordinary
+integer types. Three-byte high-bit patterns and negative two's-complement
+literals are legal; a magnitude requiring four bytes is rejected in a 24-bit
+context.
+
+```vcsc
+uint24_t frames := 1000000;
+int24_t delta := -1;
+frames += 60;
+```
+
 ## Packed-decimal score and counter types
 
 `vcs.vcsc` defines three unsigned packed-BCD types backed directly by the 6507's

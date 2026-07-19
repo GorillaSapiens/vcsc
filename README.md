@@ -97,14 +97,17 @@ type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
+type int24_t  { $size:3 $integer:signed $endian:little };
+type uint24_t { $size:3 $integer:unsigned $endian:little };
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
 type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
 type *        { $size:2 $integer:unsigned $endian:little };
 ```
 
-Ordinary binary integer value types are restricted to one or two bytes and use
-`$integer:signed` or `$integer:unsigned`. The stock VCS target additionally
+Ordinary binary integer value types may occupy one through four bytes and use
+`$integer:signed` or `$integer:unsigned`. The stock VCS target exposes canonical
+8-, 16-, and 24-bit signed/unsigned names; 32-bit names remain queued. It also
 defines unsigned packed-decimal `bcd8_t`, `bcd16_t`, and `bcd24_t`, holding two,
 four, and six decimal digits. `$bcd` is valid only on one-, two-, or three-byte
 unsigned integer declarations. All multibyte values are little-endian.
@@ -125,10 +128,14 @@ returned. Value-returning functions expose an exact-sized callee-owned
 `function$__return` object; callers copy from that object after `jsr`, so the
 ABI no longer has a register-width ceiling.
 
-Untyped ordinary integer literals must fit in 16 bits unless a BCD destination
-or annotation supplies the wider six-digit context. Expression-level shortcut
-casts `($signed)` / `($unsigned)` change signedness while preserving width and
-are not valid for BCD values.
+Untyped ordinary integer literals still default to `int16_t`, but a typed 24-bit
+destination, operand, parameter, return, or annotation supplies the wider context.
+`int24_t` has the two's-complement value range -8388608..8388607; `uint24_t`
+has 0..16777215. As with the existing smaller types, literal encoding is
+width-based: any positive or negative magnitude that fits in three bytes may be
+used as a three-byte bit pattern. Expression-level shortcut casts `($signed)` /
+`($unsigned)` change signedness while preserving width and are not valid for BCD
+values.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
 

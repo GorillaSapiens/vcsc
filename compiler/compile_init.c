@@ -675,7 +675,7 @@ bool encode_integer_literal_text(const char *text, unsigned char *buf, int size,
    if (!text || !buf || size < 0 || !type) {
       return false;
    }
-   if (type_is_bcd_integer(type)) {
+   if (type_is_bcd_integer(type) || text[0] == '-') {
       return encode_integer_initializer_value(parse_int(text), buf, size, type);
    }
    make_le_int(text, buf, size);

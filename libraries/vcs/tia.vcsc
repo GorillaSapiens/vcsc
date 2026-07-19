@@ -1,7 +1,7 @@
 // Atari 2600 / VCS TIA register bindings.
 //
 // This file assumes the target has already defined the core 6502-sized types
-// such as `int8_t`, `int16_t`, and pointers. `vcs.vcsc` provides those for the
+// such as `int8_t`, `int16_t`, `int24_t`, and pointers. `vcs.vcsc` provides those for the
 // stock target; isolated compiler tests may provide their own fixture machine.
 //
 // Canonical register addresses use the usual TIA base page locations. The TIA

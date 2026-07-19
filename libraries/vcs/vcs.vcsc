@@ -12,6 +12,8 @@ type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
+type int24_t  { $size:3 $integer:signed $endian:little };
+type uint24_t { $size:3 $integer:unsigned $endian:little };
 // Packed decimal: two digits per byte, least-significant pair first.
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };

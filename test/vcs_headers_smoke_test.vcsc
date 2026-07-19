@@ -9,10 +9,15 @@
 // forbidasm: lda #<{$0296 + 0}
 include "vcs.vcsc"
 
+uint24_t frame_count := 0x123456;
+int24_t frame_delta := -1;
+
 int16_t main(void) {
    int8_t x := INPT4;
    bcd8_t score := 42;
    score += 1;
+   frame_count += 1;
+   frame_delta--;
    VBLANK := x;
    TIM64T := 42;
    return INTIM + SWCHB;

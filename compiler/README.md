@@ -104,7 +104,7 @@ As with aliases, keep conditional compilation boring and local. It is useful for
 
 ## Type system
 
-The stock VCS machine interface exposes four ordinary binary integer types,
+The stock VCS machine interface exposes six ordinary binary integer types,
 three unsigned packed-BCD types, one pointer type, and `void`:
 
 ```vcsc
@@ -114,6 +114,8 @@ type int8_t   { $size:1 $integer:signed };
 type uint8_t  { $size:1 $integer:unsigned };
 type int16_t  { $size:2 $integer:signed $endian:little };
 type uint16_t { $size:2 $integer:unsigned $endian:little };
+type int24_t  { $size:3 $integer:signed $endian:little };
+type uint24_t { $size:3 $integer:unsigned $endian:little };
 type bcd8_t   { $size:1 $integer:unsigned $bcd };
 type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
 type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
@@ -129,9 +131,9 @@ The compiler requires these declarations when their language semantics need them
 - `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
-The stock machine definition also supplies `uint16_t` and the three BCD types.
+The stock machine definition also supplies `uint16_t`, `int24_t`, `uint24_t`, and the three BCD types.
 
-The compiler core accepts ordinary signed or unsigned little-endian integer type declarations from one through four bytes. The stock VCS interface deliberately exposes only the canonical 8- and 16-bit names until `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` are added as separate language-surface steps. This separation lets the width-generic machinery be tested without prematurely committing the public type set.
+The compiler core accepts ordinary signed or unsigned little-endian integer type declarations from one through four bytes. The stock VCS interface now exposes canonical 8-, 16-, and 24-bit names. Canonical `int32_t` and `uint32_t` remain a separate language-surface step.
 The names `bool`, `char`, and `int` are not built in or reserved. A source file
 may introduce them as transparent aliases, for example:
 
@@ -147,10 +149,14 @@ Ordinary binary integer value types may be one through four bytes and say
 whether they are signed or unsigned with `$integer:signed` or
 `$integer:unsigned`. Packed-BCD types are a deliberate exception: they must be
 unsigned and may occupy one, two, or three bytes. Untyped integer literals
-larger than 16 bits are rejected unless a BCD destination or explicit BCD
-annotation supplies the wider decimal context. Comparisons and logical
-expressions produce an ordinary `uint8_t`, not a special boolean-only type.
-`void` remains flagless. Floating-point type flags are rejected.
+default to `int16_t`; a typed 24-bit destination, operand, parameter, return, or
+explicit annotation supplies the wider context. The mathematical ranges are
+`int24_t` -8388608..8388607 and `uint24_t` 0..16777215. As with the established
+8- and 16-bit types, ordinary literal encoding is width-based: any positive or
+negative magnitude that fits in three bytes may initialize a three-byte bit
+pattern. Comparisons and logical expressions produce an ordinary `uint8_t`, not
+a special boolean-only type. `void` remains flagless. Floating-point type flags
+are rejected.
 
 Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
 
@@ -168,6 +174,26 @@ Floating-point flags are not recognized as value types; `$float` and `$float:*` 
 Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
 
 Multibyte integer and pointer types use `$endian:little`. `$endian:big` is rejected; the target language has no selectable byte order.
+
+### 24-bit ordinary integers
+
+The stock `int24_t` and `uint24_t` types occupy three little-endian bytes. They
+use the same assignment, arithmetic, comparison, bitwise, shift, parameter, and
+callee-owned memory-return paths as the smaller ordinary integer widths:
+
+```vcsc
+uint24_t frames := 1000000;
+int24_t delta := -1;
+frames += 60;
+```
+
+Same-signed widths widen automatically. Mixed signed/unsigned runtime
+operations require an explicit cast; VCSC does not apply C's usual arithmetic
+conversions. Negative runtime literals are encoded directly in two's-complement
+form. Literal acceptance remains width-based for compatibility with the smaller
+types, so three-byte high-bit patterns are legal even when their mathematical
+interpretation depends on signedness. A literal whose magnitude requires four
+bytes is rejected in a 24-bit context.
 
 ### Packed-BCD integers
 

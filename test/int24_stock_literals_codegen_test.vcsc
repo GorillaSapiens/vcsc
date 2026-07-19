@@ -1,0 +1,28 @@
+// vcsc-cc1 -I .
+// expectasm: uhex:
+// expectasm: 	.byte $56, $34, $12
+// expectasm: umax:
+// expectasm: 	.byte $ff, $ff, $ff
+// expectasm: smax:
+// expectasm: 	.byte $ff, $ff, $7f
+// expectasm: smin:
+// expectasm: 	.byte $00, $00, $80
+// expectasm: uwrap:
+// expectasm: 	.byte $ff, $ff, $ff
+// expectasm: swrap:
+// expectasm: 	.byte $00, $00, $80
+// expectasm: .zpexport identity$__return
+// expectasmordered: identity$__return:
+// expectasmordered: 	.res 3
+include "machine_6502.vcsc"
+
+uint24_t uhex := 0x123456;
+uint24_t umax := 16777215;
+int24_t smax := 8388607;
+int24_t smin := -8388608;
+uint24_t uwrap := (uint24_t)-1;
+int24_t swrap := (int24_t)8388608;
+
+int24_t identity(int24_t value) {
+   return value;
+}
