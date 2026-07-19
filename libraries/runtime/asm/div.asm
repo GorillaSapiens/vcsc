@@ -1,11 +1,11 @@
-; div.asm - One- and two-byte unsigned division
+; div.asm - Arbitrary-width unsigned division
 ;
 ; Little-endian helper: _divNle
 ;
 ; Divides ptr0 (dividend) by ptr1 (divisor), arg0 bytes each.
 ; Stores quotient in ptr2, remainder in ptr3.
 ; Clobbers: A, X, Y, and zero page temps.
-; The private two-byte BSS copy is linked only when division/remainder is used.
+; The private four-byte BSS copy is linked only when division/remainder is used.
 
 .include "vcsc-runtime.inc"
 .def tmpX  _vcsc_tmp0
@@ -14,7 +14,7 @@
 .proc _divNle
 .segment "BSS"
 @dividend:
-    .res 2
+    .res 4
 .segment "CODE"
     ldx arg0
     ldy #0

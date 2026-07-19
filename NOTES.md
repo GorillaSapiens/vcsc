@@ -19,3 +19,7 @@
 | Simulator timing          | Cycle accuracy is not implemented, so mid-frame hardware tricks are not reliable.                                                                                                      | `simulator/mos6502/README.md:37-38`                                                          |
 
 `test/unimpl_audit.pl` reports no live `error_unimplemented()` feature stubs beyond the diagnostic function itself. This list is based on static audit notes and targeted checks, not a completed full-suite verdict.
+
+## Width-generic scalar core
+
+The compiler's ordinary binary-integer machinery now accepts one- through four-byte little-endian signed or unsigned scalar declarations. Assignment, numeric literal encoding, widening/truncation, parameters, callee-owned memory returns, add/subtract, comparisons, bitwise operations, shifts, compound assignment, increment/decrement, multiplication, division, remainder, and constant folding are width-generic through four bytes. The stock VCS headers still expose only the 8- and 16-bit canonical names; public 24- and 32-bit names are queued separately.

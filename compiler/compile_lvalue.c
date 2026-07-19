@@ -299,11 +299,12 @@ void emit_runtime_fixed_binary_scratch(const char *helper, int dst_offset, int l
 
 //! @brief Return int addsub helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
 const char *int_addsub_helper_name(const ASTNode *type, int size, bool subtract, bool *is_generic_out) {
+   (void) type;
    (void) subtract;
    if (is_generic_out) {
       *is_generic_out = false;
    }
-   if (size != 1 && size != 2 && !(size == 3 && type_is_bcd_integer(type))) {
+   if (size < 1 || size > 4) {
       error_unreachable("unsupported integer width %d reached add/sub lowering", size);
    }
    return NULL;

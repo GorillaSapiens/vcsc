@@ -130,6 +130,8 @@ The compiler requires these declarations when their language semantics need them
 - `void` ... the canonical no-value type used for empty parameter lists and no-result functions
 
 The stock machine definition also supplies `uint16_t` and the three BCD types.
+
+The compiler core accepts ordinary signed or unsigned little-endian integer type declarations from one through four bytes. The stock VCS interface deliberately exposes only the canonical 8- and 16-bit names until `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` are added as separate language-surface steps. This separation lets the width-generic machinery be tested without prematurely committing the public type set.
 The names `bool`, `char`, and `int` are not built in or reserved. A source file
 may introduce them as transparent aliases, for example:
 
@@ -141,7 +143,7 @@ typedef int16_t int;
 
 Until such a typedef appears, those names are ordinary identifiers rather than types.
 
-Ordinary binary integer value types must be exactly one or two bytes and say
+Ordinary binary integer value types may be one through four bytes and say
 whether they are signed or unsigned with `$integer:signed` or
 `$integer:unsigned`. Packed-BCD types are a deliberate exception: they must be
 unsigned and may occupy one, two, or three bytes. Untyped integer literals
@@ -573,7 +575,7 @@ it directly, read it back, or use compound assignment on it. The spelling
 `return expr;` writes the converted expression into the same object.
 
 Each value-returning function owns an exact-sized hidden zero-page symbol named
-`function$__return`. Current legal return values are one- or two-byte ordinary
+`function$__return`. Current legal return values are one- through four-byte ordinary
 binary integers, one-, two-, or three-byte packed-BCD integers, and 16-bit
 pointers. The callee writes this object and its common epilogue is simply `RTS`;
 it does not reload the value into A, X, or Y.

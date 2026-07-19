@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_120555.tar.gz
+    vcsc.20260719_124357.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -63,9 +63,11 @@ Settled final-language decisions
   They decay to `uint8_t *` in pointer initializers; writing through such a
   pointer is invalid even though `const` is not yet enforced by the type system.
 * No float or double.
-* No int32_t, uint32_t, or wider ordinary binary integers. `bcd24_t` is a
-  deliberate packed-decimal six-digit exception, not restored generic 24-bit
-  binary arithmetic.
+* The stock VCS headers do not yet expose int24_t, uint24_t, int32_t, or
+  uint32_t. The compiler core now handles user-declared ordinary signed or
+  unsigned little-endian integer widths from one through four bytes; adding the
+  canonical public 24- and 32-bit names remains separately queued. `bcd24_t`
+  remains the largest currently exposed packed-decimal type.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
 * The vendored batari Basic kernel tree is retained as source/reference
   material for possible conversion to VCSC; it is intentionally not dead-code
@@ -95,8 +97,8 @@ Settled final-language decisions
   caller copies directly from the callee object. A, X, and Y are caller-
   clobbered and carry no ordinary language return value.
 
-* `bcd24_t` may be returned. The remaining one/two-byte ordinary binary limit
-  belongs to the current scalar/operator implementation, not the return ABI.
+* `bcd24_t` may be returned. Ordinary binary memory returns now support widths from one through four bytes;
+  the stock headers simply do not expose the canonical 24/32-bit names yet.
 * Struct, union, and array returns remain forbidden even when small. Use an
   explicit result pointer.
 
@@ -161,10 +163,10 @@ Completed vertical slices
     integers, pointers, constants, initializers, conversions, comparisons, and
     runtime helpers are little-endian. `$endian:big`, `($big)`, and `($little)`
     remain only as direct rejection paths.
-19. Ordinary binary target integer widths are restricted to exactly one or two
-    bytes. Untyped integer literals must fit in 16 bits unless a typed packed-BCD
-    context supplies a wider decimal range. Positive generic 24/32/64-bit
-    binary compiler, runtime, library, and test support has been removed.
+19. [Superseded by slice 39.] Ordinary binary target integer widths were
+    temporarily restricted to exactly one or two bytes while inherited wide
+    support was pruned. Slice 39 rebuilt and tested width-generic one- through
+    four-byte scalar machinery without yet adding the canonical public names.
 20. The stock language and machine interface now use only int8_t, uint8_t,
     int16_t, and uint16_t as built-in integer names. Comparisons and logical
     expressions produce an ordinary uint8_t; there is no special boolean type.
@@ -212,7 +214,7 @@ Completed vertical slices
     warning. Code generation and C-compatible signed division/remainder
     semantics remain unchanged; literal-only expressions still fold silently.
 29. The residual target software stack has been removed. Division/remainder
-    use a private two-byte BSS workspace owned by the archive-selected `_divNle`
+    use a private four-byte BSS workspace owned by the archive-selected `_divNle`
     member; programs without `/` or `%` link neither the helper nor its workspace.
     `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup stack-base
     initialization, and the stale per-function frame prologue are gone. Slice
@@ -276,6 +278,15 @@ Completed vertical slices
     reserve is two bytes per source call depth, plus one fixed two-byte
     startup cursor allowance when runtime initializer functions are linked.
 
+39. Ordinary binary scalar lowering is width-generic from one through four bytes.
+    User-declared signed and unsigned little-endian integer types of those widths
+    now work through literals, initializers, assignment, extension/truncation,
+    parameters, memory returns, arithmetic, comparisons, shifts, bitwise and
+    compound operations, increment/decrement, and constant folding. The generic
+    multiplication helper already accepted arbitrary widths; division/remainder's
+    private dividend workspace was expanded from two to four bytes. The stock VCS
+    headers still expose only 8- and 16-bit ordinary names pending tasks 18d/18e.
+
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
 C-like source. The player now uses the natural direct indexed form
@@ -307,7 +318,7 @@ Relevant code:
         return_void / return_memory metadata
 
 Every function declaration and definition is validated. The compiler currently
-accepts void, one/two-byte ordinary binary integers, one/two/three-byte packed
+accepts void, one-through-four-byte ordinary binary integers, one/two/three-byte packed
 BCD integers, and 16-bit pointers. It rejects aggregates, arrays, and other
 noninteger/nonpointer returns. Wider ordinary binary types remain unavailable
 until the queued scalar-width work is completed.
@@ -426,7 +437,7 @@ paths, and the runtime implementation has now been removed completely:
   runtime archive;
 * linker configurations no longer declare an `ARGSTACK` segment;
 * compiled functions have no software-stack entry prologue;
-* retained division/remainder uses a private two-byte BSS object in `_divNle`,
+* retained division/remainder uses a private four-byte BSS object in `_divNle`,
   selected from the runtime archive only when `/` or `%` is linked.
 
 Pooled fixed scratch is selected by a compile-time lease stack and addressed
@@ -458,12 +469,12 @@ For the big/mixed-endian purge:
 
 For the wide-binary-integer purge:
 
-* ordinary binary target integer declarations must be exactly one or two bytes;
+* ordinary binary target integer declarations may be one through four bytes;
 * `$bcd` declarations are the deliberate unsigned one-, two-, and three-byte
   packed-decimal exception;
 * target pointers must be two bytes;
-* untyped integer literals larger than 16 bits are rejected unless a BCD
-  destination or explicit BCD annotation provides a wider decimal context;
+* integer literals may carry up to 32 bits when a typed ordinary destination or
+  operation supplies a matching width; the stock untyped default remains int16_t;
 * positive 24/32/64-bit arithmetic, promotion, extension, shift, helper, and
   return tests were removed or rewritten to legal widths;
 * PetiteFFS was removed because its public model requires a 32-bit DWORD;
@@ -740,7 +751,7 @@ The first unfinished item is the default next action.
                   eliminate call-site save/restore pushes, and size the hardware
                   call stack at two bytes per linked call depth, plus the
                   fixed startup cursor allowance required by runtime initializers.
-        [ ] 18c. Generalize ordinary binary scalar handling from hard-coded
+        [x] 18c. Generalize ordinary binary scalar handling from hard-coded
                   one/two-byte assumptions to widths one through four. Audit
                   literals, extension/truncation, assignment, parameters,
                   arithmetic, comparisons, shifts, compound assignment,
@@ -784,9 +795,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Tasks 18a and 18b are complete; the next queued action is 18c, generalizing
-ordinary binary scalar machinery to widths one through four before adding the
-new 24/32-bit types. Batari conversion inventory follows as task 19.
+Tasks 18a through 18c are complete; the next queued action is 18d, adding the
+canonical `int24_t` and `uint24_t` names and their stock-interface tests. Batari
+conversion inventory follows the 24/32-bit scalar work as task 19.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1631,3 +1642,20 @@ Before returning another modified archive:
 [x] Record exact build/test totals and any known failures.
 [x] Run make clean and remove test-runner scratch before packaging.
 [x] Repack with the same archive-root layout.
+
+2026-07-19 13:24:33 PDT, complete scalar-width generalization task 18c
+-----------------------------------------------------------------------
+* Allow ordinary signed and unsigned little-endian integer type declarations
+  from one through four bytes while leaving the stock public names unchanged.
+* Generalize function-return validation and hidden return objects through four
+  bytes.
+* Raise literal-width analysis to 32 bits so typed 24/32-bit contexts can encode
+  full-width constants.
+* Keep add/subtract inline and width-looped; verify comparison, bitwise, shifts,
+  compound assignment, increment/decrement, multiplication, division, remainder,
+  extension/truncation, parameters, returns, and constant folding end to end.
+* Expand the archive-selected division helper's private dividend copy from two
+  bytes to four.
+* Retain rejection of four-byte packed BCD until task 18f.
+* Add focused 24/32-bit declaration tests, mixed-signedness rejection, and the
+  `e2e_wide_scalar_core.vcsc` execution regression.

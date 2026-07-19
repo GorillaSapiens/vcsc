@@ -96,7 +96,7 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator) {
       return size >= 1 && size <= 3;
    }
 
-   return size >= 1 && size <= 2;
+   return size >= 1 && size <= 4;
 }
 
 //! @brief Return whether a supported function type has a value return object.

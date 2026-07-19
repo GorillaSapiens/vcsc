@@ -759,12 +759,12 @@ int integer_literal_min_size(const ASTNode *expr) {
    if (end == expr->strval || (end && *end != 0)) {
       return 1;
    }
-   if (value > 0xffffULL) {
-      error_user("[%s:%d.%d] integer literal '%s' exceeds the supported 16-bit range",
+   if (value > 0xffffffffULL) {
+      error_user("[%s:%d.%d] integer literal '%s' exceeds the supported 32-bit range",
                  expr->file, expr->line, expr->column, expr->strval);
    }
 
-   while (size < 2 && value > ((1ULL << (size * 8)) - 1ULL)) {
+   while (size < 4 && value > ((1ULL << (size * 8)) - 1ULL)) {
       size++;
    }
 

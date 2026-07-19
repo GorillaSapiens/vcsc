@@ -181,7 +181,7 @@ void compile_function_decl(ASTNode *node) {
       predeclare_statement_list(body, &ctx);
    }
    if (has_return_object) {
-      if (!return_entry || return_entry->size < 1 || return_entry->size > 3) {
+      if (!return_entry || return_entry->size < 1 || return_entry->size > 4) {
          error_unreachable("[%s:%d.%d] invalid memory return object", node->file, node->line, node->column);
       }
       if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
@@ -342,8 +342,8 @@ void compile_type_decl_stmt(ASTNode *node) {
                node->file, node->line, node->column, node->children[0]->strval, size);
       }
    }
-   else if (haveInteger && size != 1 && size != 2) {
-      error_user("[%s:%d.%d] integer type '%s' has unsupported size %d; only 1-byte and 2-byte integers are supported",
+   else if (haveInteger && (size < 1 || size > 4)) {
+      error_user("[%s:%d.%d] integer type '%s' has unsupported size %d; only 1-byte through 4-byte integers are supported",
             node->file, node->line, node->column, node->children[0]->strval, size);
    }
 

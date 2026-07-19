@@ -23,14 +23,14 @@ Function returns
 Every legal function return is one of:
 
 * `void`: no returned value;
-* one- or two-byte ordinary little-endian integer;
+* one- through four-byte ordinary little-endian integer;
 * one-, two-, or three-byte packed-BCD little-endian integer;
 * 16-bit pointer.
 
 Functions may not return aggregates, arrays, floating-point values, or other
 non-scalar objects. Ordinary binary integers are still limited to the widths
 currently implemented by the type system, while `bcd24_t` is now a legal return
-type. The memory-return ABI itself does not impose a two-byte ceiling.
+type. The memory-return ABI supports ordinary integer scalars through four bytes.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
 an exact-sized hidden callee-owned zero-page symbol named
@@ -77,7 +77,7 @@ out-of-range offset actually requires one.
 Reset/startup initializes the 6502 hardware stack, DATA, BSS, and init tables.
 There is no runtime frame pointer or software stack pointer. The stock runtime
 zero-page workspace is 16 bytes: `arg0`, `arg1`, `ptr0` through `ptr3`, and
-`tmp0` through `tmp5`. Division and remainder use a private two-byte BSS
+`tmp0` through `tmp5`. Division and remainder use a private four-byte BSS
 workspace in the `_divNle` archive member, so that storage is linked only when
 `/` or `%` is actually used.
 The linker reserves two hardware-stack bytes per active source function for JSR

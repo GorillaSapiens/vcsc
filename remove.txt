@@ -673,7 +673,9 @@ test/inline_asm_ref_write_to_none_error_test.n
 test/int_helper_big_endian_codegen_test.n
 test/int_helper_codegen_test.n
 test/integer_24bit_type_rejected_test.n
+test/integer_24bit_type_rejected_test.vcsc
 test/integer_32bit_type_rejected_test.n
+test/integer_32bit_type_rejected_test.vcsc
 test/integer_64bit_type_rejected_test.n
 test/integer_exact_fit_no_overflow_warning_test.n
 test/integer_literal_over_16bit_rejected_test.n

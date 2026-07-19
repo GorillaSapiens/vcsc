@@ -37,7 +37,7 @@ The two vector targets remain because every 6502 image still needs addresses at
 
 These are small assembly helpers that the compiler targets directly:
 
-- arithmetic: `mul`, `div`, `rem` (one- and two-byte add/subtract are emitted inline; division owns a private two-byte BSS workspace selected with `_divNle`)
+- arithmetic: `mul`, `div`, `rem` (one- through four-byte add/subtract are emitted inline; division owns a private four-byte BSS workspace selected with `_divNle`)
 - comparisons: `eq`, `lt`, `le`
 - bitwise operations: `and`, `or`, `xor`, `not`
 - shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts

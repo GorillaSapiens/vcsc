@@ -1,8 +1,8 @@
 // vcsc-cc1
-// expectfail
-// expecterr: integer type 'wide32' has unsupported size 4; only 1-byte and 2-byte integers are supported
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };
 type * { $size:2 $integer:unsigned $endian:little };
 type wide32 { $size:4 $integer:signed $endian:little };
+wide32 x := 0x12345678;
+wide32 id(wide32 value) { return value; }

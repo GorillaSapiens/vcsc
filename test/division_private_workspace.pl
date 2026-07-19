@@ -36,8 +36,8 @@ my $plain = build_case('no_division', '+');
 my $div = build_case('with_division', '/');
 $plain !~ /libvcsc\.a65\(_divNle\.o65\)/
     or die "division member linked into a program without division\n";
-$div =~ /libvcsc\.a65\(_divNle\.o65\).*?BSS\s+run=\$[0-9A-F]+\s+size=\$0002/s
-    or die "division member does not own exactly two BSS workspace bytes\n";
+$div =~ /libvcsc\.a65\(_divNle\.o65\).*?BSS\s+run=\$[0-9A-F]+\s+size=\$0004/s
+    or die "division member does not own exactly four BSS workspace bytes\n";
 $div !~ /(?:_vcsc_sp|_pushN|_popN|_sp2ptr)/
     or die "division map still exposes removed software-stack machinery\n";
 print "division private workspace ok\n";

@@ -1,6 +1,6 @@
 // vcsc-cc1
 // expectfail
-// expecterr: integer type 'wide64' has unsupported size 8; only 1-byte and 2-byte integers are supported
+// expecterr: integer type 'wide64' has unsupported size 8; only 1-byte through 4-byte integers are supported
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };
