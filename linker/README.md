@@ -24,8 +24,8 @@ Examples:
 
 ```sh
 ./n65ld -T runtime.cfg -o out.hex -Map out.map crt0.o65 main.o65 libstuff.a65
-./n65ld -o out.hex crt0.o65 main.o65
-./n65ld crt0.o65 main.o65 out.hex
+./n65ld -T runtime.cfg -o out.hex crt0.o65 main.o65
+./n65ld runtime.cfg crt0.o65 main.o65 out.hex
 ```
 
 The linker also accepts this positional form:
@@ -101,26 +101,13 @@ bss_end = __bss_end
 
 If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime uses `__stack_start` only as the deterministic baseline for `_nl_fp`; it provides neither a software stack nor a heap allocator.
 
-## Default memory layout
+## Linker script requirement
 
-If no config file is supplied, `n65ld` uses this built-in layout:
-
-```cfg
-MEMORY {
-    ZEROPAGE: start = $0000, size = $0100, type = rw, define = yes;
-    CPUSTACK: start = $0100, size = $0100, type = rw, define = yes;
-    RAM:      start = $0200, size = $1E00, type = rw, define = yes;
-    ROM:      start = $2000, size = $E000, type = ro, define = yes;
-}
-
-SEGMENTS {
-    ZEROPAGE: load = ROM, run=ZEROPAGE, type = zp,   define = yes;
-    CODE:     load = ROM,          type = ro,   define = yes;
-    RODATA:   load = ROM,          type = ro,   define = yes;
-    BSS:      load = RAM,          type = bss,  define = yes;
-    DATA:     load = ROM, run=RAM, type = data, define = yes;
-}
-```
+`n65ld` has no implicit machine or memory map. Direct use requires `-T FILE`,
+`--script=FILE`, or the compatibility positional `.cfg` argument. This keeps a
+generic host-style layout from silently leaking into VCS builds. The high-level
+`n65cc` driver supplies the bundled unbanked 4K VCS script automatically when
+the user does not provide `-T`.
 
 ## Config support
 

@@ -99,10 +99,11 @@ installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/n" BINDIR="/opt/n/bin" LIBDIR="/opt/n/lib" INCLUDEDIR="/opt/n/include" DATADIR="/opt/n/share" CFGDIR="/opt/n/share/cfg"
 	stage_bin="$(INSTALLCHECK_STAGING)/opt/n/bin"; \
+	stage_vcs="$(INSTALLCHECK_STAGING)/opt/n/share/vcs"; \
 	"$$stage_bin/n65cc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/n65cc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/n65cc" -I "$(CURDIR)/test" "$(CURDIR)/test/sieve.n" -o "$(INSTALLCHECK_STAGING)/sieve.hex"; \
-	"$$stage_bin/n65sim" "$(INSTALLCHECK_STAGING)/sieve.hex" | head -n 1 >/dev/null
+	"$$stage_bin/n65cc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.n" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/solid_color.bin"` -eq 4096
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz
@@ -112,7 +113,7 @@ unit: tools
 	@$(MAKE) --no-print-directory -C ./test unit
 
 sieve: tools
-	./driver/n65cc -I test test/sieve.n -o sieve.hex
+	./driver/n65cc -I test -T test/generic_6502.cfg test/sieve.n -o sieve.hex
 	simulator/n65sim sieve.hex | head
 
 e2e: tools

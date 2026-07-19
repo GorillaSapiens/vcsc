@@ -51,6 +51,7 @@ my $n65ar  = File::Spec->catfile($repo_root, 'archiver', 'n65ar');
 my $n65sim = File::Spec->catfile($repo_root, 'simulator', 'n65sim');
 my $nlib = File::Spec->catfile($repo_root, 'libraries', 'nlib', 'nlib.a65');
 my $nlib_inc = File::Spec->catdir($repo_root, 'libraries', 'nlib');
+my $generic_link_cfg = File::Spec->catfile($test_root, 'generic_6502.cfg');
 
 my %tool_alias = (
    n65c  => $n65c,
@@ -501,7 +502,7 @@ sub run_e2e_case {
    my $file = $case->{name};
    my $runner_args = $case->{runner_args};
    my $meta = $case->{meta};
-   for my $tool ($n65c, $n65asm, $n65ld, $n65ar, $n65sim, $nlib) {
+   for my $tool ($n65c, $n65asm, $n65ld, $n65ar, $n65sim, $nlib, $generic_link_cfg) {
       return fail_result("missing required file: $tool") if !-e $tool;
    }
 
@@ -514,6 +515,7 @@ sub run_e2e_case {
       '@TMP@' => $tmp,
       '@NLIB@' => $nlib,
       '@NLIB_INC@' => $nlib_inc,
+      '@GENERIC_LINK_CFG@' => $generic_link_cfg,
    };
    my @compiled_objects;
    my @archives;
@@ -594,10 +596,10 @@ sub run_e2e_case {
       }
    }
 
-   my @link_cmd = ($n65ld, '-o', $hex_path, '-Map', $map_path);
-   if (defined $meta->{linkcfg}) {
-      push @link_cmd, '-T', File::Spec->catfile($test_root, $meta->{linkcfg});
-   }
+   my @link_cmd = ($n65ld, '-o', $hex_path, '-Map', $map_path, '-T',
+      defined($meta->{linkcfg})
+         ? File::Spec->catfile($test_root, $meta->{linkcfg})
+         : $generic_link_cfg);
    push @link_cmd, @compiled_objects, @archives, $nlib;
    my $link_out = File::Spec->catfile($tmp, 'link.out');
    my $link_err = File::Spec->catfile($tmp, 'link.err');
@@ -664,6 +666,7 @@ sub run_generic_case {
       '@TMP@' => $tmp,
       '@NLIB@' => $nlib,
       '@NLIB_INC@' => $nlib_inc,
+      '@GENERIC_LINK_CFG@' => $generic_link_cfg,
       '@N65C@' => $n65c,
       '@N65CC@' => $n65cc,
       '@N65ASM@' => $n65asm,

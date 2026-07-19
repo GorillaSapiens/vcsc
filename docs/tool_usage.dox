@@ -20,17 +20,15 @@
 //! High-level flow:
 //!
 //! @code{.sh}
-//! n65cc -I test test/sieve.n -o sieve.hex
-//! n65sim sieve.hex
+//! n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
 //! @endcode
 //!
 //! Direct stage-by-stage flow:
 //!
 //! @code{.sh}
-//! n65c -quiet -I test test/sieve.n -o sieve.s -dumpbase sieve.n -dumpbase-ext .n -dumpdir ./
-//! n65asm -I libraries/nlib/ -o sieve.o65 sieve.s
-//! n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65
-//! n65sim sieve.hex
+//! n65c -quiet -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.s -dumpbase solid_color.n -dumpbase-ext .n -dumpdir ./
+//! n65asm -I libraries/nlib/ -o solid_color.o65 solid_color.s
+//! n65ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/nlib/nlib.a65
 //! @endcode
 //!
 //! @section tool_usage_docs More detailed command references

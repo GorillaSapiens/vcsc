@@ -31,7 +31,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260718_233632.tar.gz
+    vcsc.20260718_235108.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -220,6 +220,11 @@ Completed vertical slices
     remains only as an isolated compiler-test fixture. Native VCS bindings,
     `vcs_4k.cfg`, and both retained batari Basic kernel families are guarded
     by a regression test.
+34. The linker's implicit generic machine map has been removed. Direct
+    `n65ld` use now requires an explicit script/config, while `n65cc` discovers
+    and supplies `vcs_4k.cfg` from the source tree or installed `share/vcs`
+    directory when the user does not pass `-T`. Generic end-to-end tests use
+    the explicit test-only `test/generic_6502.cfg` layout.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -441,20 +446,20 @@ Removed interrupt-runtime paths:
     libraries/nlib/asm/handler.asm
     libraries/nlib/nrt0_noint.s
 
-All removed/renamed old paths are recorded in remove.txt, now at 484 unique
+All removed/renamed old paths are recorded in remove.txt, now at 487 unique
 cumulative paths.
 
 Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_next_tools
+    /mnt/data/vcsc_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_next_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_next_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_next_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -473,16 +478,17 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    98 passed, 0 failed, 98 total
+    101 passed, 0 failed, 101 total
 
 Staged install check:
 
     passed
 
-Both examples still build directly as raw 4096-byte cartridges. The focused
-interrupt-runtime regression verifies that `nint`, the default handler members,
-and the separate no-interrupt startup member are absent while the stock startup
-still supplies the mandatory weak vector fillers.
+Both examples build directly as raw 4096-byte cartridges without an explicit
+`-T`; this verifies the source-tree driver default. The staged install check
+builds the solid-color cartridge through the installed driver and its
+`share/vcs/vcs_4k.cfg`. Bare `n65ld` invocation without a script fails with a
+focused diagnostic, while retained generic e2e tests use `test/generic_6502.cfg`.
 
 Immediate TODO
 --------------
@@ -615,7 +621,7 @@ The first unfinished item is the default next action.
         [x] 16d. Remove ordinary named-function overloading. Each function name
                   now has one signature and one unmangled assembler symbol;
                   matching declarations plus one definition remain supported.
-        [ ] 16e. Prune unused generic libraries, machine targets, tools, and
+        [x] 16e. Prune unused generic libraries, machine targets, tools, and
                   grammar surfaces in dependency-ordered groups.
 
                   [x] 16e1. Remove the generic interrupt-entry library and
@@ -629,13 +635,12 @@ The first unfinished item is the default next action.
                             and the unwired `libraries/nlib/n.cfg` and
                             `linker/default.cfg` layouts. Keep the test-local
                             generic machine fixture and all native VCS material.
-                  [ ] 16e4. Eliminate the linker's implicit generic non-VCS
-                            memory-map fallback. Make the stock driver discover
-                            and use `vcs_4k.cfg` by default when no `-T` is
-                            supplied; direct linker use without a script should
-                            fail clearly. Give generic end-to-end tests an
-                            explicit test-only layout instead of preserving a
-                            production generic target by accident.
+                  [x] 16e4. Eliminated the linker's implicit generic non-VCS
+                            memory-map fallback. The stock driver discovers and
+                            uses `vcs_4k.cfg` by default when no `-T` is supplied;
+                            direct linker use without a script fails clearly.
+                            Generic end-to-end tests use an explicit test-only
+                            layout.
 
 [ ] 17. After the functional reduction is complete, rename the project and
         toolchain to `vcsc`. Remove obsolete N/n65/nlib branding from documents,
@@ -667,10 +672,9 @@ still does not track register or flag clobbers.
 Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
-The next functional-reduction action is task 16e4: make `vcs_4k.cfg` the stock
-high-level-driver default and remove the linker's implicit generic memory-map
-fallback. Generic compiler/linker regressions should use an explicit test-only
-layout rather than keeping a production non-VCS target alive accidentally.
+Functional reduction task 16 is complete. The next queued action is task 17:
+rename the project and toolchain to `vcsc`, removing obsolete N/n65/nlib
+branding from user-visible names and paths while preserving useful history.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1343,6 +1347,28 @@ reproducibly rather than the exact instant of each individual source edit.
   exact 4096-byte cartridge regressions.
 * Added two test files and removed three target/layout files; remove.txt now
   contains 487 unique cumulative paths.
+
+
+2026-07-19 00:00:00 PDT, make VCS 4K layout the driver default
+* Removed `n65ld`'s compiled-in generic memory map. Direct linker invocation
+  now requires `-T FILE`, `--script=FILE`, or a positional `.cfg` and emits a
+  focused diagnostic when no script is supplied.
+* Extended `n65cc` path discovery to locate `libraries/vcs/vcs_4k.cfg` in the
+  source tree or `share/vcs/vcs_4k.cfg` beside an installed toolchain. The
+  driver always passes an explicit script, using the user-supplied `-T` when
+  present and the bundled VCS 4K layout otherwise.
+* Added `test/generic_6502.cfg` as an explicit test-only layout for retained
+  generic compiler/linker/simulator regressions. The production toolchain no
+  longer preserves a generic target by accident.
+* Added regressions for the driver's default VCS script and the linker's
+  script-required error. Updated both cartridge regressions and both example
+  Makefiles to omit `-T`, proving the default path in real 4096-byte builds.
+* Updated staged installation to build the solid-color cartridge through the
+  installed driver and installed `share/vcs/vcs_4k.cfg`.
+* Passed 227/227 compile tests, 101/101 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, and the staged install check.
+* Added three test files and removed no files; remove.txt remains at 487 unique
+  cumulative paths. Task 16e is complete; task 17 is next.
 
 
 End-of-session checklist

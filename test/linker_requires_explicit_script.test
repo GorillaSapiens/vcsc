@@ -1,0 +1,4 @@
+# runner: n65ld -o @TMP@/out.hex @NLIB@
+# phase: e2e
+# expectexit: 1
+# expectstderr: no linker script/config supplied; use -T FILE or --script=FILE

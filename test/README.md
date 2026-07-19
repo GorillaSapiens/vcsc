@@ -61,6 +61,11 @@ Useful expectations include:
 
 A plain `.n` file with only compile-side expectations is treated as a compile-only test. A `.n` file with link/sim expectations is treated as an e2e test.
 
+E2E tests without a `linkcfg:` directive use `test/generic_6502.cfg`, an
+explicit test-only layout matching the retained generic simulator fixtures.
+Production `n65ld` has no implicit layout, and production `n65cc` defaults to
+the bundled VCS 4K script instead.
+
 `unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 ### `.test` files
@@ -82,6 +87,7 @@ Useful placeholders in `runner:` and related directives:
 - `@TMP@` ... per-test temporary work directory
 - `@NLIB@` ... default `libraries/nlib/nlib.a65`
 - `@NLIB_INC@` ... default `libraries/nlib/` include directory
+- `@GENERIC_LINK_CFG@` ... explicit test-only generic 6502 linker layout
 
 Useful generic expectations include:
 

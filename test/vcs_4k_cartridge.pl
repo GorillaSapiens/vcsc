@@ -46,7 +46,6 @@ $tmp = abs_path($tmp) // die "could not resolve temporary directory: $tmp\n";
 
 my $driver = File::Spec->catfile($repo, 'driver', 'n65cc');
 my $vcs_dir = File::Spec->catfile($repo, 'libraries', 'vcs');
-my $cfg = File::Spec->catfile($vcs_dir, 'vcs_4k.cfg');
 my $source = File::Spec->catfile($repo, 'examples', '01_solid_color', 'solid_color.n');
 my $binary = File::Spec->catfile($tmp, 'solid_color.bin');
 my $map = File::Spec->catfile($tmp, 'solid_color.map');
@@ -57,7 +56,6 @@ my $map = File::Spec->catfile($tmp, 'solid_color.map');
 my ($exit, $signal, $stdout, $stderr) = run_capture(
    $driver,
    '-I', $vcs_dir,
-   '-T', $cfg,
    '-Map', $map,
    $source,
    '-o', $binary,

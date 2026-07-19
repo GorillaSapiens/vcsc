@@ -34,7 +34,6 @@ $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','n65cc');
 my $vcs_dir=File::Spec->catfile($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs_dir,'vcs_4k.cfg');
 my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.n');
 my $example_dir=File::Spec->catdir($repo,'examples','02_ode_to_joy');
 my $source=File::Spec->catfile($example_dir,'ode_to_joy.n');
@@ -52,7 +51,7 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 -f $mos_source or die "6502 emulator source is missing: $mos_source\n";
 
 my ($exit,$signal,$stdout,$stderr)=run_capture(
-   $driver,'-I',$vcs_dir,'-T',$cfg,'-Map',$map,$source,'-o',$binary,
+   $driver,'-I',$vcs_dir,'-Map',$map,$source,'-o',$binary,
 );
 die "cartridge build exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
    if $exit != 0 || $signal != 0;

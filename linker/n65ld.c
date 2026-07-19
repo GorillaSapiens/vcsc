@@ -26,7 +26,7 @@ static void usage(FILE *fp)
       "\n"
       "Options:\n"
       "  -o FILE              Write Intel HEX, or flat binary when FILE ends in .bin\n"
-      "  -T FILE              Use FILE as linker script/config\n"
+      "  -T FILE              Use required FILE as linker script/config\n"
       "  --script=FILE        Same as -T FILE\n"
       "  -Map FILE            Write linker map to FILE\n"
       "  -Map=FILE            Same as -Map FILE\n"
@@ -355,68 +355,6 @@ static const segment_rule_t *find_segment_rule(const linker_config_t *cfg, const
          return &cfg->seg[i];
    }
    return NULL;
-}
-
-//! @brief Handle init default config logic for linker layout and image writer.
-static void init_default_config(linker_config_t *cfg)
-{
-   memset(cfg, 0, sizeof(*cfg));
-
-   strcpy(cfg->mem[0].name, "ZEROPAGE");
-   cfg->mem[0].start = 0x0000;
-   cfg->mem[0].size = 0x0100;
-   strcpy(cfg->mem[0].type, "rw");
-   cfg->mem[0].define_yes = 1;
-
-   strcpy(cfg->mem[1].name, "CPUSTACK");
-   cfg->mem[1].start = 0x0100;
-   cfg->mem[1].size = 0x0100;
-   strcpy(cfg->mem[1].type, "rw");
-   cfg->mem[1].define_yes = 1;
-
-   strcpy(cfg->mem[2].name, "RAM");
-   cfg->mem[2].start = 0x0200;
-   cfg->mem[2].size = 0x1E00;
-   strcpy(cfg->mem[2].type, "rw");
-   cfg->mem[2].define_yes = 1;
-
-   strcpy(cfg->mem[3].name, "ROM");
-   cfg->mem[3].start = 0x2000;
-   cfg->mem[3].size = 0xE000;
-   strcpy(cfg->mem[3].type, "ro");
-   cfg->mem[3].define_yes = 1;
-   cfg->mem_count = 4;
-
-   strcpy(cfg->seg[0].name, "ZEROPAGE");
-   strcpy(cfg->seg[0].load_name, "ROM");
-   strcpy(cfg->seg[0].run_name, "ZEROPAGE");
-   strcpy(cfg->seg[0].type, "zp");
-   cfg->seg[0].define_yes = 1;
-
-   strcpy(cfg->seg[1].name, "CODE");
-   strcpy(cfg->seg[1].load_name, "ROM");
-   cfg->seg[1].run_name[0] = '\0';
-   strcpy(cfg->seg[1].type, "ro");
-   cfg->seg[1].define_yes = 1;
-
-   strcpy(cfg->seg[2].name, "RODATA");
-   strcpy(cfg->seg[2].load_name, "ROM");
-   cfg->seg[2].run_name[0] = '\0';
-   strcpy(cfg->seg[2].type, "ro");
-   cfg->seg[2].define_yes = 1;
-
-   strcpy(cfg->seg[3].name, "BSS");
-   strcpy(cfg->seg[3].load_name, "RAM");
-   cfg->seg[3].run_name[0] = '\0';
-   strcpy(cfg->seg[3].type, "bss");
-   cfg->seg[3].define_yes = 1;
-
-   strcpy(cfg->seg[4].name, "DATA");
-   strcpy(cfg->seg[4].load_name, "ROM");
-   strcpy(cfg->seg[4].run_name, "RAM");
-   strcpy(cfg->seg[4].type, "data");
-   cfg->seg[4].define_yes = 1;
-   cfg->seg_count = 5;
 }
 
 //! @brief Trim leading and trailing whitespace in place and return the first non-space byte.
@@ -1762,10 +1700,12 @@ int main(int argc, char **argv)
       return 1;
    }
 
-   if (cfg_path)
-      parse_cfg_file(&cfg, cfg_path);
-   else
-      init_default_config(&cfg);
+   if (!cfg_path) {
+      fprintf(stderr,
+         "n65ld: no linker script/config supplied; use -T FILE or --script=FILE\n");
+      return 1;
+   }
+   parse_cfg_file(&cfg, cfg_path);
 
    select_needed_objects(&inputs);
    validate_abi_metadata(&inputs);

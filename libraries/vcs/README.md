@@ -34,7 +34,7 @@ n65c -I libraries/vcs source.n
 Build a raw 4K cartridge directly with the driver:
 
 ```sh
-n65cc -I libraries/vcs -T libraries/vcs/vcs_4k.cfg source.n -o game.bin
+n65cc -I libraries/vcs source.n -o game.bin
 ```
 
 A `.bin` output name asks the linker for a contiguous flat binary; this VCS
@@ -45,6 +45,7 @@ Notes:
 - `vcs.n` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.n` and `riot.n`.
 - `tia.n` and `riot.n` can also be included separately if you already have your own base machine definition.
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
+- `n65cc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `n65ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts for JSR return addresses and compiler-generated `fp` preservation. Inline `PHA`/`PHP`/`JSR` and stack use hidden in separately assembled routines remain future accounting work.
 - `batari-basic/` is reference/source material imported from upstream batari Basic and is not automatically wired into the `n65c`/`n65ld` flow.

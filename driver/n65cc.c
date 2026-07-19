@@ -348,7 +348,7 @@ static void usage(FILE *fp)
       "  * default linked output is a.hex\n"
       "  * -S accepts only .n inputs\n"
       "  * with -c or -S, using -o requires exactly one source input\n"
-      "  * default linking adds libraries/nlib/nlib.a65\n",
+      "  * default linking uses the bundled VCS 4K script and adds nlib.a65\n",
       arg0);
 }
 
@@ -437,7 +437,8 @@ static void resolve_tool_paths(const char *self_path,
    char *ar_path, size_t ar_sz,
    char *sim_path, size_t sim_sz,
    char *nlib_path, size_t nlib_sz,
-   char *nlib_inc, size_t nlib_inc_sz)
+   char *nlib_inc, size_t nlib_inc_sz,
+   char *vcs_cfg_path, size_t vcs_cfg_sz)
 {
    char cc_repo[PATH_MAX];
    char as_repo[PATH_MAX];
@@ -446,6 +447,7 @@ static void resolve_tool_paths(const char *self_path,
    char sim_repo[PATH_MAX];
    char nlib_repo[PATH_MAX];
    char nlib_inc_repo[PATH_MAX];
+   char vcs_cfg_repo[PATH_MAX];
    char cc_inst[PATH_MAX];
    char as_inst[PATH_MAX];
    char ld_inst[PATH_MAX];
@@ -453,6 +455,7 @@ static void resolve_tool_paths(const char *self_path,
    char sim_inst[PATH_MAX];
    char nlib_inst[PATH_MAX];
    char nlib_inc_inst[PATH_MAX];
+   char vcs_cfg_inst[PATH_MAX];
 
    build_repo_tree_path(cc_repo, sizeof(cc_repo), self_path, "compiler", "n65c");
    build_repo_tree_path(as_repo, sizeof(as_repo), self_path, "assembler", "n65asm");
@@ -461,6 +464,7 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(sim_repo, sizeof(sim_repo), self_path, "simulator", "n65sim");
    build_repo_tree_path(nlib_repo, sizeof(nlib_repo), self_path, "libraries/nlib", "nlib.a65");
    build_repo_tree_path(nlib_inc_repo, sizeof(nlib_inc_repo), self_path, "libraries/nlib", "nlib.inc");
+   build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs_4k.cfg");
 
    if (path_is_accessible(cc_repo, X_OK) &&
        path_is_accessible(as_repo, X_OK) &&
@@ -476,6 +480,7 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(sim_path, sim_sz, sim_repo);
       copy_cstr(nlib_path, nlib_sz, nlib_repo);
       path_dirname(nlib_inc_repo, nlib_inc, nlib_inc_sz);
+      copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_repo);
       return;
    }
 
@@ -486,6 +491,7 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "n65sim");
    build_installed_prefix_path(nlib_inst, sizeof(nlib_inst), self_path, "lib", "nlib.a65");
    build_installed_prefix_path(nlib_inc_inst, sizeof(nlib_inc_inst), self_path, "include", "nlib.inc");
+   build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs_4k.cfg");
 
    if (path_is_accessible(cc_inst, X_OK) &&
        path_is_accessible(as_inst, X_OK) &&
@@ -501,6 +507,7 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(sim_path, sim_sz, sim_inst);
       copy_cstr(nlib_path, nlib_sz, nlib_inst);
       path_dirname(nlib_inc_inst, nlib_inc, nlib_inc_sz);
+      copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_inst);
       return;
    }
 
@@ -975,18 +982,26 @@ static const char *find_library(const driver_options_t *opt, const char *name, c
 }
 
 //! @brief Run the ld stage of the driver tool pipeline.
-static void run_ld(const char *ld_path, const driver_options_t *opt, const strvec_t *link_inputs, const char *default_nlib)
+static void run_ld(const char *ld_path, const driver_options_t *opt,
+   const strvec_t *link_inputs, const char *default_nlib,
+   const char *default_link_script)
 {
    strvec_t cmd = {0};
+   const char *link_script = opt->link_script;
    size_t i;
+
+   if (!link_script) {
+      if (!path_is_accessible(default_link_script, R_OK))
+         die("could not read default VCS linker config '%s': %s",
+            default_link_script, strerror(errno));
+      link_script = default_link_script;
+   }
 
    strvec_push(&cmd, ld_path);
    strvec_push(&cmd, "-o");
    strvec_push(&cmd, opt->output ? opt->output : "a.hex");
-   if (opt->link_script) {
-      strvec_push(&cmd, "-T");
-      strvec_push(&cmd, opt->link_script);
-   }
+   strvec_push(&cmd, "-T");
+   strvec_push(&cmd, link_script);
    if (opt->map_path) {
       strvec_push(&cmd, "-Map");
       strvec_push(&cmd, opt->map_path);
@@ -1018,6 +1033,7 @@ int main(int argc, char **argv)
    char sim_path[PATH_MAX];
    char nlib_path[PATH_MAX];
    char nlib_inc[PATH_MAX];
+   char vcs_cfg_path[PATH_MAX];
    strvec_t link_inputs = {0};
    size_t i;
 
@@ -1031,7 +1047,8 @@ int main(int argc, char **argv)
       ar_path, sizeof(ar_path),
       sim_path, sizeof(sim_path),
       nlib_path, sizeof(nlib_path),
-      nlib_inc, sizeof(nlib_inc));
+      nlib_inc, sizeof(nlib_inc),
+      vcs_cfg_path, sizeof(vcs_cfg_path));
 
    if (argc == 2 && strcmp(argv[1], "-V") == 0)
       return print_all_versions(self_path, cc_path, as_path, ld_path, ar_path, sim_path);
@@ -1101,7 +1118,7 @@ int main(int argc, char **argv)
    }
 
    if (!opt.asm_only && !opt.compile_only)
-      run_ld(ld_path, &opt, &link_inputs, nlib_path);
+      run_ld(ld_path, &opt, &link_inputs, nlib_path, vcs_cfg_path);
 
    temp_store_cleanup(&temps);
    return 0;

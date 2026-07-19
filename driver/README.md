@@ -15,7 +15,8 @@ It sits above `n65c`, `n65asm`, and `n65ld` and invokes them in the usual compil
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
 - `-v` and `-###` to print the subordinate commands
 
-By default it links `libraries/nlib/nlib.a65` unless `-nostdlib` is used.
+When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is
+supplied and links `libraries/nlib/nlib.a65` unless `-nostdlib` is used.
 
 ## What it requires
 
@@ -30,12 +31,14 @@ When run from the built repository tree, it finds:
 - `archiver/n65ar` (only for path reporting via `-print-prog-name=ar`)
 - `simulator/n65sim` (only for path reporting via `-print-prog-name=sim`)
 - `libraries/nlib/nlib.a65` for default linking
+- `libraries/vcs/vcs_4k.cfg` for the default unbanked VCS cartridge layout
 
 When installed, it expects this layout under the same prefix:
 
 - `bin/n65cc`, `bin/n65c`, `bin/n65asm`, `bin/n65ld`, `bin/n65ar`, `bin/n65sim`
 - `lib/nlib.a65`
 - `include/nlib.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
+- `share/vcs/vcs_4k.cfg` for the default linker layout
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 
@@ -53,7 +56,7 @@ So the same binary works both from the source tree and from an installed prefix 
 Build and link a program:
 
 ```sh
-./driver/n65cc -I test test/sieve.n -o sieve.hex
+./driver/n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
 ```
 
 Compile only:
@@ -71,13 +74,13 @@ Stop after assembly:
 Link extra archives from a search directory:
 
 ```sh
-./driver/n65cc crt0.o65 main.o65 -L libraries/nlib -lnlib -nostdlib -o app.hex
+./driver/n65cc crt0.o65 main.o65 -T custom.cfg -L libraries/nlib -lnlib -nostdlib -o app.hex
 ```
 
 Show the exact subordinate commands without running them:
 
 ```sh
-./driver/n65cc -### -I test test/sieve.n -o sieve.hex
+./driver/n65cc -### -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
 ```
 
 Show aligned driver/subtool versions and the exact tool paths being used:

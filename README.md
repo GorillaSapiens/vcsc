@@ -19,17 +19,15 @@ Examples:
 High-level driver flow:
 
 ```sh
-n65cc -I test test/sieve.n -o sieve.hex
-n65sim sieve.hex
+n65cc -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.bin
 ```
 
 Direct stage-by-stage flow:
 
 ```sh
-n65c -quiet -I test test/sieve.n -o sieve.s -dumpbase sieve.n -dumpbase-ext .n -dumpdir ./
-n65asm -I libraries/nlib/ -o sieve.o65 sieve.s
-n65ld -o sieve.hex sieve.o65 libraries/nlib/nlib.a65
-n65sim sieve.hex
+n65c -quiet -I libraries/vcs examples/01_solid_color/solid_color.n -o solid_color.s -dumpbase solid_color.n -dumpbase-ext .n -dumpdir ./
+n65asm -I libraries/nlib/ -o solid_color.o65 solid_color.s
+n65ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/nlib/nlib.a65
 ```
 
 
@@ -52,7 +50,7 @@ Installed layout:
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
 - `$(PREFIX)/share/` ... packaged VCS bindings, linker configuration, and retained batari Basic conversion references
 
-The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/` plus the default runtime assets under `lib/` and `include/`. By default it links `nlib.a65` unless `-nostdlib` is used.
+The installed `n65cc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/`, runtime assets under `lib/` and `include/`, and the VCS linker script under `share/vcs/`. By default it uses `vcs_4k.cfg` and links `nlib.a65` unless `-nostdlib` is used. Direct `n65ld` use always requires an explicit linker script.
 
 ## Testing
 
