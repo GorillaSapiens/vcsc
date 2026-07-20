@@ -143,9 +143,14 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 3) {
-      std::fprintf(stderr, "usage: %s ROM.bin VSYNC_ASSERTIONS\n", argv[0]);
+   if (argc != 3 && argc != 4) {
+      std::fprintf(stderr,
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio]\n", argv[0]);
       return 2;
+   }
+   const bool require_audio = argc == 3;
+   if (!require_audio && std::strcmp(argv[3], "--no-audio") != 0) {
+      fail("unknown option");
    }
 
    char *end = nullptr;
@@ -214,10 +219,12 @@ int main(int argc, char **argv) {
       ++checked;
    }
 
-   if (checked < 1000) {
+   const size_t minimum_checked_frames = require_audio ? 1000 : 40;
+   if (checked < minimum_checked_frames) {
       fail("not enough complete frames were checked");
    }
-   if (audv0_writes < 64 || !saw_audv0_zero || !saw_audv0_nonzero) {
+   if (require_audio &&
+       (audv0_writes < 64 || !saw_audv0_zero || !saw_audv0_nonzero)) {
       fail("test run did not exercise repeated sounding and silent score steps");
    }
 

@@ -11,32 +11,60 @@
 Atari VCS background. It starts at `123456` and increments once every 20 NTSC
 frames.
 
-The persistent score is an ordinary VCSC packed-decimal value:
+The persistent score is ordinary VCSC packed decimal:
 
 ```vcsc
 bcd24_t score := 123456;
 ```
 
-`score++` therefore uses the 6507's decimal-mode `ADC` chain and wraps after
-`999999`. VCSC owns the score and frame cadence; the visible display is an
-adaptation of the retained batari Basic standard score mini-kernel because its
-TIA writes must remain cycle-counted assembly. The adapted kernel and default
-font derive from the retained batari Basic material provided under CC0.
+`score++` therefore emits a decimal-mode three-byte `ADC` chain and wraps after
+`999999`. VCSC also owns the frame loop, scanline waits, score cadence, TIA
+setup and cleanup, and both font tables.
 
-The kernel uses both players in three-close-copy mode to draw six characters.
-It temporarily repurposes the hardware stack pointer as one graphics register,
-but saves it first, performs no call or push while it is borrowed, and restores
-it before returning to compiled code. The two `LAX` instructions require the
-assembler's supported unofficial-opcode table, enabled by `-Wa,--illegals`.
+## Why assembly remains
 
-The font is deliberately separate:
+The visible eight-row player pipeline is adapted from the retained batari Basic
+standard score mini-kernel. Its TIA stores are positioned by individual CPU
+cycles, so replacing that section with ordinary compiler output would make the
+picture depend on optimizer accidents. The kernel also temporarily uses the
+hardware stack pointer as a graphics register. It saves S first, makes no call
+or push while S is borrowed, and restores it before returning. Its two `LAX`
+instructions require `-Wa,--illegals`.
 
-- `score_font.s` exports `score_font` and selects the active include.
-- `fonts/default.inc` contains ten consecutive eight-byte glyphs.
+Glyph-pointer construction also remains compact inline assembly. The delayed
+player pipeline consumes slots in order `0, 4, 3, 2, 1, 5`; generic dynamic
+16-bit table indexing generated far more code for work performed outside the
+visible picture. Everything else is expressed in VCSC.
 
-To add another font, create another include with the same 80-byte layout and
-change the `.include` line in `score_font.s`. The setup builds six complete
-16-bit glyph pointers, so alternate fonts do not require page alignment.
+VCSC currently has inline assembly but **does not have source-level inline
+functions**. These helpers are ordinary VCSC functions. They have no generated
+frame prologue or epilogue: a call is simply `JSR`, the body, and `RTS`.
+`draw_score()` enters before S is borrowed and restores S before its `RTS`, so
+the call is safe and occurs outside the cycle-counted row loop. A future true
+inline-function feature could remove that `JSR`/`RTS`, but it is not being
+pretended into existence for this example.
+
+## Fonts
+
+The font is VCSC source data rather than a separately assembled object:
+
+- `fonts/clean.vcsc` is the active narrow 5x7-style font.
+- `fonts/batari.vcsc` retains the chunkier original batari Basic font as an
+  alternate.
+
+Switch fonts by changing the include near the top of `six_digit_score.vcsc`:
+
+```vcsc
+include "fonts/clean.vcsc"
+```
+
+Each font defines `const uint8_t score_font[80]`: ten consecutive eight-byte
+glyphs stored bottom-to-top. Six complete 16-bit pointers are constructed, so a
+font may land anywhere in cartridge ROM and does not need page alignment.
+
+The frame has stable 262-line NTSC timing. Stella 7.0 was used to verify the
+actual TIA output, including correct digit order, centering, blue background,
+white glyphs, and visible score advancement.
 
 Build after building the toolchain:
 

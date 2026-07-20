@@ -110,7 +110,6 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_six_digit_score" -Wa,--illegals \
 	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.vcsc" \
-	  "$(CURDIR)/examples/03_six_digit_score/score_font.s" \
 	  -o "$(INSTALLCHECK_STAGING)/six_digit_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_digit_score.bin"` -eq 4096
 

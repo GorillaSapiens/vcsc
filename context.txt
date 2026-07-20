@@ -796,11 +796,13 @@ The first unfinished item is the default next action.
 
 [x] Side quest: add `examples/03_six_digit_score`, a self-contained unbanked
     4K cartridge that adapts the batari standard six-digit score mini-kernel
-    without importing the full runtime. VCSC owns a `bcd24_t` score and updates
-    it every 20 NTSC frames; the centered display uses white player graphics on
-    a medium-blue background. Keep the 80-byte decimal font behind a separate
-    replaceable include and build complete 16-bit glyph pointers so font placement
-    is not constrained to a linker page boundary.
+    without importing the full runtime. VCSC owns the `bcd24_t` score, font
+    data, frame loop, scanline waits, TIA setup/cleanup, and 20-frame update
+    cadence. Keep inline assembly only for compact glyph-pointer construction
+    and the cycle-counted visible row pipeline. The centered display uses white
+    player graphics on a medium-blue background, complete 16-bit pointers make
+    font placement page-independent, and regression/Stella checks require a
+    stable 262-line NTSC frame and correct digit order.
 
 [ ] 20. Build the first non-vendored batari-derived standard-kernel integration
         as controlled vertical slices. Do not edit the retained upstream tree.
@@ -867,7 +869,9 @@ profile before translating or integrating any retained kernel source.
   current hardware-backed feature deliberately supports only add/subtract and
   operations that preserve valid packed digits.
 * Whether separate compilation remains throughout simplification.
-* Kernel-function syntax and cycle checking/inlining policy.
+* True source-level inline functions are not currently implemented. Decide the
+  syntax, label/return/parameter substitution rules, call-graph treatment, and
+  cycle-accounting policy before adding kernel-function inlining.
 
 Change log
 ----------
@@ -1843,3 +1847,50 @@ Before returning another modified archive:
   installation check builds all required exact 4096-byte cartridges.
   `remove.txt` remains at 871 unique paths, and the retained batari Basic subtree
   is byte-for-byte unchanged.
+
+
+2026-07-20 11:18:13 PDT, repair six-digit score rendering and add a clean font
+------------------------------------------------------------------------
+* Correct the batari score kernel's non-linear glyph-pointer layout. The first
+  version stored pointers in human display order, but the delayed-player row
+  pipeline requires pointer slots 0..5 to contain digits 5, 1, 4, 3, 6, and 2.
+  The bad layout visibly rendered initial score `123456` as the wrong digits.
+* Add `fonts/clean.inc`, a narrower 5x7-style decimal font selected by
+  `score_font.s`. Retain `fonts/default.inc` as the original chunkier batari
+  Basic font so the example now ships with two genuinely selectable fonts.
+* Extend `vcs_six_digit_score.test` to verify the exact pointer-slot mapping,
+  active font selection, both 80-byte font tables, embedded active-font bytes,
+  and all previous cartridge/timing/stack invariants.
+* Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
+  installation check builds the corrected example as an exact 4096-byte
+  cartridge. `remove.txt` remains at 871 paths, and the retained batari Basic
+  subtree is byte-for-byte unchanged.
+
+
+2026-07-20 12:46:19 PDT, refactor and verify six-digit score example
+------------------------------------------------------------------------
+* Move both score fonts from assembly `.inc` data behind `score_font.s` into
+  ordinary VCSC `const uint8_t score_font[80]` include files:
+  `fonts/clean.vcsc` and `fonts/batari.vcsc`. Build example 03 from one VCSC
+  translation unit and remove the obsolete assembly wrapper/includes.
+* Express the complete frame loop, scanline waits, TIA setup and cleanup,
+  `bcd24_t` update, and 20-frame cadence in VCSC functions/statements. Retain
+  inline assembly only for compact six-pointer address construction and the
+  cycle-counted batari-derived row pipeline. A fully generic VCSC dynamic-table
+  version was rejected because it generated substantially larger code.
+* Confirm that VCSC has inline assembly but no source-level inline-function
+  feature. Ordinary functions are already prologue-free and consist of JSR,
+  body, and RTS; `draw_score()` borrows S only inside its body and restores it
+  before RTS. Record true inline functions as a future language/cycle-policy
+  question rather than pretending the feature exists.
+* Correct the packed-BCD/pipeline mapping for the actual little-endian score:
+  display slots are consumed as 0,4,3,2,1,5. Verify actual Stella 7.0 output as
+  centered white `123457` after one update on medium-blue `$84`.
+* Extend `vcs_frame_timing` with an optional `--no-audio` mode and compile its
+  score use with undocumented opcodes enabled. Account for three scanlines of
+  ordinary VCSC call/loop overhead by using 89 top and 89 bottom explicit blank
+  waits; regression checks 42 complete frames at stable 262-line NTSC timing.
+* Pass 268/268 compile tests, 122/122 end-to-end/generic tests, staged
+  installation, exact 4096-byte cartridge checks, and direct Stella rendering.
+  Add three obsolete font-wrapper paths to `remove.txt`, now 874 unique paths.
+  The retained batari Basic subtree remains byte-for-byte unchanged.
