@@ -18,6 +18,7 @@ Files:
 - `sound_ntsc.vcsc` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `../../examples/01_solid_color/solid_color.vcsc` ... first complete 4K cartridge example
 - `../../examples/02_ode_to_joy/ode_to_joy.vcsc` ... frame-driven music example using a ROM score table
+- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered batari-derived six-digit `bcd24_t` score display with a replaceable font include
 - `batari-basic/` ... vendored upstream batari Basic kernel source tree (standard, multisprite) with provenance and license notes
 - `BATARI_BASIC_CONVERSION.md` ... task-19 inventory, compatibility analysis, and staged conversion plan
 

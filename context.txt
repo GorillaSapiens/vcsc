@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_173803.tar.gz
+    vcsc.20260719_185317.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -110,9 +110,9 @@ Completed vertical slices
    the ordinary return ABI.
 2. Every fixed parameter of a directly named function is callee-owned symbol
    storage rather than software-stack storage.
-3. Function return types are restricted to void, currently supported binary
-   integers, packed-BCD integers through `bcd24_t`, and 16-bit pointers.
-   Aggregates and arrays remain forbidden.
+3. Function return types are restricted to void, supported one- through
+   four-byte binary and packed-BCD integers, and 16-bit pointers. Aggregates
+   and arrays remain forbidden.
 4. The VCS linker stopped modeling mirrored $0180-$01FF stack addresses as
    separate physical memory. The first implementation used a fixed $E0-$FF
    reserve; completed slice 24 supersedes that partition with call-graph sizing.
@@ -574,13 +574,13 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    121 passed, 0 failed, 121 total
+    122 passed, 0 failed, 122 total
 
 Staged install check:
 
     passed
 
-Both examples still build directly as raw 4096-byte cartridges without an
+All three examples build directly as raw 4096-byte cartridges without an
 explicit `-T`. The staged installed toolchain also compiles the VCS header smoke
 program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` and produces
 an exact 4096-byte cartridge.
@@ -793,6 +793,14 @@ The first unfinished item is the default next action.
         the source/dependency inventory, DASM-to-vcsc-as mechanical translation,
         fixed-RAM/stack/startup/linker incompatibilities, and the incremental
         conversion plan. The vendored source remains byte-for-byte unchanged.
+
+[x] Side quest: add `examples/03_six_digit_score`, a self-contained unbanked
+    4K cartridge that adapts the batari standard six-digit score mini-kernel
+    without importing the full runtime. VCSC owns a `bcd24_t` score and updates
+    it every 20 NTSC frames; the centered display uses white player graphics on
+    a medium-blue background. Keep the 80-byte decimal font behind a separate
+    replaceable include and build complete 16-bit glyph pointers so font placement
+    is not constrained to a linker page boundary.
 
 [ ] 20. Build the first non-vendored batari-derived standard-kernel integration
         as controlled vertical slices. Do not edit the retained upstream tree.
@@ -1810,3 +1818,28 @@ Before returning another modified archive:
   871 unique paths, and the retained batari Basic subtree is byte-for-byte
   unchanged.
 
+
+2026-07-19 19:15:32 PDT, add centered six-digit score example
+------------------------------------------------------------------------
+* Add `examples/03_six_digit_score`, an unbanked 4K NTSC cartridge with a
+  centered white six-digit score on TIA medium-blue `$84`. The score begins at
+  `123456` and increments as `bcd24_t` once every 20 frames.
+* Adapt only the retained batari Basic standard score mini-kernel. Keep game
+  state, frame cadence, pointer construction, and BCD arithmetic in VCSC while
+  preserving the cycle-counted TIA row pipeline in inline assembly.
+* Save and restore the hardware stack pointer around the kernel's deliberate
+  use of S as an extra graphics register. Emit no call or push while S is
+  borrowed, and assemble the two retained `LAX` instructions with
+  `-Wa,--illegals`.
+* Add `score_font.s` plus `fonts/default.inc`. The wrapper selects the active
+  80-byte font include; setup constructs six complete 16-bit glyph pointers,
+  including low-byte carry, so replacement fonts need no page alignment.
+* Add `vcs_six_digit_score.test` to verify exact 4096-byte output, vectors, RAM
+  and call-stack map, embedded font bytes, colors, centering line counts,
+  20-frame cadence, packed-BCD increment, pointer carry propagation, unofficial
+  opcodes, and safe stack-pointer bracketing. Extend staged installcheck to build
+  the example with installed tools and headers.
+* Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
+  installation check builds all required exact 4096-byte cartridges.
+  `remove.txt` remains at 871 unique paths, and the retained batari Basic subtree
+  is byte-for-byte unchanged.

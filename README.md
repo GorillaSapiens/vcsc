@@ -29,6 +29,11 @@ High-level driver flow:
 
 ```sh
 vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
+
+# The score example also links a font object and enables the two LAX opcodes.
+vcsc -I libraries/vcs -I examples/03_six_digit_score -Wa,--illegals \
+  examples/03_six_digit_score/six_digit_score.vcsc \
+  examples/03_six_digit_score/score_font.s -o six_digit_score.bin
 ```
 
 Direct stage-by-stage flow:

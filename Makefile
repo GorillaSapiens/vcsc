@@ -107,7 +107,12 @@ installcheck: tools
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.vcsc" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/solid_color.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.vcsc" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096
+	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_six_digit_score" -Wa,--illegals \
+	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.vcsc" \
+	  "$(CURDIR)/examples/03_six_digit_score/score_font.s" \
+	  -o "$(INSTALLCHECK_STAGING)/six_digit_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/six_digit_score.bin"` -eq 4096
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz
