@@ -49,8 +49,9 @@ pretended into existence for this example.
 The font is VCSC source data rather than a separately assembled object:
 
 - `fonts/clean.vcsc` is the active narrow 5x7-style font.
-- `fonts/batari.vcsc` retains the chunkier original batari Basic font as an
-  alternate.
+- `fonts/classic.vcsc` retains the chunkier original batari Basic CC0
+  score font as an alternate. The original material comes from
+  `https://github.com/batari-Basic/batari-Basic`.
 
 Switch fonts by changing the include near the top of `six_digit_score.vcsc`:
 
@@ -58,9 +59,14 @@ Switch fonts by changing the include near the top of `six_digit_score.vcsc`:
 include "fonts/clean.vcsc"
 ```
 
-Each font defines `const uint8_t score_font[80]`: ten consecutive eight-byte
-glyphs stored bottom-to-top. Six complete 16-bit pointers are constructed, so a
-font may land anywhere in cartridge ROM and does not need page alignment.
+Each font defines `const uint8_t score_font[80]`. Every glyph is written one
+visual binary byte per source line using `.` for a clear pixel and `X` for a set
+pixel, so the sprite can be read directly in the source. The rows are listed
+top-to-bottom; a small `SCORE_GLYPH` alias reverses each eight-row group because
+the cycle-counted display kernel reads row 7 down through row 0.
+
+Six complete 16-bit pointers are constructed, so a font may land anywhere in
+cartridge ROM and does not need page alignment.
 
 The frame has stable 262-line NTSC timing. Stella 7.0 was used to verify the
 actual TIA output, including correct digit order, centering, blue background,

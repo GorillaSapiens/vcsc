@@ -102,6 +102,25 @@ Current rules and pitfalls:
 
 As with aliases, keep conditional compilation boring and local. It is useful for configuration gates and small compile-time switches... not for turning one source file into twelve different personalities.
 
+## Integer literal syntax
+
+The compiler accepts decimal, hexadecimal (`0x`), octal (leading `0`), and
+binary (`0b`) integer literals. Underscores may separate digits.
+
+Binary literals additionally accept visual digits after the prefix:
+
+- `.` means bit zero;
+- `X` or `x` means bit one;
+- the leftmost digit remains the most-significant bit.
+
+For example, `0b..XXX...` is normalized by the lexer to `0b00111000`, and
+`0bXX.._0011` is normalized to `0b1100_0011`. Visual and ordinary binary digits
+may be mixed. This is lexical sugar only: the parser, constant folder,
+initializer encoder, range checks, alias expansion, and preprocessor
+conditionals receive the same numeric value as an ordinary `0`/`1` binary
+literal. Invalid characters and malformed underscore placement receive direct
+binary-literal diagnostics.
+
 ## Type system
 
 The stock VCS machine interface exposes eight ordinary binary integer types,

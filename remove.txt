@@ -12,6 +12,10 @@ driver/n65cc.c
 examples/01_solid_color/solid_color.n
 examples/02_ode_to_joy/music_player.s
 examples/02_ode_to_joy/ode_to_joy.n
+examples/03_six_digit_score/fonts/batari.vcsc
+examples/03_six_digit_score/fonts/clean.inc
+examples/03_six_digit_score/fonts/default.inc
+examples/03_six_digit_score/score_font.s
 libraries/float/.gitignore
 libraries/float/Makefile
 libraries/float/README.md
@@ -869,6 +873,3 @@ test/void_pointer_argument_reverse_error_test.n
 test/weak_builtin_operator_codegen_test.n
 test/xform_invalid_utf8_error_test.n
 test/zeropage_storage_test.n
-examples/03_six_digit_score/score_font.s
-examples/03_six_digit_score/fonts/clean.inc
-examples/03_six_digit_score/fonts/default.inc

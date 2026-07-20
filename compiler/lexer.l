@@ -228,7 +228,7 @@ static char *strip_underscores(const char *p) {
 
    char *ret = (char *) malloc (strlen(p) + 1);
    char *q = ret;
-   
+
    while (*p) {
       if (*p != '_') {
          *q++ = *p++;
@@ -240,6 +240,54 @@ static char *strip_underscores(const char *p) {
    *q = 0;
 
    return ret;
+}
+
+//! @brief Normalize visual binary digits before the parser sees an integer.
+static char *normalize_integer_literal(const char *p) {
+   char *ret = strip_underscores(p);
+
+   if (ret && ret[0] == '0' && (ret[1] == 'b' || ret[1] == 'B')) {
+      for (char *q = ret + 2; *q; q++) {
+         if (*q == '.') {
+            *q = '0';
+         }
+         else if (*q == 'x' || *q == 'X') {
+            *q = '1';
+         }
+      }
+   }
+
+   return ret;
+}
+
+//! @brief Issue a useful diagnostic for a malformed visual binary literal.
+static void reject_bad_binary_literal(const char *p) {
+   const char *q = p + 2;
+   int previous_underscore = 0;
+
+   if (!*q) {
+      LEX_ERROR_HERE("binary literal '%s' has no digits", p);
+      return;
+   }
+
+   for (; *q; q++) {
+      if (*q == '_') {
+         if (q == p + 2 || previous_underscore || q[1] == 0) {
+            LEX_ERROR_HERE("invalid underscore placement in binary literal '%s'", p);
+            return;
+         }
+         previous_underscore = 1;
+         continue;
+      }
+
+      previous_underscore = 0;
+      if (*q != '0' && *q != '1' && *q != '.' && *q != 'x' && *q != 'X') {
+         LEX_ERROR_HERE("character '%c' in binary literal '%s' is not a valid binary digit", *q, p);
+         return;
+      }
+   }
+
+   LEX_ERROR_HERE("invalid binary literal '%s'", p);
 }
 
 static int identifier_utf8_decode_one(const unsigned char *s, size_t len, size_t *advance, unsigned int *codepoint) {
@@ -658,15 +706,16 @@ static long long pp_parse_primary(const char **pp) {
 
    if (isdigit((unsigned char)*p)) {
       const char *start = p;
+      int binary_prefix = p[0] == '0' && (p[1] == 'b' || p[1] == 'B');
       char *token;
       char *clean;
 
-      while (isalnum((unsigned char)*p) || *p == '_') {
+      while (isalnum((unsigned char)*p) || *p == '_' || (binary_prefix && *p == '.')) {
          p++;
       }
 
       token = strndup(start, p - start);
-      clean = strip_underscores(token);
+      clean = normalize_integer_literal(token);
       free(token);
       value = parse_int(clean);
       free(clean);
@@ -1647,7 +1696,9 @@ static void alias_append_rhs(const char *rhs) {
 %option nounput noyywrap
 
 HEXINT    0[xX][0-9a-fA-F]((_)?[0-9a-fA-F])*
-BININT    0[bB][01]((_)?[01])*
+BINDIGIT  [01.xX]
+BININT    0[bB]{BINDIGIT}((_)?{BINDIGIT})*
+BADBININT 0[bB][A-Za-z0-9_.]*
 OCTINT    0[1-7]((_)?[0-7])*
 DECINT    [1-9]((_)?[0-9])*
 ZERO      0
@@ -1809,6 +1860,15 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
    // we do not process backslash escapes here.
    // that along with character set translation in xform.c
    return STRING;
+}
+
+{BININT} {
+   yylval.str = normalize_integer_literal(yytext);
+   return INTEGER;
+}
+
+{BADBININT} {
+   reject_bad_binary_literal(yytext);
 }
 
 {INT} {

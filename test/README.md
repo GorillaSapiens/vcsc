@@ -75,6 +75,12 @@ the bundled VCS 4K script instead.
 
 `unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
+`visual_binary_literal_codegen_test.vcsc` and
+`e2e_visual_binary_literal_verify.vcsc` cover `.`/`X` binary-picture notation,
+mixed visual/conventional digits, underscores, wider values, preprocessor use,
+and runtime values. Companion rejection tests cover bad digits, malformed
+underscores, and width overflow after normalization.
+
 ### `.test` files
 
 Generic tests use an explicit runner command:

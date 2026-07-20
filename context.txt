@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_185317.tar.gz
+    vcsc.20260720_134129.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -45,6 +45,9 @@ Settled final-language decisions
 --------------------------------
 * Target: Atari 2600/VCS using the 6507 CPU.
 * All multibyte values are little-endian.
+* Binary literals accept visual digits after `0b`/`0B`: `.` is zero and
+  `X`/`x` is one. The lexer normalizes them to ordinary binary digits before
+  parsing, so all existing integer semantics and range checks remain shared.
 * The stock machine interface exposes eight ordinary binary integer types and
   four unsigned packed-decimal integer types:
 
@@ -549,13 +552,13 @@ Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_local_tools
+    /mnt/data/vcsc_visualbin_tools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_local_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_local_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_local_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_visualbin_tools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_visualbin_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_visualbin_tools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -570,11 +573,11 @@ Result: passed.
 
 Compile suite:
 
-    268 passed, 0 failed, 268 total
+    272 passed, 0 failed, 272 total
 
 End-to-end/generic suite:
 
-    122 passed, 0 failed, 122 total
+    123 passed, 0 failed, 123 total
 
 Staged install check:
 
@@ -803,6 +806,13 @@ The first unfinished item is the default next action.
     player graphics on a medium-blue background, complete 16-bit pointers make
     font placement page-independent, and regression/Stella checks require a
     stable 262-line NTSC frame and correct digit order.
+
+[x] Side quest: add visual binary-picture literals. After `0b`/`0B`, accept
+    `.` as zero and `X`/`x` as one, while retaining ordinary `0`/`1` digits and
+    underscore separators. Normalize in the lexer, issue direct malformed-
+    literal diagnostics, document the syntax, and use it for both example-03
+    fonts with one top-to-bottom source row per line. Rename the alternate
+    batari-derived font to the descriptive `classic_8x8.vcsc` name.
 
 [ ] 20. Build the first non-vendored batari-derived standard-kernel integration
         as controlled vertical slices. Do not edit the retained upstream tree.
@@ -1894,3 +1904,29 @@ Before returning another modified archive:
   installation, exact 4096-byte cartridge checks, and direct Stella rendering.
   Add three obsolete font-wrapper paths to `remove.txt`, now 874 unique paths.
   The retained batari Basic subtree remains byte-for-byte unchanged.
+
+
+2026-07-20 13:53:56 PDT, add visual binary literals and readable score fonts
+------------------------------------------------------------------------
+* Extend the compiler lexer so binary literals accept `.` as zero and `X`/`x`
+  as one after `0b`/`0B`. Strip underscores and normalize visual digits to
+  canonical `0`/`1` text before the parser and integer encoder see the token.
+  Conditional-compilation integer parsing uses the same normalization.
+* Add focused diagnostics for invalid visual digits, missing/misplaced
+  underscores, and ordinary destination-width overflow after normalization.
+  Add compile and execution tests for mixed visual/conventional digits,
+  lowercase `x`, underscores, 16-bit values, and `#if` expressions.
+* Restore the two example-03 font files omitted from the input archive. Rewrite
+  both as VCSC arrays with exactly one eight-pixel visual binary row per source
+  line. Source rows are top-to-bottom; `SCORE_GLYPH` reverses each group during
+  alias expansion for the existing row-7-to-row-0 score kernel.
+* Keep `fonts/clean.vcsc` as the active original VCSC font. Rename the alternate
+  batari Basic CC0-derived font from vague `fonts/batari.vcsc` to
+  `fonts/classic_8x8.vcsc`, retain source/license lineage in its header and the
+  example README, and record the old path in `remove.txt`.
+* Update the main language README, compiler README, example-03 README, test
+  harness notes, lexer coverage, example regression, and Makefile dependencies.
+* Pass 272/272 compile tests and 123/123 end-to-end/generic tests. Staged
+  installation builds example 03 as an exact 4096-byte cartridge. Stella 7.0
+  renders the centered white score correctly on blue. `remove.txt` now contains
+  875 unique paths; the vendored batari Basic subtree remains unchanged.

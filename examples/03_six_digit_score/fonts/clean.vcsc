@@ -1,105 +1,131 @@
-// Clean 5x7-style decimal font.
-// Ten consecutive eight-byte glyphs, stored bottom-to-top because
-// the score kernel reads row 7 down through row 0.
+// Clean narrow decimal font for example 03.
+//
+// Original VCSC example artwork.
+//
+// Glyphs are written top-to-bottom so they are visible in the source.
+// SCORE_GLYPH reverses each eight-row group because the cycle-counted
+// display kernel reads font bytes from row 7 down through row 0.
+
+alias SCORE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
 const uint8_t score_font[80] := {
    // 0
-   0b00000000,
-   0b00111000,
-   0b01000100,
-   0b01000100,
-   0b01000100,
-   0b01000100,
-   0b01000100,
-   0b00111000,
+   SCORE_GLYPH(
+      0b..XXX...,
+      0b.X...X..,
+      0b.X...X..,
+      0b.X...X..,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXX...,
+      0b........
+   ),
 
    // 1
-   0b00000000,
-   0b00111000,
-   0b00010000,
-   0b00010000,
-   0b00010000,
-   0b00010000,
-   0b00110000,
-   0b00010000,
+   SCORE_GLYPH(
+      0b...X....,
+      0b..XX....,
+      0b...X....,
+      0b...X....,
+      0b...X....,
+      0b...X....,
+      0b..XXX...,
+      0b........
+   ),
 
    // 2
-   0b00000000,
-   0b01111100,
-   0b00100000,
-   0b00010000,
-   0b00001000,
-   0b00000100,
-   0b01000100,
-   0b00111000,
+   SCORE_GLYPH(
+      0b..XXX...,
+      0b.X...X..,
+      0b.....X..,
+      0b....X...,
+      0b...X....,
+      0b..X.....,
+      0b.XXXXX..,
+      0b........
+   ),
 
    // 3
-   0b00000000,
-   0b01111000,
-   0b00000100,
-   0b00000100,
-   0b00111000,
-   0b00000100,
-   0b00000100,
-   0b01111000,
+   SCORE_GLYPH(
+      0b.XXXX...,
+      0b.....X..,
+      0b.....X..,
+      0b..XXX...,
+      0b.....X..,
+      0b.....X..,
+      0b.XXXX...,
+      0b........
+   ),
 
    // 4
-   0b00000000,
-   0b00001000,
-   0b00001000,
-   0b01111100,
-   0b01001000,
-   0b00101000,
-   0b00011000,
-   0b00001000,
+   SCORE_GLYPH(
+      0b....X...,
+      0b...XX...,
+      0b..X.X...,
+      0b.X..X...,
+      0b.XXXXX..,
+      0b....X...,
+      0b....X...,
+      0b........
+   ),
 
    // 5
-   0b00000000,
-   0b01111000,
-   0b00000100,
-   0b00000100,
-   0b01111000,
-   0b01000000,
-   0b01000000,
-   0b01111100,
+   SCORE_GLYPH(
+      0b.XXXXX..,
+      0b.X......,
+      0b.X......,
+      0b.XXXX...,
+      0b.....X..,
+      0b.....X..,
+      0b.XXXX...,
+      0b........
+   ),
 
    // 6
-   0b00000000,
-   0b00111000,
-   0b01000100,
-   0b01000100,
-   0b01111000,
-   0b01000000,
-   0b01000000,
-   0b00111000,
+   SCORE_GLYPH(
+      0b..XXX...,
+      0b.X......,
+      0b.X......,
+      0b.XXXX...,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXX...,
+      0b........
+   ),
 
    // 7
-   0b00000000,
-   0b00100000,
-   0b00100000,
-   0b00100000,
-   0b00010000,
-   0b00001000,
-   0b00000100,
-   0b01111100,
+   SCORE_GLYPH(
+      0b.XXXXX..,
+      0b.....X..,
+      0b....X...,
+      0b...X....,
+      0b..X.....,
+      0b..X.....,
+      0b..X.....,
+      0b........
+   ),
 
    // 8
-   0b00000000,
-   0b00111000,
-   0b01000100,
-   0b01000100,
-   0b00111000,
-   0b01000100,
-   0b01000100,
-   0b00111000,
+   SCORE_GLYPH(
+      0b..XXX...,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXX...,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXX...,
+      0b........
+   ),
 
    // 9
-   0b00000000,
-   0b00111000,
-   0b00000100,
-   0b00000100,
-   0b00111100,
-   0b01000100,
-   0b01000100,
-   0b00111000
+   SCORE_GLYPH(
+      0b..XXX...,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXXX..,
+      0b.....X..,
+      0b.....X..,
+      0b..XXX...,
+      0b........
+   )
 };

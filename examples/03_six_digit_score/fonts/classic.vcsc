@@ -1,0 +1,131 @@
+// Classic 8x8 decimal font for example 03.
+//
+// Adapted from batari Basic CC0 score graphics; see the example README.
+//
+// Glyphs are written top-to-bottom so they are visible in the source.
+// SCORE_GLYPH reverses each eight-row group because the cycle-counted
+// display kernel reads font bytes from row 7 down through row 0.
+
+alias SCORE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+
+const uint8_t score_font[80] := {
+   // 0
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+
+   // 1
+   SCORE_GLYPH(
+      0b....X...,
+      0b...XX...,
+      0b..XXX...,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b.XXXXXX.
+   ),
+
+   // 2
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.X...XX.,
+      0b.....XX.,
+      0b.....XX.,
+      0b..XXXX..,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXXX.
+   ),
+
+   // 3
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.X...XX.,
+      0b.....XX.,
+      0b...XXX..,
+      0b.....XX.,
+      0b.....XX.,
+      0b.X...XX.,
+      0b..XXXX..
+   ),
+
+   // 4
+   SCORE_GLYPH(
+      0b....XX..,
+      0b...XXX..,
+      0b..X.XX..,
+      0b.X..XX..,
+      0b.X..XX..,
+      0b.XXXXXX.,
+      0b....XX..,
+      0b....XX..
+   ),
+
+   // 5
+   SCORE_GLYPH(
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b..XXXX..,
+      0b.....XX.,
+      0b.....XX.,
+      0b.X...XX.,
+      0b..XXXX..
+   ),
+
+   // 6
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.XX...X.,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+
+   // 7
+   SCORE_GLYPH(
+      0b..XXXXX.,
+      0b.X....X.,
+      0b.....XX.,
+      0b....XX..,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b..XX....
+   ),
+
+   // 8
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+
+   // 9
+   SCORE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXXX.,
+      0b.....XX.,
+      0b.X...XX.,
+      0b..XXXX..
+   )
+};

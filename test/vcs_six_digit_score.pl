@@ -34,15 +34,22 @@ sub parse_font {
    $text =~ /const\s+uint8_t\s+score_font\s*\[\s*80\s*\]\s*:=\s*\{(.*?)\}\s*;/s
       or die "font does not define const uint8_t score_font[80]\n";
    my $body=$1;
-   $body =~ s{//.*$}{}mg;
+   my @visual=$body =~ /^\s*0b([01.xX_]{8,})[,]?\s*$/mg;
+   @visual==80 or die "font has ".scalar(@visual)." one-byte visual rows, expected 80\n";
+
+   my @rows;
+   for my $digits (@visual) {
+      $digits =~ s/_//g;
+      length($digits)==8 or die "visual font row '$digits' is not eight pixels wide\n";
+      $digits =~ tr/.xX/011/;
+      push @rows, oct("0b$digits");
+   }
+
+   # SCORE_GLYPH accepts source rows top-to-bottom and reverses each glyph for
+   # the kernel's row-7-through-row-0 traversal.
    my @out;
-   for my $tok (split /\s*,\s*/, $body) {
-      $tok =~ s/^\s+|\s+$//g;
-      next if $tok eq '';
-      if ($tok =~ /^0b([01]{8})$/) { push @out, oct("0b$1"); }
-      elsif ($tok =~ /^0x([0-9a-fA-F]{1,2})$/) { push @out, hex($1); }
-      elsif ($tok =~ /^(\d+)$/) { push @out, int($1); }
-      else { die "unrecognized font byte '$tok'\n"; }
+   for (my $i=0; $i<@rows; $i+=8) {
+      push @out, reverse @rows[$i..$i+7];
    }
    return @out;
 }
@@ -58,7 +65,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $ex=File::Spec->catdir($repo,'examples','03_six_digit_score');
 my $src=File::Spec->catfile($ex,'six_digit_score.vcsc');
 my $font=File::Spec->catfile($ex,'fonts','clean.vcsc');
-my $alternate_font=File::Spec->catfile($ex,'fonts','batari.vcsc');
+my $alternate_font=File::Spec->catfile($ex,'fonts','classic.vcsc');
 my $bin=File::Spec->catfile($tmp,'six_digit_score.bin');
 my $map=File::Spec->catfile($tmp,'six_digit_score.map');
 my $asm=File::Spec->catfile($tmp,'six_digit_score.s');
@@ -105,6 +112,10 @@ for my $i (0..79) {
 my $s=read_file($src);
 require_re($s,qr/include\s+"fonts\/clean\.vcsc"/,
            'example no longer includes the VCSC clean font');
+require_re(read_file($font),qr/0b[.Xx01]{8}/,
+           'active font no longer uses visual binary rows');
+require_re(read_file($alternate_font),qr/Adapted from batari Basic CC0/,
+           'classic alternate font lost its batari Basic CC0 lineage note');
 require_re($s,qr/bcd24_t\s+score\s*:=\s*123456\s*;/,
            'example no longer starts from bcd24_t 123456');
 require_re($s,qr/alias\s+SCORE_PERIOD\s+20/,
@@ -136,6 +147,8 @@ require_re($s,qr/asm lda score;.*?asm sta score_pointers\+2;.*?asm sta score_poi
    and die "obsolete assembly clean-font include still exists\n";
 -f File::Spec->catfile($ex,'fonts','default.inc')
    and die "obsolete assembly batari-font include still exists\n";
+-f File::Spec->catfile($ex,'fonts','batari.vcsc')
+   and die "obsolete vaguely named batari font still exists\n";
 
 my $generated=read_file($asm);
 require_re($generated,qr/lda #\$84\s+sta\s+\$09/s,

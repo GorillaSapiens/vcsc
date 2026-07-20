@@ -119,6 +119,31 @@ packed-decimal `bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t`, holding two,
 four, six, and eight decimal digits. `$bcd` is valid only on unsigned integer
 declarations from one through four bytes. All multibyte values are little-endian.
 
+## Visual binary literals
+
+Binary literals may use `.` for a zero bit and `X` or `x` for a one bit after
+the normal `0b`/`0B` prefix. The leftmost character is the most-significant
+bit, so graphics and masks can be drawn directly in source code:
+
+```vcsc
+const uint8_t sprite[8] := {
+   0b........,
+   0b..XXX...,
+   0b.X...X..,
+   0b.X...X..,
+   0b.X...X..,
+   0b.X...X..,
+   0b.X...X..,
+   0b..XXX...,
+};
+```
+
+Visual and conventional digits may be mixed, and underscores remain optional
+separators: `0bXX.._0011` is the same value as `0b1100_0011`. The lexer
+normalizes the visual spelling to ordinary `0`/`1` digits before parsing, so
+constant folding, range checking, initializers, aliases, and conditional
+compilation use the existing binary-integer semantics.
+
 BCD literals are converted by numeric value, not copied as binary bytes. Thus
 decimal `42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all store
 as packed BCD `$42`. `1234` stores as `$34,$12`, `567890` stores as

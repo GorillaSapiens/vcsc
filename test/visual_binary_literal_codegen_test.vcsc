@@ -1,0 +1,21 @@
+// vcsc-cc1 -I .
+// expectasm: visual_rows:
+// expectasm: 	.byte $00, $38, $44, $81, $ff, $c3, $f0
+// expectasm: visual_wide:
+// expectasm: 	.byte $0f, $f0
+// expectasm: visual_bcd:
+// expectasm: 	.byte $42
+include "machine_6502.vcsc"
+
+const uint8_t visual_rows[7] := {
+   0b........,
+   0b..XXX...,
+   0b.X...X..,
+   0bX......X,
+   0bXXXXXXXX,
+   0bxx..0011,
+   0bXXXX_....,
+};
+
+const uint16_t visual_wide := 0bXXXX...._....XXXX;
+const bcd8_t visual_bcd := 0b..X.X.X.;
