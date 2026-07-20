@@ -1,4 +1,4 @@
 # runner: perl @TEST_ROOT@/generic_target_bundle_pruned.pl @REPO@
-# expectstdout: generic target bundle pruned; VCS and batari references retained
+# expectstdout: generic target bundle pruned; VCS and legacy kernel references retained
 # expectexit: 0
 # phase: e2e

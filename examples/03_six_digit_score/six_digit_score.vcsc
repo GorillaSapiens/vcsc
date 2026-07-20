@@ -1,5 +1,5 @@
-// Centered six-digit score display adapted from the batari Basic standard
-// score mini-kernel. VCSC owns the score, font, frame structure, scanline
+// Centered six-digit score display adapted from a legacy standard score
+// mini-kernel. VCSC owns the score, font, frame structure, scanline
 // waits, update cadence, and ordinary TIA setup. Inline assembly is confined
 // to compact glyph-pointer construction and the cycle-counted visible kernel.
 
@@ -13,7 +13,7 @@ alias SCORE_PERIOD     20
 bcd24_t score := 123456;
 uint8_t frame_counter := 0;
 uint8_t score_pointers[12];
-uint8_t saved_stack_pointer;
+uint8_t delayed_glyph;
 
 // Build six complete 16-bit glyph pointers. The delayed-player kernel displays
 // pointer slots in order 0, 4, 3, 2, 1, 5, so the packed BCD digits must be
@@ -98,22 +98,20 @@ void wait_scanlines(uint8_t lines) {
 }
 
 void draw_score(void) {
-   // Ordinary setup remains VCSC. The kernel borrows S as an extra graphics
-   // register, so preserve it before the timing-critical section.
+   // Ordinary setup remains VCSC. The row pipeline below uses only official
+   // 6502 instructions and one ordinary zero-page delayed-glyph byte.
    HMCLR := 0;
    HMP0 := 0xe0;
    COLUP0 := SCORE_COLOR;
    COLUP1 := SCORE_COLOR;
-   asm tsx;
-   asm stx saved_stack_pointer;
    WSYNC := 0;
 
-   // From here through restoration of S, every cycle is deliberate.
+   // From here through the end of the row loop, every cycle is deliberate.
    asm ldx #0;
    asm stx GRP0;
    asm stx GRP1;
 
-   // Twenty-seven cycles preserve the original batari positioning phase.
+   // Twenty-seven cycles preserve the original positioning phase.
    asm bit score;
    asm nop;
    asm nop;
@@ -143,7 +141,7 @@ void draw_score(void) {
    asm jmp @score_begin;
 
    // The prefix is seven cycles. Together with @score_begin it forms the
-   // original 76-cycle batari score-row pipeline.
+   // original 76-cycle score-row pipeline.
    asm @score_loop:;
    asm lda (score_pointers),y;
    asm sta GRP0;
@@ -156,23 +154,20 @@ void draw_score(void) {
    asm sta GRP1;
    asm lda (score_pointers+$6),y;
    asm sta GRP0;
-   asm lax (score_pointers+$2),y;
-   asm txs;
-   asm lax (score_pointers+$4),y;
+   asm lda (score_pointers+$2),y;
+   asm sta delayed_glyph;
+   asm lda (score_pointers+$4),y;
+   asm tax;
    asm bit score;
-   asm bit score;
-   asm bit score;
+   asm nop;
    asm lda (score_pointers+$a),y;
    asm stx GRP1;
-   asm tsx;
+   asm ldx delayed_glyph;
    asm stx GRP0;
    asm sta GRP1;
    asm sty GRP0;
    asm dey;
    asm bpl @score_loop;
-
-   asm ldx saved_stack_pointer;
-   asm txs;
 
    // Cleanup is no longer timing-critical, so return to ordinary VCSC.
    PF1 := 0;

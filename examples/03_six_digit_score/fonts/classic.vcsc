@@ -1,6 +1,6 @@
 // Classic 8x8 decimal font for example 03.
 //
-// Adapted from batari Basic CC0 score graphics; see the example README.
+// Adapted from retained CC0 score graphics; see the example README.
 //
 // Glyphs are written top-to-bottom so they are visible in the source.
 // SCORE_GLYPH reverses each eight-row group because the cycle-counted

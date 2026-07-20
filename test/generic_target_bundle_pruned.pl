@@ -29,8 +29,8 @@ for my $parts (@removed) {
 for my $parts (
    [qw(libraries vcs vcs.vcsc)],
    [qw(libraries vcs vcs_4k.cfg)],
-   [qw(libraries vcs batari-basic standard std_kernel.asm)],
-   [qw(libraries vcs batari-basic multisprite multisprite_kernel.asm)],
+   [qw(libraries vcs legacy-basic-kernels standard std_kernel.asm)],
+   [qw(libraries vcs legacy-basic-kernels multisprite multisprite_kernel.asm)],
    [qw(test machine_6502.vcsc)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
@@ -44,4 +44,4 @@ $runtime_make !~ /\bn\.cfg\b/ or die "runtime install still exports the generic 
 my $top_readme = slurp(File::Spec->catfile($repo, 'README.md'));
 $top_readme !~ /\bruntime\/n\.cfg\b/ or die "top-level install documentation still advertises runtime/n.cfg\n";
 
-print "generic target bundle pruned; VCS and batari references retained\n";
+print "generic target bundle pruned; VCS and legacy kernel references retained\n";

@@ -18,9 +18,9 @@ Files:
 - `sound_ntsc.vcsc` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `../../examples/01_solid_color/solid_color.vcsc` ... first complete 4K cartridge example
 - `../../examples/02_ode_to_joy/ode_to_joy.vcsc` ... frame-driven music example using a ROM score table
-- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered batari-derived six-digit `bcd24_t` score display with replaceable VCSC font data
-- `batari-basic/` ... vendored upstream batari Basic kernel source tree (standard, multisprite) with provenance and license notes
-- `BATARI_BASIC_CONVERSION.md` ... task-19 inventory, compatibility analysis, and staged conversion plan
+- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered legacy-kernel-derived six-digit `bcd24_t` score display with replaceable VCSC font data
+- `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
+- `LEGACY_KERNEL_CONVERSION.md` ... task-19 inventory, compatibility analysis, and staged conversion plan
 
 Typical use:
 
@@ -107,5 +107,5 @@ Notes:
 - `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts for JSR return addresses only; ordinary generated calls push no compiler state. Inline `PHA`/`PHP`/`JSR` and stack use hidden in separately assembled routines remain future accounting work.
-- `batari-basic/` is reference/source material imported from upstream batari Basic and is not automatically wired into the `vcsc-cc1`/`vcsc-ld` flow. See `BATARI_BASIC_CONVERSION.md` for the fixed-RAM, stack, assembler, linker, and staged-port inventory.
+- `legacy-basic-kernels/` is reference/source material imported from upstream legacy BASIC and is not automatically wired into the `vcsc-cc1`/`vcsc-ld` flow. See `LEGACY_KERNEL_CONVERSION.md` for the fixed-RAM, stack, assembler, linker, and staged-port inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.

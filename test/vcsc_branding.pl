@@ -36,9 +36,9 @@ for my $parts (
    [qw(libraries runtime vcsc-zeropage.s)],
    [qw(libraries runtime libvcsc.a65)],
    [qw(libraries vcs vcs.vcsc)],
-   [qw(libraries vcs BATARI_BASIC_CONVERSION.md)],
-   [qw(libraries vcs batari-basic standard std_kernel.asm)],
-   [qw(libraries vcs batari-basic multisprite multisprite_kernel.asm)],
+   [qw(libraries vcs LEGACY_KERNEL_CONVERSION.md)],
+   [qw(libraries vcs legacy-basic-kernels standard std_kernel.asm)],
+   [qw(libraries vcs legacy-basic-kernels multisprite multisprite_kernel.asm)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required renamed/retained file is missing: $path\n";
@@ -56,7 +56,8 @@ for my $parts (
    !-e $path or die "obsolete branded path remains: $path\n";
 }
 
-my (@old_suffix, @old_branding);
+my (@old_suffix, @old_branding, @unneeded_upstream_name);
+my $upstream_name = join('', qw(ba ta ri));
 find({
    no_chdir => 1,
    wanted => sub {
@@ -64,15 +65,19 @@ find({
       my $path = $File::Find::name;
       my $rel = File::Spec->abs2rel($path, $repo);
       push @old_suffix, $rel if $rel =~ /\.n$/;
-      return if $rel eq 'context.txt' || $rel eq 'remove.txt' || $rel eq 'test/vcsc_branding.pl';
+      return if $rel eq 'test/vcsc_branding.pl';
+      push @unneeded_upstream_name, $rel if $rel =~ /\Q$upstream_name\E/i;
       return if $rel eq 'COPYING' || $rel eq 'LICENSE' || $rel =~ m{(?:^|/)LICENSE(?:\.txt)?$};
       return if $rel !~ /(?:Makefile|\.(?:c|h|cpp|l|y|pl|md|txt|dox|vcsc|s|asm|inc|cfg))$/;
       my $data = slurp($path);
+      push @unneeded_upstream_name, $rel if $data =~ /\Q$upstream_name\E/i;
+      return if $rel eq 'context.txt' || $rel eq 'remove.txt';
       push @old_branding, $rel if $data =~ /(?:n65|libraries\/nlib|\bnlib\.(?:a65|inc)\b|\/opt\/n(?:\/|\b))/;
    },
 }, $repo);
 @old_suffix and die "obsolete .n source files remain: @old_suffix\n";
 @old_branding and die "obsolete N/n65/nlib branding remains in current files: @old_branding\n";
+@unneeded_upstream_name and die "unneeded upstream project name remains outside its license file: @unneeded_upstream_name\n";
 
 my @markdown;
 find({
@@ -87,7 +92,7 @@ for my $path (@markdown) {
    index($data, $prefix) == 0 or die "documentation lacks VCSC FIGlet banner: $path\n";
 }
 for my $rel ('compiler/ABI.txt', 'context.txt', 'software_stack_inventory.txt',
-             'libraries/vcs/batari-basic/OMITTED-UPSTREAM-ARTIFACTS.txt') {
+             'libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt') {
    my $path = File::Spec->catfile($repo, split('/', $rel));
    my $data = slurp($path);
    index($data, "$banner\n\n") == 0 or die "text documentation lacks VCSC FIGlet banner: $path\n";

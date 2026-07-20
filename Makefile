@@ -61,15 +61,15 @@ install-core:
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
-	install -m 0644 libraries/vcs/BATARI_BASIC_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/BATARI_BASIC_CONVERSION.md
+	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	install -m 0644 libraries/vcs/riot.vcsc $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
 	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	install -d $(DESTDIR)$(DATADIR)/vcs/batari-basic
-	install -m 0644 libraries/vcs/batari-basic/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/batari-basic/LICENSE.txt
-	install -m 0644 libraries/vcs/batari-basic/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/batari-basic/OMITTED-UPSTREAM-ARTIFACTS.txt
-	install -m 0644 libraries/vcs/batari-basic/README.md $(DESTDIR)$(DATADIR)/vcs/batari-basic/README.md
+	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels
+	install -m 0644 libraries/vcs/legacy-basic-kernels/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
+	install -m 0644 libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
+	install -m 0644 libraries/vcs/legacy-basic-kernels/README.md $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/README.md
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
@@ -83,14 +83,14 @@ uninstall:
 
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/BATARI_BASIC_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/batari-basic/LICENSE.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/batari-basic/OMITTED-UPSTREAM-ARTIFACTS.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/batari-basic/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/README.md
 
 package: tools
 	rm -rf $(PACKAGE_STAGING)
@@ -108,7 +108,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/solid_color.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.vcsc" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_six_digit_score" -Wa,--illegals \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_six_digit_score" \
 	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.vcsc" \
 	  -o "$(INSTALLCHECK_STAGING)/six_digit_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_digit_score.bin"` -eq 4096

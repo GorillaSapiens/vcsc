@@ -30,8 +30,8 @@ High-level driver flow:
 ```sh
 vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
 
-# The score example includes its font as VCSC data and enables two LAX opcodes.
-vcsc -I libraries/vcs -I examples/03_six_digit_score -Wa,--illegals \
+# The score example includes its font as VCSC data and uses official opcodes only.
+vcsc -I libraries/vcs -I examples/03_six_digit_score \
   examples/03_six_digit_score/six_digit_score.vcsc -o six_digit_score.bin
 ```
 
@@ -61,7 +61,7 @@ Installed layout:
 - `$(PREFIX)/lib/` ... the default runtime archive `libvcsc.a65`
 - `$(PREFIX)/include/` ... the assembler runtime include `vcsc-runtime.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
-- `$(PREFIX)/share/` ... packaged VCS bindings, linker configuration, and retained batari Basic conversion references
+- `$(PREFIX)/share/` ... packaged VCS bindings, linker configuration, and retained legacy BASIC conversion references
 
 The installed `vcsc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/`, runtime assets under `lib/` and `include/`, and the VCS linker script under `share/vcs/`. By default it uses `vcs_4k.cfg` and links `libvcsc.a65` unless `-nostdlib` is used. Direct `vcsc-ld` use always requires an explicit linker script.
 

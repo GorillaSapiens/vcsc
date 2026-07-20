@@ -75,7 +75,7 @@ my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
 my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-I',$ex,'-Wa,--illegals','-Map',$map,$src,'-o',$bin);
+   $driver,'-I',$vcs,'-I',$ex,'-Map',$map,$src,'-o',$bin);
 die "score build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "score build wrote stdout:\n$out" if $out ne '';
 die "score build wrote stderr:\n$err" if $err ne '';
@@ -114,8 +114,8 @@ require_re($s,qr/include\s+"fonts\/clean\.vcsc"/,
            'example no longer includes the VCSC clean font');
 require_re(read_file($font),qr/0b[.Xx01]{8}/,
            'active font no longer uses visual binary rows');
-require_re(read_file($alternate_font),qr/Adapted from batari Basic CC0/,
-           'classic alternate font lost its batari Basic CC0 lineage note');
+require_re(read_file($alternate_font),qr/Adapted from retained CC0/,
+           'classic alternate font lost its legacy BASIC CC0 lineage note');
 require_re($s,qr/bcd24_t\s+score\s*:=\s*123456\s*;/,
            'example no longer starts from bcd24_t 123456');
 require_re($s,qr/alias\s+SCORE_PERIOD\s+20/,
@@ -146,9 +146,7 @@ require_re($s,qr/asm lda score;.*?asm sta score_pointers\+2;.*?asm sta score_poi
 -f File::Spec->catfile($ex,'fonts','clean.inc')
    and die "obsolete assembly clean-font include still exists\n";
 -f File::Spec->catfile($ex,'fonts','default.inc')
-   and die "obsolete assembly batari-font include still exists\n";
--f File::Spec->catfile($ex,'fonts','batari.vcsc')
-   and die "obsolete vaguely named batari font still exists\n";
+   and die "obsolete assembly classic-font include still exists\n";
 
 my $generated=read_file($asm);
 require_re($generated,qr/lda #\$84\s+sta\s+\$09/s,
@@ -163,17 +161,18 @@ require_re($generated,qr/jsr wait_scanlines.*?jsr draw_score/s,
            'example no longer uses ordinary VCSC helper functions');
 my $carry_count=()=$generated =~ /adc #0/g;
 $carry_count==6 or die "glyph pointer setup has $carry_count carry propagations, expected 6\n";
-my $lax_count=()=$generated =~ /^lax \(score_pointers\+\$[24]\),y$/mg;
-$lax_count==2 or die "score kernel has $lax_count LAX instructions, expected 2\n";
 my ($draw)=$generated =~ /(\.proc draw_score.*?\.endproc)/s;
 defined($draw) or die "generated assembly is missing draw_score\n";
-$draw !~ /\bjsr\b/ or die "draw_score calls code while the stack pointer may be borrowed\n";
-require_re($draw,qr/tsx\s+stx saved_stack_pointer.*?ldx saved_stack_pointer\s+txs/s,
-           'draw_score no longer brackets stack-pointer borrowing');
+$draw !~ /\bjsr\b/ or die "draw_score contains a nested call in the timed kernel\n";
+$draw !~ /\b(?:lax|tsx|txs)\b/ or die "score kernel uses an unofficial or stack-pointer opcode\n";
+$generated !~ /saved_stack_pointer/ or die "obsolete saved-stack variable remains\n";
+require_re($draw,
+   qr/lda \(score_pointers\+\$2\),y\s+sta delayed_glyph\s+lda \(score_pointers\+\$4\),y\s+tax\s+bit score\s+nop\s+lda \(score_pointers\+\$a\),y\s+stx \$1C\s+ldx delayed_glyph\s+stx \$1B/s,
+   'score kernel lost the cycle-exact official-opcode delayed-glyph sequence');
 
 my $cxx=$ENV{CXX} || 'c++';
 ($exit,$sig,$out,$err)=run_capture(
-   $cxx,'-std=c++17','-O0','-DILLEGAL_OPCODES','-I',$mos_dir,$timing_source,$mos_source,'-o',$timing_exe,
+   $cxx,'-std=c++17','-O0','-I',$mos_dir,$timing_source,$mos_source,'-o',$timing_exe,
 );
 die "timing harness build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
    if $exit || $sig;

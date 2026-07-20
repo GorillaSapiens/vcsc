@@ -23,13 +23,12 @@ setup and cleanup, and both font tables.
 
 ## Why assembly remains
 
-The visible eight-row player pipeline is adapted from the retained batari Basic
+The visible eight-row player pipeline is adapted from a retained legacy
 standard score mini-kernel. Its TIA stores are positioned by individual CPU
 cycles, so replacing that section with ordinary compiler output would make the
-picture depend on optimizer accidents. The kernel also temporarily uses the
-hardware stack pointer as a graphics register. It saves S first, makes no call
-or push while S is borrowed, and restores it before returning. Its two `LAX`
-instructions require `-Wa,--illegals`.
+picture depend on optimizer accidents. The adapted loop uses only documented
+6502 instructions. One ordinary zero-page byte, `delayed_glyph`, replaces the
+original stack-pointer and unofficial-opcode trick without changing row timing.
 
 Glyph-pointer construction also remains compact inline assembly. The delayed
 player pipeline consumes slots in order `0, 4, 3, 2, 1, 5`; generic dynamic
@@ -39,19 +38,18 @@ visible picture. Everything else is expressed in VCSC.
 VCSC currently has inline assembly but **does not have source-level inline
 functions**. These helpers are ordinary VCSC functions. They have no generated
 frame prologue or epilogue: a call is simply `JSR`, the body, and `RTS`.
-`draw_score()` enters before S is borrowed and restores S before its `RTS`, so
-the call is safe and occurs outside the cycle-counted row loop. A future true
-inline-function feature could remove that `JSR`/`RTS`, but it is not being
-pretended into existence for this example.
+`draw_score()` contains no nested call inside the cycle-counted row loop. A
+future true inline-function feature could remove its outer `JSR`/`RTS`, but it
+is not being pretended into existence for this example.
 
 ## Fonts
 
 The font is VCSC source data rather than a separately assembled object:
 
 - `fonts/clean.vcsc` is the active narrow 5x7-style font.
-- `fonts/classic.vcsc` retains the chunkier original batari Basic CC0
-  score font as an alternate. The original material comes from
-  `https://github.com/batari-Basic/batari-Basic`.
+- `fonts/classic_8x8.vcsc` retains the chunkier CC0 score font from the retained
+  legacy source snapshot as an alternate. Its exact licensing overview is kept
+  in `libraries/vcs/legacy-basic-kernels/LICENSE.txt`.
 
 Switch fonts by changing the include near the top of `six_digit_score.vcsc`:
 

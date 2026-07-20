@@ -21,6 +21,9 @@ restart. When asked to "look at context.txt and figure out what to do next":
 
        rm `cat remove.txt`
 
+   Exception: when the user explicitly requests erasing a proper name from the
+   project, obsolete paths containing that name are not retained in the ledger.
+
 Project goal
 ------------
 Maintain VCSC as a brutally pared-down Atari VCS C-like compiler and companion
@@ -36,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_134129.tar.gz
+    vcsc.20260720_141251.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -73,9 +76,11 @@ Settled final-language decisions
   signed or unsigned little-endian integer widths from one through four bytes.
   `bcd32_t` is the largest currently exposed packed-decimal type.
 * The stock runtime provides no heap, `sbrk`, `malloc`, or `free`.
-* The vendored batari Basic kernel tree is retained as source/reference
-  material for possible conversion to VCSC; it is intentionally not dead-code
-  pruning fodder merely because it is not yet wired into the build.
+* The retained legacy BASIC kernel tree remains source/reference material for
+  possible conversion to VCSC; it is intentionally not dead-code pruning
+  fodder merely because it is not yet wired into the build. Its exact upstream
+  licensing overview remains verbatim in the retained `LICENSE.txt`; project-
+  facing names and non-license branding comments are intentionally generic.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
 * Subtracting compatible pointers yields `int16_t` and a C-style element count.
@@ -244,7 +249,7 @@ Completed vertical slices
 33. The installed generic 6502 machine definition and the two unwired
     generic linker-layout files have been removed. `test/machine_6502.vcsc`
     remains only as an isolated compiler-test fixture. Native VCS bindings,
-    `vcs_4k.cfg`, and both retained batari Basic kernel families are guarded
+    `vcs_4k.cfg`, and both retained legacy BASIC kernel families are guarded
     by a regression test.
 34. The linker's implicit generic machine map has been removed. Direct
     `vcsc-ld` use now requires an explicit script/config, while `vcsc` discovers
@@ -306,9 +311,9 @@ Completed vertical slices
     BCD literals encode numeric values as little-endian digit pairs; arithmetic,
     comparisons, widening/truncation, parameters, and memory returns use the
     existing width-generic BCD paths. The legal range is 0..99999999.
-43. Completed the retained batari Basic standard/multisprite conversion
+43. Completed the retained legacy BASIC standard/multisprite conversion
     inventory without modifying the vendored source. The maintained report
-    `libraries/vcs/BATARI_BASIC_CONVERSION.md` separates mechanical DASM syntax
+    `libraries/vcs/LEGACY_KERNEL_CONVERSION.md` separates mechanical DASM syntax
     normalization from the real integration work: fixed RIOT RAM ownership,
     hardware-stack use, startup ownership, assembly call metadata, and banked
     linker layouts. It recommends an unbanked 4K standard-kernel profile first,
@@ -545,7 +550,7 @@ Tests added:
 
 The branding regression verifies the hard-cut paths and suffixes, the renamed
 archive signature, the documentation banners, and continued presence of both
-batari Basic kernel families. The vendored batari kernel source itself was not
+legacy BASIC kernel families. The vendored legacy kernel source itself was not
 removed or translated. `remove.txt` now contains 861 unique cumulative paths.
 
 Build environment
@@ -729,7 +734,7 @@ The first unfinished item is the default next action.
                   [x] 16e1. Remove the generic interrupt-entry library and
                             handler ABI. Keep only mandatory weak RTI vector
                             fillers in the stock VCS startup member.
-                  [x] 16e2. Preserve the vendored batari Basic kernel
+                  [x] 16e2. Preserve the vendored legacy BASIC kernel
                             reference tree for possible conversion/adaptation.
                             It remains intentionally unwired for now, but tests
                             guard both standard and multisprite kernel families.
@@ -791,14 +796,15 @@ The first unfinished item is the default next action.
         [x] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
                   four-byte scalar storage and copying are established.
 
-[x] 19. Inventory the retained batari Basic standard and multisprite kernels for
-        conversion to VCSC. `libraries/vcs/BATARI_BASIC_CONVERSION.md` records
+[x] 19. Inventory the retained legacy BASIC standard and multisprite kernels for
+        conversion to VCSC. `libraries/vcs/LEGACY_KERNEL_CONVERSION.md` records
         the source/dependency inventory, DASM-to-vcsc-as mechanical translation,
         fixed-RAM/stack/startup/linker incompatibilities, and the incremental
-        conversion plan. The vendored source remains byte-for-byte unchanged.
+        conversion plan. Source semantics remain unchanged; only paths,
+        project-facing prose, and non-license branding comments were normalized.
 
 [x] Side quest: add `examples/03_six_digit_score`, a self-contained unbanked
-    4K cartridge that adapts the batari standard six-digit score mini-kernel
+    4K cartridge that adapts the legacy standard six-digit score mini-kernel
     without importing the full runtime. VCSC owns the `bcd24_t` score, font
     data, frame loop, scanline waits, TIA setup/cleanup, and 20-frame update
     cadence. Keep inline assembly only for compact glyph-pointer construction
@@ -812,10 +818,11 @@ The first unfinished item is the default next action.
     underscore separators. Normalize in the lexer, issue direct malformed-
     literal diagnostics, document the syntax, and use it for both example-03
     fonts with one top-to-bottom source row per line. Rename the alternate
-    batari-derived font to the descriptive `classic_8x8.vcsc` name.
+    legacy-kernel-derived font to the descriptive `classic_8x8.vcsc` name.
 
-[ ] 20. Build the first non-vendored batari-derived standard-kernel integration
-        as controlled vertical slices. Do not edit the retained upstream tree.
+[ ] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
+        as controlled vertical slices. Preserve retained source semantics and
+        the exact licensing overview while keeping adapted code separate.
 
         [ ] 20a. Define and enforce a minimal unbanked 4K standard-kernel ABI
                   profile: fixed RIOT RAM ownership, approved VCSC runtime and
@@ -858,9 +865,9 @@ still does not track register or flag clobbers.
 
 Open implementation questions
 -----------------------------
-The batari Basic tree is intentionally retained for later conversion work.
+The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Tasks 18a through 18f and the task-19 batari inventory are complete.
+Tasks 18a through 18f and the task-19 legacy inventory are complete.
 The next queued action is task 20a: define a minimal unbanked standard-kernel ABI
 profile before translating or integrating any retained kernel source.
 
@@ -1522,7 +1529,7 @@ reproducibly rather than the exact instant of each individual source edit.
 
 
 2026-07-18 23:42:47 PDT, remove installed generic target bundle
-* Recorded the user decision to retain the complete vendored batari Basic
+* Recorded the user decision to retain the complete vendored legacy BASIC
   standard and multisprite kernel trees for possible later conversion. The
   pruning regression now treats those files as required project material.
 * Removed `libraries/nlib/machine_6502.n`; the similarly named file under
@@ -1534,7 +1541,7 @@ reproducibly rather than the exact instant of each individual source edit.
   target bundle, and clarified that platform definitions are selected
   explicitly.
 * Added `generic_target_bundle_pruned` coverage proving the removed files stay
-  gone while the VCS target, test fixture, and both batari kernel families stay.
+  gone while the VCS target, test fixture, and both legacy kernel families stay.
 * Passed 227/227 compile tests and 99/99 end-to-end/generic tests, including both
   exact 4096-byte cartridge regressions.
 * Added two test files and removed three target/layout files; remove.txt now
@@ -1593,7 +1600,7 @@ reproducibly rather than the exact instant of each individual source edit.
 * Documented representation, literal semantics, supported operations, decimal
   mode invariants, conversion boundaries, and the A:X return limitation. No
   files were removed; remove.txt remains at 487 cumulative paths, and the
-  retained batari Basic trees were untouched.
+  retained legacy BASIC trees were untouched.
 
 
 2026-07-19 07:40:01 PDT, preserve valued increment/decrement side effects in all shortcut paths
@@ -1614,7 +1621,7 @@ reproducibly rather than the exact instant of each individual source edit.
 * Added `ref_parameter_incdec_error_test.n` for the corrected lvalue diagnostic.
 * Passed 251/251 compile tests, 107/107 end-to-end/generic tests, and the staged
   installation check. No files were removed; remove.txt remains at 487 unique
-  cumulative paths, and the retained batari Basic trees were untouched.
+  cumulative paths, and the retained legacy BASIC trees were untouched.
 
 2026-07-19 09:04:39 PDT, complete hard VCSC project and toolchain rename
 * Renamed the public driver and companion binaries to `vcsc`, `vcsc-cc1`,
@@ -1634,10 +1641,10 @@ reproducibly rather than the exact instant of each individual source edit.
   texts and machine-readable `remove.txt` remain unbannered.
 * Added a hard-rename regression that rejects stale `.n`, n65, and nlib artifacts,
   verifies all documentation banners and archive magic, and requires both
-  retained batari Basic kernel families.
+  retained legacy BASIC kernel families.
 * Added 374 renamed old paths to `remove.txt`; it now contains 861 unique
   cumulative paths. Added two branding-regression files and deliberately did
-  not remove or translate any batari kernel source.
+  not remove or translate any legacy kernel source.
 * Passed 251/251 compile tests and 108/108 end-to-end/generic tests, both exact
   4096-byte cartridge regressions, and the staged installation check.
 
@@ -1659,17 +1666,17 @@ reproducibly rather than the exact instant of each individual source edit.
   runtime, and ABI documentation. Added same-translation-unit and
   cross-translation-unit `bcd24_t` return execution tests, plus code-generation
   tests for static, external, ignored, one-byte, and two-byte return cases.
-* Added scalar-width roadmap task 18 before the retained batari Basic conversion
+* Added scalar-width roadmap task 18 before the retained legacy BASIC conversion
   inventory: generalize one- through four-byte scalar machinery, then add
   `int24_t`/`uint24_t`, `int32_t`/`uint32_t`, and `bcd32_t`. Marked memory returns
-  complete as task 18a and left batari conversion as task 19.
+  complete as task 18a and left legacy kernel conversion as task 19.
 * Updated the main README to identify VCSC as the Atari-focused child of the N
   parent project and link `https://github.com/GorillaSapiens/n`.
 * Passed 254/254 compile tests, 110/110 end-to-end/generic tests, both exact
   4096-byte cartridge regressions, the staged installation check, and an
   installed-toolchain 4096-byte cartridge using a returned `bcd24_t`. Added six
   superseded test paths to `remove.txt`, which now contains 867 unique cumulative
-  paths. The retained batari Basic trees were untouched.
+  paths. The retained legacy BASIC trees were untouched.
 
 
 2026-07-19 12:20:05 PDT, remove inherited runtime frame pointer
@@ -1697,7 +1704,7 @@ reproducibly rather than the exact instant of each individual source edit.
 * Passed 254/254 compile tests and 112/112 end-to-end/generic tests. The staged
   installation check and both exact 4096-byte cartridge regressions passed.
   Added two removed paths to `remove.txt`, now 869 unique cumulative paths. The
-  retained batari Basic trees were unchanged.
+  retained legacy BASIC trees were unchanged.
 
 End-of-session checklist
 ------------------------
@@ -1743,7 +1750,7 @@ Before returning another modified archive:
   parameters, and returns throughout the public and compiler documentation.
 * Pass 260/260 compile tests and 115/115 end-to-end/generic tests. The staged
   install check builds exact 4096-byte cartridges with the installed VCS headers.
-  `remove.txt` remains at 871 unique cumulative paths, and the retained batari
+  `remove.txt` remains at 871 unique cumulative paths, and the retained legacy
   Basic trees are unchanged.
 
 2026-07-19 15:03:14 PDT, clean peephole unit-test temporaries
@@ -1761,7 +1768,7 @@ Before returning another modified archive:
   suite was completed with its final four cases after the execution wrapper
   timed out at 111 passes. The staged installation check and exact 4096-byte
   installed-toolchain cartridge builds also passed. `remove.txt` remains at 871
-  unique paths, and the retained batari Basic trees are unchanged.
+  unique paths, and the retained legacy BASIC trees are unchanged.
 
 
 2026-07-19 16:10:12 PDT, add first-class 32-bit binary integer types
@@ -1786,7 +1793,7 @@ Before returning another modified archive:
   ordinary family now spans 8, 16, 24, and 32 bits.
 * Pass 266/266 compile tests and 117/117 end-to-end/generic tests. The staged
   install check builds exact 4096-byte cartridges with the installed VCS
-  headers. `remove.txt` remains at 871 unique paths, and the retained batari
+  headers. `remove.txt` remains at 871 unique paths, and the retained legacy
   Basic trees are unchanged.
 
 2026-07-19 16:28:50 PDT, add first-class eight-digit packed BCD
@@ -1808,12 +1815,12 @@ Before returning another modified archive:
   test to exercise `bcd32_t`.
 * Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
   install check builds both exact 4096-byte cartridges. `remove.txt` remains at
-  871 unique paths, and the retained batari Basic trees are unchanged.
+  871 unique paths, and the retained legacy BASIC trees are unchanged.
 
-2026-07-19 17:43:50 PDT, inventory batari kernels and improve example colors
+2026-07-19 17:43:50 PDT, inventory legacy kernels and improve example colors
 ------------------------------------------------------------------------
-* Inventory the retained standard and multisprite batari Basic source in
-  `libraries/vcs/BATARI_BASIC_CONVERSION.md`: 29 source files and 5,471 lines
+* Inventory the retained standard and multisprite legacy BASIC source in
+  `libraries/vcs/LEGACY_KERNEL_CONVERSION.md`: 29 source files and 5,471 lines
   split across common, standard, and multisprite material. Record missing
   generated/optional inputs, unofficial-opcode use, DASM syntax translation,
   fixed RAM maps, hardware-stack manipulation, startup conflicts, assembly call
@@ -1822,14 +1829,14 @@ Before returning another modified archive:
   kernels linked to VCSC game logic, not as a wholesale rewrite into C-like
   statements. Queue a minimal unbanked 4K standard-kernel ABI profile before
   mechanical source normalization; defer multisprite, Superchip, and banking.
-* Keep the complete vendored batari Basic subtree byte-for-byte unchanged and
+* Keep the complete vendored legacy BASIC subtree byte-for-byte unchanged and
   make the branding regression require the maintained conversion report.
 * Change both cartridge examples from brown/orange TIA hue `$2x` backgrounds to
   medium blue `$84`; the first example still computes the color through
   `choose_background()`. Update both example READMEs.
 * Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
   install check builds both exact 4096-byte cartridges. `remove.txt` remains at
-  871 unique paths, and the retained batari Basic subtree is byte-for-byte
+  871 unique paths, and the retained legacy BASIC subtree is byte-for-byte
   unchanged.
 
 
@@ -1838,7 +1845,7 @@ Before returning another modified archive:
 * Add `examples/03_six_digit_score`, an unbanked 4K NTSC cartridge with a
   centered white six-digit score on TIA medium-blue `$84`. The score begins at
   `123456` and increments as `bcd24_t` once every 20 frames.
-* Adapt only the retained batari Basic standard score mini-kernel. Keep game
+* Adapt only the retained legacy BASIC standard score mini-kernel. Keep game
   state, frame cadence, pointer construction, and BCD arithmetic in VCSC while
   preserving the cycle-counted TIA row pipeline in inline assembly.
 * Save and restore the hardware stack pointer around the kernel's deliberate
@@ -1855,25 +1862,25 @@ Before returning another modified archive:
   the example with installed tools and headers.
 * Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
   installation check builds all required exact 4096-byte cartridges.
-  `remove.txt` remains at 871 unique paths, and the retained batari Basic subtree
+  `remove.txt` remains at 871 unique paths, and the retained legacy BASIC subtree
   is byte-for-byte unchanged.
 
 
 2026-07-20 11:18:13 PDT, repair six-digit score rendering and add a clean font
 ------------------------------------------------------------------------
-* Correct the batari score kernel's non-linear glyph-pointer layout. The first
+* Correct the legacy score kernel's non-linear glyph-pointer layout. The first
   version stored pointers in human display order, but the delayed-player row
   pipeline requires pointer slots 0..5 to contain digits 5, 1, 4, 3, 6, and 2.
   The bad layout visibly rendered initial score `123456` as the wrong digits.
 * Add `fonts/clean.inc`, a narrower 5x7-style decimal font selected by
-  `score_font.s`. Retain `fonts/default.inc` as the original chunkier batari
+  `score_font.s`. Retain `fonts/default.inc` as the original chunkier legacy
   Basic font so the example now ships with two genuinely selectable fonts.
 * Extend `vcs_six_digit_score.test` to verify the exact pointer-slot mapping,
   active font selection, both 80-byte font tables, embedded active-font bytes,
   and all previous cartridge/timing/stack invariants.
 * Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
   installation check builds the corrected example as an exact 4096-byte
-  cartridge. `remove.txt` remains at 871 paths, and the retained batari Basic
+  cartridge. `remove.txt` remains at 871 paths, and the retained legacy BASIC
   subtree is byte-for-byte unchanged.
 
 
@@ -1881,12 +1888,12 @@ Before returning another modified archive:
 ------------------------------------------------------------------------
 * Move both score fonts from assembly `.inc` data behind `score_font.s` into
   ordinary VCSC `const uint8_t score_font[80]` include files:
-  `fonts/clean.vcsc` and `fonts/batari.vcsc`. Build example 03 from one VCSC
+  `fonts/clean.vcsc` and `fonts/legacy.vcsc`. Build example 03 from one VCSC
   translation unit and remove the obsolete assembly wrapper/includes.
 * Express the complete frame loop, scanline waits, TIA setup and cleanup,
   `bcd24_t` update, and 20-frame cadence in VCSC functions/statements. Retain
   inline assembly only for compact six-pointer address construction and the
-  cycle-counted batari-derived row pipeline. A fully generic VCSC dynamic-table
+  cycle-counted legacy-kernel-derived row pipeline. A fully generic VCSC dynamic-table
   version was rejected because it generated substantially larger code.
 * Confirm that VCSC has inline assembly but no source-level inline-function
   feature. Ordinary functions are already prologue-free and consist of JSR,
@@ -1903,7 +1910,7 @@ Before returning another modified archive:
 * Pass 268/268 compile tests, 122/122 end-to-end/generic tests, staged
   installation, exact 4096-byte cartridge checks, and direct Stella rendering.
   Add three obsolete font-wrapper paths to `remove.txt`, now 874 unique paths.
-  The retained batari Basic subtree remains byte-for-byte unchanged.
+  The retained legacy BASIC subtree remains byte-for-byte unchanged.
 
 
 2026-07-20 13:53:56 PDT, add visual binary literals and readable score fonts
@@ -1921,7 +1928,7 @@ Before returning another modified archive:
   line. Source rows are top-to-bottom; `SCORE_GLYPH` reverses each group during
   alias expansion for the existing row-7-to-row-0 score kernel.
 * Keep `fonts/clean.vcsc` as the active original VCSC font. Rename the alternate
-  batari Basic CC0-derived font from vague `fonts/batari.vcsc` to
+  legacy BASIC CC0-derived font from vague `fonts/legacy.vcsc` to
   `fonts/classic_8x8.vcsc`, retain source/license lineage in its header and the
   example README, and record the old path in `remove.txt`.
 * Update the main language README, compiler README, example-03 README, test
@@ -1929,4 +1936,30 @@ Before returning another modified archive:
 * Pass 272/272 compile tests and 123/123 end-to-end/generic tests. Staged
   installation builds example 03 as an exact 4096-byte cartridge. Stella 7.0
   renders the centered white score correctly on blue. `remove.txt` now contains
-  875 unique paths; the vendored batari Basic subtree remains unchanged.
+  875 unique paths; the vendored legacy BASIC subtree remains unchanged.
+
+
+2026-07-20 14:23:16 PDT, remove score-kernel stack tricks and unnecessary upstream naming
+------------------------------------------------------------------------
+* Replace both undocumented `LAX` instructions and the temporary use of the
+  hardware stack-pointer register in example 03 with a cycle-for-cycle official
+  6502 sequence. One ordinary zero-page byte, `delayed_glyph`, now carries the
+  fourth glyph between TIA writes; the 34-cycle row segment is unchanged.
+* Remove `-Wa,--illegals` from the example, staged install build, regression
+  build, and timing harness. Add regression checks forbidding `LAX`, `TSX`,
+  `TXS`, and the obsolete saved-stack object in the generated score routine.
+* Rename the retained upstream source directory to
+  `libraries/vcs/legacy-basic-kernels/` and the conversion inventory to
+  `LEGACY_KERNEL_CONVERSION.md`. Remove unnecessary project-name references
+  from paths, project documentation, tests, example provenance, conversion
+  notes, and retained source comments. Preserve the exact upstream
+  `LICENSE.txt` verbatim as the sole intentional occurrence.
+* Add a branding regression that rejects the removed upstream project name in
+  every path and text file except license files. Rename the alternate score font
+  to the descriptive `classic_8x8.vcsc` name.
+* Pass 272/272 compile tests and 123/123 end-to-end/generic tests. The staged
+  installation builds exact 4096-byte cartridges without illegal-opcode mode;
+  the timing regression remains stable at 262 NTSC scanlines. Stella 7.0 renders
+  the centered white score correctly on medium blue using the official-opcode
+  kernel. `remove.txt` contains 875 paths. The retained licensing overview is
+  byte-for-byte identical to the input archive.
