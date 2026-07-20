@@ -36,5 +36,5 @@ Build after building the toolchain:
 make
 ```
 
-The result is `ode_to_joy.bin`, a raw 4096-byte cartridge image, plus
-`ode_to_joy.map`.
+The display uses a medium blue background (`COLUBK=$84`). The result is
+`ode_to_joy.bin`, a raw 4096-byte cartridge image, plus `ode_to_joy.map`.

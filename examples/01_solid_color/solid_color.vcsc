@@ -15,7 +15,7 @@ uint8_t choose_background(uint8_t seed) {
 }
 
 void main(void) {
-   uint8_t color := choose_background(0x20);
+   uint8_t color := choose_background(0x82);
 
    // Clear every object that could otherwise contain power-up garbage.
    PF0 := 0;

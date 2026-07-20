@@ -36,7 +36,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260719_161954.tar.gz
+    vcsc.20260719_173803.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -303,6 +303,13 @@ Completed vertical slices
     BCD literals encode numeric values as little-endian digit pairs; arithmetic,
     comparisons, widening/truncation, parameters, and memory returns use the
     existing width-generic BCD paths. The legal range is 0..99999999.
+43. Completed the retained batari Basic standard/multisprite conversion
+    inventory without modifying the vendored source. The maintained report
+    `libraries/vcs/BATARI_BASIC_CONVERSION.md` separates mechanical DASM syntax
+    normalization from the real integration work: fixed RIOT RAM ownership,
+    hardware-stack use, startup ownership, assembly call metadata, and banked
+    linker layouts. It recommends an unbanked 4K standard-kernel profile first,
+    with multisprite, Superchip, and bankswitching staged later.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -563,11 +570,11 @@ Result: passed.
 
 Compile suite:
 
-    266 passed, 0 failed, 266 total
+    268 passed, 0 failed, 268 total
 
 End-to-end/generic suite:
 
-    117 passed, 0 failed, 117 total
+    121 passed, 0 failed, 121 total
 
 Staged install check:
 
@@ -781,11 +788,32 @@ The first unfinished item is the default next action.
         [x] 18f. Add unsigned packed-decimal `bcd32_t` for eight digits once
                   four-byte scalar storage and copying are established.
 
-[ ] 19. Inventory the retained batari Basic standard and multisprite kernels for
-        conversion to VCSC. Identify required language, assembler, linker, and
-        runtime capabilities; separate mechanical syntax conversion from real
-        kernel-model incompatibilities; then propose an incremental conversion
-        plan before modifying the vendored kernel source.
+[x] 19. Inventory the retained batari Basic standard and multisprite kernels for
+        conversion to VCSC. `libraries/vcs/BATARI_BASIC_CONVERSION.md` records
+        the source/dependency inventory, DASM-to-vcsc-as mechanical translation,
+        fixed-RAM/stack/startup/linker incompatibilities, and the incremental
+        conversion plan. The vendored source remains byte-for-byte unchanged.
+
+[ ] 20. Build the first non-vendored batari-derived standard-kernel integration
+        as controlled vertical slices. Do not edit the retained upstream tree.
+
+        [ ] 20a. Define and enforce a minimal unbanked 4K standard-kernel ABI
+                  profile: fixed RIOT RAM ownership, approved VCSC runtime and
+                  scratch bytes, a conservative hardware-stack ceiling, startup
+                  ownership, and accounting for calls/stack use in separately
+                  assembled code.
+        [ ] 20b. Add reproducible DASM-to-vcsc-as normalization for the five
+                  retained macros, directives, conditionals, expressions, and
+                  forced addressing modes needed by that one configuration.
+        [ ] 20c. Build a no-bankswitch, no-Superchip standard-kernel cartridge
+                  with fixed test state and verify size, map, emitted opcode
+                  bytes, and stable 262-line NTSC timing.
+        [ ] 20d. Connect one stack-safe void VCSC overscan/vblank hook and expose
+                  kernel state through fixed refs. Add options one at a time only
+                  after the minimal integration is stable.
+        [ ] 20e. Port the multisprite profile after the standard kernel works;
+                  defer Superchip and 8K+ bankswitching to separate linker/runtime
+                  milestones.
 
 Inline assembly absolute-ref rules
 ----------------------------------
@@ -812,9 +840,9 @@ Open implementation questions
 -----------------------------
 The batari Basic tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
-Tasks 18a through 18f are complete. The next queued action is task 19: inventory
-the retained batari Basic kernels and propose a conversion plan before changing
-vendored kernel source.
+Tasks 18a through 18f and the task-19 batari inventory are complete.
+The next queued action is task 20a: define a minimal unbanked standard-kernel ABI
+profile before translating or integrating any retained kernel source.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -1759,3 +1787,26 @@ Before returning another modified archive:
 * Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
   install check builds both exact 4096-byte cartridges. `remove.txt` remains at
   871 unique paths, and the retained batari Basic trees are unchanged.
+
+2026-07-19 17:43:50 PDT, inventory batari kernels and improve example colors
+------------------------------------------------------------------------
+* Inventory the retained standard and multisprite batari Basic source in
+  `libraries/vcs/BATARI_BASIC_CONVERSION.md`: 29 source files and 5,471 lines
+  split across common, standard, and multisprite material. Record missing
+  generated/optional inputs, unofficial-opcode use, DASM syntax translation,
+  fixed RAM maps, hardware-stack manipulation, startup conflicts, assembly call
+  metadata gaps, and absent bank-aware linker support.
+* Conclude that conversion is feasible as separately assembled cycle-critical
+  kernels linked to VCSC game logic, not as a wholesale rewrite into C-like
+  statements. Queue a minimal unbanked 4K standard-kernel ABI profile before
+  mechanical source normalization; defer multisprite, Superchip, and banking.
+* Keep the complete vendored batari Basic subtree byte-for-byte unchanged and
+  make the branding regression require the maintained conversion report.
+* Change both cartridge examples from brown/orange TIA hue `$2x` backgrounds to
+  medium blue `$84`; the first example still computes the color through
+  `choose_background()`. Update both example READMEs.
+* Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
+  install check builds both exact 4096-byte cartridges. `remove.txt` remains at
+  871 unique paths, and the retained batari Basic subtree is byte-for-byte
+  unchanged.
+

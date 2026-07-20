@@ -22,5 +22,5 @@ make
 ```
 
 The result is `solid_color.bin`, a raw 4096-byte cartridge image mapped at
-`$F000-$FFFF`, plus `solid_color.map`. The frame consists of 262 scanlines:
+`$F000-$FFFF`, plus `solid_color.map`. The display uses a medium blue background (`COLUBK=$84`). The frame consists of 262 scanlines:
 3 VSYNC, 37 vertical blank, 192 visible, and 30 overscan.

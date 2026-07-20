@@ -61,6 +61,7 @@ install-core:
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
+	install -m 0644 libraries/vcs/BATARI_BASIC_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/BATARI_BASIC_CONVERSION.md
 	install -m 0644 libraries/vcs/riot.vcsc $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
 	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
@@ -82,6 +83,7 @@ uninstall:
 
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/BATARI_BASIC_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc

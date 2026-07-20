@@ -82,7 +82,7 @@ void main(void) {
    ENAM0 := 0;
    ENAM1 := 0;
    ENABL := 0;
-   COLUBK := 0x24;
+   COLUBK := 0x84;
    AUDV1 := 0;
 
    music_apply_current();

@@ -36,6 +36,7 @@ for my $parts (
    [qw(libraries runtime vcsc-zeropage.s)],
    [qw(libraries runtime libvcsc.a65)],
    [qw(libraries vcs vcs.vcsc)],
+   [qw(libraries vcs BATARI_BASIC_CONVERSION.md)],
    [qw(libraries vcs batari-basic standard std_kernel.asm)],
    [qw(libraries vcs batari-basic multisprite multisprite_kernel.asm)],
 ) {
