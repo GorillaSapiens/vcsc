@@ -24,30 +24,32 @@ setup and cleanup, and both font tables.
 ## Why assembly remains
 
 The visible eight-row player pipeline is adapted from a retained legacy
-standard score mini-kernel. Its TIA stores are positioned by individual CPU
-cycles, so replacing that section with ordinary compiler output would make the
-picture depend on optimizer accidents. The adapted loop uses only documented
-6502 instructions. One ordinary zero-page byte, `delayed_glyph`, replaces the
-original stack-pointer and unofficial-opcode trick without changing row timing.
+standard score mini-kernel. Its TIA stores have hard per-cycle deadlines, so
+that section remains explicit assembly rather than depending on compiler
+instruction selection.
 
-Glyph-pointer construction also remains compact inline assembly. The delayed
-player pipeline consumes slots in order `0, 4, 3, 2, 1, 5`; generic dynamic
-16-bit table indexing generated far more code for work performed outside the
-visible picture. Everything else is expressed in VCSC.
+VCSC owns the `bcd24_t` score, frame loop, scanline waits, update cadence, TIA
+setup, cleanup, and font data. During overscan, `prepare_score_pointers()` builds
+six complete 16-bit pointers in normal left-to-right digit order. The visible
+loop uses only documented 6502 instructions, one ordinary zero-page temporary,
+and one RAM row counter. It preloads digit 1 immediately before `WSYNC`; the
+remaining GRP writes complete at cycles `8, 16, 44, 47, 50, 53`.
+
+Horizontal player positioning and `HMOVE` happen once while `VBLANK` is set;
+the positions persist across frames. No undocumented opcode, stack-pointer
+trick, or visible-frame HMOVE is used.
 
 VCSC currently has inline assembly but **does not have source-level inline
-functions**. These helpers are ordinary VCSC functions. They have no generated
-frame prologue or epilogue: a call is simply `JSR`, the body, and `RTS`.
-`draw_score()` contains no nested call inside the cycle-counted row loop. A
-future true inline-function feature could remove its outer `JSR`/`RTS`, but it
-is not being pretended into existence for this example.
+functions**. These helpers are ordinary VCSC functions with no generated frame
+prologue or epilogue: a call is `JSR`, the body, and `RTS`. `draw_score()` has
+no nested call inside the timed loop.
 
 ## Fonts
 
 The font is VCSC source data rather than a separately assembled object:
 
 - `fonts/clean.vcsc` is the active narrow 5x7-style font.
-- `fonts/classic_8x8.vcsc` retains the chunkier CC0 score font from the retained
+- `fonts/classic.vcsc` retains the chunkier CC0 score font from the retained
   legacy source snapshot as an alternate. Its exact licensing overview is kept
   in `libraries/vcs/legacy-basic-kernels/LICENSE.txt`.
 
@@ -63,8 +65,8 @@ pixel, so the sprite can be read directly in the source. The rows are listed
 top-to-bottom; a small `SCORE_GLYPH` alias reverses each eight-row group because
 the cycle-counted display kernel reads row 7 down through row 0.
 
-Six complete 16-bit pointers are constructed, so a font may land anywhere in
-cartridge ROM and does not need page alignment.
+Each glyph pointer includes low-byte carry into the font address high byte, so a
+font may land anywhere in cartridge ROM and does not need page alignment.
 
 The frame has stable 262-line NTSC timing. Stella 7.0 was used to verify the
 actual TIA output, including correct digit order, centering, blue background,

@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_141251.tar.gz
+    vcsc.20260720_153417.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1963,3 +1963,29 @@ Before returning another modified archive:
   the centered white score correctly on medium blue using the official-opcode
   kernel. `remove.txt` contains 875 paths. The retained licensing overview is
   byte-for-byte identical to the input archive.
+
+2026-07-20 15:43:15 PDT, repair six-digit delayed-player write deadlines
+------------------------------------------------------------------------
+* Reproduce the reported colon-like artifact from the delivered archive using
+  Stella 7.0's own 1x TIA snapshot. Confirm that the first digit's right edge
+  follows the third digit when the test update is changed to `score += 1000`.
+* Correct the diagnosis from the prior official-opcode conversion: preserving
+  the total 76-cycle row was insufficient. The replacement moved a delayed
+  `GRP1` write one CPU cycle early and violated the TIA latch deadline.
+* Replace the visible row with a documented-opcode pipeline that builds six
+  glyph pointers in normal left-to-right order, preloads digit 1 immediately
+  before `WSYNC`, stores digit 4 in one ordinary zero-page byte, and keeps the
+  row number in RAM. The six post-`WSYNC` graphics writes complete at cycles
+  8, 16, 44, 47, 50, and 53.
+* Move horizontal player positioning and `HMOVE` to one-time setup while
+  `VBLANK` is asserted. The visible kernel contains no `HMOVE`, undocumented
+  opcode, stack-pointer access, nested call, push, or pull.
+* Strengthen `vcs_six_digit_score.test` to compare the complete generated row
+  loop and calculate every graphics-register write deadline rather than merely
+  checking total row and frame lengths.
+* Verify both normal `score++` and a temporary `score += 1000` cartridge with
+  Stella snapshots; neither shows first/third-digit pixel bleed. Pass 272/272
+  compile tests, 123/123 end-to-end/generic tests, staged installation, exact
+  4096-byte cartridge checks, and 42 consecutive 262-line NTSC frames.
+  `remove.txt` remains at 875 paths; the user's branding-test repair is retained.
+

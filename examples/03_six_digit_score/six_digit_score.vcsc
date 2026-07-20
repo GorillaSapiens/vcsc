@@ -1,7 +1,7 @@
 // Centered six-digit score display adapted from a legacy standard score
-// mini-kernel. VCSC owns the score, font, frame structure, scanline
-// waits, update cadence, and ordinary TIA setup. Inline assembly is confined
-// to compact glyph-pointer construction and the cycle-counted visible kernel.
+// mini-kernel. VCSC owns the score, font, frame structure, scanline waits,
+// update cadence, and ordinary TIA setup. Inline assembly is confined to
+// compact glyph-pointer construction and the cycle-counted visible kernel.
 
 include "vcs.vcsc"
 include "fonts/clean.vcsc"
@@ -13,14 +13,12 @@ alias SCORE_PERIOD     20
 bcd24_t score := 123456;
 uint8_t frame_counter := 0;
 uint8_t score_pointers[12];
+uint8_t score_row;
 uint8_t delayed_glyph;
 
-// Build six complete 16-bit glyph pointers. The delayed-player kernel displays
-// pointer slots in order 0, 4, 3, 2, 1, 5, so the packed BCD digits must be
-// placed in that non-obvious order. Doing this address arithmetic in assembly
-// is dramatically smaller than six generic dynamic 16-bit array lookups.
 void prepare_score_pointers(void) {
-   // score+2 contains digits 1 and 2.
+   // Build six complete 16-bit pointers in human digit order. Packed BCD is
+   // little-endian, so score+2 supplies digits 1/2 and score supplies 5/6.
    asm lda score+2;
    asm tax;
    asm and #$f0;
@@ -38,22 +36,21 @@ void prepare_score_pointers(void) {
    asm asl;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+8;
+   asm sta score_pointers+2;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+9;
+   asm sta score_pointers+3;
 
-   // score+1 contains digits 3 and 4.
    asm lda score+1;
    asm tax;
    asm and #$f0;
    asm lsr;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+6;
+   asm sta score_pointers+4;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+7;
+   asm sta score_pointers+5;
    asm txa;
    asm and #$0f;
    asm asl;
@@ -61,22 +58,21 @@ void prepare_score_pointers(void) {
    asm asl;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+4;
+   asm sta score_pointers+6;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+5;
+   asm sta score_pointers+7;
 
-   // score contains digits 5 and 6.
    asm lda score;
    asm tax;
    asm and #$f0;
    asm lsr;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+2;
+   asm sta score_pointers+8;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+3;
+   asm sta score_pointers+9;
    asm txa;
    asm and #$0f;
    asm asl;
@@ -97,86 +93,66 @@ void wait_scanlines(uint8_t lines) {
    }
 }
 
-void draw_score(void) {
-   // Ordinary setup remains VCSC. The row pipeline below uses only official
-   // 6502 instructions and one ordinary zero-page delayed-glyph byte.
-   HMCLR := 0;
-   HMP0 := 0xe0;
-   COLUP0 := SCORE_COLOR;
-   COLUP1 := SCORE_COLOR;
+void setup_score_display(void) {
+   // Horizontal positions persist, so do the HMOVE once during vertical blank.
    WSYNC := 0;
-
-   // From here through the end of the row loop, every cycle is deliberate.
-   asm ldx #0;
-   asm stx GRP0;
-   asm stx GRP1;
-
-   // Twenty-seven cycles preserve the original positioning phase.
-   asm bit score;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm ldy #7;
-   asm sty VDELP0;
-   asm sta RESP0;
-   asm sta RESP1;
    asm lda #$03;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
-   asm sta VDELP1;
-   asm lda #$f0;
+   asm lda #$0e;
+   asm bit score;
+   asm sta COLUP0;
+   asm sta COLUP1;
+   asm sta HMCLR;
+   asm lda #$80;
+   asm sta HMP0;
+   asm lda #$90;
    asm sta HMP1;
-   asm lda (score_pointers),y;
-   asm sta GRP0;
-   asm sta HMOVE;
-   asm jmp @score_begin;
+   asm nop;
+   asm sta RESP0;
+   asm sta RESP1;
+   WSYNC := 0;
+   HMOVE := 0;
+}
 
-   // The prefix is seven cycles. Together with @score_begin it forms the
-   // original 76-cycle score-row pipeline.
+void draw_score(void) {
+   COLUP0 := SCORE_COLOR;
+   COLUP1 := SCORE_COLOR;
+   GRP0 := 0;
+   GRP1 := 0;
+   VDELP0 := 1;
+   VDELP1 := 1;
+   score_row := 7;
+
+   // Official-opcode six-digit score pipeline. D1 is preloaded before WSYNC;
+   // the remaining writes complete at cycles 8, 16, 44, 47, 50, and 53.
    asm @score_loop:;
+   asm ldy score_row;
    asm lda (score_pointers),y;
    asm sta GRP0;
-   asm bit score;
-   asm nop;
-   asm nop;
-
-   asm @score_begin:;
-   asm lda (score_pointers+$8),y;
-   asm sta GRP1;
-   asm lda (score_pointers+$6),y;
-   asm sta GRP0;
+   asm sta WSYNC;
    asm lda (score_pointers+$2),y;
-   asm sta delayed_glyph;
-   asm lda (score_pointers+$4),y;
-   asm tax;
-   asm bit score;
-   asm nop;
-   asm lda (score_pointers+$a),y;
-   asm stx GRP1;
-   asm ldx delayed_glyph;
-   asm stx GRP0;
    asm sta GRP1;
-   asm sty GRP0;
-   asm dey;
+   asm lda (score_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (score_pointers+$6),y;
+   asm sta delayed_glyph;
+   asm lda (score_pointers+$8),y;
+   asm tax;
+   asm lda (score_pointers+$a),y;
+   asm tay;
+   asm lda delayed_glyph;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   asm dec score_row;
    asm bpl @score_loop;
 
-   // Cleanup is no longer timing-critical, so return to ordinary VCSC.
-   PF1 := 0;
    GRP0 := 0;
    GRP1 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
-   NUSIZ0 := 0;
-   NUSIZ1 := 0;
    WSYNC := 0;
 }
 
@@ -190,7 +166,9 @@ void main(void) {
    ENAM1 := 0;
    ENABL := 0;
    COLUBK := BACKGROUND_COLOR;
+   VBLANK := 2;
 
+   setup_score_display();
    prepare_score_pointers();
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
@@ -203,8 +181,6 @@ void main(void) {
       wait_scanlines(37);
       VBLANK := 0;
 
-      // The ordinary VCSC call/loop overhead consumes three additional scanlines.
-      // These waits keep the ten-line score block centered in 192 visible lines.
       wait_scanlines(89);
       draw_score();
       wait_scanlines(89);
