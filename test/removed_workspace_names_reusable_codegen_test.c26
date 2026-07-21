@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectasm: tmp0:
+// expectasm: tmp5:
+// expectasm: ptr3:
+// forbidasm: _vcsc_tmp0
+// forbidasm: _vcsc_tmp5
+// forbidasm: _vcsc_ptr3
+
+include "machine_6502.c26"
+
+uint8_t tmp0;
+uint8_t tmp5;
+uint16_t ptr3;
+
+void main(void) {
+   tmp0 := 1;
+   tmp5 := 2;
+   ptr3 := 0x1234;
+}

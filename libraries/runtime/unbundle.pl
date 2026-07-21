@@ -11,13 +11,6 @@ my %workspace_alias = (
    ptr0 => '_vcsc_ptr0',
    ptr1 => '_vcsc_ptr1',
    ptr2 => '_vcsc_ptr2',
-   ptr3 => '_vcsc_ptr3',
-   tmp0 => '_vcsc_tmp0',
-   tmp1 => '_vcsc_tmp1',
-   tmp2 => '_vcsc_tmp2',
-   tmp3 => '_vcsc_tmp3',
-   tmp4 => '_vcsc_tmp4',
-   tmp5 => '_vcsc_tmp5',
 );
 
 sub workspace_imports_for {
@@ -30,7 +23,7 @@ sub workspace_imports_for {
          if (exists $aliases->{$token}) {
             $imports{$aliases->{$token}} = 1;
          }
-         elsif ($token =~ /^_vcsc_(?:arg[01]|ptr[0-3]|tmp[0-5])$/) {
+         elsif ($token =~ /^_vcsc_(?:arg[01]|ptr[0-2])$/) {
             $imports{$token} = 1;
          }
       }
@@ -52,7 +45,7 @@ for my $file (sort glob('asm/*.asm')) {
    my %aliases = %workspace_alias;
 
    for my $line (@file) {
-      if ($line =~ /^\s*\.def\s+([A-Za-z_][A-Za-z0-9_]*)\s+(_vcsc_(?:arg[01]|ptr[0-3]|tmp[0-5]))(?:\s*\+\s*\d+)?/i) {
+      if ($line =~ /^\s*\.def\s+([A-Za-z_][A-Za-z0-9_]*)\s+(_vcsc_(?:arg[01]|ptr[0-2]))(?:\s*\+\s*\d+)?/i) {
          $aliases{$1} = $2;
       }
       if ($line =~ /^[^;]*\.def/i) {

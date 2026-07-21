@@ -754,18 +754,15 @@ unary_not_done:
                return false;
             }
 
-            emit_prepare_scratch_ptr(3, sign_offset);
-            emit(&es_code, "    ldy #0\n");
+            emit(&es_code, "    ldy #%d\n", sign_offset);
             emit(&es_code, "    lda #0\n");
-            emit(&es_code, "    sta (ptr3),y\n");
-            emit_prepare_scratch_ptr(0, 0);
+            emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
             emit(&es_code, "    ldy #%d\n", sign_index);
-            emit(&es_code, "    lda (ptr0),y\n");
+            emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
             emit(&es_code, "    bpl %s\n", absolute_done);
-            emit_prepare_scratch_ptr(3, sign_offset);
-            emit(&es_code, "    ldy #0\n");
+            emit(&es_code, "    ldy #%d\n", sign_offset);
             emit(&es_code, "    lda #1\n");
-            emit(&es_code, "    sta (ptr3),y\n");
+            emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
             emit_fixed_twos_complement_scratch(0, ptr_size);
             emit(&es_code, "%s:\n", absolute_done);
 
@@ -783,15 +780,12 @@ unary_not_done:
             emit_prepare_scratch_ptr(0, 0);
             emit_prepare_scratch_ptr(1, ptr_size);
             emit_prepare_scratch_ptr(2, ptr_size * 2);
-            emit_prepare_scratch_ptr(3, remainder_offset);
-            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
+            (void) remainder_offset;
             remember_runtime_import(int_div_helper_name(difference_type));
             emit(&es_code, "    jsr _%s\n", int_div_helper_name(difference_type));
 
-            emit_prepare_scratch_ptr(3, sign_offset);
-            emit(&es_code, "    ldy #0\n");
-            emit(&es_code, "    lda (ptr3),y\n");
+            emit(&es_code, "    ldy #%d\n", sign_offset);
+            emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
             emit(&es_code, "    beq %s\n", quotient_done);
             emit_fixed_twos_complement_scratch(ptr_size * 2, ptr_size);
             emit(&es_code, "%s:\n", quotient_done);
@@ -976,7 +970,10 @@ unary_not_done:
       }
 
       work_total = op_size * 2;
-      if (!strcmp(op, "*") || !strcmp(op, "/") || !strcmp(op, "%")) {
+      if (!strcmp(op, "*")) {
+         work_total += op_size;
+      }
+      else if (!strcmp(op, "/") || !strcmp(op, "%")) {
          work_total += op_size * 2;
       }
       rhs_offset = op_size;
@@ -1015,9 +1012,7 @@ unary_not_done:
          emit_prepare_scratch_ptr(0, lhs_offset);
          emit_prepare_scratch_ptr(1, rhs_offset);
          emit_prepare_scratch_ptr(2, aux_offset);
-         emit_prepare_scratch_ptr(3, rem_offset);
-         emit(&es_code, "    lda #$%02x\n", op_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
+         (void) rem_offset;
          remember_runtime_import(int_div_helper_name(op_type));
          emit(&es_code, "    jsr _%s\n", int_div_helper_name(op_type));
          emit_copy_scratch_to_scratch(lhs_offset, !strcmp(op, "/") ? aux_offset : rem_offset, op_size);

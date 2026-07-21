@@ -115,16 +115,15 @@ README may occupy that internal role, while the obsolete top-level notes and
 software-stack snapshot must remain absent.
 
 `runtime_workspace_split.test` verifies that the runtime include imports no
-storage unconditionally, that all twelve workspace cells are separate archive
-members, and that representative programs link 8, 9, 12, or 16 workspace bytes
-according to the helpers they actually select. Fixed-width variable shifts stay
-at the eight-byte startup baseline.
+storage unconditionally, that only the five eight-byte-baseline workspace
+members remain, and that multiplication, division, and remainder do not select
+additional RIOT RAM.
 
 `fixed_scalar_runtime.test` verifies that the inherited arbitrary-width copy,
-fill, extension, comparison, bitwise, and shift members are gone; that all twelve
-width-specific variable-shift members are present; that scalar lowering is inline
-where appropriate; and that objects wider than four bytes retain a separate
-aggregate zeroing path.
+fill, extension, comparison, bitwise, shift, multiplication, division, and
+remainder members are gone; that the fixed-width shift/multiply/divide members
+are present; that scalar lowering is inline where appropriate; and that objects
+wider than four bytes retain a separate aggregate zeroing path.
 
 ### `.test` files
 

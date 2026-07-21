@@ -1,135 +1,373 @@
-; div.asm - Arbitrary-width unsigned division
+; div.asm - Fixed-width unsigned little-endian division/remainder
 ;
-; Little-endian helper: _divNle
-;
-; Divides ptr0 (dividend) by ptr1 (divisor), arg0 bytes each.
-; Stores quotient in ptr2, remainder in ptr3.
-; Clobbers: A, X, Y, and zero page temps.
-; The private four-byte BSS copy is linked only when division/remainder is used.
+; Each selected helper uses the compiler expression scratch as all algorithm
+; state.  The quotient and remainder occupy one adjacent 2*N-byte result block,
+; so ptr3, tmp bytes, and a private dividend workspace are unnecessary.
+; Division by zero retains the historical behavior: all quotient bits set and
+; the original dividend left as the remainder.
 
 .include "vcsc-runtime.inc"
-.def tmpX  _vcsc_tmp0
-.def carry _vcsc_tmp1
 
-.proc _divNle
-.segment "BSS"
-@dividend:
-    .res 4
-.segment "CODE"
-    ldx arg0
-    ldy #0
-@cpy_loop:
-    lda (ptr0), y
-    sta @dividend, y
-    iny
-    dex
-    bne @cpy_loop
-
-    ldy #0
-@clear_loop:
+.proc _div8
+    ; ptr0 = dividend scratch (destroyed), ptr1 = divisor scratch.
+    ; ptr2 points at quotient followed immediately by remainder.
     lda #0
+    ldy #0
     sta (ptr2), y
-    sta (ptr3), y
-    iny
-    cpy arg0
-    bne @clear_loop
-
-    ldx #0
-    lda arg0
-    asl
-    asl
-    asl
-    sta tmpX
-
+    ldy #1
+    sta (ptr2), y
+    ldx #8
 @bit_loop:
     clc
-    ldx arg0
-    dex
     ldy #0
-@shift_div:
-    lda @dividend, y
+    lda (ptr0), y
     rol a
-    sta @dividend, y
-    iny
-    dex
-    bpl @shift_div
-
-    bcs @have_carry
-    ldx #0
-@have_carry:
-    stx carry
-
-    ldx arg0
-    dex
-    ldy #0
-@shift_rem:
-    lda (ptr3), y
-    rol a
-    sta (ptr3), y
-    iny
-    dex
-    bpl @shift_rem
-
-    ldy #0
-    lda carry
-    and #1
-    ora @dividend, y
-    sta @dividend, y
-
-    jsr @cmp_rem_div
-    bcc @skip_subtract
-
-    jsr @sub_div_from_rem
-    sec
-
-@skip_subtract:
-    ldx arg0
-    dex
-    ldy #0
-@store_qbit:
+    sta (ptr0), y
+    ldy #1
     lda (ptr2), y
     rol a
     sta (ptr2), y
-    iny
-    dex
-    bpl @store_qbit
-
-    dec tmpX
-    lda tmpX
-    bne @bit_loop
-    rts
-
-@cmp_rem_div:
-    ldy arg0
-    dey
-@cmp_loop:
-    lda (ptr3), y
-    cmp (ptr1), y
-    bne @finish_cmp
-    dey
-    bpl @cmp_loop
-    sec
-    rts
-@finish_cmp:
-    bcc @lt
-    sec
-    rts
-@lt:
-    clc
-    rts
-
-@sub_div_from_rem:
-    ldx arg0
-    dex
+    ldy #1
+    lda (ptr2), y
     ldy #0
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+@subtract:
     sec
-@sub_loop:
-    lda (ptr3), y
+    ldy #1
+    lda (ptr2), y
+    ldy #0
     sbc (ptr1), y
-    sta (ptr3), y
-    iny
+    ldy #1
+    sta (ptr2), y
+    sec
+    bcs @shift_quotient
+@no_subtract:
+    clc
+@shift_quotient:
+    ldy #0
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
     dex
-    bpl @sub_loop
+    beq @done
+    jmp @bit_loop
+@done:
     rts
 .endproc
 
+.proc _div16
+    ; ptr0 = dividend scratch (destroyed), ptr1 = divisor scratch.
+    ; ptr2 points at quotient followed immediately by remainder.
+    lda #0
+    ldy #0
+    sta (ptr2), y
+    ldy #1
+    sta (ptr2), y
+    ldy #2
+    sta (ptr2), y
+    ldy #3
+    sta (ptr2), y
+    ldx #16
+@bit_loop:
+    clc
+    ldy #0
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #1
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #2
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #3
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #3
+    lda (ptr2), y
+    ldy #1
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #2
+    lda (ptr2), y
+    ldy #0
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+@subtract:
+    sec
+    ldy #2
+    lda (ptr2), y
+    ldy #0
+    sbc (ptr1), y
+    ldy #2
+    sta (ptr2), y
+    ldy #3
+    lda (ptr2), y
+    ldy #1
+    sbc (ptr1), y
+    ldy #3
+    sta (ptr2), y
+    sec
+    bcs @shift_quotient
+@no_subtract:
+    clc
+@shift_quotient:
+    ldy #0
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #1
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    dex
+    beq @done
+    jmp @bit_loop
+@done:
+    rts
+.endproc
+
+.proc _div24
+    ; ptr0 = dividend scratch (destroyed), ptr1 = divisor scratch.
+    ; ptr2 points at quotient followed immediately by remainder.
+    lda #0
+    ldy #0
+    sta (ptr2), y
+    ldy #1
+    sta (ptr2), y
+    ldy #2
+    sta (ptr2), y
+    ldy #3
+    sta (ptr2), y
+    ldy #4
+    sta (ptr2), y
+    ldy #5
+    sta (ptr2), y
+    ldx #24
+@bit_loop:
+    clc
+    ldy #0
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #1
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #2
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #3
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #4
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #5
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #5
+    lda (ptr2), y
+    ldy #2
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #4
+    lda (ptr2), y
+    ldy #1
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #3
+    lda (ptr2), y
+    ldy #0
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+@subtract:
+    sec
+    ldy #3
+    lda (ptr2), y
+    ldy #0
+    sbc (ptr1), y
+    ldy #3
+    sta (ptr2), y
+    ldy #4
+    lda (ptr2), y
+    ldy #1
+    sbc (ptr1), y
+    ldy #4
+    sta (ptr2), y
+    ldy #5
+    lda (ptr2), y
+    ldy #2
+    sbc (ptr1), y
+    ldy #5
+    sta (ptr2), y
+    sec
+    bcs @shift_quotient
+@no_subtract:
+    clc
+@shift_quotient:
+    ldy #0
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #1
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #2
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    dex
+    beq @done
+    jmp @bit_loop
+@done:
+    rts
+.endproc
+
+.proc _div32
+    ; ptr0 = dividend scratch (destroyed), ptr1 = divisor scratch.
+    ; ptr2 points at quotient followed immediately by remainder.
+    lda #0
+    ldy #0
+    sta (ptr2), y
+    ldy #1
+    sta (ptr2), y
+    ldy #2
+    sta (ptr2), y
+    ldy #3
+    sta (ptr2), y
+    ldy #4
+    sta (ptr2), y
+    ldy #5
+    sta (ptr2), y
+    ldy #6
+    sta (ptr2), y
+    ldy #7
+    sta (ptr2), y
+    ldx #32
+@bit_loop:
+    clc
+    ldy #0
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #1
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #2
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #3
+    lda (ptr0), y
+    rol a
+    sta (ptr0), y
+    ldy #4
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #5
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #6
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #7
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #7
+    lda (ptr2), y
+    ldy #3
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #6
+    lda (ptr2), y
+    ldy #2
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #5
+    lda (ptr2), y
+    ldy #1
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+    ldy #4
+    lda (ptr2), y
+    ldy #0
+    cmp (ptr1), y
+    bcc @no_subtract
+    bne @subtract
+@subtract:
+    sec
+    ldy #4
+    lda (ptr2), y
+    ldy #0
+    sbc (ptr1), y
+    ldy #4
+    sta (ptr2), y
+    ldy #5
+    lda (ptr2), y
+    ldy #1
+    sbc (ptr1), y
+    ldy #5
+    sta (ptr2), y
+    ldy #6
+    lda (ptr2), y
+    ldy #2
+    sbc (ptr1), y
+    ldy #6
+    sta (ptr2), y
+    ldy #7
+    lda (ptr2), y
+    ldy #3
+    sbc (ptr1), y
+    ldy #7
+    sta (ptr2), y
+    sec
+    bcs @shift_quotient
+@no_subtract:
+    clc
+@shift_quotient:
+    ldy #0
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #1
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #2
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    ldy #3
+    lda (ptr2), y
+    rol a
+    sta (ptr2), y
+    dex
+    beq @done
+    jmp @bit_loop
+@done:
+    rts
+.endproc

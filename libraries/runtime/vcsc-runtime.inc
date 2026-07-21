@@ -8,10 +8,3 @@
 .def ptr0 _vcsc_ptr0
 .def ptr1 _vcsc_ptr1
 .def ptr2 _vcsc_ptr2
-.def ptr3 _vcsc_ptr3
-.def tmp0 _vcsc_tmp0
-.def tmp1 _vcsc_tmp1
-.def tmp2 _vcsc_tmp2
-.def tmp3 _vcsc_tmp3
-.def tmp4 _vcsc_tmp4
-.def tmp5 _vcsc_tmp5

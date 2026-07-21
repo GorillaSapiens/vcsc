@@ -1151,7 +1151,10 @@ void compile_expr(ASTNode *node, Context *ctx) {
       aux_offset = rhs_tmp_offset + rhs_work_size;
       rhs_value_offset = rhs_tmp_offset;
 
-      if (!strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%=")) {
+      if (!strcmp(op, "*=")) {
+         tmp_total += work_size;
+      }
+      else if (!strcmp(op, "/=") || !strcmp(op, "%=")) {
          tmp_total += work_size * 2;
       }
       else if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
@@ -1238,9 +1241,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_prepare_scratch_ptr(0, lhs_tmp_offset);
          emit_prepare_scratch_ptr(1, rhs_tmp_offset);
          emit_prepare_scratch_ptr(2, quo_offset);
-         emit_prepare_scratch_ptr(3, rem_offset);
-         emit(&es_code, "    lda #$%02x\n", work_size & 0xff);
-         emit(&es_code, "    sta arg0\n");
+         (void) rem_offset;
          remember_runtime_import(int_div_helper_name(work_type));
          emit(&es_code, "    jsr _%s\n", int_div_helper_name(work_type));
          emit_copy_scratch_to_scratch(lhs_tmp_offset, !strcmp(op, "/=") ? quo_offset : rem_offset, work_size);

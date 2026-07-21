@@ -3,7 +3,7 @@
 // expectstderrordered: runtime remainder by constant power of two 8
 // expectstderrordered: runtime division by constant power of two 2
 // expectstderrordered: runtime remainder by constant power of two 16
-// expectasm: jsr _divNle
+// expectasm: jsr _div8
 
 include "machine_6502.c26"
 

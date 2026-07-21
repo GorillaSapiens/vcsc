@@ -284,8 +284,7 @@ void emit_runtime_binary_scratch(const char *helper, int dst_offset, int lhs_off
    emit_prepare_scratch_ptr(0, lhs_offset);
    emit_prepare_scratch_ptr(1, rhs_offset);
    emit_prepare_scratch_ptr(2, dst_offset);
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
+   (void) size;
    remember_runtime_import(helper);
    emit(&es_code, "    jsr _%s\n", helper);
 }
@@ -407,8 +406,17 @@ void emit_fixed_compare_scratch(const ASTNode *type, const char *op, int lhs_off
 
 //! @brief Return int mul helper name data used by compiler lvalue lowering.
 const char *int_mul_helper_name(const ASTNode *type) {
-   (void) type;
-   return "mulNle";
+   int size = type_size_from_node(type);
+
+   switch (size) {
+      case 1: return "mul8";
+      case 2: return "mul16";
+      case 3: return "mul24";
+      case 4: return "mul32";
+      default:
+         error_unreachable("unsupported integer width %d reached multiply lowering", size);
+   }
+   return NULL;
 }
 
 //! @brief Handle int mul result offset logic for compiler lvalue lowering.
@@ -420,8 +428,17 @@ int int_mul_result_offset(const ASTNode *type, int product_offset, int size) {
 
 //! @brief Return int div helper name data used by compiler lvalue lowering.
 const char *int_div_helper_name(const ASTNode *type) {
-   (void) type;
-   return "divNle";
+   int size = type_size_from_node(type);
+
+   switch (size) {
+      case 1: return "div8";
+      case 2: return "div16";
+      case 3: return "div24";
+      case 4: return "div32";
+      default:
+         error_unreachable("unsupported integer width %d reached division lowering", size);
+   }
+   return NULL;
 }
 
 //! @brief Return the fixed-width shift helper selected for a scalar type.
@@ -580,7 +597,7 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          int idx_offset = 0;
          int factor_offset = idx_offset + ptr_size;
          int scaled_offset = factor_offset + ptr_size;
-         int save_ptr0_offset = elem_size != 1 ? (scaled_offset + (ptr_size * 2)) : (idx_offset + ptr_size);
+         int save_ptr0_offset = elem_size != 1 ? (scaled_offset + ptr_size) : (idx_offset + ptr_size);
          int total = (save_ptr0_offset - idx_offset) + ptr_size;
          ContextEntry idx_tmp = { .name = "$idx", .type = idx_type ? idx_type : required_typename_node("int16_t"), .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = idx_offset, .size = ptr_size };
          LValueFixedScratch scratch;

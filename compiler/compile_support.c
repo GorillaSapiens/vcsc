@@ -1001,7 +1001,7 @@ void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name) {
 
 //! @brief Emit prepare scratch ptr for compiler code-generation support diagnostics or output files.
 void emit_prepare_scratch_ptr(int ptrno, int offset) {
-   if (ptrno < 0 || ptrno > 3) {
+   if (ptrno < 0 || ptrno > 2) {
       ptrno = 0;
    }
    emit_load_address_to_ptr(ptrno, compiler_scratch_active_symbol(), offset);

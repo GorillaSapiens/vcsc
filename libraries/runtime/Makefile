@@ -15,9 +15,7 @@ DOXYGEN ?= doxygen
 
 ZP_SOURCES = \
 	vcsc-zp-arg0.s vcsc-zp-arg1.s \
-	vcsc-zp-ptr0.s vcsc-zp-ptr1.s vcsc-zp-ptr2.s vcsc-zp-ptr3.s \
-	vcsc-zp-tmp0.s vcsc-zp-tmp1.s vcsc-zp-tmp2.s \
-	vcsc-zp-tmp3.s vcsc-zp-tmp4.s vcsc-zp-tmp5.s
+	vcsc-zp-ptr0.s vcsc-zp-ptr1.s vcsc-zp-ptr2.s
 
 all: $(ASM) $(VCSC_AR)
 	rm -rf wrk libvcsc.a libvcsc.l26

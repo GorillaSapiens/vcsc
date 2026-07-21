@@ -28,27 +28,28 @@ my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 my $test_inc = File::Spec->catdir($repo, 'test');
 my $runtime = File::Spec->catdir($repo, 'libraries', 'runtime');
 my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
-
-my @all_cells = qw(arg0 arg1 ptr0 ptr1 ptr2 ptr3 tmp0 tmp1 tmp2 tmp3 tmp4 tmp5);
-my %bytes = (
-   arg0 => 1, arg1 => 1,
-   ptr0 => 2, ptr1 => 2, ptr2 => 2, ptr3 => 2,
-   tmp0 => 1, tmp1 => 1, tmp2 => 1, tmp3 => 1, tmp4 => 1, tmp5 => 1,
-);
+my @workspace = qw(arg0 arg1 ptr0 ptr1 ptr2);
+my @removed = qw(ptr3 tmp0 tmp1 tmp2 tmp3 tmp4 tmp5);
 
 open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
 my $members = do { local $/; <$afh> };
 close($afh) or die "archive listing failed for $archive\n";
-$members !~ /vcsc-zeropage\.o26/
-   or die "monolithic zero-page member remains in runtime archive\n";
-for my $cell (@all_cells) {
+for my $cell (@workspace) {
    $members =~ /^vcsc-zp-\Q$cell\E\.o26$/m
-      or die "runtime archive lacks independent $cell workspace member\n";
+      or die "runtime archive lacks required $cell workspace member\n";
+}
+for my $cell (@removed) {
+   $members !~ /^vcsc-zp-\Q$cell\E\.o26$/m
+      or die "obsolete runtime workspace member remains: $cell\n";
+   !-e File::Spec->catfile($runtime, "vcsc-zp-$cell.s")
+      or die "obsolete runtime workspace source remains: $cell\n";
 }
 
 my $inc = read_file(File::Spec->catfile($runtime, 'vcsc-runtime.inc'));
 $inc !~ /^\s*\.importzp\b/m
-   or die "vcsc-runtime.inc still imports the whole workspace unconditionally\n";
+   or die "vcsc-runtime.inc imports workspace unconditionally\n";
+$inc !~ /\b(?:ptr3|tmp[0-5])\b/
+   or die "vcsc-runtime.inc still aliases removed workspace\n";
 
 sub build_case {
    my ($name, $source) = @_;
@@ -61,73 +62,44 @@ sub build_case {
    return read_file($map);
 }
 
-sub linked_cells {
-   my ($map) = @_;
+sub require_baseline {
+   my ($name, $map) = @_;
    my %seen;
    while ($map =~ /libvcsc\.l26\(vcsc-zp-([A-Za-z0-9_]+)\.o26\)/g) {
       $seen{$1} = 1;
    }
-   return sort keys %seen;
+   my $got = join(',', sort keys %seen);
+   my $want = join(',', @workspace);
+   $got eq $want or die "$name linked workspace {$got}, expected {$want}\n";
 }
 
-sub require_cells {
-   my ($name, $map, @want) = @_;
-   my @got = linked_cells($map);
-   my $got = join(',', @got);
-   my $want = join(',', sort @want);
-   $got eq $want
-      or die "$name linked workspace cells {$got}, expected {$want}\n";
-   my $size = 0;
-   $size += $bytes{$_} for @got;
-   return $size;
-}
-
-my @startup = qw(arg0 arg1 ptr0 ptr1 ptr2);
-
-my $plain = build_case('workspace_plain', <<'SRC');
+require_baseline('plain', build_case('workspace_plain', <<'SRC'));
 uint32_t a := 0x12345678;
 uint32_t b := 0x01020304;
 uint32_t result;
 void main(void) { result := a + b; }
 SRC
-require_cells('plain', $plain, @startup) == 8
-   or die "plain startup workspace is not eight bytes\n";
 
-my $inline = build_case('workspace_inline', <<'SRC');
-void main(void) {
-   asm lda #$5a;
-   asm sta tmp5;
-}
-SRC
-require_cells('inline workspace reference', $inline, @startup, qw(tmp5)) == 9
-   or die "inline workspace reference did not select exactly one extra byte\n";
-
-my $div = build_case('workspace_div', <<'SRC');
-uint32_t a := 0x12345678;
-uint32_t b := 0x1234;
-uint32_t result;
-void main(void) { result := a / b; }
-SRC
-require_cells('division', $div, @startup, qw(ptr3 tmp0 tmp1)) == 12
-   or die "division workspace is not twelve bytes\n";
-
-my $asr = build_case('workspace_asr', <<'SRC');
-int32_t a := -1234567;
-uint8_t count := 5;
-int32_t result;
-void main(void) { result := a >> count; }
-SRC
-require_cells('arithmetic shift', $asr, @startup) == 8
-   or die "fixed-width arithmetic-shift workspace is not eight bytes\n";
-
-my $mul = build_case('workspace_mul', <<'SRC');
+require_baseline('multiplication', build_case('workspace_mul', <<'SRC'));
 uint32_t a := 0x1234;
 uint32_t b := 0x100;
 uint32_t result;
 void main(void) { result := a * b; }
 SRC
-require_cells('multiplication', $mul, @all_cells) == 16
-   or die "multiplication workspace is not sixteen bytes\n";
+
+require_baseline('division', build_case('workspace_div', <<'SRC'));
+uint32_t a := 0x12345678;
+uint32_t b := 0x1234;
+uint32_t result;
+void main(void) { result := a / b; }
+SRC
+
+require_baseline('remainder', build_case('workspace_rem', <<'SRC'));
+uint32_t a := 0x12345678;
+uint32_t b := 0x1234;
+uint32_t result;
+void main(void) { result := a % b; }
+SRC
 
 my $empty_src = File::Spec->catfile($tmp, 'workspace_empty.c26');
 my $empty_asm = File::Spec->catfile($tmp, 'workspace_empty.s');
@@ -136,6 +108,6 @@ system($cc1, '-quiet', '-I', $test_inc, $empty_src, '-o', $empty_asm) == 0
    or die "empty compiler probe failed\n";
 my $generated = read_file($empty_asm);
 $generated !~ /^\s*\.zpimport\s+_vcsc_(?:arg|ptr|tmp)/m
-   or die "empty translation unit imports unused runtime workspace cells\n";
+   or die "empty translation unit imports runtime workspace\n";
 
-print "runtime workspace split ok: plain 8, direct 9, division 12, fixed shift 8, multiply 16 bytes\n";
+print "runtime workspace reduced: mul/div/rem stay at the 8-byte startup baseline\n";

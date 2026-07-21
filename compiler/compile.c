@@ -55,13 +55,6 @@ static const RuntimeWorkspaceName runtime_workspace_names[] = {
    { "ptr0", "_vcsc_ptr0" },
    { "ptr1", "_vcsc_ptr1" },
    { "ptr2", "_vcsc_ptr2" },
-   { "ptr3", "_vcsc_ptr3" },
-   { "tmp0", "_vcsc_tmp0" },
-   { "tmp1", "_vcsc_tmp1" },
-   { "tmp2", "_vcsc_tmp2" },
-   { "tmp3", "_vcsc_tmp3" },
-   { "tmp4", "_vcsc_tmp4" },
-   { "tmp5", "_vcsc_tmp5" },
 };
 
 enum {

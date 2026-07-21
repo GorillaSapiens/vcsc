@@ -25,11 +25,10 @@ workspace expected by generated code.
   - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
 - `vcsc-zp-*.s`
   - each file exports one independently selectable zero-page cell
-  - `_vcsc_arg0`, `_vcsc_arg1`, and `_vcsc_tmp0` through `_vcsc_tmp5` are one byte each
-  - `_vcsc_ptr0` through `_vcsc_ptr3` are two bytes each
-  - startup selects `arg0`, `arg1`, and `ptr0` through `ptr2`, an eight-byte baseline
-  - the full 16-byte set is linked only when an operation such as generic
-    multiplication needs every cell
+  - `_vcsc_arg0` and `_vcsc_arg1` are one byte each
+  - `_vcsc_ptr0` through `_vcsc_ptr2` are two bytes each
+  - startup selects the complete eight-byte set
+  - multiplication, division, and remainder require no additional runtime RAM
 
 The VCS 6507 has no connected hardware IRQ or NMI inputs. The stock runtime
 therefore has no compiled interrupt-handler ABI or interrupt-entry library.
@@ -48,15 +47,23 @@ Runtime helpers remain where compact shared code is still useful:
   `_sar32` implement variable-count shifts at the four supported scalar widths;
 - `_copy_bytes`, `_fill_bytes`, and `_zero_bytes` support objects wider than
   four bytes;
-- `_mulNle`, `_divNle`, and `_remNle` remain temporarily for multiplication,
-  division, and remainder. Division owns a private four-byte BSS workspace.
+- `_mul8` through `_mul32` compute the low-width product in compiler-owned
+  expression scratch;
+- `_div8` through `_div32` compute quotient and remainder into one adjacent
+  compiler-owned result block.
+
+The fixed multiplication helpers destructively shift their dead scratch
+operands. The fixed division helpers destructively shift the dividend, preserve
+the divisor, and place the remainder immediately after the quotient. Neither
+family owns BSS or selects extra zero-page cells.
 
 The fixed-width shift helpers use `ptr0` as source, `ptr1` as destination, and
 `arg1` as the low-byte count. They preserve both pointers, clobber A/X/Y, and
 produce zero or sign fill when the runtime count is at least the operand width.
 
 Assembler include glue is in `vcsc-runtime.inc`. It defines the short `arg0`,
-`ptr0`, and `tmp0` spellings but deliberately imports no workspace symbols.
+`arg1`, and `ptr0` through `ptr2` spellings but deliberately imports no
+workspace symbols.
 Compiler output, including inline assembly, and each generated helper member
 declare their own exact zero-page imports, allowing the archive linker to select
 only the required `vcsc-zp-*.o26` members. Helper sources are in `asm/`, and

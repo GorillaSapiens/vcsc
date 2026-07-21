@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_122559.tar.gz
+    vcsc.20260721_130855.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -237,9 +237,9 @@ Completed vertical slices
     compile-time positive power of two greater than one emit a performance
     warning. Code generation and C-compatible signed division/remainder
     semantics remain unchanged; literal-only expressions still fold silently.
-29. The residual target software stack has been removed. Division/remainder
-    use a private four-byte BSS workspace owned by the archive-selected `_divNle`
-    member; programs without `/` or `%` link neither the helper nor its workspace.
+29. [Helper workspace superseded by slice 44.] The residual target software
+    stack was removed. Division/remainder temporarily used a private four-byte
+    BSS workspace owned by the archive-selected `_divNle` member.
     `_vcsc_sp`, `_pushN`, `_popN`, `sp2ptr*`, `ARGSTACK`, startup stack-base
     initialization, and the stale per-function frame prologue are gone. Slice
     38 later removed the remaining runtime frame pointer as well.
@@ -333,6 +333,14 @@ Completed vertical slices
     hardware-stack use, startup ownership, assembly call metadata, and banked
     linker layouts. It recommends an unbanked 4K standard-kernel profile first,
     with multisprite, Superchip, and bankswitching staged later.
+44. Replaced the inherited arbitrary-width multiplication and
+    division/remainder helpers with `_mul8`/`16`/`24`/`32` and
+    `_div8`/`16`/`24`/`32`. The helpers destructively reuse dead compiler
+    expression operands and place exact-width results in the same leased scratch;
+    division stores quotient followed by remainder in one adjacent block. The
+    private dividend BSS object, `ptr3`, and `tmp0` through `tmp5` are gone.
+    Scalar multiply/divide/remainder now stay at the ordinary eight-byte runtime
+    workspace baseline.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -365,8 +373,8 @@ Relevant code:
         return_void / return_memory metadata
 
 Every function declaration and definition is validated. The compiler currently
-accepts void, one-through-four-byte ordinary binary integers, one/two/three-byte
-packed BCD integers, and 16-bit pointers. It rejects aggregates, arrays, and
+accepts void, one-through-four-byte ordinary binary integers, one-through-four-
+byte packed BCD integers, and 16-bit pointers. It rejects aggregates, arrays, and
 other noninteger/nonpointer returns. The stock interface names ordinary widths
 through 32 bits.
 
@@ -490,8 +498,9 @@ paths, and the runtime implementation has now been removed completely:
   runtime archive;
 * linker configurations no longer declare an `ARGSTACK` segment;
 * compiled functions have no software-stack entry prologue;
-* retained division/remainder uses a private four-byte BSS object in `_divNle`,
-  selected from the runtime archive only when `/` or `%` is linked.
+* fixed-width multiplication and division/remainder helpers reuse
+  compiler-owned expression scratch and select no private BSS or extra runtime
+  zero-page cells.
 
 Pooled fixed scratch is selected by a compile-time lease stack and addressed
 directly through linker-resolved `__vcsc_scratch_N` symbols. `_vcsc_fp`, its
@@ -523,8 +532,8 @@ For the big/mixed-endian purge:
 For the wide-binary-integer purge:
 
 * ordinary binary target integer declarations may be one through four bytes;
-* `$bcd` declarations are the deliberate unsigned one-, two-, and three-byte
-  packed-decimal exception;
+* `$bcd` declarations are the deliberate unsigned one- through four-byte
+  packed-decimal family;
 * target pointers must be two bytes;
 * integer literals may carry up to 32 bits when a typed ordinary destination or
   operation supplies a matching width; the stock untyped default remains int16_t;
@@ -599,11 +608,11 @@ Result: passed.
 
 Compile suite:
 
-    272 passed, 0 failed, 272 total
+    285 passed, 0 failed, 285 total
 
 End-to-end/generic suite:
 
-    125 passed, 0 failed, 125 total
+    135 passed, 0 failed, 135 total
 
 Staged install check:
 
@@ -870,7 +879,7 @@ The first unfinished item is the default next action.
           variable-shift helpers with VCSC-specific fixed-width lowering or
           helpers for the supported one- through four-byte scalar widths.
 
-    [ ] c. Replace multiplication and division/remainder separately with
+    [x] c. Replace multiplication and division/remainder separately with
           fixed-width implementations that reuse existing expression/result
           storage where lifetimes permit. Eliminate the six inherited `tmp`
           bytes and surplus pointer cells when those operations are absent.
@@ -949,9 +958,9 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20c are complete. Runtime-workspace side-quest items a and b
-are complete; item c, fixed-width multiplication and division/remainder, is the
-next queued action. Item d follows before task 20d builds the first
+Tasks 20a through 20c are complete. Runtime-workspace side-quest items a
+through c are complete; item d, whole-program call-graph/liveness overlay for
+static compiler storage, is the next queued action before task 20d builds the first
 no-bankswitch, no-Superchip cartridge from the normalized standard kernel and
 verifies its final map, opcode bytes, and stable 262-line NTSC timing.
 
@@ -2473,3 +2482,27 @@ Before returning another modified archive:
 * Pass 283/283 compile tests, 134/134 end-to-end/generic tests, and staged
   installation. Add three removed runtime source paths to `.top_secret/remove.txt`,
   now 884 unique cumulative paths. Side-quest item c is next before task 20d.
+
+
+2026-07-21 13:24:10 PDT, replace inherited multiply/divide workspace
+------------------------------------------------------------------------
+* Complete runtime-workspace side-quest item c. Replace `_mulNle`, `_divNle`,
+  and `_remNle` with fixed-width `_mul8`/`16`/`24`/`32` and
+  `_div8`/`16`/`24`/`32` archive members.
+* Let multiplication destructively shift dead compiler-expression operands and
+  write only the language-width low product. Let division destructively shift
+  the dividend and write quotient followed immediately by remainder into one
+  adjacent compiler scratch block. Preserve the divisor and the historical
+  divide-by-zero result convention.
+* Remove the private four-byte division BSS object, `ptr3`, and `tmp0` through
+  `tmp5`. The runtime now has exactly five independently linked workspace
+  members totaling the ordinary eight-byte startup baseline; multiply,
+  divide, and remainder add no RIOT RAM.
+* Reduce multiplication scratch reservations from a double-width product to an
+  exact-width result, including compound assignment and non-power-of-two index
+  scaling. Retain adjacent exact-width quotient/remainder storage for division.
+* Add fixed-width helper selection/code-generation, direct helper ABI, all-width
+  execution, workspace-map, and archive regressions. Rename the obsolete
+  input-preservation probe to `e2e_fixed_muldiv_helpers_verify.c26`.
+* Pass 285/285 compile tests and 135/135 end-to-end/generic tests. The cumulative
+  removal ledger now contains 893 unique paths. Side-quest item d is next.

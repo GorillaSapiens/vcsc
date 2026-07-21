@@ -1,0 +1,73 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+ref uint8_t a0@0x0300;
+ref uint8_t a1@0x0301;
+ref uint8_t b0@0x0302;
+ref uint8_t b1@0x0303;
+ref uint8_t r0@0x0304;
+ref uint8_t r1@0x0305;
+ref uint8_t r2@0x0306;
+ref uint8_t r3@0x0307;
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void set_ptrs(void) {
+   asm lda #<$0300;
+   asm sta _vcsc_ptr0;
+   asm lda #>$0300;
+   asm sta _vcsc_ptr0+1;
+   asm lda #<$0302;
+   asm sta _vcsc_ptr1;
+   asm lda #>$0302;
+   asm sta _vcsc_ptr1+1;
+   asm lda #<$0304;
+   asm sta _vcsc_ptr2;
+   asm lda #>$0304;
+   asm sta _vcsc_ptr2+1;
+}
+
+void main(void) {
+   asm .import _mul16;
+   asm .import _div16;
+   asm .importzp _vcsc_ptr0;
+   asm .importzp _vcsc_ptr1;
+   asm .importzp _vcsc_ptr2;
+
+   // Fixed multiply returns only the language-width low half and may destroy
+   // its dead expression operands.
+   a0 := 0x34; a1 := 0x12;
+   b0 := 0x03; b1 := 0x00;
+   r0 := 0xaa; r1 := 0xbb; r2 := 0xcc; r3 := 0xdd;
+   set_ptrs();
+   asm jsr _mul16;
+   if (r0 != 0x9c || r1 != 0x36) { fail(1); }
+   if (r2 != 0xcc || r3 != 0xdd) { fail(2); }
+
+   // Fixed division stores quotient followed immediately by remainder.
+   a0 := 0xe8; a1 := 0x03; // 1000
+   b0 := 37;   b1 := 0;
+   r0 := 0xaa; r1 := 0xbb; r2 := 0xcc; r3 := 0xdd;
+   set_ptrs();
+   asm jsr _div16;
+   if (r0 != 27 || r1 != 0) { fail(3); }
+   if (r2 != 1 || r3 != 0) { fail(4); }
+
+   pass();
+}

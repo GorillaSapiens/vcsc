@@ -40,11 +40,16 @@ my @removed_members = qw(
    _eqN _ltNsle _leNsle _ltNule _leNule
    _bit_andN _bit_orN _bit_xorN _bit_notN
    _lsl1le _lsr1le _asr1le _arg1Nle _lslNle _lsrNle _asrNle
+   _mulNle _divNle _remNle
 );
 my @fixed_shift_members = qw(
    _shl8 _shl16 _shl24 _shl32
    _shr8 _shr16 _shr24 _shr32
    _sar8 _sar16 _sar24 _sar32
+);
+my @fixed_muldiv_members = qw(
+   _mul8 _mul16 _mul24 _mul32
+   _div8 _div16 _div24 _div32
 );
 my @object_members = qw(_copy_bytes _fill_bytes _zero_bytes);
 
@@ -55,7 +60,7 @@ for my $name (@removed_members) {
    $members !~ /^\Q$name\E\.o26$/m
       or die "removed generic scalar helper remains in archive: $name\n";
 }
-for my $name (@fixed_shift_members, @object_members) {
+for my $name (@fixed_shift_members, @fixed_muldiv_members, @object_members) {
    $members =~ /^\Q$name\E\.o26$/m
       or die "required replacement helper missing from archive: $name\n";
 }
@@ -139,4 +144,4 @@ my $aggregate = read_file($aggregate_asm);
 $aggregate =~ /^\.import _zero_bytes$/m && $aggregate =~ /jsr _zero_bytes/
    or die "object wider than four bytes no longer selects aggregate zero helper\n";
 
-print "fixed scalar runtime ok: inline scalar ops, 12 width-specific shifts, 8-byte workspace\n";
+print "fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 8-byte workspace\n";

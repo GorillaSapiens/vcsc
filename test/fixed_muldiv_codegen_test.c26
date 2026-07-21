@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+// expectasm: jsr _mul8
+// expectasm: jsr _mul16
+// expectasm: jsr _mul24
+// expectasm: jsr _mul32
+// expectasm: jsr _div8
+// expectasm: jsr _div16
+// expectasm: jsr _div24
+// expectasm: jsr _div32
+// forbidasm: _mulNle
+// forbidasm: _divNle
+// forbidasm: _remNle
+// forbidasm: ptr3
+// forbidasm: tmp0
+
+include "machine_6502.c26"
+
+uint8_t a8, b8, r8;
+uint16_t a16, b16, r16;
+uint24_t a24, b24, r24;
+uint32_t a32, b32, r32;
+
+void main(void) {
+   r8 := a8 * b8;
+   r16 := a16 * b16;
+   r24 := a24 * b24;
+   r32 := a32 * b32;
+   r8 := a8 / b8;
+   r16 := a16 / b16;
+   r24 := a24 / b24;
+   r32 := a32 / b32;
+}
