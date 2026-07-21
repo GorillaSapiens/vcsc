@@ -93,7 +93,7 @@ for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "score vector outside RO
 my $map_text=read_file($map);
 require_re($map_text,qr/region=RAM\s+depth=2\s+bytes=\$0004\s+physical=\$00FC-\$00FF/,
            'score map lost the expected two-level source call reserve');
-require_re($map_text,qr/\$0090\s+six_glyph_pointers|six_glyph_pointers\s+.*\$0090/,
+require_re($map_text,qr/\$0088\s+six_glyph_pointers|six_glyph_pointers\s+.*\$0088/,
            'score pointer table is not anchored at the first allocatable RAM byte');
 require_re($map_text,qr/six_glyph_row/, 'score map is missing row counter');
 require_re($map_text,qr/six_glyph_delayed/, 'score map is missing delayed glyph byte');

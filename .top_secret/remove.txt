@@ -878,3 +878,4 @@ NOTES.md
 context.txt
 remove.txt
 software_stack_inventory.txt
+libraries/runtime/vcsc-zeropage.s

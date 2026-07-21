@@ -18,8 +18,13 @@
 .import __stack_start
 .import __init_table
 
+.importzp _vcsc_arg0, _vcsc_arg1
+.importzp _vcsc_ptr0, _vcsc_ptr1, _vcsc_ptr2
+
 .include "../vcsc-runtime.inc"
 
+; arg1 is the high byte of the startup copy/zero count.  The forced absolute
+; encodings preserve the pre-split startup member size and downstream ROM layout.
 .segment "CODE"
 
 __reset:
@@ -54,9 +59,9 @@ _copy_record:
    sta arg0
    iny
    lda (ptr0),y
-   sta arg0+1
+   sta.a arg1
    lda arg0
-   ora arg0+1
+   ora.a arg1
    beq _zero_setup
 
 _copy_loop:
@@ -76,11 +81,11 @@ _copy_dst:
 _copy_count:
    lda arg0
    bne _copy_dec_lo
-   dec arg0+1
+   dec.a arg1
 _copy_dec_lo:
    dec arg0
    lda arg0
-   ora arg0+1
+   ora.a arg1
    bne _copy_loop
 
    clc
@@ -110,9 +115,9 @@ _zero_record:
    sta arg0
    iny
    lda (ptr0),y
-   sta arg0+1
+   sta.a arg1
    lda arg0
-   ora arg0+1
+   ora.a arg1
    beq _start_init
 
 _zero_loop:
@@ -127,11 +132,11 @@ _zero_loop:
 _zero_count:
    lda arg0
    bne _zero_dec_lo
-   dec arg0+1
+   dec.a arg1
 _zero_dec_lo:
    dec arg0
    lda arg0
-   ora arg0+1
+   ora.a arg1
    bne _zero_loop
 
    clc

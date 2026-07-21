@@ -22,9 +22,9 @@ my $fp2ptr = File::Spec->catfile($runtime, 'asm', 'fp2ptr.asm');
 -e $fp2ptr and die "obsolete fp2ptr helper source remains: $fp2ptr\n";
 
 for my $path (
-   File::Spec->catfile($runtime, 'vcsc-zeropage.s'),
    File::Spec->catfile($runtime, 'vcsc-runtime.inc'),
    File::Spec->catfile($runtime, 'vcsc-rt0.s'),
+   glob(File::Spec->catfile($runtime, 'vcsc-zp-*.s')),
 ) {
    my $text = slurp($path);
    $text =~ /_vcsc_fp|\.def\s+fp\b|\bfp2ptr\b/

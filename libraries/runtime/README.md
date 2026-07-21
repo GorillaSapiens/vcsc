@@ -23,10 +23,13 @@ workspace expected by generated code.
   - walks the linker-generated `__init_table`
   - calls `main`
   - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
-- `vcsc-zeropage.s`
-  - exports the zero-page runtime workspace used by startup code and helper routines
-  - current symbols are `_vcsc_arg0`, `_vcsc_arg1`, `_vcsc_ptr0`..`_vcsc_ptr3`, and `_vcsc_tmp0`..`_vcsc_tmp5`
-  - the complete stock zero-page workspace is 16 bytes
+- `vcsc-zp-*.s`
+  - each file exports one independently selectable zero-page cell
+  - `_vcsc_arg0`, `_vcsc_arg1`, and `_vcsc_tmp0` through `_vcsc_tmp5` are one byte each
+  - `_vcsc_ptr0` through `_vcsc_ptr3` are two bytes each
+  - startup selects `arg0`, `arg1`, and `ptr0` through `ptr2`, an eight-byte baseline
+  - the full 16-byte set is linked only when an operation such as generic
+    multiplication needs every cell
 
 The VCS 6507 has no connected hardware IRQ or NMI inputs. The stock runtime
 therefore has no compiled interrupt-handler ABI or interrupt-entry library.
@@ -43,10 +46,13 @@ These are small assembly helpers that the compiler targets directly:
 - shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts
 - buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`
 
-Assembler include glue is in `vcsc-runtime.inc`, assembly sources are in `asm/`, and
-built archive members appear in `wrk/` after `make`. Machine definitions and
-linker layouts are platform-owned; the stock project target lives under
-`libraries/vcs/`.
+Assembler include glue is in `vcsc-runtime.inc`. It defines the short `arg0`,
+`ptr0`, and `tmp0` spellings but deliberately imports no workspace symbols.
+Compiler output, including inline assembly, and each generated helper member
+declare their own exact zero-page imports, allowing the archive linker to select
+only the required `vcsc-zp-*.o26` members. Helper sources are in `asm/`, and generated archive
+members appear in `wrk/` after `make`. Machine definitions and linker layouts
+are platform-owned; the stock project target lives under `libraries/vcs/`.
 
 ### Dynamic allocation
 
@@ -63,7 +69,7 @@ Machine assumptions:
 
 - 6502-family target
 - hardware stack at page `$01xx`
-- zero page is available for the runtime workspace exported by `vcsc-zeropage.s`
+- zero page is available for the selected `vcsc-zp-*.s` workspace members
 
 The linker selects the startup archive member through `__reset`, `__nmi`, and
 `__irqbrk`.

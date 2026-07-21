@@ -1,24 +1,64 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
+use strict;
+use warnings;
 
-`mkdir -p wrk`;
-`cp vcsc-runtime.inc wrk`;
-foreach $file (`ls asm/*.asm`) {
-   $file =~ s/[\x0a\x0d]//g;
+mkdir 'wrk' unless -d 'wrk';
+system('cp', 'vcsc-runtime.inc', 'wrk') == 0 or die "could not copy vcsc-runtime.inc\n";
 
+my %workspace_alias = (
+   arg0 => '_vcsc_arg0',
+   arg1 => '_vcsc_arg1',
+   ptr0 => '_vcsc_ptr0',
+   ptr1 => '_vcsc_ptr1',
+   ptr2 => '_vcsc_ptr2',
+   ptr3 => '_vcsc_ptr3',
+   tmp0 => '_vcsc_tmp0',
+   tmp1 => '_vcsc_tmp1',
+   tmp2 => '_vcsc_tmp2',
+   tmp3 => '_vcsc_tmp3',
+   tmp4 => '_vcsc_tmp4',
+   tmp5 => '_vcsc_tmp5',
+);
+
+sub workspace_imports_for {
+   my ($lines, $aliases) = @_;
+   my %imports;
+   for my $line (@$lines) {
+      $line =~ s/;.*//;
+      while ($line =~ /([A-Za-z_][A-Za-z0-9_]*)/g) {
+         my $token = $1;
+         if (exists $aliases->{$token}) {
+            $imports{$aliases->{$token}} = 1;
+         }
+         elsif ($token =~ /^_vcsc_(?:arg[01]|ptr[0-3]|tmp[0-5])$/) {
+            $imports{$token} = 1;
+         }
+      }
+   }
+   return sort keys %imports;
+}
+
+for my $file (sort glob('asm/*.asm')) {
    print "== $file\n";
-   open FILE, $file;
-   @file = <FILE>;
-   close FILE;
+   open(my $in, '<', $file) or die "cannot open $file: $!\n";
+   my @file = <$in>;
+   close($in) or die "cannot close $file: $!\n";
 
-   @head = ();
-   @constants = ();
-   $mode = 0;
-   foreach $line (@file) {
+   my @head;
+   my @constants;
+   my $mode = 0;
+   my @func;
+   my @imports;
+   my %aliases = %workspace_alias;
+
+   for my $line (@file) {
+      if ($line =~ /^\s*\.def\s+([A-Za-z_][A-Za-z0-9_]*)\s+(_vcsc_(?:arg[01]|ptr[0-3]|tmp[0-5]))(?:\s*\+\s*\d+)?/i) {
+         $aliases{$1} = $2;
+      }
       if ($line =~ /^[^;]*\.def/i) {
          push @constants, $line;
       }
-
-      if ($line =~ /^[a-zA-Z0-9_]+:/) {
+      if ($line =~ /^[A-Za-z0-9_]+:/) {
          print "WARN: $line";
       }
 
@@ -29,50 +69,49 @@ foreach $file (`ls asm/*.asm`) {
          push @head, $line;
       }
       elsif ($line =~ /^\.proc/) {
-         @import = ();
-         @func = ();
-         push @func, $line;
+         @imports = ();
+         @func = ($line);
       }
       elsif ($line =~ /^\.endproc/) {
          push @func, $line;
 
-         $tmp = $func[0];
-         $tmp =~ s/^\.proc//g;
-         $tmp =~ s/[\s]//g;
+         my $name = $func[0];
+         $name =~ s/^\.proc//;
+         $name =~ s/\s//g;
 
-         print "--- $tmp.s\n";
-         open FILE, ">wrk/$tmp.s";
-         print FILE ";;; $tmp wrk from $file\n";
-         print FILE @head;
-         print FILE ".export $tmp\n";
-         print FILE "\n";
-         if ($#import >= 0) {
-            print FILE ".import " . join(", ", @import) . "\n";
-            print FILE "\n";
+         print "--- $name.s\n";
+         open(my $out, '>', "wrk/$name.s") or die "cannot create wrk/$name.s: $!\n";
+         print {$out} ";;; $name wrk from $file\n";
+         print {$out} @head;
+         print {$out} ".export $name\n\n";
+         if (@imports) {
+            my %seen;
+            my @unique = grep { !$seen{$_}++ } @imports;
+            print {$out} ".import " . join(', ', @unique) . "\n\n";
          }
-         print FILE ".include \"../vcsc-runtime.inc\"\n";
-         foreach $constant (@constants) {
-            print FILE $constant;
+         my @zpimports = workspace_imports_for(\@func, \%aliases);
+         if (@zpimports) {
+            print {$out} ".importzp " . join(', ', @zpimports) . "\n\n";
          }
-         print FILE "\n";
-         print FILE @func;
-         close FILE;
+         print {$out} ".include \"../vcsc-runtime.inc\"\n";
+         print {$out} @constants;
+         print {$out} "\n";
+         print {$out} @func;
+         close($out) or die "cannot close wrk/$name.s: $!\n";
       }
       else {
-         if ($line =~ /jsr/ || $line =~ /jmp/ || $line =~ /lda[\s]+#[<>]/ ) {
-            $tmp = $line;
-            $tmp =~ s/[\x0a\x0d]//g;
-            $tmp =~ s/;.*//g;
-            $tmp =~ s/jsr//g;
-            $tmp =~ s/jmp//g;
-            $tmp =~ s/lda[\s]+#[<>]//g;
-            $tmp =~ s/[\s]//g;
-
-            if (!($tmp =~ /[\(\@]/) && $tmp =~ /[a-zA-Z]/) {
-               push @import, $tmp;
+         if ($line =~ /jsr/ || $line =~ /jmp/ || $line =~ /lda\s+#[<>]/) {
+            my $target = $line;
+            $target =~ s/[\x0a\x0d]//g;
+            $target =~ s/;.*//g;
+            $target =~ s/jsr//g;
+            $target =~ s/jmp//g;
+            $target =~ s/lda\s+#[<>]//g;
+            $target =~ s/\s//g;
+            if ($target !~ /[\(\@]/ && $target =~ /[A-Za-z]/) {
+               push @imports, $target;
             }
          }
-
          push @func, $line;
       }
    }

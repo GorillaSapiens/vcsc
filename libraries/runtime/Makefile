@@ -13,6 +13,12 @@ INSTALL ?= install
 INSTALL_DATA ?= $(INSTALL) -m 0644
 DOXYGEN ?= doxygen
 
+ZP_SOURCES = \
+	vcsc-zp-arg0.s vcsc-zp-arg1.s \
+	vcsc-zp-ptr0.s vcsc-zp-ptr1.s vcsc-zp-ptr2.s vcsc-zp-ptr3.s \
+	vcsc-zp-tmp0.s vcsc-zp-tmp1.s vcsc-zp-tmp2.s \
+	vcsc-zp-tmp3.s vcsc-zp-tmp4.s vcsc-zp-tmp5.s
+
 all: $(ASM) $(VCSC_AR)
 	rm -rf wrk libvcsc.a libvcsc.l26
 	mkdir wrk
@@ -37,7 +43,7 @@ install: all
 	$(INSTALL_DATA) libvcsc.l26 $(DESTDIR)$(LIBDIR)/libvcsc.l26
 	$(INSTALL_DATA) vcsc-runtime.inc $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
 	$(INSTALL_DATA) vcsc-rt0.s $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s
-	$(INSTALL_DATA) vcsc-zeropage.s $(DESTDIR)$(DATADIR)/runtime/vcsc-zeropage.s
+	$(INSTALL_DATA) $(ZP_SOURCES) $(DESTDIR)$(DATADIR)/runtime/
 	$(INSTALL_DATA) README.md $(DESTDIR)$(DATADIR)/runtime/README.md
 	$(INSTALL_DATA) LICENSE $(DESTDIR)$(DATADIR)/runtime/LICENSE
 
@@ -45,7 +51,7 @@ uninstall:
 	rm -f $(DESTDIR)$(LIBDIR)/libvcsc.l26
 	rm -f $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
 	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s
-	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-zeropage.s
+	rm -f $(addprefix $(DESTDIR)$(DATADIR)/runtime/,$(ZP_SOURCES))
 	rm -f $(DESTDIR)$(DATADIR)/runtime/README.md
 	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE
 

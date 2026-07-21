@@ -555,10 +555,17 @@ cycle timing remain the programmer's responsibility.
 
 ## Generated-code and runtime model
 
-The stock runtime reserves 16 zero-page bytes: `arg0`, `arg1`, `ptr0` through
-`ptr3`, and `tmp0` through `tmp5`. Compiler expression scratch is allocated as
-fixed linker symbols and reused by function and nesting depth where lifetimes
-do not overlap.
+The runtime workspace has at most 16 zero-page bytes: one byte each for
+`arg0`, `arg1`, and `tmp0` through `tmp5`, plus two bytes each for `ptr0`
+through `ptr3`. These cells are separate archive members. The stock startup
+selects only `arg0`, `arg1`, and `ptr0` through `ptr2`, for an eight-byte
+baseline. Compiler-generated objects, including inline assembly, and runtime helpers
+import only the cells they actually reference; `ptr3` and the `tmp` cells appear
+only when selected operations need them. `vcsc-runtime.inc` defines the short assembler aliases but
+imports no storage by itself.
+
+Compiler expression scratch is separate. It is allocated as fixed linker
+symbols and reused by function and nesting depth where lifetimes do not overlap.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory

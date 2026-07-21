@@ -114,6 +114,11 @@ incompatible addressing mode.
 README may occupy that internal role, while the obsolete top-level notes and
 software-stack snapshot must remain absent.
 
+`runtime_workspace_split.test` verifies that the runtime include imports no
+storage unconditionally, that all twelve workspace cells are separate archive
+members, and that representative programs link 8, 9, 12, 13, or 16 workspace
+bytes according to the helpers they actually select.
+
 ### `.test` files
 
 Generic tests use an explicit runner command:

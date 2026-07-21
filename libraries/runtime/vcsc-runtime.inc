@@ -1,17 +1,7 @@
 ; vcsc-runtime.inc
-
-.importzp _vcsc_arg0
-.importzp _vcsc_arg1
-.importzp _vcsc_ptr0
-.importzp _vcsc_ptr1
-.importzp _vcsc_ptr2
-.importzp _vcsc_ptr3
-.importzp _vcsc_tmp0
-.importzp _vcsc_tmp1
-.importzp _vcsc_tmp2
-.importzp _vcsc_tmp3
-.importzp _vcsc_tmp4
-.importzp _vcsc_tmp5
+;
+; Source aliases only.  Each assembly object must import the workspace symbols
+; it actually references so archive selection can omit unused RIOT RAM cells.
 
 .def arg0 _vcsc_arg0
 .def arg1 _vcsc_arg1

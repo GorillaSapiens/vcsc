@@ -55,7 +55,18 @@ for my $parts (
    [qw(simulator main.cpp)],
    [qw(libraries runtime vcsc-runtime.inc)],
    [qw(libraries runtime vcsc-rt0.s)],
-   [qw(libraries runtime vcsc-zeropage.s)],
+   [qw(libraries runtime vcsc-zp-arg0.s)],
+   [qw(libraries runtime vcsc-zp-arg1.s)],
+   [qw(libraries runtime vcsc-zp-ptr0.s)],
+   [qw(libraries runtime vcsc-zp-ptr1.s)],
+   [qw(libraries runtime vcsc-zp-ptr2.s)],
+   [qw(libraries runtime vcsc-zp-ptr3.s)],
+   [qw(libraries runtime vcsc-zp-tmp0.s)],
+   [qw(libraries runtime vcsc-zp-tmp1.s)],
+   [qw(libraries runtime vcsc-zp-tmp2.s)],
+   [qw(libraries runtime vcsc-zp-tmp3.s)],
+   [qw(libraries runtime vcsc-zp-tmp4.s)],
+   [qw(libraries runtime vcsc-zp-tmp5.s)],
    [qw(libraries runtime libvcsc.l26)],
    [qw(libraries vcs vcs.c26)],
    [qw(libraries vcs LEGACY_KERNEL_CONVERSION.md)],
@@ -67,6 +78,7 @@ for my $parts (
 }
 
 for my $parts (
+   [qw(libraries runtime vcsc-zeropage.s)],
    [qw(driver n65cc.c)],
    [qw(compiler n65c.c)],
    [qw(assembler n65asm.c)],

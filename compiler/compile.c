@@ -43,6 +43,113 @@ Set *abi_metadata_symbols = NULL;
 Set *string_literals = NULL;
 int label_counter = 0;
 
+//! One compiler/runtime zero-page workspace spelling and its exported symbol.
+typedef struct RuntimeWorkspaceName {
+   const char *name;
+   const char *symbol;
+} RuntimeWorkspaceName;
+
+static const RuntimeWorkspaceName runtime_workspace_names[] = {
+   { "arg0", "_vcsc_arg0" },
+   { "arg1", "_vcsc_arg1" },
+   { "ptr0", "_vcsc_ptr0" },
+   { "ptr1", "_vcsc_ptr1" },
+   { "ptr2", "_vcsc_ptr2" },
+   { "ptr3", "_vcsc_ptr3" },
+   { "tmp0", "_vcsc_tmp0" },
+   { "tmp1", "_vcsc_tmp1" },
+   { "tmp2", "_vcsc_tmp2" },
+   { "tmp3", "_vcsc_tmp3" },
+   { "tmp4", "_vcsc_tmp4" },
+   { "tmp5", "_vcsc_tmp5" },
+};
+
+enum {
+   RUNTIME_WORKSPACE_NAME_COUNT =
+      (int)(sizeof(runtime_workspace_names) / sizeof(runtime_workspace_names[0]))
+};
+
+//! @brief Record a workspace import when one emitted assembler identifier names it.
+static void remember_runtime_workspace_token(const char *start, size_t len) {
+   for (int i = 0; i < RUNTIME_WORKSPACE_NAME_COUNT; i++) {
+      const RuntimeWorkspaceName *entry = &runtime_workspace_names[i];
+      if ((strlen(entry->name) == len && !strncmp(start, entry->name, len)) ||
+          (strlen(entry->symbol) == len && !strncmp(start, entry->symbol, len))) {
+         remember_symbol_import_mode(entry->symbol, true);
+         return;
+      }
+   }
+}
+
+//! @brief Scan one emitted assembler stream for workspace references outside comments and strings.
+static void scan_runtime_workspace_imports(const EmitSink *sink) {
+   bool in_comment = false;
+   bool in_string = false;
+   bool escaped = false;
+
+   for (const EmitPiece *piece = sink ? sink->head : NULL; piece; piece = piece->next) {
+      const char *text = piece->txt;
+      for (size_t i = 0; text && text[i]; ) {
+         unsigned char ch = (unsigned char)text[i];
+
+         if (in_comment) {
+            if (ch == '\n')
+               in_comment = false;
+            i++;
+            continue;
+         }
+         if (in_string) {
+            if (escaped) {
+               escaped = false;
+            }
+            else if (ch == '\\') {
+               escaped = true;
+            }
+            else if (ch == '"') {
+               in_string = false;
+            }
+            i++;
+            continue;
+         }
+         if (ch == ';') {
+            in_comment = true;
+            i++;
+            continue;
+         }
+         if (ch == '"') {
+            in_string = true;
+            i++;
+            continue;
+         }
+         if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_') {
+            size_t start = i++;
+            while (text[i]) {
+               unsigned char next = (unsigned char)text[i];
+               if (!((next >= 'A' && next <= 'Z') ||
+                     (next >= 'a' && next <= 'z') ||
+                     (next >= '0' && next <= '9') || next == '_'))
+                  break;
+               i++;
+            }
+            remember_runtime_workspace_token(text + start, i - start);
+            continue;
+         }
+         i++;
+      }
+   }
+}
+
+//! @brief Import only workspace cells still referenced after code generation and peephole removal.
+static void emit_runtime_workspace_imports(void) {
+   scan_runtime_workspace_imports(&es_export);
+   scan_runtime_workspace_imports(&es_zp);
+   scan_runtime_workspace_imports(&es_zpdata);
+   scan_runtime_workspace_imports(&es_bss);
+   scan_runtime_workspace_imports(&es_data);
+   scan_runtime_workspace_imports(&es_rodata);
+   scan_runtime_workspace_imports(&es_code);
+}
+
 //! @brief Lower compile from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile(ASTNode *program) {
 
@@ -178,6 +285,7 @@ void do_compile(FILE *out) {
    emit_runtime_global_init_function();
    compiler_scratch_emit_bss();
    emit_peephole_optimize(&es_code);
+   emit_runtime_workspace_imports();
 
    emit_print(&es_header, out);
    fprintf(out, "\n");

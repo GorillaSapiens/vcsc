@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_083655.tar.gz
+    vcsc.20260721_114445.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -862,7 +862,7 @@ The first unfinished item is the default next action.
     continuing task 20. Moving bytes from ZEROPAGE to BSS does not save RIOT RAM;
     the storage must be omitted, reused, or overlaid.
 
-    [ ] a. Split the monolithic 16-byte runtime workspace into independently
+    [x] a. Split the monolithic 16-byte runtime workspace into independently
           linked pieces. Remove unconditional imports so ordinary cartridges pay
           only for the startup/compiler pointer cells they actually reference.
 
@@ -2425,3 +2425,28 @@ Before returning another modified archive:
   callee-owned return objects.
 * Make the workspace split the next queued action ahead of task 20d. Record that
   moving bytes from ZEROPAGE to BSS alone cannot recover physical RIOT RAM.
+
+2026-07-21 12:16:00 PDT, split the inherited runtime workspace
+------------------------------------------------------------------------
+* Complete side-quest item a. Replace the monolithic 16-byte
+  `vcsc-zeropage.s` archive member with twelve independently selectable
+  `vcsc-zp-*.s` members: one byte each for `arg0`, `arg1`, and `tmp0` through
+  `tmp5`, and two bytes each for `ptr0` through `ptr3`.
+* Make `vcsc-runtime.inc` alias-only. Startup and every generated runtime-helper
+  member now declare exact zero-page imports. The compiler scans its final
+  post-peephole assembly and imports only workspace cells that remain referenced,
+  including direct inline-assembly references.
+* Preserve startup semantics without relying on `arg0`/`arg1` adjacency. Keep
+  the former startup member size and downstream ROM layout by deliberately using
+  forced-absolute accesses for the split high count byte.
+* Ordinary linked programs now pay an eight-byte startup baseline instead of all
+  16 bytes. Focused maps prove 8 bytes for ordinary code, 9 for one direct extra
+  cell, 12 for division/remainder, 13 for variable arithmetic shift, and 16 for
+  multiplication. Update RAM-address regressions to the recovered `$0088` first
+  allocatable byte while preserving the standard-kernel timing-safe ROM layout.
+* Remove `libraries/runtime/vcsc-zeropage.s`, update install and inventory rules,
+  and add a focused archive/import/map regression. Pass 283/283 compile tests,
+  133/133 end-to-end/generic tests, and staged installation. The cumulative
+  removal ledger now contains 881 paths. Side-quest item b is the next queued
+  action before task 20d.
+

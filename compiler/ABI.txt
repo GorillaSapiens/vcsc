@@ -74,11 +74,13 @@ specific `ptr0`/`ptr1` indirect address is prepared only when a dynamic or
 out-of-range offset actually requires one.
 
 Reset/startup initializes the 6502 hardware stack, DATA, BSS, and init tables.
-There is no runtime frame pointer or software stack pointer. The stock runtime
-zero-page workspace is 16 bytes: `arg0`, `arg1`, `ptr0` through `ptr3`, and
-`tmp0` through `tmp5`. Division and remainder use a private four-byte BSS
-workspace in the `_divNle` archive member, so that storage is linked only when
-`/` or `%` is actually used.
+There is no runtime frame pointer or software stack pointer. The runtime exposes
+up to 16 independently linked zero-page bytes: one byte each for `arg0`, `arg1`,
+and `tmp0` through `tmp5`, plus two bytes each for `ptr0` through `ptr3`.
+Startup selects `arg0`, `arg1`, and `ptr0` through `ptr2`, an eight-byte
+baseline. Compiler output and helper archive members import only additional
+cells they reference. Division and remainder therefore add `ptr3`, `tmp0`, and
+`tmp1`; they also use a private four-byte BSS workspace in the `_divNle` member.
 The linker reserves two hardware-stack bytes per active source function for JSR
 return addresses. If one or more runtime initializer functions are linked, it also
 reserves one fixed two-byte allowance because startup preserves its init-table

@@ -44,7 +44,7 @@ die "software-stack inventory total drift: got $total_push/$total_pop, expected 
 
 my @runtime_files = (
     File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-runtime.inc'),
-    File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-zeropage.s'),
+    glob(File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-zp-*.s')),
     File::Spec->catfile($repo, 'libraries', 'runtime', 'vcsc-rt0.s'),
     glob(File::Spec->catfile($repo, 'libraries', 'runtime', 'asm', '*.asm')),
 );
