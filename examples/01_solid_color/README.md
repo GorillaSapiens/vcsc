@@ -10,8 +10,9 @@
 `solid_color.c26` is the first complete unbanked 4K Atari 2600/VCS cartridge
 produced by this reduced compiler.
 
-It uses the source-level static-frame ABI to call `choose_background()` and
-initialize a local value. The television kernel is intentionally inline 6502
+It calls `choose_background()` using VCSC's fixed-symbol function model: the
+parameter and named local storage are statically allocated, while the local
+initializer runs when control reaches its declaration. The television kernel is intentionally inline 6502
 assembly because scanline timing is exact machine behavior, not ordinary C-like
 control flow.
 

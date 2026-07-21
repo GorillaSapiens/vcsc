@@ -9,7 +9,7 @@
 
 `vcsc` is a brutally pared-down Atari VCS C-like compiler. The language and toolchain are intentionally specialized for the 6507, the VCS memory model, and tiny cartridge programs rather than general-purpose 6502 compatibility.
 
-VCSC is the Atari-focused child of the broader [N project](https://github.com/GorillaSapiens/n). N remains the parent/general-purpose line; VCSC deliberately hard-specializes that compiler architecture for the Atari 2600 rather than preserving source, tool, or ABI compatibility.
+VCSC originated as an Atari-focused specialization of the broader [N project](https://github.com/GorillaSapiens/n), but this repository is a standalone toolchain and requires no knowledge of N. VCSC deliberately targets the Atari 2600 and does not preserve parent-project source, object, runtime, or ABI compatibility.
 
 The public command is `vcsc`. It drives the internal compiler front end (`vcsc-cc1`), assembler (`vcsc-as`), archiver (`vcsc-ar`), linker (`vcsc-ld`), simulator (`vcsc-sim`), and the stock VCS runtime.
 
@@ -79,9 +79,9 @@ Run `make test` at the repository root to execute the unified `test/test.pl` har
 
 ```sh
 cd test
-./test.pl operator_overloading_rejected_test.c26
-./test.pl --compile-only exactops_rejected_test.c26
-./test.pl --e2e-only e2e_call_argument_order_overload_verify.c26
+./test.pl inline_function_codegen_test.c26
+./test.pl --compile-only default_parameter_direct_cycle_error_test.c26
+./test.pl --e2e-only e2e_call_argument_order_verify.c26
 ```
 
 See `test/README.md` for the header directives, placeholder tokens, and the generic `.test` file format.

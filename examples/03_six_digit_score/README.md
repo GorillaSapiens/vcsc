@@ -41,9 +41,10 @@ the positions persist across frames. No undocumented opcode, stack-pointer
 trick, or visible-frame HMOVE is used.
 
 These helpers remain ordinary VCSC functions: each call is `JSR`, the body, and
-`RTS`, with no generated software frame. Source-level inline functions are
-available, but this example keeps the shared setup and draw entry points callable
-and concentrates all cycle-critical work inside explicit assembly.
+`RTS`; parameters and named locals use fixed symbols rather than a per-call
+frame. Source-level inline functions are available, but this example keeps the
+shared setup and draw entry points callable and concentrates all cycle-critical
+work inside explicit assembly.
 `six_glyph_draw()` has no nested call inside the timed loop.
 
 ## Fonts

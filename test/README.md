@@ -37,8 +37,8 @@ Run only end-to-end and generic runtime tests:
 Run one test, a few tests, or a whole subdirectory:
 
 ```sh
-./test.pl operator_overloading_rejected_test.c26
-./test.pl exactops_rejected_test.c26 e2e_call_argument_order_verify.c26
+./test.pl inline_function_codegen_test.c26
+./test.pl default_parameter_direct_cycle_error_test.c26 e2e_call_argument_order_verify.c26
 ./test.pl .
 ```
 

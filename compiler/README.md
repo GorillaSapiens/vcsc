@@ -5,33 +5,52 @@
    \_/  \___||___/ \___|
 ```
 
-# VCSC compiler and language notes
+# VCSC compiler and language reference
 
-This is the authoritative reference for VCSC source-language and compiler
-behavior. Target support modules may define canonical type names and hardware
-bindings, but integer flags, literal syntax, packed-BCD semantics, inline
-functions, storage rules, and unsupported language features are documented
-here.
+VCSC is a small C-like language and compiler specialized for the Atari
+2600/VCS. This document describes the behavior implemented by `vcsc-cc1`; it
+does not assume familiarity with another compiler.
 
-VCSC is a deliberately small C-like systems language for the Atari 2600/VCS. This document describes the language model and the current compiler/runtime behavior implemented by `vcsc-cc1`.
+VCSC originated as an Atari-focused specialization of the broader
+[N project](https://github.com/GorillaSapiens/n). The projects now have
+separate source suffixes, object formats, runtimes, calling conventions, and
+language surfaces. Parent-project features deliberately absent from VCSC are
+listed tersely at the end of this document.
 
-## Big differences from C
+## Language summary
 
-- Assignment uses `:=` instead of `=`.
-- Braces are required on `if`, `else`, loops, and similar statements. There is no dangling-`else` ambiguity.
-- Included files behave like `pragma once` automatically. Include-file identity is based on an MD5 of file contents, so duplicate content is only compiled once.
-- There are no implicit built-in integer type names. Types are declared explicitly.
-- Struct and union names become types directly. There is no separate `typedef struct foo foo;` dance.
-- Functions return `void`, an ordinary integer value through four bytes, a packed-BCD value through four bytes, or a pointer.
-- Explicit `inline` functions expand their visible source body at each call site without `JSR`/`RTS`.
-- Static function parameters are supported.
-- Operator overloading is intentionally unsupported.
-- Strings can be translated through named `xform` mappings.
-- Inline assembly statements are supported as raw one-line passthroughs with `asm ...` inside functions.
+The largest differences from C are:
 
-## Aliases
+- Assignment uses `:=`; `=` is not the assignment operator.
+- Braces are required for `if`, `else`, `while`, `do`, and `for` bodies.
+- Integer and pointer types are declared by the target support source. There
+  are no implicit `char`, `short`, `int`, `long`, or `bool` types.
+- Every ordinary function has one statically allocated activation: parameters,
+  named locals, compiler scratch, and any return object live at fixed linker
+  symbols rather than in a per-call frame.
+- Consequently, ordinary functions are non-reentrant and recursion is
+  forbidden. The compiler and linker reject direct and mutual call cycles.
+- Every ordinary call target is a directly named function with one visible
+  signature.
+- `inline` means mandatory source expansion, not an optimization hint.
+- All language operators are built in.
+- Inline assembly is available for cycle-counted and hardware-specific code.
 
-The compiler supports newline-terminated lexical aliases:
+## Includes, aliases, and conditional compilation
+
+### Includes
+
+```vcsc
+include "vcs.c26"
+```
+
+An included file is processed once per translation unit. Identity is based on
+an MD5 digest of its contents, so including identical content through different
+paths still produces one inclusion.
+
+### Aliases
+
+Aliases are newline-terminated lexical substitutions:
 
 ```vcsc
 alias LIMIT 314
@@ -39,99 +58,44 @@ alias inc(x) (x + 1)
 alias add(a,b) (a + b)
 ```
 
-Object-like aliases replace a bare identifier with the stored replacement text. Function-like aliases declare a fixed parameter list and are expanded only when invoked as `name(...)` immediately after the alias name.
+Object-like aliases replace a bare identifier. Function-like aliases expand
+only as `name(...)` with no whitespace before `(`.
 
-Current alias rules:
+Rules worth remembering:
 
-- alias names are unique within a translation unit; redefining an alias name is a hard error even if one form is object-like and the other is function-like
-- function-like aliases are not overloaded with object-like aliases
-- function-like alias arguments are split using balanced parentheses and quoted string/character handling
-- alias parameters are local to one expansion and shadow outer/global aliases only for that expansion
-- recursive alias expansion is rejected
+- An alias name may be defined only once in a translation unit.
+- Arguments are split with balanced-parenthesis and quoted-text awareness.
+- Parameters shadow outer aliases during one expansion.
+- Recursive alias expansion is rejected.
+- Repeated parameter use duplicates argument text and therefore duplicates any
+  side effects in that text.
+- Replacement text is the rest of the definition line after trailing comments
+  are removed; a trailing semicolon becomes part of the expansion.
 
-Pitfalls:
+Aliases are untyped text substitution, not functions or templates.
 
-- aliases are lexer-level textual substitution, not typed functions or templates
-- a function-like alias name used without an immediate `(` is an error, so `foo(...)` works but `foo (...)` does not
-- object-like alias replacement text is the rest of the definition line after stripping trailing `/* ... */` and `// ...` comments outside quoted text; if you put a semicolon there, that semicolon becomes part of the expansion text
-- argument splitting tracks parentheses plus quoted strings/chars; careless use of commas in other syntactic constructs can surprise you
-- repeated parameter use duplicates the argument text, so side-effect-heavy arguments are easy to misuse
+### Conditional compilation
 
-Use aliases for small, local convenience rewrites... not for hiding control flow, declarations, or anything that would make the source lie about what it does.
+Supported beginning-of-line directives are:
 
-## Conditional compilation
-
-The lexer also supports simple beginning-of-line conditional directives inspired by the C preprocessor:
-
-```vcsc
-alias FEATURE 2
-
-#if defined(FEATURE) && (FEATURE >= 2)
-alias MODE 1
+```text
+#if expression
+#ifdef NAME
+#ifndef NAME
+#elif expression
 #else
-alias MODE 0
-#endif
-
-#ifdef FEATURE
-#ifndef DISABLE_THING
-...
-#endif
 #endif
 ```
 
-Supported directives:
+`#if` and `#elif` accept integer literals, object-like aliases,
+`defined(NAME)`, unary `!`, unary `+`/`-`, `&&`, `||`, integer comparisons, and
+parentheses. Undefined names evaluate to zero. Function-like aliases are not
+expanded in conditional expressions. Skipped branches are lexer-inert except
+for nested conditional directives.
 
-- `#if expr`
-- `#ifdef NAME`
-- `#ifndef NAME`
-- `#elif expr`
-- `#else`
-- `#endif`
+## Types
 
-Current expression support inside `#if` / `#elif`:
-
-- integer literals in the same forms the lexer already accepts
-- `defined(NAME)` and `defined NAME`
-- object-like alias expansion
-- unary `!`, unary `+`, unary `-`
-- `&&` and `||`
-- integer comparisons `== != < > <= >=`
-- parentheses for grouping
-
-Current rules and pitfalls:
-
-- directives only count at beginning-of-line, optionally preceded by horizontal whitespace
-- undefined names in conditional expressions evaluate to `0`
-- object-like aliases expand recursively inside conditional expressions; recursive alias use there is rejected
-- function-like aliases do not expand in conditional expressions yet
-- skipped branches are lexer-inert other than nested conditional directives, so syntax errors inside a skipped branch are ignored as long as the conditionals balance
-- conditional blocks must balance before the end of the current source input
-
-As with aliases, keep conditional compilation boring and local. It is useful for configuration gates and small compile-time switches... not for turning one source file into twelve different personalities.
-
-## Integer literal syntax
-
-The compiler accepts decimal, hexadecimal (`0x`), octal (leading `0`), and
-binary (`0b`) integer literals. Underscores may separate digits.
-
-Binary literals additionally accept visual digits after the prefix:
-
-- `.` means bit zero;
-- `X` or `x` means bit one;
-- the leftmost digit remains the most-significant bit.
-
-For example, `0b..XXX...` is normalized by the lexer to `0b00111000`, and
-`0bXX.._0011` is normalized to `0b1100_0011`. Visual and ordinary binary digits
-may be mixed. This is lexical sugar only: the parser, constant folder,
-initializer encoder, range checks, alias expansion, and preprocessor
-conditionals receive the same numeric value as an ordinary `0`/`1` binary
-literal. Invalid characters and malformed underscore placement receive direct
-binary-literal diagnostics.
-
-## Type system
-
-The stock VCS machine interface exposes eight ordinary binary integer types,
-four unsigned packed-BCD types, one pointer type, and `void`:
+The stock VCS machine definition, `libraries/vcs/vcs.c26`, declares:
 
 ```vcsc
 type void     { $size:0 };
@@ -150,564 +114,317 @@ type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
 type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
 ```
 
-### Required type declarations
+Most VCS programs should include `vcs.c26` instead of repeating these
+declarations.
 
-The compiler requires these declarations when their language semantics need them:
+### Required names
 
-- `*` ... the two-byte machine pointer type
-- `uint8_t` ... result type used by comparisons and logical expressions
-- `int8_t` ... character constants and string-element type
-- `int16_t` ... untyped integer literals, `sizeof`, enum defaults, and pointer differences
-- `void` ... the canonical no-value type used for empty parameter lists and no-result functions
+The compiler requires `void`, `uint8_t`, and the two-byte unsigned pointer type
+`*`. Other canonical names are required when their semantics are used:
 
-The stock machine definition also supplies `uint16_t`, `int24_t`, `uint24_t`, `int32_t`, `uint32_t`, and the four BCD types.
+- `int8_t` for character constants and string elements;
+- `int16_t` for unannotated integer literals, `sizeof`, default enum values,
+  and pointer differences.
 
-The compiler core accepts ordinary signed or unsigned little-endian integer type declarations from one through four bytes. The stock VCS interface exposes canonical signed and unsigned names at 8, 16, 24, and 32 bits.
-The names `bool`, `char`, and `int` are not built in or reserved. A source file
-may introduce them as transparent aliases, for example:
+The names `char`, `int`, and `bool` are ordinary identifiers until explicitly
+introduced, for example:
 
 ```vcsc
 typedef uint8_t bool;
-typedef uint8_t char;
+typedef int8_t char;
 typedef int16_t int;
 ```
 
-Until such a typedef appears, those names are ordinary identifiers rather than types.
+`typedef` creates a simple alias for an already declared named type.
 
-Ordinary binary integer value types may be one through four bytes and say
-whether they are signed or unsigned with `$integer:signed` or
-`$integer:unsigned`. Packed-BCD types are a deliberate exception: they must be
-unsigned and may occupy one through four bytes. Untyped integer literals
-default to `int16_t`; a typed 24- or 32-bit destination, operand, parameter,
-return, or explicit annotation supplies the wider context. The mathematical
-ranges are `int24_t` -8388608..8388607, `uint24_t` 0..16777215, `int32_t`
--2147483648..2147483647, and `uint32_t` 0..4294967295. As with the established
-smaller types, ordinary literal encoding is width-based: any positive or
-negative magnitude that fits the destination width may initialize that width's
-bit pattern. Comparisons and logical expressions produce an ordinary `uint8_t`, not
-a special boolean-only type. `void` remains flagless. Floating-point type flags
-are rejected.
+### Type declarations and flags
 
-Bitfield reads follow the declared integer style of the field type: signed integer types sign-extend, unsigned integer types zero-extend.
+Ordinary binary integer types may be one through four bytes. Recognized flags
+are:
 
-### Type flags
+- `$size:N`;
+- `$integer:signed` or `$integer:unsigned`;
+- `$endian:little` for multibyte values;
+- `$bcd` on one- through four-byte unsigned packed-BCD types.
 
-Recognized flags include:
+The pointer type `*` must be exactly two bytes and unsigned. Multibyte values
+have one fixed little-endian representation.
 
-- `$size:N`
-- `$integer:signed`
-- `$integer:unsigned`
-- `$bcd` on one- through four-byte unsigned integer types
+### Structs, unions, enums, and bitfields
 
-Floating-point flags are not recognized as value types; `$float` and `$float:*` declarations are rejected.
-
-Operator overloading and `$exactops` are not supported. The lexer recognizes their spellings only to issue direct diagnostics.
-
-Multibyte integer and pointer types use `$endian:little`. `$endian:big` is rejected; the target language has no selectable byte order.
-
-### 24- and 32-bit ordinary integers
-
-The stock `int24_t`/`uint24_t` and `int32_t`/`uint32_t` types occupy three and
-four little-endian bytes. They use the same assignment, arithmetic, comparison,
-bitwise, shift, parameter, and callee-owned memory-return paths as the smaller
-ordinary integer widths:
+Struct and union names become types directly:
 
 ```vcsc
-uint24_t frames := 1000000;
-int24_t delta := -1;
-uint32_t lifetime_frames := 0x12345678;
-int32_t accumulator := -2000000000;
-frames += 60;
-lifetime_frames += frames;
+struct Pair {
+   uint8_t first;
+   uint16_t second;
+};
+
+// "Pair" is now directly usable as a type
+Pair pair;
+
+union WordBytes {
+   uint16_t word;
+   uint8_t bytes[2];
+};
+
+// "WordBytes" is now directly usable as a type
+WordBytes wb;
 ```
 
-Same-signed widths widen automatically. Mixed signed/unsigned runtime
-operations require an explicit cast; VCSC does not apply C's usual arithmetic
-conversions. Negative runtime literals are encoded directly in two's-complement
-form. Literal acceptance remains width-based for compatibility with the smaller
-types, so high-bit patterns are legal even when their mathematical
-interpretation depends on signedness. A literal exceeding 32 bits is rejected.
+Forward declarations are supported. Struct and union layouts may contain
+arrays, pointers, nested aggregates, and integer bitfields. Signed bitfield
+reads sign-extend; unsigned reads zero-extend. Packed-BCD bitfields are rejected.
 
-### Packed-BCD integers
+Enum values are integer constants. The compiler chooses the smallest declared
+ordinary binary integer type that represents the enum's complete value range.
 
-`$bcd` declares a packed binary-coded-decimal scalar. Each byte stores two
-decimal digits, with the least-significant digit pair in the lowest-addressed
-byte:
+## Integer literals and expression typing
+
+Integer literals may be decimal, hexadecimal (`0x`), octal (leading `0`), or
+binary (`0b`). Underscores may separate digits.
+
+Binary literals also accept visual digits:
+
+- `.` means zero;
+- `X` or `x` means one.
+
+For example, `0b..XXX...` is the same value as `0b00111000`. Visual and normal
+binary digits may be mixed.
+
+An integer literal may carry an explicit type annotation:
 
 ```vcsc
-bcd8_t  two_digits := 42;      // byte:        $42
-bcd16_t four_digits := 1234;   // little-endian $34, $12
-bcd24_t six_digits := 567890;  // little-endian $90, $78, $56
-bcd32_t eight_digits := 12345678; // little-endian $78, $56, $34, $12
+42`uint8_t
+0x123456`uint24_t
 ```
 
-The stock ranges are:
+Unannotated literals use `int16_t` until a typed operand or destination supplies
+a different context. Literal-only expressions are folded at compile time. When
+a literal interacts with a typed value, parameter, assignment target, return
+object, or cast, it adopts that type at the boundary.
 
-- `bcd8_t`: 0..99
-- `bcd16_t`: 0..9999
-- `bcd24_t`: 0..999999
-- `bcd32_t`: 0..99999999
+For runtime integer expressions:
 
-Literal spelling never changes the numeric value being converted. Decimal
-`42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all initialize a
-`bcd8_t` with byte `$42`, not binary byte `$2a`. Static initializers, automatic
-initializers, assignments, aggregate/array elements, function arguments, and
-typed constant expressions use the same encoder and range checks. Compile-time
-integer constants may cross between binary and BCD destinations by numeric
-value; runtime variables may not cross representations, even through a cast,
-because no binary/decimal conversion routine is currently defined.
+- equal types keep that type;
+- a narrower operand widens to the wider width;
+- widening sign-extends signed values and zero-extends unsigned values;
+- narrowing truncates high bytes;
+- mixed signed/unsigned operations are rejected when width adjustment still
+  leaves different signedness, unless the source writes an explicit cast.
 
-Supported BCD operations are:
+VCSC does not implement C's usual arithmetic conversions.
 
-- assignment and same-representation widening or truncation;
-- `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`;
-- `==`, `!=`, `<`, `<=`, `>`, `>=`, truth tests, logical operators, and
-  `switch`/case comparison.
+### Casts
 
-Addition and subtraction wrap modulo 100, 10,000, or 1,000,000 according to
-the destination width. The compiler brackets only the actual `ADC`/`SBC` byte
-chain with `SED` and `CLD`; pointer arithmetic, frame-pointer housekeeping, and
-other compiler-generated arithmetic remain binary. A compiled operation always
-leaves decimal mode clear.
-
-The compiler rejects BCD multiplication, division, remainder, shifts, bitwise
-operators, unary minus, shortcut signedness casts, and BCD bitfields. Raw byte
-writes through a cast pointer can still manufacture invalid digit nibbles; such
-values are outside the language guarantee and subsequent BCD arithmetic is not
-defined.
-
-`bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t` may all be returned. Each value-returning function owns an exact-sized zero-page return object, and callers copy its bytes directly after the call.
-
-## Declarators
-
-The compiler supports:
-
-- pointers
-- arrays
-- functions
-- combinations such as arrays of pointers and multidimensional arrays where the grammar allows them
-
-Current `const` behavior on declarators follows the common C reading for leading `const` on pointer declarations:
-
-- `const T* p` means a pointer to const `T`
-- the pointer object itself is mutable, so it does not require an initializer just because the pointee type is const
-- non-pointer declarations such as `const T x` are const objects and require an initializer
-- syntax for a const pointer object in the C sense (`T * const p`) is not supported
-
-Struct and union declarations immediately introduce their names as usable types.
-
-
-### Pointer arithmetic
-
-Subtracting two compatible object pointers yields `int16_t`, the signed type with
-the same width as a VCS pointer. The value is an element count, not a byte count:
-the compiler subtracts the 16-bit addresses and divides the result by the size of
-the pointed-to type. Byte-sized element pointers therefore need no scaling.
-Pointer subtraction between incompatible pointed-to types is rejected. As in C,
-a result outside the range of `int16_t` is undefined.
-
-### Function declarations
-
-Ordinary function declarations work. Multiple compatible declarations are allowed, and a later definition may follow an earlier declaration. Incompatible redeclarations are rejected.
+Ordinary casts use C-like syntax:
 
 ```vcsc
-int16_t twice(int16_t x);
+(uint16_t)value
+```
 
-int16_t main(void) {
-   return twice(21);
-}
+A backtick annotation is literal-only:
 
-int16_t twice(int16_t x) {
-   return x + x;
+```vcsc
+123`uint16_t
+```
+
+The shortcut casts `($signed)` and `($unsigned)` preserve width while changing
+signedness. They apply only to already typed ordinary integers, not literals,
+pointers, or packed-BCD values.
+
+### Packed BCD
+
+Packed-BCD values store two decimal digits per byte, least-significant pair at
+the lowest address:
+
+```vcsc
+bcd8_t  a := 42;       // $42
+bcd16_t b := 1234;     // $34, $12
+bcd24_t c := 567890;   // $90, $78, $56
+bcd32_t d := 12345678; // $78, $56, $34, $12
+```
+
+Ranges are 0..99, 0..9999, 0..999999, and 0..99999999. Literal spelling does
+not change conversion: `42`, `0x2a`, `052`, and `0b101010` all become packed
+BCD `$42` in a `bcd8_t` destination.
+
+Supported BCD operations are assignment, same-representation widening or
+truncation, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`, comparisons,
+truth tests, logical operators, and `switch` comparison. Arithmetic wraps at
+the destination width. The compiler brackets only the decimal `ADC`/`SBC` chain
+with `SED` and `CLD`, so generated code leaves decimal mode clear.
+
+Runtime conversion between binary and BCD variables is not implemented. BCD
+multiplication, division, remainder, shifts, bitwise operations, unary minus,
+signedness shortcut casts, and BCD bitfields are rejected.
+
+## Declarations and storage
+
+### Global and local objects
+
+Globals, named locals, parameters, return objects, and compiler temporaries are
+all linker-resolved static storage.
+
+An unqualified local still has automatic *initialization timing*: its initializer
+runs whenever control reaches the declaration. The object itself is not created
+on entry and destroyed on return. Without an initializer, its previous bytes
+remain until overwritten.
+
+```vcsc
+uint16_t count_once(void) {
+   uint16_t value := 1; // writes 1 on every call
+   return value;
 }
 ```
 
-`extern` function declarations are also supported and cause the compiler to emit an import for the referenced symbol. Direct calls require a visible function signature in the current translation unit or via an `extern` declaration; the compiler rejects bare calls to unknown symbols instead of guessing at a call ABI.
+A function-scope `static` object is initialized once, either as static data or
+by a startup initializer when its expression needs runtime code.
 
-### Source-level inline functions
+Local arrays reserve their complete size in fixed storage. Distinct function
+activations are not overlaid.
 
-`inline` is an explicit function modifier, not a hint. A call to an inline
-function expands the function body directly at that call site. The normal
-direct-call signature checks still apply, arguments are evaluated left-to-right,
-and `ref` arguments must still be exact-type lvalues.
+### `const`
 
-```vcsc
-inline uint8_t add_one(uint8_t value) {
-   return value + 1`uint8_t;
-}
-
-uint8_t main(void) {
-   return add_one(41`uint8_t);
-}
-```
-
-The definition must be visible before the first call. A preceding compatible
-inline declaration is legal, but a declaration without a body is not enough to
-expand a call. `extern inline` is rejected because there is no separately
-linkable body, and `main` cannot be inline because startup requires its visible
-entry symbol. Inline and non-inline declarations of the same function name are
-incompatible.
-
-Each expansion receives a translation-unit-unique storage namespace. Parameters
-and automatic locals use the same symbol-backed machinery as ordinary functions,
-but their symbols are private to that expansion. A value-returning expansion
-also owns a private exact-sized return object. Every source `return` writes that
-object when needed and jumps to one private return join; the caller then copies
-the result into its surrounding expression. A void inline function uses the
-same join without a return object.
-
-Source labels and `goto` targets are expansion-qualified. Assembler-local labels
-written as `@name` inside inline `asm` receive a separate expansion-qualified
-`asm` namespace, so they cannot collide with source labels, another expansion,
-or the private return join. Compiler-generated control-flow labels remain
-translation-unit unique as usual.
-
-The expansion emits no `.proc`, exported function or parameter symbols, ABI
-metadata, `JSR`, `RTS`, or hardware-stack frame for the inline function itself.
-Ordinary calls made by the inline body remain ordinary calls and are attributed
-to the enclosing non-inline function for call-graph stack sizing. Direct and
-mutual inline-expansion cycles are rejected.
-
-VCSC deliberately gives every expansion distinct static storage rather than
-trying to overlay it. This avoids hidden re-entry corruption when an inline body
-calls an ordinary function whose own body contains another expansion of the
-same helper. The tradeoff is RAM growth per call site, in addition to the
-expected ROM growth from duplicating the body. Inline functions should therefore
-remain small and are primarily intended for cycle-sensitive kernel helpers.
-
-### One function signature per name
-
-Each source-level function name identifies exactly one signature. Matching declarations and a later definition are allowed, but declaring the same name with different parameter or return types is rejected. Ordinary function overloading is intentionally unsupported.
-
-Direct calls are checked against that single visible signature. Exact matches, safe widening integer conversions, null pointer literals, and object-pointer conversion to `void*` are accepted. `ref` parameters require an lvalue of the exact declared type, and converting `void*` back to a typed pointer requires an explicit cast.
-
-### Function pointers and indirect calls
-
-Function pointers are not supported. The parser still recognizes pointer-to-
-function declarators so the compiler can issue a direct diagnostic, but such
-declarations are rejected. Function names may appear only as direct call
-targets; using a function name or `&name` as a value is also rejected.
-
-This keeps the call graph statically knowable and eliminates the indirect-call
-runtime trampoline and its software-stack frame. Linker-visible graph metadata
-also lets VCS configurations derive a hardware-stack reserve from the longest
-whole-program call path.
-
-
-### Variadic functions
-
-Variadic functions and variadic callable types are not supported. The lexer
-rejects `...` directly. The reduced VCS ABI has no `stdarg`, `va_list`, hidden
-variadic metadata, or raw variadic argument blob.
-
-## Expressions
-
-### Truthiness
-
-Truth-testing uses the builtin zero/nonzero rule. The compiler applies it to:
-
-- `if (x)`
-- `while (x)`
-- `for (...; x; ...)`
-- `!x`
-- `x && y`
-- `x || y`
-- conditional-expression tests
-
-`!`, `&&`, and `||` are builtin short-circuit operators. Truth is zero versus nonzero; there is no user-defined truthiness hook.
-
-### Literal typing, casts, and mixed integer expressions
-
-The language model for integer expressions is deliberately simpler than C:
-
-- a literal used only with other literals is folded on the host at compile time, and the result remains a literal
-- a literal interacting with a typed nonliteral operand adopts that operand's type for the operation
-- a literal consumed by a typed sink such as assignment, return, or argument passing adopts the sink type at that boundary
-- two operands of the same type produce that same type
-- for integers of different widths, the narrower operand widens to the wider width first
-- widening sign-extends signed integers and zero-extends unsigned integers
-- narrowing truncates bitwise; there is no saturation or range check by default
-- if width adjustment leaves one operand signed and the other unsigned, the expression is rejected unless the user writes an explicit cast
-
-This is intentionally less C-like than the usual arithmetic conversions. The compiler should widen by width automatically, but it should not guess signedness automatically.
-
-### Cast forms
-
-The language uses two cast families:
-
-- backtick casts such as ``123`u2`` are literal-only and always happen immediately on the host
-- parenthesized casts such as `(u2)expr` are ordinary expression casts; when applied to a literal they may also fold on the host at compile time
-
-There are also two shortcut casts:
-
-- ``($signed)expr``
-- ``($unsigned)expr``
-
-They preserve width while changing signedness, but are legal only on already-typed ordinary fixed-width integers. They are never legal on literals or pointers. The former endian shortcut casts `($big)` and `($little)` are rejected.
-
-### Shifts
-
-The intended shift rules are:
-
-- the result type is the type of the left operand after ordinary literal typing and any explicit casts have been applied
-- if the right operand is a literal, it adopts the type needed by the surrounding operation just like any other literal
-- a literal-only shift is folded on the host and remains a literal until consumed by a typed sink
-- signed right shift uses arithmetic shift
-- unsigned right shift uses logical shift
-- negative constant shift counts are hard errors
-- oversized constant shift counts are hard errors
-- runtime negative shift counts are not a supported language feature; codegen should not reinterpret `x << -n` as `x >> n`
-
-
-### Byte order
-
-All multibyte integers and pointers are little-endian. Assignments, casts, arithmetic, comparisons, indexing, initializers, calls, and returns therefore use one fixed byte order. Big-endian type declarations and endian shortcut casts are rejected.
-
-## Inline assembly
-
-Inside a function body, a line of the form:
-
-```vcsc
-asm nop
-asm lda #$01
-asm loop_start:
-```
-
-emits the remainder of the line directly into the generated assembler output at that point.
-
-Current rules:
-
-- it is a single-line statement
-- ordinary assembler text is emitted unchanged after the `asm ` prefix is removed
-- source-level absolute `ref` names in instruction operands are resolved according to the opcode:
-  - loads, compares, and other read instructions use the ref read address
-  - stores use the ref write address
-  - read-modify-write instructions require identical non-`none` read and write addresses
-- reading from a write-only ref, writing to a read-only ref, or using a split-address ref with a read-modify-write instruction is a compile-time error
-- immediate/control-address uses require one identical read/write address; split refs have no canonical address
-- register and flag clobber tracking remains the programmer's responsibility
-
-For example, with the VCS TIA declarations, `asm lda CXM0P` emits `lda $30`, while `asm sta VSYNC` emits `sta $00`. `asm lda VSYNC` is rejected because VSYNC is write-only.
-
-## Operators
-
-All language operators use compiler-defined semantics. User-defined operator functions,
-`operator...` declarators, `$exactops`, weak operator dispatch, and operator ABI symbols
-are unsupported.
-
-Explicit runtime division or remainder by a compile-time positive power of two
-greater than one emits a performance warning for `/`, `%`, `/=`, and `%=`. The
-compiler does not silently replace these operations: signed division truncates
-toward zero, signed remainder follows the dividend, right shift may round
-differently for negative values, and a mask produces a nonnegative residue. The
-programmer may write the shift or mask explicitly when those semantics are
-intended. Literal-only expressions are folded before lowering and do not warn;
-divisor one and non-power-of-two constants also remain silent.
-
-The lexer retains explicit rejection rules so obsolete source receives a
-clear diagnostic rather than a generic parse error.
-
-Compound assignment is builtin syntactic sugar: for example, `a += b` computes the
-builtin `a + b` result and stores it back through the original lvalue. `++` and `--` are
-also builtin and support ordinary, indirect, absolute, pointer, and bit-field lvalues.
-
-### User identifier symbol escaping
-
-Source identifiers may contain valid UTF-8 non-ASCII characters. The lexer validates UTF-8 inside the `{IDENT}` rule before alias lookup, typedef lookup, symbol table insertion, or any other processing. Malformed UTF-8 in an identifier is a compile-time error.
-
-The compiler keeps assembler-safe ASCII identifiers unchanged, but each non-ASCII Unicode scalar in an identifier is escaped in place before it reaches assembler and linker symbols:
-
-```text
-cafe     -> cafe
-café     -> caf?u00E9?
-λ_count  -> ?u03BB?_count
-🦍       -> ?u0001F98D?
-```
-
-The escape uses only assembler-identifier-safe characters. ASCII punctuation that is not valid in VCSC identifiers is not accepted as source identifier text; `?` is therefore reserved for compiler-generated Unicode escapes in emitted symbols.
-
-Diagnostics reverse these escapes when reporting user-facing names, so an error involving `🥹` is printed as `🥹`, not `?u0001F979?`. Diagnostic source columns are one-based. For UTF-8 identifiers, columns are counted in Unicode scalar values rather than raw bytes, so the reported column for a non-ASCII identifier points at the source character the programmer sees.
-
-## `ref` parameters
-
-`ref` parameters are real pass-by-reference parameters.
-
-- callers pass an address, not a copied value
-- reads and writes in the callee dereference the referenced object
-- direct-call validation distinguishes `ref` parameters from value parameters
-
-Example:
-
-```vcsc
-void swap(ref s2 a, ref s2 b) {
-   s2 t;
-   t := a;
-   a := b;
-   b := t;
-}
-```
-
-### `static ref` parameters
-
-`static ref` parameters work. Their backing symbol storage is pointer-sized, not referent-sized.
-
-### Absolute `ref` declarations
-
-The compiler supports `ref` declarations bound directly to absolute addresses. This is intended for memory-mapped hardware registers and similar machine-defined storage that already exists outside normal compiler allocation.
-
-Supported forms:
-
-```vcsc
-ref u8 port@0x10;
-ref u8 status@STATUS_REG;
-ref u8 vsync@[none/0x00];
-ref u8 cxm0p@[0x00/none];
-ref u16 banked@[0x100/0x180];
-```
-
-Meaning:
-
-- `ref T x@addr` is shorthand for `ref T x@[addr/addr]`
-- `@[read/write]` gives separate address expressions for loads and stores
-- either side may be `none` to model read-only or write-only hardware
-- each side intentionally accepts only a single integer literal or identifier, not an arbitrary expression
-
-Intentional behavior and limits:
-
-- reading uses the read address
-- writing uses the write address
-- storing to a `@[read/none]` declaration is rejected as write to a read-only absolute ref
-- loading from a `@[none/write]` declaration is rejected as read from a write-only absolute ref
-- taking the address of a split-address absolute ref such as `@[0x100/0x180]` is rejected by design, because it does not have one canonical address
-- if both sides name the same address, `&name` behaves normally
-- identifiers used in the address slots are passed through to the assembler/linker; the compiler does not require them to be declared as VCSC symbols
-
-Absolute address binding is only meaningful on `ref` declarations. Using `@...` on a non-`ref` declaration is accepted but ignored, and the compiler warns about it.
-
-## Function parameters
-
-### Direct functions
-
-Every ordinary parameter of a directly named function is symbol-backed by default. The callee owns one fixed storage symbol for each parameter, and the caller evaluates arguments left-to-right and writes each converted value directly into the corresponding symbol before `jsr`. Fixed direct-call parameters do not occupy a software argument stack.
-
-An unqualified parameter uses ordinary BSS-backed storage. A `mem` modifier may place it in another region; a zero-page region produces zero-page parameter symbols. The older `static` parameter spelling remains accepted as a redundant compatibility spelling while the language is being reduced.
-
-Compiler-generated temporary storage is pooled by function and nesting depth. Symbols are named `__vcsc_scratch_N`; sequential expressions in the same non-reentrant function reuse the same depth slot, while nested expressions receive deeper slots. Different functions receive distinct physical slots because caller scratch can remain live across a callee invocation. Each slot is emitted once at the maximum size observed for that depth.
-
-An ordinary direct call leases the caller function's current scratch depth only while evaluating and converting arguments, then copies values into callee-owned parameter symbols. After `jsr`, a valued call reads the callee-owned return object directly into the surrounding destination; no register-result capture or extra return scratch is required. The argument lease remains caller-private transitional machinery, not parameter or return storage and not part of the function ABI. LIFO lease checks and an end-of-compilation zero-depth check turn accidental lifetime overlap into a compiler error.
-
-Several common one-byte paths bypass scratch entirely. Discarded `uint8_t` increment/decrement, unsigned byte comparisons against constants or byte lvalues, constant byte stores, and byte stores into absolute hardware refs emit direct 6502 instructions. A simple unsigned one-byte runtime index into an array whose element size is a power of two is scaled inline through compiler-owned `arg0:arg1`; the resulting element address is left in `ptr0`, with no generic multiplication helper. This is sufficient for natural `music[music_index].field` access in the VCS sound example, including indices whose scaled offset crosses a page.
-
-When two operands of one binary expression are direct fields of the same runtime-indexed aggregate element, with structurally identical index expressions and no pointer, bitfield, absolute-ref, conversion, or side-effect ambiguity, the compiler calculates the element address once and loads both fields by fixed offsets from `ptr0`. Other cases conservatively calculate each address independently. Unsupported index forms continue to use generic lowering, now backed by the same lifetime pool rather than fixed per-site objects. No compiler source path emits `_pushN` or `_popN`.
-
-Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
-
-Function pointers are not part of the VCS subset. Every call target must be a directly named function, so call-graph cycle analysis sees every edge and no indirect-call ABI is required.
-
-### Inline expansion storage
-
-Inline parameters are evaluated with a caller scratch lease and copied into the
-expansion's private parameter symbols before the body begins. `ref` parameters
-store the referenced address and all reads and writes in the body dereference
-that address. Automatic-local initializers execute wherever their declarations
-occur in the expanded body. The expansion's private return object and labels are
-not linker-visible ABI objects.
-
-Because inline bodies have no runtime call boundary, A, X, Y, and P are not
-preserved around the expansion. This is the same compiled statement stream as if
-the helper body had been written at the call site. Inline assembly inside the
-body remains responsible for its own register, flag, decimal-mode, and timing
-contracts.
-
-## Storage classes and memory regions
-
-### Globals, locals, static locals
-
-The compiler supports:
-
-- globals
-- fixed-address automatic locals
-- function-scope `static`
-- mem-backed symbol storage for locals and parameters
-
-Every named automatic local receives a function-qualified symbol. Its initializer, if any, executes when control reaches the declaration on each function invocation; fixed storage does not give it C `static` duration semantics. Distinct function frames are not overlaid yet.
+For a non-pointer object, `const` requires an initializer and prohibits later
+writes. In `const uint8_t *p`, the pointed-to bytes are const while the pointer
+object remains mutable. C's `uint8_t * const p` spelling is not supported.
 
 ### Memory regions
 
-Memory region handling is driven by `mem` declarations, not by hard-coded names.
-
-A declaration is treated as zero-page only if its referenced `mem` declaration fits entirely inside `$0000..$00FF` according to `$start` plus `$size` or `$end`.
-
-So a region named `banana` can be zero-page if its declared address range fits there, and a region literally named `zeropage` is **not** magically zero-page if its range does not fit.
-
-When a `mem` region is actually used for symbol storage, the compiler emits object metadata describing the region name, `$start`, size, and `$rw`/`$ro` type. `vcsc-ld` validates that metadata against the linker config `MEMORY` entry before laying out the image. This turns stale cfg/source mismatches into link-time errors instead of silent placement surprises.
-
-For validation to work, any used `mem` declaration must provide `$start`, either `$size` or `$end`, and exactly one of `$rw` or `$ro`.
-
-## Initializers
-
-### Static and global initializers
-
-The compiler supports real constant-expression evaluation for static/global initializers, including:
-
-- integers
-- booleans
-- comparisons and logical expressions
-- ternary expressions
-- nested aggregate initializers
-- simple relocatable address constants such as `&symbol + 1`
-
-When a non-constant global initializer cannot be emitted as static bytes, the compiler places the object in writable storage and emits a translation-unit `__init_*` function so startup code can perform the runtime initialization before `main`.
-
-### Braced assignment
-
-Simple assignment also accepts braced initializers. The compiler lowers these through the same initializer machinery used for declarations, so scalar, array, struct, union, designated aggregate, indirect, static/global, absolute-ref, and bitfield assignment targets use the target type as the initializer sink.
-
-Examples:
+A source file may declare named storage regions:
 
 ```vcsc
-int16_t x;
-int16_t a[3];
-Pair p;
+mem fast { $start:0x0080 $size:0x0010 $rw };
 
-x := { 1 };
-a := { 2, 3 };              // remaining bytes/elements are zero-filled
-p := { .b := 5, .a := 4 };
+fast uint16_t counter;
 ```
 
-Braced initializers are valid only for simple assignment. Compound assignment operates on ordinary expressions, so forms such as `x += { 1 }` are rejected.
+A used region must provide `$start`, either `$size` or `$end`, and exactly one
+of `$rw` or `$ro`. The compiler emits metadata and the linker verifies that the
+linker configuration defines the same start, size, and access type.
 
-### String initializers
+A region is treated as zero page when its declared address range fits entirely
+within `$0000..$00ff`; the region's name has no special meaning.
 
-Strings can initialize pointer values and byte arrays where appropriate. String bytes may be translated through an `xform`. A string literal is a NUL-terminated `uint8_t` array stored in read-only output storage. In a pointer initializer it decays to `uint8_t *`; the type system does not yet enforce `const`, so writing through that pointer is invalid even though the declaration is accepted.
+### Pointers and arrays
 
-## Arrays
+Pointers are 16-bit addresses. Arrays decay to pointers to their first element
+in pointer-valued expressions and assignments. Pointer addition and subtraction
+scale by the pointed-to element size.
 
-### Local arrays
+Subtracting compatible pointers produces an `int16_t` element count. Pointers
+to incompatible element types cannot be subtracted. Typed object pointers may
+convert to `void *`; converting `void *` back to a typed pointer requires an
+explicit cast.
 
-Automatic local arrays receive function-qualified fixed storage for their full declared size. Their initializers execute at run time whenever control reaches the declaration.
+## References
 
-In a pointer-targeted initializer or assignment, an array expression decays to
-its first-element address. Compiler-generated `__vcsc_scratch_N` temporaries
-retain the destination pointer declarator, so local, static, global, member,
-and indirect pointer destinations receive the array address rather than bytes
-copied from the first element.
+A `ref` parameter is pass-by-reference:
 
+```vcsc
+void swap(ref int16_t a, ref int16_t b) {
+   int16_t temporary := a;
+   a := b;
+   b := temporary;
+}
+```
 
-### Return object: `$$` and callee-owned memory
+The caller passes an address. Reads and writes in the callee dereference it.
+The argument must be an lvalue of the exact declared type. The parameter's
+backing symbol is pointer-sized.
 
-Inside a function that returns a value, `$$` names the current function's
-return object. It behaves like a scalar or pointer lvalue, so code may assign to
-it directly, read it back, or use compound assignment on it. The spelling
-`return expr;` writes the converted expression into the same object.
+Absolute `ref` declarations bind source names to memory-mapped addresses:
 
-Each value-returning function owns an exact-sized hidden zero-page symbol named
-`function$__return`. Current legal return values are one- through four-byte ordinary
-binary integers, one- through four-byte packed-BCD integers, and 16-bit
-pointers. The callee writes this object and its common epilogue is simply `RTS`;
-it does not reload the value into A, X, or Y.
+```vcsc
+ref uint8_t port@0x10;
+ref uint8_t status@STATUS_REG;
+ref uint8_t write_only@[none/0x00];
+ref uint8_t read_only@[0x30/none];
+ref uint16_t split@[0x100/0x180];
+```
 
-Example:
+`@address` is shorthand for `@[address/address]`. Loads use the read address;
+stores use the write address. Reading a write-only ref, writing a read-only ref,
+or taking the address of a split-address ref is rejected. The address terms are
+single integer literals or identifiers, not arbitrary expressions.
+
+## Functions and calls
+
+### Declarations and linkage
+
+Each function name has exactly one signature. Compatible declarations followed
+by one definition are allowed; conflicting declarations and multiple
+definitions are errors.
+
+```vcsc
+extern uint16_t twice(uint16_t value);
+```
+
+`extern` emits imports as needed. `static` gives a function internal linkage.
+Calls require a visible declaration and a directly named target.
+
+Arguments are evaluated left-to-right. Value arguments permit the normal
+integer widening and pointer conversions described above. `ref` arguments are
+strict exact-type lvalues.
+
+### All parameters are static
+
+Every non-void parameter of every ordinary VCSC function is a callee-owned
+symbol. Before `JSR`, the caller evaluates and converts each argument and writes
+it into the corresponding parameter symbol. No parameter bytes are pushed onto
+a language stack.
+
+```vcsc
+uint16_t add(uint16_t left, uint16_t right) {
+   return left + right;
+}
+```
+
+`left` and `right` are fixed objects owned by `add`, not per-call variables.
+The `static` modifier is accepted on a parameter but is redundant; all
+parameters already use static storage. A memory-region modifier changes where
+the parameter symbol is placed:
+
+```vcsc
+mem fast { $start:0x0080 $size:0x0010 $rw };
+
+void capture(fast uint16_t value) {
+   // value lives in the fast region
+}
+```
+
+Combining `static` with a memory-region modifier is rejected as redundant and
+ambiguous.
+
+### Static activation and recursion
+
+Every ordinary function body owns one fixed activation consisting of its
+parameters, named locals, return object, and private compiler scratch. A
+function therefore cannot be active twice.
+
+- Direct self-recursion is rejected.
+- Mutual recursion is rejected.
+- The compiler detects cycles wholly visible in one translation unit.
+- `vcsc-ld` detects cycles completed across `.o26` files and `.l26` members.
+- A call hidden in inline assembly or an opaque assembly object is outside that
+  analysis; such code must not re-enter a live VCSC function.
+
+This restriction applies even to parameterless functions and functions whose
+bodies happen not to declare locals.
+
+### Returns and `$$`
+
+A value-returning function owns an exact-sized hidden zero-page return object.
+Legal return types are:
+
+- one- through four-byte ordinary binary integers;
+- `bcd8_t` through `bcd32_t`;
+- a 16-bit pointer.
+
+`void` returns no object. Structs, unions, and arrays cannot be returned.
+
+Inside a value-returning function, `$$` names its return object:
 
 ```vcsc
 uint16_t twice(uint16_t value) {
@@ -716,52 +433,93 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-A conventional return is equivalent:
+`return expression;` writes the same object. The callee ends with `RTS`; it does
+not place a language return value in A, X, or Y. After the call, a caller that
+uses the value copies it from the callee's return symbol.
+
+### Inline functions
+
+`inline` requires source expansion at every call site:
 
 ```vcsc
-uint16_t twice(uint16_t value) {
-   return value + value;
+inline uint8_t add_one(uint8_t value) {
+   return value + 1`uint8_t;
 }
 ```
 
-After `jsr`, the caller copies bytes directly from the callee's exported return
-symbol into the surrounding expression destination. No frame-pointer state or
-language return registers are restored.
-A separately compiled declaration imports that zero-page return symbol when the
-call result is consumed. Ignoring a returned value does not copy it anywhere.
+The complete definition must be visible before a call. `extern inline` and an
+inline `main` are rejected. Inline and non-inline declarations of the same name
+are incompatible.
 
-Because return transport is memory-backed, `bcd24_t` and `bcd32_t` are normal return types.
-The remaining width limits come from the currently implemented scalar type and
-operator machinery, not from the function ABI. Aggregates and arrays remain
-forbidden as return types; use an explicit result pointer for those. The `$$`
-name is reserved and cannot be declared as a global, local, function, or
-parameter name, and it is invalid in `void` functions or outside a function
-body.
+Each expansion receives private static symbols for its parameters, locals, and
+return object, plus private source and assembler-local labels. It emits no
+callable function symbol, `JSR`, `RTS`, or hardware-stack level. Calls made
+inside the expanded body remain ordinary calls attributed to the enclosing
+ordinary function. Direct and mutual inline-expansion cycles are rejected.
 
-### Array returns
+Expansion storage is intentionally not shared between call sites. This costs
+RAM as well as ROM, so inline helpers should remain small.
 
-Array returns are rejected. Pass an explicit result pointer instead.
+## Expressions and operators
+
+VCSC provides the usual arithmetic, comparison, logical, bitwise, shift,
+address, dereference, indexing, member, ternary, comma, assignment, compound
+assignment, and prefix/postfix increment/decrement operators supported by the
+parser. All are compiler-defined built-ins.
+
+Truth is zero versus nonzero. `!`, `&&`, and `||` produce `uint8_t`; `&&` and
+`||` short-circuit. Comparisons also produce `uint8_t`.
+
+Constant negative shift counts and counts at least as wide as the left operand
+are errors. Signed right shift is arithmetic; unsigned right shift is logical.
+
+`sizeof(type)` and `sizeof(expression)` produce `int16_t` and do not evaluate an
+expression operand for side effects.
+
+Runtime division or remainder by a known positive power of two greater than one
+emits a performance warning. The compiler does not silently replace the
+operation because shifts and masks differ for signed negative values.
+
+## Initializers, strings, and xforms
+
+Constant global and static initializers are emitted as bytes. A non-constant
+global or static initializer creates a translation-unit startup function that
+the runtime calls before `main`.
+
+Braced initializers support scalars, arrays, structs, unions, nested aggregates,
+and designated fields. Simple assignment also accepts a braced initializer:
+
+```vcsc
+Pair pair;
+uint16_t values[3];
+
+pair := { .second := 5, .first := 4 };
+values := { 2, 3 }; // remaining elements are zero-filled
+```
+
+Compound assignment does not accept a braced initializer.
+
+A string literal is a NUL-terminated read-only array of `int8_t`. It may
+initialize an `int8_t` array or decay to `int8_t *`; writing through such a
+pointer is invalid even though const-correctness is not yet fully enforced.
+
+Named `xform` tables translate character and string literals at compile time:
+
+```vcsc
+xform upper { 'a' 0x41, 'b' 0x42 };
+int8_t message[] := "abba"`upper;
+```
 
 ## Control flow
 
-The compiler supports:
+Supported statements are blocks, declarations, expressions, `if`/`else`,
+`while`, `do`/`while`, `for`, `switch`, `return`, `goto`, labels, `break`, and
+`continue`. `break` and `continue` may name an enclosing labeled statement.
 
-- `if` / `else`
-- `while`
-- `do` / `while`
-- `for`
-- `switch`
-- labeled `break` and `continue`
-- `goto`
-
-### `switch` / `case`
-
-`switch` compares the switch expression against each `case` label in source order.
-
-`case` labels accept either a single numeric primary expression or an inclusive range:
+`case` labels accept constant expressions and inclusive ranges:
 
 ```vcsc
-switch (x) {
+switch (value) {
    case 1:
       break;
    case 2 to 5:
@@ -771,77 +529,98 @@ switch (x) {
 }
 ```
 
-Range bounds are inclusive on both ends. If the programmer writes a reversed range such as `case 9 to 3:`, the compiler emits a warning and compiles it as `case 3 to 9:`.
+A reversed range is diagnosed and compiled with its bounds exchanged.
 
-`default` remains optional and may appear anywhere inside the switch body.
+## Inline assembly
 
-## Strings and xforms
-
-A string literal may optionally specify an `xform` name after a backtick.
+Within a function, `asm` emits one assembler source line at that point:
 
 ```vcsc
-int8_t msg1[] = "hello"`cp437;
-int8_t msg2[] = "hello";
+asm lda #$01
+asm sta COLUBK
+asm @again:
 ```
 
-## ABI and runtime notes
+The compiler leaves general assembler text under programmer control, with two
+source-aware rewrites:
 
-### Hardware stack vs static storage
+- absolute `ref` operands select the legal read or write address from the
+  instruction's access kind;
+- assembler-local `@labels` inside an inline-function expansion receive a
+  private expansion prefix.
 
-The 6502 hardware stack is used for `jsr`, `rts`, and the stock startup's temporary preservation of its two-byte init-table cursor. A linker `MEMORY` region marked `callstack = callgraph` is shortened from the top according to the longest linked source-level call path. The automatically computed reserve is two bytes per active function level for JSR return addresses, plus one fixed two-byte startup allowance when the linked image contains runtime initializer functions.
+Loads from write-only refs, stores to read-only refs, and read-modify-write use
+of a split ref are compile-time errors. Register, flag, decimal-mode, stack, and
+cycle timing remain the programmer's responsibility.
 
-Compiler-generated ordinary expression and call lowering emits no stack saves. Inline-assembly stack operations and stack use hidden inside separately assembled routines are not included in that calculation yet and must be treated as future work.
+## Generated-code and runtime model
 
-Direct fixed parameters, named automatic locals, return objects, and compiler scratch are linker-resolved static symbols. Compiler-generated code emits no `_pushN` or `_popN`, and the runtime provides neither a software-stack pointer nor a frame pointer. Lifetime-pooled BSS scratch is selected at compile time and addressed directly as `__vcsc_scratch_N,y`; calls need no scratch-base save/restore sequence.
+The stock runtime reserves 16 zero-page bytes: `arg0`, `arg1`, `ptr0` through
+`ptr3`, and `tmp0` through `tmp5`. Compiler expression scratch is allocated as
+fixed linker symbols and reused by function and nesting depth where lifetimes
+do not overlap.
 
-### Peephole optimization
+There is no language software stack or frame pointer. The 6502 hardware stack
+is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
+region marked `callstack = callgraph` reserves two hardware-stack bytes per
+active ordinary-function level, plus the documented startup allowance. Stack
+use hidden in assembly must be declared separately by the integration's linker
+configuration.
 
-The compiler runs a conservative peephole pass over compiler-generated assembly after code generation. It removes duplicate `lda`, `ldx`, and `ldy` loads when the register value and the load's N/Z flag effects are already proven equivalent or the load's N/Z flag effects are proven dead, removes redundant stores to compiler-owned scratch bytes when the same value is already known to be there, removes redundant `tax`, `tay`, `txa`, and `tya` transfers when the destination register and observable N/Z flag effects are already equivalent, removes redundant repeated simple status-flag setters (`clc`, `sec`, `cld`, `sed`, `cli`, `sei`, and `clv`) when the same flag state is already proven, folds adjacent `lda #byte` plus immediate `and`, `eor`, or `ora` into a single equivalent `lda #byte`, removes a dead adjacent `lda`/`ldx`/`ldy` when it is immediately overwritten by another load into the same register before the earlier value or N/Z flags can be observed, removes conditional branches that are provably never taken from known N/Z, C, or V flag facts, removes `jmp` and all 6502 conditional branches (`bcc`, `bcs`, `beq`, `bmi`, `bne`, `bpl`, `bvc`, `bvs`) that target the immediately following label or an adjacent label in the same following label run, and keeps byte-saved statistics for `-X peephole`.
+A, X, Y, and P are caller-clobbered across ordinary calls. No register carries
+a language return value. Generated code expects decimal mode clear except
+inside its own tightly scoped packed-BCD arithmetic.
 
-The pass tracks compiler-owned zero-page scratch operands such as `arg0`, `ptr0`, and `tmp0` conservatively. Stores to a tracked scratch byte update or invalidate the corresponding known memory value, so a later load or duplicate scratch-store is removed only when the store proves the same value is present. If the source register's exact value is unknown, a store to tracked scratch still proves that the source register and scratch byte contain the same byte; a following reload of that scratch byte can therefore be removed only when the reload's N/Z flag effects are proven dead. Dead adjacent load removal is limited to side-effect-free compiler-known loads, namely immediates and compiler-owned zero-page scratch bytes; untracked memory reads are preserved. `brk` is treated as observing N/Z through the status byte it pushes. Conditional branches are treated as N/Z liveness barriers unless the branch itself is removed as a branch to the next label or as provably never taken, because a C/V-only branch can skip a later N/Z overwrite. The never-taken branch cleanup is intentionally one-sided: it removes false `beq`/`bne`/`bmi`/`bpl` branches when N/Z is known from a plain immediate byte, false `bcc`/`bcs` branches after known `sec`/`clc`, and false `bvs` branches after known `clv`; it does not replace always-taken conditional branches with `jmp`, because that is usually larger on 6502. Stores through unknown addresses and calls reset the tracked memory facts rather than guessing. Peephole byte accounting recognizes one-byte implied/register instructions, accumulator shifts/rotates, relative branches, `jmp`/`jsr`, immediate operands, compiler zero-page operands, compiler zero-page indexed operands such as `arg0,x`, and indirect zero-page forms. The immediate ALU fold is deliberately limited to plain byte literals so expression-valued assembler operands are not guessed at by the compiler.
+The compiler applies a conservative peephole pass to generated assembly. It
+removes only operations whose register, flag, and tracked compiler-scratch
+effects are proven redundant. Inline assembly is a barrier and is not rewritten.
 
-Inline `asm` statements are bracketed internally and treated as raw programmer assembly, even when the assembler text begins with whitespace. The peephole pass removes those internal markers from final assembly and resets its facts around the programmer-owned line instead of rewriting it.
+Source identifiers may contain valid UTF-8. Non-ASCII scalars are escaped into
+assembler-safe `?uXXXX?` or `?uXXXXXXXX?` forms and converted back in user-facing
+diagnostics.
 
-## Intentional limitations and non-goals
+## Intentional language limits
 
-The following limits are deliberate in the language and compiler design, not unknown missing work:
-
-- Aliases are lexer-level textual substitution. They are not typed macros, templates, or inline functions; function-like aliases require `name(...)` with no whitespace before `(`, and repeated parameters duplicate the argument text.
-- Conditional compilation is intentionally small. `#if` and `#elif` accept only the expression subset listed above, and function-like aliases are not expanded there.
-- There is no separate textual preprocessor phase. Variadic functions are intentionally unsupported, and the lexer rejects `...`.
-- `void*` conversion is one-way by default: typed object pointers may convert to `void*` or `const void*`, but converting `void*` back to a typed pointer requires an explicit cast.
-- Ordinary mixed signed/unsigned integer operators require an explicit cast when width adjustment leaves the signedness ambiguous. The compiler widens by width, but it does not guess signedness.
-- `switch case` labels use the compiler's restricted constant-case grammar. Numeric literals, character literals, enum constants, unary operators, and parenthesized forms are supported, but arbitrary identifier expressions such as `case y + 2:` are not.
-- Floating-point types and literals are rejected.
-
-## Incomplete or limited features
-
-A few sharp edges remain:
-
-- symbol-backed-parameter cycle checking spans the selected object files at link time, but truly dynamic call targets cannot be proven safe
-- shift-count diagnostics are lax
+- Alias and conditional-compilation facilities are deliberately small.
+- Mixed signed/unsigned arithmetic requires an explicit choice by the source.
+- Typed object pointers convert to `void *`; the reverse conversion is explicit.
+- `switch` case expressions use the compiler's restricted constant-expression
+  grammar rather than arbitrary runtime expressions.
+- Assembly calls and stack operations are not inferred by source call-graph
+  analysis.
 
 ## Minimal example
 
 ```vcsc
-type void     { $size:0 };
-type *        { $size:2 $integer:unsigned $endian:little };
-type int8_t   { $size:1 $integer:signed };
-type uint8_t  { $size:1 $integer:unsigned };
-type int16_t  { $size:2 $integer:signed $endian:little };
-type uint16_t { $size:2 $integer:unsigned $endian:little };
+include "vcs.c26"
 
-void bump(ref int16_t x) {
-   x++;
+void bump(ref int16_t value) {
+   value++;
 }
 
-int16_t main(void) {
-   int16_t x;
-   x := 1;
-   bump(x);
-   if (x) {
-      x += 2;
+uint16_t twice(uint16_t value) {
+   return value + value;
+}
+
+void main(void) {
+   int16_t counter := 1;
+   uint16_t result := twice(21`uint16_t);
+
+   bump(counter);
+   if (counter == 2 && result == 42) {
+      COLUBK := 0x84;
    }
-   return x;
 }
 ```
+
+## Unsupported/removed parent project features
+
+- Floating-point types, literals, helpers, and libraries.
+- Big-endian types and endian shortcut casts.
+- Ordinary function overloading.
+- Operator overloading and `$exactops`.
+- Function pointers and indirect calls.
+- Variadic functions and `stdarg` support.
+- Recursive or reentrant functions and software call frames.
+- Struct, union, and array returns.
+- The parent runtime's software stack, frame pointer, `sbrk`, and interrupt-entry library.
