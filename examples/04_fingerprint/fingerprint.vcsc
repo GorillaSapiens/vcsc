@@ -5,7 +5,7 @@
 // the resulting 24-bit fingerprint as six hexadecimal digits.
 
 include "vcs.vcsc"
-include "fonts/hexadecimal_hex.vcsc"
+include "fonts/default_hex.vcsc"
 
 alias BACKGROUND_COLOR 0x84
 

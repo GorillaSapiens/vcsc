@@ -64,7 +64,7 @@ my $ex=File::Spec->catdir($repo,'examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'fingerprint.vcsc');
 my $shared=File::Spec->catfile($vcs,'six_glyph_display.vcsc');
 my $example_makefile=File::Spec->catfile($ex,'Makefile');
-my $font=File::Spec->catfile($vcs,'fonts','hexadecimal_hex.vcsc');
+my $font=File::Spec->catfile($vcs,'fonts','default_hex.vcsc');
 my $bin=File::Spec->catfile($tmp,'fingerprint.bin');
 my $map=File::Spec->catfile($tmp,'fingerprint.map');
 my $asm=File::Spec->catfile($tmp,'fingerprint.s');
@@ -108,8 +108,8 @@ my $shared_text=read_file($shared);
 my $example_makefile_text=read_file($example_makefile);
 require_re($example_makefile_text,qr/-Wa,--illegals/,
            'fingerprint Makefile does not explicitly enable unofficial mnemonics');
-require_re($source,qr/include\s+"fonts\/hexadecimal_hex\.vcsc"/,
-           'example does not select the hexadecimal hex font');
+require_re($source,qr/include\s+"fonts\/default_hex\.vcsc"/,
+           'example does not select the default hex font');
 require_re($source,qr/include\s+"six_glyph_display\.vcsc"/,
            'fingerprint example no longer includes the shared six-glyph display module');
 $source !~ /void\s+six_glyph_(?:setup|draw)\s*\(/

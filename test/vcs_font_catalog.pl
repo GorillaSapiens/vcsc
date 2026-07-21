@@ -61,9 +61,8 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $fonts=File::Spec->catdir($vcs,'fonts');
 my $example=File::Spec->catfile($repo,'examples','03_six_digit_score','six_digit_score.vcsc');
-my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny hexadecimal);
+my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny);
 my $example_text=read_file($example);
-my @hexadecimal_af;
 
 -f File::Spec->catfile($fonts,'README.md') or die "font catalog README is missing\n";
 -d File::Spec->catdir($repo,'examples','03_six_digit_score','fonts')
@@ -80,19 +79,12 @@ for my $family (@families) {
    my @hex=parse_rows($hex_file,$hex_symbol,128);
    join(',',@dec) eq join(',',@hex[0..79])
       or die "$family hexadecimal variant does not preserve decimal glyphs\n";
-   if ($family eq 'hexadecimal') {
-      @hexadecimal_af=@hex[80..127];
-   }
 }
 
-@hexadecimal_af==48 or die "hexadecimal font does not provide six A-F glyphs\n";
-for my $family (@families) {
-   next if $family eq 'hexadecimal';
-   my $hex_file=File::Spec->catfile($fonts,"${family}_hex.vcsc");
-   my @hex=parse_rows($hex_file,"score_font",128);
-   join(',',@hex[80..127]) eq join(',',@hexadecimal_af)
-      or die "$family hexadecimal variant does not use the official A-F glyphs\n";
-}
+-f File::Spec->catfile($fonts,'hexadecimal_decimal.vcsc')
+   and die "removed hexadecimal decimal font remains\n";
+-f File::Spec->catfile($fonts,'hexadecimal_hex.vcsc')
+   and die "removed hexadecimal hex font remains\n";
 
 # Every module must build in the real six-digit cartridge, not merely parse.
 for my $family (@families) {
