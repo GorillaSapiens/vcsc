@@ -341,7 +341,9 @@ ASR  imm  $4B    # same encoding as ALR
 SBX  imm  $CB    # same encoding as AXS
 ```
 
-The config file also carries a commented-out catalog of other established spellings (`AAC`, `AAX`, `ASO`, `DCM`, `ISB`, `INS`, `LAR`, `LSE`, `SHA`, `AXA`, `SHS`, `SXA`, `SYA`, `SAY`, and `ANE`). Each group records its common provenance and any ambiguity, instability, duplicate-encoding limitation, or naming conflict. They remain disabled until real imported source needs them.
+The config file also carries a commented-out catalog of other established spellings and dialect families: `AAC`, `AAX`, `ASO`, `DCM`, `ISB`, `INS`, `LAR`, `LSE`, `SHA`, `AXA`, `SHS`, `SXA`, `SYA`, `SAY`, `ANE`, `DOP`, `TOP`, `LXA`, `OAL`, `ATX`, both incompatible meanings of `XAS`, and memory-addressed `AXS` as an alias for `SAX`. Each group records its historical usage and any ambiguity, instability, duplicate-encoding limitation, page-cross hazard, or naming conflict. They remain disabled until real imported source needs them.
+
+The especially dangerous entries are comments on purpose. Immediate `$AB` (`LXA`/`OAL`/`ATX`) and the `$9B`/`$9E` high-byte-masked store family can vary with NMOS silicon and operating conditions. `XAS` is unusably ambiguous without choosing a source dialect because published tables apply it to both `$9B` (`TAS`) and `$9E` (`SHX`) in the same addressing mode. `AXS` is likewise already the active immediate name for `$CB`, although some assemblers reuse it for the memory-addressed `SAX` family. Exact `opXX` spelling is preferred when reproducing one of these encodings.
 
 The current rich-opcode model is:
 

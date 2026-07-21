@@ -9,17 +9,18 @@ VCSC PROJECT CONTEXT
 Purpose
 -------
 This is the durable handoff file for continuing the project after a chat
-restart. When asked to "look at context.txt and figure out what to do next":
+restart. It lives at `.top_secret/context.txt`. When asked to "look at
+context.txt and figure out what to do next":
 
 1. Read this file first.
 2. Inspect the current tree and verify that it agrees with this record.
 3. Continue with the first unfinished item in "Immediate TODO" unless the user
    gives newer instructions.
 4. Update this file after every meaningful change or decision.
-5. Keep top-level remove.txt accurate. It contains one repository-relative path
+5. Keep `.top_secret/remove.txt` accurate. It contains one repository-relative path
    per intentionally deleted file, suitable for:
 
-       rm `cat remove.txt`
+       rm `cat .top_secret/remove.txt`
 
    Exception: when the user explicitly requests erasing a proper name from the
    project, obsolete paths containing that name are not retained in the ledger.
@@ -39,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_213235.tar.gz
+    vcsc.20260721_083655.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -140,9 +141,9 @@ Completed vertical slices
 5. Every named automatic local and the hidden `$$` return object now has
    function-qualified fixed-address storage. Automatic initializers still run
    whenever control reaches the declaration on each invocation.
-6. Every remaining compiler `_pushN` allocation site has been inventoried and
-   classified in top-level software_stack_inventory.txt. A regression test
-   detects unrecorded additions, removals, or count changes.
+6. The executable `test/software_stack_inventory.pl` regression inventories
+   compiler `_pushN`/`_popN` emitters and removed runtime symbols directly from
+   the current tree. It detects any reappearance or count drift.
 7. Ordinary direct calls evaluate arguments through fixed compiler-generated
    call-site scratch rather than a software-stack call frame. Results are copied
    directly from callee-owned return objects, so return-only scratch is gone.
@@ -480,7 +481,7 @@ RIOT block without a separate CPUSTACK region.
 
 Software-stack status
 ---------------------
-Top-level software_stack_inventory.txt is the authoritative checked inventory.
+`test/software_stack_inventory.pl` is the authoritative executable inventory.
 Compiler source contains zero `_pushN` allocation sites and zero `_popN` cleanup
 paths, and the runtime implementation has now been removed completely:
 
@@ -506,7 +507,7 @@ When a feature is removed:
 2. keep or add negative tests proving the compiler rejects it cleanly;
 3. rewrite tests whose real subject remains useful to use legal types or
    out-parameters;
-4. list every intentionally deleted path in remove.txt.
+4. list every intentionally deleted path in `.top_secret/remove.txt`.
 
 For the big/mixed-endian purge:
 
@@ -517,7 +518,7 @@ For the big/mixed-endian purge:
   procedures were removed;
 * 24 obsolete positive endian tests were intentionally removed and three direct
   rejection tests were added;
-* all removed paths are in top-level remove.txt.
+* all removed paths are in `.top_secret/remove.txt`.
 
 For the wide-binary-integer purge:
 
@@ -718,7 +719,7 @@ The first unfinished item is the default next action.
                   Unsupported index forms use generic pooled scratch.
 
 [x] 16. Delete unsupported tools/runtime/language features one group at a time,
-        recording all removed paths in remove.txt and keeping retained tests
+        recording all removed paths in `.top_secret/remove.txt` and keeping retained tests
         green.
 
         [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
@@ -2353,3 +2354,24 @@ Before returning another modified archive:
   kernel source and update the normalization regression and documentation.
 * Keep task 20d as the next queued action.
 
+2026-07-21 08:49:03 PDT, quarantine developer-only records and expand alias notes
+------------------------------------------------------------------------
+* Move the still-active project handoff and cumulative removal ledger from the
+  repository root to `.top_secret/context.txt` and `.top_secret/remove.txt`.
+  Add `.top_secret/README.md` identifying the directory as developer-only and
+  explaining both retained files. Update active workflow text and regressions
+  for the new paths.
+* Delete the obsolete top-level `NOTES.md`, whose feature table had become stale
+  and duplicated maintained documentation. Delete the frozen
+  `software_stack_inventory.txt`; the live `test/software_stack_inventory.pl`
+  regression is now the authoritative inventory. Record all four retired root
+  paths in `.top_secret/remove.txt`.
+* Expand the disabled alias catalog in `assembler/illegals.cfg` with complete
+  DOP/TOP encoding families, unstable LXA/OAL/ATX spellings for `$AB`, both
+  mutually conflicting XAS meanings (`SHX $9E` and `TAS $9B`), and the
+  memory-addressed AXS spelling for SAX. Document historical usage, config-table
+  collisions, silicon instability, page-cross hazards, and exact-opcode escape
+  hatches. Keep every newly cataloged spelling commented out.
+* Pass 283/283 compile tests, 131/131 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` now contains 880 cumulative paths.
+  Keep task 20d as the next queued action.

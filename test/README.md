@@ -96,6 +96,17 @@ assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
 segment map and score table, rejects assembly without unofficial mnemonics, and
 assembles a smoke source that invokes every retained macro.
 
+`assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
+aliases remain active while the broader historical catalog remains commented
+out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both
+incompatible XAS dialects, memory-addressed AXS/SAX aliases, and their required
+conflict and silicon-warning comments.
+
+`vcsc_branding.test` also enforces the developer-record quarantine: only
+`.top_secret/context.txt`, `.top_secret/remove.txt`, and their explanatory
+README may occupy that internal role, while the obsolete top-level notes and
+software-stack snapshot must remain absent.
+
 ### `.test` files
 
 Generic tests use an explicit runner command:

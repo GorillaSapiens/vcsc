@@ -78,6 +78,25 @@ for my $parts (
    !-e $path or die "obsolete branded path remains: $path\n";
 }
 
+for my $parts (
+   [qw(.top_secret README.md)],
+   [qw(.top_secret context.txt)],
+   [qw(.top_secret remove.txt)],
+) {
+   my $path = File::Spec->catfile($repo, @$parts);
+   -f $path or die "required developer-only record is missing: $path\n";
+}
+
+for my $parts (
+   [qw(NOTES.md)],
+   [qw(context.txt)],
+   [qw(remove.txt)],
+   [qw(software_stack_inventory.txt)],
+) {
+   my $path = File::Spec->catfile($repo, @$parts);
+   !-e $path or die "developer-only or obsolete root file remains: $path\n";
+}
+
 my (@old_suffix, @old_artifact_suffix, @old_branding, @unneeded_upstream_name);
 my $upstream_name = join('', qw(ba ta ri));
 my @obsolete_artifact_suffixes = (join('', qw(v c s c)), join('', qw(o 6 5)), join('', qw(a 6 5)));
@@ -97,7 +116,7 @@ find({
       return if $rel !~ /(?:Makefile|\.(?:c|h|cpp|l|y|pl|md|txt|dox|c26|s|asm|inc|cfg))$/;
       my $data = slurp($path);
       push @unneeded_upstream_name, $rel if $data =~ /\Q$upstream_name\E/i;
-      return if $rel eq 'context.txt' || $rel eq 'remove.txt';
+      return if $rel eq '.top_secret/context.txt' || $rel eq '.top_secret/remove.txt';
       push @old_branding, $rel if $data =~ /(?:n65|libraries\/nlib|\bnlib\.(?:l26|inc)\b|\/opt\/n(?:\/|\b))/;
    },
 }, $repo);
@@ -118,7 +137,7 @@ for my $path (@markdown) {
    my $prefix = "```text\n$banner\n```\n\n";
    index($data, $prefix) == 0 or die "documentation lacks VCSC FIGlet banner: $path\n";
 }
-for my $rel ('compiler/ABI.txt', 'context.txt', 'software_stack_inventory.txt',
+for my $rel ('compiler/ABI.txt', '.top_secret/context.txt',
              'libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt') {
    my $path = File::Spec->catfile($repo, split('/', $rel));
    my $data = slurp($path);
