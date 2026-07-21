@@ -2,8 +2,8 @@
 # phase: e2e
 # expectexit: 0
 # expectstdout: pass 001: begin
-# expectstdout:    bytes: 11
-# expectstdout:    instructions: 6
+# expectstdout:    bytes: 15
+# expectstdout:    instructions: 8
 # expectstdout:    directives: 4
 # expectstdout:    labels: 1
 # expectstdout:    constants: 0

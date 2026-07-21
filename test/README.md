@@ -91,6 +91,7 @@ without call-graph sizing, and both 4096-byte storage-choice smoke cartridges.
 `vcs_standard_kernel_normalization.test` enforces task 20c. It regenerates the
 selected source beside the checked-in outputs and requires byte identity,
 checks all five deliberate macro ports and the selected DASM transformations,
+requires the retained `ASR` and `SBX` spellings to survive normalization,
 assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
 segment map and score table, rejects assembly without unofficial mnemonics, and
 assembles a smoke source that invokes every retained macro.

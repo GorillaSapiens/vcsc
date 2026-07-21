@@ -253,7 +253,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      txa
      ; and #$F0
      ; lsr
-     ALR #$F0
+     asr #$F0
      adc #<vcs_standard_score_table
      tax
      rts
@@ -410,7 +410,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ; lax temp4
      ; clc
      txa
-         AXS #256-4
+         sbx #256-4
 
      bmi @lastkernelline
 

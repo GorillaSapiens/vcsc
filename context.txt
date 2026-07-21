@@ -2322,8 +2322,9 @@ Before returning another modified archive:
 * Generate `standard_4k_ntsc_kernel.s` from the active unbanked, non-reflected
   NTSC branches of the retained overscan/kernel sources and the exact 88-byte
   default score table. Preserve retained comments; localize assembly labels;
-  bind fixed-map names to task-20b module symbols; map `SBX`/`ASR` to
-  `AXS`/`ALR`; convert DASM forced `.w` modes; and preserve both page guards.
+  bind fixed-map names to task-20b module symbols; preserve retained `SBX` and
+  `ASR` spellings through active aliases in `illegals.cfg`; convert DASM forced
+  `.w` modes; and preserve both page guards.
   Express the address-dependent DASM page-tail repeat as sixteen layout-time
   conditional NOP slots because `vcsc-as` expands `.repeat` before layout.
 * Add a focused regression that checks reproducible generation, all five macro
@@ -2337,4 +2338,18 @@ Before returning another modified archive:
   Task 20d is the next queued action: link this normalized object into the first
   real standard-kernel cartridge and verify final placement, bytes, and scanline
   timing.
+
+2026-07-21 01:31:00 PDT, accept retained ASR and SBX opcode spellings
+------------------------------------------------------------------------
+* Add active `ASR imm $4B` and `SBX imm $CB` aliases to `illegals.cfg` alongside
+  canonical `ALR` and `AXS`. Keep them gated by `--illegals` and verify their
+  exact bytes in the existing rich-opcode assembler smoke test.
+* Keep a commented catalog of broader established unofficial-opcode aliases in
+  `illegals.cfg`, with provenance and notes for duplicate encodings, unstable
+  silicon behavior, and possible naming conflicts. Leave those aliases disabled
+  until imported source actually requires them.
+* Simplify the standard-kernel normalizer so it preserves retained lowercase
+  `asr` and `sbx` spellings rather than rewriting them. Regenerate the checked-in
+  kernel source and update the normalization regression and documentation.
+* Keep task 20d as the next queued action.
 

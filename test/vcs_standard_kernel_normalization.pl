@@ -85,14 +85,16 @@ my $active=$kernel_text;
 $active =~ s/;[^\n]*//g;
 $active !~ /^\s*(?:ifconst|ifnconst|if|else|endif|repeat|repend|align|include|MAC|ENDM)\b/im
    or die "active normalized source still contains a bare DASM directive\n";
-$active !~ /\.[Ww]\b|\b(?:SBX|ASR)\b/
-   or die "active normalized source still contains a DASM forced mode or opcode alias\n";
+$active !~ /\.[Ww]\b/
+   or die "active normalized source still contains a DASM forced mode\n";
 $active !~ /\b(?:player0x|scorepointers|temp[1-6]|playfieldbase|stack[12])\b/
    or die "active normalized source still uses old fixed-map state names\n";
 require_re($active,qr/^\s*\.include\s+"standard_4k_ntsc_macros\.inc"/m,
    'normalized kernel does not include the normalized macro file');
-require_re($active,qr/\bAXS\b/,'selected source did not normalize SBX to AXS');
-require_re($active,qr/\bALR\b/,'selected source did not normalize ASR to ALR');
+require_re($active,qr/\bSBX\b/i,'selected source did not preserve SBX');
+require_re($active,qr/\bASR\b/i,'selected source did not preserve ASR');
+$active !~ /\b(?:AXS|ALR)\b/i
+   or die "selected source unexpectedly rewrote SBX/ASR to AXS/ALR\n";
 require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;

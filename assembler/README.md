@@ -125,7 +125,7 @@ vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s
 
 #### `--illegals`
 
-Load the bundled `illegals.cfg` in addition to the always-loaded `default.cfg`. This enables named unofficial or illegal opcodes such as `LAX`, `SAX`, `DCP`, `ISC`, `SLO`, `RLA`, `SRE`, `RRA`, representative unofficial `NOP` forms, and representative halt names `KIL`, `JAM`, and `HLT`. Raw `opXX` byte validation does not require this flag, because `default.cfg` already contains operand-shape metadata for all 256 opcode bytes.
+Load the bundled `illegals.cfg` in addition to the always-loaded `default.cfg`. This enables named unofficial or illegal opcodes such as `LAX`, `SAX`, `DCP`, `ISC`, `SLO`, `RLA`, `SRE`, `RRA`, the retained-source aliases `ASR`/`ALR` and `SBX`/`AXS`, representative unofficial `NOP` forms, and representative halt names `KIL`, `JAM`, and `HLT`. Raw `opXX` byte validation does not require this flag, because `default.cfg` already contains operand-shape metadata for all 256 opcode bytes.
 
 ```sh
 vcsc-as --illegals --hex=program.hex program.s
@@ -278,7 +278,7 @@ This means `.include` and macros are **source-level features**, not parser-level
 
 - `default.cfg` is always loaded automatically from the source-tree assembler directory or installed `share/cfg` directory
 - `default.cfg` contains the official 6502 mnemonics plus `opXX` placeholder entries for otherwise unnamed opcode bytes, so raw opcode validation has metadata for all 256 byte values
-- `--illegals` additionally loads `illegals.cfg`, which adds friendly names for the unofficial opcode subset that fits the rich-opcode table model, including one representative name for each duplicate unofficial `NOP` addressing family and representative `KIL`, `JAM`, and `HLT` halt spellings
+- `--illegals` additionally loads `illegals.cfg`, which adds friendly names for the unofficial opcode subset that fits the rich-opcode table model, accepts `ASR` as an alias for `ALR` and `SBX` as an alias for `AXS`, and includes one representative name for each duplicate unofficial `NOP` addressing family plus representative `KIL`, `JAM`, and `HLT` halt spellings
 - `--opcode-cfg <file>` loads one or more extra opcode tables
 
 Opcode config files are line-oriented and use this syntax:
@@ -333,6 +333,15 @@ The replacement text runs to end-of-line (before any `;` comment), so it can als
 ### Why `illegals.cfg` names only representative duplicate encodings
 
 The bundled `illegals.cfg` is intentionally **not** a complete catalog of every known unofficial 6502 opcode encoding.
+
+It deliberately enables two alternate spellings used by the retained standard-kernel source:
+
+```text
+ASR  imm  $4B    # same encoding as ALR
+SBX  imm  $CB    # same encoding as AXS
+```
+
+The config file also carries a commented-out catalog of other established spellings (`AAC`, `AAX`, `ASO`, `DCM`, `ISB`, `INS`, `LAR`, `LSE`, `SHA`, `AXA`, `SHS`, `SXA`, `SYA`, `SAY`, and `ANE`). Each group records its common provenance and any ambiguity, instability, duplicate-encoding limitation, or naming conflict. They remain disabled until real imported source needs them.
 
 The current rich-opcode model is:
 

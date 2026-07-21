@@ -66,8 +66,8 @@ installed.
 The conversion is intentionally not a general DASM-compatibility mode. It
 selects only this profile's active conditional branches, changes bare DASM
 labels to procedure-local `@label:` definitions, binds retained fixed-map names
-to the module symbols, maps `SBX`/`ASR` to the assembler's `AXS`/`ALR` names,
-converts forced `.w` addressing to `.a`/`.ax`/`.ay`, and preserves the two
+to the module symbols, preserves the retained `SBX`/`ASR` spellings now accepted
+by `illegals.cfg`, converts forced `.w` addressing to `.a`/`.ax`/`.ay`, and preserves the two
 page-alignment guards. DASM's address-dependent page-tail `REPEAT` cannot use
 `vcsc-as`'s pre-layout `.repeat`; the normalizer emits sixteen conditional NOP
 slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.

@@ -82,9 +82,10 @@ kernels:
 - raw `opXX` spellings when an exact unofficial byte is required.
 
 Across all retained kernels, unofficial `DCP` appears 22 times, `LAX` 13 times,
-and `SBX` 10 times. All are representable by the existing illegal-opcode table.
-The selected minimal branch that survives normalization currently uses `SBX`
-(normalized as `AXS`) and `ASR` (normalized as `ALR`). Every converted kernel
+and `SBX` 10 times. The bundled illegal-opcode table accepts the retained
+`SBX` spelling directly as an alias for `AXS`, and accepts `ASR` directly as an
+alias for `ALR`. The selected minimal branch therefore preserves both original
+mnemonics during normalization. Every converted kernel
 build must deliberately enable the unofficial table and task 20d must
 regression-test the final emitted bytes.
 
@@ -236,8 +237,9 @@ inputs and deterministically generates:
 Both generated files embed SHA-256 provenance for every retained input. The
 normalizer selects only the documented configuration, preserves comments,
 localizes retained labels, maps fixed-map names to module symbols, converts
-conditionals and expressions, maps `SBX`/`ASR` to `AXS`/`ALR`, converts `.w` to
-explicit addressing-family suffixes, and preserves the two page guards. The
+conditionals and expressions, preserves `SBX`/`ASR` now that `illegals.cfg`
+accepts them directly, converts `.w` to explicit addressing-family suffixes,
+and preserves the two page guards. The
 address-dependent DASM page-tail repeat is represented by sixteen layout-time
 conditional NOP slots because `vcsc-as` expands `.repeat` before layout.
 

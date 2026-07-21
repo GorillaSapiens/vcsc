@@ -4,6 +4,8 @@
 .proc demo
    XYZ #$12
    LAX #$34
+   ASR #$56
+   SBX #$78
    op8D.a $1234
    opF0 target
    opEA

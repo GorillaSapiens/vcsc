@@ -361,10 +361,8 @@ sub translate_line {
       $code =~ s/\b\Q$macro\E\b/$macro/ig;
    }
 
-   # Retained names for opcode $CB and $4B differ from the canonical names in
-   # the vcsc-as unofficial-opcode table.
-   $code =~ s/\bSBX\b/AXS/ig;
-   $code =~ s/\bASR\b/ALR/ig;
+   # Preserve the retained SBX and ASR spellings.  vcsc-as names both aliases
+   # directly in illegals.cfg, so normalization need not rewrite mnemonics.
 
    # Rename every retained internal label into the procedure-local namespace.
    for my $old (sort { length($b) <=> length($a) } keys %$labels) {
