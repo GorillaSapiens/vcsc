@@ -119,7 +119,7 @@ installcheck: tools
 	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.vcsc" \
 	  -o "$(INSTALLCHECK_STAGING)/six_digit_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_digit_score.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/04_fingerprint/fingerprint.vcsc" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096

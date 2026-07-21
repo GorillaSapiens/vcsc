@@ -34,8 +34,8 @@ vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bi
 vcsc -I libraries/vcs \
   examples/03_six_digit_score/six_digit_score.vcsc -o six_digit_score.bin
 
-# The fingerprint example intentionally executes unstable ARR ($6B) probes.
-vcsc -I libraries/vcs \
+# The fingerprint example intentionally enables and executes unstable ARR ($6B).
+vcsc -I libraries/vcs -Wa,--illegals \
   examples/04_fingerprint/fingerprint.vcsc -o fingerprint.bin
 ```
 

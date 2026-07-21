@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_174544.tar.gz
+    vcsc.20260720_181143.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -833,7 +833,8 @@ The first unfinished item is the default next action.
     cartridge. Example 03 owns no private font data.
 
 [x] Side quest: add `examples/04_fingerprint`, a self-contained unbanked 4K
-    cartridge that runs four unstable `ARR`-immediate probes, feeds each A'/NVZC
+    cartridge that runs four unstable named `ARR`-immediate probes with explicit
+    `-Wa,--illegals`, feeds each A'/NVZC
     pair through CRC-24/OPENPGP in ordinary VCSC `uint24_t` code, and displays
     the result as six centered hexadecimal digits using
     `fonts/hexadecimal_hex.vcsc`. Keep only the silicon-sensitive probes and
@@ -2091,3 +2092,22 @@ Before returning another modified archive:
 * Pass 272/272 compile tests and 125/125 end-to-end/generic tests plus
   staged installation. `remove.txt` remains at 876 paths because this slice
   adds one shared module and deletes no tracked source files.
+
+
+2026-07-20 18:19:10 PDT, use the named ARR mnemonic in example 04
+------------------------------------------------------------------------
+* Replace the four raw `op6b` spellings in `examples/04_fingerprint` with the
+  readable unofficial `ARR` mnemonic. Pass `-Wa,--illegals` explicitly from the
+  example Makefile, staged installation build, root command example, and focused
+  regression.
+* Add an end-of-line warning to every `ARR` statement identifying it as unstable
+  and unofficial and recording the exact emitted opcode/operand bytes (`$6B,$B8`
+  or `$6B,$6B`). Strengthen `vcs_fingerprint.test` to require those comments, the
+  named generated mnemonic, and the explicit assembler mode.
+* This is a source-readability change only: probe bytes, CRC input order, display
+  timing, cartridge contents, and expected model fingerprints remain unchanged.
+* Confirm the old raw-opcode and new named-mnemonic builds are byte-for-byte
+  identical (SHA-256 `db17b72cb57a0f80694a870cc8efb35de7bf80569a812f661bd7fff94b4b6f99`).
+  Pass 272/272 compile tests, 125/125 end-to-end/generic tests, staged
+  installation, exact 4096-byte cartridge checks, and a Stella 7.0 render of
+  `8A55CE`. `remove.txt` remains at 876 paths.

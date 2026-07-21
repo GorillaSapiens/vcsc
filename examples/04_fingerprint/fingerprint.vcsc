@@ -14,13 +14,15 @@ uint8_t probe_flags;
 uint24_t fingerprint;
 include "six_glyph_display.vcsc"
 
-// The op6b token emits the exact unstable ARR immediate opcode. Each probe
+// ARR is an unstable unofficial NMOS 6502/6507 opcode. The example enables
+// named unofficial mnemonics explicitly with -Wa,--illegals; each annotated
+// line also records the exact opcode and operand bytes emitted. Each probe
 // stores A' and then captures NVZC from P' before any flag-changing cleanup.
 void probe1(void) {
    asm cld;
    asm sec;
    asm lda #$e5;
-   asm op6b #$b8;
+   asm ARR #$b8; // Unstable unofficial ARR; emits bytes $6B,$B8.
    asm sta probe_accumulator;
    asm php;
    asm pla;
@@ -33,7 +35,7 @@ void probe2(void) {
    asm cld;
    asm sec;
    asm lda #$36;
-   asm op6b #$6b;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
    asm sta probe_accumulator;
    asm php;
    asm pla;
@@ -46,7 +48,7 @@ void probe3(void) {
    asm sed;
    asm clc;
    asm lda #$f6;
-   asm op6b #$6b;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
    asm sta probe_accumulator;
    asm php;
    asm pla;
@@ -59,7 +61,7 @@ void probe4(void) {
    asm cld;
    asm clc;
    asm lda #$06;
-   asm op6b #$6b;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
    asm sta probe_accumulator;
    asm php;
    asm pla;

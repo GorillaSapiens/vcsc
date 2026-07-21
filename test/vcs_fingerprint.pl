@@ -63,6 +63,7 @@ my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');
 my $ex=File::Spec->catdir($repo,'examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'fingerprint.vcsc');
 my $shared=File::Spec->catfile($vcs,'six_glyph_display.vcsc');
+my $example_makefile=File::Spec->catfile($ex,'Makefile');
 my $font=File::Spec->catfile($vcs,'fonts','hexadecimal_hex.vcsc');
 my $bin=File::Spec->catfile($tmp,'fingerprint.bin');
 my $map=File::Spec->catfile($tmp,'fingerprint.map');
@@ -73,7 +74,7 @@ my $timing_exe=File::Spec->catfile($tmp,'vcs_frame_timing_fingerprint');
 my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
 my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
-my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-Map',$map,$src,'-o',$bin);
+my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-Wa,--illegals','-Map',$map,$src,'-o',$bin);
 die "fingerprint build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "fingerprint build wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
 
@@ -104,6 +105,9 @@ for my $i (0..127) {
 
 my $source=read_file($src);
 my $shared_text=read_file($shared);
+my $example_makefile_text=read_file($example_makefile);
+require_re($example_makefile_text,qr/-Wa,--illegals/,
+           'fingerprint Makefile does not explicitly enable unofficial mnemonics');
 require_re($source,qr/include\s+"fonts\/hexadecimal_hex\.vcsc"/,
            'example does not select the hexadecimal hex font');
 require_re($source,qr/include\s+"six_glyph_display\.vcsc"/,
@@ -139,8 +143,8 @@ my @probe_specs=(
 );
 for my $spec (@probe_specs) {
    my ($name,$decimal,$carry,$a,$m)=@$spec;
-   require_re($source,qr/void\s+\Q$name\E\s*\(void\).*?asm \Q$decimal\E;.*?asm \Q$carry\E;.*?asm lda #\$\Q$a\E;.*?asm op6b #\$\Q$m\E;.*?asm sta probe_accumulator;.*?asm php;.*?asm pla;.*?asm and #\$c3;.*?asm sta probe_flags;/s,
-              "$name no longer implements the specified ARR probe");
+   require_re($source,qr/void\s+\Q$name\E\s*\(void\).*?asm \Q$decimal\E;.*?asm \Q$carry\E;.*?asm lda #\$\Q$a\E;.*?asm ARR #\$\Q$m\E;\s*\/\/\s*Unstable unofficial ARR; emits bytes \$6B,\$\Q$m\E\..*?asm sta probe_accumulator;.*?asm php;.*?asm pla;.*?asm and #\$c3;.*?asm sta probe_flags;/si,
+              "$name no longer implements or documents the specified ARR probe");
 }
 
 my $generated=read_file($asm);
@@ -154,11 +158,11 @@ for my $spec (@generated_specs) {
    my ($name,$decimal,$carry,$a,$m)=@$spec;
    my ($body)=$generated =~ /(\.proc \Q$name\E.*?\.endproc)/s;
    defined($body) or die "generated assembly is missing $name\n";
-   require_re($body,qr/\Q$decimal\E\s+\Q$carry\E\s+lda #\$\Q$a\E\s+op6b #\$\Q$m\E\s+sta probe_accumulator\s+php\s+pla\s+and #\$c3\s+sta probe_flags/s,
+   require_re($body,qr/\Q$decimal\E\s+\Q$carry\E\s+lda #\$\Q$a\E\s+ARR #\$\Q$m\E\s+sta probe_accumulator\s+php\s+pla\s+and #\$c3\s+sta probe_flags/is,
               "$name generated opcode/flag sequence changed");
 }
-my $op6b_count=()=$generated =~ /^op6b #\$/mg;
-$op6b_count==4 or die "generated assembly has $op6b_count ARR probes, expected 4\n";
+my $arr_count=()=$generated =~ /^ARR #\$/img;
+$arr_count==4 or die "generated assembly has $arr_count named ARR probes, expected 4\n";
 
 my ($setup)=$generated =~ /(\.proc six_glyph_setup.*?\.endproc)/s;
 defined($setup) or die "generated assembly is missing six_glyph_setup\n";
@@ -186,7 +190,7 @@ join("\n",@actual) eq join("\n",@expected)
 
 # Verify CRC VCSC independently of unstable-opcode modeling.
 ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-D','FINGERPRINT_SELFTEST',$src,'-o',$selftest);
+   $driver,'-I',$vcs,'-Wa,--illegals','-D','FINGERPRINT_SELFTEST',$src,'-o',$selftest);
 die "CRC selftest build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 ($exit,$sig,$out,$err)=run_capture($sim,'-T',$cfg,$selftest);
 die "CRC selftest exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
