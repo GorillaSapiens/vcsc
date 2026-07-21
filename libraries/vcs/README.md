@@ -17,6 +17,7 @@ Files:
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
 - `sound_ntsc.vcsc` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_display.vcsc` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
+- `kernels/standard_4k_ntsc/` ... first minimal standard-kernel source contract and linker configuration
 - `fonts/` ... nine shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
 - `../../examples/01_solid_color/solid_color.vcsc` ... first complete 4K cartridge example
 - `../../examples/02_ode_to_joy/ode_to_joy.vcsc` ... frame-driven music example using a ROM score table
@@ -109,6 +110,7 @@ Notes:
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
 - `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
-- Current stack sizing accounts for JSR return addresses only; ordinary generated calls push no compiler state. Inline `PHA`/`PHP`/`JSR` and stack use hidden in separately assembled routines remain future accounting work. Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
-- `legacy-basic-kernels/` is reference/source material imported from upstream legacy BASIC and is not automatically wired into the `vcsc-cc1`/`vcsc-ld` flow. See `LEGACY_KERNEL_CONVERSION.md` for the fixed-RAM, stack, assembler, linker, and staged-port inventory.
+- Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. A linker configuration may add `callstack_extra` bytes for hardware-stack use declared by an included assembly module. The minimal standard-kernel contract uses two extra bytes for its internal `scorepointerset` call. Arbitrary inline-assembly pushes and stack-pointer manipulation are still not inferred.
+- Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
+- `legacy-basic-kernels/` is reference/source material imported from upstream legacy BASIC and is not automatically wired into the `vcsc-cc1`/`vcsc-ld` flow. See `LEGACY_KERNEL_CONVERSION.md` for the source-contract, stack, assembler, linker, and staged-port inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.

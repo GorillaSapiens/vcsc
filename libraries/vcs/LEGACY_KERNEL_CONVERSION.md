@@ -14,10 +14,10 @@ assembly into C-like source" project. The scanline kernels are cycle-counted
 6507 assembly and should remain separately assembled code. The practical goal
 is to:
 
-1. normalize the retained DASM source into `vcsc-as` syntax without modifying
-   the vendored upstream files;
-2. define a kernel-specific RAM, hardware-stack, startup, and call ABI;
-3. link that assembly kernel with VCSC game logic; and
+1. define one exact source-integration contract and module-owned state layout;
+2. normalize only that configuration's retained DASM source into `vcsc-as`
+   syntax without modifying the vendored files;
+3. include and link the adapted assembly with VCSC game logic; and
 4. add optional kernel features only after a minimal 4K standard-kernel image is
    byte- and timing-stable.
 
@@ -61,9 +61,10 @@ A real upstream build supplies generated or optional files that are not here:
 The separately documented DPC+/PXE ARM blobs are also intentionally absent, but
 they are outside the standard/multisprite scope of this inventory.
 
-A VCSC conversion must replace the generated bB inputs with an explicit kernel
-configuration header, fixed RAM bindings, and VCSC game-logic entry points. It
-must not pretend the retained tree can already assemble by itself.
+A VCSC conversion must replace the generated application inputs with an
+explicit included module, module-owned state declarations, and VCSC game-logic
+entry points. It must not pretend the retained tree can already assemble by
+itself.
 
 ## What `vcsc-as` already provides
 
@@ -107,7 +108,7 @@ performed as an unreviewable hand edit:
 | DASM `.w` forced-wide suffix | `.a`, `.ax`, or `.ay`, selected from the operand mode |
 | parenthesized expression grouping | braces, because parentheses are reserved for 6502 indirect addressing |
 | `processor 6502` | remove; CPU/opcode selection is a tool option |
-| `SEG.U` | replace with explicit VCSC segment definitions or fixed-RAM declarations |
+| `SEG.U` | remove; state is declared by the included VCSC module and referenced by symbol |
 | bare filenames in `.inc` manifests | explicit, ordered `.include` directives in a generated harness |
 
 Only five macros are defined in the retained standard/multisprite material:
@@ -115,82 +116,63 @@ Only five macros are defined in the retained standard/multisprite material:
 those deliberately is safer than adding a broad DASM-compatibility mode to the
 assembler.
 
-## Real integration incompatibilities
+## Real integration constraints
 
-### 1. Fixed RAM ownership
+### 1. Module-owned RAM and genuine layout requirements
 
-Both kernel families assume a complete, fixed RIOT RAM layout beginning at
-`$80`. The standard map assigns player state at `$80`, pointers and score state
-through `$A3`, user/playfield storage through the middle of RAM, auxiliaries at
-`$F0-$F5`, and kernel/stack bytes at `$F6-$FF`. The multisprite map similarly
-assigns nearly every byte from `$80` through `$F5` and also reserves `$F6-$FF`.
+The retained headers assign a complete fixed RIOT map because the old generated
+source environment had no linker-managed object storage. An included VCSC
+module does not need to preserve those absolute addresses. It declares the
+state used by its selected conditional configuration and lets the ordinary
+compiler/linker allocator place it.
 
-The stock VCSC runtime currently asks the linker to place a 16-byte zero-page
-workspace plus globals, fixed parameters, return objects, locals, and expression
-scratch into the same `$80-$FF` region. A converted kernel therefore needs an
-explicit ABI profile that says which kernel bytes are:
+The first contract is now maintained under
+`kernels/standard_4k_ntsc/`. Its baseline state is 86 bytes. Only layout
+relationships used by indexed or cycle-sensitive assembly remain contractual:
 
-- permanently owned by the kernel;
-- available to VCSC persistent variables;
-- available to VCSC pooled scratch/runtime helpers;
-- overlaid only during overscan/vblank; and
-- unavailable because they are hardware-stack storage.
+- five horizontal positions in one array;
+- the six score-pointer bytes immediately followed by six transient bytes;
+- one contiguous 48-byte playfield;
+- player graphics and the score table kept within individual 256-byte pages;
+- the source's two page-alignment guards retained for cycle-critical code.
 
-Merely declaring `ref` aliases for the legacy kernel addresses is insufficient: the
-linker must also prevent ordinary VCSC allocation from colliding with them.
+No universal `$80`-based kernel ABI is being created. Vertical-reflect,
+multisprite, status-bar, banking, and Superchip configurations need separate
+contracts because their live state and constraints differ.
 
-### 2. Hardware-stack ownership
+### 2. Hidden hardware-stack use
 
-The kernels do more than ordinary `JSR`/`RTS`. They contain `PHA`, `PLA`, `PHP`,
-`PLP`, `TSX`, and `TXS`, and the multisprite kernel deliberately manipulates the
-stack pointer during cycle-critical display code. The standard RAM maps call
-`$F6-$FF` stack bytes and sometimes use pushes/pulls as compact cycle delays.
+The source call graph accounts for ordinary VCSC calls, but the minimal retained
+overscan routine also calls `scorepointerset` internally. The selected linker
+configuration uses `callstack_extra = $0002` to reserve that one hidden JSR
+level at the top of RIOT RAM in addition to the normal call-graph and startup
+allowances.
 
-The current VCSC linker sizes the top-of-RAM hardware-stack reserve from
-source-level call-graph metadata and does not account for stack operations or
-calls hidden in separately assembled routines. A kernel integration must add
-one of these explicit contracts:
-
-- assembly-provided call/stack metadata understood by the linker; or
-- a kernel profile with a fixed stack ceiling and conservative reserved range.
-
-No VCSC function may be entered through a normal call while a kernel has
-repurposed the stack pointer unless an assembly wrapper first restores the
-agreed VCSC stack state. Visible-kernel entry may need to be jump/continuation
-based rather than modeled as a normal C-like function call.
+The score row pipeline temporarily copies and restores S without pushing,
+pulling, calling, or returning while S is repurposed. That behavior needs no
+additional physical bytes, but the converted source must preserve the save/
+restore sequence exactly. Any later hook, push, pull, or assembly call must
+update the contract and stack reserve before it is enabled.
 
 ### 3. Startup and frame ownership
 
-The legacy startup clears RAM by driving the hardware stack through memory,
-initializes its fixed score/playfield variables, and dispatches differently for
-banked cartridges. It conflicts with the stock VCSC startup and cannot simply
-be linked beside it.
+VCSC owns reset, vectors, DATA/BSS initialization, and application startup. The
+retained startup and footer are not included in the first module. Application
+logic runs during overscan with `VBLANK` asserted and calls one void
+`vcs_standard_kernel_drawscreen()` entry. The module then owns sync,
+positioning, visible scanlines, and score drawing before asserting `VBLANK` and
+returning.
 
-A converted cartridge needs one startup owner. For the first port, use a
-kernel-specific startup that initializes the legacy kernel ABI state and any VCSC data
-or BSS tables explicitly. The stock startup should not be pulled in as a second
-reset path.
+The boundary requires decimal mode clear on entry and exit. A, X, Y, N/V/Z/C,
+TIA graphics/motion/playfield/sync registers, and RIOT timer state are
+caller-clobbered while the module is active.
 
-### 4. Assembly call graph and symbol ABI
+### 4. Application hooks
 
-The kernels call internal assembly routines and optional hooks such as
-`vblank_bB_code`; the current source-level call graph cannot see those edges.
-Separately assembled hooks also do not automatically advertise VCSC parameter,
-return-object, scratch, or stack requirements.
-
-The first integration should use small, documented assembly wrappers with a
-minimal contract:
-
-- no ordinary source parameters across the boundary initially;
-- no value returns initially;
-- explicitly exported entry labels;
-- explicitly imported VCSC hook labels;
-- caller-clobbered A/X/Y;
-- decimal mode clear on entry and exit; and
-- stack state restored before any VCSC `JSR`.
-
-Once that works, richer wrappers can be added deliberately rather than assuming
-that an arbitrary assembly label is a normal VCSC function.
+The minimal contract enables no application-supplied hook. This keeps the first
+static cartridge's call graph and timing closed. A later slice may add one void
+vblank/overscan hook through a documented stack-safe wrapper after the kernel is
+byte- and timing-stable.
 
 ### 5. Linker/cartridge model
 
@@ -200,16 +182,15 @@ origins, hotspots, cross-bank return trampolines, and optional Superchip RAM.
 Those require real bank-aware placement and image-writing support. They are not
 mere assembler syntax.
 
-The initial target must therefore be:
+The initial target is therefore exactly:
 
-- NTSC;
+- NTSC and stable 262-line non-interlaced output;
 - unbanked 4K;
-- no Superchip;
-- no DPC+/PXE;
-- no alternate font dependency;
-- one selected standard-kernel configuration.
-
-Bankswitching, Superchip windows, and multisprite should remain later milestones.
+- no Superchip, DPC+, or PXE;
+- the non-reflected standard kernel;
+- default asymmetric playfield and default decimal score;
+- no optional color/height tables, status bar, paddle path, debug path,
+  mini-kernel, or application hook.
 
 ## Language-level fit
 
@@ -217,78 +198,68 @@ VCSC is already suitable for overscan/vblank game logic, state updates, BCD
 scores, ROM tables, and hardware-register access. It is not intended to replace
 the cycle-counted display loop. The clean split is:
 
-- VCSC source owns game state and non-cycle-critical logic;
-- separately assembled kernel code owns scanline timing and TIA writes;
-- fixed `ref` declarations expose the agreed kernel state to VCSC;
+- the included VCSC module owns game state and its source-visible declarations;
+- included normalized assembly owns scanline timing and TIA writes;
+- ordinary module symbols expose the agreed state to both VCSC and assembly;
 - wrappers transfer control only at safe frame boundaries.
 
 The packed `bcd24_t` and `bcd32_t` types are a particularly good fit for the
-kernel score paths, but their storage must be bound to the kernel's fixed score
-bytes rather than separately allocated.
+kernel score paths. The selected module owns its `bcd24_t` score object through
+ordinary allocation; the normalized assembly refers to that module symbol.
 
 ## Incremental conversion plan
 
-### Phase 1 — define the ABI profile
+### Phase 1 — source-integration contract (complete)
 
-1. Choose one minimal standard-kernel configuration and enumerate its live RAM
-   bytes after conditional assembly.
-2. Add linker/profile support that reserves fixed RAM ranges and places the VCSC
-   runtime workspace only in explicitly approved bytes.
-3. Define a fixed hardware-stack ceiling/reserve for the kernel profile and a
-   way to account for separately assembled call/stack usage.
-4. Define kernel-owned startup and frame-boundary entry labels.
-
-This is the next implementation step. Without it, a syntactically converted
-kernel could assemble and still corrupt itself immediately.
+The maintained `kernels/standard_4k_ntsc/` contract now selects one exact
+configuration, declares its 86 bytes of module-owned state, documents frame and
+register ownership, records real adjacency/page constraints, and supplies a
+matching linker configuration with a two-byte hidden-stack allowance.
 
 ### Phase 2 — reproducible source normalization
 
-1. Keep retained source semantics unchanged and preserve its exact `LICENSE.txt`; place adapted code in a separate VCSC kernel directory.
-2. Add a conversion script or clearly separated adapted copy under a new VCSC
-   kernel directory.
-3. Port the five macros and translate directives/mode suffixes mechanically.
-4. Generate the missing configuration aliases and a minimal replacement for the
-   bB-generated application fragments.
+1. Keep retained source semantics unchanged and preserve its exact
+   `LICENSE.txt`; place adapted code beside the contract.
+2. Port the five macros deliberately rather than adding broad DASM emulation.
+3. Translate directives, conditionals, expressions, and forced addressing modes
+   mechanically for only the selected configuration.
+4. Replace old fixed-address names with the module symbols and explicit offsets
+   established by the contract.
 5. Assemble with `vcsc-as --illegals` and preserve listings/maps for review.
 
 ### Phase 3 — minimal standard-kernel cartridge
 
-1. Build a no-bankswitch, no-Superchip, minimal-feature 4K cartridge.
-2. Drive a static background/playfield and one simple player from fixed test
-   data.
-3. Verify reset vectors, ROM size, RAM placement, and every forced addressing
-   mode.
-4. Run the simulator/Stella timing regression and confirm stable 262-line NTSC
-   frames.
-5. Where an upstream DASM reference image can be produced, compare bytes or
-   explain every intentional difference.
+1. Build the no-bankswitch, no-Superchip profile with fixed test state.
+2. Drive a static background/playfield, players, missiles, ball, and score.
+3. Verify reset vectors, exact 4K size, ordinary RAM allocation, adjacency/page
+   constraints, hidden stack reserve, and every forced addressing mode.
+4. Run Stella timing regression and confirm stable 262-line NTSC frames.
+5. Record exact linked ROM costs instead of guessing from source lines.
 
 ### Phase 4 — connect VCSC logic
 
-1. Expose kernel state through a dedicated VCSC interface file of fixed refs.
-2. Call one void VCSC overscan/vblank hook through a stack-safe wrapper.
-3. Add BCD score and sprite/playfield updates from VCSC source.
-4. Prove that linker RAM reservations and assembly call metadata prevent
-   collisions and stack under-allocation.
+1. Add one stack-safe void VCSC vblank/overscan hook.
+2. Update module state from VCSC source.
+3. Prove that stack metadata and `callstack_extra` cover the complete boundary.
 
 ### Phase 5 — grow standard-kernel coverage
 
-Add one option at a time: score, playfield drawing/scrolling, player colors,
-lives/status bar, vertical reflection, and other conditionally assembled paths.
-Each option needs a size/map/timing regression.
+Add one option at a time with a contract revision and measured RAM, ROM, stack,
+and timing deltas. Vertical reflection and status-bar variants are separate
+profiles rather than undocumented switches on the minimal one.
 
 ### Phase 6 — multisprite, then banking
 
-Port multisprite only after the standard-kernel ABI is stable. Its stack-pointer
-tricks, sprite sorting, and nearly complete RAM ownership deserve a separate
-profile. Add 8K+ bankswitching and Superchip support only after both unbanked
-profiles are working; DPC+/PXE remains a distinct project because the retained
-snapshot intentionally lacks the required ARM blobs.
+Port multisprite only after the standard integration is stable. Its stack-
+pointer tricks and nearly complete RAM ownership deserve a separate contract.
+Add 8K+ bankswitching and Superchip support only after both unbanked profiles are
+working; DPC+/PXE remains distinct because the retained snapshot intentionally
+lacks the required ARM blobs.
 
 ## Conclusion
 
 The conversion is worth attempting. The assembler syntax gap is manageable and
-mostly mechanical. The real work is the kernel ABI: fixed RAM, stack ownership,
-startup ownership, assembly call metadata, and banked image layout. Solving
-those honestly will produce a useful VCSC kernel integration. Skipping them
-would produce a cartridge-shaped memory-corruption device.
+mostly mechanical. The real work is preserving each selected kernel's source-
+level state relationships, stack behavior, frame ownership, and timing without
+inventing a universal ABI. The first contract now makes those boundaries
+explicit; the next step is changing dialect without changing behavior.

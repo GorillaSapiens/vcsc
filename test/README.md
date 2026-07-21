@@ -81,6 +81,13 @@ mixed visual/conventional digits, underscores, wider values, preprocessor use,
 and runtime values. Companion rejection tests cover bad digits, malformed
 underscores, and width overflow after normalization.
 
+`vcs_standard_kernel_contract.test` enforces the task-20b source contract for
+the first minimal unbanked 4K NTSC standard-kernel module. It checks the
+module-owned state groups and 86-byte span, the documented frame/clobber/page
+contract, the two-byte hidden assembly-stack reserve, the linker map and
+generated symbols, rejection of `callstack_extra` without call-graph sizing,
+and a real 4096-byte smoke cartridge.
+
 ### `.test` files
 
 Generic tests use an explicit runner command:

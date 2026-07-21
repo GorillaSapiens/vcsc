@@ -40,6 +40,7 @@ typedef struct {
    char type[8];
    int define_yes;
    int callstack_callgraph;
+   uint16_t callstack_extra;
    char name[MAX_NAME];
 } memory_region_t;
 
@@ -61,6 +62,7 @@ typedef struct {
    int call_stack_enabled;
    char call_stack_region[MAX_NAME];
    uint16_t call_stack_depth;
+   uint16_t call_stack_extra;
    uint16_t call_stack_size;
    uint16_t call_stack_start;
    uint16_t call_stack_top;
@@ -230,6 +232,7 @@ typedef struct {
    uint16_t stack_top;
    int call_stack_enabled;
    uint16_t call_stack_depth;
+   uint16_t call_stack_extra;
    uint16_t call_stack_size;
    uint16_t call_stack_start;
    uint16_t call_stack_top;

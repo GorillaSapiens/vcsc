@@ -405,6 +405,13 @@ static void parse_memory_property(memory_region_t *mem, const char *key, const c
          fprintf(stderr, "vcsc-ld: bad memory callstack mode '%s'; expected callgraph or no\n", value);
          exit(1);
       }
+   } else if (str_ieq(key, "callstack_extra")) {
+      n = parse_number(value);
+      if (!n.ok || n.value > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: bad memory callstack_extra '%s'\n", value);
+         exit(1);
+      }
+      mem->callstack_extra = (uint16_t)n.value;
    }
 }
 
@@ -515,6 +522,18 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
    }
 
    fclose(fp);
+
+   {
+      size_t i;
+      for (i = 0; i < cfg->mem_count; ++i) {
+         if (cfg->mem[i].callstack_extra && !cfg->mem[i].callstack_callgraph) {
+            fprintf(stderr,
+               "vcsc-ld: MEMORY region '%s' sets callstack_extra but does not request callstack=callgraph\n",
+               cfg->mem[i].name);
+            exit(1);
+         }
+      }
+   }
 }
 
 
@@ -805,11 +824,13 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t de
 
    /* Each active source function accounts for one two-byte JSR return address.
       The stock startup also preserves its two-byte init-table cursor while an
-      init function runs. Inline assembly and stack use hidden inside separately
-      assembled routines are intentionally not represented yet. */
+      init function runs. callstack_extra reserves a configuration-declared
+      number of additional top-of-RAM bytes for stack use hidden inside included
+      or separately assembled routines. */
    bytes = (uint32_t)depth * 2u;
    if (init_count > 0)
       bytes += 2u;
+   bytes += target->callstack_extra;
    end = (uint32_t)target->start + (uint32_t)target->size;
    if (end > 0x10000u) {
       fprintf(stderr, "vcsc-ld: MEMORY region '%s' extends beyond address space\n", target->name);
@@ -824,6 +845,7 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t de
    cfg->call_stack_enabled = 1;
    snprintf(cfg->call_stack_region, sizeof(cfg->call_stack_region), "%s", target->name);
    cfg->call_stack_depth = depth;
+   cfg->call_stack_extra = target->callstack_extra;
    cfg->call_stack_size = (uint16_t)bytes;
    cfg->call_stack_start = (uint16_t)(end - bytes);
    cfg->call_stack_top = (uint16_t)(end - 1u);
@@ -860,6 +882,7 @@ static void add_generated_symbols(layout_t *layout)
    add_global(layout, "__stack_top", layout->stack_top, O65_SEG_ABS, "<linker>");
    if (layout->call_stack_enabled) {
       add_global(layout, "__call_stack_depth", layout->call_stack_depth, O65_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_extra", layout->call_stack_extra, O65_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_size", layout->call_stack_size, O65_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_start", layout->call_stack_start, O65_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_top", layout->call_stack_top, O65_SEG_ABS, "<linker>");
@@ -1087,6 +1110,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    memset(layout, 0, sizeof(*layout));
    layout->call_stack_enabled = cfg->call_stack_enabled;
    layout->call_stack_depth = cfg->call_stack_depth;
+   layout->call_stack_extra = cfg->call_stack_extra;
    layout->call_stack_size = cfg->call_stack_size;
    layout->call_stack_start = cfg->call_stack_start;
    layout->call_stack_top = cfg->call_stack_top;
@@ -1532,12 +1556,13 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "  __stack_top   $%04X\n", layout->stack_top);
    if (layout->call_stack_enabled) {
       fprintf(fp, "\nCALL STACK\n");
-      fprintf(fp, "  region=%s depth=%u bytes=$%04X physical=$%04X-$%04X\n",
+      fprintf(fp, "  region=%s depth=%u bytes=$%04X physical=$%04X-$%04X extra=$%04X\n",
               cfg->call_stack_region,
               (unsigned)layout->call_stack_depth,
               layout->call_stack_size,
               layout->call_stack_start,
-              layout->call_stack_top);
+              layout->call_stack_top,
+              layout->call_stack_extra);
    }
 
    fprintf(fp, "\nSYMBOLS\n");

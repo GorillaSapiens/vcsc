@@ -1,0 +1,69 @@
+// Minimal unbanked 4K NTSC standard-kernel source-integration contract.
+//
+// Include vcs.vcsc before this module. This file owns the source-visible state
+// for the first standard-kernel port. It deliberately contains no converted
+// assembly yet; task 20c will add the mechanically normalized implementation.
+// Ordinary linker allocation is used except for the explicitly documented
+// adjacency groups below.
+
+alias VCS_STANDARD_OBJECT_PLAYER0 0
+alias VCS_STANDARD_OBJECT_PLAYER1 1
+alias VCS_STANDARD_OBJECT_MISSILE0 2
+alias VCS_STANDARD_OBJECT_MISSILE1 3
+alias VCS_STANDARD_OBJECT_BALL 4
+
+alias VCS_STANDARD_OBJECT_COUNT 5
+alias VCS_STANDARD_PLAYFIELD_BYTES 48
+alias VCS_STANDARD_POINTER_WORKSPACE_BYTES 12
+alias VCS_STANDARD_MODULE_RAM_BYTES 86
+alias VCS_STANDARD_HIDDEN_STACK_BYTES 2
+alias VCS_STANDARD_SCORE_FONT_BYTES 88
+
+alias VCS_STANDARD_PLAYER0_X vcs_standard_object_x[VCS_STANDARD_OBJECT_PLAYER0]
+alias VCS_STANDARD_PLAYER1_X vcs_standard_object_x[VCS_STANDARD_OBJECT_PLAYER1]
+alias VCS_STANDARD_MISSILE0_X vcs_standard_object_x[VCS_STANDARD_OBJECT_MISSILE0]
+alias VCS_STANDARD_MISSILE1_X vcs_standard_object_x[VCS_STANDARD_OBJECT_MISSILE1]
+alias VCS_STANDARD_BALL_X vcs_standard_object_x[VCS_STANDARD_OBJECT_BALL]
+
+// Indexed together by the horizontal-position loop; keep all five bytes in one
+// array so their adjacency is a source-level invariant rather than a linker
+// accident.
+uint8_t vcs_standard_object_x[VCS_STANDARD_OBJECT_COUNT];
+
+uint8_t vcs_standard_player0_y;
+uint8_t vcs_standard_player1_y;
+uint8_t vcs_standard_missile1_height;
+uint8_t vcs_standard_missile1_y;
+uint8_t vcs_standard_ball_y;
+
+// Each indirect player load requires the active sprite rows to remain within a
+// single 256-byte page. The pointed graphics storage belongs to the application.
+uint8_t *vcs_standard_player0_graphics;
+uint8_t *vcs_standard_player1_graphics;
+
+uint8_t vcs_standard_player0_height;
+uint8_t vcs_standard_player1_height;
+uint8_t vcs_standard_missile0_height;
+uint8_t vcs_standard_missile0_y;
+uint8_t vcs_standard_ball_height;
+
+bcd24_t vcs_standard_score;
+
+// Bytes 0..5 are the six score-pointer low bytes. Bytes 6..11 are the six
+// transient kernel bytes. The retained score pipeline addresses the combined
+// block through fixed offsets, so this exact 12-byte adjacency is required.
+uint8_t vcs_standard_pointer_workspace[VCS_STANDARD_POINTER_WORKSPACE_BYTES];
+
+uint8_t vcs_standard_score_color;
+
+// Default asymmetric playfield: twelve rows times four bytes.
+uint8_t vcs_standard_playfield[VCS_STANDARD_PLAYFIELD_BYTES];
+uint8_t vcs_standard_playfield_position;
+
+// Module-private transient bytes corresponding to the retained stack1/stack2
+// workspace. They are ordinary RIOT RAM, not hardware-stack locations.
+uint8_t vcs_standard_kernel_scratch[2];
+
+// Implemented by the converted kernel source in later task slices. The call
+// begins during application-owned overscan and returns with VBLANK asserted.
+extern void vcs_standard_kernel_drawscreen(void);

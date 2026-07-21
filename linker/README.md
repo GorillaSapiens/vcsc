@@ -128,17 +128,26 @@ the user does not provide `-T`.
 - `type = ro/rw/zp/data/bss`
 - `define = yes/no`
 - `callstack = callgraph/no`
+- `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
 acyclic source-level call path and shrinks that region from the top before
-placing DATA/BSS/ZEROPAGE. The current reserve is two bytes per function level for active JSR return
-addresses, plus one fixed two-byte allowance when the selected objects contain
-one or more runtime initializer functions. The extra pair holds the stock
-startup's init-table cursor while it calls an initializer. Compiler-generated
-ordinary calls do not push parameter, return, or scratch-base state. Inline-
-assembly stack operations and stack use inside separately assembled routines
-are not represented yet.
+placing DATA/BSS/ZEROPAGE. The reserve is two bytes per function level for
+active JSR return addresses, plus one fixed two-byte allowance when the selected
+objects contain one or more runtime initializer functions. The extra pair holds
+the stock startup's init-table cursor while it calls an initializer.
+
+`callstack_extra = N` adds an explicit byte count to that reserve. It is for
+stack use known by a source-integration contract but hidden from compiler call
+metadata, such as an internal JSR in an included assembly kernel. It is rejected
+unless the same region also uses `callstack = callgraph`. The selected value is
+reported in the map and exported as `__call_stack_extra`; it does not attempt to
+infer arbitrary inline-assembly pushes or stack-pointer manipulation.
+
+Compiler-generated ordinary calls do not push parameter, return, or scratch-
+base state. Assembly integrations remain responsible for declaring enough
+`callstack_extra` space and for restoring S before returning to compiled code.
 
 It is not trying to be a full `ld65` config parser.
 ## Compiler mem-region validation
@@ -170,7 +179,8 @@ When you request a map file, `vcsc-ld` writes:
 - all resolved global symbols
 
 A call-graph-sized image also exports `__call_stack_depth`,
-`__call_stack_size`, `__call_stack_start`, and `__call_stack_top`.
+`__call_stack_extra`, `__call_stack_size`, `__call_stack_start`, and
+`__call_stack_top`.
 
 ## Supported o65 subset
 

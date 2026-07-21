@@ -208,9 +208,10 @@ Completed vertical slices
     marks the region `callstack = callgraph`. After archive selection and
     cross-object cycle validation, vcsc-ld computes the longest linked call path,
     reserves two top-of-RAM bytes per function level, and reports/exports the
-    resulting hardware-stack range. This covers JSR return addresses only;
-    inline assembly and separately assembled routine internals remain
-    unaccounted future work.
+    resulting hardware-stack range. A configuration may add `callstack_extra`
+    bytes for stack use explicitly declared by an included assembly module but
+    hidden from source call metadata. Arbitrary inline-assembly pushes, calls,
+    and stack-pointer manipulation are still not inferred.
 25. Common VCS byte operations now bypass permanent expression scratch.
     Discarded uint8_t increment/decrement, unsigned byte comparisons, constant
     byte stores, and byte-to-hardware-register stores lower directly. A simple
@@ -459,17 +460,23 @@ accessed through their page-1 mirrors by the 6502 stack pointer.
 The map reports a `CALL STACK` block and the linker exports:
 
     __call_stack_depth
+    __call_stack_extra
     __call_stack_size
     __call_stack_start
     __call_stack_top
 
-Known limitation: inline assembly can issue PHA/PHP/JSR, and separately assembled
-routines can contain hidden calls or pushes. Those are deliberately not included
-in the first implementation and must be accounted for later.
+A MEMORY region using `callstack = callgraph` may also set
+`callstack_extra = N`. The linker adds those explicitly declared bytes to the
+source-call and initializer reserve, rejects the option without call-graph
+sizing, and reports it in the map. This covers known stack use hidden inside an
+included assembly module without inventing a universal fixed stack partition.
+The linker still does not infer arbitrary PHA/PHP/JSR or S manipulation from
+inline or included assembly; each integration contract must declare its own
+extra requirement.
 
-Tests verify dynamic map sizing, a four-level path, overflow enforcement, and
-that the configuration declares the full RIOT block without a separate
-CPUSTACK region.
+Tests verify dynamic map sizing, a four-level path, overflow enforcement,
+explicit hidden-stack reservation, and that the configuration declares the full
+RIOT block without a separate CPUSTACK region.
 
 Software-stack status
 ---------------------
@@ -864,7 +871,7 @@ The first unfinished item is the default next action.
                   locals, parameters, and inline
                   assembly so small cycle-sensitive kernel helpers can remain
                   readable VCSC without becoming out-of-line calls.
-        [ ] 20b. Define and enforce the source-integration contract for one
+        [x] 20b. Define and enforce the source-integration contract for one
                   minimal unbanked 4K standard-kernel module. The included module
                   declares and owns its required state, with normal compiler and
                   linker allocation by default. Document frame-phase ownership,
@@ -914,15 +921,15 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Task 20a is complete. The next queued action is task 20b: define the first
-standard kernel module's source-integration contract before translating or
-integrating retained kernel source. It is a per-kernel source contract, not a
-universal kernel ABI.
+Tasks 20a and 20b are complete. The next queued action is task 20c: add a
+reproducible DASM-to-vcsc-as normalization path for only the retained source and
+five macros required by the selected minimal standard-kernel configuration.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
-* Extend call-graph hardware-stack sizing to account for PHA/PHP/JSR hidden in
-  inline assembly and for stack use inside separately assembled routines.
+* Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
+  assembly. Current integrations declare known hidden use explicitly through
+  linker `callstack_extra`; no automatic assembly analysis is attempted.
 * Whether common computed-address reuse should later extend across statement
   boundaries. The current implementation deliberately reuses only two operands
   inside one binary expression, where identical index trees and intervening
@@ -2197,3 +2204,39 @@ Before returning another modified archive:
 * Cover ref arguments formed from array elements, structure members, and
   dereferenced pointers in addition to simple variables.
 * The current compiler passes the expanded matrix without code changes.
+
+2026-07-20 22:18:43 PDT, define the first standard-kernel source contract
+------------------------------------------------------------------------
+* Complete task 20b with one deliberately narrow profile under
+  `libraries/vcs/kernels/standard_4k_ntsc/`: NTSC, unbanked 4K,
+  non-reflected standard kernel, default asymmetric playfield and decimal score,
+  with no Superchip, banking, multisprite, status-bar, interlace, optional
+  color/height tables, paddle path, debug path, mini-kernel, or application hook.
+* Add the compiler-visible `standard_4k_ntsc.vcsc` contract. It owns 86 bytes of
+  genuinely used state through ordinary allocation: contiguous five-object X
+  positions, sprite/Y/height pointers and values, `bcd24_t` score, contiguous
+  twelve-byte score-pointer/transient workspace, score color, contiguous
+  48-byte playfield, playfield position, and two private transient bytes. Do not
+  preserve the legacy `$80`-based variable map; the unused legacy random byte is
+  not kernel state.
+* Document one void `vcs_standard_kernel_drawscreen()` boundary, VCSC ownership
+  of reset/vectors/startup and application overscan logic, module ownership of
+  sync/positioning/visible drawing, A/X/Y and N/V/Z/C clobbers, decimal-clear
+  entry/exit, TIA/RIOT ownership, stable 262-line NTSC timing, page and adjacency
+  requirements, excluded variants, and measured-versus-deferred RAM/ROM costs.
+* Add `callstack_extra = N` to linker MEMORY regions. It augments normal
+  call-graph and initializer sizing for explicitly known assembly-hidden stack
+  use, is rejected without `callstack = callgraph`, appears in the map, and is
+  exported as `__call_stack_extra`. The selected profile reserves two bytes for
+  the retained overscan routine's one nested `scorepointerset` JSR level; the
+  temporary score-kernel use of S adds no bytes because S is restored and no
+  push, pull, call, or return occurs while it is repurposed.
+* Add a focused contract regression and source smoke test covering declarations,
+  exact 86-byte adjacency span, absence of fixed RAM refs, documentation,
+  explicit hidden-stack enforcement, generated map/symbols, bad-configuration
+  rejection, ordinary allocation, and an exact 4096-byte cartridge. Install and
+  staged-build the contract module and matching linker profile.
+* Keep the retained legacy source tree byte-for-byte unchanged. Pass 282/282
+  compile tests, 128/128 end-to-end/generic tests, and staged installation.
+  Task 20c is now the next queued action.
+
