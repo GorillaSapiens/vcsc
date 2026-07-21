@@ -2294,3 +2294,16 @@ Before returning another modified archive:
   inspect both new magics inside the built runtime archive, and prove that the
   linker rejects pre-o26 and pre-l26 magics. Pass 283/283 compile tests and
   128/128 end-to-end/generic tests. Task 20c remains the next queued action.
+
+2026-07-21 00:21:00 PDT, clean driver intermediates on failing pipelines
+------------------------------------------------------------------------
+* Fix the driver so compiler, assembler, or linker failures reached through
+  `exit()` cannot bypass temporary-file cleanup. Register one idempotent
+  process-exit cleanup for the active temp store, disarm it after normal
+  cleanup, and free/reset the store so repeated cleanup is safe.
+* Honor `TMPDIR` when creating the private `vcsc.XXXXXX` directory, retaining
+  `/tmp` as the default. Add an end-to-end regression that forces a linker
+  configuration failure after `.s` and `.o26` intermediates have been created
+  and rejects any surviving `vcsc.*` path. Pass 283/283 compile tests,
+  129/129 end-to-end/generic tests, and staged installation. Task 20c remains
+  the next queued action.

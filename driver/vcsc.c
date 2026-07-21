@@ -81,6 +81,7 @@ typedef struct {
 } temp_store_t;
 
 static const char *arg0;
+static temp_store_t *active_temp_store;
 
 //! @brief Report die diagnostics with the location/context expected by driver pipeline callers.
 static void die(const char *fmt, ...)
@@ -523,11 +524,23 @@ static void temp_store_init(temp_store_t *ts)
 //! @brief Handle temp store make dir logic for driver pipeline.
 static void temp_store_make_dir(temp_store_t *ts)
 {
+   const char *root;
+   size_t root_len;
+   int n;
+
    if (ts->made_tempdir)
       return;
-   snprintf(ts->tempdir, sizeof(ts->tempdir), "/tmp/vcsc.XXXXXX");
+
+   root = getenv("TMPDIR");
+   if (!root || !*root)
+      root = "/tmp";
+   root_len = strlen(root);
+   n = snprintf(ts->tempdir, sizeof(ts->tempdir), "%s%svcsc.XXXXXX",
+      root, root_len && root[root_len - 1] == '/' ? "" : "/");
+   if (n < 0 || (size_t)n >= sizeof(ts->tempdir))
+      die("temporary directory path too long");
    if (!mkdtemp(ts->tempdir))
-      die("mkdtemp failed: %s", strerror(errno));
+      die("mkdtemp failed for %s: %s", ts->tempdir, strerror(errno));
    ts->made_tempdir = true;
 }
 
@@ -587,12 +600,27 @@ static const char *temp_store_make_file(temp_store_t *ts, const char *stem, cons
 static void temp_store_cleanup(temp_store_t *ts)
 {
    size_t i;
+
+   if (!ts)
+      return;
    for (i = ts->count; i > 0; --i) {
       if (!ts->items[i - 1].keep)
          unlink(ts->items[i - 1].path);
    }
    if (ts->made_tempdir)
       rmdir(ts->tempdir);
+   free(ts->items);
+   ts->items = NULL;
+   ts->count = 0;
+   ts->cap = 0;
+   ts->tempdir[0] = '\0';
+   ts->made_tempdir = false;
+}
+
+//! @brief Remove driver intermediates when any normal exit path terminates the process.
+static void temp_store_cleanup_at_exit(void)
+{
+   temp_store_cleanup(active_temp_store);
 }
 
 //! @brief Emit cmd for driver pipeline diagnostics or output files.
@@ -1058,6 +1086,10 @@ int main(int argc, char **argv)
    if (!defines_have_consumer(&opt))
       die("-D supplied, but no compile or assemble stage will use it");
 
+   active_temp_store = &temps;
+   if (atexit(temp_store_cleanup_at_exit) != 0)
+      die("could not register temporary-file cleanup");
+
    for (i = 0; i < opt.inputs.count; ++i) {
       const input_t *in = &opt.inputs.items[i];
       char derived[PATH_MAX];
@@ -1121,5 +1153,6 @@ int main(int argc, char **argv)
       run_ld(ld_path, &opt, &link_inputs, runtime_path, vcs_cfg_path);
 
    temp_store_cleanup(&temps);
+   active_temp_store = NULL;
    return 0;
 }

@@ -98,6 +98,8 @@ Show aligned driver/subtool versions and the exact tool paths being used:
 
 The `-V` output prints one line per tool, aligns the first colon after the tool name, and includes the resolved executable path before that tool's version string.
 
+Intermediate `.s` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
+
 ## Intentional non-goals
 
 This is not a full `gcc` clone.
