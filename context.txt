@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_181143.tar.gz
+    vcsc.20260720_193850.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -81,6 +81,12 @@ Settled final-language decisions
   fodder merely because it is not yet wired into the build. Its exact upstream
   licensing overview remains verbatim in the retained `LICENSE.txt`; project-
   facing names and non-license branding comments are intentionally generic.
+* Converted legacy kernels should become source-level VCSC modules included by
+  applications. Each module declares and owns the variables and scratch storage
+  it needs, and normal compiler/linker allocation should place them unless the
+  converted source demonstrably requires a fixed address, alignment, adjacency,
+  or page constraint. Describe each kernel or variant with a source-integration
+  contract rather than pretending that all retained kernels share one ABI.
 * Shared score fonts live under `libraries/vcs/fonts/`, not inside an example.
   Nine 8x8 families are provided as eighteen VCSC modules: one decimal `0-9`
   table and one hexadecimal `0-9A-F` table per family. Every module exports the
@@ -846,23 +852,41 @@ The first unfinished item is the default next action.
         as controlled vertical slices. Preserve retained source semantics and
         the exact licensing overview while keeping adapted code separate.
 
-        [ ] 20a. Define and enforce a minimal unbanked 4K standard-kernel ABI
-                  profile: fixed RIOT RAM ownership, approved VCSC runtime and
-                  scratch bytes, a conservative hardware-stack ceiling, startup
-                  ownership, and accounting for calls/stack use in separately
-                  assembled code.
-        [ ] 20b. Add reproducible DASM-to-vcsc-as normalization for the five
+        [ ] 20a. Add true source-level inline functions before beginning the
+                  kernel port. Use an explicit `inline` declaration, retain the
+                  normal direct-call type checks and argument evaluation rules,
+                  and expand the body at each call site without JSR/RTS or
+                  hardware-stack use. Give each expansion hygienic labels and
+                  local bindings, allocate parameters and locals through the
+                  existing static-storage/scratch machinery, and use a private
+                  return join. Reject recursive or mutually recursive inline-
+                  expansion cycles. Cover ordinary helpers, early returns,
+                  locals, parameters, and inline
+                  assembly so small cycle-sensitive kernel helpers can remain
+                  readable VCSC without becoming out-of-line calls.
+        [ ] 20b. Define and enforce the source-integration contract for one
+                  minimal unbanked 4K standard-kernel module. The included module
+                  declares and owns its required state, with normal compiler and
+                  linker allocation by default. Document frame-phase ownership,
+                  exported entry points, application-supplied hooks, register and
+                  flag clobbers, hidden hardware-stack use, timing/scanline
+                  requirements, and optional-feature RAM/ROM costs. Add fixed
+                  addresses, alignment, adjacency, or page constraints only where
+                  the converted source demonstrably requires them. Do not treat
+                  this contract as covering vertical-reflect, multisprite,
+                  status-bar, banking, or Superchip variants.
+        [ ] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
                   retained macros, directives, conditionals, expressions, and
                   forced addressing modes needed by that one configuration.
-        [ ] 20c. Build a no-bankswitch, no-Superchip standard-kernel cartridge
+        [ ] 20d. Build a no-bankswitch, no-Superchip standard-kernel cartridge
                   with fixed test state and verify size, map, emitted opcode
                   bytes, and stable 262-line NTSC timing.
-        [ ] 20d. Connect one stack-safe void VCSC overscan/vblank hook and expose
-                  kernel state through fixed refs. Add options one at a time only
-                  after the minimal integration is stable.
-        [ ] 20e. Port the multisprite profile after the standard kernel works;
-                  defer Superchip and 8K+ bankswitching to separate linker/runtime
-                  milestones.
+        [ ] 20e. Connect one stack-safe void VCSC overscan/vblank hook and expose
+                  kernel state through module-owned declarations. Add options one
+                  at a time only after the minimal integration is stable.
+        [ ] 20f. Port the multisprite integration only after the standard kernel
+                  works; give it its own contract and defer Superchip and 8K+
+                  bankswitching to separate linker/runtime milestones.
 
 Inline assembly absolute-ref rules
 ----------------------------------
@@ -890,8 +914,9 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-The next queued action is task 20a: define a minimal unbanked standard-kernel ABI
-profile before translating or integrating any retained kernel source.
+The next queued action is task 20a: add true source-level inline functions before
+translating or integrating retained kernel source. Task 20b then defines the
+first kernel's source-integration contract; it is not a universal kernel ABI.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -908,9 +933,6 @@ profile before translating or integrating any retained kernel source.
   current hardware-backed feature deliberately supports only add/subtract and
   operations that preserve valid packed digits.
 * Whether separate compilation remains throughout simplification.
-* True source-level inline functions are not currently implemented. Decide the
-  syntax, label/return/parameter substitution rules, call-graph treatment, and
-  cycle-accounting policy before adding kernel-function inlining.
 
 Change log
 ----------
@@ -2111,3 +2133,24 @@ Before returning another modified archive:
   Pass 272/272 compile tests, 125/125 end-to-end/generic tests, staged
   installation, exact 4096-byte cartridge checks, and a Stella 7.0 render of
   `8A55CE`. `remove.txt` remains at 876 paths.
+
+
+2026-07-20 19:41:27 PDT, queue inline functions and clarify kernel integration
+------------------------------------------------------------------------
+* Add true source-level inline functions as task 20a, ahead of any full legacy
+  kernel port. Require direct-call type checking, call-site expansion without
+  JSR/RTS, hygienic labels and bindings, integration with existing static
+  storage/scratch allocation, safe return rewriting, expansion-cycle rejection,
+  and coverage for inline assembly used by cycle-sensitive helpers.
+* Renumber the former task 20a and following slices to 20b through 20f.
+* Replace the proposed universal standard-kernel ABI/fixed-RAM profile with a
+  per-kernel source-integration contract. Converted kernels are expected to be
+  included VCSC modules that declare and own their state; ordinary compiler and
+  linker allocation remains the default, with special placement only where the
+  source demonstrably requires it.
+* Require the first standard-kernel contract to document frame ownership,
+  entry points, hooks, clobbers, hidden hardware-stack use, timing constraints,
+  and feature costs. Explicitly exclude vertical-reflect, multisprite,
+  status-bar, banking, and Superchip variants from that first contract.
+* Update only `context.txt`; make no compiler, library, example, test, build, or
+  other documentation changes in this revision.
