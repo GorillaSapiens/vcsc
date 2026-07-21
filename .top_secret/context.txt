@@ -858,6 +858,27 @@ The first unfinished item is the default next action.
     with the standard `123456789 -> 21CF02` vector rather than treating any
     emulator's unstable-opcode model as universal.
 
+[ ] Side quest: reduce the inherited N multibyte-runtime RAM workspace before
+    continuing task 20. Moving bytes from ZEROPAGE to BSS does not save RIOT RAM;
+    the storage must be omitted, reused, or overlaid.
+
+    [ ] a. Split the monolithic 16-byte runtime workspace into independently
+          linked pieces. Remove unconditional imports so ordinary cartridges pay
+          only for the startup/compiler pointer cells they actually reference.
+
+    [ ] b. Replace the generic N copy, fill, extension, comparison, bitwise, and
+          variable-shift helpers with VCSC-specific fixed-width lowering or
+          helpers for the supported one- through four-byte scalar widths.
+
+    [ ] c. Replace multiplication and division/remainder separately with
+          fixed-width implementations that reuse existing expression/result
+          storage where lifetimes permit. Eliminate the six inherited `tmp`
+          bytes and surplus pointer cells when those operations are absent.
+
+    [ ] d. Add whole-program call-graph/liveness overlay for compiler-generated
+          expression scratch, function parameters, locals, and callee-owned
+          return objects after the runtime-helper cleanup is stable.
+
 [ ] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
         as controlled vertical slices. Preserve retained source semantics and
         the exact licensing overview while keeping adapted code separate.
@@ -928,9 +949,11 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20c are complete. The next queued action is task 20d: build
-the first no-bankswitch, no-Superchip cartridge from the normalized standard
-kernel and verify its final map, opcode bytes, and stable 262-line NTSC timing.
+Tasks 20a through 20c are complete. Before task 20d, complete the four-part
+runtime-workspace side quest above, beginning with splitting the monolithic
+16-byte workspace into independently linked pieces. Task 20d then builds the
+first no-bankswitch, no-Superchip cartridge from the normalized standard kernel
+and verifies its final map, opcode bytes, and stable 262-line NTSC timing.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -2391,3 +2414,14 @@ Before returning another modified archive:
   both raw bytes, and rejection of a byte assigned to an incompatible mode.
   Pass 283/283 compile tests, 132/132 end-to-end/generic tests, and staged
   installation. Keep task 20d as the next queued action.
+
+2026-07-21 11:18:00 PDT, queue inherited runtime-workspace reduction side quest
+------------------------------------------------------------------------
+* Add a four-part side quest immediately before task 20: split the monolithic
+  runtime workspace into independently linked pieces; replace generic N copy,
+  fill, extension, comparison, bitwise, and shift helpers with fixed-width VCSC
+  lowering; handle multiplication and division/remainder separately; then add
+  call-graph/liveness overlay for compiler scratch, parameters, locals, and
+  callee-owned return objects.
+* Make the workspace split the next queued action ahead of task 20d. Record that
+  moving bytes from ZEROPAGE to BSS alone cannot recover physical RIOT RAM.
