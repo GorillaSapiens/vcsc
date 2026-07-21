@@ -48,8 +48,9 @@ include "fonts/21st_century_decimal.vcsc"
 ```
 
 For hexadecimal output, include the corresponding `*_hex.vcsc` module and
-use that module instead. The score kernel still needs digit values in the range
-`0..15`; packed BCD naturally supplies only `0..9`.
+use digit values in the range `0..15`; packed BCD naturally supplies only
+`0..9`. Example 04 selects `hexadecimal_hex.vcsc` to display a binary 24-bit
+processor fingerprint as six hexadecimal digits.
 
 The arrays are stored in the row order consumed by the score kernel, but source
 rows are written top-to-bottom. `VCS_FONT_GLYPH` performs the reversal at

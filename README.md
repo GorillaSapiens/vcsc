@@ -33,6 +33,10 @@ vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bi
 # The score example selects a shared VCS font module and uses official opcodes only.
 vcsc -I libraries/vcs \
   examples/03_six_digit_score/six_digit_score.vcsc -o six_digit_score.bin
+
+# The fingerprint example intentionally executes unstable ARR ($6B) probes.
+vcsc -I libraries/vcs \
+  examples/04_fingerprint/fingerprint.vcsc -o fingerprint.bin
 ```
 
 Direct stage-by-stage flow:

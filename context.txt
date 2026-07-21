@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_163118.tar.gz
+    vcsc.20260720_171839.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -588,13 +588,13 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    124 passed, 0 failed, 124 total
+    125 passed, 0 failed, 125 total
 
 Staged install check:
 
     passed
 
-All three examples build directly as raw 4096-byte cartridges without an
+All four examples build directly as raw 4096-byte cartridges without an
 explicit `-T`. The staged installed toolchain also compiles the VCS header smoke
 program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` and produces
 an exact 4096-byte cartridge.
@@ -830,6 +830,15 @@ The first unfinished item is the default next action.
     per line, document selection/provenance, make every module export
     `score_font`, and compile all eighteen modules through the real example-03
     cartridge. Example 03 owns no private font data.
+
+[x] Side quest: add `examples/04_fingerprint`, a self-contained unbanked 4K
+    cartridge that runs four unstable `ARR`-immediate probes, feeds each A'/NVZC
+    pair through CRC-24/OPENPGP in ordinary VCSC `uint24_t` code, and displays
+    the result as six centered hexadecimal digits using
+    `fonts/hexadecimal_hex.vcsc`. Keep only the silicon-sensitive probes and
+    cycle-counted six-glyph display pipeline in inline assembly. Verify the CRC
+    with the standard `123456789 -> 21CF02` vector rather than treating any
+    emulator's unstable-opcode model as universal.
 
 [ ] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
         as controlled vertical slices. Preserve retained source semantics and
@@ -2030,3 +2039,29 @@ Before returning another modified archive:
   Stella 7.0 renders the selected 21st Century font correctly on the centered
   blue score display.
 
+
+
+2026-07-20 17:36:56 PDT, add unstable-ARR silicon fingerprint example
+------------------------------------------------------------------------
+* Add `examples/04_fingerprint`, an exact 4096-byte unbanked NTSC cartridge.
+  Four exact raw `op6b` immediate probes preserve the uploaded D/C/A/operand
+  combinations, capture A' and masked NVZC with balanced `PHP`/`PLA`, and feed
+  the eight bytes in the specified order.
+* Express CRC-24/OPENPGP in VCSC using `uint24_t`: initial value `0xB704CE`,
+  polynomial `0x864CFB`, high-byte input XOR, and eight MSB-first shifts per
+  byte. A conditional self-test checks the standard ASCII `123456789` vector
+  against `0x21CF02`, independently of unstable-opcode emulation.
+* Display the resulting 24-bit value as six centered hexadecimal digits on the
+  existing medium-blue/white presentation. Reuse the corrected official-opcode
+  six-glyph pipeline and select the shared `fonts/hexadecimal_hex.vcsc` module.
+* Add `vcs_fingerprint.test` to verify exact probe opcode/flag sequences, feed
+  order, CRC constants and standard vector, embedded 128-byte font, ROM/vectors,
+  glyph-loop instruction sequence, stable 262-line timing, and exact 4096-byte
+  output. Extend staged installcheck and the root/VCS/font documentation.
+* Stella 7.0 displays `0A55CE` for its CPU model; the bundled simulator displays
+  `BDBAF3`. Treat those as model fingerprints, not universal expected values.
+* Restore example 03's source include to `21st_century_decimal.vcsc`, matching
+  its existing Makefile, documentation, and regressions.
+* Pass 272/272 compile tests and 125/125 end-to-end/generic tests. Staged
+  installation builds all four examples as exact 4096-byte cartridges.
+  `remove.txt` remains at 876 paths; retained legacy sources are unchanged.
