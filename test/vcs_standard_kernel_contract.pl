@@ -41,6 +41,24 @@ sub symbol_addr {
       or die "map is missing symbol $name\n";
    return hex($1);
 }
+sub timing_safe_playfield {
+   my ($addr,$which)=@_;
+   my $low=$addr & 0xff;
+   $low >= 0x54 && $low <= 0xd0
+      or die sprintf("%s playfield at \$%04X has unsafe low byte \$%02X; expected \$54..\$D0\n",
+                     $which,$addr,$low);
+}
+sub build_smoke {
+   my ($driver,$vcs,$cfg,$src,$bin,$map)=@_;
+   my ($exit,$sig,$out,$err)=run_capture(
+      $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$src,'-o',$bin);
+   die "contract smoke build $src exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+      if $exit || $sig;
+   die "contract smoke build $src wrote stdout:\n$out" if $out ne '';
+   die "contract smoke build $src wrote stderr:\n$err" if $err ne '';
+   -s $bin == 4096 or die "contract smoke cartridge $src is not 4096 bytes\n";
+   return read_file($map);
+}
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
@@ -58,16 +76,30 @@ my $module_text=read_file($module);
 my $cfg_text=read_file($cfg);
 my $readme_text=read_file($readme);
 
-require_re($module_text,qr/alias\s+VCS_STANDARD_MODULE_RAM_BYTES\s+86\b/,
-   'module RAM-byte contract is not 86');
+require_re($module_text,qr/alias\s+VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES\s+23\b/,
+   'application-visible display-state contract is not 23 bytes');
+require_re($module_text,qr/alias\s+VCS_STANDARD_PRIVATE_RAM_BYTES\s+15\b/,
+   'private workspace contract is not 15 bytes');
+require_re($module_text,qr/alias\s+VCS_STANDARD_MODULE_RAM_BYTES\s+38\b/,
+   'mandatory module RAM-byte contract is not 38');
+require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD\s+vcs_standard_playfield\b/,
+   'application-provided playfield symbol alias is missing');
+require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD_COLUMNS\s+32\b/,
+   '32-column playfield geometry is missing');
+require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD_ROWS\s+12\b/,
+   '12-row playfield geometry is missing');
+require_re($module_text,qr/alias\s+VCS_STANDARD_DEFAULT_ROW_SCANLINES\s+16\b/,
+   'default 16-scanline row height is missing');
 require_re($module_text,qr/alias\s+VCS_STANDARD_HIDDEN_STACK_BYTES\s+2\b/,
    'module hidden-stack contract is not two bytes');
 require_re($module_text,qr/uint8_t\s+vcs_standard_object_x\s*\[\s*VCS_STANDARD_OBJECT_COUNT\s*\]\s*;/,
    'five-object horizontal-position adjacency group is missing');
 require_re($module_text,qr/uint8_t\s+vcs_standard_pointer_workspace\s*\[\s*VCS_STANDARD_POINTER_WORKSPACE_BYTES\s*\]\s*;/,
    'twelve-byte pointer/transient adjacency group is missing');
-require_re($module_text,qr/uint8_t\s+vcs_standard_playfield\s*\[\s*VCS_STANDARD_PLAYFIELD_BYTES\s*\]\s*;/,
-   '48-byte playfield group is missing');
+$module_text !~ /(?:const\s+)?uint8_t\s+vcs_standard_playfield\s*\[/
+   or die "kernel module still allocates the application playfield\n";
+$module_text !~ /\*\s*vcs_standard_playfield|vcs_standard_playfield\s*\*/
+   or die "kernel module introduced a runtime playfield pointer\n";
 require_re($module_text,qr/extern\s+void\s+vcs_standard_kernel_drawscreen\s*\(\s*void\s*\)\s*;/,
    'drawscreen entry declaration is missing');
 $module_text !~ /\b(?:absolute\s+)?ref\b[^;]*(?:0x|\$)[0-9A-Fa-f]+/
@@ -75,11 +107,14 @@ $module_text !~ /\b(?:absolute\s+)?ref\b[^;]*(?:0x|\$)[0-9A-Fa-f]+/
 
 my @required_readme=(
    'Selected configuration', 'Frame ownership', 'State ownership and RAM cost',
-   'Demonstrable placement constraints', 'Register, flag, and hardware-register clobbers',
-   'Hidden hardware-stack use', 'ROM and feature-cost ledger',
-   'Retained-source boundary for task 20c', '262-scanline',
-   'vertical reflection', 'multisprite', 'status bar', 'Superchip',
-   'callstack_extra = $0002', '86', '88-byte default score table'
+   'What the 48-byte playfield represents', 'Demonstrable placement constraints',
+   'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
+   'ROM and feature-cost ledger', 'Retained-source boundary for task 20c',
+   '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
+   'callstack_extra = $0002', 'Mandatory module-declared RAM', '38',
+   'fixed ROM playfield', 'mutable RAM playfield', '32 independently controlled bits',
+   '16 scanlines', '$54..$D0', 'runtime playfield',
+   '88-byte default score table'
 );
 for my $phrase (@required_readme) {
    index($readme_text,$phrase) >= 0 or die "contract README is missing '$phrase'\n";
@@ -87,44 +122,69 @@ for my $phrase (@required_readme) {
 require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\$0002/s,
    'profile cfg does not reserve the exact hidden two-byte stack allowance');
 
-my $src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.vcsc');
-my $bin=File::Spec->catfile($tmp,'standard_kernel_contract_smoke.bin');
-my $map=File::Spec->catfile($tmp,'standard_kernel_contract_smoke.map');
+my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.vcsc');
+my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.vcsc');
+my $ram_src_text=read_file($ram_src);
+my $rom_src_text=read_file($rom_src);
+require_re($ram_src_text,qr/^uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
+   'RAM smoke does not provide a mutable 48-byte playfield');
+require_re($rom_src_text,qr/^const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*:=/m,
+   'ROM smoke does not provide a constant 48-byte playfield');
 
-my ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$src,'-o',$bin);
-die "contract smoke build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
-   if $exit || $sig;
-die "contract smoke build wrote stdout:\n$out" if $out ne '';
-die "contract smoke build wrote stderr:\n$err" if $err ne '';
--s $bin == 4096 or die "contract smoke cartridge is not 4096 bytes\n";
+my $ram_map=build_smoke(
+   $driver,$vcs,$cfg,$ram_src,
+   File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'),
+   File::Spec->catfile($tmp,'standard_kernel_contract_ram.map'));
+my $rom_map=build_smoke(
+   $driver,$vcs,$cfg,$rom_src,
+   File::Spec->catfile($tmp,'standard_kernel_contract_rom.bin'),
+   File::Spec->catfile($tmp,'standard_kernel_contract_rom.map'));
 
-my $map_text=read_file($map);
-require_re($map_text,qr/RAM\s+start=\$0080\s+size=\$007A\s+type=rw/,
-   'profile did not shrink RAM by four call-graph bytes plus two hidden bytes');
-require_re($map_text,qr/region=RAM\s+depth=2\s+bytes=\$0006\s+physical=\$00FA-\$00FF\s+extra=\$0002/,
-   'map does not report the profile hidden-stack allowance');
-symbol_addr($map_text,'__call_stack_extra') == 2
-   or die "__call_stack_extra is not two\n";
+for my $map_text ($ram_map,$rom_map) {
+   require_re($map_text,qr/RAM\s+start=\$0080\s+size=\$007A\s+type=rw/,
+      'profile did not shrink RAM by four call-graph bytes plus two hidden bytes');
+   require_re($map_text,qr/region=RAM\s+depth=2\s+bytes=\$0006\s+physical=\$00FA-\$00FF\s+extra=\$0002/,
+      'map does not report the profile hidden-stack allowance');
+   symbol_addr($map_text,'__call_stack_extra') == 2
+      or die "__call_stack_extra is not two\n";
 
-my $object_x=symbol_addr($map_text,'vcs_standard_object_x');
-my $player0_y=symbol_addr($map_text,'vcs_standard_player0_y');
-my $workspace=symbol_addr($map_text,'vcs_standard_pointer_workspace');
-my $playfield=symbol_addr($map_text,'vcs_standard_playfield');
-my $playfield_pos=symbol_addr($map_text,'vcs_standard_playfield_position');
-my $scratch=symbol_addr($map_text,'vcs_standard_kernel_scratch');
-$player0_y == $object_x + 5 or die "object_x is not a five-byte adjacency group\n";
-my $score_color=symbol_addr($map_text,'vcs_standard_score_color');
-$score_color == $workspace + 12 or die "pointer workspace is not twelve contiguous bytes\n";
-$playfield_pos == $playfield + 48 or die "playfield is not 48 contiguous bytes\n";
-$scratch + 2 - $object_x == 86 or die "module state span is not 86 bytes\n";
-$object_x != 0x80 or die "module state was forced back to the old fixed RAM base\n";
+   my $object_x=symbol_addr($map_text,'vcs_standard_object_x');
+   my $player0_y=symbol_addr($map_text,'vcs_standard_player0_y');
+   my $score_color=symbol_addr($map_text,'vcs_standard_score_color');
+   my $workspace=symbol_addr($map_text,'vcs_standard_pointer_workspace');
+   my $playfield_pos=symbol_addr($map_text,'vcs_standard_playfield_position');
+   my $scratch=symbol_addr($map_text,'vcs_standard_kernel_scratch');
+   $player0_y == $object_x + 5 or die "object_x is not a five-byte adjacency group\n";
+   $workspace == $score_color + 1 or die "private workspace does not follow application display state\n";
+   $playfield_pos == $workspace + 12 or die "pointer workspace is not twelve contiguous bytes\n";
+   $scratch == $playfield_pos + 1 or die "private playfield position/scratch layout is not contiguous\n";
+   $scratch + 2 - $object_x == 38 or die "mandatory module state span is not 38 bytes\n";
+   $object_x != 0x80 or die "module state was forced back to the old fixed RAM base\n";
+}
+
+my $ram_pf=symbol_addr($ram_map,'vcs_standard_playfield');
+my $rom_pf=symbol_addr($rom_map,'vcs_standard_playfield');
+$ram_pf >= 0x0080 && $ram_pf <= 0x00ff
+   or die sprintf("RAM playfield linked outside RIOT RAM at \$%04X\n",$ram_pf);
+$rom_pf >= 0xf000
+   or die sprintf("ROM playfield linked outside cartridge ROM at \$%04X\n",$rom_pf);
+timing_safe_playfield($ram_pf,'RAM');
+timing_safe_playfield($rom_pf,'ROM');
+
+my $ram_object=symbol_addr($ram_map,'vcs_standard_object_x');
+$ram_object == $ram_pf + 48
+   or die "mutable playfield is not one contiguous 48-byte application object\n";
+my $ram_free=symbol_addr($ram_map,'__stack_start');
+my $rom_free=symbol_addr($rom_map,'__stack_start');
+$ram_free - $rom_free == 48
+   or die sprintf("ROM playfield did not recover exactly 48 RIOT bytes (RAM free \$%04X, ROM free \$%04X)\n",
+                  $ram_free,$rom_free);
 
 my $bad_cfg=File::Spec->catfile($tmp,'bad_callstack_extra.cfg');
 (my $bad_text=$cfg_text) =~ s/callstack\s*=\s*callgraph/callstack = no/;
 write_file($bad_cfg,$bad_text);
 my ($bad_exit,$bad_sig,$bad_out,$bad_err)=run_capture(
-   $driver,'-I',$vcs,'-T',$bad_cfg,$src,'-o',File::Spec->catfile($tmp,'bad.bin'));
+   $driver,'-I',$vcs,'-T',$bad_cfg,$ram_src,'-o',File::Spec->catfile($tmp,'bad.bin'));
 $bad_exit != 0 && !$bad_sig or die "callstack_extra without callgraph unexpectedly linked\n";
 $bad_out eq '' or die "bad profile wrote unexpected stdout:\n$bad_out";
 $bad_err =~ /sets callstack_extra but does not request callstack=callgraph/

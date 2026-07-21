@@ -1,10 +1,14 @@
 // Minimal unbanked 4K NTSC standard-kernel source-integration contract.
 //
-// Include vcs.vcsc before this module. This file owns the source-visible state
-// for the first standard-kernel port. It deliberately contains no converted
-// assembly yet; task 20c will add the mechanically normalized implementation.
-// Ordinary linker allocation is used except for the explicitly documented
-// adjacency groups below.
+// Include vcs.vcsc before this module. The application must define exactly one
+// contiguous 48-byte object named vcs_standard_playfield before including this
+// file. It may be writable uint8_t storage in RIOT RAM or const uint8_t storage
+// in cartridge ROM. The kernel binds to that symbol directly; there is no
+// runtime playfield pointer and therefore no indirect-load timing penalty.
+//
+// This file contains no converted assembly yet. Task 20c will add the
+// mechanically normalized implementation. Ordinary linker allocation is used
+// except for the explicitly documented adjacency and linked-address constraints.
 
 alias VCS_STANDARD_OBJECT_PLAYER0 0
 alias VCS_STANDARD_OBJECT_PLAYER1 1
@@ -14,10 +18,20 @@ alias VCS_STANDARD_OBJECT_BALL 4
 
 alias VCS_STANDARD_OBJECT_COUNT 5
 alias VCS_STANDARD_PLAYFIELD_BYTES 48
+alias VCS_STANDARD_PLAYFIELD_ROW_BYTES 4
+alias VCS_STANDARD_PLAYFIELD_ROWS 12
+alias VCS_STANDARD_PLAYFIELD_COLUMNS 32
+alias VCS_STANDARD_DEFAULT_ROW_SCANLINES 16
 alias VCS_STANDARD_POINTER_WORKSPACE_BYTES 12
-alias VCS_STANDARD_MODULE_RAM_BYTES 86
+alias VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES 23
+alias VCS_STANDARD_PRIVATE_RAM_BYTES 15
+alias VCS_STANDARD_MODULE_RAM_BYTES 38
 alias VCS_STANDARD_HIDDEN_STACK_BYTES 2
 alias VCS_STANDARD_SCORE_FONT_BYTES 88
+
+// The application-provided storage symbol. It is intentionally an alias rather
+// than a declaration so the application chooses const ROM or mutable RAM type.
+alias VCS_STANDARD_PLAYFIELD vcs_standard_playfield
 
 alias VCS_STANDARD_PLAYER0_X vcs_standard_object_x[VCS_STANDARD_OBJECT_PLAYER0]
 alias VCS_STANDARD_PLAYER1_X vcs_standard_object_x[VCS_STANDARD_OBJECT_PLAYER1]
@@ -25,6 +39,9 @@ alias VCS_STANDARD_MISSILE0_X vcs_standard_object_x[VCS_STANDARD_OBJECT_MISSILE0
 alias VCS_STANDARD_MISSILE1_X vcs_standard_object_x[VCS_STANDARD_OBJECT_MISSILE1]
 alias VCS_STANDARD_BALL_X vcs_standard_object_x[VCS_STANDARD_OBJECT_BALL]
 
+// Application-visible display state. The module declares the storage and the
+// application owns the values between draw calls.
+//
 // Indexed together by the horizontal-position loop; keep all five bytes in one
 // array so their adjacency is a source-level invariant rather than a linker
 // accident.
@@ -48,16 +65,15 @@ uint8_t vcs_standard_missile0_y;
 uint8_t vcs_standard_ball_height;
 
 bcd24_t vcs_standard_score;
-
-// Bytes 0..5 are the six score-pointer low bytes. Bytes 6..11 are the six
-// transient kernel bytes. The retained score pipeline addresses the combined
-// block through fixed offsets, so this exact 12-byte adjacency is required.
-uint8_t vcs_standard_pointer_workspace[VCS_STANDARD_POINTER_WORKSPACE_BYTES];
-
 uint8_t vcs_standard_score_color;
 
-// Default asymmetric playfield: twelve rows times four bytes.
-uint8_t vcs_standard_playfield[VCS_STANDARD_PLAYFIELD_BYTES];
+// Kernel-private workspace.
+//
+// Bytes 0..5 are the six score-pointer low bytes. Bytes 6..11 are six transient
+// kernel bytes. The retained score pipeline addresses the combined block through
+// fixed offsets, so this exact 12-byte adjacency is required.
+uint8_t vcs_standard_pointer_workspace[VCS_STANDARD_POINTER_WORKSPACE_BYTES];
+
 uint8_t vcs_standard_playfield_position;
 
 // Module-private transient bytes corresponding to the retained stack1/stack2

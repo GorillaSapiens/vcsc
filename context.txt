@@ -872,16 +872,20 @@ The first unfinished item is the default next action.
                   assembly so small cycle-sensitive kernel helpers can remain
                   readable VCSC without becoming out-of-line calls.
         [x] 20b. Define and enforce the source-integration contract for one
-                  minimal unbanked 4K standard-kernel module. The included module
-                  declares and owns its required state, with normal compiler and
-                  linker allocation by default. Document frame-phase ownership,
-                  exported entry points, application-supplied hooks, register and
-                  flag clobbers, hidden hardware-stack use, timing/scanline
-                  requirements, and optional-feature RAM/ROM costs. Add fixed
-                  addresses, alignment, adjacency, or page constraints only where
-                  the converted source demonstrably requires them. Do not treat
-                  this contract as covering vertical-reflect, multisprite,
-                  status-bar, banking, or Superchip variants.
+                  minimal unbanked 4K standard-kernel module. Separate the
+                  module's private workspace from application-visible display
+                  state. Require the application to provide the contiguous
+                  48-byte playfield under the direct-linked symbol
+                  `vcs_standard_playfield`, choosing mutable RIOT RAM or constant
+                  cartridge ROM without a runtime pointer. Document frame-phase
+                  ownership, exported entry points, application-supplied hooks,
+                  register and flag clobbers, hidden hardware-stack use,
+                  timing/scanline requirements, the playfield's 32x12 geometry
+                  and timing-safe low-byte window, and optional-feature RAM/ROM
+                  costs. Add fixed addresses, alignment, adjacency, or page
+                  constraints only where the converted source demonstrably
+                  requires them. Do not treat this contract as covering vertical-
+                  reflect, multisprite, status-bar, banking, or Superchip variants.
         [ ] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
                   retained macros, directives, conditionals, expressions, and
                   forced addressing modes needed by that one configuration.
@@ -2239,4 +2243,28 @@ Before returning another modified archive:
 * Keep the retained legacy source tree byte-for-byte unchanged. Pass 282/282
   compile tests, 128/128 end-to-end/generic tests, and staged installation.
   Task 20c is now the next queued action.
+
+2026-07-20 23:01:08 PDT, finish the standard-kernel storage contract
+------------------------------------------------------------------------
+* Correct task 20b's RAM accounting. The included module now declares 38 bytes:
+  23 bytes of application-visible object/score state and 15 bytes of genuinely
+  private score-pointer, row-position, and scratch workspace. Stop describing
+  the optional 48-byte playfield as mandatory module-owned RAM.
+* Require the application to define the exact contiguous symbol
+  `vcs_standard_playfield[48]` before including the module. Permit either mutable
+  `uint8_t` RIOT RAM or `const uint8_t` cartridge ROM storage and expose it as
+  `VCS_STANDARD_PLAYFIELD`. Retain direct absolute-indexed access; do not add a
+  two-byte runtime pointer or indirect-load timing cost.
+* Document that the 48 bytes are a 32-column by 12-row coarse playfield, four
+  bytes per row, with each default row repeated for 16 scanlines. Record the
+  retained default path's timing-safe playfield-symbol low-byte window as
+  `$54..$D0`.
+* Expand the task-20b regression to build both RAM and ROM playfield forms,
+  require the same direct symbol, verify exact 48-byte RIOT savings for the ROM
+  form, preserve the 38-byte module span and two-byte hidden stack reserve, and
+  reject timing-unsafe smoke placements. Task 20d remains responsible for
+  enforcing the final real-kernel linked address and scanline timing.
+* Keep task 20c as the next queued action. Pass 283/283 compile tests,
+  128/128 end-to-end/generic tests, and staged installation with both storage
+  choices. The retained legacy source tree and `remove.txt` remain unchanged.
 

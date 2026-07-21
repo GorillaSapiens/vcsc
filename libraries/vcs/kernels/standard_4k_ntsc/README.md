@@ -19,8 +19,9 @@ it.
 ## Selected configuration
 
 The profile includes the retained two-line standard visible kernel, standard
-overscan/positioning routine, and default 8x8 decimal score graphics. VCSC owns
-reset, vectors, DATA/BSS initialization, and application logic.
+overscan/positioning routine, default asymmetric playfield, and default 8x8
+decimal score graphics. VCSC owns reset, vectors, DATA/BSS initialization, and
+application logic.
 
 The following retained options are absent and are outside this contract:
 
@@ -38,12 +39,31 @@ one stack-safe void vblank/overscan hook after the static cartridge is stable.
 
 ## Source-level inclusion
 
-Applications include the machine definition and then this module:
+The application includes the machine definition, defines the playfield object,
+and then includes the kernel contract. A mutable playfield uses RIOT RAM:
 
 ```vcsc
 include "vcs.vcsc"
+uint8_t vcs_standard_playfield[48];
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
 ```
+
+A fixed playfield uses cartridge ROM:
+
+```vcsc
+include "vcs.vcsc"
+const uint8_t vcs_standard_playfield[48] := {
+   // twelve rows, four bytes per row
+};
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
+```
+
+The object name and extent are contractual. The module aliases it as
+`VCS_STANDARD_PLAYFIELD`. The kernel references that symbol directly with
+absolute-indexed loads. It does **not** store or follow a runtime playfield
+pointer: doing so would cost two RIOT bytes, add at least one cycle to every
+playfield read, risk an additional page-cross cycle, and interfere with Y usage
+inside the asymmetric visible kernel.
 
 Build with the matching linker configuration and illegal-opcode table:
 
@@ -60,8 +80,26 @@ extern void vcs_standard_kernel_drawscreen(void);
 ```
 
 It accepts no parameters and returns no value. The application communicates
-through module-owned state. No separately maintained fixed RIOT address map is
-part of this interface.
+through the application-visible display state and the application-provided
+playfield object. No separately maintained fixed RIOT address map is part of
+this interface.
+
+## What the 48-byte playfield represents
+
+The playfield is not a 48-by-8 framebuffer. It is the entire coarse main
+playfield grid for this profile:
+
+```text
+48 bytes = 12 logical rows x 4 bytes per row
+         = 12 rows x 32 independently controlled bits
+```
+
+Each logical row contains four bytes in the order needed to produce 16
+asymmetric columns on the left and 16 on the right. PF0 remains unused. In the
+default configuration the two-scanline kernel repeats each row for eight kernel
+iterations, so one logical row is 16 scanlines high and all twelve rows occupy
+192 visible scanlines. Players, missiles, ball, and the six-digit score are
+separate overlays and are not stored in these 48 bytes.
 
 ## Frame ownership
 
@@ -82,28 +120,30 @@ rather than treating comments in the retained source as proof.
 
 ## State ownership and RAM cost
 
-`standard_4k_ntsc.vcsc` declares all state used by this selected configuration.
-The compiler and linker place it normally in RIOT RAM.
+The contract distinguishes kernel-private workspace, application-visible state,
+and optional playfield storage instead of calling all display data “kernel
+RAM.”
 
-| State group | Bytes | Contract |
+| State group | Bytes | Ownership and storage |
 | --- | ---: | --- |
-| Five horizontal positions | 5 | One contiguous array; indexed P0, P1, M0, M1, ball order |
-| Y/height and sprite-pointer state | 14 | Persistent application-visible object state |
-| Packed six-digit score | 3 | `bcd24_t`, least-significant digit pair first |
-| Score-pointer/transient workspace | 12 | One contiguous block; offsets 0..5 and 6..11 are coupled |
-| Score color | 1 | Persistent application-visible state |
-| Default asymmetric playfield | 48 | Twelve rows by four bytes, contiguous |
-| Playfield position | 1 | Kernel-owned row countdown state |
-| Internal transient scratch | 2 | Ordinary module RAM; not hardware-stack storage |
-| **Module total** | **86** | Enforced by `vcs_standard_kernel_contract.test` |
+| Object positions, dimensions, sprite pointers, score, and score color | 23 | Declared by the module; application owns the persistent values in RIOT RAM |
+| Score-pointer/transient workspace, playfield row position, and internal scratch | 15 | Kernel-private RIOT RAM |
+| Playfield | 48 | Supplied by the application; mutable RAM or constant ROM |
+| **Mandatory module-declared RAM** | **38** | 23 application-visible + 15 private |
+| **RAM with mutable playfield** | **86** | 38 mandatory + 48 application-selected playfield |
 
 The stock VCSC runtime currently uses 16 more RIOT bytes. With the ordinary
 `main -> drawscreen` source call depth, the matching linker configuration
-reserves four call-graph bytes plus two hidden-kernel bytes. Runtime, module,
-and minimum stack reservation therefore consume 108 of the 128 physical bytes,
-leaving 20 bytes for application objects, compiler-generated return/local
-storage, inline-expansion storage, and any initializer-specific stack allowance.
-This is a budget, not a promise that every future option will fit.
+reserves four call-graph bytes plus two hidden-kernel bytes. Therefore:
+
+```text
+fixed ROM playfield:   128 - 38 - 16 - 6 = 68 bytes left
+mutable RAM playfield: 128 - 86 - 16 - 6 = 20 bytes left
+```
+
+Those numbers are budgeting examples, not promises that every future option or
+initializer will fit. A game pays the 48-byte RIOT cost only when it actually
+needs to alter the playfield at runtime.
 
 ## Demonstrable placement constraints
 
@@ -114,8 +154,12 @@ Most state has no fixed address. Only these constraints are contractual:
 - `vcs_standard_pointer_workspace[12]` is contiguous because the score kernel
   treats its six pointer bytes and six transient bytes as one offset-addressed
   block.
-- `vcs_standard_playfield[48]` is contiguous for absolute-indexed playfield
-  reads.
+- The application-provided `vcs_standard_playfield[48]` is contiguous and is
+  addressed directly, not through a pointer.
+- For the default `pfwidth=4`, `pfadjust=0` path, the playfield symbol's low byte
+  must be in the inclusive range `$54..$D0`. The retained biased-X accesses then
+  reach all 48 bytes without an absolute-indexed page crossing. This condition
+  applies equally to RAM and ROM playfields.
 - Each active P0/P1 sprite table must stay within one 256-byte page for every
   row the kernel may read; a page-crossing indirect load changes scanline timing.
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
@@ -124,9 +168,11 @@ Most state has no fixed address. Only these constraints are contractual:
   Task 20c must preserve those guards with `.align 256`; no absolute ROM address
   is required.
 
-There is no fixed `$80`-based variable map. The old addresses were an artifact
-of the generated source environment, not an interface requirement for an
-included VCSC module.
+The task-20b regression builds both a RAM and a ROM playfield and rejects either
+linked address if its low byte falls outside `$54..$D0`. Task 20d must retain the
+same linked-address check when the real kernel replaces the no-op smoke body.
+There is no fixed `$80`-based variable map; only the timing-safe low-byte window
+is part of the contract.
 
 ## Register, flag, and hardware-register clobbers
 
@@ -135,10 +181,10 @@ and exit. The module owns TIA graphics, motion, playfield, sync, and blanking
 registers and RIOT `INTIM`/`TIM64T` while the call is active. Applications must
 not expect those register values to survive.
 
-Persistent module state is available again after return. The six transient
-workspace bytes and two internal scratch bytes are undefined after every draw.
-The kernel temporarily decrements object Y values while drawing but restores the
-persistent values before return.
+Persistent application-visible state is available again after return. The
+six transient workspace bytes, playfield row position, and two internal scratch
+bytes are undefined after every draw. The kernel temporarily decrements object Y
+values while drawing but restores the persistent values before return.
 
 ## Hidden hardware-stack use
 
@@ -158,13 +204,14 @@ update this contract and its regression before it is accepted.
 
 ## ROM and feature-cost ledger
 
-The source contract itself emits no code and no initialized data. The selected
-configuration requires an 88-byte default score table. Exact kernel code size is
-not guessed here; task 20d records it from the first linked map.
+The source contract itself emits no code and no initialized data. A ROM
+playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The selected
+configuration also requires an 88-byte default score table. Exact kernel code
+size is not guessed here; task 20d records it from the first linked map.
 
 All listed optional features are rejected by this profile, so no speculative
 RAM or ROM deltas are contractual. A feature may be added only as a later
-profile revision with measured linked ROM bytes, module-owned RAM changes,
+profile revision with measured linked ROM bytes, module-declared RAM changes,
 stack changes, and a timing regression. This prevents “free” conditional
 features from silently consuming the last few RIOT bytes.
 

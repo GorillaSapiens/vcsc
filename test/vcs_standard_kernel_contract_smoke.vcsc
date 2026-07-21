@@ -1,5 +1,10 @@
 // vcsc-cc1 -I ../libraries/vcs
 include "vcs.vcsc"
+
+// Mutable playfield selected by the application. The kernel binds directly to
+// this symbol; it does not own or indirect through a pointer to it.
+uint8_t vcs_standard_playfield[48];
+
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
 
 const uint8_t player_shape[8] := {
@@ -31,7 +36,7 @@ int16_t main(void) {
    vcs_standard_player0_height := 7;
    vcs_standard_player1_height := 7;
    vcs_standard_score := 123456;
-   vcs_standard_playfield[0] := 0xff;
+   VCS_STANDARD_PLAYFIELD[0] := 0xff;
    vcs_standard_kernel_drawscreen();
    return 0;
 }

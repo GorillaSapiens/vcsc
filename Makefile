@@ -140,7 +140,12 @@ installcheck: tools
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.vcsc" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"` -eq 4096
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.vcsc" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz

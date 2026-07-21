@@ -1,0 +1,51 @@
+// vcsc-cc1 -I ../libraries/vcs
+include "vcs.vcsc"
+
+// Test-only padding arranges a timing-safe low byte with the current no-op
+// smoke link. Task 20d must enforce the final linked kernel placement.
+const uint8_t vcs_standard_rom_alignment_pad[81] := { 0 };
+
+// Fixed playfield selected by the application. It occupies cartridge ROM and
+// exports the same direct-addressed symbol as the mutable RAM form.
+const uint8_t vcs_standard_playfield[48] := {
+   0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX,
+   0bX......X, 0b........, 0b........, 0bX......X,
+   0bX.XXXX.X, 0bXXXXXXXX, 0bXXXXXXXX, 0bX.XXXX.X,
+   0bX.X..X.X, 0bX......X, 0bX......X, 0bX.X..X.X,
+   0bX.X..X.X, 0bX.XXXX.X, 0bX.XXXX.X, 0bX.X..X.X,
+   0bX.X..X.X, 0bX.X..X.X, 0bX.X..X.X, 0bX.X..X.X,
+   0bX.XXXX.X, 0bX.X..X.X, 0bX.X..X.X, 0bX.XXXX.X,
+   0bX......X, 0bX.X..X.X, 0bX.X..X.X, 0bX......X,
+   0bXXXXXXXX, 0bX.XXXX.X, 0bX.XXXX.X, 0bXXXXXXXX,
+   0b........, 0bX......X, 0bX......X, 0b........,
+   0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX,
+   0b........, 0b........, 0b........, 0b........
+};
+
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
+
+const uint8_t player_shape[8] := {
+   0b...XX...,
+   0b..XXXX..,
+   0b.XXXXXX.,
+   0bXX.XX.XX,
+   0bXXXXXXXX,
+   0b..X..X..,
+   0b.X....X.,
+   0bX......X
+};
+
+void vcs_standard_kernel_drawscreen(void) {
+}
+
+int16_t main(void) {
+   VCS_STANDARD_PLAYER0_X := 40;
+   VCS_STANDARD_PLAYER1_X := 96;
+   vcs_standard_player0_graphics := player_shape;
+   vcs_standard_player1_graphics := player_shape;
+   vcs_standard_player0_height := 7;
+   vcs_standard_player1_height := 7;
+   vcs_standard_score := 123456;
+   vcs_standard_kernel_drawscreen();
+   return 0;
+}
