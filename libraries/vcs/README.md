@@ -16,9 +16,10 @@ Files:
 - `riot.vcsc` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
 - `sound_ntsc.vcsc` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
+- `fonts/` ... nine shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
 - `../../examples/01_solid_color/solid_color.vcsc` ... first complete 4K cartridge example
 - `../../examples/02_ode_to_joy/ode_to_joy.vcsc` ... frame-driven music example using a ROM score table
-- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered legacy-kernel-derived six-digit `bcd24_t` score display with replaceable VCSC font data
+- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered legacy-kernel-derived six-digit `bcd24_t` score display using the shared VCS font catalog
 - `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
 - `LEGACY_KERNEL_CONVERSION.md` ... task-19 inventory, compatibility analysis, and staged conversion plan
 

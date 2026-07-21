@@ -4,7 +4,7 @@
 // compact glyph-pointer construction and the cycle-counted visible kernel.
 
 include "vcs.vcsc"
-include "fonts/clean.vcsc"
+include "fonts/default_decimal.vcsc"
 
 alias BACKGROUND_COLOR 0x84
 alias SCORE_COLOR      0x0e

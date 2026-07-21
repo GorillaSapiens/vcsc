@@ -19,7 +19,7 @@ bcd24_t score := 123456;
 
 `score++` therefore emits a decimal-mode three-byte `ADC` chain and wraps after
 `999999`. VCSC also owns the frame loop, scanline waits, score cadence, TIA
-setup and cleanup, and both font tables.
+setup and cleanup, and the selected shared font table.
 
 ## Why assembly remains
 
@@ -46,24 +46,22 @@ no nested call inside the timed loop.
 
 ## Fonts
 
-The font is VCSC source data rather than a separately assembled object:
-
-- `fonts/clean.vcsc` is the active narrow 5x7-style font.
-- `fonts/classic.vcsc` retains the chunkier CC0 score font from the retained
-  legacy source snapshot as an alternate. Its exact licensing overview is kept
-  in `libraries/vcs/legacy-basic-kernels/LICENSE.txt`.
-
-Switch fonts by changing the include near the top of `six_digit_score.vcsc`:
+Score fonts are shared VCS support modules under `libraries/vcs/fonts/`, not
+private example data. Example 03 currently selects the 21st Century decimal
+font:
 
 ```vcsc
-include "fonts/clean.vcsc"
+include "fonts/21st_century_decimal.vcsc"
 ```
 
-Each font defines `const uint8_t score_font[80]`. Every glyph is written one
-visual binary byte per source line using `.` for a clear pixel and `X` for a set
-pixel, so the sprite can be read directly in the source. The rows are listed
-top-to-bottom; a small `SCORE_GLYPH` alias reverses each eight-row group because
-the cycle-counted display kernel reads row 7 down through row 0.
+The library contains nine families, each with a decimal `0-9` module and a
+hexadecimal `0-9A-F` module. See `libraries/vcs/fonts/README.md` for the full
+catalog, symbols, provenance, and selection instructions.
+
+Every glyph is written one visual binary byte per source line using `.` for a
+clear pixel and `X` for a set pixel. Rows are listed top-to-bottom; a small
+compile-time alias reverses each eight-row group because this score kernel reads
+row 7 down through row 0.
 
 Each glyph pointer includes low-byte carry into the font address high byte, so a
 font may land anywhere in cartridge ROM and does not need page alignment.

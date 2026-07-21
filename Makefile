@@ -66,6 +66,8 @@ install-data:
 	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
+	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
+	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.vcsc $(DESTDIR)$(DATADIR)/vcs/fonts/
 	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels
 	install -m 0644 libraries/vcs/legacy-basic-kernels/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
 	install -m 0644 libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
@@ -88,6 +90,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.vcsc
+	rmdir $(DESTDIR)$(DATADIR)/vcs/fonts 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/README.md

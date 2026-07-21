@@ -1,16 +1,15 @@
-// Classic 8x8 decimal font for example 03.
+// Hexadecimal-family decimal font.
 //
-// Adapted from retained CC0 score graphics; see the example README.
-//
-// Glyphs are written top-to-bottom so they are visible in the source.
-// SCORE_GLYPH reverses each eight-row group because the cycle-counted
-// display kernel reads font bytes from row 7 down through row 0.
+// The original legacy glyph data was released under CC0-1.0. See
+// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
+// Glyph rows are written top-to-bottom for visual readability; the
+// VCS_FONT_GLYPH alias reverses each glyph for the score kernel.
 
-alias SCORE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
 const uint8_t score_font[80] := {
    // 0
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
@@ -22,7 +21,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 1
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b....X...,
       0b...XX...,
       0b..XXX...,
@@ -34,7 +33,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 2
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.X...XX.,
       0b.....XX.,
@@ -46,7 +45,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 3
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.X...XX.,
       0b.....XX.,
@@ -58,7 +57,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 4
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b....XX..,
       0b...XXX..,
       0b..X.XX..,
@@ -70,7 +69,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 5
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b.XXXXXX.,
       0b.XX.....,
       0b.XX.....,
@@ -82,7 +81,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 6
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.XX...X.,
       0b.XX.....,
@@ -94,7 +93,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 7
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXXX.,
       0b.X....X.,
       0b.....XX.,
@@ -106,7 +105,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 8
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
@@ -118,7 +117,7 @@ const uint8_t score_font[80] := {
    ),
 
    // 9
-   SCORE_GLYPH(
+   VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
@@ -128,4 +127,5 @@ const uint8_t score_font[80] := {
       0b.X...XX.,
       0b..XXXX..
    )
+
 };

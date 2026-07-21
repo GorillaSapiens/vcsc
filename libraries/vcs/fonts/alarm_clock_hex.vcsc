@@ -1,0 +1,203 @@
+// Alarm Clock hexadecimal font.
+//
+// The original legacy glyph data was released under CC0-1.0. See
+// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
+// Glyph rows are written top-to-bottom for visual readability; the
+// VCS_FONT_GLYPH alias reverses each glyph for the score kernel.
+
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+
+const uint8_t score_font[128] := {
+   // 0
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0b........,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..
+   ),
+
+   // 1
+   VCS_FONT_GLYPH(
+      0b........,
+      0b......X.,
+      0b......X.,
+      0b........,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b........
+   ),
+
+   // 2
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b..XXXX..,
+      0b.X......,
+      0b.X......,
+      0b.X......,
+      0b..XXXX..
+   ),
+
+   // 3
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b..XXXX..
+   ),
+
+   // 4
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b........
+   ),
+
+   // 5
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.X......,
+      0b.X......,
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b..XXXX..
+   ),
+
+   // 6
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.X......,
+      0b.X......,
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..
+   ),
+
+   // 7
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b........,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b........
+   ),
+
+   // 8
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..
+   ),
+
+   // 9
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0b..XXXX..,
+      0b......X.,
+      0b......X.,
+      0b......X.,
+      0b..XXXX..
+   ),
+
+   // A
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.
+   ),
+
+   // B
+   VCS_FONT_GLYPH(
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..
+   ),
+
+   // C
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+
+   // D
+   VCS_FONT_GLYPH(
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..
+   ),
+
+   // E
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXXX.
+   ),
+
+   // F
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....
+   )
+
+};

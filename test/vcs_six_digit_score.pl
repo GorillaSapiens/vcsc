@@ -30,12 +30,12 @@ sub require_re {
    $text =~ $re or die "$why\n";
 }
 sub parse_font {
-   my ($text)=@_;
-   $text =~ /const\s+uint8_t\s+score_font\s*\[\s*80\s*\]\s*:=\s*\{(.*?)\}\s*;/s
-      or die "font does not define const uint8_t score_font[80]\n";
+   my ($text,$symbol,$count)=@_;
+   $text =~ /const\s+uint8_t\s+\Q$symbol\E\s*\[\s*\Q$count\E\s*\]\s*:=\s*\{(.*?)\}\s*;/s
+      or die "font does not define const uint8_t $symbol\[$count\]\n";
    my $body=$1;
    my @visual=$body =~ /^\s*0b([01.xX_]{8,})[,]?\s*$/mg;
-   @visual==80 or die "font has ".scalar(@visual)." one-byte visual rows, expected 80\n";
+   @visual==$count or die "font has ".scalar(@visual)." one-byte visual rows, expected $count\n";
 
    my @rows;
    for my $digits (@visual) {
@@ -64,8 +64,8 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $ex=File::Spec->catdir($repo,'examples','03_six_digit_score');
 my $src=File::Spec->catfile($ex,'six_digit_score.vcsc');
-my $font=File::Spec->catfile($ex,'fonts','clean.vcsc');
-my $alternate_font=File::Spec->catfile($ex,'fonts','classic.vcsc');
+my $font=File::Spec->catfile($vcs,'fonts','21st_century_decimal.vcsc');
+my $font_symbol='score_font';
 my $bin=File::Spec->catfile($tmp,'six_digit_score.bin');
 my $map=File::Spec->catfile($tmp,'six_digit_score.map');
 my $asm=File::Spec->catfile($tmp,'six_digit_score.s');
@@ -97,14 +97,12 @@ require_re($map_text,qr/\$0090\s+score_pointers|score_pointers\s+.*\$0090/,
 require_re($map_text,qr/score_row/, 'score map is missing row counter');
 require_re($map_text,qr/delayed_glyph/, 'score map is missing delayed glyph byte');
 my $font_addr;
-if ($map_text =~ /\$([Ff][0-9A-Fa-f]{3})\s+score_font/) { $font_addr=hex($1); }
-elsif ($map_text =~ /score_font\s+\$([Ff][0-9A-Fa-f]{3})/) { $font_addr=hex($1); }
-else { die "score map is missing score_font\n"; }
+if ($map_text =~ /\$([Ff][0-9A-Fa-f]{3})\s+\Q$font_symbol\E/) { $font_addr=hex($1); }
+elsif ($map_text =~ /\Q$font_symbol\E\s+\$([Ff][0-9A-Fa-f]{3})/) { $font_addr=hex($1); }
+else { die "score map is missing $font_symbol\n"; }
 
-my @font=parse_font(read_file($font));
+my @font=parse_font(read_file($font),$font_symbol,80);
 @font==80 or die "active font has ".scalar(@font)." bytes, expected 80\n";
-my @alternate=parse_font(read_file($alternate_font));
-@alternate==80 or die "alternate font has ".scalar(@alternate)." bytes, expected 80\n";
 my @rom_font=unpack('C80',substr($rom,$font_addr-0xf000,80));
 for my $i (0..79) {
    $rom_font[$i]==$font[$i]
@@ -112,12 +110,12 @@ for my $i (0..79) {
 }
 
 my $s=read_file($src);
-require_re($s,qr/include\s+"fonts\/clean\.vcsc"/,
-           'example no longer includes the VCSC clean font');
+require_re($s,qr/include\s+"fonts\/21st_century_decimal\.vcsc"/,
+           'example no longer includes the shared 21st Century decimal font');
 require_re(read_file($font),qr/0b[.Xx01]{8}/,
            'active font no longer uses visual binary rows');
-require_re(read_file($alternate_font),qr/Adapted from retained CC0/,
-           'classic alternate font lost its legacy BASIC CC0 lineage note');
+require_re(read_file($font),qr/CC0-1\.0/,
+           'shared active font lost its CC0 lineage note');
 require_re($s,qr/bcd24_t\s+score\s*:=\s*123456\s*;/,
            'example no longer starts from bcd24_t 123456');
 require_re($s,qr/alias\s+SCORE_PERIOD\s+20/,
@@ -151,12 +149,8 @@ require_re($s,qr/asm lda score;.*?asm sta score_pointers\+8;.*?asm sta score_poi
 my $carry_count=()=$s =~ /asm adc #0;/g;
 $carry_count==6 or die "glyph pointer setup has $carry_count carry propagations, expected 6\n";
 
--f File::Spec->catfile($ex,'score_font.s')
-   and die "obsolete assembly font wrapper still exists\n";
--f File::Spec->catfile($ex,'fonts','clean.inc')
-   and die "obsolete assembly clean-font include still exists\n";
--f File::Spec->catfile($ex,'fonts','default.inc')
-   and die "obsolete assembly classic-font include still exists\n";
+-d File::Spec->catdir($ex,'fonts')
+   and die "example-private font directory still exists\n";
 
 my $generated=read_file($asm);
 require_re($generated,qr/lda #\$84\s+sta\s+\$09/s,

@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_153417.tar.gz
+    vcsc.20260720_163118.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -81,6 +81,12 @@ Settled final-language decisions
   fodder merely because it is not yet wired into the build. Its exact upstream
   licensing overview remains verbatim in the retained `LICENSE.txt`; project-
   facing names and non-license branding comments are intentionally generic.
+* Shared score fonts live under `libraries/vcs/fonts/`, not inside an example.
+  Nine 8x8 families are provided as eighteen VCSC modules: one decimal `0-9`
+  table and one hexadecimal `0-9A-F` table per family. Every module exports the
+  common `score_font` symbol, uses one visual-binary byte per source row, and is
+  installed with the VCS support package. Example 03 currently selects
+  `21st_century_decimal.vcsc`.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
 * Subtracting compatible pointers yields `int16_t` and a C-style element count.
@@ -557,13 +563,13 @@ Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_visualbin_tools
+    /mnt/data/vcsc_buildtools
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_visualbin_tools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_visualbin_tools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_visualbin_tools/usr/share/bison
+    export PATH=/mnt/data/vcsc_buildtools/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_buildtools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_buildtools/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -582,7 +588,7 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    123 passed, 0 failed, 123 total
+    124 passed, 0 failed, 124 total
 
 Staged install check:
 
@@ -816,9 +822,14 @@ The first unfinished item is the default next action.
 [x] Side quest: add visual binary-picture literals. After `0b`/`0B`, accept
     `.` as zero and `X`/`x` as one, while retaining ordinary `0`/`1` digits and
     underscore separators. Normalize in the lexer, issue direct malformed-
-    literal diagnostics, document the syntax, and use it for both example-03
-    fonts with one top-to-bottom source row per line. Rename the alternate
-    legacy-kernel-derived font to the descriptive `classic_8x8.vcsc` name.
+    literal diagnostics, and document the syntax.
+
+[x] Side quest: move score fonts into a shared installed VCS catalog. Provide
+    decimal and hexadecimal modules for all nine retained font families under
+    `libraries/vcs/fonts/`, keep every glyph readable as one visual-binary byte
+    per line, document selection/provenance, make every module export
+    `score_font`, and compile all eighteen modules through the real example-03
+    cartridge. Example 03 owns no private font data.
 
 [ ] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
         as controlled vertical slices. Preserve retained source semantics and
@@ -1988,4 +1999,34 @@ Before returning another modified archive:
   compile tests, 123/123 end-to-end/generic tests, staged installation, exact
   4096-byte cartridge checks, and 42 consecutive 262-line NTSC frames.
   `remove.txt` remains at 875 paths; the user's branding-test repair is retained.
+
+2026-07-20 16:59:01 PDT, add shared decimal and hexadecimal score-font catalog
+------------------------------------------------------------------------
+* Move all score-font data out of `examples/03_six_digit_score` into the shared
+  installed `libraries/vcs/fonts/` catalog. Remove the example-private
+  `fonts/clean.vcsc` and `fonts/classic.vcsc` files; `remove.txt` now contains
+  876 unique paths.
+* Convert all nine retained 8x8 font families into readable VCSC modules:
+  Default, 21st Century, Alarm Clock, Handwritten, Interrupted, Retroputer,
+  Whimsey, Tiny, and Hexadecimal. Each family has an 80-byte decimal `0-9`
+  module and a 128-byte hexadecimal `0-9A-F` module, for eighteen modules total.
+* Preserve each family's original decimal glyphs exactly. Preserve the original
+  Hexadecimal-family `A-F` glyphs and append that same official six-glyph suffix
+  to the other eight hexadecimal variants rather than inventing undocumented
+  style-specific letters. Every module exports the common `score_font` table.
+* Keep every row as one top-to-bottom visual-binary byte in source;
+  `VCS_FONT_GLYPH` reverses each eight-row glyph into the order consumed by the
+  score kernel. Add `libraries/vcs/fonts/README.md` with the complete module
+  catalog, selection instructions, representation notes, and CC0 provenance.
+* Make example 03 include the shared `fonts/21st_century_decimal.vcsc` module.
+  Install/uninstall the complete catalog with VCS support files and remove the
+  obsolete example-local include path from the build.
+* Add `vcs_font_catalog.test`: verify all eighteen files, decimal/hex prefix
+  identity, the common official `A-F` suffix, visual-row counts, provenance
+  notes, absence of private example font data, and a real exact-4096-byte score
+  cartridge build with every module.
+* Pass 272/272 compile tests and 124/124 end-to-end/generic tests. The staged
+  installation check builds example 03 using the installed font catalog, and
+  Stella 7.0 renders the selected 21st Century font correctly on the centered
+  blue score display.
 

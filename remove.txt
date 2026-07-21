@@ -14,6 +14,7 @@ examples/02_ode_to_joy/music_player.s
 examples/02_ode_to_joy/ode_to_joy.n
 examples/03_six_digit_score/fonts/classic.vcsc
 examples/03_six_digit_score/fonts/clean.inc
+examples/03_six_digit_score/fonts/clean.vcsc
 examples/03_six_digit_score/fonts/default.inc
 examples/03_six_digit_score/score_font.s
 libraries/float/.gitignore
