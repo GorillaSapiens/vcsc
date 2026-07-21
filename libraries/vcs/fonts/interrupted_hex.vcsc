@@ -145,7 +145,7 @@ const uint8_t score_font[128] := {
       0b.XXX.X..,
       0b.XX..XX.,
       0b.XX..XX.,
-      0b.XXXXXX.,
+      0b.XXXX...,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
