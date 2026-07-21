@@ -103,6 +103,28 @@ PHA      ; save A
 PLA      ; restore A (and flags get set from A)
 PLP      ; restore original status flags, including N/Z
 
+Source-level inline functions
+-----------------------------
+
+Inline functions do not have a callable ABI. The complete source definition is
+expanded at each call site after the normal direct-call type and argument
+checks. Each expansion receives private parameter, automatic-local, return, and
+label symbols. Arguments are evaluated left-to-right; a ref parameter receives
+an address and dereferences it in the body. Returns converge on a private join
+label.
+
+No inline function symbol, parameter export, return-object export, ABI metadata,
+JSR, RTS, or hardware-stack level is emitted for the inline function itself.
+Ordinary calls appearing in the expanded body still use this document's normal
+ABI and count as calls made by the enclosing ordinary function. Recursive and
+mutually recursive inline-expansion cycles are compile-time errors.
+
+Expansion storage is intentionally not shared or overlaid. This is conservative
+in RAM but prevents an ordinary call inside one expansion from corrupting that
+expansion if the callee contains a different expansion of the same inline
+helper. Inline assembly has no additional ABI protection merely because it is
+inside an inline function.
+
 Direct fixed-parameter ABI
 --------------------------
 

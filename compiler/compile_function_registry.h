@@ -11,6 +11,7 @@
 #include "compile_internal.h"
 
 bool function_has_body(const ASTNode *fn);
+bool function_is_inline(const ASTNode *fn);
 int function_fixed_param_count(const ASTNode *fn);
 void remember_function(const ASTNode *node, const char *name);
 bool function_symbol_name(const ASTNode *fn, const char *fallback_name, char *buf, size_t bufsize);

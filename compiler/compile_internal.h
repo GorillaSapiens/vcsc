@@ -52,6 +52,8 @@ typedef struct Context {
    Set *vars;
    const char *break_label;
    const char *continue_label;
+   const char *return_label;
+   const char *inline_label_prefix;
 } Context;
 
 typedef struct LValueRef {

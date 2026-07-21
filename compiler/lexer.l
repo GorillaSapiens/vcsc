@@ -1799,6 +1799,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "for"           return FOR;
 "goto"          return GOTO;
 "if"            return IF;
+"inline"        return INLINE;
 "include"       return INCLUDE;
 "mem"           return MEM;
 "ref"           return REF;

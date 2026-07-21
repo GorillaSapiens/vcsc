@@ -84,6 +84,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token GE
 %token GOTO
 %token IF
+%token INLINE
 %token INC
 %token INCLUDE
 %token LE
@@ -352,6 +353,7 @@ modifier_list:
 modifier:
     CONST                                    { COVER; $$ = make_identifier_leaf("const"); }
   | EXTERN                                   { COVER; $$ = make_identifier_leaf("extern"); }
+  | INLINE                                   { COVER; $$ = make_identifier_leaf("inline"); }
   | REF                                      { COVER; $$ = make_identifier_leaf("ref"); }
   | STATIC                                   { COVER; $$ = make_identifier_leaf("static"); }
   | MEMNAME                                  { COVER; $$ = make_identifier_leaf($1); }

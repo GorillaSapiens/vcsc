@@ -17,6 +17,7 @@ VCSC is a deliberately small C-like systems language for the Atari 2600/VCS. Thi
 - There are no implicit built-in integer type names. Types are declared explicitly.
 - Struct and union names become types directly. There is no separate `typedef struct foo foo;` dance.
 - Functions return `void`, an ordinary integer value through four bytes, a packed-BCD value through four bytes, or a pointer.
+- Explicit `inline` functions expand their visible source body at each call site without `JSR`/`RTS`.
 - Static function parameters are supported.
 - Operator overloading is intentionally unsupported.
 - Strings can be translated through named `xform` mappings.
@@ -317,6 +318,57 @@ int16_t twice(int16_t x) {
 
 `extern` function declarations are also supported and cause the compiler to emit an import for the referenced symbol. Direct calls require a visible function signature in the current translation unit or via an `extern` declaration; the compiler rejects bare calls to unknown symbols instead of guessing at a call ABI.
 
+### Source-level inline functions
+
+`inline` is an explicit function modifier, not a hint. A call to an inline
+function expands the function body directly at that call site. The normal
+direct-call signature checks still apply, arguments are evaluated left-to-right,
+and `ref` arguments must still be exact-type lvalues.
+
+```vcsc
+inline uint8_t add_one(uint8_t value) {
+   return value + 1`uint8_t;
+}
+
+uint8_t main(void) {
+   return add_one(41`uint8_t);
+}
+```
+
+The definition must be visible before the first call. A preceding compatible
+inline declaration is legal, but a declaration without a body is not enough to
+expand a call. `extern inline` is rejected because there is no separately
+linkable body, and `main` cannot be inline because startup requires its visible
+entry symbol. Inline and non-inline declarations of the same function name are
+incompatible.
+
+Each expansion receives a translation-unit-unique storage namespace. Parameters
+and automatic locals use the same symbol-backed machinery as ordinary functions,
+but their symbols are private to that expansion. A value-returning expansion
+also owns a private exact-sized return object. Every source `return` writes that
+object when needed and jumps to one private return join; the caller then copies
+the result into its surrounding expression. A void inline function uses the
+same join without a return object.
+
+Source labels and `goto` targets are expansion-qualified. Assembler-local labels
+written as `@name` inside inline `asm` receive a separate expansion-qualified
+`asm` namespace, so they cannot collide with source labels, another expansion,
+or the private return join. Compiler-generated control-flow labels remain
+translation-unit unique as usual.
+
+The expansion emits no `.proc`, exported function or parameter symbols, ABI
+metadata, `JSR`, `RTS`, or hardware-stack frame for the inline function itself.
+Ordinary calls made by the inline body remain ordinary calls and are attributed
+to the enclosing non-inline function for call-graph stack sizing. Direct and
+mutual inline-expansion cycles are rejected.
+
+VCSC deliberately gives every expansion distinct static storage rather than
+trying to overlay it. This avoids hidden re-entry corruption when an inline body
+calls an ordinary function whose own body contains another expansion of the
+same helper. The tradeoff is RAM growth per call site, in addition to the
+expected ROM growth from duplicating the body. Inline functions should therefore
+remain small and are primarily intended for cycle-sensitive kernel helpers.
+
 ### One function signature per name
 
 Each source-level function name identifies exactly one signature. Matching declarations and a later definition are allowed, but declaring the same name with different parameter or return types is rejected. Ordinary function overloading is intentionally unsupported.
@@ -545,6 +597,21 @@ When two operands of one binary expression are direct fields of the same runtime
 Every function body owns one fixed activation record containing its parameters, automatic locals, and return object when present. Functions are therefore non-reentrant even when they take no parameters. The compiler rejects direct and mutual call cycles inside a translation unit, and the linker rejects cycles completed across object files.
 
 Function pointers are not part of the VCS subset. Every call target must be a directly named function, so call-graph cycle analysis sees every edge and no indirect-call ABI is required.
+
+### Inline expansion storage
+
+Inline parameters are evaluated with a caller scratch lease and copied into the
+expansion's private parameter symbols before the body begins. `ref` parameters
+store the referenced address and all reads and writes in the body dereference
+that address. Automatic-local initializers execute wherever their declarations
+occur in the expanded body. The expansion's private return object and labels are
+not linker-visible ABI objects.
+
+Because inline bodies have no runtime call boundary, A, X, Y, and P are not
+preserved around the expansion. This is the same compiled statement stream as if
+the helper body had been written at the call site. Inline assembly inside the
+body remains responsible for its own register, flag, decimal-mode, and timing
+contracts.
 
 ## Storage classes and memory regions
 

@@ -36,6 +36,10 @@ bool function_has_body(const ASTNode *fn) {
    return fn && fn->count == 3;
 }
 
+bool function_is_inline(const ASTNode *fn) {
+   return has_modifier((ASTNode *)function_modifiers_node(fn), "inline");
+}
+
 int function_fixed_param_count(const ASTNode *fn) {
    const ASTNode *declarator = function_declarator_node(fn);
    const ASTNode *params = declarator_parameter_list(declarator);
@@ -245,7 +249,8 @@ static bool function_same_declaration(const ASTNode *a, const ASTNode *b) {
    if (declarator_pointer_depth(adecl) != declarator_pointer_depth(bdecl) ||
        !declarator_array_signature_matches_from(adecl, bdecl, 3) ||
        has_modifier((ASTNode *)function_modifiers_node(a), "static") !=
-       has_modifier((ASTNode *)function_modifiers_node(b), "static")) {
+       has_modifier((ASTNode *)function_modifiers_node(b), "static") ||
+       function_is_inline(a) != function_is_inline(b)) {
       return false;
    }
    return function_same_signature(a, b);
@@ -387,11 +392,20 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
 
 void remember_function(const ASTNode *node, const char *name) {
    const ASTNode *previous;
+   const ASTNode *modifiers = function_modifiers_node(node);
 
    validate_function_nonreserved_implementation_names(node);
    validate_function_parameter_storage_modifiers(node);
    if (!name) {
       error_user("[%s:%d.%d] unnamed function declaration is not supported here",
+                 node->file, node->line, node->column);
+   }
+   if (function_is_inline(node) && has_modifier((ASTNode *)modifiers, "extern")) {
+      error_user("[%s:%d.%d] inline function '%s' cannot be extern; its body must be available for source-level expansion",
+                 node->file, node->line, node->column, name);
+   }
+   if (function_is_inline(node) && !strcmp(name, "main")) {
+      error_user("[%s:%d.%d] entry function 'main' cannot be inline because startup requires a linker-visible symbol",
                  node->file, node->line, node->column);
    }
    if (!functions) {

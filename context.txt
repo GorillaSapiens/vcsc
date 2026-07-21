@@ -852,7 +852,7 @@ The first unfinished item is the default next action.
         as controlled vertical slices. Preserve retained source semantics and
         the exact licensing overview while keeping adapted code separate.
 
-        [ ] 20a. Add true source-level inline functions before beginning the
+        [x] 20a. Add true source-level inline functions before beginning the
                   kernel port. Use an explicit `inline` declaration, retain the
                   normal direct-call type checks and argument evaluation rules,
                   and expand the body at each call site without JSR/RTS or
@@ -914,9 +914,10 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-The next queued action is task 20a: add true source-level inline functions before
-translating or integrating retained kernel source. Task 20b then defines the
-first kernel's source-integration contract; it is not a universal kernel ABI.
+Task 20a is complete. The next queued action is task 20b: define the first
+standard kernel module's source-integration contract before translating or
+integrating retained kernel source. It is a per-kernel source contract, not a
+universal kernel ABI.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -2154,3 +2155,34 @@ Before returning another modified archive:
   status-bar, banking, and Superchip variants from that first contract.
 * Update only `context.txt`; make no compiler, library, example, test, build, or
   other documentation changes in this revision.
+
+2026-07-20 20:35:54 PDT, add true source-level inline functions
+------------------------------------------------------------------------
+* Add explicit `inline` function declarations and definitions. Calls retain the
+  ordinary direct-call signature checks and left-to-right argument evaluation,
+  then expand the visible source body directly without emitting a callable
+  function symbol, ABI metadata, JSR, RTS, or an inline hardware-stack level.
+* Give every call-site expansion private parameter, automatic-local, scratch,
+  return-object, and label namespaces. Rewrite source labels/gotos and inline-
+  assembly `@labels` hygienically, with a separate assembler-label namespace
+  from the private return join. Lower every early return through that join.
+* Support nested nonrecursive inline helpers, value and `ref` parameters,
+  automatic locals, void/value returns, and inline assembly. Attribute ordinary
+  calls inside an expansion to the enclosing ordinary function for call-graph
+  stack sizing. Reject missing visible bodies, `extern inline`, inline `main`,
+  incompatible inline/non-inline declarations, modifier misuse, and direct or
+  mutual inline-expansion cycles.
+* Fix bare reads of ordinary `ref` parameters to dereference the stored address
+  rather than copying the two-byte reference slot. The shared lvalue path now
+  gives both ordinary and inline ref parameters the pointed object width.
+* Document that inline functions are source expansion and have no callable ABI;
+  each expansion deliberately receives distinct static storage to prevent
+  hidden re-entry corruption through ordinary calls, trading RAM and ROM for
+  predictable behavior appropriate to small cycle-sensitive helpers.
+* Add compile and end-to-end coverage for duplicate expansions, private locals
+  and returns, source and assembler-label hygiene, early returns, ref mutation
+  and reads, nested inline calls, argument order, ordinary calls from expanded
+  bodies, cycle rejection, body visibility, and invalid modifier placements.
+  Pass 281/281 compile tests and 126/126 end-to-end/generic tests. Task 20b is
+  now the next queued action.
+

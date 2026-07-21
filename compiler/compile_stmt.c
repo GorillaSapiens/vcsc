@@ -37,6 +37,30 @@ static const char *named_loop_continue_stack[128];
 static int named_loop_depth = 0;
 static const char *pending_loop_label_name = NULL;
 
+void statement_compile_state_push(StatementCompileState *saved) {
+   if (!saved) {
+      return;
+   }
+   saved->loop_depth = loop_depth;
+   saved->named_loop_depth = named_loop_depth;
+   saved->pending_loop_label_name = pending_loop_label_name;
+   loop_depth = 0;
+   named_loop_depth = 0;
+   pending_loop_label_name = NULL;
+}
+
+void statement_compile_state_pop(const StatementCompileState *saved) {
+   if (!saved) {
+      return;
+   }
+   if (loop_depth != 0 || named_loop_depth != 0 || pending_loop_label_name != NULL) {
+      error_unreachable("unbalanced statement-control state while lowering inline function");
+   }
+   loop_depth = saved->loop_depth;
+   named_loop_depth = saved->named_loop_depth;
+   pending_loop_label_name = saved->pending_loop_label_name;
+}
+
 typedef CompilerScratchLease StmtFixedScratch;
 
 //! @brief Prepare one reusable fixed-address statement working area.
@@ -76,6 +100,19 @@ static void compile_goto_stmt(ASTNode *node, Context *ctx);
 static void compile_switch_stmt(ASTNode *node, Context *ctx);
 static void compile_return_stmt(ASTNode *node, Context *ctx);
 static void compile_asm_stmt(ASTNode *node, Context *ctx);
+
+static void format_context_local_label(const Context *ctx, const char *base,
+                                       char *buf, size_t bufsize) {
+   if (!buf || bufsize == 0) {
+      return;
+   }
+   if (ctx && ctx->inline_label_prefix && *ctx->inline_label_prefix) {
+      snprintf(buf, bufsize, "@%s_%s", ctx->inline_label_prefix, base ? base : "");
+   }
+   else {
+      snprintf(buf, bufsize, "@%s", base ? base : "");
+   }
+}
 
 //! @brief Return decl subitem declarator data used by compiler statement lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *decl_subitem_declarator(const ASTNode *node) {
@@ -478,6 +515,11 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    validate_nonreserved_implementation_name(name, node);
    emit_mem_region_metadata_for_modifiers(node, modifiers);
 
+   if (has_modifier(modifiers, "inline")) {
+      error_user("[%s:%d.%d] 'inline' applies only to function declarations and definitions",
+                 node->file, node->line, node->column);
+   }
+
    if (entry != NULL) {
       return;
    }
@@ -810,8 +852,12 @@ static void compile_do_stmt(ASTNode *node, Context *ctx) {
 
 //! @brief Lower label stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_label_stmt(ASTNode *node, Context *ctx) {
-   (void) ctx;
-   emit(&es_code, "@user_%s:\n", node->children[0]->strval);
+   char label[512];
+   char base[384];
+
+   snprintf(base, sizeof(base), "user_%s", node->children[0]->strval);
+   format_context_local_label(ctx, base, label, sizeof(label));
+   emit(&es_code, "%s:\n", label);
    if (node->count > 1) {
       ASTNode *stmt = node->children[1];
       const char *saved_pending = pending_loop_label_name;
@@ -875,9 +921,12 @@ static void compile_label_stmt(ASTNode *node, Context *ctx) {
 
 //! @brief Lower goto stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_goto_stmt(ASTNode *node, Context *ctx) {
-   (void) ctx;
    if (node->count > 0 && !is_empty(node->children[0])) {
-      emit(&es_code, "    jmp @user_%s\n", node->children[0]->strval);
+      char label[512];
+      char base[384];
+      snprintf(base, sizeof(base), "user_%s", node->children[0]->strval);
+      format_context_local_label(ctx, base, label, sizeof(label));
+      emit(&es_code, "    jmp %s\n", label);
    }
 }
 
@@ -1124,9 +1173,10 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
 static void compile_return_stmt(ASTNode *node, Context *ctx) {
    ContextEntry *ret = (ContextEntry *) set_get(ctx->vars, "$$");
    ASTNode *expr = (node->count > 0) ? node->children[0] : NULL;
+   const char *return_label = (ctx && ctx->return_label) ? ctx->return_label : "@fini";
 
    if (!expr || is_empty(expr)) {
-      emit(&es_code, "    jmp @fini\n");
+      emit(&es_code, "    jmp %s\n", return_label);
       return;
    }
 
@@ -1137,7 +1187,7 @@ static void compile_return_stmt(ASTNode *node, Context *ctx) {
    if (!compile_expr_to_return_object(expr, ctx, ret)) {
       error_user("[%s:%d.%d] invalid return expression", node->file, node->line, node->column);
    }
-   emit(&es_code, "    jmp @fini\n");
+   emit(&es_code, "    jmp %s\n", return_label);
 }
 
 
@@ -1419,9 +1469,68 @@ static char *rewrite_inline_asm_refs(const ASTNode *node, Context *ctx, const ch
    return out;
 }
 
+//! @brief Give assembler-local labels inside one inline expansion a call-site prefix.
+static char *rewrite_inline_asm_local_labels(const Context *ctx, const char *line) {
+   const char *p = line;
+   char *out = NULL;
+   size_t out_len = 0;
+   size_t out_cap = 0;
+   char quote = '\0';
+
+   if (!ctx || !ctx->inline_label_prefix || !*ctx->inline_label_prefix || !line) {
+      return strdup(line ? line : "");
+   }
+
+   while (*p) {
+      if (quote) {
+         inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         if (*p == '\\' && p[1]) {
+            p++;
+            inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         }
+         else if (*p == quote) {
+            quote = '\0';
+         }
+         p++;
+         continue;
+      }
+      if (*p == '\'' || *p == '"') {
+         quote = *p;
+         inline_asm_append(&out, &out_len, &out_cap, p, 1);
+         p++;
+         continue;
+      }
+      if (*p == ';') {
+         inline_asm_append(&out, &out_len, &out_cap, p, strlen(p));
+         break;
+      }
+      if (*p == '@' && inline_asm_identifier_start((unsigned char)p[1]) &&
+          (p == line || (!inline_asm_identifier_continue((unsigned char)p[-1]) && p[-1] != '?'))) {
+         const char *name_start = p + 1;
+         const char *name_end = name_start;
+         char prefix[320];
+
+         while (inline_asm_identifier_continue((unsigned char)*name_end)) {
+            name_end++;
+         }
+         snprintf(prefix, sizeof(prefix), "@%s_asm_", ctx->inline_label_prefix);
+         inline_asm_append(&out, &out_len, &out_cap, prefix, strlen(prefix));
+         inline_asm_append(&out, &out_len, &out_cap, name_start,
+                           (size_t)(name_end - name_start));
+         p = name_end;
+         continue;
+      }
+      inline_asm_append(&out, &out_len, &out_cap, p, 1);
+      p++;
+   }
+
+   return out ? out : strdup(line);
+}
+
 //! @brief Lower asm stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_asm_stmt(ASTNode *node, Context *ctx) {
    char *rewritten;
+   char *localized;
 
    if (!node || is_empty(node) || node->count < 1 || !node->children[0]) {
       return;
@@ -1437,7 +1546,13 @@ static void compile_asm_stmt(ASTNode *node, Context *ctx) {
    if (!rewritten) {
       error_unreachable("out of memory rewriting inline asm");
    }
-   emit(&es_code, EMIT_INLINE_ASM_BEGIN_MARKER "\n%s\n" EMIT_INLINE_ASM_END_MARKER "\n", rewritten);
+   localized = rewrite_inline_asm_local_labels(ctx, rewritten);
+   if (!localized) {
+      free(rewritten);
+      error_unreachable("out of memory localizing inline asm labels");
+   }
+   emit(&es_code, EMIT_INLINE_ASM_BEGIN_MARKER "\n%s\n" EMIT_INLINE_ASM_END_MARKER "\n", localized);
+   free(localized);
    free(rewritten);
 }
 

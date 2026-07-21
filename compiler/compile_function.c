@@ -291,6 +291,12 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
          continue;
       }
 
+      if (has_modifier((ASTNode *)modifiers, "inline")) {
+         error_user("[%s:%d.%d] parameter %d of function '%s' cannot use 'inline'",
+                    parameter->file, parameter->line, parameter->column,
+                    i + 1, fname);
+      }
+
       if (!has_modifier((ASTNode *) modifiers, "static")) {
          continue;
       }

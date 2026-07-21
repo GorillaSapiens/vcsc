@@ -234,7 +234,9 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
       out->write_expr = entry->write_expr;
       out->base_offset = entry->offset;
       out->offset = entry->offset;
-      out->size = entry->size;
+      out->size = entry->is_ref
+         ? declarator_storage_size(entry->type, entry->declarator)
+         : entry->size;
       if (entry->is_ref) {
          out->indirect = true;
       }
@@ -1200,7 +1202,9 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
    out->write_expr = entry->write_expr;
    out->base_offset = entry->offset;
    out->offset = entry->offset;
-   out->size = entry->size;
+   out->size = entry->is_ref
+      ? declarator_storage_size(entry->type, entry->declarator)
+      : entry->size;
    out->deref_depth = 0;
    out->indirect = entry->is_ref;
 }

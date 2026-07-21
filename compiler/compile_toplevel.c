@@ -145,6 +145,9 @@ void compile_function_decl(ASTNode *node) {
 
    validate_function_return_type(node);
    remember_function(node, name);
+   if (function_is_inline(node)) {
+      return;
+   }
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
@@ -172,6 +175,8 @@ void compile_function_decl(ASTNode *node) {
    ctx.vars = new_set();
    ctx.break_label = NULL;
    ctx.continue_label = NULL;
+   ctx.return_label = "@fini";
+   ctx.inline_label_prefix = NULL;
    build_function_context(node, &ctx);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
@@ -552,6 +557,11 @@ void compile_global_decl_item(ASTNode *node) {
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
 
+   if (has_modifier(modifiers, "inline")) {
+      error_user("[%s:%d.%d] 'inline' applies only to function declarations and definitions",
+                 node->file, node->line, node->column);
+   }
+
    if (!globals) {
       globals = new_set();
    }
@@ -748,6 +758,10 @@ static void compile_function_signature(ASTNode *node) {
 
    validate_function_return_type(node);
    remember_function(node, name);
+
+   if (function_is_inline(node)) {
+      return;
+   }
 
    if (!has_modifier(modifiers, "static")) {
       if (!function_symbol_name(node, name, sym, sizeof(sym))) {

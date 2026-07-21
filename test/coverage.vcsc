@@ -325,3 +325,6 @@ int16_t function4(void) {
    static int16_t runtime_seed := function1(1) + 2;
    return runtime_seed;
 }
+
+inline void inline_coverage(void) {
+}

@@ -16,9 +16,201 @@
 #include "compile_lvalue.h"
 #include "compile_function_registry.h"
 #include "compile_support.h"
+#include "compile_stmt.h"
 #include "compile_type.h"
 #include "integer.h"
 #include "messages.h"
+
+#define INLINE_EXPANSION_MAX_DEPTH 128
+
+static const ASTNode *inline_expansion_stack[INLINE_EXPANSION_MAX_DEPTH];
+static int inline_expansion_depth = 0;
+static int inline_expansion_counter = 0;
+
+static void inline_expansion_push(const ASTNode *fn, const ASTNode *call_expr) {
+   const char *name = declarator_name(function_declarator_node(fn));
+
+   for (int i = 0; i < inline_expansion_depth; i++) {
+      if (inline_expansion_stack[i] == fn) {
+         error_user("[%s:%d.%d] recursive inline-expansion cycle reaches function '%s'",
+                    call_expr->file, call_expr->line, call_expr->column,
+                    name ? name : "<unnamed>");
+      }
+   }
+   if (inline_expansion_depth >= INLINE_EXPANSION_MAX_DEPTH) {
+      error_user("[%s:%d.%d] inline expansion nesting exceeds %d levels",
+                 call_expr->file, call_expr->line, call_expr->column,
+                 INLINE_EXPANSION_MAX_DEPTH);
+   }
+   inline_expansion_stack[inline_expansion_depth++] = fn;
+}
+
+static void inline_expansion_pop(const ASTNode *fn) {
+   if (inline_expansion_depth <= 0 || inline_expansion_stack[inline_expansion_depth - 1] != fn) {
+      error_unreachable("unbalanced inline expansion stack");
+   }
+   inline_expansion_depth--;
+}
+
+//! @brief Lower one direct source-level inline expansion at the current call site.
+static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
+                                       ASTNode *callee, ASTNode *args,
+                                       const ASTNode *fn, const ASTNode *declarator,
+                                       const ASTNode *ret_type, int ret_size,
+                                       ASTNode *call_expr) {
+   const ASTNode *params = declarator_parameter_list(declarator);
+   ASTNode *body;
+   Context inline_ctx;
+   ContextEntry *return_entry;
+   StatementCompileState stmt_state;
+   CompilerScratchLease arg_scratch;
+   bool have_arg_scratch;
+   int arg_count = (args && !is_empty(args)) ? args->count : 0;
+   int actual_index = 0;
+   int expansion_id = inline_expansion_counter++;
+   char callee_sym[256];
+   char context_name[768];
+   char label_prefix[64];
+   char return_label[96];
+   char return_sym[1024];
+
+   if (!function_has_body(fn)) {
+      const char *inline_name = declarator_name(function_declarator_node(fn));
+      error_user("[%s:%d.%d] inline function '%s' is called without a visible definition",
+                 call_expr->file, call_expr->line, call_expr->column,
+                 inline_name ? inline_name : "<unnamed>");
+   }
+   body = fn->children[2];
+   if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym))) {
+      return false;
+   }
+
+   snprintf(label_prefix, sizeof(label_prefix), "inline_%d", expansion_id);
+   snprintf(return_label, sizeof(return_label), "@%s_return", label_prefix);
+   /* The expansion id is translation-unit unique, so storage does not need to
+      inherit the caller's context name. Keeping this name flat prevents deeply
+      nested inline helpers from growing assembler symbols at every level. */
+   snprintf(context_name, sizeof(context_name), "__inline$%d$%s",
+            expansion_id, callee_sym);
+
+   memset(&inline_ctx, 0, sizeof(inline_ctx));
+   inline_ctx.name = strdup(context_name);
+   if (!inline_ctx.name) {
+      error_unreachable("out of memory naming inline expansion");
+   }
+   inline_ctx.vars = new_set();
+   inline_ctx.return_label = strdup(return_label);
+   inline_ctx.inline_label_prefix = strdup(label_prefix);
+   if (!inline_ctx.return_label || !inline_ctx.inline_label_prefix) {
+      error_unreachable("out of memory naming inline labels");
+   }
+
+   build_function_context(fn, &inline_ctx);
+   return_entry = (ContextEntry *)set_get(inline_ctx.vars, "$$");
+   if (!is_empty(body) && !strcmp(body->name, "statement_list")) {
+      predeclare_statement_list(body, &inline_ctx);
+   }
+
+   emit_function_parameter_storage(fn, &inline_ctx);
+   if (function_has_return_object(fn)) {
+      if (!return_entry || !entry_symbol_name(&inline_ctx, return_entry,
+                                              return_sym, sizeof(return_sym))) {
+         error_unreachable("[%s:%d.%d] invalid inline return object",
+                           call_expr->file, call_expr->line, call_expr->column);
+      }
+      emit(&es_zp, ".segment \"ZEROPAGE\"\n");
+      emit(&es_zp, "%s:\n", return_sym);
+      emit(&es_zp, "\t.res %d\n", return_entry->size);
+   }
+
+   have_arg_scratch = arg_count > 0;
+   if (have_arg_scratch) {
+      compiler_scratch_acquire(caller_ctx, 1, &arg_scratch);
+   }
+
+   if (params && !is_empty(params)) {
+      for (int i = 0; i < params->count && actual_index < arg_count; i++) {
+         const ASTNode *parameter = params->children[i];
+         const ASTNode *ptype = parameter_type(parameter);
+         const ASTNode *pdecl = parameter_declarator(parameter);
+         const char *pname;
+         ContextEntry *pentry;
+         ContextEntry tmp;
+         char param_sym[1024];
+         int psz;
+         bool ok;
+
+         if (!ptype || parameter_is_void(parameter)) {
+            continue;
+         }
+         pname = parameter_name(parameter, i);
+         pentry = ctx_lookup(&inline_ctx, pname);
+         if (!pentry || !entry_symbol_name(&inline_ctx, pentry,
+                                           param_sym, sizeof(param_sym))) {
+            if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+            error_unreachable("[%s:%d.%d] missing inline parameter storage for '%s'",
+                              call_expr->file, call_expr->line, call_expr->column,
+                              pname ? pname : "?");
+         }
+         psz = parameter_storage_size(parameter);
+         memset(&tmp, 0, sizeof(tmp));
+         tmp.name = "$inline_arg";
+         tmp.type = parameter_is_ref(parameter) ? required_typename_node("*") : ptype;
+         tmp.declarator = parameter_is_ref(parameter)
+            ? NULL : call_adjusted_parameter_declarator(pdecl, false);
+         tmp.target_typed = true;
+         tmp.size = psz;
+
+         if (psz > arg_scratch.reserved) {
+            arg_scratch.reserved = psz;
+         }
+         compiler_scratch_activate(caller_ctx, &arg_scratch);
+         if (parameter_is_ref(parameter)) {
+            ok = compile_ref_argument_to_slot(args->children[actual_index], caller_ctx, 0, psz);
+         }
+         else {
+            ok = compile_expr_to_slot(args->children[actual_index], caller_ctx, &tmp);
+         }
+         if (ok) {
+            emit_copy_scratch_to_symbol(param_sym, 0, psz);
+         }
+         compiler_scratch_deactivate(caller_ctx, &arg_scratch);
+         if (!ok) {
+            if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+            return false;
+         }
+         actual_index++;
+      }
+   }
+   if (have_arg_scratch) {
+      compiler_scratch_release(&arg_scratch);
+   }
+
+   inline_expansion_push(fn, call_expr);
+   statement_compile_state_push(&stmt_state);
+   emit(&es_code, "; begin inline expansion %s #%d\n", callee_sym, expansion_id);
+   if (!is_empty(body)) {
+      if (strcmp(body->name, "statement_list")) {
+         error_unreachable("[%s:%d.%d] unexpected inline function body node '%s'",
+                           body->file, body->line, body->column, body->name);
+      }
+      compile_statement_list(body, &inline_ctx);
+   }
+   emit(&es_code, "%s:\n", inline_ctx.return_label);
+   emit(&es_code, "; end inline expansion %s #%d\n", callee_sym, expansion_id);
+   statement_compile_state_pop(&stmt_state);
+   inline_expansion_pop(fn);
+
+   if (dst && ret_size > 0) {
+      if (!return_entry || !entry_symbol_name(&inline_ctx, return_entry,
+                                              return_sym, sizeof(return_sym))) {
+         return false;
+      }
+      emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type,
+                                          return_sym, ret_size, ret_type);
+   }
+   return true;
+}
 
 //! @brief Lower an ordinary direct call using callee-owned symbols and fixed call-site scratch.
 static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
@@ -196,6 +388,10 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (ret_size < 0) {
       ret_size = 0;
+   }
+   if (function_is_inline(fn)) {
+      return compile_inline_symbol_call(ctx, dst, callee, args, fn, declarator,
+                                        ret_type, ret_size, expr);
    }
    return compile_direct_symbol_call(ctx, dst, callee, args, fn, declarator,
                                      ret_type, ret_size);

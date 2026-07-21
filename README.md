@@ -161,8 +161,10 @@ decimal mode clear afterward. Multiplication, division, remainder, shifts,
 bitwise operations, unary minus, BCD bitfields, and runtime BCD/binary
 conversions are rejected. All four BCD widths may be stored, passed as parameters,
 and returned. Value-returning functions expose an exact-sized callee-owned
-`function$__return` object; callers copy from that object after `jsr`, so the
-ABI no longer has a register-width ceiling.
+`function$__return` object; ordinary callers copy from that object after
+`jsr`, so the ABI no longer has a register-width ceiling. Source-level inline
+functions instead use a private call-site return object and join label and have
+no callable ABI symbol.
 
 Untyped ordinary integer literals still default to `int16_t`, but a typed 24-
 or 32-bit destination, operand, parameter, return, or annotation supplies the
@@ -175,6 +177,31 @@ the destination width may be used as that width's bit pattern. Expression-level 
 values.
 
 Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
+
+## Inline functions
+
+A function declared `inline` is expanded from its visible source definition at
+each direct call site. Arguments are still checked and evaluated left-to-right,
+including exact-type lvalue checking for `ref` parameters, but the expansion
+emits no `JSR`, `RTS`, linker-visible function symbol, return ABI object, or
+hardware-stack frame. Parameters, locals, return storage, source labels, and
+assembler-local `@labels` receive private expansion-qualified names, and each
+`return` jumps to that expansion's private join label.
+
+```vcsc
+inline uint8_t clamp_high(uint8_t value, uint8_t high) {
+   if (value > high) {
+      return high;
+   }
+   return value;
+}
+```
+
+The complete inline definition must appear before its first call. `extern
+inline`, inline `main`, and direct or mutual inline-expansion cycles are rejected.
+Inline functions are intended for small timing-sensitive helpers; duplicating a
+large body also duplicates its ROM code and reserves separate static storage at
+each expansion site.
 
 ## Floating-point values
 

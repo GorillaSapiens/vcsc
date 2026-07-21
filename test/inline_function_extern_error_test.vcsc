@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: inline function 'helper' cannot be extern
+
+include "machine_6502.vcsc"
+extern inline uint8_t helper(uint8_t value);

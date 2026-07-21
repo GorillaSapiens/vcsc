@@ -844,6 +844,8 @@ void emit_runtime_global_init_function(void) {
    ctx.vars = new_set();
    ctx.break_label = NULL;
    ctx.continue_label = NULL;
+   ctx.return_label = NULL;
+   ctx.inline_label_prefix = NULL;
 
    compiler_scratch_acquire(&ctx, pending_global_init_max_size, &scratch);
    emit(&es_code, ".proc %s\n", sym);

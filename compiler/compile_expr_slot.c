@@ -464,6 +464,40 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                return true;
             }
          }
+         if (entry && entry->is_ref) {
+            int value_size = declarator_storage_size(entry->type, entry->declarator);
+            LValueRef lv = {
+               .name = entry->name,
+               .type = entry->type,
+               .declarator = entry->declarator,
+               .base_type = entry->type,
+               .base_declarator = entry->declarator,
+               .is_static = entry->is_static,
+               .is_zeropage = entry->is_zeropage,
+               .is_global = entry->is_global,
+               .is_ref = true,
+               .is_absolute_ref = false,
+               .read_expr = entry->read_expr,
+               .write_expr = entry->write_expr,
+               .offset = entry->offset,
+               .size = value_size
+            };
+            if (dst->size == value_size && dst->type == entry->type) {
+               return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, value_size);
+            }
+            {
+               SlotFixedScratch scratch;
+               slot_fixed_scratch_begin(ctx, value_size, &scratch);
+               if (!emit_copy_lvalue_to_scratch(ctx, 0, &lv, value_size)) {
+                  slot_fixed_scratch_abort(ctx, &scratch);
+                  return false;
+               }
+               slot_fixed_scratch_deactivate(ctx, &scratch);
+               emit_slot_fixed_scratch_result(ctx, &scratch, 0, value_size, entry->type, dst);
+               slot_fixed_scratch_finish(&scratch);
+               return true;
+            }
+         }
          if (entry && !entry->is_static && !entry->is_zeropage) {
             emit_copy_scratch_to_scratch_convert(dst->offset, dst->size, dst->type, entry->offset, entry->size, entry->type);
             return true;
