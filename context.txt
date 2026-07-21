@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_193850.tar.gz
+    vcsc.20260720_213235.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -2186,3 +2186,14 @@ Before returning another modified archive:
   Pass 281/281 compile tests and 126/126 end-to-end/generic tests. Task 20b is
   now the next queued action.
 
+2026-07-20 21:46:00 PDT, broaden ref-parameter runtime coverage
+----------------------------------------------------------------
+* Add `test/e2e_ref_parameter_matrix_verify.vcsc` as permanent runtime coverage
+  for bare reads through ordinary and `static ref` parameters.
+* Cover unsigned values of one through four bytes, widening, narrowing, signed
+  extension, forwarding one ref parameter to another function, write-then-read,
+  two-ref swaps, same-object aliasing, and a static-ref parameter mixed with an
+  ordinary value parameter.
+* Cover ref arguments formed from array elements, structure members, and
+  dereferenced pointers in addition to simple variables.
+* The current compiler passes the expanded matrix without code changes.
