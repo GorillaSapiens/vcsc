@@ -888,7 +888,7 @@ The first unfinished item is the default next action.
                   constraints only where the converted source demonstrably
                   requires them. Do not treat this contract as covering vertical-
                   reflect, multisprite, status-bar, banking, or Superchip variants.
-        [ ] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
+        [x] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
                   retained macros, directives, conditionals, expressions, and
                   forced addressing modes needed by that one configuration.
         [ ] 20d. Build a no-bankswitch, no-Superchip standard-kernel cartridge
@@ -927,9 +927,9 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a and 20b are complete. The next queued action is task 20c: add a
-reproducible DASM-to-vcsc-as normalization path for only the retained source and
-five macros required by the selected minimal standard-kernel configuration.
+Tasks 20a through 20c are complete. The next queued action is task 20d: build
+the first no-bankswitch, no-Superchip cartridge from the normalized standard
+kernel and verify its final map, opcode bytes, and stable 262-line NTSC timing.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -2307,3 +2307,34 @@ Before returning another modified archive:
   and rejects any surviving `vcsc.*` path. Pass 283/283 compile tests,
   129/129 end-to-end/generic tests, and staged installation. Task 20c remains
   the next queued action.
+
+2026-07-21 01:03:00 PDT, normalize the selected standard-kernel source
+------------------------------------------------------------------------
+* Complete task 20c with a deterministic narrow normalizer under
+  `libraries/vcs/kernels/standard_4k_ntsc/`. It reads only the five retained
+  source inputs selected by the task-20b contract, embeds each input SHA-256,
+  fails when expected retained relationships change, and regenerates checked-in
+  output byte-for-byte.
+* Port `SLEEP`, `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN` into
+  `standard_4k_ntsc_macros.inc`. Keep hygienic macro locals, exact odd-cycle
+  `$04,$00` NOP behavior, named parameters, and an explicit error for the
+  excluded bankswitch return path.
+* Generate `standard_4k_ntsc_kernel.s` from the active unbanked, non-reflected
+  NTSC branches of the retained overscan/kernel sources and the exact 88-byte
+  default score table. Preserve retained comments; localize assembly labels;
+  bind fixed-map names to task-20b module symbols; map `SBX`/`ASR` to
+  `AXS`/`ALR`; convert DASM forced `.w` modes; and preserve both page guards.
+  Express the address-dependent DASM page-tail repeat as sixteen layout-time
+  conditional NOP slots because `vcsc-as` expands `.repeat` before layout.
+* Add a focused regression that checks reproducible generation, all five macro
+  ports, selected dialect removal, exact score data, explicit addressing modes,
+  page guards, current o26/map output, rejection without `--illegals`, and a
+  smoke assembly invoking every macro. Install and staged-assemble the generated
+  `.s` and `.inc` files while keeping `normalize.pl` source-tree-only because the
+  installed data set does not include all retained generator inputs.
+* Keep the retained legacy source tree byte-for-byte unchanged. Pass 283/283
+  compile tests, 130/130 end-to-end/generic tests, and staged installation.
+  Task 20d is the next queued action: link this normalized object into the first
+  real standard-kernel cartridge and verify final placement, bytes, and scanline
+  timing.
+

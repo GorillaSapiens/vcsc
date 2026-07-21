@@ -83,10 +83,17 @@ underscores, and width overflow after normalization.
 
 `vcs_standard_kernel_contract.test` enforces the task-20b source contract for
 the first minimal unbanked 4K NTSC standard-kernel module. It checks the
-module-owned state groups and 86-byte span, the documented frame/clobber/page
-contract, the two-byte hidden assembly-stack reserve, the linker map and
-generated symbols, rejection of `callstack_extra` without call-graph sizing,
-and a real 4096-byte smoke cartridge.
+38-byte mandatory state span, the application-provided RAM-or-ROM playfield,
+the documented frame/clobber/page contract, the two-byte hidden assembly-stack
+reserve, the linker map and generated symbols, rejection of `callstack_extra`
+without call-graph sizing, and both 4096-byte storage-choice smoke cartridges.
+
+`vcs_standard_kernel_normalization.test` enforces task 20c. It regenerates the
+selected source beside the checked-in outputs and requires byte identity,
+checks all five deliberate macro ports and the selected DASM transformations,
+assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
+segment map and score table, rejects assembly without unofficial mnemonics, and
+assembles a smoke source that invokes every retained macro.
 
 ### `.test` files
 

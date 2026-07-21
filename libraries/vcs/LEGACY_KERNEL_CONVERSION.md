@@ -81,10 +81,12 @@ kernels:
 - named unofficial instructions through `--illegals`;
 - raw `opXX` spellings when an exact unofficial byte is required.
 
-The retained kernels use unofficial `DCP` 22 times, `LAX` 13 times, and `SBX`
-10 times. All three are representable by the existing illegal-opcode table.
-That is not a blocker, but every converted kernel build must deliberately enable
-that table and must regression-test the emitted bytes.
+Across all retained kernels, unofficial `DCP` appears 22 times, `LAX` 13 times,
+and `SBX` 10 times. All are representable by the existing illegal-opcode table.
+The selected minimal branch that survives normalization currently uses `SBX`
+(normalized as `AXS`) and `ASR` (normalized as `ALR`). Every converted kernel
+build must deliberately enable the unofficial table and task 20d must
+regression-test the final emitted bytes.
 
 ## Mechanical DASM-to-VCSC syntax work
 
@@ -127,12 +129,17 @@ state used by its selected conditional configuration and lets the ordinary
 compiler/linker allocator place it.
 
 The first contract is now maintained under
-`kernels/standard_4k_ntsc/`. Its baseline state is 86 bytes. Only layout
-relationships used by indexed or cycle-sensitive assembly remain contractual:
+`kernels/standard_4k_ntsc/`. It declares 38 mandatory RIOT bytes: 23 bytes of
+application-visible object/score state and 15 bytes of private workspace. The
+application separately supplies one contiguous 48-byte playfield in mutable RAM
+or constant ROM under the direct-linked symbol `vcs_standard_playfield`. Only
+layout relationships used by indexed or cycle-sensitive assembly remain
+contractual:
 
 - five horizontal positions in one array;
 - the six score-pointer bytes immediately followed by six transient bytes;
-- one contiguous 48-byte playfield;
+- one contiguous application-provided 48-byte playfield with a timing-safe
+  symbol low byte in `$54..$D0`;
 - player graphics and the score table kept within individual 256-byte pages;
 - the source's two page-alignment guards retained for cycle-critical code.
 
@@ -212,20 +219,33 @@ ordinary allocation; the normalized assembly refers to that module symbol.
 ### Phase 1 — source-integration contract (complete)
 
 The maintained `kernels/standard_4k_ntsc/` contract now selects one exact
-configuration, declares its 86 bytes of module-owned state, documents frame and
-register ownership, records real adjacency/page constraints, and supplies a
-matching linker configuration with a two-byte hidden-stack allowance.
+configuration, declares 38 mandatory module bytes plus the application-provided
+RAM-or-ROM playfield, documents frame and register ownership, records real
+adjacency/page constraints, and supplies a matching linker configuration with a
+two-byte hidden-stack allowance.
 
-### Phase 2 — reproducible source normalization
+### Phase 2 — reproducible source normalization (complete)
 
-1. Keep retained source semantics unchanged and preserve its exact
-   `LICENSE.txt`; place adapted code beside the contract.
-2. Port the five macros deliberately rather than adding broad DASM emulation.
-3. Translate directives, conditionals, expressions, and forced addressing modes
-   mechanically for only the selected configuration.
-4. Replace old fixed-address names with the module symbols and explicit offsets
-   established by the contract.
-5. Assemble with `vcsc-as --illegals` and preserve listings/maps for review.
+`kernels/standard_4k_ntsc/normalize.pl` now reads only the selected retained
+inputs and deterministically generates:
+
+- `standard_4k_ntsc_macros.inc`, containing deliberate ports of all five macros;
+- `standard_4k_ntsc_kernel.s`, containing the active overscan/visible kernel and
+  exact 88-byte default score table.
+
+Both generated files embed SHA-256 provenance for every retained input. The
+normalizer selects only the documented configuration, preserves comments,
+localizes retained labels, maps fixed-map names to module symbols, converts
+conditionals and expressions, maps `SBX`/`ASR` to `AXS`/`ALR`, converts `.w` to
+explicit addressing-family suffixes, and preserves the two page guards. The
+address-dependent DASM page-tail repeat is represented by sixteen layout-time
+conditional NOP slots because `vcsc-as` expands `.repeat` before layout.
+
+The regression regenerates both files byte-for-byte, rejects stale outputs,
+assembles the kernel with `vcsc-as --illegals`, verifies its current o26/map,
+checks the five macros separately, and proves the selected source is rejected
+without unofficial mnemonics enabled. The retained source tree itself remains
+untouched.
 
 ### Phase 3 — minimal standard-kernel cartridge
 

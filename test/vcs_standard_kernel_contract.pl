@@ -109,7 +109,7 @@ my @required_readme=(
    'Selected configuration', 'Frame ownership', 'State ownership and RAM cost',
    'What the 48-byte playfield represents', 'Demonstrable placement constraints',
    'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
-   'ROM and feature-cost ledger', 'Retained-source boundary for task 20c',
+   'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
    'callstack_extra = $0002', 'Mandatory module-declared RAM', '38',
    'fixed ROM playfield', 'mutable RAM playfield', '32 independently controlled bits',

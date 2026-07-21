@@ -12,9 +12,10 @@ standard kernel. It is deliberately narrower than “the standard kernel” as a
 whole. It covers one non-reflected, non-banked, non-Superchip NTSC configuration
 and nothing else.
 
-The mechanically normalized assembly is not present yet. Task 20c adds that
-source without changing the contract below; task 20d first assembles and times
-it.
+Task 20c added a deterministic source normalizer and checked-in `vcsc-as`
+output beside this contract. The normalized source assembles independently to a
+reviewable `.o26` object. Task 20d will link that object into the first real
+cartridge and verify its final placement and scanline timing.
 
 ## Selected configuration
 
@@ -36,6 +37,54 @@ The following retained options are absent and are outside this contract:
 
 No optional application hook is enabled in the minimal profile. Task 20e may add
 one stack-safe void vblank/overscan hook after the static cartridge is stable.
+
+## Reproducible normalized source
+
+The task-20c artifacts are:
+
+- `normalize.pl` — the deliberately narrow deterministic translator;
+- `standard_4k_ntsc_macros.inc` — explicit `vcsc-as` ports of `SLEEP`,
+  `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN`; and
+- `standard_4k_ntsc_kernel.s` — the selected overscan, visible kernel, and
+  88-byte default score table normalized into current assembler syntax.
+
+Regenerate and verify them from the repository root with:
+
+```sh
+libraries/vcs/kernels/standard_4k_ntsc/normalize.pl
+libraries/vcs/kernels/standard_4k_ntsc/normalize.pl --check
+```
+
+The normalizer reads only the retained-source boundary listed below, embeds the
+SHA-256 of every input in both outputs, and fails if the selected source
+relationships no longer match. A fresh generation is byte-compared with the
+checked-in files by the test suite. `normalize.pl` is a source-checkout
+development tool and is not installed, because the installed support bundle does
+not carry all retained generator inputs; the generated `.s` and `.inc` files are
+installed.
+
+The conversion is intentionally not a general DASM-compatibility mode. It
+selects only this profile's active conditional branches, changes bare DASM
+labels to procedure-local `@label:` definitions, binds retained fixed-map names
+to the module symbols, maps `SBX`/`ASR` to the assembler's `AXS`/`ALR` names,
+converts forced `.w` addressing to `.a`/`.ax`/`.ay`, and preserves the two
+page-alignment guards. DASM's address-dependent page-tail `REPEAT` cannot use
+`vcsc-as`'s pre-layout `.repeat`; the normalizer emits sixteen conditional NOP
+slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
+Retained comments are copied without symbol rewriting.
+
+The selected source must be assembled with unofficial mnemonics enabled:
+
+```sh
+vcsc-as --illegals \
+  -I libraries/vcs/kernels/standard_4k_ntsc \
+  -o standard_4k_ntsc_kernel.o26 \
+  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
+```
+
+That produces an unresolved relocatable kernel object by design. Linking it to
+module state, enforcing final page placement, checking exact opcode bytes, and
+proving 262-line timing belong to task 20d.
 
 ## Source-level inclusion
 
@@ -165,8 +214,8 @@ Most state has no fixed address. Only these constraints are contractual:
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
   retained blank glyph therefore cannot cross a page boundary.
 - Two cycle-critical code regions retain page-alignment guards from the source.
-  Task 20c must preserve those guards with `.align 256`; no absolute ROM address
-  is required.
+  The normalized source preserves both guards with `.align 256`; no absolute ROM
+  address is required.
 
 The task-20b regression builds both a RAM and a ROM playfield and rejects either
 linked address if its low byte falls outside `$54..$D0`. Task 20d must retain the
@@ -204,10 +253,12 @@ update this contract and its regression before it is accepted.
 
 ## ROM and feature-cost ledger
 
-The source contract itself emits no code and no initialized data. A ROM
-playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The selected
-configuration also requires an 88-byte default score table. Exact kernel code
-size is not guessed here; task 20d records it from the first linked map.
+The `.c26` source contract itself emits no code and no initialized data. A ROM
+playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized
+object currently contains a 761-byte `CODE` segment and an 88-byte `RODATA`
+score table before final placement. Those are review figures, not the final
+cartridge cost: task 20d records linked padding, placement, and complete ROM use
+from the first real cartridge map.
 
 All listed optional features are rejected by this profile, so no speculative
 RAM or ROM deltas are contractual. A feature may be added only as a later
@@ -215,9 +266,9 @@ profile revision with measured linked ROM bytes, module-declared RAM changes,
 stack changes, and a timing regression. This prevents “free” conditional
 features from silently consuming the last few RIOT bytes.
 
-## Retained-source boundary for task 20c
+## Retained-source boundary used by the normalizer
 
-The next conversion slice may draw only from these retained inputs:
+The deterministic normalizer draws only from these retained inputs:
 
 - `common/macro.h` for `SLEEP`, `VERTICAL_SYNC`, `CLEAN_START`, and
   `SET_POINTER`;

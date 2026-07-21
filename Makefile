@@ -70,6 +70,8 @@ install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26 \
+	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s \
+	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
 	  libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/
 	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
@@ -99,6 +101,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc 2>/dev/null || true
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels 2>/dev/null || true
@@ -135,7 +139,16 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
+	"$$stage_bin/vcsc-as" --illegals \
+	  -I "$$stage_vcs/kernels/standard_4k_ntsc" \
+	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.map" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" \
+	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26"` -gt 0; \
+	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323601"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.c26" \
