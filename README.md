@@ -67,7 +67,7 @@ Installed layout:
 - `$(PREFIX)/lib/` ... the default runtime archive `libvcsc.l26`
 - `$(PREFIX)/include/` ... the assembler runtime include `vcsc-runtime.inc`
 - `$(PREFIX)/share/cfg/` ... bundled assembler opcode tables such as `default.cfg` and `illegals.cfg`
-- `$(PREFIX)/share/` ... packaged VCS bindings, 18 decimal/hex score-font modules, linker configuration, and retained legacy BASIC conversion references
+- `$(PREFIX)/share/` ... packaged VCS bindings, 16 decimal/hex score-font modules across eight families, linker configuration, and retained legacy BASIC conversion references
 
 The installed `vcsc` will first use the built source-tree layout when run from the repository, and otherwise will find sibling installed tools in `bin/`, runtime assets under `lib/` and `include/`, and the VCS linker script under `share/vcs/`. By default it uses `vcs_4k.cfg` and links `libvcsc.l26` unless `-nostdlib` is used. Direct `vcsc-ld` use always requires an explicit linker script.
 
@@ -86,127 +86,21 @@ cd test
 
 See `test/README.md` for the header directives, placeholder tokens, and the generic `.test` file format.
 
-# Additional Details
+## Documentation
 
-For additional details, see the README.md files in the various subdirectories.
+The component documentation is organized by responsibility:
+
+- [`compiler/README.md`](compiler/README.md) — VCSC language syntax, types, expressions, functions, storage, inline assembly, and compiler behavior
+- [`driver/README.md`](driver/README.md) — high-level compile/assemble/link driver options and input handling
+- [`assembler/README.md`](assembler/README.md) — assembly syntax, opcode tables, directives, and object generation
+- [`linker/README.md`](linker/README.md) — linker scripts, memory placement, call-stack sizing, and output formats
+- [`archiver/README.md`](archiver/README.md) — `.l26` archive operations and format
+- [`simulator/README.md`](simulator/README.md) — simulator command line, tracing, and host dispatch calls
+- [`libraries/vcs/README.md`](libraries/vcs/README.md) — Atari 2600 bindings, fonts, kernels, linker configuration, and examples
+- [`test/README.md`](test/README.md) — test harness directives and fixture formats
 
 ## Licensing
 
 Unless a subdirectory says otherwise, the toolchain sources and top-level build/test glue are licensed under GPL-3.0-or-later.
 The runtime library in `libraries/runtime/` is licensed under BSD-2-Clause so code linked into user binaries stays permissive.
 The exact license texts live in the repository root `LICENSE`/`COPYING` files and in the per-library `LICENSE` files.
-
-## Integer and packed-BCD type flags
-
-Integer-like scalar types use an explicit style flag: `$integer:signed` or `$integer:unsigned`.
-
-Examples:
-
-```vcsc
-type int8_t   { $size:1 $integer:signed };
-type uint8_t  { $size:1 $integer:unsigned };
-type int16_t  { $size:2 $integer:signed $endian:little };
-type uint16_t { $size:2 $integer:unsigned $endian:little };
-type int24_t  { $size:3 $integer:signed $endian:little };
-type uint24_t { $size:3 $integer:unsigned $endian:little };
-type int32_t  { $size:4 $integer:signed $endian:little };
-type uint32_t { $size:4 $integer:unsigned $endian:little };
-type bcd8_t   { $size:1 $integer:unsigned $bcd };
-type bcd16_t  { $size:2 $integer:unsigned $endian:little $bcd };
-type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
-type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
-type *        { $size:2 $integer:unsigned $endian:little };
-```
-
-Ordinary binary integer value types may occupy one through four bytes and use
-`$integer:signed` or `$integer:unsigned`. The stock VCS target exposes canonical
-8-, 16-, 24-, and 32-bit signed/unsigned names. It also defines unsigned
-packed-decimal `bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t`, holding two,
-four, six, and eight decimal digits. `$bcd` is valid only on unsigned integer
-declarations from one through four bytes. All multibyte values are little-endian.
-
-## Visual binary literals
-
-Binary literals may use `.` for a zero bit and `X` or `x` for a one bit after
-the normal `0b`/`0B` prefix. The leftmost character is the most-significant
-bit, so graphics and masks can be drawn directly in source code:
-
-```vcsc
-const uint8_t sprite[8] := {
-   0b........,
-   0b..XXX...,
-   0b.X...X..,
-   0b.X...X..,
-   0b.X...X..,
-   0b.X...X..,
-   0b.X...X..,
-   0b..XXX...,
-};
-```
-
-Visual and conventional digits may be mixed, and underscores remain optional
-separators: `0bXX.._0011` is the same value as `0b1100_0011`. The lexer
-normalizes the visual spelling to ordinary `0`/`1` digits before parsing, so
-constant folding, range checking, initializers, aliases, and conditional
-compilation use the existing binary-integer semantics.
-
-BCD literals are converted by numeric value, not copied as binary bytes. Thus
-decimal `42`, hexadecimal `0x2a`, octal `052`, and binary `0b101010` all store
-as packed BCD `$42`. `1234` stores as `$34,$12`, `567890` stores as
-`$90,$78,$56`, and `12345678` stores as `$78,$56,$34,$12`. Range checking
-follows decimal capacity: 0..99, 0..9999, 0..999999, and 0..99999999.
-
-Packed-BCD values support assignment, widening/truncating BCD copies, `+`, `-`,
-`+=`, `-=`, `++`, `--`, comparisons, truth tests, and `switch`. The compiler
-emits tightly scoped `SED`/`CLD` around each BCD `ADC`/`SBC` chain and leaves
-decimal mode clear afterward. Multiplication, division, remainder, shifts,
-bitwise operations, unary minus, BCD bitfields, and runtime BCD/binary
-conversions are rejected. All four BCD widths may be stored, passed as parameters,
-and returned. Value-returning functions expose an exact-sized callee-owned
-`function$__return` object; ordinary callers copy from that object after
-`jsr`, so the ABI no longer has a register-width ceiling. Source-level inline
-functions instead use a private call-site return object and join label and have
-no callable ABI symbol.
-
-Untyped ordinary integer literals still default to `int16_t`, but a typed 24-
-or 32-bit destination, operand, parameter, return, or annotation supplies the
-wider context. `int24_t` ranges from -8388608 through 8388607 and `uint24_t`
-from 0 through 16777215; `int32_t` ranges from -2147483648 through 2147483647
-and `uint32_t` from 0 through 4294967295. As with the existing smaller types,
-literal encoding is width-based: any positive or negative magnitude that fits
-the destination width may be used as that width's bit pattern. Expression-level shortcut casts `($signed)` /
-`($unsigned)` change signedness while preserving width and are not valid for BCD
-values.
-
-Bitfields follow the integer style of their declared type. Use an unsigned integer type for raw packed/overlay fields, and a signed integer type when you want sign extension on bitfield reads.
-
-## Inline functions
-
-A function declared `inline` is expanded from its visible source definition at
-each direct call site. Arguments are still checked and evaluated left-to-right,
-including exact-type lvalue checking for `ref` parameters, but the expansion
-emits no `JSR`, `RTS`, linker-visible function symbol, return ABI object, or
-hardware-stack frame. Parameters, locals, return storage, source labels, and
-assembler-local `@labels` receive private expansion-qualified names, and each
-`return` jumps to that expansion's private join label.
-
-```vcsc
-inline uint8_t clamp_high(uint8_t value, uint8_t high) {
-   if (value > high) {
-      return high;
-   }
-   return value;
-}
-```
-
-The complete inline definition must appear before its first call. `extern
-inline`, inline `main`, and direct or mutual inline-expansion cycles are rejected.
-Inline functions are intended for small timing-sensitive helpers; duplicating a
-large body also duplicates its ROM code and reserves separate static storage at
-each expansion site.
-
-## Floating-point values
-
-Floating-point types and literals are not supported. Any `$float:*` type flag or floating-point literal is a compile-time error.
-
-Operator overloading and `$exactops` are intentionally unsupported in the VCS subset. Arithmetic, comparisons, truth tests, and increment/decrement use only the compiler built-ins.

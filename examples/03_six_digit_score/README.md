@@ -40,10 +40,11 @@ Horizontal player positioning and `HMOVE` happen once while `VBLANK` is set;
 the positions persist across frames. No undocumented opcode, stack-pointer
 trick, or visible-frame HMOVE is used.
 
-VCSC currently has inline assembly but **does not have source-level inline
-functions**. These helpers are ordinary VCSC functions with no generated frame
-prologue or epilogue: a call is `JSR`, the body, and `RTS`. `six_glyph_draw()` is supplied by the shared VCS display module and has no
-nested call inside the timed loop.
+These helpers remain ordinary VCSC functions: each call is `JSR`, the body, and
+`RTS`, with no generated software frame. Source-level inline functions are
+available, but this example keeps the shared setup and draw entry points callable
+and concentrates all cycle-critical work inside explicit assembly.
+`six_glyph_draw()` has no nested call inside the timed loop.
 
 ## Fonts
 
@@ -54,7 +55,7 @@ private example data. Example 03 deliberately selects the Default decimal font:
 include "fonts/default_decimal.c26"
 ```
 
-The library contains nine families, each with a decimal `0-9` module and a
+The library contains eight families, each with a decimal `0-9` module and a
 hexadecimal `0-9A-F` module. See `libraries/vcs/fonts/README.md` for the full
 catalog, symbols, provenance, and selection instructions.
 

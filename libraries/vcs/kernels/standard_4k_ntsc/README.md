@@ -12,10 +12,11 @@ standard kernel. It is deliberately narrower than “the standard kernel” as a
 whole. It covers one non-reflected, non-banked, non-Superchip NTSC configuration
 and nothing else.
 
-Task 20c added a deterministic source normalizer and checked-in `vcsc-as`
-output beside this contract. The normalized source assembles independently to a
-reviewable `.o26` object. Task 20d will link that object into the first real
-cartridge and verify its final placement and scanline timing.
+A deterministic source normalizer and checked-in `vcsc-as` output live beside
+this contract. The normalized source assembles independently to a reviewable
+`.o26` object. Linking that object into the first complete cartridge and
+verifying its final placement and scanline timing remain separate integration
+work.
 
 ## Selected configuration
 
@@ -35,12 +36,13 @@ The following retained options are absent and are outside this contract:
 - player-color tables, playfield-color/height tables, paddle reading, screen
   shake, score fading, playfield-in-score, debug displays, and alternate fonts.
 
-No optional application hook is enabled in the minimal profile. Task 20e may add
-one stack-safe void vblank/overscan hook after the static cartridge is stable.
+No optional application hook is enabled in the minimal profile. A later profile
+may add one stack-safe void vblank/overscan hook after the static cartridge is
+stable.
 
 ## Reproducible normalized source
 
-The task-20c artifacts are:
+The normalization artifacts are:
 
 - `normalize.pl` — the deliberately narrow deterministic translator;
 - `standard_4k_ntsc_macros.inc` — explicit `vcsc-as` ports of `SLEEP`,
@@ -84,7 +86,7 @@ vcsc-as --illegals \
 
 That produces an unresolved relocatable kernel object by design. Linking it to
 module state, enforcing final page placement, checking exact opcode bytes, and
-proving 262-line timing belong to task 20d.
+proving 262-line timing belong to the complete-cartridge integration step.
 
 ## Source-level inclusion
 
@@ -164,8 +166,9 @@ module. The module:
 
 The call must begin with decimal mode clear. The converted wrapper must also
 return with decimal mode clear. The first cartridge must produce a stable
-262-scanline non-interlaced NTSC frame; task 20d verifies the exact phase lengths
-rather than treating comments in the retained source as proof.
+262-scanline non-interlaced NTSC frame; complete-cartridge testing must verify
+the exact phase lengths rather than treating comments in the retained source as
+proof.
 
 ## State ownership and RAM cost
 
@@ -217,9 +220,10 @@ Most state has no fixed address. Only these constraints are contractual:
   The normalized source preserves both guards with `.align 256`; no absolute ROM
   address is required.
 
-The task-20b regression builds both a RAM and a ROM playfield and rejects either
-linked address if its low byte falls outside `$54..$D0`. Task 20d must retain the
-same linked-address check when the real kernel replaces the no-op smoke body.
+The source-contract regression builds both a RAM and a ROM playfield and rejects
+either linked address if its low byte falls outside `$54..$D0`. The complete
+cartridge must retain the same linked-address check when the real kernel replaces
+the no-op smoke body.
 There is no fixed `$80`-based variable map; only the timing-safe low-byte window
 is part of the contract.
 
@@ -257,8 +261,8 @@ The `.c26` source contract itself emits no code and no initialized data. A ROM
 playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized
 object currently contains a 761-byte `CODE` segment and an 88-byte `RODATA`
 score table before final placement. Those are review figures, not the final
-cartridge cost: task 20d records linked padding, placement, and complete ROM use
-from the first real cartridge map.
+cartridge cost: complete-cartridge integration must record linked padding,
+placement, and total ROM use from the first real cartridge map.
 
 All listed optional features are rejected by this profile, so no speculative
 RAM or ROM deltas are contractual. A feature may be added only as a later

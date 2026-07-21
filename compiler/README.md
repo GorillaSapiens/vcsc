@@ -7,6 +7,12 @@
 
 # VCSC compiler and language notes
 
+This is the authoritative reference for VCSC source-language and compiler
+behavior. Target support modules may define canonical type names and hardware
+bindings, but integer flags, literal syntax, packed-BCD semantics, inline
+functions, storage rules, and unsupported language features are documented
+here.
+
 VCSC is a deliberately small C-like systems language for the Atari 2600/VCS. This document describes the language model and the current compiler/runtime behavior implemented by `vcsc-cc1`.
 
 ## Big differences from C
@@ -518,7 +524,7 @@ café     -> caf?u00E9?
 🦍       -> ?u0001F98D?
 ```
 
-The escape uses only assembler-identifier-safe characters. ASCII punctuation that is not valid in N identifiers is not accepted as source identifier text; `?` is therefore reserved for compiler-generated Unicode escapes in emitted symbols.
+The escape uses only assembler-identifier-safe characters. ASCII punctuation that is not valid in VCSC identifiers is not accepted as source identifier text; `?` is therefore reserved for compiler-generated Unicode escapes in emitted symbols.
 
 Diagnostics reverse these escapes when reporting user-facing names, so an error involving `🥹` is printed as `🥹`, not `?u0001F979?`. Diagnostic source columns are one-based. For UTF-8 identifiers, columns are counted in Unicode scalar values rather than raw bytes, so the reported column for a non-ASCII identifier points at the source character the programmer sees.
 
@@ -574,7 +580,7 @@ Intentional behavior and limits:
 - loading from a `@[none/write]` declaration is rejected as read from a write-only absolute ref
 - taking the address of a split-address absolute ref such as `@[0x100/0x180]` is rejected by design, because it does not have one canonical address
 - if both sides name the same address, `&name` behaves normally
-- identifiers used in the address slots are passed through to the assembler/linker; the compiler does not require them to be declared as N symbols
+- identifiers used in the address slots are passed through to the assembler/linker; the compiler does not require them to be declared as VCSC symbols
 
 Absolute address binding is only meaningful on `ref` declarations. Using `@...` on a non-`ref` declaration is accepted but ignored, and the compiler warns about it.
 

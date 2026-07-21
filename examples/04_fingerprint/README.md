@@ -23,7 +23,7 @@ row kernel as example 03, so their RESP/GRP timing cannot diverge.
 The display uses the shared hexadecimal font module:
 
 ```vcsc
-include "fonts/hexadecimal_hex.c26"
+include "fonts/default_hex.c26"
 ```
 
 A real NMOS 6507 may produce a fingerprint specific to its silicon behavior.
