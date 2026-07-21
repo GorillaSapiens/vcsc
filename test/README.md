@@ -102,6 +102,13 @@ out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both
 incompatible XAS dialects, memory-addressed AXS/SAX aliases, and their required
 conflict and silicon-warning comments.
 
+`assembler_opcode_override.test` locks down opcode-config replacement semantics.
+It proves that a repeated mnemonic/addressing-mode key is silently last-definition-
+wins both within one file and across repeated `--opcode-cfg` options, verifies
+that reversing config order reverses the winner, confirms that exact `opXX`
+spellings still reach both bytes, and rejects attempts to assign a byte to an
+incompatible addressing mode.
+
 `vcsc_branding.test` also enforces the developer-record quarantine: only
 `.top_secret/context.txt`, `.top_secret/remove.txt`, and their explanatory
 README may occupy that internal role, while the obsolete top-level notes and

@@ -119,6 +119,17 @@ vcsc-as --map=program.map program.s
 
 Load an additional opcode configuration file after the bundled `default.cfg`. May be repeated. Later files can extend or override earlier mnemonic ... mode mappings, but they cannot assign an already-described opcode byte to a different addressing mode.
 
+The opcode-table key is the pair **mnemonic + addressing mode**. If that same pair is defined more than once, the later definition silently replaces the earlier one; this applies both within one configuration file and across repeated `--opcode-cfg` options. For example, both bytes below are valid immediate-mode encodings:
+
+```text
+XXX  imm  $80
+XXX  imm  $82
+```
+
+After loading those lines in that order, `XXX #$56` emits `$82,$56`; the `$80` mapping is no longer reachable through `XXX`. Exact raw spellings such as `op80 #$56` and `op82 #$56` remain available. Do not treat duplicate mnemonic/mode entries as a way to define an overloaded mnemonic.
+
+Arbitrary examples such as `XXX imm $12` may instead be rejected because every opcode byte already has operand-shape metadata: `$12` is an implied-mode byte and therefore cannot be reassigned as immediate.
+
 ```sh
 vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s
 ```
@@ -350,6 +361,8 @@ The current rich-opcode model is:
 - one mnemonic
 - one addressing mode
 - one opcode byte
+
+Internally, mnemonic plus addressing mode is a unique key. Loading that key again does not create ambiguity or retain both choices: the later byte silently replaces the earlier byte. Thus two active `DOP imm` lines would not make `DOP` select between two encodings; only the last line would survive.
 
 That works well for most unofficial mnemonics such as `LAX`, `SAX`, `DCP`, `ISC`, `SLO`, `RLA`, `SRE`, and `RRA`, but it does **not** represent families where the same mnemonic has multiple opcode bytes for the **same** addressing mode.
 

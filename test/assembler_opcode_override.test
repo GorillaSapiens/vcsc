@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/assembler_opcode_override.pl @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: assembler opcode override semantics passed
+# expectstderrexact:

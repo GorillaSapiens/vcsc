@@ -2375,3 +2375,19 @@ Before returning another modified archive:
 * Pass 283/283 compile tests, 131/131 end-to-end/generic tests, and staged
   installation. `.top_secret/remove.txt` now contains 880 cumulative paths.
   Keep task 20d as the next queued action.
+
+2026-07-21 09:31:00 PDT, document and test opcode-config replacement order
+------------------------------------------------------------------------
+* Document explicitly that mnemonic plus addressing mode is the opcode-table
+  key and that repeating that key is silently last-definition-wins, both within
+  one config file and across repeated `--opcode-cfg` options. Use real
+  immediate-mode bytes `$80` and `$82` in the example; explain that arbitrary
+  bytes such as `$12` can instead be rejected by the byte's existing
+  operand-shape metadata.
+* Add the same warning to `illegals.cfg`: duplicate active same-mode entries do
+  not coexist, while exact `opXX` spellings remain available for every byte.
+* Add `assembler_opcode_override.test` to verify same-file replacement,
+  command-line config ordering in both directions, continued exact access to
+  both raw bytes, and rejection of a byte assigned to an incompatible mode.
+  Pass 283/283 compile tests, 132/132 end-to-end/generic tests, and staged
+  installation. Keep task 20d as the next queued action.
