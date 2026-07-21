@@ -837,7 +837,9 @@ void emit_runtime_global_init_function(void) {
    sym = runtime_global_init_symbol();
    emit(&es_export, ".export %s\n", sym);
 
+   memset(&ctx, 0, sizeof(ctx));
    ctx.name = sym;
+   ctx.activation_owner = NULL;
    ctx.locals = 0;
    ctx.locals_high_water = 0;
    ctx.params = 0;

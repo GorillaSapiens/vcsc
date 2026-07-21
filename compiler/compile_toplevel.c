@@ -168,7 +168,9 @@ void compile_function_decl(ASTNode *node) {
    }
 
    Context ctx;
+   memset(&ctx, 0, sizeof(ctx));
    ctx.name = strdup(sym);
+   ctx.activation_owner = ctx.name;
    ctx.locals = 0;
    ctx.locals_high_water = 0;
    ctx.params = 0;
@@ -196,7 +198,11 @@ void compile_function_decl(ASTNode *node) {
 
    emit_function_parameter_storage(node, &ctx);
    if (has_return_object) {
-      emit(&es_zp, ".segment \"ZEROPAGE\"\n");
+      {
+         char segbuf[512];
+         build_activation_storage_segment(segbuf, sizeof(segbuf), &ctx, NULL, "ZEROPAGE");
+         emit(&es_zp, ".segment \"%s\"\n", segbuf);
+      }
       emit(&es_zp, "%s:\n", return_sym);
       emit(&es_zp, "\t.res %d\n", return_entry->size);
    }

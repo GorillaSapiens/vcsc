@@ -149,6 +149,22 @@ Compiler-generated ordinary calls do not push parameter, return, or scratch-
 base state. Assembly integrations remain responsible for declaring enough
 `callstack_extra` space and for restoring S before returning to compiled code.
 
+## Whole-program activation overlay
+
+`vcsc-cc1` emits parameters, automatic locals, return objects, and pooled
+expression scratch in function-owned activation segments. After archive
+selection, `vcsc-ld` lays those segments out with the same complete acyclic call
+graph used for stack sizing. For each physical memory region, a callee begins
+after its caller's live activation bytes. Sibling functions and other functions
+that cannot be active simultaneously may therefore share addresses.
+
+The overlay is region-local: a function may own pieces in the default RAM,
+zero page, or a source-declared `mem` region, and each region is independently
+weighted along the call graph. Internal-linkage functions are qualified by
+object identity, so identically named static helpers in different translation
+units do not merge. Calls hidden inside assembly remain outside this analysis
+and must obey the integration contract's non-reentry rules.
+
 It is not trying to be a full `ld65` config parser.
 ## Compiler mem-region validation
 

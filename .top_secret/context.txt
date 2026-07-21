@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_130855.tar.gz
+    vcsc.20260721_134206.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -341,6 +341,14 @@ Completed vertical slices
     private dividend BSS object, `ptr3`, and `tmp0` through `tmp5` are gone.
     Scalar multiply/divide/remainder now stay at the ordinary eight-byte runtime
     workspace baseline.
+45. Added whole-program activation overlay. The compiler emits parameters,
+    automatic locals, return objects, and pooled expression scratch in
+    function-owned activation segments. The linker weights each memory region
+    along the complete selected call graph, preserving caller/callee storage
+    while overlaying siblings and other mutually exclusive functions. Direct
+    calls stage all arguments in caller scratch before touching callee parameter
+    symbols, and object-qualified graph identities keep same-named static
+    helpers in separate translation units distinct.
 
 Side quest: examples/02_ode_to_joy keeps its 32-step, 128-byte score as a const
 ROM array and implements both `music_tick()` and `music_apply_current()` in the
@@ -398,20 +406,21 @@ At each ordinary direct call, the compiler may lease the caller function's
 current scratch-depth slot. The lease selects a fixed `__vcsc_scratch_N` symbol
 at compile time. The caller:
 
-1. evaluates each argument left-to-right through directly addressed scratch
-   when conversion or temporary storage is required;
-2. copies each converted value to the corresponding callee parameter symbol;
+1. evaluates every argument left-to-right into one caller-owned staging block;
+2. after all argument expressions finish, copies the complete converted set to
+   the corresponding callee parameter symbols;
 3. executes JSR with no compiler-state pushes;
 4. when the result is used, copies directly from the callee-owned
    `function$__return` symbol into the enclosing destination.
 
 Scratch is pooled per function and nesting depth. Sequential uses in one
-non-reentrant function reuse the same slot, nested uses receive deeper slots,
-and different functions receive distinct physical symbols so caller values
-remain live during a callee. Each slot is emitted once at the maximum size seen
-for that depth. LIFO release and an end-of-compilation zero-depth check reject
-unsafe lifetime overlap. Parameter symbols may be ordinary absolute storage or
-zero-page storage.
+non-reentrant function reuse the same slot and nested uses receive deeper slots.
+The compiler emits scratch, parameters, automatic locals, and return objects as
+pieces of the owning logical activation. The linker keeps caller/callee paths
+disjoint and overlays sibling activations in each physical memory region. Each
+slot is emitted once at the maximum size seen for that depth. LIFO release and
+an end-of-compilation zero-depth check reject unsafe lifetime overlap. Parameter
+symbols may be ordinary absolute storage or zero-page storage.
 
 Call-graph and call-target rules
 --------------------------------
@@ -430,6 +439,28 @@ sizing. The linker counts nodes on the longest acyclic path after all selected
 objects and archive members are known. External assembly functions reached by a
 source call appear as one graph node, but calls and pushes inside their assembly
 bodies are not visible yet.
+
+Current activation overlay
+--------------------------
+The compiler emits each ordinary function's parameters, automatic locals,
+callee-owned return object, and pooled expression scratch in named activation
+segments. Static source locals and globals remain ordinary persistent storage.
+At link time, every physical memory region is planned independently from the
+complete selected call graph:
+
+* a callee begins after the caller bytes still live in that region;
+* sibling functions and unrelated roots may share the same physical bytes;
+* source-declared `mem` regions retain their configured placement;
+* same-named internal functions in different objects receive object-qualified
+  graph identities;
+* direct calls stage all converted arguments in caller scratch before writing
+  any callee parameter symbol.
+
+The overlay changes physical addresses only; source and assembler symbols remain
+function-qualified. Inline expansions inherit their enclosing ordinary
+function's activation. Runtime global-initializer scratch remains outside the
+overlay because calls hidden in its generated startup path are not yet represented
+as ordinary source edges.
 
 Atari 2600 hardware constraints
 -------------------------------
@@ -612,7 +643,7 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    135 passed, 0 failed, 135 total
+    139 passed, 0 failed, 139 total
 
 Staged install check:
 
@@ -867,7 +898,7 @@ The first unfinished item is the default next action.
     with the standard `123456789 -> 21CF02` vector rather than treating any
     emulator's unstable-opcode model as universal.
 
-[ ] Side quest: reduce the inherited N multibyte-runtime RAM workspace before
+[x] Side quest: reduce the inherited N multibyte-runtime RAM workspace before
     continuing task 20. Moving bytes from ZEROPAGE to BSS does not save RIOT RAM;
     the storage must be omitted, reused, or overlaid.
 
@@ -884,7 +915,7 @@ The first unfinished item is the default next action.
           storage where lifetimes permit. Eliminate the six inherited `tmp`
           bytes and surplus pointer cells when those operations are absent.
 
-    [ ] d. Add whole-program call-graph/liveness overlay for compiler-generated
+    [x] d. Add whole-program call-graph/liveness overlay for compiler-generated
           expression scratch, function parameters, locals, and callee-owned
           return objects after the runtime-helper cleanup is stable.
 
@@ -959,13 +990,10 @@ The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20c are complete. Runtime-workspace side-quest items a
-through c are complete; item d, whole-program call-graph/liveness overlay for
-static compiler storage, is the next queued action before task 20d builds the first
+through d are complete. Task 20d is the next queued action: build the first
 no-bankswitch, no-Superchip cartridge from the normalized standard kernel and
-verifies its final map, opcode bytes, and stable 262-line NTSC timing.
+verify its final map, opcode bytes, and stable 262-line NTSC timing.
 
-* Whether static frames will later be overlaid using whole-program call/liveness
-  analysis. Start with distinct storage.
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
   linker `callstack_extra`; no automatic assembly analysis is attempted.
@@ -2506,3 +2534,28 @@ Before returning another modified archive:
   input-preservation probe to `e2e_fixed_muldiv_helpers_verify.c26`.
 * Pass 285/285 compile tests and 135/135 end-to-end/generic tests. The cumulative
   removal ledger now contains 893 unique paths. Side-quest item d is next.
+
+2026-07-21 14:53:42 PDT, overlay whole-program function activations
+------------------------------------------------------------------------
+* Complete runtime-workspace side-quest item d. Emit ordinary parameters,
+  automatic locals, callee-owned return objects, and pooled expression scratch
+  in function-owned activation segments rather than independently placed BSS/ZP
+  blocks. Static source objects remain ordinary persistent storage.
+* Add a linker activation planner driven by the complete selected call graph.
+  Weight each physical memory region independently so a callee begins after all
+  live caller bytes while siblings and other mutually exclusive functions share
+  addresses. Preserve source-declared named-memory placement.
+* Stage every direct-call argument left-to-right in caller-owned scratch before
+  writing any callee parameter symbol. This prevents a call in a later argument
+  from corrupting an earlier argument through sibling overlay.
+* Qualify internal-linkage call-graph nodes by object origin. Same-named static
+  helpers in separate translation units remain distinct and no longer create
+  false cycles or unsafe merged activations.
+* Update code-generation and map regressions for activation segments and add
+  execution coverage for sibling overlay, caller/callee separation, argument
+  staging, cross-object siblings, named regions, return-object overlay, and
+  duplicate static helper names.
+* Pass 285/285 compile tests and 139/139 end-to-end/generic tests. The staged
+  installation check passes. `.top_secret/remove.txt` remains at 893 cumulative
+  paths. Task 20d is next.
+

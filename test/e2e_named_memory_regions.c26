@@ -1,8 +1,9 @@
 // vcsc-cc1 -I .
 // linkcfg: e2e_named_memory_regions__named.cfg
-// expectmap: BSS.banana       run=$0400 size=$0005
+// expectmap: BSS.banana       run=$0400 size=$0001
+// expectmap: BSS.banana.__vcsc_activation$read_banana run=$040C size=$0004
 // expectmap: DATA.banana      load=
-// expectmap: run=$0405 size=$000B
+// expectmap: run=$0401 size=$000B
 // expectsim: OK
 include "machine_6502.c26"
 mem banana { $start:0x0400 $size:0x0100 $rw };

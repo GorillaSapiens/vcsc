@@ -46,6 +46,11 @@ typedef struct ContextEntry {
 
 typedef struct Context {
    const char *name;
+   /* Function symbol whose live activation owns this context's automatic
+      parameters, locals, return object, and compiler scratch. Inline
+      expansions inherit their caller's owner; translation-unit initializers
+      leave this NULL and retain ordinary non-overlaid storage. */
+   const char *activation_owner;
    int locals;
    int locals_high_water;
    int params;
@@ -122,6 +127,10 @@ void ctx_push(Context *ctx, const ASTNode *type, const char *name);
 void ctx_resize_last_push(Context *ctx, const ASTNode *type, const ASTNode *declarator, const char *name);
 void ctx_static(Context *ctx, const ASTNode *type, const char *name);
 void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name);
+void build_activation_storage_segment(char *buf, size_t bufsize,
+                                      const Context *ctx,
+                                      const ASTNode *modifiers,
+                                      const char *base_segment);
 const char *next_label(const char *prefix);
 void emit_copy_scratch_to_scratch(int dst_offset, int src_offset, int size);
 void emit_prepare_scratch_ptr(int ptrno, int offset);

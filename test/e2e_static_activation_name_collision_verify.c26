@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// object: e2e_static_activation_name_collision_verify__def.c26
+// expectexit: 0
+include "machine_6502.c26"
+
+uint8_t external(uint8_t x);
+
+static uint8_t helper(uint8_t x) {
+   return external(x) + 1;
+}
+
+void fail(uint8_t code) {
+   asm lda #$ff;
+   asm ldx fail$code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (helper(5) != 7) { fail(1); }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

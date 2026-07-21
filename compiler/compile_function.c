@@ -662,15 +662,15 @@ void emit_function_parameter_storage(const ASTNode *node, Context *ctx) {
       }
 
       if (entry->is_zeropage) {
-         char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+         char segbuf[512];
+         build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "ZEROPAGE");
          emit(&es_zp, ".segment \"%s\"\n", segbuf);
          emit(&es_zp, "%s:\n", sym);
          emit(&es_zp, "\t.res %d\n", entry->size);
       }
       else {
-         char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+         char segbuf[512];
+         build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "BSS");
          emit(&es_bss, ".segment \"%s\"\n", segbuf);
          emit(&es_bss, "%s:\n", sym);
          emit(&es_bss, "\t.res %d\n", entry->size);

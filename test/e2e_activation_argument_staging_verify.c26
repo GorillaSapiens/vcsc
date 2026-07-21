@@ -1,0 +1,29 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm lda #$ff;
+   asm ldx fail$code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint16_t choose_first(uint16_t first, uint16_t second) {
+   return first;
+}
+
+uint16_t sibling_call(uint16_t value) {
+   return value + 1;
+}
+
+void main(void) {
+   // choose_first and sibling_call are siblings in main's call graph and may
+   // share activation bytes. The first argument must remain staged in main's
+   // scratch while the second argument executes sibling_call.
+   if (choose_first(0x1234, sibling_call(5)) != 0x1234) { fail(1); }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

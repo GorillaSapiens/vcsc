@@ -545,6 +545,56 @@ static int symbol_is_init_function(const char *name)
    return strcmp(name, "__init") == 0 || strncmp(name, "__init_", 7) == 0;
 }
 
+//! @brief Return whether one object exposes an ordinary symbol with this exact name.
+static int call_graph_object_exports_symbol(const object_file_t *obj, const char *name)
+{
+   size_t i;
+
+   if (!obj || !name)
+      return 0;
+   for (i = 0; i < obj->export_count; ++i) {
+      if (strcmp(obj->exports[i].name, name) == 0)
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Return whether one object imports an ordinary symbol with this exact name.
+static int call_graph_object_imports_symbol(const object_file_t *obj, const char *name)
+{
+   size_t i;
+
+   if (!obj || !name)
+      return 0;
+   for (i = 0; i < obj->undef_count; ++i) {
+      if (strcmp(obj->undefs[i], name) == 0)
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Give object-local functions a translation-unit-qualified graph identity.
+static char *call_graph_object_function_name(const object_file_t *obj, const char *name)
+{
+   size_t need;
+   char *qualified;
+
+   if (!obj || !name)
+      return xstrdup(name ? name : "?");
+
+   /* A normally exported definition or unresolved import names one program-wide
+      function. A metadata-only name is an internal-linkage function and must not
+      collide with an identically named static function in another object. */
+   if (call_graph_object_exports_symbol(obj, name) ||
+       call_graph_object_imports_symbol(obj, name))
+      return xstrdup(name);
+
+   need = strlen(obj->origin) + strlen(name) + 3u;
+   qualified = (char *)xmalloc(need);
+   snprintf(qualified, need, "%s::%s", obj->origin, name);
+   return qualified;
+}
+
 //! @brief Handle call graph find or add node logic for linker layout and image writer.
 static int call_graph_find_or_add_node(call_graph_node_t **nodes, size_t *count, const char *name)
 {
@@ -591,15 +641,21 @@ static void call_graph_collect_from_object(const object_file_t *obj,
       char *callee = NULL;
 
       if (symbol_backed_metadata_parse_function(name, &sym)) {
-         int idx = call_graph_find_or_add_node(nodes, node_count, sym);
+         char *qualified = call_graph_object_function_name(obj, sym);
+         int idx = call_graph_find_or_add_node(nodes, node_count, qualified);
          (*nodes)[idx].has_symbol_backed_params = 1;
+         free(qualified);
          continue;
       }
 
       if (symbol_backed_metadata_parse_edge(name, &caller, &callee)) {
-         int from = call_graph_find_or_add_node(nodes, node_count, caller);
-         int to = call_graph_find_or_add_node(nodes, node_count, callee);
+         char *qualified_caller = call_graph_object_function_name(obj, caller);
+         char *qualified_callee = call_graph_object_function_name(obj, callee);
+         int from = call_graph_find_or_add_node(nodes, node_count, qualified_caller);
+         int to = call_graph_find_or_add_node(nodes, node_count, qualified_callee);
          call_graph_add_edge(edges, edge_count, from, to);
+         free(qualified_caller);
+         free(qualified_callee);
       }
 
       free(caller);
@@ -660,8 +716,14 @@ static const char *display_function_symbol(const char *name)
    static char buf[512];
    size_t len;
 
+   const char *local_sep;
+
    if (!name)
       return "?";
+
+   local_sep = strrchr(name, ':');
+   if (local_sep && local_sep > name && local_sep[-1] == ':')
+      name = local_sep + 1;
 
    len = strlen(name);
    if (len > 0 && name[len - 1] == '?') {
@@ -1088,6 +1150,210 @@ static uint16_t object_layout_load_addr(const object_file_t *obj, const object_l
    }
 }
 
+
+#define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
+
+typedef struct activation_piece_t {
+   object_file_t *obj;
+   object_layout_t *layout;
+   int node;
+   int region;
+   uint16_t intra_offset;
+   int needs_zero;
+} activation_piece_t;
+
+//! @brief Decode one compiler-owned activation segment name.
+static int activation_segment_parse(const char *name,
+                                    char *region, size_t region_size,
+                                    const char **owner_out) {
+   const char *first_dot;
+   const char *marker;
+   size_t region_len;
+
+   if (!name || !region || region_size == 0 || !owner_out)
+      return 0;
+   first_dot = strchr(name, '.');
+   marker = strstr(name, ACTIVATION_SEGMENT_MARKER);
+   if (!first_dot || !marker || marker < first_dot || !marker[sizeof(ACTIVATION_SEGMENT_MARKER) - 1])
+      return 0;
+   if (!(segment_name_matches_prefix(name, "BSS") ||
+         segment_name_matches_prefix(name, "ZEROPAGE") ||
+         segment_name_matches_prefix(name, "ZP") ||
+         segment_name_matches_prefix(name, "ZERO")))
+      return 0;
+
+   region_len = (marker == first_dot) ? 0u
+      : (size_t)(marker - (first_dot + 1));
+   if (region_len >= region_size)
+      return 0;
+   if (region_len > 0)
+      memcpy(region, first_dot + 1, region_len);
+   region[region_len] = '\0';
+   *owner_out = marker + sizeof(ACTIVATION_SEGMENT_MARKER) - 1;
+   return **owner_out != '\0';
+}
+
+//! @brief Find or append a memory-region name in the activation planner.
+static int activation_region_find_or_add(char (**regions)[MAX_NAME], size_t *count,
+                                         const char *name) {
+   size_t i;
+   for (i = 0; i < *count; ++i) {
+      if (str_ieq((*regions)[i], name))
+         return (int)i;
+   }
+   *regions = (char (*)[MAX_NAME])xrealloc(*regions, (*count + 1) * sizeof(**regions));
+   memset(&(*regions)[*count], 0, sizeof(**regions));
+   snprintf((*regions)[*count], MAX_NAME, "%s", name);
+   return (int)(*count)++;
+}
+
+//! @brief Assign all compiler activation segments by weighted call-graph depth.
+static void layout_activation_segments(const linker_config_t *cfg, input_set_t *in,
+                                       layout_t *layout,
+                                       const char *default_bss_region,
+                                       const char *default_zp_region) {
+   call_graph_node_t *nodes = NULL;
+   call_graph_edge_t *edges = NULL;
+   size_t node_count = 0;
+   size_t edge_count = 0;
+   char (*regions)[MAX_NAME] = NULL;
+   size_t region_count = 0;
+   activation_piece_t *pieces = NULL;
+   size_t piece_count = 0;
+   uint32_t *sizes = NULL;
+   uint32_t *bases = NULL;
+   size_t i, j;
+
+   for (i = 0; i < in->object_count; ++i)
+      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count);
+
+   /* First discover every activation owner and target memory region. */
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         char explicit_region[MAX_NAME];
+         const char *owner;
+         const char *region_name;
+         int node;
+         int region;
+
+         if (!activation_segment_parse(lay->name, explicit_region,
+                                       sizeof(explicit_region), &owner))
+            continue;
+         region_name = explicit_region[0] ? explicit_region
+            : (lay->segid == O26_SEG_ZP ? default_zp_region : default_bss_region);
+         {
+            char *qualified_owner = call_graph_object_function_name(obj, owner);
+            node = call_graph_find_or_add_node(&nodes, &node_count, qualified_owner);
+            free(qualified_owner);
+         }
+         region = activation_region_find_or_add(&regions, &region_count, region_name);
+
+         pieces = (activation_piece_t *)xrealloc(pieces,
+            (piece_count + 1) * sizeof(*pieces));
+         memset(&pieces[piece_count], 0, sizeof(pieces[piece_count]));
+         pieces[piece_count].obj = obj;
+         pieces[piece_count].layout = lay;
+         pieces[piece_count].node = node;
+         pieces[piece_count].region = region;
+         pieces[piece_count].needs_zero = (lay->segid == O26_SEG_BSS);
+         piece_count++;
+      }
+   }
+
+   if (piece_count == 0)
+      goto cleanup;
+
+   sizes = (uint32_t *)xcalloc(region_count * node_count, sizeof(*sizes));
+   bases = (uint32_t *)xcalloc(region_count * node_count, sizeof(*bases));
+
+   /* Concatenate each function's pieces within each physical memory region. */
+   for (i = 0; i < piece_count; ++i) {
+      activation_piece_t *piece = &pieces[i];
+      size_t cell = (size_t)piece->region * node_count + (size_t)piece->node;
+      if (sizes[cell] + piece->layout->size > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: activation for function '%s' exceeds 64 KiB\n",
+                 display_function_symbol(nodes[piece->node].name));
+         exit(1);
+      }
+      piece->intra_offset = (uint16_t)sizes[cell];
+      sizes[cell] += piece->layout->size;
+   }
+
+   for (i = 0; i < region_count; ++i) {
+      uint32_t extent = 0;
+      uint16_t block_start;
+      int changed;
+      size_t pass;
+
+      /* Weighted DAG relaxation: a callee begins after every live caller's
+         region-local activation. Siblings therefore share the same bytes. */
+      for (pass = 0; pass < node_count; ++pass) {
+         changed = 0;
+         for (j = 0; j < edge_count; ++j) {
+            size_t from = (size_t)edges[j].from;
+            size_t to = (size_t)edges[j].to;
+            uint32_t candidate = bases[i * node_count + from] +
+                                 sizes[i * node_count + from];
+            if (candidate > bases[i * node_count + to]) {
+               bases[i * node_count + to] = candidate;
+               changed = 1;
+            }
+         }
+         if (!changed)
+            break;
+      }
+      if (changed) {
+         fprintf(stderr, "vcsc-ld: activation overlay encountered a call-graph cycle\n");
+         exit(1);
+      }
+
+      for (j = 0; j < node_count; ++j) {
+         uint32_t end = bases[i * node_count + j] + sizes[i * node_count + j];
+         if (end > extent)
+            extent = end;
+      }
+      if (extent > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: activation overlay for MEMORY region '%s' exceeds 64 KiB\n",
+                 regions[i]);
+         exit(1);
+      }
+      block_start = alloc_from_region(layout, cfg, regions[i], (uint16_t)extent,
+                                      "activation overlay", "<call graph>");
+
+      for (j = 0; j < piece_count; ++j) {
+         activation_piece_t *piece = &pieces[j];
+         uint32_t addr;
+         if (piece->region != (int)i)
+            continue;
+         addr = (uint32_t)block_start +
+                bases[i * node_count + (size_t)piece->node] +
+                piece->intra_offset;
+         if (addr > 0xFFFFu) {
+            fprintf(stderr, "vcsc-ld: activation address overflow for %s\n",
+                    piece->layout->name);
+            exit(1);
+         }
+         piece->layout->load_addr = 0;
+         piece->layout->run_addr = (uint16_t)addr;
+         if (piece->needs_zero)
+            add_zero_record(layout, piece->layout->name,
+                            piece->layout->run_addr, piece->layout->size);
+      }
+   }
+
+cleanup:
+   for (i = 0; i < node_count; ++i)
+      free(nodes[i].name);
+   free(nodes);
+   free(edges);
+   free(regions);
+   free(pieces);
+   free(sizes);
+   free(bases);
+}
+
 //! @brief Compute objects and update linker layout and image writer state once prerequisite pass data is available.
 static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t *layout)
 {
@@ -1128,9 +1394,18 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
       for (j = 0; j < obj->layout_count; ++j) {
          object_layout_t *lay = &obj->layouts[j];
          const char *suffix = segment_name_suffix(lay->name);
+         char activation_region[MAX_NAME];
+         const char *activation_owner = NULL;
 
          lay->load_addr = 0;
          lay->run_addr = 0;
+
+         if (activation_segment_parse(lay->name, activation_region,
+                                      sizeof(activation_region),
+                                      &activation_owner)) {
+            (void)activation_owner;
+            continue;
+         }
 
          switch (lay->segid) {
             case O26_SEG_TEXT:
@@ -1164,6 +1439,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          }
       }
    }
+
+   layout_activation_segments(cfg, in, layout, bss_run_name, zp_run_name);
 
    layout->copy_table_addr = alloc_from_region(layout, cfg, data_load_name,
       (uint16_t)((layout->copy_record_count + 1) * 6), "__copy_table", "<linker>");

@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
 // expectasm: demo$s:
 // expectasm: .byte <{base+1}, >{base+1}
-// expectasm: .segment "ZEROPAGE.zeropage"
+// expectasm: .segment "ZEROPAGE.zeropage.__vcsc_activation$demo"
 // expectasm: demo$q:
 // expectasm: .res 3
 // expectasm: sta demo$q,y

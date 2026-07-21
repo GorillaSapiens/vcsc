@@ -45,6 +45,13 @@ sub asm_symbol {
    return hex($1);
 }
 
+sub linker_symbol {
+   my ($text,$name)=@_;
+   $text =~ /^\s*\$([0-9A-Fa-f]+)\s+\Q$name\E\s+/m
+      or die "linker map is missing $name\n";
+   return hex($1);
+}
+
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
 usage() if @ARGV;
@@ -117,10 +124,6 @@ my $ldmap=read_file($link_map);
 my $rom=read_file($binary);
 length($rom)==4096 or die "raw cartridge size is ".length($rom).", expected 4096\n";
 
-my $return8_slot_off=asm_symbol($asmap,'return8$__return');
-my $return16_slot_off=asm_symbol($asmap,'return16$__return');
-my $return24_slot_off=asm_symbol($asmap,'return24$__return');
-my $return32_slot_off=asm_symbol($asmap,'return32$__return');
 my $return8_fini_off=asm_symbol($asmap,'return8::@fini');
 my $return16_fini_off=asm_symbol($asmap,'return16::@fini');
 my $return24_fini_off=asm_symbol($asmap,'return24::@fini');
@@ -133,27 +136,30 @@ my $rom_start=hex($1);
 $ldmap =~ /\Q$object\E\n(.*?)(?=\n  \S|\nTABLES)/s
    or die "linker map is missing test object layout\n";
 my $layout=$1;
-$layout =~ /ZEROPAGE\s+run=\$([0-9A-Fa-f]+)/
-   or die "test object has no ZEROPAGE layout\n";
-my $zp_run=hex($1);
 $layout =~ /CODE\s+load=\$([0-9A-Fa-f]+)/
    or die "test object has no CODE layout\n";
 my $code_load=hex($1);
 
-my $return8_slot=$zp_run+$return8_slot_off;
-my $return16_slot=$zp_run+$return16_slot_off;
-my $return24_slot=$zp_run+$return24_slot_off;
-my $return32_slot=$zp_run+$return32_slot_off;
+my $return8_slot=linker_symbol($ldmap,'return8$__return');
+my $return16_slot=linker_symbol($ldmap,'return16$__return');
+my $return24_slot=linker_symbol($ldmap,'return24$__return');
+my $return32_slot=linker_symbol($ldmap,'return32$__return');
 $return8_slot <= 0xff or die sprintf("8-bit return object is not zero page: %04x\n",$return8_slot);
 $return16_slot+1 <= 0xff or die sprintf("16-bit return object is not zero page: %04x\n",$return16_slot);
 $return24_slot+2 <= 0xff or die sprintf("24-bit return object is not zero page: %04x\n",$return24_slot);
 $return32_slot+3 <= 0xff or die sprintf("32-bit BCD return object is not zero page: %04x\n",$return32_slot);
-$return16_slot-$return8_slot == 1
-   or die "8-bit return object does not reserve exactly one byte\n";
-$return24_slot-$return16_slot == 2
-   or die "16-bit return object does not reserve exactly two bytes\n";
-$return32_slot-$return24_slot == 3
-   or die "24-bit return object does not reserve exactly three bytes\n";
+$return8_slot == $return16_slot &&
+$return8_slot == $return24_slot &&
+$return8_slot == $return32_slot
+   or die "sibling return objects do not share the same activation-overlay base\n";
+$layout =~ /ZEROPAGE\.__vcsc_activation\$return8\s+run=\$[0-9A-Fa-f]+\s+size=\$0001/
+   or die "8-bit return activation does not reserve exactly one byte\n";
+$layout =~ /ZEROPAGE\.__vcsc_activation\$return16\s+run=\$[0-9A-Fa-f]+\s+size=\$0002/
+   or die "16-bit return activation does not reserve exactly two bytes\n";
+$layout =~ /ZEROPAGE\.__vcsc_activation\$return24\s+run=\$[0-9A-Fa-f]+\s+size=\$0003/
+   or die "24-bit return activation does not reserve exactly three bytes\n";
+$layout =~ /ZEROPAGE\.__vcsc_activation\$return32\s+run=\$[0-9A-Fa-f]+\s+size=\$0004/
+   or die "32-bit return activation does not reserve exactly four bytes\n";
 
 for my $item (
    [ return8 => $return8_fini_off ],

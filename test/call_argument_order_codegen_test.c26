@@ -1,11 +1,22 @@
 // vcsc-cc1 -I .
+// All arguments are evaluated into caller-owned scratch before any callee
+// parameter slot is written. This makes sibling activation overlay safe when
+// a later argument contains a function call.
 // expectasmordered: lda #$01
-// expectasmordered: sta ord4$a,y
+// expectasmordered: sta __vcsc_scratch_
 // expectasmordered: lda #$02
-// expectasmordered: sta ord4$b,y
+// expectasmordered: sta __vcsc_scratch_
 // expectasmordered: lda #$03
-// expectasmordered: sta ord4$c,y
+// expectasmordered: sta __vcsc_scratch_
 // expectasmordered: lda #$04
+// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: lda __vcsc_scratch_
+// expectasmordered: sta ord4$a,y
+// expectasmordered: lda __vcsc_scratch_
+// expectasmordered: sta ord4$b,y
+// expectasmordered: lda __vcsc_scratch_
+// expectasmordered: sta ord4$c,y
+// expectasmordered: lda __vcsc_scratch_
 // expectasmordered: sta ord4$d,y
 include "machine_6502.c26"
 

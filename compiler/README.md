@@ -25,9 +25,10 @@ The largest differences from C are:
 - Braces are required for `if`, `else`, `while`, `do`, and `for` bodies.
 - Integer and pointer types are declared by the target support source. There
   are no implicit `char`, `short`, `int`, `long`, or `bool` types.
-- Every ordinary function has one statically allocated activation: parameters,
-  named locals, compiler scratch, and any return object live at fixed linker
-  symbols rather than in a per-call frame.
+- Every ordinary function has one statically described activation: parameters,
+  named locals, compiler scratch, and any return object use linker symbols rather
+  than a per-call frame. The linker overlays activations whose call-graph
+  lifetimes cannot overlap.
 - Consequently, ordinary functions are non-reentrant and recursion is
   forbidden. The compiler and linker reject direct and mutual call cycles.
 - Every ordinary call target is a directly named function with one visible
@@ -281,8 +282,10 @@ uint16_t count_once(void) {
 A function-scope `static` object is initialized once, either as static data or
 by a startup initializer when its expression needs runtime code.
 
-Local arrays reserve their complete size in fixed storage. Distinct function
-activations are not overlaid.
+Local arrays reserve their complete size in the owning activation. After all
+objects and archive members are selected, `vcsc-ld` overlays mutually exclusive
+function activations by call-graph lifetime. Caller and callee bytes remain
+distinct; sibling functions may occupy the same physical addresses.
 
 ### `const`
 
@@ -366,7 +369,10 @@ Calls require a visible declaration and a directly named target.
 
 Arguments are evaluated left-to-right. Value arguments permit the normal
 integer widening and pointer conversions described above. `ref` arguments are
-strict exact-type lvalues.
+strict exact-type lvalues. Ordinary calls stage every converted argument in the
+caller's activation before writing any callee parameter symbol; a function call
+inside a later argument therefore cannot clobber an earlier argument through
+sibling activation overlay.
 
 ### All parameters are static
 
@@ -399,9 +405,15 @@ ambiguous.
 
 ### Static activation and recursion
 
-Every ordinary function body owns one fixed activation consisting of its
-parameters, named locals, return object, and private compiler scratch. A
-function therefore cannot be active twice.
+Every ordinary function body owns one logical activation consisting of its
+parameters, named locals, return object, and private compiler scratch. The
+compiler emits those pieces in function-owned activation segments. `vcsc-ld`
+uses the complete acyclic call graph to assign one weighted activation path per
+memory region: a callee starts after every live caller, while sibling functions
+reuse the same bytes. Internal-linkage functions are qualified by object so
+same-named static helpers in separate translation units remain distinct.
+
+A function therefore cannot be active twice.
 
 - Direct self-recursion is rejected.
 - Mutual recursion is rejected.
@@ -570,8 +582,9 @@ scratch for operands and results. All scalar helper families stay at the
 eight-byte runtime baseline and own no private BSS. Objects wider than four
 bytes may use the aggregate byte-copy/fill helpers.
 
-Compiler expression scratch is separate. It is allocated as fixed linker
-symbols and reused by function and nesting depth where lifetimes do not overlap.
+Compiler expression scratch is part of the owning function activation. It is
+pooled by nesting depth during compilation, then overlaid with mutually
+exclusive function activations by the whole-program linker call graph.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory

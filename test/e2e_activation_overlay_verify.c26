@@ -1,0 +1,41 @@
+// vcsc-cc1 -I .
+// expectmap: ZEROPAGE.__vcsc_activation$left run=$0009 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$right run=$0009 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$parent run=$0008 size=$0001
+// expectmap: BSS.__vcsc_activation$left run=$020A size=$0006
+// expectmap: BSS.__vcsc_activation$right run=$020A size=$0006
+// expectmap: BSS.__vcsc_activation$parent run=$0203 size=$0007
+// expectmap: BSS.__vcsc_activation$main run=$0200 size=$0003
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm lda #$ff;
+   asm ldx fail$code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t left(uint8_t x) {
+   uint8_t y := x + 1;
+   return y;
+}
+
+uint8_t right(uint8_t x) {
+   uint8_t y := x + 2;
+   return y;
+}
+
+uint8_t parent(uint8_t x) {
+   uint8_t a := left(x);
+   uint8_t b := right(x);
+   return a + b;
+}
+
+void main(void) {
+   if (parent(10) != 23) { fail(1); }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

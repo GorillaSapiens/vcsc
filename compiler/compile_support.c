@@ -42,6 +42,7 @@ typedef struct CompilerScratchSlot {
 
 typedef struct CompilerScratchScope {
    char *name;
+   char *activation_owner;
    int depth;
    int slot_count;
    CompilerScratchSlot slots[COMPILER_SCRATCH_MAX_SLOTS];
@@ -94,7 +95,12 @@ static int compiler_scratch_scope_for_context(const Context *ctx) {
    int index = compiler_scratch_scope_count++;
    memset(&compiler_scratch_scopes[index], 0, sizeof(compiler_scratch_scopes[index]));
    compiler_scratch_scopes[index].name = strdup(name);
-   if (!compiler_scratch_scopes[index].name) {
+   compiler_scratch_scopes[index].activation_owner =
+      (ctx && ctx->activation_owner && *ctx->activation_owner)
+         ? strdup(ctx->activation_owner) : NULL;
+   if (!compiler_scratch_scopes[index].name ||
+       ((ctx && ctx->activation_owner && *ctx->activation_owner) &&
+        !compiler_scratch_scopes[index].activation_owner)) {
       error_unreachable("out of memory creating compiler scratch scope");
    }
    return index;
@@ -103,6 +109,7 @@ static int compiler_scratch_scope_for_context(const Context *ctx) {
 void compiler_scratch_reset(void) {
    for (int i = 0; i < compiler_scratch_scope_count; i++) {
       free(compiler_scratch_scopes[i].name);
+      free(compiler_scratch_scopes[i].activation_owner);
    }
    memset(compiler_scratch_scopes, 0, sizeof(compiler_scratch_scopes));
    compiler_scratch_scope_count = 0;
@@ -235,10 +242,44 @@ void compiler_scratch_emit_bss(void) {
          if (slot->max_size <= 0) {
             continue;
          }
-         emit(&es_bss, ".segment \"BSS\"\n");
+         {
+            char segbuf[512];
+            Context owner_ctx;
+            memset(&owner_ctx, 0, sizeof(owner_ctx));
+            owner_ctx.activation_owner = scope->activation_owner;
+            build_activation_storage_segment(segbuf, sizeof(segbuf),
+                                             &owner_ctx, NULL, "BSS");
+            emit(&es_bss, ".segment \"%s\"\n", segbuf);
+         }
          emit(&es_bss, "__vcsc_scratch_%d:\n", slot->symbol_id);
          emit(&es_bss, "\t.res %d\n", slot->max_size);
       }
+   }
+}
+
+//! @brief Build a segment name for storage whose lifetime is one function activation.
+void build_activation_storage_segment(char *buf, size_t bufsize,
+                                      const Context *ctx,
+                                      const ASTNode *modifiers,
+                                      const char *base_segment) {
+   const char *owner = (ctx && ctx->activation_owner) ? ctx->activation_owner : NULL;
+   const char *memname = find_mem_modifier_name(modifiers);
+
+   if (!buf || bufsize == 0 || !base_segment) {
+      return;
+   }
+   if (!owner || !*owner) {
+      build_named_storage_segment(buf, bufsize, modifiers, base_segment);
+      return;
+   }
+
+   if (modifiers_imply_mem_storage(modifiers) && memname && *memname) {
+      snprintf(buf, bufsize, "%s.%s.__vcsc_activation$%s",
+               base_segment, memname, owner);
+   }
+   else {
+      snprintf(buf, bufsize, "%s.__vcsc_activation$%s",
+               base_segment, owner);
    }
 }
 

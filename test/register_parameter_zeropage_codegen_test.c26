@@ -2,7 +2,7 @@
 // expectasm: __memmeta$V1$register$S0000$Z0010$Trw = 0
 // expectasm: .export __memmeta$V1$register$S0000$Z0010$Trw
 // expectasm: .zpexport capture$x
-// expectasmordered: .segment "ZEROPAGE.register"
+// expectasmordered: .segment "ZEROPAGE.register.__vcsc_activation$capture"
 // expectasmordered: capture$x:
 // expectasmordered: 	.res 2
 // expectasmordered: .proc main

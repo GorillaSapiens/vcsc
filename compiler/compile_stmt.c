@@ -728,14 +728,14 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          but their storage is a fixed per-function symbol. */
       if (!has_modifier(modifiers, "static")) {
          if (entry->is_zeropage) {
-            char segbuf[256];
-            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+            char segbuf[512];
+            build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "ZEROPAGE");
             sink = &es_zp;
             emit(sink, ".segment \"%s\"\n", segbuf);
          }
          else {
-            char segbuf[256];
-            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+            char segbuf[512];
+            build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "BSS");
             sink = &es_bss;
             emit(sink, ".segment \"%s\"\n", segbuf);
          }

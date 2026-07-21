@@ -43,11 +43,14 @@ The callee does not load A, X, or Y with the result. The return-object symbol is
 exported with every non-static definition. A separately compiled caller imports
 that zero-page symbol only when it consumes the call result.
 
-Before an ordinary direct call, the compiler may lease the caller function's
-current depth slot, such as `__vcsc_scratch_0`, when arguments need evaluation
-or conversion. The lease is a compile-time choice of a fixed symbol; it has no
-runtime pointer and emits no activation/deactivation instructions. Generated
-code addresses the selected object directly, for example:
+Before an ordinary direct call, the compiler leases caller-owned scratch large
+enough for all converted arguments. It evaluates every argument left-to-right
+into that block before writing any callee parameter symbol. This protects an
+earlier argument when a later argument calls a sibling whose activation shares
+the callee's physical bytes. The lease is a compile-time choice of a fixed
+symbol; it has no runtime pointer and emits no activation/deactivation
+instructions. Generated code addresses the selected object directly, for
+example:
 
 ldy #0
 lda __vcsc_scratch_0,y
@@ -60,12 +63,14 @@ register preservation and no return-only scratch lease are required. Ignored
 return values require no copy.
 
 Scratch remains pooled by function and lexical emission depth for arguments and
-other expression temporaries. Sequential uses in one function reuse a slot;
-nested uses get deeper slots; different functions get distinct physical symbols
-so caller data remains valid during a callee. Each slot is emitted at the
-maximum size observed for that depth. Scratch leases are compile-time LIFO
-records, and compilation fails if any lease remains live at the end of code
-generation.
+other expression temporaries. Sequential uses in one function reuse a slot and
+nested uses get deeper slots. Parameters, automatic locals, scratch, and the
+return object are emitted as pieces of one logical function activation. At link
+time, a weighted whole-program call graph keeps every caller/callee pair
+disjoint while overlaying siblings and other mutually exclusive activations.
+Each scratch slot is emitted at the maximum size observed for that depth.
+Scratch leases are compile-time LIFO records, and compilation fails if any
+lease remains live at the end of code generation.
 
 Function entry has no software-stack prologue. Named automatic locals and the
 return object already have fixed symbols. Expression temporaries are addressed
@@ -132,8 +137,9 @@ Direct fixed-parameter ABI
 Every non-void parameter of a directly named function has a
 callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
 parameters explicitly assigned to a zero-page memory region use zero-page
-symbols. The caller evaluates arguments from left to right and writes each
-converted value to the corresponding symbol before JSR.
+symbols. The caller evaluates all arguments from left to right into caller-owned
+scratch, then writes the complete converted argument set to the corresponding
+callee symbols immediately before JSR.
 
 Parameters may use ordinary binary integers through four bytes and `bcd8_t`,
 `bcd16_t`, `bcd24_t`, or `bcd32_t`. Linker-visible ABI
@@ -144,10 +150,12 @@ the representation.
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion uses a live caller-function `__vcsc_scratch_N` lease when needed. Return values are read directly from the callee-owned `function$__return` symbol; scratch belongs to the caller and is not part of the callee ABI.
 
-Every function body owns one fixed activation record containing its parameters,
-automatic locals, and return object when present. No function may be active
-twice. The compiler rejects direct and mutual cycles inside a translation unit,
-and the linker rejects cycles completed across objects.
+Every function body owns one logical activation record containing its
+parameters, automatic locals, expression scratch, and return object when
+present. The linker overlays records by weighted call-graph lifetime within each
+physical memory region. No function may be active twice. The compiler rejects
+direct and mutual cycles inside a translation unit, and the linker rejects
+cycles completed across objects.
 
 Function pointers and indirect calls are not part of the VCS ABI. Every call
 target is directly named, allowing compiler/linker call-graph analysis to see
