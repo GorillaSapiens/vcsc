@@ -7,7 +7,7 @@
 
 # VCS score fonts
 
-This directory contains nine 8x8 score-font families converted to readable
+This directory contains eight 8x8 score-font families converted to readable
 VCSC source. Every pixel row is written on its own line using visual binary
 notation: `.` is a clear pixel and `X` is a set pixel.
 
@@ -30,13 +30,6 @@ common table symbol `score_font`, which is the interface expected by score kerne
 | Retroputer | `retroputer_decimal.vcsc` | `retroputer_hex.vcsc` | Squared computer-terminal style |
 | Whimsey | `whimsey_decimal.vcsc` | `whimsey_hex.vcsc` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.vcsc` | `tiny_hex.vcsc` | Compact 3x5 forms inside an 8x8 cell |
-| Hexadecimal | `hexadecimal_decimal.vcsc` | `hexadecimal_hex.vcsc` | Upstream `hex` family; its decimal digits intentionally match Default |
-
-The decimal `0`-`9` glyphs are exact conversions of the nine retained legacy
-choices. The Hexadecimal family preserves the original `A`-`F` glyphs.
-The other hexadecimal modules append those same official `A`-`F` glyphs after
-their family-specific decimal digits; no invented letter artwork is presented
-as upstream material.
 
 ## Selecting a font
 
