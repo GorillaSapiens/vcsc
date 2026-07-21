@@ -290,26 +290,119 @@ void emit_runtime_binary_scratch(const char *helper, int dst_offset, int lhs_off
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
-//! @brief Emit runtime fixed binary scratch scratch for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_fixed_binary_scratch(const char *helper, int dst_offset, int lhs_offset, int rhs_offset) {
-   emit_prepare_scratch_ptr(0, lhs_offset);
-   emit_prepare_scratch_ptr(1, rhs_offset);
-   emit_prepare_scratch_ptr(2, dst_offset);
-   remember_runtime_import(helper);
-   emit(&es_code, "    jsr _%s\n", helper);
+//! @brief Emit a fixed-width bytewise operation directly on compiler scratch.
+void emit_fixed_bitwise_scratch(const char *mnemonic, int dst_offset, int lhs_offset, int rhs_offset, int size) {
+   const char *symbol = compiler_scratch_active_symbol();
+
+   if (!mnemonic || size < 1 || size > 4) {
+      error_unreachable("invalid fixed-width bitwise operation");
+   }
+   for (int i = 0; i < size; i++) {
+      emit(&es_code, "    ldy #%d\n", lhs_offset + i);
+      emit(&es_code, "    lda %s,y\n", symbol);
+      emit(&es_code, "    ldy #%d\n", rhs_offset + i);
+      emit(&es_code, "    %s %s,y\n", mnemonic, symbol);
+      emit(&es_code, "    ldy #%d\n", dst_offset + i);
+      emit(&es_code, "    sta %s,y\n", symbol);
+   }
 }
 
-//! @brief Return int addsub helper name data used by compiler lvalue lowering; returned pointers alias existing storage unless explicitly allocated by the function name.
-const char *int_addsub_helper_name(const ASTNode *type, int size, bool subtract, bool *is_generic_out) {
-   (void) type;
-   (void) subtract;
-   if (is_generic_out) {
-      *is_generic_out = false;
-   }
+//! @brief Emit fixed-width two's-complement negation directly on compiler scratch.
+void emit_fixed_twos_complement_scratch(int offset, int size) {
+   const char *symbol = compiler_scratch_active_symbol();
+
    if (size < 1 || size > 4) {
-      error_unreachable("unsupported integer width %d reached add/sub lowering", size);
+      error_unreachable("unsupported integer width %d reached negation lowering", size);
    }
-   return NULL;
+   emit(&es_code, "    sec\n");
+   for (int i = 0; i < size; i++) {
+      emit(&es_code, "    ldy #%d\n", offset + i);
+      emit(&es_code, "    lda %s,y\n", symbol);
+      emit(&es_code, "    eor #$ff\n");
+      emit(&es_code, "    adc #$00\n");
+      emit(&es_code, "    sta %s,y\n", symbol);
+   }
+}
+
+//! @brief Compare two fixed-width little-endian scratch values and leave A as 0 or 1.
+void emit_fixed_compare_scratch(const ASTNode *type, const char *op, int lhs_offset, int rhs_offset, int size) {
+   const char *symbol = compiler_scratch_active_symbol();
+   const char *true_label = next_label("cmp_true");
+   const char *false_label = next_label("cmp_false");
+   const char *done_label = next_label("cmp_done");
+   const char *same_sign_label = NULL;
+   bool is_equal;
+   bool is_le;
+   bool is_signed;
+
+   if (!op || size < 1 || size > 4 || !true_label || !false_label || !done_label) {
+      free((void *) true_label);
+      free((void *) false_label);
+      free((void *) done_label);
+      error_unreachable("invalid fixed-width comparison lowering");
+   }
+   is_equal = !strcmp(op, "==");
+   is_le = !strcmp(op, "<=");
+   is_signed = type_is_signed_integer(type);
+   if (!is_equal && strcmp(op, "<") && strcmp(op, "<=")) {
+      free((void *) true_label);
+      free((void *) false_label);
+      free((void *) done_label);
+      error_unreachable("unsupported fixed-width comparison '%s'", op);
+   }
+
+   if (is_equal) {
+      for (int i = 0; i < size; i++) {
+         emit(&es_code, "    ldy #%d\n", lhs_offset + i);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit(&es_code, "    ldy #%d\n", rhs_offset + i);
+         emit(&es_code, "    cmp %s,y\n", symbol);
+         emit(&es_code, "    bne %s\n", false_label);
+      }
+      emit(&es_code, "    jmp %s\n", true_label);
+   }
+   else {
+      if (is_signed) {
+         same_sign_label = next_label("cmp_same_sign");
+         if (!same_sign_label) {
+            free((void *) true_label);
+            free((void *) false_label);
+            free((void *) done_label);
+            error_unreachable("comparison label generation failed");
+         }
+         emit(&es_code, "    ldy #%d\n", lhs_offset + size - 1);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit(&es_code, "    ldy #%d\n", rhs_offset + size - 1);
+         emit(&es_code, "    eor %s,y\n", symbol);
+         emit(&es_code, "    bpl %s\n", same_sign_label);
+         emit(&es_code, "    ldy #%d\n", lhs_offset + size - 1);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit(&es_code, "    bmi %s\n", true_label);
+         emit(&es_code, "    jmp %s\n", false_label);
+         emit(&es_code, "%s:\n", same_sign_label);
+      }
+      for (int i = size - 1; i >= 0; i--) {
+         emit(&es_code, "    ldy #%d\n", lhs_offset + i);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit(&es_code, "    ldy #%d\n", rhs_offset + i);
+         emit(&es_code, "    cmp %s,y\n", symbol);
+         emit(&es_code, "    bcc %s\n", true_label);
+         emit(&es_code, "    bne %s\n", false_label);
+      }
+      emit(&es_code, "    jmp %s\n", is_le ? true_label : false_label);
+   }
+
+   emit(&es_code, "%s:\n", true_label);
+   emit(&es_code, "    lda #1\n");
+   emit(&es_code, "    bne %s\n", done_label);
+   emit(&es_code, "%s:\n", false_label);
+   emit(&es_code, "    lda #0\n");
+   emit(&es_code, "%s:\n", done_label);
+
+   free((void *) same_sign_label);
+   free((void *) true_label);
+   free((void *) false_label);
+   free((void *) done_label);
 }
 
 //! @brief Return int mul helper name data used by compiler lvalue lowering.
@@ -331,44 +424,29 @@ const char *int_div_helper_name(const ASTNode *type) {
    return "divNle";
 }
 
-//! @brief Return int shift helper name data used by compiler lvalue lowering.
+//! @brief Return the fixed-width shift helper selected for a scalar type.
 const char *int_shift_helper_name(const ASTNode *type, bool left_shift) {
-   if (left_shift) {
-      return "lslNle";
-   }
-   return type_is_signed_integer(type) ? "asrNle" : "lsrNle";
-}
-
-//! @brief Return int comp2 helper name data used by compiler lvalue lowering.
-const char *int_comp2_helper_name(const ASTNode *type) {
-   (void) type;
-   return "comp2Nle";
-}
-
-//! @brief Return int compare helper name data used by compiler lvalue lowering.
-const char *int_compare_helper_name(const ASTNode *type, const char *op) {
+   int size = type_size_from_node(type);
    bool is_signed = type_is_signed_integer(type);
 
-   if (!strcmp(op, "==") || !strcmp(op, "!=")) {
-      return "eqN";
-   }
-   if (!strcmp(op, "<") || !strcmp(op, ">")) {
-      return is_signed ? "ltNsle" : "ltNule";
-   }
-   if (!strcmp(op, "<=") || !strcmp(op, ">=")) {
-      return is_signed ? "leNsle" : "leNule";
+   switch (size) {
+      case 1: return left_shift ? "shl8"  : (is_signed ? "sar8"  : "shr8");
+      case 2: return left_shift ? "shl16" : (is_signed ? "sar16" : "shr16");
+      case 3: return left_shift ? "shl24" : (is_signed ? "sar24" : "shr24");
+      case 4: return left_shift ? "shl32" : (is_signed ? "sar32" : "shr32");
+      default:
+         error_unreachable("unsupported integer width %d reached shift lowering", size);
    }
    return NULL;
 }
 
-//! @brief Emit runtime shift scratch for compiler lvalue lowering diagnostics or output files.
-void emit_runtime_shift_scratch(const char *helper, int value_offset, int scratch_offset, int count_offset,
+//! @brief Emit a fixed-width runtime shift on compiler scratch.
+void emit_fixed_shift_scratch(const char *helper, int value_offset, int scratch_offset, int count_offset,
                                   const ASTNode *count_type, int count_size, int size) {
    emit_prepare_scratch_ptr(0, value_offset);
    emit_prepare_scratch_ptr(1, scratch_offset);
    emit_load_count_lowbyte_scratch_to_arg1(count_offset, count_type, count_size);
-   emit(&es_code, "    lda #$%02x\n", size & 0xff);
-   emit(&es_code, "    sta arg0\n");
+   (void) size;
    remember_runtime_import(helper);
    emit(&es_code, "    jsr _%s\n", helper);
 }
@@ -706,7 +784,7 @@ static bool emit_copy_bitfield_lvalue_to_scratch(Context *ctx, int dst_offset, c
       if (src_byte_offset > 0) {
          emit_add_immediate_to_ptr(0, src_byte_offset);
       }
-      emit_runtime_copy_ptr0_to_ptr1("cpyN", raw_copy_size, raw_copy_size);
+      emit_copy_ptr0_to_ptr1(raw_copy_size);
    }
 
    if (shift_bits > 0) {
@@ -803,7 +881,7 @@ bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int s
       if (src_byte_offset > 0) {
          emit_add_immediate_to_ptr(0, src_byte_offset);
       }
-      emit_runtime_copy_ptr0_to_ptr1("cpyN", raw_copy_size, raw_copy_size);
+      emit_copy_ptr0_to_ptr1(raw_copy_size);
    }
 
    if (shift_bits > 0) {

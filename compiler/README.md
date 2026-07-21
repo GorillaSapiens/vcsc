@@ -557,12 +557,18 @@ cycle timing remain the programmer's responsibility.
 
 The runtime workspace has at most 16 zero-page bytes: one byte each for
 `arg0`, `arg1`, and `tmp0` through `tmp5`, plus two bytes each for `ptr0`
-through `ptr3`. These cells are separate archive members. The stock startup
-selects only `arg0`, `arg1`, and `ptr0` through `ptr2`, for an eight-byte
-baseline. Compiler-generated objects, including inline assembly, and runtime helpers
-import only the cells they actually reference; `ptr3` and the `tmp` cells appear
-only when selected operations need them. `vcsc-runtime.inc` defines the short assembler aliases but
-imports no storage by itself.
+through `ptr3`. Each cell is a separate archive member. Stock startup selects
+only `arg0`, `arg1`, and `ptr0` through `ptr2`, for an eight-byte baseline.
+Compiler-generated objects, inline assembly, and selected runtime helpers import
+only the cells they reference. `vcsc-runtime.inc` defines short assembler aliases
+but imports no storage.
+
+One- through four-byte copies, fills, integer extension, negation, comparison,
+and bitwise operations are emitted inline. Variable shifts call width-specific
+8-, 16-, 24-, or 32-bit helpers and require no workspace beyond the eight-byte
+startup baseline. The remaining generic multiplication and division/remainder
+helpers may select `ptr3` and `tmp` cells; their replacement is separate work.
+Objects wider than four bytes may use the aggregate byte-copy/fill helpers.
 
 Compiler expression scratch is separate. It is allocated as fixed linker
 symbols and reused by function and nesting depth where lifetimes do not overlap.

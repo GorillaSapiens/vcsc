@@ -1,9 +1,12 @@
 // vcsc-cc1
-// expectasm: .import _zeroN
+// expectasm: .zpimport _vcsc_ptr1
+// forbidasm: .import _zeroN
+// forbidasm: .import _zero_bytes
 // expectasm: .export __init_
 // expectasm: .proc __init_
 // expectasmordered: .proc __init_
-// expectasmordered: jsr _zeroN
+// expectasmordered: lda #$00
+// expectasmordered: sta (ptr1),y
 // expectasmordered: jsr twice
 // expectasmordered: sta g,y
 

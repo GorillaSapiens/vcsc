@@ -362,21 +362,10 @@ static void emit_sub_immediate_from_scratch(const ASTNode *type, int offset, con
 
 //! @brief Emit add scratch to scratch for compiler operator lowering diagnostics or output files.
 void emit_add_scratch_to_scratch(const ASTNode *type, int dst_offset, int src_offset, int size) {
-   bool helper_is_generic = false;
-   const char *helper = int_addsub_helper_name(type, size, false, &helper_is_generic);
    bool dst_direct = dst_offset >= 0 && dst_offset + size <= 256;
    bool src_direct = src_offset >= 0 && src_offset + size <= 256;
    bool bcd = type_is_bcd_integer(type);
 
-   if (helper) {
-      if (helper_is_generic) {
-         emit_runtime_binary_scratch(helper, dst_offset, dst_offset, src_offset, size);
-      }
-      else {
-         emit_runtime_fixed_binary_scratch(helper, dst_offset, dst_offset, src_offset);
-      }
-      return;
-   }
 
    if (!dst_direct) {
       emit_prepare_scratch_ptr(0, dst_offset);
@@ -405,21 +394,10 @@ void emit_add_scratch_to_scratch(const ASTNode *type, int dst_offset, int src_of
 
 //! @brief Extract emit sub scratch from scratch for compiler operator lowering.
 void emit_sub_scratch_from_scratch(const ASTNode *type, int dst_offset, int src_offset, int size) {
-   bool helper_is_generic = false;
-   const char *helper = int_addsub_helper_name(type, size, true, &helper_is_generic);
    bool dst_direct = dst_offset >= 0 && dst_offset + size <= 256;
    bool src_direct = src_offset >= 0 && src_offset + size <= 256;
    bool bcd = type_is_bcd_integer(type);
 
-   if (helper) {
-      if (helper_is_generic) {
-         emit_runtime_binary_scratch(helper, dst_offset, dst_offset, src_offset, size);
-      }
-      else {
-         emit_runtime_fixed_binary_scratch(helper, dst_offset, dst_offset, src_offset);
-      }
-      return;
-   }
 
    if (!dst_direct) {
       emit_prepare_scratch_ptr(0, dst_offset);
@@ -569,12 +547,8 @@ unary_not_done:
       if (!neg_type) {
          neg_type = dst->type;
       }
-      emit_prepare_scratch_ptr(0, dst->offset);
-      emit_prepare_scratch_ptr(1, dst->offset);
-      emit(&es_code, "    lda #$%02x\n", dst->size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      remember_runtime_import(int_comp2_helper_name(neg_type));
-      emit(&es_code, "    jsr _%s\n", int_comp2_helper_name(neg_type));
+      (void) neg_type;
+      emit_fixed_twos_complement_scratch(dst->offset, dst->size);
       return true;
    }
 
@@ -792,12 +766,7 @@ unary_not_done:
             emit(&es_code, "    ldy #0\n");
             emit(&es_code, "    lda #1\n");
             emit(&es_code, "    sta (ptr3),y\n");
-            emit_prepare_scratch_ptr(0, 0);
-            emit_prepare_scratch_ptr(1, 0);
-            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(int_comp2_helper_name(difference_type));
-            emit(&es_code, "    jsr _%s\n", int_comp2_helper_name(difference_type));
+            emit_fixed_twos_complement_scratch(0, ptr_size);
             emit(&es_code, "%s:\n", absolute_done);
 
             factor_bytes = (unsigned char *) calloc(ptr_size ? ptr_size : 1, sizeof(unsigned char));
@@ -824,12 +793,7 @@ unary_not_done:
             emit(&es_code, "    ldy #0\n");
             emit(&es_code, "    lda (ptr3),y\n");
             emit(&es_code, "    beq %s\n", quotient_done);
-            emit_prepare_scratch_ptr(0, ptr_size * 2);
-            emit_prepare_scratch_ptr(1, ptr_size * 2);
-            emit(&es_code, "    lda #$%02x\n", ptr_size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(int_comp2_helper_name(difference_type));
-            emit(&es_code, "    jsr _%s\n", int_comp2_helper_name(difference_type));
+            emit_fixed_twos_complement_scratch(ptr_size * 2, ptr_size);
             emit(&es_code, "%s:\n", quotient_done);
             result_offset = ptr_size * 2;
          }
@@ -970,7 +934,7 @@ unary_not_done:
       }
 
       helper = int_shift_helper_name(op_type, !strcmp(op, "<<"));
-      emit_runtime_shift_scratch(helper, lhs_offset, aux_offset, rhs_offset, rhs_type, rhs_size, lhs_size);
+      emit_fixed_shift_scratch(helper, lhs_offset, aux_offset, rhs_offset, rhs_type, rhs_size, lhs_size);
       emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type, aux_offset, lhs_size, op_type);
       expr_fixed_scratch_deactivate(ctx, &scratch);
       emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
@@ -1034,12 +998,12 @@ unary_not_done:
          }
       }
 
-      if (!strcmp(op, "&")) helper = "bit_andN";
-      else if (!strcmp(op, "|")) helper = "bit_orN";
-      else if (!strcmp(op, "^")) helper = "bit_xorN";
+      if (!strcmp(op, "&")) helper = "and";
+      else if (!strcmp(op, "|")) helper = "ora";
+      else if (!strcmp(op, "^")) helper = "eor";
 
       if (helper) {
-         emit_runtime_binary_scratch(helper, lhs_offset, lhs_offset, rhs_offset, op_size);
+         emit_fixed_bitwise_scratch(helper, lhs_offset, lhs_offset, rhs_offset, op_size);
       }
       else if (!strcmp(op, "*")) {
          emit_runtime_binary_scratch(int_mul_helper_name(op_type), aux_offset, lhs_offset, rhs_offset, op_size);

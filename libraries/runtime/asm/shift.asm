@@ -1,251 +1,506 @@
-; shift.asm - Bit shifting routines
+; shift.asm - fixed-width VCSC scalar shift helpers
 ;
-; Little-endian helpers use the *le suffix.
-;
-; Inputs:
-;   ptr0  - source for *N, read-only
-;   ptr1  - destination for *N, modified in place for *1
-;   arg0  - byte count
-;   arg1  - bits to shift for N
-; Clobbers: A, X, Y
+; Inputs: ptr0 source, ptr1 destination, arg1 low-byte shift count.
+; ptr0 and ptr1 are preserved.  A, X, and Y are clobbered.
+; Widths are 8, 16, 24, and 32 bits; multibyte values are little-endian.
 
 .include "vcsc-runtime.inc"
-.def n_byte  _vcsc_tmp0
-.def n_bit   _vcsc_tmp1
-.def tmp     _vcsc_tmp2
 
-.proc _lsl1le
-    ldx arg0
+.proc _shl8
     ldy #0
-    clc
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #8
+    bcs @saturate
 @loop:
+    clc
+    ldy #0
     lda (ptr1), y
     rol
     sta (ptr1), y
-    iny
     dex
-    bne @loop
-    rts
-.endproc
-
-.proc _lsr1le
-    ldy arg0
-    dey
-    clc
-@loop:
-    lda (ptr1), y
-    ror
-    sta (ptr1), y
-    dey
-    bpl @loop
-    rts
-.endproc
-
-.proc _asr1le
-    ldy arg0
-    dey
-    lda (ptr1), y
-    asl
-@loop:
-    lda (ptr1), y
-    ror
-    sta (ptr1), y
-    dey
-    bpl @loop
-    rts
-.endproc
-
-.proc _arg1Nle
-    jmp @start
-@trampoline1:
-    jmp (ptr3)
-@start:
-    lda arg1
-    and #7
-    sta n_bit
-    beq @done
-@loop:
-    jsr @trampoline1
-    dec n_bit
     bne @loop
 @done:
     rts
-.endproc
-
-.proc _lslNle
-    lda #<_lsl1le
-    sta ptr3
-    lda #>_lsl1le
-    sta ptr3+1
-
-    lda arg1
-    lsr
-    lsr
-    lsr
-    sta n_byte
-    cmp arg0
-    bcc @copy_bytes
-
-    ldy arg0
-    dey
+@saturate:
     lda #0
-@fill_all:
-    sta (ptr1), y
-    dey
-    bpl @fill_all
-    rts
-
-@copy_bytes:
-    lda ptr0
-    sec
-    sbc n_byte
-    sta ptr2
-    lda ptr0+1
-    sbc #0
-    sta ptr2+1
-
-    ldy arg0
-    dey
-@copy:
-    cpy n_byte
-    bcc @fill_low
-    lda (ptr2), y
-    sta (ptr1), y
-    dey
-    bpl @copy
-    jsr _arg1Nle
-    rts
-
-@fill_low:
-    lda #0
-@fill_low_loop:
-    sta (ptr1), y
-    dey
-    bpl @fill_low_loop
-    jsr _arg1Nle
-    rts
-.endproc
-
-.proc _lsrNle
-    lda #<_lsr1le
-    sta ptr3
-    lda #>_lsr1le
-    sta ptr3+1
-
-    lda arg1
-    lsr
-    lsr
-    lsr
-    sta n_byte
-    cmp arg0
-    bcc @copy_bytes
-
     ldy #0
-    lda #0
-@fill_all:
     sta (ptr1), y
-    iny
-    cpy arg0
-    bcc @fill_all
-    rts
-
-@copy_bytes:
-    lda ptr0
-    clc
-    adc n_byte
-    sta ptr2
-    lda ptr0+1
-    adc #0
-    sta ptr2+1
-
-    lda arg0
-    sec
-    sbc n_byte
-    tax
-    ldy #0
-@copy:
-    lda (ptr2), y
-    sta (ptr1), y
-    iny
-    dex
-    bne @copy
-
-    lda #0
-@fill_high:
-    cpy arg0
-    bcs @post_bits
-    sta (ptr1), y
-    iny
-    bne @fill_high
-@post_bits:
-    jsr _arg1Nle
     rts
 .endproc
 
-.proc _asrNle
-    lda #<_asr1le
-    sta ptr3
-    lda #>_asr1le
-    sta ptr3+1
-
-    ldy arg0
-    dey
+.proc _shl16
+    ldy #0
     lda (ptr0), y
-    bmi @negative
-    lda #0
-    jmp @got_fill
-@negative:
-    lda #$ff
-@got_fill:
-    sta tmp
-
-    lda arg1
-    lsr
-    lsr
-    lsr
-    sta n_byte
-    cmp arg0
-    bcc @copy_bytes
-
-    ldy #0
-    lda tmp
-@fill_all:
     sta (ptr1), y
-    iny
-    cpy arg0
-    bcc @fill_all
-    rts
-
-@copy_bytes:
-    lda ptr0
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #16
+    bcs @saturate
+@loop:
     clc
-    adc n_byte
-    sta ptr2
-    lda ptr0+1
-    adc #0
-    sta ptr2+1
-
-    lda arg0
-    sec
-    sbc n_byte
-    tax
     ldy #0
-@copy:
-    lda (ptr2), y
+    lda (ptr1), y
+    rol
     sta (ptr1), y
-    iny
+    ldy #1
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
     dex
-    bne @copy
-
-    lda tmp
-@fill_high:
-    cpy arg0
-    bcs @post_bits
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
     sta (ptr1), y
-    iny
-    bne @fill_high
-@post_bits:
-    jsr _arg1Nle
+    ldy #1
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shl24
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #24
+    bcs @saturate
+@loop:
+    clc
+    ldy #0
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    ldy #2
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shl32
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #3
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #32
+    bcs @saturate
+@loop:
+    clc
+    ldy #0
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    ldy #2
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    ldy #3
+    lda (ptr1), y
+    rol
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    ldy #3
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shr8
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #8
+    bcs @saturate
+@loop:
+    clc
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shr16
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #16
+    bcs @saturate
+@loop:
+    clc
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shr24
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #24
+    bcs @saturate
+@loop:
+    clc
+    ldy #2
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _shr32
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #3
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #32
+    bcs @saturate
+@loop:
+    clc
+    ldy #3
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #2
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    lda #0
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    ldy #3
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _sar8
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #8
+    bcs @saturate
+@loop:
+    ldy #0
+    lda (ptr1), y
+    asl
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    ldy #0
+    lda (ptr1), y
+    bpl @sat_zero
+    lda #$ff
+    bne @sat_fill
+@sat_zero:
+    lda #0
+@sat_fill:
+    ldy #0
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _sar16
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #16
+    bcs @saturate
+@loop:
+    ldy #1
+    lda (ptr1), y
+    asl
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    ldy #1
+    lda (ptr1), y
+    bpl @sat_zero
+    lda #$ff
+    bne @sat_fill
+@sat_zero:
+    lda #0
+@sat_fill:
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _sar24
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #24
+    bcs @saturate
+@loop:
+    ldy #2
+    lda (ptr1), y
+    asl
+    ldy #2
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    ldy #2
+    lda (ptr1), y
+    bpl @sat_zero
+    lda #$ff
+    bne @sat_fill
+@sat_zero:
+    lda #0
+@sat_fill:
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    rts
+.endproc
+
+.proc _sar32
+    ldy #0
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #1
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #2
+    lda (ptr0), y
+    sta (ptr1), y
+    ldy #3
+    lda (ptr0), y
+    sta (ptr1), y
+    ldx arg1
+    beq @done
+    cpx #32
+    bcs @saturate
+@loop:
+    ldy #3
+    lda (ptr1), y
+    asl
+    ldy #3
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #2
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #1
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    ldy #0
+    lda (ptr1), y
+    ror
+    sta (ptr1), y
+    dex
+    bne @loop
+@done:
+    rts
+@saturate:
+    ldy #3
+    lda (ptr1), y
+    bpl @sat_zero
+    lda #$ff
+    bne @sat_fill
+@sat_zero:
+    lda #0
+@sat_fill:
+    ldy #0
+    sta (ptr1), y
+    ldy #1
+    sta (ptr1), y
+    ldy #2
+    sta (ptr1), y
+    ldy #3
+    sta (ptr1), y
     rts
 .endproc
 

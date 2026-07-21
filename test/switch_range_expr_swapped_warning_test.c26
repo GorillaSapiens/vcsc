@@ -1,10 +1,10 @@
 // vcsc-cc1 -I .
 // expecterr: case range bounds were reversed; compiling as the inclusive range in ascending order
 // expectasmordered: lda #$02
-// expectasmordered: jsr _leNsle
+// expectasmordered: @cmp_same_sign_
 // expectasmordered: lda #$05
-// expectasmordered: jsr _leNsle
 // expectasmordered: bne @case_
+// forbidasm: _leNsle
 
 include "machine_6502.c26"
 

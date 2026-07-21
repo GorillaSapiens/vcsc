@@ -879,3 +879,6 @@ context.txt
 remove.txt
 software_stack_inventory.txt
 libraries/runtime/vcsc-zeropage.s
+libraries/runtime/asm/bitwise.asm
+libraries/runtime/asm/cmp.asm
+libraries/runtime/asm/stack.asm

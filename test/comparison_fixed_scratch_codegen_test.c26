@@ -1,8 +1,11 @@
 // vcsc-cc1 -I .
 // expectasm: __vcsc_scratch_
-// expectasm: jsr _ltNsle
+// expectasm: @cmp_same_sign_
+// expectasm: cmp __vcsc_scratch_
+// forbidasm: jsr _ltNsle
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN
+
 include "machine_6502.c26"
 
 void compare(int16_t a, int16_t b) {

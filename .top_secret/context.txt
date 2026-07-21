@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_114445.tar.gz
+    vcsc.20260721_122559.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -866,7 +866,7 @@ The first unfinished item is the default next action.
           linked pieces. Remove unconditional imports so ordinary cartridges pay
           only for the startup/compiler pointer cells they actually reference.
 
-    [ ] b. Replace the generic N copy, fill, extension, comparison, bitwise, and
+    [x] b. Replace the generic N copy, fill, extension, comparison, bitwise, and
           variable-shift helpers with VCSC-specific fixed-width lowering or
           helpers for the supported one- through four-byte scalar widths.
 
@@ -949,11 +949,11 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20c are complete. Before task 20d, complete the four-part
-runtime-workspace side quest above, beginning with splitting the monolithic
-16-byte workspace into independently linked pieces. Task 20d then builds the
-first no-bankswitch, no-Superchip cartridge from the normalized standard kernel
-and verifies its final map, opcode bytes, and stable 262-line NTSC timing.
+Tasks 20a through 20c are complete. Runtime-workspace side-quest items a and b
+are complete; item c, fixed-width multiplication and division/remainder, is the
+next queued action. Item d follows before task 20d builds the first
+no-bankswitch, no-Superchip cartridge from the normalized standard kernel and
+verifies its final map, opcode bytes, and stable 262-line NTSC timing.
 
 * Whether static frames will later be overlaid using whole-program call/liveness
   analysis. Start with distinct storage.
@@ -2450,3 +2450,26 @@ Before returning another modified archive:
   removal ledger now contains 881 paths. Side-quest item b is the next queued
   action before task 20d.
 
+
+2026-07-21 12:54:00 PDT, replace inherited generic scalar helpers
+------------------------------------------------------------------------
+* Complete side-quest item b. Emit one- through four-byte scalar copies, fills,
+  extension, two's-complement negation, comparisons, and bitwise operations
+  directly in compiler output. Remove the now-dead generic helper-selection
+  plumbing from add/subtract lowering.
+* Replace the arbitrary-width shift family with twelve archive-selected helpers:
+  logical left, logical right, and arithmetic right at 8, 16, 24, and 32 bits.
+  Each helper uses `ptr0`, `ptr1`, and `arg1`, preserves the pointers, and keeps
+  variable shifts at the ordinary eight-byte startup workspace baseline.
+* Delete `stack.asm`, `cmp.asm`, and `bitwise.asm` and their generated helper
+  families. Retain `_copy_bytes`, `_fill_bytes`, and `_zero_bytes` only for
+  objects wider than four bytes; multiplication and division/remainder remain
+  for side-quest item c.
+* Add `fixed_scalar_runtime.test` to reject every removed archive member, require
+  all twelve fixed-width shifts, verify inline scalar lowering and aggregate
+  zeroing, and prove an operation-rich scalar program links only the eight-byte
+  startup workspace. Update runtime/compiler/test documentation and direct
+  shift-helper coverage.
+* Pass 283/283 compile tests, 134/134 end-to-end/generic tests, and staged
+  installation. Add three removed runtime source paths to `.top_secret/remove.txt`,
+  now 884 unique cumulative paths. Side-quest item c is next before task 20d.

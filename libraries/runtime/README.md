@@ -36,23 +36,33 @@ therefore has no compiled interrupt-handler ABI or interrupt-entry library.
 The two vector targets remain because every 6502 image still needs addresses at
 `$FFFA` and `$FFFE`; a completely custom runtime may replace the weak fillers.
 
-### Code-generation helper routines
+### Code-generation support
 
-These are small assembly helpers that the compiler targets directly:
+VCSC emits one- through four-byte scalar copies, fills, extensions, negation,
+comparisons, and bitwise operations directly. Add and subtract are also inline.
+These operations no longer select inherited arbitrary-width runtime helpers.
 
-- arithmetic: `mul`, `div`, `rem` (one- through four-byte add/subtract are emitted inline; division owns a private four-byte BSS workspace selected with `_divNle`)
-- comparisons: `eq`, `lt`, `le`
-- bitwise operations: `and`, `or`, `xor`, `not`
-- shifts: logical/arithmetic, by 1, by 8, and by arbitrary counts
-- buffer/frame helpers: `cpyN`, `setN`, `zeroN`, `copyzxN`, `copysxN`, `swapN`, `comp2N`
+Runtime helpers remain where compact shared code is still useful:
+
+- `_shl8` through `_shl32`, `_shr8` through `_shr32`, and `_sar8` through
+  `_sar32` implement variable-count shifts at the four supported scalar widths;
+- `_copy_bytes`, `_fill_bytes`, and `_zero_bytes` support objects wider than
+  four bytes;
+- `_mulNle`, `_divNle`, and `_remNle` remain temporarily for multiplication,
+  division, and remainder. Division owns a private four-byte BSS workspace.
+
+The fixed-width shift helpers use `ptr0` as source, `ptr1` as destination, and
+`arg1` as the low-byte count. They preserve both pointers, clobber A/X/Y, and
+produce zero or sign fill when the runtime count is at least the operand width.
 
 Assembler include glue is in `vcsc-runtime.inc`. It defines the short `arg0`,
 `ptr0`, and `tmp0` spellings but deliberately imports no workspace symbols.
 Compiler output, including inline assembly, and each generated helper member
 declare their own exact zero-page imports, allowing the archive linker to select
-only the required `vcsc-zp-*.o26` members. Helper sources are in `asm/`, and generated archive
-members appear in `wrk/` after `make`. Machine definitions and linker layouts
-are platform-owned; the stock project target lives under `libraries/vcs/`.
+only the required `vcsc-zp-*.o26` members. Helper sources are in `asm/`, and
+generated archive members appear in `wrk/` after `make`. Machine definitions and
+linker layouts are platform-owned; the stock project target lives under
+`libraries/vcs/`.
 
 ### Dynamic allocation
 

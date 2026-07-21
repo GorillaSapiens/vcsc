@@ -619,7 +619,7 @@ bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_off
 
 
 
-//! @brief Emit runtime fill ptr1 for compiler code-generation support diagnostics or output files.
+//! @brief Fill bytes through ptr1, inlining scalar-width fills.
 void emit_runtime_fill_ptr1(int count, unsigned char value) {
    const char *helper;
 
@@ -627,7 +627,16 @@ void emit_runtime_fill_ptr1(int count, unsigned char value) {
       return;
    }
 
-   helper = value == 0 ? "zeroN" : "setN";
+   if (count <= 4) {
+      emit(&es_code, "    lda #$%02x\n", value);
+      for (int i = 0; i < count; i++) {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    sta (ptr1),y\n");
+      }
+      return;
+   }
+
+   helper = value == 0 ? "zero_bytes" : "fill_bytes";
    remember_runtime_import(helper);
    emit(&es_code, "    lda #$%02x\n", count & 0xff);
    emit(&es_code, "    sta arg0\n");
@@ -638,33 +647,25 @@ void emit_runtime_fill_ptr1(int count, unsigned char value) {
    emit(&es_code, "    jsr _%s\n", helper);
 }
 
-//! @brief Return runtime copy-conversion helper name.
-const char *runtime_copy_convert_helper_name(int dst_size, const ASTNode *dst_type, int src_size, const ASTNode *src_type) {
-   bool is_signed = type_is_signed_integer(src_type);
-   (void) dst_type;
-
-   if (dst_size <= 0 || src_size <= 0 || dst_size == src_size) {
-      return NULL;
-   }
-   return is_signed ? "copysxNle" : "copyzxNle";
-}
-
-//! @brief Emit runtime copy ptr0 to ptr1 for compiler code-generation support diagnostics or output files.
-void emit_runtime_copy_ptr0_to_ptr1(const char *helper, int src_size, int dst_size) {
-   if (!helper || src_size <= 0 || dst_size <= 0) {
+//! @brief Copy bytes from ptr0 to ptr1, inlining scalar-width copies.
+void emit_copy_ptr0_to_ptr1(int count) {
+   if (count <= 0) {
       return;
    }
 
-   remember_runtime_import(helper);
-   emit(&es_code, "    lda #$%02x\n", src_size & 0xff);
+   if (count <= 4) {
+      for (int i = 0; i < count; i++) {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda (ptr0),y\n");
+         emit(&es_code, "    sta (ptr1),y\n");
+      }
+      return;
+   }
+
+   remember_runtime_import("copy_bytes");
+   emit(&es_code, "    lda #$%02x\n", count & 0xff);
    emit(&es_code, "    sta arg0\n");
-   if (!strcmp(helper, "cpyN")) {
-      emit(&es_code, "    jsr _cpyN\n");
-      return;
-   }
-   emit(&es_code, "    lda #$%02x\n", dst_size & 0xff);
-   emit(&es_code, "    sta arg1\n");
-   emit(&es_code, "    jsr _%s\n", helper);
+   emit(&es_code, "    jsr _copy_bytes\n");
 }
 
 //! @brief Emit fill scratch bytes for compiler code-generation support diagnostics or output files.
@@ -696,8 +697,8 @@ void emit_copy_scratch_to_scratch_convert(int dst_offset, int dst_size, const AS
    bool dst_direct;
    bool src_direct;
    int sign_src_mem;
-   const char *helper;
 
+   (void) dst_type;
    if (dst_size <= 0 || src_size <= 0) {
       return;
    }
@@ -705,15 +706,6 @@ void emit_copy_scratch_to_scratch_convert(int dst_offset, int dst_size, const AS
    dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
    src_direct = src_offset >= 0 && src_offset + src_size <= 256;
    sign_src_mem = src_size - 1;
-   helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
-
-   if (helper) {
-      emit_prepare_scratch_ptr(0, src_offset);
-      emit_prepare_scratch_ptr(1, dst_offset);
-      emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
-      return;
-   }
-
    if (!src_direct) {
       emit_prepare_scratch_ptr(0, src_offset);
    }
@@ -768,21 +760,14 @@ void emit_copy_symbol_to_scratch_convert_offset(int dst_offset, int dst_size, co
    bool is_signed = type_is_signed_integer(src_type);
    bool dst_direct;
    int sign_src_mem;
-   const char *helper;
 
+   (void) dst_type;
    if (dst_size <= 0 || src_size <= 0) {
       return;
    }
 
    dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
    sign_src_mem = src_size - 1;
-   helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
-   if (helper) {
-      emit_load_address_to_ptr(0, symbol, src_offset);
-      emit_prepare_scratch_ptr(1, dst_offset);
-      emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
-      return;
-   }
    if (!dst_direct) {
       emit_prepare_scratch_ptr(1, dst_offset);
    }
@@ -816,21 +801,13 @@ void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_o
                                                const char *src_symbol, int src_offset, int src_size, const ASTNode *src_type) {
    bool is_signed = type_is_signed_integer(src_type);
    int sign_src_mem;
-   const char *helper;
 
+   (void) dst_type;
    if (!dst_symbol || !src_symbol || dst_size <= 0 || src_size <= 0) {
       return;
    }
 
    sign_src_mem = src_size - 1;
-   helper = runtime_copy_convert_helper_name(dst_size, dst_type, src_size, src_type);
-   if (helper) {
-      emit_load_address_to_ptr(0, src_symbol, src_offset);
-      emit_load_address_to_ptr(1, dst_symbol, dst_offset);
-      emit_runtime_copy_ptr0_to_ptr1(helper, src_size, dst_size);
-      return;
-   }
-
    for (int j = 0; j < dst_size; j++) {
       if (j < src_size) {
          emit(&es_code, "    ldy #%d\n", src_offset + j);

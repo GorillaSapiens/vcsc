@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/fixed_scalar_runtime.pl @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: fixed scalar runtime ok: inline scalar ops, 12 width-specific shifts, 8-byte workspace

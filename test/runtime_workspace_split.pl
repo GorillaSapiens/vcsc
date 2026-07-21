@@ -117,8 +117,8 @@ uint8_t count := 5;
 int32_t result;
 void main(void) { result := a >> count; }
 SRC
-require_cells('arithmetic shift', $asr, @startup, qw(ptr3 tmp0 tmp1 tmp2)) == 13
-   or die "arithmetic-shift workspace is not thirteen bytes\n";
+require_cells('arithmetic shift', $asr, @startup) == 8
+   or die "fixed-width arithmetic-shift workspace is not eight bytes\n";
 
 my $mul = build_case('workspace_mul', <<'SRC');
 uint32_t a := 0x1234;
@@ -138,4 +138,4 @@ my $generated = read_file($empty_asm);
 $generated !~ /^\s*\.zpimport\s+_vcsc_(?:arg|ptr|tmp)/m
    or die "empty translation unit imports unused runtime workspace cells\n";
 
-print "runtime workspace split ok: plain 8, direct 9, division 12, arithmetic shift 13, multiply 16 bytes\n";
+print "runtime workspace split ok: plain 8, direct 9, division 12, fixed shift 8, multiply 16 bytes\n";

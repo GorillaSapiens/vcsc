@@ -1,8 +1,11 @@
 // vcsc-cc1
-// expectasm: .import _copysxNle
-// expectasm: jsr _copysxNle
-// expectasm: jsr _asrNle
-// expectasm: jsr _leNsle
+// expectasm: .import _sar16
+// expectasm: jsr _sar16
+// expectasm: and #$80
+// expectasm: @cmp_same_sign_
+// forbidasm: _copysxNle
+// forbidasm: _asrNle
+// forbidasm: _leNsle
 
 include "machine_6502.c26"
 

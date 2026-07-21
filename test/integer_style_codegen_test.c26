@@ -1,6 +1,8 @@
 // vcsc-cc1
-// expectasm: jsr _copysxNle
-// expectasm: jsr _leNule
+// expectasm: and #$80
+// expectasm: cmp __vcsc_scratch_
+// forbidasm: _copysxNle
+// forbidasm: _leNule
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

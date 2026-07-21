@@ -660,36 +660,30 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       }
 
       if (!strcmp(expr->name, "==")) {
-         helper = "eqN";
+         helper = "==";
       }
       else if (!strcmp(expr->name, "!=")) {
-         helper = "eqN";
+         helper = "==";
          invert = true;
       }
       else if (!strcmp(expr->name, "<")) {
-         helper = int_compare_helper_name(type, expr->name);
+         helper = "<";
       }
       else if (!strcmp(expr->name, ">")) {
-         helper = int_compare_helper_name(type, expr->name);
+         helper = "<";
          ContextEntry t = lhs; lhs = rhs; rhs = t;
       }
       else if (!strcmp(expr->name, "<=")) {
-         helper = int_compare_helper_name(type, expr->name);
+         helper = "<=";
       }
       else if (!strcmp(expr->name, ">=")) {
-         helper = int_compare_helper_name(type, expr->name);
+         helper = "<=";
          ContextEntry t = lhs; lhs = rhs; rhs = t;
       }
 
-      emit_prepare_scratch_ptr(0, lhs.offset);
-      emit_prepare_scratch_ptr(1, rhs.offset);
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      remember_runtime_import(helper);
-      emit(&es_code, "    jsr _%s\n", helper);
+      emit_fixed_compare_scratch(type, helper, lhs.offset, rhs.offset, size);
       compiler_scratch_deactivate(ctx, &scratch);
       compiler_scratch_release(&scratch);
-      emit(&es_code, "    lda arg1\n");
       emit(&es_code, "    %s %s\n", invert ? "bne" : "beq", false_label);
       return true;
    }
@@ -1225,13 +1219,13 @@ void compile_expr(ASTNode *node, Context *ctx) {
          emit_sub_scratch_from_scratch(work_type, lhs_tmp_offset, rhs_value_offset, work_size);
       }
       else if (!strcmp(op, "&=")) {
-         emit_runtime_binary_scratch("bit_andN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_fixed_bitwise_scratch("and", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "|=")) {
-         emit_runtime_binary_scratch("bit_orN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_fixed_bitwise_scratch("ora", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "^=")) {
-         emit_runtime_binary_scratch("bit_xorN", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
+         emit_fixed_bitwise_scratch("eor", lhs_tmp_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
       }
       else if (!strcmp(op, "*=")) {
          emit_runtime_binary_scratch(int_mul_helper_name(work_type), aux_offset, lhs_tmp_offset, rhs_tmp_offset, work_size);
@@ -1253,7 +1247,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
       else if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
          helper = int_shift_helper_name(work_type, !strcmp(op, "<<="));
-         emit_runtime_shift_scratch(helper, lhs_tmp_offset, aux_offset, rhs_tmp_offset, rhs_slot_type, rhs_work_size, work_size);
+         emit_fixed_shift_scratch(helper, lhs_tmp_offset, aux_offset, rhs_tmp_offset, rhs_slot_type, rhs_work_size, work_size);
          emit_copy_scratch_to_scratch(lhs_tmp_offset, aux_offset, work_size);
       }
       else {

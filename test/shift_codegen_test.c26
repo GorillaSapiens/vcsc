@@ -1,8 +1,12 @@
 // vcsc-cc1
-// expectasm: jsr _asrNle
-// expectasm: lda #$02
-// expectasm: sta arg0
-// expectasm: jsr _lsrNle
+// expectasm: .import _sar8
+// expectasm: jsr _sar8
+// expectasm: .import _shr16
+// expectasm: jsr _shr16
+// expectasm: sta arg1
+// forbidasm: sta arg0
+// forbidasm: _asrNle
+// forbidasm: _lsrNle
 
 type void      { $size:0 };
 type uint8_t      { $size:1 $integer:unsigned };

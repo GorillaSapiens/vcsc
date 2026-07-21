@@ -946,7 +946,6 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    const char *end_label = NULL;
    const char **case_labels = NULL;
    int section_count;
-   bool is_signed;
 
    pending_loop_label_name = NULL;
 
@@ -968,7 +967,6 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    compare_size = size * 2;
    lhs = (ContextEntry){ .name = "$lhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = 0, .size = size };
    rhs = (ContextEntry){ .name = "$rhs", .type = type, .declarator = NULL, .is_static = false, .is_zeropage = false, .is_global = false, .offset = size, .size = size };
-   is_signed = type_is_signed_integer(type);
    cleanup_label = next_label("switch_cleanup");
    end_label = next_label("switch_end");
    if (!cleanup_label || !end_label) {
@@ -1036,14 +1034,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case expression", low->file, low->line, low->column);
                continue;
             }
-            emit_prepare_scratch_ptr(0, lhs.offset);
-            emit_prepare_scratch_ptr(1, rhs.offset);
-            emit(&es_code, "    lda #$%02x\n", size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import("eqN");
-            emit(&es_code, "    jsr _eqN\n");
+            emit_fixed_compare_scratch(type, "==", lhs.offset, rhs.offset, size);
             stmt_fixed_scratch_deactivate(ctx, &scratch);
-            emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    bne %s\n", case_labels[i]);
             continue;
          }
@@ -1055,7 +1047,6 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
             ASTNode *ordered_low = low;
             ASTNode *ordered_high = high;
             const char *skip_label = next_label("case_skip");
-            const char *le_helper = is_signed ? "leNsle" : "leNule";
 
             if (!skip_label) {
                warning("[%s:%d.%d] switch case label generation failed", case_expr->file, case_expr->line, case_expr->column);
@@ -1085,14 +1076,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case range start", ordered_low->file, ordered_low->line, ordered_low->column);
                continue;
             }
-            emit_prepare_scratch_ptr(0, rhs.offset);
-            emit_prepare_scratch_ptr(1, lhs.offset);
-            emit(&es_code, "    lda #$%02x\n", size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(le_helper);
-            emit(&es_code, "    jsr _%s\n", le_helper);
+            emit_fixed_compare_scratch(type, "<=", rhs.offset, lhs.offset, size);
             stmt_fixed_scratch_deactivate(ctx, &scratch);
-            emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    beq %s\n", skip_label);
 
             stmt_fixed_scratch_activate(ctx, &scratch);
@@ -1103,14 +1088,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
                error_user("[%s:%d.%d] invalid case range end", ordered_high->file, ordered_high->line, ordered_high->column);
                continue;
             }
-            emit_prepare_scratch_ptr(0, lhs.offset);
-            emit_prepare_scratch_ptr(1, rhs.offset);
-            emit(&es_code, "    lda #$%02x\n", size & 0xff);
-            emit(&es_code, "    sta arg0\n");
-            remember_runtime_import(le_helper);
-            emit(&es_code, "    jsr _%s\n", le_helper);
+            emit_fixed_compare_scratch(type, "<=", lhs.offset, rhs.offset, size);
             stmt_fixed_scratch_deactivate(ctx, &scratch);
-            emit(&es_code, "    lda arg1\n");
             emit(&es_code, "    bne %s\n", case_labels[i]);
             emit(&es_code, "%s:\n", skip_label);
             free((void *) skip_label);
@@ -1124,14 +1103,8 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
          error_user("[%s:%d.%d] invalid case expression", case_expr->file, case_expr->line, case_expr->column);
          continue;
       }
-      emit_prepare_scratch_ptr(0, lhs.offset);
-      emit_prepare_scratch_ptr(1, rhs.offset);
-      emit(&es_code, "    lda #$%02x\n", size & 0xff);
-      emit(&es_code, "    sta arg0\n");
-      remember_runtime_import("eqN");
-      emit(&es_code, "    jsr _eqN\n");
+      emit_fixed_compare_scratch(type, "==", lhs.offset, rhs.offset, size);
       stmt_fixed_scratch_deactivate(ctx, &scratch);
-      emit(&es_code, "    lda arg1\n");
       emit(&es_code, "    bne %s\n", case_labels[i]);
    }
 
