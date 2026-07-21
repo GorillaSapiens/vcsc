@@ -99,7 +99,7 @@ for my $family (@families) {
    for my $variant (qw(decimal hex)) {
       my $module="fonts/${family}_${variant}.vcsc";
       my $source=$example_text;
-      $source =~ s/include\s+"fonts\/21st_century_decimal\.vcsc"/include "$module"/
+      $source =~ s/include\s+"fonts\/default_decimal\.vcsc"/include "$module"/
          or die "could not replace example font include\n";
       my $stem="font_${family}_${variant}";
       my $src=File::Spec->catfile($tmp,"$stem.vcsc");

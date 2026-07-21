@@ -4,19 +4,16 @@
 // compact glyph-pointer construction and the cycle-counted visible kernel.
 
 include "vcs.vcsc"
-include "fonts/21st_century_decimal.vcsc"
+include "fonts/default_decimal.vcsc"
 
 alias BACKGROUND_COLOR 0x84
-alias SCORE_COLOR      0x0e
 alias SCORE_PERIOD     20
 
 bcd24_t score := 123456;
 uint8_t frame_counter := 0;
-uint8_t score_pointers[12];
-uint8_t score_row;
-uint8_t delayed_glyph;
+include "six_glyph_display.vcsc"
 
-void prepare_score_pointers(void) {
+void prepare_six_glyph_pointers(void) {
    // Build six complete 16-bit pointers in human digit order. Packed BCD is
    // little-endian, so score+2 supplies digits 1/2 and score supplies 5/6.
    asm lda score+2;
@@ -25,10 +22,10 @@ void prepare_score_pointers(void) {
    asm lsr;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers;
+   asm sta six_glyph_pointers;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+1;
+   asm sta six_glyph_pointers+1;
    asm txa;
    asm and #$0f;
    asm asl;
@@ -36,10 +33,10 @@ void prepare_score_pointers(void) {
    asm asl;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+2;
+   asm sta six_glyph_pointers+2;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+3;
+   asm sta six_glyph_pointers+3;
 
    asm lda score+1;
    asm tax;
@@ -47,10 +44,10 @@ void prepare_score_pointers(void) {
    asm lsr;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+4;
+   asm sta six_glyph_pointers+4;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+5;
+   asm sta six_glyph_pointers+5;
    asm txa;
    asm and #$0f;
    asm asl;
@@ -58,10 +55,10 @@ void prepare_score_pointers(void) {
    asm asl;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+6;
+   asm sta six_glyph_pointers+6;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+7;
+   asm sta six_glyph_pointers+7;
 
    asm lda score;
    asm tax;
@@ -69,10 +66,10 @@ void prepare_score_pointers(void) {
    asm lsr;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+8;
+   asm sta six_glyph_pointers+8;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+9;
+   asm sta six_glyph_pointers+9;
    asm txa;
    asm and #$0f;
    asm asl;
@@ -80,10 +77,10 @@ void prepare_score_pointers(void) {
    asm asl;
    asm clc;
    asm adc #<score_font;
-   asm sta score_pointers+10;
+   asm sta six_glyph_pointers+10;
    asm lda #>score_font;
    asm adc #0;
-   asm sta score_pointers+11;
+   asm sta six_glyph_pointers+11;
 }
 
 void wait_scanlines(uint8_t lines) {
@@ -93,68 +90,6 @@ void wait_scanlines(uint8_t lines) {
    }
 }
 
-void setup_score_display(void) {
-   // Horizontal positions persist, so do the HMOVE once during vertical blank.
-   WSYNC := 0;
-   asm lda #$03;
-   asm sta NUSIZ0;
-   asm sta NUSIZ1;
-   asm lda #$0e;
-   asm bit score;
-   asm sta COLUP0;
-   asm sta COLUP1;
-   asm sta HMCLR;
-   asm lda #$80;
-   asm sta HMP0;
-   asm lda #$90;
-   asm sta HMP1;
-   asm nop;
-   asm sta RESP0;
-   asm sta RESP1;
-   WSYNC := 0;
-   HMOVE := 0;
-}
-
-void draw_score(void) {
-   COLUP0 := SCORE_COLOR;
-   COLUP1 := SCORE_COLOR;
-   GRP0 := 0;
-   GRP1 := 0;
-   VDELP0 := 1;
-   VDELP1 := 1;
-   score_row := 7;
-
-   // Official-opcode six-digit score pipeline. D1 is preloaded before WSYNC;
-   // the remaining writes complete at cycles 8, 16, 44, 47, 50, and 53.
-   asm @score_loop:;
-   asm ldy score_row;
-   asm lda (score_pointers),y;
-   asm sta GRP0;
-   asm sta WSYNC;
-   asm lda (score_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (score_pointers+$4),y;
-   asm sta GRP0;
-   asm lda (score_pointers+$6),y;
-   asm sta delayed_glyph;
-   asm lda (score_pointers+$8),y;
-   asm tax;
-   asm lda (score_pointers+$a),y;
-   asm tay;
-   asm lda delayed_glyph;
-   asm sta GRP1;
-   asm stx GRP0;
-   asm sty GRP1;
-   asm sta GRP0;
-   asm dec score_row;
-   asm bpl @score_loop;
-
-   GRP0 := 0;
-   GRP1 := 0;
-   VDELP0 := 0;
-   VDELP1 := 0;
-   WSYNC := 0;
-}
 
 void main(void) {
    PF0 := 0;
@@ -168,8 +103,8 @@ void main(void) {
    COLUBK := BACKGROUND_COLOR;
    VBLANK := 2;
 
-   setup_score_display();
-   prepare_score_pointers();
+   six_glyph_setup();
+   prepare_six_glyph_pointers();
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    while (1) {
@@ -182,7 +117,7 @@ void main(void) {
       VBLANK := 0;
 
       wait_scanlines(89);
-      draw_score();
+      six_glyph_draw();
       wait_scanlines(89);
 
       VBLANK := 2;
@@ -192,7 +127,7 @@ void main(void) {
       if (frame_counter == SCORE_PERIOD) {
          frame_counter := 0;
          score++;
-         prepare_score_pointers();
+         prepare_six_glyph_pointers();
       }
 
       while (INTIM) {

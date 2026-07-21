@@ -44,7 +44,7 @@ Example 03 selects the table expected by its score kernel by including one
 module:
 
 ```vcsc
-include "fonts/21st_century_decimal.vcsc"
+include "fonts/default_decimal.vcsc"
 ```
 
 For hexadecimal output, include the corresponding `*_hex.vcsc` module and

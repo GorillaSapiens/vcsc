@@ -63,6 +63,7 @@ install-data:
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	install -m 0644 libraries/vcs/riot.vcsc $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
+	install -m 0644 libraries/vcs/six_glyph_display.vcsc $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.vcsc
 	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
@@ -87,6 +88,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg

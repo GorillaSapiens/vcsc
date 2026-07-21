@@ -30,9 +30,10 @@ instruction selection.
 
 VCSC owns the `bcd24_t` score, frame loop, scanline waits, update cadence, TIA
 setup, cleanup, and font data. During overscan, `prepare_score_pointers()` builds
-six complete 16-bit pointers in normal left-to-right digit order. The visible
-loop uses only documented 6502 instructions, one ordinary zero-page temporary,
-and one RAM row counter. It preloads digit 1 immediately before `WSYNC`; the
+six complete 16-bit pointers in normal left-to-right digit order. The shared `six_glyph_display.vcsc` module owns both the exact horizontal
+positioning sequence and the visible row loop, preventing timing drift between
+examples. It uses only documented 6502 instructions, one ordinary zero-page
+temporary, and one RAM row counter. It preloads digit 1 immediately before `WSYNC`; the
 remaining GRP writes complete at cycles `8, 16, 44, 47, 50, 53`.
 
 Horizontal player positioning and `HMOVE` happen once while `VBLANK` is set;
@@ -41,17 +42,16 @@ trick, or visible-frame HMOVE is used.
 
 VCSC currently has inline assembly but **does not have source-level inline
 functions**. These helpers are ordinary VCSC functions with no generated frame
-prologue or epilogue: a call is `JSR`, the body, and `RTS`. `draw_score()` has
-no nested call inside the timed loop.
+prologue or epilogue: a call is `JSR`, the body, and `RTS`. `six_glyph_draw()` is supplied by the shared VCS display module and has no
+nested call inside the timed loop.
 
 ## Fonts
 
 Score fonts are shared VCS support modules under `libraries/vcs/fonts/`, not
-private example data. Example 03 currently selects the 21st Century decimal
-font:
+private example data. Example 03 deliberately selects the Default decimal font:
 
 ```vcsc
-include "fonts/21st_century_decimal.vcsc"
+include "fonts/default_decimal.vcsc"
 ```
 
 The library contains nine families, each with a decimal `0-9` module and a

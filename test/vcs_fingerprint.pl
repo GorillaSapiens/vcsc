@@ -62,6 +62,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');
 my $ex=File::Spec->catdir($repo,'examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'fingerprint.vcsc');
+my $shared=File::Spec->catfile($vcs,'six_glyph_display.vcsc');
 my $font=File::Spec->catfile($vcs,'fonts','hexadecimal_hex.vcsc');
 my $bin=File::Spec->catfile($tmp,'fingerprint.bin');
 my $map=File::Spec->catfile($tmp,'fingerprint.map');
@@ -87,7 +88,7 @@ for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "fingerprint vector outs
 
 my $map_text=read_file($map);
 require_re($map_text,qr/\bfingerprint\b/, 'map is missing fingerprint state');
-require_re($map_text,qr/\bglyph_pointers\b/, 'map is missing six glyph pointers');
+require_re($map_text,qr/\bsix_glyph_pointers\b/, 'map is missing six glyph pointers');
 require_re($map_text,qr/\bprobe_accumulator\b/, 'map is missing probe accumulator');
 require_re($map_text,qr/\bprobe_flags\b/, 'map is missing probe flags');
 my $font_addr;
@@ -102,14 +103,23 @@ for my $i (0..127) {
 }
 
 my $source=read_file($src);
+my $shared_text=read_file($shared);
 require_re($source,qr/include\s+"fonts\/hexadecimal_hex\.vcsc"/,
            'example does not select the hexadecimal hex font');
+require_re($source,qr/include\s+"six_glyph_display\.vcsc"/,
+           'fingerprint example no longer includes the shared six-glyph display module');
+$source !~ /void\s+six_glyph_(?:setup|draw)\s*\(/
+   or die "fingerprint example copied a shared timing function locally\n";
+require_re($shared_text,qr/void\s+six_glyph_setup\s*\(/,
+           'shared module is missing six_glyph_setup');
+require_re($shared_text,qr/void\s+six_glyph_draw\s*\(/,
+           'shared module is missing six_glyph_draw');
 require_re($source,qr/uint24_t\s+fingerprint\s*;/,
            'fingerprint is not an ordinary VCSC uint24_t');
 require_re($source,qr/alias\s+BACKGROUND_COLOR\s+0x84/,
            'background is no longer medium blue');
-require_re($source,qr/alias\s+FINGERPRINT_COLOR\s+0x0e/,
-           'fingerprint is no longer bright white');
+require_re($shared_text,qr/COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e/s,
+           'shared display is no longer bright white');
 require_re($source,qr/fingerprint\s*\^=\s*\(uint24_t\)value\s*<<\s*16/,
            'CRC input byte is no longer XORed into the high CRC byte in VCSC');
 require_re($source,qr/fingerprint\s*\^=\s*0x864cfb/,
@@ -150,22 +160,26 @@ for my $spec (@generated_specs) {
 my $op6b_count=()=$generated =~ /^op6b #\$/mg;
 $op6b_count==4 or die "generated assembly has $op6b_count ARR probes, expected 4\n";
 
-my ($draw)=$generated =~ /(\.proc draw_fingerprint.*?\.endproc)/s;
-defined($draw) or die "generated assembly is missing draw_fingerprint\n";
+my ($setup)=$generated =~ /(\.proc six_glyph_setup.*?\.endproc)/s;
+defined($setup) or die "generated assembly is missing six_glyph_setup\n";
+require_re($setup,qr/sta\s+\$02\s+lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+bit six_glyph_pointers\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+lda #\$00\s+sta\s+\$02\s+sta\s+\$2A/s,
+           'shared horizontal positioning sequence changed');
+my ($draw)=$generated =~ /(\.proc six_glyph_draw.*?\.endproc)/s;
+defined($draw) or die "generated assembly is missing six_glyph_draw\n";
 $draw !~ /\bjsr\b/ or die "timed fingerprint row loop contains a call\n";
 $draw !~ /\b(?:lax|tsx|txs)\b/ or die "fingerprint display uses an unofficial or stack-pointer opcode\n";
-my ($loop)=$draw =~ /(\@glyph_loop:.*?bpl \@glyph_loop)/s;
+my ($loop)=$draw =~ /(\@six_glyph_loop:.*?bpl \@six_glyph_loop)/s;
 defined($loop) or die "generated assembly is missing glyph loop\n";
 my @actual=map { s/^\s+|\s+$//gr } grep { length } split(/\n/,$loop);
 my @expected=(
-   '@glyph_loop:', 'ldy glyph_row', 'lda (glyph_pointers),y', 'sta $1B',
-   'sta $02', 'lda (glyph_pointers+$2),y', 'sta $1C',
-   'lda (glyph_pointers+$4),y', 'sta $1B',
-   'lda (glyph_pointers+$6),y', 'sta delayed_glyph',
-   'lda (glyph_pointers+$8),y', 'tax',
-   'lda (glyph_pointers+$a),y', 'tay', 'lda delayed_glyph',
+   '@six_glyph_loop:', 'ldy six_glyph_row', 'lda (six_glyph_pointers),y', 'sta $1B',
+   'sta $02', 'lda (six_glyph_pointers+$2),y', 'sta $1C',
+   'lda (six_glyph_pointers+$4),y', 'sta $1B',
+   'lda (six_glyph_pointers+$6),y', 'sta six_glyph_delayed',
+   'lda (six_glyph_pointers+$8),y', 'tax',
+   'lda (six_glyph_pointers+$a),y', 'tay', 'lda six_glyph_delayed',
    'sta $1C', 'stx $1B', 'sty $1C', 'sta $1B',
-   'dec glyph_row', 'bpl @glyph_loop',
+   'dec six_glyph_row', 'bpl @six_glyph_loop',
 );
 join("\n",@actual) eq join("\n",@expected)
    or die "fingerprint glyph loop changed:\n".join("\n",@actual)."\n";

@@ -39,7 +39,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260720_171839.tar.gz
+    vcsc.20260720_174544.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -85,8 +85,9 @@ Settled final-language decisions
   Nine 8x8 families are provided as eighteen VCSC modules: one decimal `0-9`
   table and one hexadecimal `0-9A-F` table per family. Every module exports the
   common `score_font` symbol, uses one visual-binary byte per source row, and is
-  installed with the VCS support package. Example 03 currently selects
-  `21st_century_decimal.vcsc`.
+  installed with the VCS support package. Example 03 deliberately selects
+  `default_decimal.vcsc`; this is a settled example choice and must not be
+  changed merely to match an older changelog entry.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
 * Subtracting compatible pointers yields `int16_t` and a C-style element count.
@@ -2058,10 +2059,35 @@ Before returning another modified archive:
   order, CRC constants and standard vector, embedded 128-byte font, ROM/vectors,
   glyph-loop instruction sequence, stable 262-line timing, and exact 4096-byte
   output. Extend staged installcheck and the root/VCS/font documentation.
-* Stella 7.0 displays `0A55CE` for its CPU model; the bundled simulator displays
+* Stella 7.0 displays `8A55CE` for its CPU model; the bundled simulator displays
   `BDBAF3`. Treat those as model fingerprints, not universal expected values.
 * Restore example 03's source include to `21st_century_decimal.vcsc`, matching
   its existing Makefile, documentation, and regressions.
 * Pass 272/272 compile tests and 125/125 end-to-end/generic tests. Staged
   installation builds all four examples as exact 4096-byte cartridges.
   `remove.txt` remains at 876 paths; retained legacy sources are unchanged.
+
+
+2026-07-20 18:00:31 PDT, share six-glyph timing and restore example-03 default font
+------------------------------------------------------------------------
+* Diagnose why example 04 reproduced a pixel-bleed bug already repaired in
+  example 03: it copied the row loop but reimplemented RESP0/RESP1 positioning
+  with ordinary compiled assignments. The row loop's cycle-16 GRP0 update is
+  safe only with the exact horizontal-positioning sequence used by example 03.
+* Add installed `libraries/vcs/six_glyph_display.vcsc`, owning the inseparable
+  one-time positioning/HMOVE sequence, shared RAM state, and canonical
+  documented-opcode six-glyph row loop. Both examples now include this module;
+  neither retains a private setup or draw implementation.
+* Make example 03 deliberately select `fonts/default_decimal.vcsc`. Update its
+  Makefile, README, font-catalog documentation, catalog substitution test, and
+  score regression to enforce Default rather than repeatedly restoring the old
+  21st Century selection.
+* Strengthen both example regressions to verify the identical generated setup
+  sequence and row kernel, and reject local copies of either shared timing
+  function. Install and uninstall the shared module with the VCS support files.
+* Verify in Stella 7.0 that example 04 displays `8A55CE` without the extra
+  first-digit upper-right pixel and that example 03 renders with the Default
+  decimal font. Both remain exact 4096-byte, stable 262-line NTSC cartridges.
+* Pass 272/272 compile tests and 125/125 end-to-end/generic tests plus
+  staged installation. `remove.txt` remains at 876 paths because this slice
+  adds one shared module and deletes no tracked source files.

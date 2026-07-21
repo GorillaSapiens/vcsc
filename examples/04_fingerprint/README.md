@@ -15,8 +15,8 @@ digits.
 The fingerprint is computed once at startup. The processor-sensitive probes are
 small inline-assembly blocks using exact `op6b` opcode tokens. Everything else
 is VCSC: CRC-24, 24-bit state, frame structure, glyph-pointer preparation,
-colors, and display control. The visible six-glyph row pipeline remains timed
-inline assembly for the same reason as example 03.
+colors, and display control. The display includes the same shared `six_glyph_display.vcsc` positioning and
+row kernel as example 03, so their RESP/GRP timing cannot diverge.
 
 The display uses the shared hexadecimal font module:
 
@@ -27,7 +27,7 @@ include "fonts/hexadecimal_hex.vcsc"
 A real NMOS 6507 may produce a fingerprint specific to its silicon behavior.
 Emulators necessarily implement a model of unstable unofficial-opcode behavior,
 so their displayed value identifies that model rather than physical silicon.
-During this example's acceptance test, Stella 7.0 displayed `0A55CE`, while the
+During this example's acceptance test, Stella 7.0 displayed `8A55CE`, while the
 bundled CPU simulator model produced `BDBAF3`.
 
 Build after building the toolchain:
