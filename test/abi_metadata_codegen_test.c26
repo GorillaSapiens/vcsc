@@ -1,0 +1,23 @@
+// vcsc-cc1 -I .
+// expectasm: .export __abimeta$V1$function$definition$api$summary$
+// expectasm: .export __abimeta$V1$function$definition$api$return$
+// expectasm: .export __abimeta$V1$function$definition$api$param0$
+// expectasm: .export __abimeta$V1$function$definition$api$param1$
+// expectasm: .export __abimeta$V1$global$definition$g$object$
+include "machine_6502.c26"
+
+struct Packet {
+   int8_t tag;
+   int16_t value;
+};
+
+union Bits {
+   int16_t whole;
+   int8_t bytes[2];
+};
+
+Packet g;
+
+Packet *api(Packet *p, Bits *u) {
+   return p;
+}

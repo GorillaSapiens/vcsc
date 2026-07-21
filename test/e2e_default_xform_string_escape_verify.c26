@@ -1,0 +1,45 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+int8_t text[3] := "\\n";
+int8_t nl[2] := "\n";
+int8_t *ps := "\\n";
+int8_t *pn := "\n";
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void fail1(void) { asm lda #$ff; asm ldx #1;  asm ldy #0; asm jsr $ffff; }
+void fail2(void) { asm lda #$ff; asm ldx #2;  asm ldy #0; asm jsr $ffff; }
+void fail3(void) { asm lda #$ff; asm ldx #3;  asm ldy #0; asm jsr $ffff; }
+void fail4(void) { asm lda #$ff; asm ldx #4;  asm ldy #0; asm jsr $ffff; }
+void fail5(void) { asm lda #$ff; asm ldx #5;  asm ldy #0; asm jsr $ffff; }
+void fail6(void) { asm lda #$ff; asm ldx #6;  asm ldy #0; asm jsr $ffff; }
+void fail7(void) { asm lda #$ff; asm ldx #7;  asm ldy #0; asm jsr $ffff; }
+void fail8(void) { asm lda #$ff; asm ldx #8;  asm ldy #0; asm jsr $ffff; }
+void fail9(void) { asm lda #$ff; asm ldx #9;  asm ldy #0; asm jsr $ffff; }
+void fail10(void) { asm lda #$ff; asm ldx #10; asm ldy #0; asm jsr $ffff; }
+
+void main(void) {
+   if (text[0] != '\\') { fail1(); }
+   if (text[1] != 'n')  { fail2(); }
+   if (text[2] != 0)    { fail3(); }
+
+   if (nl[0] != '\n')  { fail4(); }
+   if (nl[1] != 0)     { fail5(); }
+
+   if (ps[0] != '\\') { fail6(); }
+   if (ps[1] != 'n')  { fail7(); }
+   if (ps[2] != 0)    { fail8(); }
+
+   if (pn[0] != '\n')  { fail9(); }
+   if (pn[1] != 0)     { fail10(); }
+
+   pass();
+}

@@ -49,7 +49,7 @@ my $vcsc_as = File::Spec->catfile($repo_root, 'assembler', 'vcsc-as');
 my $vcsc_ld  = File::Spec->catfile($repo_root, 'linker', 'vcsc-ld');
 my $vcsc_ar  = File::Spec->catfile($repo_root, 'archiver', 'vcsc-ar');
 my $vcsc_sim = File::Spec->catfile($repo_root, 'simulator', 'vcsc-sim');
-my $runtime = File::Spec->catfile($repo_root, 'libraries', 'runtime', 'libvcsc.a65');
+my $runtime = File::Spec->catfile($repo_root, 'libraries', 'runtime', 'libvcsc.l26');
 my $runtime_inc = File::Spec->catdir($repo_root, 'libraries', 'runtime');
 my $generic_link_cfg = File::Spec->catfile($test_root, 'generic_6502.cfg');
 
@@ -434,13 +434,13 @@ sub require_file_expectations_result {
 
 sub compile_n_to_object {
    my ($src_name, $runner_args, $tmp, $test_name) = @_;
-   my ($stem) = $src_name =~ /^(.*)\.vcsc$/;
+   my ($stem) = $src_name =~ /^(.*)\.c26$/;
    my $src_path = File::Spec->catfile($test_root, $src_name);
    my $s_path   = File::Spec->catfile($tmp, "$stem.s");
-   my $o_path   = File::Spec->catfile($tmp, "$stem.o65");
+   my $o_path   = File::Spec->catfile($tmp, "$stem.o26");
    my $out_path = File::Spec->catfile($tmp, "$stem.compile.out");
    my $err_path = File::Spec->catfile($tmp, "$stem.compile.err");
-   my @cmd = ($vcsc_cc1, '-quiet', @$runner_args, $src_path, '-o', $s_path, '-dumpbase', $src_name, '-dumpbase-ext', '.vcsc', '-dumpdir', $tmp);
+   my @cmd = ($vcsc_cc1, '-quiet', @$runner_args, $src_path, '-o', $s_path, '-dumpbase', $src_name, '-dumpbase-ext', '.c26', '-dumpdir', $tmp);
    my ($exit_code) = run_cmd(\@cmd, $out_path, $err_path);
    if ($exit_code != 0) {
       return (undef, "$test_name extra compile exit code $exit_code\n" . join(' ', @cmd) . "\n" . slurp_file($err_path));
@@ -520,15 +520,15 @@ sub run_e2e_case {
    my @compiled_objects;
    my @archives;
 
-   my ($stem) = $file =~ /^(.*)\.vcsc$/;
+   my ($stem) = $file =~ /^(.*)\.c26$/;
    my $main_s   = File::Spec->catfile($tmp, "$stem.s");
-   my $main_o65 = File::Spec->catfile($tmp, "$stem.o65");
+   my $main_o26 = File::Spec->catfile($tmp, "$stem.o26");
    my $hex_path = File::Spec->catfile($tmp, 'out.hex');
    my $map_path = File::Spec->catfile($tmp, 'out.map');
 
    my $compile_out = File::Spec->catfile($tmp, 'compile.out');
    my $compile_err = File::Spec->catfile($tmp, 'compile.err');
-   my @compile_cmd = ($vcsc_cc1, '-quiet', @$runner_args, $case->{path}, '-o', $main_s, '-dumpbase', $file, '-dumpbase-ext', '.vcsc', '-dumpdir', $tmp);
+   my @compile_cmd = ($vcsc_cc1, '-quiet', @$runner_args, $case->{path}, '-o', $main_s, '-dumpbase', $file, '-dumpbase-ext', '.c26', '-dumpdir', $tmp);
    my ($compile_exit) = run_cmd(\@compile_cmd, $compile_out, $compile_err);
    my $compile_stderr = slurp_file($compile_err);
 
@@ -545,12 +545,12 @@ sub run_e2e_case {
       return fail_result("compiler exit code $compile_exit\n" . join(' ', @compile_cmd) . "\n" . $compile_stderr);
    }
 
-   my @asm_cmd = ($vcsc_as, '-I', $runtime_inc, '-o', $main_o65, $main_s);
+   my @asm_cmd = ($vcsc_as, '-I', $runtime_inc, '-o', $main_o26, $main_s);
    my ($asm_exit) = run_cmd(\@asm_cmd, File::Spec->catfile($tmp, 'main_asm.out'), File::Spec->catfile($tmp, 'main_asm.err'));
    if ($asm_exit != 0) {
       return fail_result("assembler exit code $asm_exit\n" . join(' ', @asm_cmd) . "\n" . slurp_file(File::Spec->catfile($tmp, 'main_asm.err')));
    }
-   push @compiled_objects, $main_o65;
+   push @compiled_objects, $main_o26;
 
    for my $obj_src_name (@{$meta->{object}}) {
       my ($obj, $obj_err) = compile_n_to_object($obj_src_name, $runner_args, $tmp, $file);
@@ -559,10 +559,10 @@ sub run_e2e_case {
    }
 
    for my $arc_src_name (@{$meta->{archive}}) {
-      my ($stem2) = $arc_src_name =~ /^(.*)\.vcsc$/;
+      my ($stem2) = $arc_src_name =~ /^(.*)\.c26$/;
       my ($o_path, $obj_err) = compile_n_to_object($arc_src_name, $runner_args, $tmp, $file);
       return fail_result($obj_err) if defined $obj_err;
-      my $a_path = File::Spec->catfile($tmp, "$stem2.a65");
+      my $a_path = File::Spec->catfile($tmp, "$stem2.l26");
       my @ncmd = ($vcsc_ar, 'rcs', $a_path, $o_path);
       my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$stem2.vcsc-ar.out"), File::Spec->catfile($tmp, "$stem2.vcsc-ar.err"));
       if ($nexit != 0) {
@@ -585,7 +585,7 @@ sub run_e2e_case {
             push @group_objects, $obj;
          }
          my $archive_name = $group;
-         $archive_name .= '.a65' if $archive_name !~ /\.a65$/;
+         $archive_name .= '.l26' if $archive_name !~ /\.l26$/;
          my $a_path = File::Spec->catfile($tmp, $archive_name);
          my @ncmd = ($vcsc_ar, 'rcs', $a_path, @group_objects);
          my ($nexit) = run_cmd(\@ncmd, File::Spec->catfile($tmp, "$group.vcsc-ar.out"), File::Spec->catfile($tmp, "$group.vcsc-ar.err"));
@@ -718,7 +718,7 @@ sub load_case {
    return undef if !defined $runner_words;
    my $meta = parse_directives($path, $header_lines);
    my $name = File::Spec->abs2rel($path, $test_root);
-   my $is_vcsc_source = ($path =~ /\.vcsc$/);
+   my $is_vcsc_source = ($path =~ /\.c26$/);
    my $kind = $is_vcsc_source ? (is_e2e_case($meta) ? 'vcsc-e2e' : 'vcsc-compile') : 'generic';
    my @runner_words_copy = @$runner_words;
    my @runner_args = @runner_words_copy;
@@ -747,7 +747,7 @@ sub should_include_case {
 
 sub supported_test_filename {
    my ($name) = @_;
-   return ($name =~ /\.(?:vcsc|test)$/);
+   return ($name =~ /\.(?:c26|test)$/);
 }
 
 sub resolve_requested_paths {

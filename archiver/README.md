@@ -7,7 +7,7 @@
 
 # vcsc-ar
 
-`vcsc-ar` is a small standalone archiver for bundling `.o65` object files into a single `.a65` library file and unpacking them later. Its command line follows the usual GNU `ar` shape for the operations this tool supports.
+`vcsc-ar` is a small standalone archiver for bundling `.o26` object files into a single `.l26` library file and unpacking them later. Its command line follows the usual GNU `ar` shape for the operations this tool supports.
 
 ## Build
 
@@ -20,20 +20,20 @@ make
 Create or update an archive:
 
 ```sh
-./vcsc-ar rcs output.a65 obj1.o65 obj2.o65 ... objN.o65
+./vcsc-ar rcs output.l26 obj1.o26 obj2.o26 ... objN.o26
 ```
 
 List members:
 
 ```sh
-./vcsc-ar t input.a65
+./vcsc-ar t input.l26
 ```
 
 Extract all members, or only named members:
 
 ```sh
-./vcsc-ar x input.a65
-./vcsc-ar x input.a65 obj1.o65
+./vcsc-ar x input.l26
+./vcsc-ar x input.l26 obj1.o26
 ```
 
 ## Supported operation letters
@@ -55,7 +55,7 @@ The operation-string form above is the preferred interface. The tool also accept
 
 The format is intentionally simple:
 
-- 7-byte magic: `VCSCAR\x01`
+- 7-byte magic: `VCSL26\x01`
 - repeated member records until end of file:
   - 16-bit little-endian file name length
   - 32-bit little-endian file size

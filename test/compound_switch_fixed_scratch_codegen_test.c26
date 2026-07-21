@@ -1,0 +1,26 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_
+// expectasm: __vcsc_scratch_
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.c26"
+
+
+uint16_t value;
+uint8_t selector;
+
+void test(void) {
+   value += 3;
+   value <<= 1;
+   switch (selector) {
+      case 1:
+         value ^= 0x55;
+         break;
+      case 2 to 4:
+         value -= 1;
+         break;
+      default:
+         value |= 0x80;
+   }
+}

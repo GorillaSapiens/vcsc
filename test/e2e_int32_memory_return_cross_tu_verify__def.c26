@@ -1,0 +1,5 @@
+include "machine_6502.c26"
+
+uint32_t make_value32(void) {
+   return 0x87654321;
+}

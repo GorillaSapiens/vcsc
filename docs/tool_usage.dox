@@ -15,9 +15,9 @@
 //!
 //! @section tool_usage_pipeline Normal pipeline
 //!
-//! - `vcsc-cc1` compiles `.vcsc` source into assembly.
-//! - `vcsc-as` assembles source into relocatable `.o65` objects or Intel HEX.
-//! - `vcsc-ar` bundles `.o65` objects into `.a65` archives for lazy linking.
+//! - `vcsc-cc1` compiles `.c26` source into assembly.
+//! - `vcsc-as` assembles source into relocatable `.o26` objects or Intel HEX.
+//! - `vcsc-ar` bundles `.o26` objects into `.l26` archives for lazy linking.
 //! - `vcsc-ld` links objects and archives, lays out memory, resolves relocations,
 //!   emits Intel HEX, and optionally writes a map file.
 //! - `vcsc-sim` can run an emitted HEX image for smoke and regression checks.
@@ -27,15 +27,15 @@
 //! High-level flow:
 //!
 //! @code{.sh}
-//! vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
+//! vcsc -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.bin
 //! @endcode
 //!
 //! Direct stage-by-stage flow:
 //!
 //! @code{.sh}
-//! vcsc-cc1 -quiet -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.s -dumpbase solid_color.vcsc -dumpbase-ext .vcsc -dumpdir ./
-//! vcsc-as -I libraries/runtime/ -o solid_color.o65 solid_color.s
-//! vcsc-ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o65 libraries/runtime/libvcsc.a65
+//! vcsc-cc1 -quiet -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.s -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
+//! vcsc-as -I libraries/runtime/ -o solid_color.o26 solid_color.s
+//! vcsc-ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o26 libraries/runtime/libvcsc.l26
 //! @endcode
 //!
 //! @section tool_usage_docs More detailed command references

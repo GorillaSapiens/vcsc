@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// object: e2e_bcd_abi_mismatch_fail__def.c26
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
+// expectlinkerr: packed_bcd_integer(size=1)
+// expectlinkerr: unsigned_integer(size=1)
+include "machine_6502.c26"
+
+bcd8_t helper(bcd8_t x);
+void main(void) { helper(42); }

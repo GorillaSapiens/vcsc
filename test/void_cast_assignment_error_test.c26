@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: void_cast_assignment_error_test.c26:8.17] void expression has no value
+include "machine_6502.c26"
+int16_t g;
+int16_t main(void) {
+   int16_t x;
+   x := (void)g;
+   return x;
+}

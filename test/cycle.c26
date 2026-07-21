@@ -1,0 +1,15 @@
+// vcsc-cc1 -X invert
+
+include "machine_6502.c26"
+
+struct beta;
+struct gamma;
+struct alpha {
+   beta b;
+};
+struct beta {
+   gamma g;
+};
+struct gamma {
+   alpha a;
+};

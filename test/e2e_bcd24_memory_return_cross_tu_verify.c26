@@ -1,0 +1,28 @@
+// vcsc-cc1 -I .
+// object: e2e_bcd24_memory_return_cross_tu_verify__def.c26
+// expectexit: 0
+include "machine_6502.c26"
+
+bcd24_t make_score(void);
+
+void fail1(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   bcd24_t value := make_score();
+   if (value != 654321) {
+      fail1();
+   }
+   pass();
+}

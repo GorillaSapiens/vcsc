@@ -1,5 +1,0 @@
-include "machine_6502.vcsc"
-void main(void) {
-   int16_t *p;
-   (*p)++;
-}

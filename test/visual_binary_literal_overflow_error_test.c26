@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: integer '0b100000000' is too big for 1 bytes!
+include "machine_6502.c26"
+
+uint8_t bad := 0bX........;

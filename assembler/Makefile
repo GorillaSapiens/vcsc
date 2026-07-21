@@ -33,7 +33,7 @@ SRCSRC = \
    ihex.c \
    ir.c \
    listing.c \
-   o65.c \
+   o26.c \
    opcode.c \
    source_loader.c \
    symtab.c \

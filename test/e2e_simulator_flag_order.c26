@@ -1,0 +1,29 @@
+// vcsc-cc1 -I .
+// simcfg: e2e_simulator_rom_protect__sim.cfg
+// simargs: --trace 0x20
+// expectsim: dispatch ff 0000
+// expectsim: OK
+// expectexit: 0
+
+include "machine_6502.c26"
+
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   print_ok();
+   pass();
+}

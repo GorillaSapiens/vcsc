@@ -8,10 +8,10 @@ my ($vcsc_cc1, $test_root) = @ARGV;
 die "usage: $0 vcsc-cc1 test_root\n" if !defined $vcsc_cc1 || !defined $test_root;
 
 my $tmp = tempdir('VCSC_peephole_inline_asm_XXXX', TMPDIR => 1, CLEANUP => 1);
-my $src = File::Spec->catfile($tmp, 'inline_asm.vcsc');
+my $src = File::Spec->catfile($tmp, 'inline_asm.c26');
 open my $fh, '>', $src or die "write $src: $!";
 print $fh <<'N_EOF';
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 
 void main(void) {
    asm   lda #$01

@@ -10,8 +10,8 @@
 //! @brief Developer documentation for the VCSC compiler toolchain.
 //!
 //! The tree is organized around small command-line tools that hand off plain
-//! intermediate artifacts: vcsc-cc1 compiles `.vcsc` source to assembly, vcsc-as
-//! assembles source to Intel HEX or o65 objects, vcsc-ld links o65 inputs,
+//! intermediate artifacts: vcsc-cc1 compiles `.c26` source to assembly, vcsc-as
+//! assembles source to Intel HEX or o26 objects, vcsc-ld links o26 inputs,
 //! vcsc-ar packages object archives, and vcsc coordinates the tools for
 //! normal command-line use. Runtime support code and the simulator live beside
 //! those tools because they are installed or used by end-to-end builds, but the
@@ -37,15 +37,15 @@
 //!
 //! @defgroup assembler Assembler
 //! @brief Sources for vcsc-as, including lexer/parser glue, instruction
-//! selection, relaxation, symbol management, listings, Intel HEX, and o65
+//! selection, relaxation, symbol management, listings, Intel HEX, and o26
 //! object emission.
 //!
 //! @defgroup linker Linker
-//! @brief Sources for vcsc-ld, including o65/archive loading, configuration,
+//! @brief Sources for vcsc-ld, including o26/archive loading, configuration,
 //! relocation, layout, map output, and ABI metadata validation.
 //!
 //! @defgroup archiver Archiver
-//! @brief Sources for vcsc-ar, the simple VCSCAR archive reader/writer used by
+//! @brief Sources for vcsc-ar, the simple VCSL26 archive reader/writer used by
 //! the linker.
 //!
 //! @defgroup driver Driver

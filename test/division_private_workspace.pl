@@ -21,10 +21,10 @@ sub read_file {
 }
 sub build_case {
     my ($name, $op) = @_;
-    my $src = File::Spec->catfile($tmp, "$name.vcsc");
+    my $src = File::Spec->catfile($tmp, "$name.c26");
     my $out = File::Spec->catfile($tmp, "$name.hex");
     my $map = File::Spec->catfile($tmp, "$name.map");
-    write_file($src, qq{include "machine_6502.vcsc"\nuint16_t dividend := 1000;\nuint16_t divisor := 37;\nuint16_t result;\nvoid main(void) { result := dividend $op divisor; }\n});
+    write_file($src, qq{include "machine_6502.c26"\nuint16_t dividend := 1000;\nuint16_t divisor := 37;\nuint16_t result;\nvoid main(void) { result := dividend $op divisor; }\n});
     my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
     my $inc = File::Spec->catdir($repo, 'libraries', 'runtime');
     system($driver, '-I', $inc, '-Map', $map, $src, '-o', $out) == 0
@@ -34,9 +34,9 @@ sub build_case {
 
 my $plain = build_case('no_division', '+');
 my $div = build_case('with_division', '/');
-$plain !~ /libvcsc\.a65\(_divNle\.o65\)/
+$plain !~ /libvcsc\.l26\(_divNle\.o26\)/
     or die "division member linked into a program without division\n";
-$div =~ /libvcsc\.a65\(_divNle\.o65\).*?BSS\s+run=\$[0-9A-F]+\s+size=\$0004/s
+$div =~ /libvcsc\.l26\(_divNle\.o26\).*?BSS\s+run=\$[0-9A-F]+\s+size=\$0004/s
     or die "division member does not own exactly four BSS workspace bytes\n";
 $div !~ /(?:_vcsc_sp|_pushN|_popN|_sp2ptr)/
     or die "division map still exposes removed software-stack machinery\n";

@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.c26"
+
+struct Triple { uint8_t b[3]; };
+
+int16_t main(void) {
+   Triple a[4];
+   Triple *p := &a[0];
+   Triple *q := &a[3];
+   p := p + 2;
+   q--;
+   return q - p;
+}

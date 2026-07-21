@@ -1,0 +1,5 @@
+include "machine_6502.c26"
+
+bcd24_t make_score(void) {
+   return 654321;
+}

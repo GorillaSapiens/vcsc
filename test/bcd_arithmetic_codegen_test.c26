@@ -1,0 +1,26 @@
+// vcsc-cc1 -I .
+// expectasmordered: sed
+// expectasmordered: clc
+// expectasmordered: adc __vcsc_scratch_
+// expectasmordered: cld
+// expectasmordered: sed
+// expectasmordered: sec
+// expectasmordered: sbc __vcsc_scratch_
+// expectasmordered: cld
+// expectasm: ldy #2
+// expectasm: ldy #3
+include "machine_6502.c26"
+
+bcd8_t a8;
+bcd16_t a16;
+bcd24_t a24;
+bcd32_t a32;
+
+void main(void) {
+   a8 := a8 + 1;
+   a16 -= 1;
+   a24 += 1;
+   a32 += 1;
+   a8++;
+   --a16;
+}

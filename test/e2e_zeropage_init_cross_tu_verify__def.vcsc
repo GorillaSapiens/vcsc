@@ -1,3 +1,0 @@
-include "machine_6502.vcsc"
-
-zeropage int16_t shared := 7;

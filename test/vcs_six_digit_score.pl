@@ -63,9 +63,9 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $ex=File::Spec->catdir($repo,'examples','03_six_digit_score');
-my $src=File::Spec->catfile($ex,'six_digit_score.vcsc');
-my $font=File::Spec->catfile($vcs,'fonts','default_decimal.vcsc');
-my $shared=File::Spec->catfile($vcs,'six_glyph_display.vcsc');
+my $src=File::Spec->catfile($ex,'six_digit_score.c26');
+my $font=File::Spec->catfile($vcs,'fonts','default_decimal.c26');
+my $shared=File::Spec->catfile($vcs,'six_glyph_display.c26');
 my $font_symbol='score_font';
 my $bin=File::Spec->catfile($tmp,'six_digit_score.bin');
 my $map=File::Spec->catfile($tmp,'six_digit_score.map');
@@ -112,7 +112,7 @@ for my $i (0..79) {
 
 my $s=read_file($src);
 my $shared_text=read_file($shared);
-require_re($s,qr/include\s+"fonts\/default_decimal\.vcsc"/,
+require_re($s,qr/include\s+"fonts\/default_decimal\.c26"/,
            'example no longer includes the shared Default decimal font');
 require_re(read_file($font),qr/0b[.Xx01]{8}/,
            'active font no longer uses visual binary rows');
@@ -136,7 +136,7 @@ require_re($s,qr/VBLANK\s*:=\s*2;\s*six_glyph_setup\(\);\s*prepare_six_glyph_poi
            'one-time player positioning is no longer performed under vertical blank');
 require_re($s,qr/while\s*\(1\).*?wait_scanlines\(3\).*?wait_scanlines\(37\).*?wait_scanlines\(89\).*?six_glyph_draw\(\).*?wait_scanlines\(89\)/s,
            'frame structure is no longer expressed in VCSC');
-require_re($s,qr/include\s+"six_glyph_display\.vcsc"/,
+require_re($s,qr/include\s+"six_glyph_display\.c26"/,
            'example no longer includes the shared six-glyph display module');
 $s !~ /void\s+six_glyph_(?:setup|draw)\s*\(/ 
    or die "example copied a shared six-glyph timing function locally\n";

@@ -12,7 +12,7 @@
 `vcsc-as` is a custom two-pass 6502 assembler with:
 
 - Intel HEX output
-- relocatable o65 object output
+- relocatable o26 object output
 - listing file output
 - map output
 - recursive `.include`
@@ -29,7 +29,8 @@
 
 It can operate in two primary modes:
 
-- **relocatable object generation** with o65 output
+- **relocatable object generation** with o26 output
+- **VCSC-specific object identity** with magic prefix `01 00 6F 32 36` (`\x01\x00o26`)
 - **final binary assembly** with Intel HEX output
 
 Listing and map output can be requested alongside either mode.
@@ -45,7 +46,7 @@ Assembler identifiers may contain `?` and `@`, but symbols beginning with `@` ar
 
 - the input source is a positional operand
 - `-o` selects the primary relocatable object output
-- if no primary output is requested, the assembler writes an o65 object to `a.out`
+- if no primary output is requested, the assembler writes an o26 object to `a.o26`
 
 ### Usage
 
@@ -61,13 +62,13 @@ Input assembly source file.
 
 #### `-o <file>`, `--output <file>`
 
-Write relocatable o65 object output to `<file>`.
+Write relocatable o26 object output to `<file>`.
 
 ```sh
-vcsc-as -o program.o65 program.s
+vcsc-as -o program.o26 program.s
 ```
 
-If neither `-o` nor `--hex` is given, `vcsc-as` writes relocatable output using the GNU-`as` style default name `a.out`.
+If neither `-o` nor `--hex` is given, `vcsc-as` writes relocatable output using the canonical default name `a.o26`.
 
 ```sh
 vcsc-as program.s
@@ -78,7 +79,7 @@ vcsc-as program.s
 Add a directory to the include search path. May be repeated.
 
 ```sh
-vcsc-as -I common -I board -o program.o65 program.s
+vcsc-as -I common -I board -o program.o26 program.s
 ```
 
 ### Auxiliary outputs
@@ -119,7 +120,7 @@ vcsc-as --map=program.map program.s
 Load an additional opcode configuration file after the bundled `default.cfg`. May be repeated. Later files can extend or override earlier mnemonic ... mode mappings, but they cannot assign an already-described opcode byte to a different addressing mode.
 
 ```sh
-vcsc-as --opcode-cfg cpu65c02.cfg -o program.o65 program.s
+vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s
 ```
 
 #### `--illegals`
@@ -142,16 +143,16 @@ Alias for the positional input file.
 vcsc-as --input program.s --lst
 ```
 
-#### `--o65[=file]`
+#### `--o26[=file]`
 
 Alias for object output.
 
-- `vcsc-as --o65 program.s` writes `program.o65`
-- `vcsc-as --o65=custom.o65 program.s` writes `custom.o65`
+- `vcsc-as --o26 program.s` writes `program.o26`
+- `vcsc-as --o26=custom.o26 program.s` writes `custom.o26`
 
 ```sh
-vcsc-as --o65 program.s
-vcsc-as --o65=program.o65 program.s
+vcsc-as --o26 program.s
+vcsc-as --o26=program.o26 program.s
 ```
 
 ### Help
@@ -166,7 +167,7 @@ vcsc-as --help
 
 ## Examples
 
-Generate a default object file named `a.out`:
+Generate a default object file named `a.o26`:
 
 ```sh
 vcsc-as program.s
@@ -175,7 +176,7 @@ vcsc-as program.s
 Generate a named object file:
 
 ```sh
-vcsc-as -o program.o65 program.s
+vcsc-as -o program.o26 program.s
 ```
 
 Generate Intel HEX plus listing and map files using derived names:
@@ -187,17 +188,17 @@ vcsc-as --hex --lst --map program.s
 Generate every output explicitly:
 
 ```sh
-vcsc-as -o out.o65 --hex=out.hex --lst=out.lst --map=out.map test.s
+vcsc-as -o out.o26 --hex=out.hex --lst=out.lst --map=out.map test.s
 ```
 
 ## Behavior Notes
 
 ### Optional argument syntax
 
-For `--hex`, `--lst`, `--map`, and `--o65`, use the `=` form when supplying an optional filename:
+For `--hex`, `--lst`, `--map`, and `--o26`, use the `=` form when supplying an optional filename:
 
 ```sh
-vcsc-as --hex=program.hex --lst=program.lst --map=program.map --o65=program.o65 program.s
+vcsc-as --hex=program.hex --lst=program.lst --map=program.map --o26=program.o26 program.s
 ```
 
 Avoid relying on a space-separated optional value such as:
@@ -210,9 +211,9 @@ With `getopt_long()`, that extra token may be treated as a positional operand in
 
 ### Output defaults
 
-- No primary output flags: write relocatable o65 output to `a.out`
-- `-o <file>`: write relocatable o65 output to `<file>`
-- `--o65` without a filename: write relocatable o65 output to `<input>.o65`
+- No primary output flags: write relocatable o26 output to `a.o26`
+- `-o <file>`: write relocatable o26 output to `<file>`
+- `--o26` without a filename: write relocatable o26 output to `<input>.o26`
 - `--hex`, `--lst`, `--map` without filenames: derive names from the input path
 
 ## Source File Processing Order
@@ -547,7 +548,7 @@ next:
 .byte $BB        ; next is $8004
 ```
 
-In o65 object output, `.align` pads within the current packed segment.  Final absolute alignment depends on where the linker places that segment.
+In o26 object output, `.align` pads within the current packed segment.  Final absolute alignment depends on where the linker places that segment.
 
 ### Relocatable origin directives
 

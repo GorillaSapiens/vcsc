@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: integer '0x100000000' is too big for 4 bytes!
+include "machine_6502.c26"
+int32_t bad := 0x100000000;

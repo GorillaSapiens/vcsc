@@ -8,7 +8,7 @@ use Cwd qw(abs_path);
 my $repo = abs_path($ARGV[0] // File::Spec->catdir(File::Spec->curdir(), '..'));
 my $nint = File::Spec->catdir($repo, 'libraries', 'nint');
 my $runtime = File::Spec->catdir($repo, 'libraries', 'runtime');
-my $archive = File::Spec->catfile($runtime, 'libvcsc.a65');
+my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
 my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 
 sub slurp {
@@ -39,10 +39,10 @@ open(my $members, '-|', $ar, 't', $archive)
    or die "could not list $archive: $!\n";
 my $listing = do { local $/; <$members> };
 close($members) or die "could not list $archive\n";
-for my $obsolete ('_handle_irq.o65', '_handle_nmi.o65', 'vcsc-rt0-noint.o65') {
+for my $obsolete ('_handle_irq.o26', '_handle_nmi.o26', 'vcsc-rt0-noint.o26') {
    index($listing, "$obsolete\n") < 0
       or die "obsolete archive member remains: $obsolete\n";
 }
-index($listing, "vcsc-rt0.o65\n") >= 0 or die "startup archive member is missing\n";
+index($listing, "vcsc-rt0.o26\n") >= 0 or die "startup archive member is missing\n";
 
 print "interrupt runtime pruned: required vector stubs only\n";

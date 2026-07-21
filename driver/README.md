@@ -15,7 +15,7 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 `vcsc` understands the most useful high-level build modes:
 
 - compile and link by default
-- `-c` to stop after producing `.o65`
+- `-c` to stop after producing `.o26`
 - `-S` to stop after producing assembly
 - `-I`, `-L`, and `-l` in the usual GCC style
 - `-T` and `-Map` passthrough for the linker
@@ -23,7 +23,7 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `-v` and `-###` to print the subordinate commands
 
 When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is
-supplied and links `libraries/runtime/libvcsc.a65` unless `-nostdlib` is used.
+supplied and links `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
 
 ## What it requires
 
@@ -37,13 +37,13 @@ When run from the built repository tree, it finds:
 - `linker/vcsc-ld`
 - `archiver/vcsc-ar` (only for path reporting via `-print-prog-name=ar`)
 - `simulator/vcsc-sim` (only for path reporting via `-print-prog-name=sim`)
-- `libraries/runtime/libvcsc.a65` for default linking
+- `libraries/runtime/libvcsc.l26` for default linking
 - `libraries/vcs/vcs_4k.cfg` for the default unbanked VCS cartridge layout
 
 When installed, it expects this layout under the same prefix:
 
 - `bin/vcsc`, `bin/vcsc-cc1`, `bin/vcsc-as`, `bin/vcsc-ld`, `bin/vcsc-ar`, `bin/vcsc-sim`
-- `lib/libvcsc.a65`
+- `lib/libvcsc.l26`
 - `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
 - `share/vcs/vcs_4k.cfg` for the default linker layout
 
@@ -53,41 +53,41 @@ So the same binary works both from the source tree and from an installed prefix 
 
 `vcsc` classifies inputs by suffix:
 
-- `.vcsc` ... compile with `vcsc-cc1`
+- `.c26` ... compile with `vcsc-cc1`
 - `.s` or `.asm` ... assemble with `vcsc-as`
-- `.o65` ... pass directly to `vcsc-ld`
-- `.a65` ... pass directly to `vcsc-ld`
+- `.o26` ... pass directly to `vcsc-ld`
+- `.l26` ... pass directly to `vcsc-ld`
 
 ## Examples
 
 Build and link a program:
 
 ```sh
-./driver/vcsc -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
+./driver/vcsc -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.bin
 ```
 
 Compile only:
 
 ```sh
-./driver/vcsc -c -I libraries/runtime demo.vcsc
+./driver/vcsc -c -I libraries/runtime demo.c26
 ```
 
 Stop after assembly:
 
 ```sh
-./driver/vcsc -S demo.vcsc
+./driver/vcsc -S demo.c26
 ```
 
 Link extra archives from a search directory:
 
 ```sh
-./driver/vcsc crt0.o65 main.o65 -T custom.cfg -L libraries/runtime -lruntime -nostdlib -o app.hex
+./driver/vcsc crt0.o26 main.o26 -T custom.cfg -L libraries/runtime -lruntime -nostdlib -o app.hex
 ```
 
 Show the exact subordinate commands without running them:
 
 ```sh
-./driver/vcsc -### -I libraries/vcs examples/01_solid_color/solid_color.vcsc -o solid_color.bin
+./driver/vcsc -### -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.bin
 ```
 
 Show aligned driver/subtool versions and the exact tool paths being used:

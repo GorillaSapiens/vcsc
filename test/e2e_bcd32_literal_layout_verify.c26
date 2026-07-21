@@ -1,0 +1,86 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+bcd32_t dec32 := 12345678;
+bcd32_t hex32 := 0xbc614e;
+bcd32_t oct32 := 057060516;
+bcd32_t bin32 := 0b101111000110000101001110;
+bcd32_t short32 := 42;
+bcd32_t max32 := 99999999;
+
+struct Bcd32Record {
+   bcd8_t tag;
+   bcd32_t value;
+};
+
+Bcd32Record record32 := { 7, 12345678 };
+bcd32_t array32[3] := { 42, 12345678, 99999999 };
+
+bcd32_t return_literal32(void) { return 12345678; }
+
+void take32(bcd32_t value) {
+   uint8_t *p := (uint8_t *)&value;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) {
+      asm lda #$ff;
+      asm ldx #19;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+}
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   uint8_t *p;
+   bcd32_t local32 := 12345678;
+   bcd32_t assigned32;
+   bcd32_t returned32;
+
+   p := (uint8_t *)&dec32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(1); }
+   p := (uint8_t *)&hex32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(2); }
+   p := (uint8_t *)&oct32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(3); }
+   p := (uint8_t *)&bin32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(4); }
+
+   p := (uint8_t *)&short32;
+   if (p[0] != 0x42 || p[1] != 0 || p[2] != 0 || p[3] != 0) { fail(5); }
+   p := (uint8_t *)&max32;
+   if (p[0] != 0x99 || p[1] != 0x99 || p[2] != 0x99 || p[3] != 0x99) { fail(6); }
+   p := (uint8_t *)&local32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(7); }
+
+   p := (uint8_t *)&record32;
+   if (p[0] != 0x07) { fail(8); }
+   if (p[1] != 0x78 || p[2] != 0x56 || p[3] != 0x34 || p[4] != 0x12) { fail(9); }
+
+   p := (uint8_t *)&array32;
+   if (p[0] != 0x42 || p[1] != 0 || p[2] != 0 || p[3] != 0) { fail(10); }
+   if (p[4] != 0x78 || p[5] != 0x56 || p[6] != 0x34 || p[7] != 0x12) { fail(11); }
+   if (p[8] != 0x99 || p[9] != 0x99 || p[10] != 0x99 || p[11] != 0x99) { fail(12); }
+
+   assigned32 := 0xbc614e;
+   p := (uint8_t *)&assigned32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(13); }
+
+   returned32 := return_literal32();
+   p := (uint8_t *)&returned32;
+   if (p[0] != 0x78 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(14); }
+
+   take32(12345678);
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

@@ -92,7 +92,7 @@ Settled final-language decisions
   table and one hexadecimal `0-9A-F` table per family. Every module exports the
   common `score_font` symbol, uses one visual-binary byte per source row, and is
   installed with the VCS support package. Example 03 deliberately selects
-  `default_decimal.vcsc`; this is a settled example choice and must not be
+  `default_decimal.c26`; this is a settled example choice and must not be
   changed merely to match an older changelog entry.
 * void remains a special non-value type.
 * Pointers are special 16-bit little-endian values.
@@ -147,7 +147,7 @@ Completed vertical slices
    call-site scratch rather than a software-stack call frame. Results are copied
    directly from callee-owned return objects, so return-only scratch is gone.
 8. Variadic functions and callable types have been removed. The lexer rejects
-   `...`; variadic call lowering, hidden metadata, `stdarg.vcsc`, `sprintf.vcsc`, and
+   `...`; variadic call lowering, hidden metadata, `stdarg.c26`, `sprintf.c26`, and
    the legacy direct-call software-stack fallback are gone.
 9. Function pointers and indirect calls have been removed. Function-pointer
    declarators and function names used as values are rejected; `_callptr0` and
@@ -195,7 +195,7 @@ Completed vertical slices
 21. Simple transparent typedef aliases are supported. `int`, `char`, and `bool`
     are ordinary identifiers and may be introduced as aliases for canonical
     types. String literals used through pointers are emitted in RODATA/ROM.
-22. The linker can emit flat `.bin` files, and examples/01_solid_color/solid_color.vcsc builds
+22. The linker can emit flat `.bin` files, and examples/01_solid_color/solid_color.c26 builds
     and verifies as a complete unbanked 4096-byte VCS cartridge with reset code
     at $F000, valid vectors, the static-frame ABI, and the real shared RIOT RAM
     map.
@@ -261,7 +261,7 @@ Completed vertical slices
     or NMI inputs, and the reduced runtime exposes no compiled interrupt-handler
     ABI.
 33. The installed generic 6502 machine definition and the two unwired
-    generic linker-layout files have been removed. `test/machine_6502.vcsc`
+    generic linker-layout files have been removed. `test/machine_6502.c26`
     remains only as an isolated compiler-test fixture. Native VCS bindings,
     `vcs_4k.cfg`, and both retained legacy BASIC kernel families are guarded
     by a regression test.
@@ -548,14 +548,14 @@ Hard-renamed tool implementations and build products:
 Hard-renamed runtime and installed layout:
 
     libraries/nlib/               -> libraries/runtime/
-    nlib.a65                      -> libvcsc.a65
+    nlib.l26                      -> libvcsc.l26
     nlib.inc                      -> vcsc-runtime.inc
     nrt0.s                        -> vcsc-rt0.s
     nlib_zeropage.s               -> vcsc-zeropage.s
     /opt/n                        -> /opt/vcsc
 
 All 347 language source, include, example, and test files formerly ending in
-`.n` now end in `.vcsc`. Their 347 old paths, plus 27 other renamed tool/runtime
+`.n` now end in `.c26`. Their 347 old paths, plus 27 other renamed tool/runtime
 paths, are recorded individually in `remove.txt`.
 
 Current source/build/documentation files were updated throughout the repository,
@@ -692,7 +692,7 @@ The first unfinished item is the default next action.
 
         Acceptance criteria:
 
-        [x] 15a. Express `music_tick()` in `ode_to_joy.vcsc`; retain the const ROM
+        [x] 15a. Express `music_tick()` in `ode_to_joy.c26`; retain the const ROM
                   array of `MusicStep` structs and remove the companion player
                   assembly once the source version passes.
         [x] 15b. Fit the complete cartridge in the VCS RAM map without relying
@@ -758,7 +758,7 @@ The first unfinished item is the default next action.
                             reference tree for possible conversion/adaptation.
                             It remains intentionally unwired for now, but tests
                             guard both standard and multisprite kernel families.
-                  [x] 16e3. Remove the generic installed `machine_6502.vcsc` target
+                  [x] 16e3. Remove the generic installed `machine_6502.c26` target
                             and the unwired `libraries/runtime/n.cfg` and
                             `linker/default.cfg` layouts. Keep the test-local
                             generic machine fixture and all native VCS material.
@@ -782,10 +782,12 @@ The first unfinished item is the default next action.
 
 [x] 17. Rename the project and toolchain to `vcsc` as a hard cut. The public
         driver is `vcsc`; companion tools are `vcsc-cc1`, `vcsc-as`, `vcsc-ld`,
-        `vcsc-ar`, and `vcsc-sim`. Source files use `.vcsc`; the runtime lives in
-        `libraries/runtime` and installs `libvcsc.a65` plus `vcsc-runtime.inc`.
-        Generated/runtime symbols use VCSC prefixes, the archive magic is
-        `VCSCAR\x01`, and no compatibility wrappers preserve obsolete commands.
+        `vcsc-ar`, and `vcsc-sim`. Source files use `.c26`; the runtime lives in
+        `libraries/runtime` and installs `libvcsc.l26` plus `vcsc-runtime.inc`.
+        Generated/runtime symbols use VCSC prefixes. Relocatable objects use
+        `.o26` with the VCSC-specific `\x01\x00o26` magic; archives use
+        `.l26` with `VCSL26\x01`. No compatibility wrappers or readers preserve
+        obsolete artifact names or magics.
         Every maintained documentation file starts with the canonical lowercase
         `vcsc` Standard-font FIGlet banner. Historical changelog entries retain
         old spellings where needed to describe what actually happened.
@@ -850,7 +852,7 @@ The first unfinished item is the default next action.
     `-Wa,--illegals`, feeds each A'/NVZC
     pair through CRC-24/OPENPGP in ordinary VCSC `uint24_t` code, and displays
     the result as six centered hexadecimal digits using
-    `fonts/hexadecimal_hex.vcsc`. Keep only the silicon-sensitive probes and
+    `fonts/hexadecimal_hex.c26`. Keep only the silicon-sensitive probes and
     cycle-counted six-glyph display pipeline in inline assembly. Verify the CRC
     with the standard `123456789 -> 21CF02` vector rather than treating any
     emulator's unstable-opcode model as universal.
@@ -1683,14 +1685,14 @@ reproducibly rather than the exact instant of each individual source edit.
 * Renamed the public driver and companion binaries to `vcsc`, `vcsc-cc1`,
   `vcsc-as`, `vcsc-ld`, `vcsc-ar`, and `vcsc-sim`; renamed their implementation
   files without trying to use executable hyphens as C identifiers.
-* Renamed all 347 language sources from `.n` to `.vcsc`, changed driver and test
+* Renamed all 347 language sources from `.n` to `.c26`, changed driver and test
   discovery accordingly, and renamed the production runtime from
-  `libraries/nlib` to `libraries/runtime` with `libvcsc.a65`,
+  `libraries/nlib` to `libraries/runtime` with `libvcsc.l26`,
   `vcsc-runtime.inc`, `vcsc-rt0.s`, and `vcsc-zeropage.s`.
 * Renamed generated compiler/runtime symbols from the obsolete N prefixes to
   `__vcsc_*` and `_vcsc_*`, changed the default installation prefix to
   `/opt/vcsc`, and changed the archive signature to the intentionally
-  incompatible seven-byte `VCSCAR\x01` magic. No old-command wrappers or archive
+  incompatible seven-byte `VCSL26\x01` magic. No old-command wrappers or archive
   compatibility path remains.
 * Added the canonical lowercase `vcsc` FIGlet Standard banner to all 22
   maintained Markdown, text, and Doxygen documentation files. Legal license
@@ -1788,7 +1790,7 @@ Before returning another modified archive:
   bytes to four.
 * Retain rejection of four-byte packed BCD until task 18f.
 * Add focused 24/32-bit declaration tests, mixed-signedness rejection, and the
-  `e2e_wide_scalar_core.vcsc` execution regression.
+  `e2e_wide_scalar_core.c26` execution regression.
 
 2026-07-19 14:16:00 PDT, add first-class 24-bit binary integer types
 ------------------------------------------------------------------------
@@ -1830,17 +1832,17 @@ Before returning another modified archive:
 2026-07-19 16:10:12 PDT, add first-class 32-bit binary integer types
 ------------------------------------------------------------------------
 * Add canonical `int32_t` and `uint32_t` declarations to
-  `libraries/vcs/vcs.vcsc` and `test/machine_6502.vcsc` while keeping pointers
+  `libraries/vcs/vcs.c26` and `test/machine_6502.c26` while keeping pointers
   16-bit.
-* Extend `test/vcs_headers_smoke_test.vcsc` so the staged installed toolchain
+* Extend `test/vcs_headers_smoke_test.c26` so the staged installed toolchain
   compiles ordinary 24- and 32-bit values together.
-* Add `int32_stock_literals_codegen_test.vcsc`,
-  `int32_positive_literal_width_error_test.vcsc`,
-  `int32_negative_literal_width_error_test.vcsc`,
-  `uint32_literal_width_error_test.vcsc`, and
-  `int32_mixed_signed_error_test.vcsc`.
-* Add `e2e_int32_stock_types_verify.vcsc` and the
-  `e2e_int32_memory_return_cross_tu_verify.vcsc`/`__def.vcsc` pair. Coverage
+* Add `int32_stock_literals_codegen_test.c26`,
+  `int32_positive_literal_width_error_test.c26`,
+  `int32_negative_literal_width_error_test.c26`,
+  `uint32_literal_width_error_test.c26`, and
+  `int32_mixed_signed_error_test.c26`.
+* Add `e2e_int32_stock_types_verify.c26` and the
+  `e2e_int32_memory_return_cross_tu_verify.c26`/`__def.c26` pair. Coverage
   includes exact little-endian literal layout, signed/unsigned limits,
   fifth-byte rejection, widening, arithmetic, comparisons, signed shifts,
   multiply/divide/remainder, and same- and cross-object four-byte returns.
@@ -1854,7 +1856,7 @@ Before returning another modified archive:
 
 2026-07-19 16:28:50 PDT, add first-class eight-digit packed BCD
 ------------------------------------------------------------------------
-* Add canonical `bcd32_t` declarations to `libraries/vcs/vcs.vcsc` and the
+* Add canonical `bcd32_t` declarations to `libraries/vcs/vcs.c26` and the
   generic compiler-test machine fixture. `$bcd` now accepts unsigned
   little-endian integer widths from one through four bytes.
 * Extend function-return validation and documentation so four-byte packed BCD
@@ -1944,7 +1946,7 @@ Before returning another modified archive:
 ------------------------------------------------------------------------
 * Move both score fonts from assembly `.inc` data behind `score_font.s` into
   ordinary VCSC `const uint8_t score_font[80]` include files:
-  `fonts/clean.vcsc` and `fonts/legacy.vcsc`. Build example 03 from one VCSC
+  `fonts/clean.c26` and `fonts/legacy.c26`. Build example 03 from one VCSC
   translation unit and remove the obsolete assembly wrapper/includes.
 * Express the complete frame loop, scanline waits, TIA setup and cleanup,
   `bcd24_t` update, and 20-frame cadence in VCSC functions/statements. Retain
@@ -1983,9 +1985,9 @@ Before returning another modified archive:
   both as VCSC arrays with exactly one eight-pixel visual binary row per source
   line. Source rows are top-to-bottom; `SCORE_GLYPH` reverses each group during
   alias expansion for the existing row-7-to-row-0 score kernel.
-* Keep `fonts/clean.vcsc` as the active original VCSC font. Rename the alternate
-  legacy BASIC CC0-derived font from vague `fonts/legacy.vcsc` to
-  `fonts/classic_8x8.vcsc`, retain source/license lineage in its header and the
+* Keep `fonts/clean.c26` as the active original VCSC font. Rename the alternate
+  legacy BASIC CC0-derived font from vague `fonts/legacy.c26` to
+  `fonts/classic_8x8.c26`, retain source/license lineage in its header and the
   example README, and record the old path in `remove.txt`.
 * Update the main language README, compiler README, example-03 README, test
   harness notes, lexer coverage, example regression, and Makefile dependencies.
@@ -2012,7 +2014,7 @@ Before returning another modified archive:
   `LICENSE.txt` verbatim as the sole intentional occurrence.
 * Add a branding regression that rejects the removed upstream project name in
   every path and text file except license files. Rename the alternate score font
-  to the descriptive `classic_8x8.vcsc` name.
+  to the descriptive `classic_8x8.c26` name.
 * Pass 272/272 compile tests and 123/123 end-to-end/generic tests. The staged
   installation builds exact 4096-byte cartridges without illegal-opcode mode;
   the timing regression remains stable at 262 NTSC scanlines. Stella 7.0 renders
@@ -2049,7 +2051,7 @@ Before returning another modified archive:
 ------------------------------------------------------------------------
 * Move all score-font data out of `examples/03_six_digit_score` into the shared
   installed `libraries/vcs/fonts/` catalog. Remove the example-private
-  `fonts/clean.vcsc` and `fonts/classic.vcsc` files; `remove.txt` now contains
+  `fonts/clean.c26` and `fonts/classic.c26` files; `remove.txt` now contains
   876 unique paths.
 * Convert all nine retained 8x8 font families into readable VCSC modules:
   Default, 21st Century, Alarm Clock, Handwritten, Interrupted, Retroputer,
@@ -2063,7 +2065,7 @@ Before returning another modified archive:
   `VCS_FONT_GLYPH` reverses each eight-row glyph into the order consumed by the
   score kernel. Add `libraries/vcs/fonts/README.md` with the complete module
   catalog, selection instructions, representation notes, and CC0 provenance.
-* Make example 03 include the shared `fonts/21st_century_decimal.vcsc` module.
+* Make example 03 include the shared `fonts/21st_century_decimal.c26` module.
   Install/uninstall the complete catalog with VCS support files and remove the
   obsolete example-local include path from the build.
 * Add `vcs_font_catalog.test`: verify all eighteen files, decimal/hex prefix
@@ -2089,14 +2091,14 @@ Before returning another modified archive:
   against `0x21CF02`, independently of unstable-opcode emulation.
 * Display the resulting 24-bit value as six centered hexadecimal digits on the
   existing medium-blue/white presentation. Reuse the corrected official-opcode
-  six-glyph pipeline and select the shared `fonts/hexadecimal_hex.vcsc` module.
+  six-glyph pipeline and select the shared `fonts/hexadecimal_hex.c26` module.
 * Add `vcs_fingerprint.test` to verify exact probe opcode/flag sequences, feed
   order, CRC constants and standard vector, embedded 128-byte font, ROM/vectors,
   glyph-loop instruction sequence, stable 262-line timing, and exact 4096-byte
   output. Extend staged installcheck and the root/VCS/font documentation.
 * Stella 7.0 displays `8A55CE` for its CPU model; the bundled simulator displays
   `BDBAF3`. Treat those as model fingerprints, not universal expected values.
-* Restore example 03's source include to `21st_century_decimal.vcsc`, matching
+* Restore example 03's source include to `21st_century_decimal.c26`, matching
   its existing Makefile, documentation, and regressions.
 * Pass 272/272 compile tests and 125/125 end-to-end/generic tests. Staged
   installation builds all four examples as exact 4096-byte cartridges.
@@ -2109,11 +2111,11 @@ Before returning another modified archive:
   example 03: it copied the row loop but reimplemented RESP0/RESP1 positioning
   with ordinary compiled assignments. The row loop's cycle-16 GRP0 update is
   safe only with the exact horizontal-positioning sequence used by example 03.
-* Add installed `libraries/vcs/six_glyph_display.vcsc`, owning the inseparable
+* Add installed `libraries/vcs/six_glyph_display.c26`, owning the inseparable
   one-time positioning/HMOVE sequence, shared RAM state, and canonical
   documented-opcode six-glyph row loop. Both examples now include this module;
   neither retains a private setup or draw implementation.
-* Make example 03 deliberately select `fonts/default_decimal.vcsc`. Update its
+* Make example 03 deliberately select `fonts/default_decimal.c26`. Update its
   Makefile, README, font-catalog documentation, catalog substitution test, and
   score regression to enforce Default rather than repeatedly restoring the old
   21st Century selection.
@@ -2199,7 +2201,7 @@ Before returning another modified archive:
 
 2026-07-20 21:46:00 PDT, broaden ref-parameter runtime coverage
 ----------------------------------------------------------------
-* Add `test/e2e_ref_parameter_matrix_verify.vcsc` as permanent runtime coverage
+* Add `test/e2e_ref_parameter_matrix_verify.c26` as permanent runtime coverage
   for bare reads through ordinary and `static ref` parameters.
 * Cover unsigned values of one through four bytes, widening, narrowing, signed
   extension, forwarding one ref parameter to another function, write-then-read,
@@ -2216,7 +2218,7 @@ Before returning another modified archive:
   non-reflected standard kernel, default asymmetric playfield and decimal score,
   with no Superchip, banking, multisprite, status-bar, interlace, optional
   color/height tables, paddle path, debug path, mini-kernel, or application hook.
-* Add the compiler-visible `standard_4k_ntsc.vcsc` contract. It owns 86 bytes of
+* Add the compiler-visible `standard_4k_ntsc.c26` contract. It owns 86 bytes of
   genuinely used state through ordinary allocation: contiguous five-object X
   positions, sprite/Y/height pointers and values, `bcd24_t` score, contiguous
   twelve-byte score-pointer/transient workspace, score color, contiguous
@@ -2268,3 +2270,27 @@ Before returning another modified archive:
   128/128 end-to-end/generic tests, and staged installation with both storage
   choices. The retained legacy source tree and `remove.txt` remain unchanged.
 
+
+2026-07-20 23:51:55 PDT, hard-split VCSC artifact names and formats from N
+------------------------------------------------------------------------
+* Rename all 417 maintained VCSC language sources from the long project suffix
+  to `.c26`, including examples, installed headers/modules, fixtures, compile and
+  execution tests, generated temporary names, Makefile dependencies, install
+  paths, documentation, and the deletion ledger.
+* Rename relocatable objects to `.o26` and archive libraries to `.l26` throughout
+  the assembler, archiver, linker, driver, runtime build, tests, examples,
+  installation layout, and documentation. The runtime is now `libvcsc.l26` and
+  its members use `.o26`.
+* Rename the assembler object writer implementation and all internal object
+  format identifiers to o26/O26. Change the object header identity
+  to `\x01\x00o26` and the archive identity to `VCSL26\x01`; the linker
+  rejects prior object and archive magics even when they are placed in files
+  carrying the new suffixes.
+* Remove all recognition of the former source, object, and archive suffixes.
+  Keep the executable names `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
+  and `vcsc-sim` unchanged. Keep `.a26` available for finished cartridge ROMs
+  rather than using it for object libraries.
+* Extend the hard-rename regression to require `.c26`/`.o26`/`.l26` paths,
+  inspect both new magics inside the built runtime archive, and prove that the
+  linker rejects pre-o26 and pre-l26 magics. Pass 283/283 compile tests and
+  128/128 end-to-end/generic tests. Task 20c remains the next queued action.

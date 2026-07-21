@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// expectasm: __vcsc_scratch_0:
+// expectasmordered: .proc main
+// expectasmordered: sta __vcsc_scratch_0,y
+// expectasmordered: sta sink$a,y
+// expectasmordered: sta sink$b,y
+// expectasmordered: jsr sink
+// forbidasm: fp
+// forbidasm: jsr _pushN
+// forbidasm: jsr _popN
+
+include "machine_6502.c26"
+
+
+void sink(uint8_t a, uint16_t b) {
+}
+
+void main(void) {
+   sink(7`uint8_t, 0x1234`uint16_t);
+}

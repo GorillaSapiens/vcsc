@@ -7,7 +7,7 @@
 
 # First VCSC cartridge
 
-`solid_color.vcsc` is the first complete unbanked 4K Atari 2600/VCS cartridge
+`solid_color.c26` is the first complete unbanked 4K Atari 2600/VCS cartridge
 produced by this reduced compiler.
 
 It uses the source-level static-frame ABI to call `choose_background()` and

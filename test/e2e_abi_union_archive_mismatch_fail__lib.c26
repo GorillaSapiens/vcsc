@@ -1,0 +1,8 @@
+include "machine_6502.c26"
+
+union Shared {
+   int8_t bytes[3];
+   int16_t whole;
+};
+
+Shared shared_union;

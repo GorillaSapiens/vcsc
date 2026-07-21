@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: invalid underscore placement in binary literal '0b_XXXX....'
+include "machine_6502.c26"
+
+uint8_t bad := 0b_XXXX....;

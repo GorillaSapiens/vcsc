@@ -1,0 +1,37 @@
+// vcsc-cc1 -I .
+// expectasm: lda.a music_index
+// expectasm: asl arg0
+// expectasm: rol arg1
+// expectasm: cmp (ptr0),y
+// expectasm: sta  $19
+// forbidasm: __vcsc_indextmp_
+// forbidasm: __vcsc_comparetmp_
+// forbidasm: __vcsc_incdectmp_
+// forbidasm: __vcsc_assigntmp_
+// forbidasm: _mulNle
+
+include "machine_6502.c26"
+
+struct MusicStep {
+   uint8_t volume;
+   uint8_t frequency;
+   uint8_t control;
+   uint8_t timing;
+};
+
+const MusicStep music[32] := { { 0, 0, 0, 0 } };
+uint8_t music_index := 0;
+uint8_t music_counter := 0;
+ref uint8_t AUDV0 @[none/0x19];
+
+void main(void) {
+   music_counter++;
+   if (music_counter > music[music_index].timing) {
+      music_counter := 0;
+      music_index++;
+      if (music_index == 32) {
+         music_index := 0;
+      }
+      AUDV0 := music[music_index].volume;
+   }
+}

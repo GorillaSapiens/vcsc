@@ -57,16 +57,16 @@ my $linker=File::Spec->catfile($repo,'linker','vcsc-ld');
 my $vcs_dir=File::Spec->catdir($repo,'libraries','vcs');
 my $runtime_dir=File::Spec->catdir($repo,'libraries','runtime');
 my $cfg=File::Spec->catfile($vcs_dir,'vcs_4k.cfg');
-my $runtime=File::Spec->catfile($runtime_dir,'libvcsc.a65');
-my $source=File::Spec->catfile($tmp,'return_memory.vcsc');
+my $runtime=File::Spec->catfile($runtime_dir,'libvcsc.l26');
+my $source=File::Spec->catfile($tmp,'return_memory.c26');
 my $assembly=File::Spec->catfile($tmp,'return_memory.s');
-my $object=File::Spec->catfile($tmp,'return_memory.o65');
+my $object=File::Spec->catfile($tmp,'return_memory.o26');
 my $asm_map=File::Spec->catfile($tmp,'return_memory.asmap');
 my $link_map=File::Spec->catfile($tmp,'return_memory.map');
 my $binary=File::Spec->catfile($tmp,'return_memory.bin');
 
 write_file($source, <<'SOURCE');
-include "vcs.vcsc"
+include "vcs.c26"
 
 uint8_t return8(void) {
    return 0xa5`uint8_t;

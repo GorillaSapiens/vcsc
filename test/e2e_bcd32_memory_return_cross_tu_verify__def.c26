@@ -1,0 +1,5 @@
+include "machine_6502.c26"
+
+bcd32_t make_total(void) {
+   return 87654321;
+}

@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expecterr: '@' on non-ref declaration 'port' is ignored
+include "machine_6502.c26"
+
+int8_t port@0x10;
+
+void main(void) {
+}

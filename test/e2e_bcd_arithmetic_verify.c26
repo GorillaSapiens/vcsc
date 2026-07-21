@@ -1,0 +1,118 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+bcd8_t add8(bcd8_t x, bcd8_t y) { return x + y; }
+bcd16_t add16(bcd16_t x, bcd16_t y) { return x + y; }
+void check24_param(bcd24_t x) {
+   if (x != 123456) { fail(30); }
+}
+void check16_param(bcd16_t x) {
+   if (x != 99) { fail(31); }
+}
+
+void main(void) {
+   bcd8_t a8;
+   bcd8_t old8;
+   bcd16_t a16;
+   bcd16_t mixed16;
+   bcd24_t a24;
+   bcd24_t old24;
+   uint8_t *p;
+   uint8_t binary;
+
+   a8 := 95;
+   a8 += 7;
+   if (a8 != 2) { fail(1); }
+   p := (uint8_t *)&a8;
+   if (p[0] != 0x02) { fail(2); }
+
+   a8 := 3;
+   a8 -= 5;
+   if (a8 != 98) { fail(3); }
+   if (p[0] != 0x98) { fail(4); }
+
+   a8 := 99;
+   old8 := a8++;
+   if (old8 != 99 || a8 != 0) { fail(5); }
+   old8 := --a8;
+   if (old8 != 99 || a8 != 99) { fail(6); }
+
+   if (add8(48, 54) != 2) { fail(7); }
+
+   a16 := 99;
+   a16 += 1;
+   p := (uint8_t *)&a16;
+   if (a16 != 100 || p[0] != 0x00 || p[1] != 0x01) { fail(8); }
+
+   a16 := 9999;
+   a16 += 1;
+   if (a16 != 0) { fail(9); }
+   a16 := 0;
+   a16 -= 1;
+   if (a16 != 9999) { fail(10); }
+   if (add16(4999, 5002) != 1) { fail(11); }
+
+   a8 := 99;
+   a16 := 1;
+   mixed16 := a8 + a16;
+   if (mixed16 != 100) { fail(12); }
+
+   a24 := 999999;
+   a24 += 1;
+   if (a24 != 0) { fail(13); }
+   a24 := 0;
+   a24 -= 1;
+   if (a24 != 999999) { fail(14); }
+
+   a24 := 9999;
+   a24 += 1;
+   p := (uint8_t *)&a24;
+   if (a24 != 10000 || p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01) { fail(15); }
+
+   a24 := 123456;
+   check24_param(a24);
+   check24_param(123456);
+   a8 := 99;
+   check16_param(a8);
+
+   // Same-representation assignment is just packed digit-pair widening/truncation.
+   a24 := a8;
+   p := (uint8_t *)&a24;
+   if (a24 != 99 || p[0] != 0x99 || p[1] != 0 || p[2] != 0) { fail(22); }
+   a24 := 123456;
+   a8 := a24;
+   if (a8 != 56) { fail(23); }
+
+   a24 := 999999;
+   old24 := a24++;
+   if (old24 != 999999 || a24 != 0) { fail(24); }
+
+   if (!(1`bcd8_t < 2`bcd8_t)) { fail(16); }
+   if (!(99`bcd8_t < 100`bcd16_t)) { fail(17); }
+   if (!(9999`bcd16_t < 10000`bcd24_t)) { fail(18); }
+   if (0`bcd24_t) { fail(19); }
+   if (!123456`bcd24_t) { fail(20); }
+
+   // A following ordinary binary addition proves generated BCD code executed
+   // CLD after its tightly scoped decimal ADC chain.
+   a8 := 9;
+   a8 += 1;
+   binary := 9;
+   binary += 1;
+   if (a8 != 10 || binary != 10) { fail(21); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

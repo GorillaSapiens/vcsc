@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// object: e2e_abi_int16_mismatch_fail__def.c26
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
+// expectlinkerr: e2e_abi_int16_mismatch_fail.o26: declaration -> symbol_abs signed_integer(size=2, little-endian)
+// expectlinkerr: e2e_abi_int16_mismatch_fail__def.o26: definition -> symbol_abs signed_integer(size=1)
+include "machine_6502.c26"
+
+int8_t helper(int16_t x);
+
+int8_t main(void) {
+   return helper(1);
+}

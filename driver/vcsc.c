@@ -300,13 +300,13 @@ static bool ends_with(const char *s, const char *suffix)
 //! @brief Parse input into the normalized representation used by driver pipeline.
 static input_kind_t classify_input(const char *path)
 {
-   if (ends_with(path, ".vcsc"))
+   if (ends_with(path, ".c26"))
       return INPUT_VCSC;
    if (ends_with(path, ".s") || ends_with(path, ".asm"))
       return INPUT_ASM;
-   if (ends_with(path, ".o65"))
+   if (ends_with(path, ".o26"))
       return INPUT_OBJ;
-   if (ends_with(path, ".a65"))
+   if (ends_with(path, ".l26"))
       return INPUT_ARC;
    die("do not know how to handle input '%s'", path);
    return INPUT_VCSC;
@@ -328,7 +328,7 @@ static void usage(FILE *fp)
       "  -I DIR               Add DIR to compiler/assembler include search path\n"
       "  -DNAME[=VALUE]       Define NAME as VALUE, or 1 if VALUE is omitted\n"
       "  -L DIR               Add DIR to archive search path for -l\n"
-      "  -lNAME               Link archive NAME (tries libNAME.a65 then NAME.a65)\n"
+      "  -lNAME               Link archive NAME (tries libNAME.l26 then NAME.l26)\n"
       "  -nostdlib            Do not link default runtime libraries automatically\n"
       "  -T FILE              Pass FILE to vcsc-ld as the linker script/config\n"
       "  -Map FILE            Write linker map to FILE\n"
@@ -346,9 +346,9 @@ static void usage(FILE *fp)
       "\n"
       "Notes:\n"
       "  * default linked output is a.hex\n"
-      "  * -S accepts only .vcsc inputs\n"
+      "  * -S accepts only .c26 inputs\n"
       "  * with -c or -S, using -o requires exactly one source input\n"
-      "  * default linking uses the bundled VCS 4K script and adds libvcsc.a65\n",
+      "  * default linking uses the bundled VCS 4K script and adds libvcsc.l26\n",
       arg0);
 }
 
@@ -462,7 +462,7 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(ld_repo, sizeof(ld_repo), self_path, "linker", "vcsc-ld");
    build_repo_tree_path(ar_repo, sizeof(ar_repo), self_path, "archiver", "vcsc-ar");
    build_repo_tree_path(sim_repo, sizeof(sim_repo), self_path, "simulator", "vcsc-sim");
-   build_repo_tree_path(runtime_repo, sizeof(runtime_repo), self_path, "libraries/runtime", "libvcsc.a65");
+   build_repo_tree_path(runtime_repo, sizeof(runtime_repo), self_path, "libraries/runtime", "libvcsc.l26");
    build_repo_tree_path(runtime_inc_repo, sizeof(runtime_inc_repo), self_path, "libraries/runtime", "vcsc-runtime.inc");
    build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs_4k.cfg");
 
@@ -489,7 +489,7 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(ld_inst, sizeof(ld_inst), self_path, "vcsc-ld");
    build_installed_tool_path(ar_inst, sizeof(ar_inst), self_path, "vcsc-ar");
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "vcsc-sim");
-   build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.a65");
+   build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.l26");
    build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "include", "vcsc-runtime.inc");
    build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs_4k.cfg");
 
@@ -938,7 +938,7 @@ static void run_cc(const char *cc_path, const driver_options_t *opt, const char 
    strvec_push(&cmd, "-dumpbase");
    strvec_push(&cmd, path_basename(input));
    strvec_push(&cmd, "-dumpbase-ext");
-   strvec_push(&cmd, *dot ? dot : ".vcsc");
+   strvec_push(&cmd, *dot ? dot : ".c26");
    strvec_push(&cmd, "-dumpdir");
    strvec_push(&cmd, "./");
    for (size_t i = 0; i < opt->cc_extra.count; ++i)
@@ -970,10 +970,10 @@ static const char *find_library(const driver_options_t *opt, const char *name, c
 {
    size_t i;
    for (i = 0; i < opt->lib_dirs.count; ++i) {
-      snprintf(buf, buf_sz, "%s/lib%s.a65", opt->lib_dirs.items[i], name);
+      snprintf(buf, buf_sz, "%s/lib%s.l26", opt->lib_dirs.items[i], name);
       if (access(buf, R_OK) == 0)
          return buf;
-      snprintf(buf, buf_sz, "%s/%s.a65", opt->lib_dirs.items[i], name);
+      snprintf(buf, buf_sz, "%s/%s.l26", opt->lib_dirs.items[i], name);
       if (access(buf, R_OK) == 0)
          return buf;
    }
@@ -1067,7 +1067,7 @@ int main(int argc, char **argv)
 
       if (opt.asm_only) {
          if (in->kind != INPUT_VCSC)
-            die("-S only accepts .vcsc inputs, got '%s'", in->path);
+            die("-S only accepts .c26 inputs, got '%s'", in->path);
          asm_path = derive_output_path(in, ".s", opt.output, derived, sizeof(derived));
          run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
          continue;
@@ -1078,7 +1078,7 @@ int main(int argc, char **argv)
             if (opt.output)
                obj_path = opt.output;
             else {
-               make_suffixed_path(in->path, ".o65", derived, sizeof(derived));
+               make_suffixed_path(in->path, ".o26", derived, sizeof(derived));
                obj_path = derived;
             }
             path_stem(in->path, stem, sizeof(stem));
@@ -1088,25 +1088,25 @@ int main(int argc, char **argv)
             continue;
          }
          if (in->kind == INPUT_ASM) {
-            obj_path = derive_output_path(in, ".o65", opt.output, derived, sizeof(derived));
+            obj_path = derive_output_path(in, ".o26", opt.output, derived, sizeof(derived));
             run_as(as_path, &opt, runtime_inc, in->path, obj_path);
             continue;
          }
-         die("-c only accepts .vcsc or assembler inputs, got '%s'", in->path);
+         die("-c only accepts .c26 or assembler inputs, got '%s'", in->path);
       }
 
       switch (in->kind) {
          case INPUT_VCSC:
             path_stem(in->path, stem, sizeof(stem));
             asm_path = temp_store_make_file(&temps, stem, ".s");
-            obj_path = temp_store_make_file(&temps, stem, ".o65");
+            obj_path = temp_store_make_file(&temps, stem, ".o26");
             run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
             run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
             strvec_push(&link_inputs, obj_path);
             break;
          case INPUT_ASM:
             path_stem(in->path, stem, sizeof(stem));
-            obj_path = temp_store_make_file(&temps, stem, ".o65");
+            obj_path = temp_store_make_file(&temps, stem, ".o26");
             run_as(as_path, &opt, runtime_inc, in->path, obj_path);
             strvec_push(&link_inputs, obj_path);
             break;

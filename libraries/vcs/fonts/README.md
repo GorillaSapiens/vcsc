@@ -13,8 +13,8 @@ notation: `.` is a clear pixel and `X` is a set pixel.
 
 Each family has two modules:
 
-- `*_decimal.vcsc` defines ten glyphs, `0` through `9`, in an 80-byte array.
-- `*_hex.vcsc` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
+- `*_decimal.c26` defines ten glyphs, `0` through `9`, in an 80-byte array.
+- `*_hex.c26` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
   128-byte array.
 
 Include exactly one font module in a translation unit. Every module defines the
@@ -22,14 +22,14 @@ common table symbol `score_font`, which is the interface expected by score kerne
 
 | Family | Decimal module | Hexadecimal module | Notes |
 |---|---|---|---|
-| Default | `default_decimal.vcsc` | `default_hex.vcsc` | Original standard score digits |
-| 21st Century | `21st_century_decimal.vcsc` | `21st_century_hex.vcsc` | Thin geometric strokes |
-| Alarm Clock | `alarm_clock_decimal.vcsc` | `alarm_clock_hex.vcsc` | Broken seven-segment appearance |
-| Handwritten | `handwritten_decimal.vcsc` | `handwritten_hex.vcsc` | Slanted hand-drawn digits |
-| Interrupted | `interrupted_decimal.vcsc` | `interrupted_hex.vcsc` | Deliberately broken strokes |
-| Retroputer | `retroputer_decimal.vcsc` | `retroputer_hex.vcsc` | Squared computer-terminal style |
-| Whimsey | `whimsey_decimal.vcsc` | `whimsey_hex.vcsc` | Heavy playful strokes; upstream spelling retained |
-| Tiny | `tiny_decimal.vcsc` | `tiny_hex.vcsc` | Compact 3x5 forms inside an 8x8 cell |
+| Default | `default_decimal.c26` | `default_hex.c26` | Original standard score digits |
+| 21st Century | `21st_century_decimal.c26` | `21st_century_hex.c26` | Thin geometric strokes |
+| Alarm Clock | `alarm_clock_decimal.c26` | `alarm_clock_hex.c26` | Broken seven-segment appearance |
+| Handwritten | `handwritten_decimal.c26` | `handwritten_hex.c26` | Slanted hand-drawn digits |
+| Interrupted | `interrupted_decimal.c26` | `interrupted_hex.c26` | Deliberately broken strokes |
+| Retroputer | `retroputer_decimal.c26` | `retroputer_hex.c26` | Squared computer-terminal style |
+| Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
+| Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 
 ## Selecting a font
 
@@ -37,12 +37,12 @@ Example 03 selects the table expected by its score kernel by including one
 module:
 
 ```vcsc
-include "fonts/default_decimal.vcsc"
+include "fonts/default_decimal.c26"
 ```
 
-For hexadecimal output, include the corresponding `*_hex.vcsc` module and
+For hexadecimal output, include the corresponding `*_hex.c26` module and
 use digit values in the range `0..15`; packed BCD naturally supplies only
-`0..9`. Example 04 selects `hexadecimal_hex.vcsc` to display a binary 24-bit
+`0..9`. Example 04 selects `hexadecimal_hex.c26` to display a binary 24-bit
 processor fingerprint as six hexadecimal digits.
 
 The arrays are stored in the row order consumed by the score kernel, but source

@@ -90,22 +90,22 @@ for my $i (0 .. $#want_echo) {
    die "echo_good line $i got '$got_echo[$i]' expected '$want_echo[$i]'\n" if $got_echo[$i] ne $want_echo[$i];
 }
 
-my $o65 = File::Spec->catfile($tmp, 'echo_o65.o65');
-($exit, $out, $err, $cmd) = run_asm('echo_o65', <<'ASM', '-o', $o65);
-.echo "o65 hello"
+my $o26 = File::Spec->catfile($tmp, 'echo_o26.o26');
+($exit, $out, $err, $cmd) = run_asm('echo_o26', <<'ASM', '-o', $o26);
+.echo "o26 hello"
 .byte $01
 ASM
 if ($exit != 0) {
-   die "echo_o65 failed, exit $exit\n$cmd\n$err";
+   die "echo_o26 failed, exit $exit\n$cmd\n$err";
 }
-if ($err ne "o65 hello\n") {
-   die "echo_o65 stderr mismatch:\n$err";
+if ($err ne "o26 hello\n") {
+   die "echo_o26 stderr mismatch:\n$err";
 }
 
 my @bad = (
    [ error_hex => ".error \"stop here\"\n", [ 'stop here' ], [ 'hidden' ], "--hex=" . File::Spec->catfile($tmp, 'error_hex.hex') ],
    [ error_macro => "MACRO FAIL msg\n.error msg\nENDM\nFAIL \"macro stop\"\n", [ 'macro stop' ], [], "--hex=" . File::Spec->catfile($tmp, 'error_macro.hex') ],
-   [ error_o65 => ".error \"o65 stop\"\n.byte 1\n", [ 'o65 stop' ], [], '-o', File::Spec->catfile($tmp, 'error_o65.o65') ],
+   [ error_o26 => ".error \"o26 stop\"\n.byte 1\n", [ 'o26 stop' ], [], '-o', File::Spec->catfile($tmp, 'error_o26.o26') ],
    [ echo_no_arg => ".echo\n", [ '.echo expects exactly one quoted string' ], [], "--hex=" . File::Spec->catfile($tmp, 'echo_no_arg.hex') ],
    [ error_expr_arg => ".error 1+2\n", [ '.error expects exactly one quoted string' ], [], "--hex=" . File::Spec->catfile($tmp, 'error_expr_arg.hex') ],
 );

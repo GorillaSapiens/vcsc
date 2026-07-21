@@ -1,0 +1,61 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+int16_t twice(int16_t x) {
+   return x + x;
+}
+
+int16_t g_direct := { 5 };
+int16_t g_runtime := { twice(3) + 1 };
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+int16_t from_static(void) {
+   static int16_t s := { twice(4) + 1 };
+   return s;
+}
+
+void main(void) {
+   int16_t x := { 9 };
+   int16_t y := { { 11 } };
+
+   if (g_direct != 5) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   if (g_runtime != 7) {
+      asm lda #$ff;
+      asm ldx #2;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   if (from_static() != 9) {
+      asm lda #$ff;
+      asm ldx #3;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   if (x != 9) {
+      asm lda #$ff;
+      asm ldx #4;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   if (y != 11) {
+      asm lda #$ff;
+      asm ldx #5;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+
+   pass();
+}

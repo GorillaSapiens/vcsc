@@ -1,0 +1,74 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+// expectexit: 0
+include "machine_6502.c26"
+
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint24_t add_wide(uint24_t a, uint16_t b) {
+   return a + b;
+}
+
+int24_t signed_step(int24_t value) {
+   return value - 1;
+}
+
+void main(void) {
+   uint24_t u := add_wide(0x123456, 0x0100);
+   if (u != 0x123556) {
+      print_bad();
+      return;
+   }
+
+   int24_t s := signed_step(0);
+   if (s != -1) {
+      print_bad();
+      return;
+   }
+
+   uint16_t narrow := 0xabcd;
+   uint24_t widened := narrow;
+   if (widened != 0x00abcd) {
+      print_bad();
+      return;
+   }
+
+   uint24_t bits := (uint24_t)-1;
+   int24_t back := (int24_t)bits;
+   if (bits != 0xffffff || back != -1) {
+      print_bad();
+      return;
+   }
+
+   int24_t shifted := -2;
+   shifted >>= 1;
+   if (shifted != -1 || sizeof(int24_t) != 3 || sizeof(uint24_t) != 3) {
+      print_bad();
+      return;
+   }
+
+   print_ok();
+   pass();
+}

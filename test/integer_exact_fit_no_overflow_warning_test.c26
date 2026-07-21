@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// forbiderr: too big for 1 bytes!
+
+include "machine_6502.c26"
+
+int8_t dec_ok := 65;
+int8_t hex_ok := 0x41;
+int8_t oct_ok := 0101;
+int8_t bin_ok := 0b01000001;
+
+void main(void) {
+}

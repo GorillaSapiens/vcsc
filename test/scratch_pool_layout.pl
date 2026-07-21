@@ -34,13 +34,13 @@ my $tmp=shift @ARGV // usage();
 usage() if @ARGV;
 $repo=abs_path($repo) // die "could not resolve repo root\n";
 $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
-my $source=File::Spec->catfile($tmp,'scratch_pool_layout.vcsc');
+my $source=File::Spec->catfile($tmp,'scratch_pool_layout.c26');
 my $asm=File::Spec->catfile($tmp,'scratch_pool_layout.s');
 my $vcsc_cc1=File::Spec->catfile($repo,'compiler','vcsc-cc1');
 my $inc=File::Spec->catdir($repo,'test');
 
 write_file($source, <<'SRC');
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 uint8_t source;
 uint16_t a;
 uint16_t b;

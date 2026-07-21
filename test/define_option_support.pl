@@ -74,10 +74,10 @@ sub parse_ihex {
    return \@bytes;
 }
 
-my $compile_src = File::Spec->catfile($tmp, 'compile_define.vcsc');
+my $compile_src = File::Spec->catfile($tmp, 'compile_define.c26');
 my $compile_out = File::Spec->catfile($tmp, 'compile_define.s');
 write_file($compile_src, <<'N');
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 
 #ifdef FOO
 #if FOO == 7
@@ -98,9 +98,9 @@ die "compiler -D failed exit=$exit sig=$sig\n$cmd\n$stdout$stderr" if $exit != 0
 my $asm_text = slurp_file($compile_out);
 die "compiler -D output did not contain immediate 7\n$asm_text" if $asm_text !~ /lda\s+#\$07/;
 
-my $dup_n = File::Spec->catfile($tmp, 'compile_dup.vcsc');
+my $dup_n = File::Spec->catfile($tmp, 'compile_dup.c26');
 write_file($dup_n, <<'N');
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 alias FOO 2
 void main(void) {}
 N
@@ -133,17 +133,17 @@ write_file($dup_s, "FOO = 2\n.byte FOO\n");
 die "assembler duplicate -D unexpectedly succeeded\n$cmd\n$stdout$stderr" if $exit == 0 && $sig == 0;
 die "assembler duplicate -D had wrong diagnostic\n$stderr" if $stderr !~ /duplicate symbol 'FOO'/ || $stderr !~ /<command-line>:1: first defined here/;
 
-my $driver_n = File::Spec->catfile($tmp, 'driver_define.vcsc');
+my $driver_n = File::Spec->catfile($tmp, 'driver_define.c26');
 my $driver_s = File::Spec->catfile($tmp, 'driver_define.s');
-my $driver_o = File::Spec->catfile($tmp, 'driver_define.o65');
-write_file($driver_n, "include \"machine_6502.vcsc\"\nvoid main(void) {}\n");
+my $driver_o = File::Spec->catfile($tmp, 'driver_define.o26');
+write_file($driver_n, "include \"machine_6502.c26\"\nvoid main(void) {}\n");
 write_file($driver_s, ".byte 1\n");
 write_file($driver_o, "not really an object, dry-run only\n");
 
 ($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc, '-###', '-c', '-DFOO=3', '-I', $test_inc, $driver_n);
-die "driver dry-run .vcsc failed\n$cmd\n$stdout$stderr" if $exit != 0 || $sig != 0;
-die "driver did not pass -D to compiler for .vcsc\n$stdout" if $stdout !~ /vcsc-cc1 .* -D FOO=3 /s;
-die "driver did not pass -D to assembler for .vcsc\n$stdout" if $stdout !~ /vcsc-as .* -D FOO=3 /s;
+die "driver dry-run .c26 failed\n$cmd\n$stdout$stderr" if $exit != 0 || $sig != 0;
+die "driver did not pass -D to compiler for .c26\n$stdout" if $stdout !~ /vcsc-cc1 .* -D FOO=3 /s;
+die "driver did not pass -D to assembler for .c26\n$stdout" if $stdout !~ /vcsc-as .* -D FOO=3 /s;
 
 ($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc, '-###', '-S', '-DFOO=4', '-I', $test_inc, $driver_n);
 die "driver dry-run -S failed\n$cmd\n$stdout$stderr" if $exit != 0 || $sig != 0;

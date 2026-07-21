@@ -34,9 +34,9 @@ $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs_dir=File::Spec->catfile($repo,'libraries','vcs');
-my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.vcsc');
+my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','02_ode_to_joy');
-my $source=File::Spec->catfile($example_dir,'ode_to_joy.vcsc');
+my $source=File::Spec->catfile($example_dir,'ode_to_joy.c26');
 my $binary=File::Spec->catfile($tmp,'ode_to_joy.bin');
 my $map=File::Spec->catfile($tmp,'ode_to_joy.map');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');

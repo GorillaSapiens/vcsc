@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectasm: lda #$03
+// expectasm: sta __vcsc_scratch_
+
+include "machine_6502.c26"
+
+int16_t main(void) {
+   int16_t *q := 3;
+   return 0;
+}

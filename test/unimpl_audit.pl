@@ -14,7 +14,7 @@ for my $src (@sources) {
       $line++;
       if ($text =~ /error_unimplemented\(/) {
          my $base = basename($src, '.c');
-         my $name = "unimpl_${base}_${line}.vcsc";
+         my $name = "unimpl_${base}_${line}.c26";
          $want{$name} = 1;
          $have_call{"${base}:${line}"} = 1;
       }
@@ -28,10 +28,10 @@ for my $name (sort keys %want) {
 }
 
 my @stale;
-for my $path (glob('unimpl_*.vcsc')) {
+for my $path (glob('unimpl_*.c26')) {
    my $name = basename($path);
    next if exists $want{$name};
-   if ($name =~ /^unimpl_([A-Za-z0-9_]+)_(\d+)\.vcsc$/) {
+   if ($name =~ /^unimpl_([A-Za-z0-9_]+)_(\d+)\.c26$/) {
       my ($base, $line) = ($1, $2);
       push @stale, "$name (no error_unimplemented at ${base}:${line})"
          unless $have_call{"${base}:${line}"};

@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: continue used outside loop
+include "machine_6502.c26"
+int16_t main(void) {
+   continue;
+}

@@ -1,0 +1,6 @@
+include "machine_6502.c26"
+void main(void) {
+   int16_t *q[2];
+   int16_t x;
+   x := *q[1];
+}

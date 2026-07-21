@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// simcfg: e2e_simulator_rom_protect__sim.cfg
+// expectsimerr: vcsc-sim: write to read-only memory at $2FFF
+// expectexit: 1
+
+include "machine_6502.c26"
+
+ref int8_t rom_byte@0x2FFF;
+
+void fail(void) {
+   asm lda #$ff;
+   asm ldx #$7f;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   rom_byte := 0x41;
+   fail();
+}

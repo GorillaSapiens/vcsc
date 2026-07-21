@@ -69,9 +69,9 @@ for my $tool ($vcsc_cc1, $vcsc, $vcsc_sim) {
    die "required tool not executable: $tool\n" if !-x $tool;
 }
 
-my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.vcsc');
+my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.c26');
 write_utf8($e2e_src, <<'EOF');
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 
 ref uint8_t gfailcode@[none/0x02f0];
 
@@ -131,9 +131,9 @@ die "vcsc failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 ($rc, $out, $err) = run_capture($vcsc_sim, $hex);
 die "simulator failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 
-my $unknown_src = File::Spec->catfile($tmp, 'unicode_unknown_identifier.vcsc');
+my $unknown_src = File::Spec->catfile($tmp, 'unicode_unknown_identifier.c26');
 write_utf8($unknown_src, <<'EOF');
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 void main(void) {
    🥹 := 1;
 }
@@ -144,20 +144,20 @@ require_data_contains($err . $out, ":3.4]");
 require_data_contains($err . $out, encode('UTF-8', "unknown identifier '🥹'"));
 require_data_not_contains($err . $out, "?u0001F979?");
 
-my $bad_col_src = File::Spec->catfile($tmp, 'unicode_bad_column.vcsc');
-write_bytes($bad_col_src, "include \"machine_6502.vcsc\"\nint16_t a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
+my $bad_col_src = File::Spec->catfile($tmp, 'unicode_bad_column.c26');
+write_bytes($bad_col_src, "include \"machine_6502.c26\"\nint16_t a\xf0\x9f\xa5\xb9\xc3 := 0;\n");
 ($rc, $out, $err) = run_capture($vcsc_cc1, '-quiet', '-I', $test_inc, $bad_col_src, '-o', File::Spec->catfile($tmp, 'unicode_bad_column.s'));
 die "malformed UTF-8 column case unexpectedly compiled\n" if $rc == 0;
 require_data_contains($err . $out, 'invalid UTF-8 in identifier');
 require_data_contains($err . $out, ':2.11 ');
 
 for my $case (
-   ["incomplete trailing UTF-8", "include \"machine_6502.vcsc\"\nint16_t bad\xc3 := 0;\n"],
-   ["stray continuation byte", "include \"machine_6502.vcsc\"\nint16_t bad\x80 := 0;\n"],
-   ["stray starting continuation byte", "include \"machine_6502.vcsc\"\nint16_t \x80bad := 0;\n"],
+   ["incomplete trailing UTF-8", "include \"machine_6502.c26\"\nint16_t bad\xc3 := 0;\n"],
+   ["stray continuation byte", "include \"machine_6502.c26\"\nint16_t bad\x80 := 0;\n"],
+   ["stray starting continuation byte", "include \"machine_6502.c26\"\nint16_t \x80bad := 0;\n"],
 ) {
    my ($name, $bytes) = @$case;
-   my $bad_src = File::Spec->catfile($tmp, "bad_$name.vcsc");
+   my $bad_src = File::Spec->catfile($tmp, "bad_$name.c26");
    $bad_src =~ s/[^A-Za-z0-9_.\/-]/_/g;
    write_bytes($bad_src, $bytes);
    my $bad_asm = File::Spec->catfile($tmp, "bad_$name.s");

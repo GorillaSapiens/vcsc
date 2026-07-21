@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: character 'O' in binary literal '0b..OO....' is not a valid binary digit
+include "machine_6502.c26"
+
+uint8_t bad := 0b..OO....;

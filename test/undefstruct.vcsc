@@ -1,5 +1,0 @@
-// vcsc-cc1 -X invert
-
-include "machine_6502.vcsc"
-
-struct undefined;

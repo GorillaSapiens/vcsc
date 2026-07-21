@@ -39,11 +39,11 @@ $linker =~ /if\s*\(init_count\s*>\s*0\)\s*bytes\s*\+=\s*2u/s
 $linker !~ /bytes\s*=\s*\(uint32_t\)depth\s*\*\s*4u/
    or die "linker still includes the old frame-pointer preservation allowance\n";
 
-my $source = File::Spec->catfile($tmp, 'fp_name.vcsc');
+my $source = File::Spec->catfile($tmp, 'fp_name.c26');
 my $asm = File::Spec->catfile($tmp, 'fp_name.s');
 open(my $src, '>', $source) or die "could not create $source: $!\n";
 print {$src} <<'SRC';
-include "machine_6502.vcsc"
+include "machine_6502.c26"
 
 uint8_t fp;
 
@@ -71,7 +71,7 @@ $generated =~ /_vcsc_fp|\(fp\),y|\bfp\+1\b/
 $generated =~ /^\s*(?:pha|pla)\s*$/mi
    and die "ordinary direct call still pushes frame-pointer state\n";
 
-my $archive = File::Spec->catfile($runtime, 'libvcsc.a65');
+my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
 my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 open(my $members, '-|', $ar, 't', $archive)
    or die "could not list $archive: $!\n";

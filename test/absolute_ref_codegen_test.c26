@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// expectasm: lda  $00
+// expectasm: sta  $80
+// forbidasm: lda #<{$80 + 0}
+// expectasm: lda  $100
+// expectasm: lda #<{$180 + 0}
+
+include "machine_6502.c26"
+
+type u8  { $size:1 $integer:unsigned };
+type u16 { $size:2 $integer:unsigned $endian:little };
+
+ref u8 ro@[0x00/none];
+ref u8 wo@[none/0x80];
+ref u16 banked@[0x100/0x180];
+
+u8 sink;
+
+int16_t main(void) {
+   sink := ro;
+   banked := 0x1234;
+   wo := sink;
+   sink := banked;
+   return 0;
+}

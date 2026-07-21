@@ -237,18 +237,18 @@ static int segment_name_matches(const char *name, const char *base)
    return strncasecmp(name, base, n) == 0 && (name[n] == '\0' || name[n] == '.');
 }
 
-//! @brief Handle segment name to o65 logic for assembler symbol, scope, and segment state.
-int segment_name_to_o65(const char *name)
+//! @brief Handle segment name to o26 logic for assembler symbol, scope, and segment state.
+int segment_name_to_o26(const char *name)
 {
    if (!name || !strcasecmp(name, DEFAULT_SEGMENT_NAME) || segment_name_matches(name, "TEXT") || segment_name_matches(name, "CODE") || segment_name_matches(name, "RODATA"))
-      return O65_SEG_TEXT;
+      return O26_SEG_TEXT;
    if (segment_name_matches(name, "DATA"))
-      return O65_SEG_DATA;
+      return O26_SEG_DATA;
    if (segment_name_matches(name, "BSS"))
-      return O65_SEG_BSS;
+      return O26_SEG_BSS;
    if (segment_name_matches(name, "ZP") || segment_name_matches(name, "ZEROPAGE") || segment_name_matches(name, "ZERO"))
-      return O65_SEG_ZP;
-   return O65_SEG_TEXT;
+      return O26_SEG_ZP;
+   return O26_SEG_TEXT;
 }
 
 //! @brief Return segment find data used by assembler symbol, scope, and segment state; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -610,7 +610,7 @@ static void define_or_update_abs_symbol(symtab_t *tab, const char *name, long va
       sym = symtab_declare(tab, name, "<segments>", 0);
 
    if (sym)
-      symtab_set_value_segment(sym, value, O65_SEG_ABS);
+      symtab_set_value_segment(sym, value, O26_SEG_ABS);
 }
 
 //! @brief Compute segment symbols and update assembler symbol, scope, and segment state state once prerequisite pass data is available.
@@ -808,7 +808,7 @@ void validate_imports(asm_context_t *ctx)
    import_name_t *p;
    const symbol_t *sym;
 
-   if (ctx->object_mode_o65)
+   if (ctx->object_mode_o26)
       return;
 
    for (p = ctx->imports; p; p = p->next) {

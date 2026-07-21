@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+struct CharBits {
+   int8_t value:4;
+};
+
+struct IntBits {
+   int16_t value:15;
+};
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   CharBits cb;
+   IntBits ib;
+
+   cb.value := 0x0c;
+   if (cb.value != 0xfc`int8_t) {
+      asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff;
+   }
+
+   ib.value := 0x4000;
+   if (ib.value != 0xc000`int16_t) {
+      asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff;
+   }
+
+   pass();
+}

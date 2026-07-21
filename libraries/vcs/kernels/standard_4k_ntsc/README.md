@@ -43,19 +43,19 @@ The application includes the machine definition, defines the playfield object,
 and then includes the kernel contract. A mutable playfield uses RIOT RAM:
 
 ```vcsc
-include "vcs.vcsc"
+include "vcs.c26"
 uint8_t vcs_standard_playfield[48];
-include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 ```
 
 A fixed playfield uses cartridge ROM:
 
 ```vcsc
-include "vcs.vcsc"
+include "vcs.c26"
 const uint8_t vcs_standard_playfield[48] := {
    // twelve rows, four bytes per row
 };
-include "kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 ```
 
 The object name and extent are contractual. The module aliases it as
@@ -70,7 +70,7 @@ Build with the matching linker configuration and illegal-opcode table:
 ```sh
 vcsc -I libraries/vcs -Wa,--illegals \
   -T libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
-  game.vcsc -o game.bin
+  game.c26 -o game.bin
 ```
 
 The module exports one entry point:

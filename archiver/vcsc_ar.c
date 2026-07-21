@@ -13,7 +13,7 @@
 
 #include "version.h"
 
-#define VCSC_AR_MAGIC "VCSCAR\1"
+#define VCSC_AR_MAGIC "VCSL26\1"
 #define VCSC_AR_MAGIC_SIZE 7
 #define COPY_BUFFER_SIZE 65536
 
@@ -29,9 +29,9 @@ static void usage(FILE *fp)
 {
    fprintf(fp,
       "Usage:\n"
-      "  vcsc-ar rcs archive.a65 file1.o65 file2.o65 ...\n"
-      "  vcsc-ar t archive.a65 [member ...]\n"
-      "  vcsc-ar x archive.a65 [member ...]\n"
+      "  vcsc-ar rcs archive.l26 file1.o26 file2.o26 ...\n"
+      "  vcsc-ar t archive.l26 [member ...]\n"
+      "  vcsc-ar x archive.l26 [member ...]\n"
       "\n"
       "Supported GNU ar-style operations/modifiers:\n"
       "  r  replace or add members\n"
@@ -44,9 +44,9 @@ static void usage(FILE *fp)
       "  V  print version information\n"
       "\n"
       "Legacy compatibility is also accepted:\n"
-      "  vcsc-ar -c archive.a65 file1.o65 ...\n"
-      "  vcsc-ar -l archive.a65\n"
-      "  vcsc-ar -x archive.a65\n"
+      "  vcsc-ar -c archive.l26 file1.o26 ...\n"
+      "  vcsc-ar -l archive.l26\n"
+      "  vcsc-ar -x archive.l26\n"
       "  vcsc-ar -V\n");
 }
 
@@ -257,8 +257,8 @@ static int append_member_from_file(FILE *archive, const char *input_name)
    stored_name = base_name(input_name);
    name_len = strlen(stored_name);
 
-   if (!ends_with(stored_name, ".o65"))
-      fprintf(stderr, "vcsc-ar: warning: '%s' does not end with .o65\n", input_name);
+   if (!ends_with(stored_name, ".o26"))
+      fprintf(stderr, "vcsc-ar: warning: '%s' does not end with .o26\n", input_name);
 
    if (name_len == 0 || name_len > UINT16_MAX || !member_name_is_valid(stored_name)) {
       fprintf(stderr, "vcsc-ar: invalid member name '%s'\n", input_name);

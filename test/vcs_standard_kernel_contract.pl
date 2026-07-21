@@ -69,7 +69,7 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
-my $module=File::Spec->catfile($profile,'standard_4k_ntsc.vcsc');
+my $module=File::Spec->catfile($profile,'standard_4k_ntsc.c26');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $readme=File::Spec->catfile($profile,'README.md');
 my $module_text=read_file($module);
@@ -122,8 +122,8 @@ for my $phrase (@required_readme) {
 require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\$0002/s,
    'profile cfg does not reserve the exact hidden two-byte stack allowance');
 
-my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.vcsc');
-my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.vcsc');
+my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.c26');
+my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.c26');
 my $ram_src_text=read_file($ram_src);
 my $rom_src_text=read_file($rom_src);
 require_re($ram_src_text,qr/^uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,

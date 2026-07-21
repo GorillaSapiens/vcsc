@@ -8,18 +8,18 @@
 #include "asm_pass.h"
 
 #define DEFAULT_SEGMENT_NAME "__default__"
-#define O65_SEG_UNDEF 0
-#define O65_SEG_ABS   1
-#define O65_SEG_TEXT  2
-#define O65_SEG_DATA  3
-#define O65_SEG_BSS   4
-#define O65_SEG_ZP    5
+#define O26_SEG_UNDEF 0
+#define O26_SEG_ABS   1
+#define O26_SEG_TEXT  2
+#define O26_SEG_DATA  3
+#define O26_SEG_BSS   4
+#define O26_SEG_ZP    5
 
 void asm_error(asm_context_t *ctx, const stmt_t *stmt, const char *fmt, ...);
 void asm_warning(const stmt_t *stmt, const char *fmt, ...);
 
 int import_is_zp(const asm_context_t *ctx, const char *name);
-int segment_name_to_o65(const char *name);
+int segment_name_to_o26(const char *name);
 asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 void reset_segment_pcs(asm_context_t *ctx);
 void snapshot_segment_used_sizes(asm_context_t *ctx);

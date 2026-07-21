@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: unknown_identifier_condition_error_test.c26:6.15] unknown identifier 'missing'
+include "machine_6502.c26"
+int16_t main(void) {
+   if (missing) {
+      return 1;
+   }
+   return 0;
+}

@@ -1,0 +1,11 @@
+// vcsc-cc1 -I . -I test
+include "machine_6502.c26"
+
+void main(void) {
+   switch (1) {
+      case ((1 + 2) * 3 == 9) ? 8 : 7:
+         break;
+      default:
+         break;
+   }
+}

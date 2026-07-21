@@ -129,9 +129,9 @@ static int parse_reloc_table_old(reader_t *r, reloc_t **out, size_t *count_out)
       items[count].offset = (uint32_t)prev;
       items[count].type = rd_u8(r);
       items[count].segid = rd_u8(r);
-      if (items[count].segid == O65_SEG_UNDEF)
+      if (items[count].segid == O26_SEG_UNDEF)
          items[count].undef_index = rd_u16(r);
-      if (items[count].type & O65_RTYPE_AUX) {
+      if (items[count].type & O26_RTYPE_AUX) {
          items[count].aux_low = rd_u8(r);
          items[count].has_aux_low = 1;
       }
@@ -353,8 +353,8 @@ static void synthesize_default_layouts(object_file_t *obj)
    count = 0;
    if (obj->text.length > 0) {
       items[count].name = xstrdup("CODE");
-      items[count].segid = O65_SEG_TEXT;
-      items[count].image_segid = O65_SEG_TEXT;
+      items[count].segid = O26_SEG_TEXT;
+      items[count].image_segid = O26_SEG_TEXT;
       items[count].packed_base = 0;
       items[count].image_base = 0;
       items[count].size = (uint16_t)obj->text.length;
@@ -362,8 +362,8 @@ static void synthesize_default_layouts(object_file_t *obj)
    }
    if (obj->data.length > 0) {
       items[count].name = xstrdup("DATA");
-      items[count].segid = O65_SEG_DATA;
-      items[count].image_segid = O65_SEG_DATA;
+      items[count].segid = O26_SEG_DATA;
+      items[count].image_segid = O26_SEG_DATA;
       items[count].packed_base = 0;
       items[count].image_base = 0;
       items[count].size = (uint16_t)obj->data.length;
@@ -371,8 +371,8 @@ static void synthesize_default_layouts(object_file_t *obj)
    }
    if (obj->blen > 0) {
       items[count].name = xstrdup("BSS");
-      items[count].segid = O65_SEG_BSS;
-      items[count].image_segid = O65_SEG_BSS;
+      items[count].segid = O26_SEG_BSS;
+      items[count].image_segid = O26_SEG_BSS;
       items[count].packed_base = 0;
       items[count].image_base = 0;
       items[count].size = obj->blen;
@@ -380,8 +380,8 @@ static void synthesize_default_layouts(object_file_t *obj)
    }
    if (obj->zlen > 0) {
       items[count].name = xstrdup("ZEROPAGE");
-      items[count].segid = O65_SEG_ZP;
-      items[count].image_segid = O65_SEG_ZP;
+      items[count].segid = O26_SEG_ZP;
+      items[count].image_segid = O26_SEG_ZP;
       items[count].packed_base = 0;
       items[count].image_base = 0;
       items[count].size = obj->zlen;
@@ -392,8 +392,8 @@ static void synthesize_default_layouts(object_file_t *obj)
    obj->layout_count = count;
 }
 
-//! @brief Extract parse o65 object from memory for linker object/archive loader.
-static void parse_o65_object_from_memory(object_file_t *obj, const uint8_t *data, size_t size, const char *label)
+//! @brief Extract parse o26 object from memory for linker object/archive loader.
+static void parse_o26_object_from_memory(object_file_t *obj, const uint8_t *data, size_t size, const char *label)
 {
    reader_t r;
    uint8_t header[5];
@@ -415,8 +415,8 @@ static void parse_o65_object_from_memory(object_file_t *obj, const uint8_t *data
 
    reader_init(&r, data, size, label);
    rd_bytes(&r, header, sizeof(header));
-   if (!(header[0] == 1 && header[1] == 0 && header[2] == 'o' && header[3] == '6' && header[4] == '5')) {
-      fprintf(stderr, "vcsc-ld: '%s' is not an o65 file\n", label);
+   if (!(header[0] == 1 && header[1] == 0 && header[2] == 'o' && header[3] == '2' && header[4] == '6')) {
+      fprintf(stderr, "vcsc-ld: '%s' is not an o26 file\n", label);
       exit(1);
    }
 
@@ -437,7 +437,7 @@ static void parse_o65_object_from_memory(object_file_t *obj, const uint8_t *data
       if (optlen == 0)
          break;
       if (optlen < 1 || r.pos + (size_t)optlen - 1 > r.size)
-         reader_fail(&r, "bad o65 options block");
+         reader_fail(&r, "bad o26 options block");
       r.pos += (size_t)optlen - 1;
    }
 
@@ -455,7 +455,7 @@ static void parse_o65_object_from_memory(object_file_t *obj, const uint8_t *data
          &layouts, &layout_count,
          &undefs, &undef_count,
          label)) {
-      fprintf(stderr, "vcsc-ld: failed to parse o65 relocation/export tail in '%s' (header ended at 0x%zx)\n", label, header_end);
+      fprintf(stderr, "vcsc-ld: failed to parse o26 relocation/export tail in '%s' (header ended at 0x%zx)\n", label, header_end);
       exit(1);
    }
 
@@ -486,7 +486,7 @@ void load_archive(const char *path, archive_file_t *archive)
    reader_init(&r, buf, size, path);
    rd_bytes(&r, magic, sizeof(magic));
    if (memcmp(magic, VCSC_AR_MAGIC, VCSC_AR_MAGIC_SIZE) != 0) {
-      fprintf(stderr, "vcsc-ld: '%s' is not an a65 archive created by vcsc-ar\n", path);
+      fprintf(stderr, "vcsc-ld: '%s' is not an l26 archive created by vcsc-ar\n", path);
       free(buf);
       exit(1);
    }
@@ -516,7 +516,7 @@ void load_archive(const char *path, archive_file_t *archive)
       m->size = member_size;
       r.pos += member_size;
       snprintf(member_label, sizeof(member_label), "%s(%s)", path, m->member_name);
-      parse_o65_object_from_memory(&m->obj, m->data, m->size, member_label);
+      parse_o26_object_from_memory(&m->obj, m->data, m->size, member_label);
       m->obj.selected_from_archive = 1;
    }
 
@@ -534,7 +534,7 @@ void load_object(const char *path, object_file_t *obj)
 {
    size_t size;
    uint8_t *buf = read_entire_file(path, &size);
-   parse_o65_object_from_memory(obj, buf, size, path);
+   parse_o26_object_from_memory(obj, buf, size, path);
    free(buf);
 }
 

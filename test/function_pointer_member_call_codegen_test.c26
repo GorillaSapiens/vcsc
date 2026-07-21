@@ -1,0 +1,26 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function pointers are not supported
+include "machine_6502.c26"
+
+struct holder {
+   int16_t (*func)(int16_t);
+};
+
+int16_t inc(int16_t x) {
+   return x + 1;
+}
+
+int16_t dec(int16_t x) {
+   return x - 1;
+}
+
+int16_t main(void) {
+   holder a[2];
+   int16_t q := 1;
+
+   a[0].func := inc;
+   a[1].func := dec;
+
+   return a[q].func(6);
+}

@@ -1,0 +1,23 @@
+// vcsc-cc1 -I .
+// expectasmordered: text:
+// expectasmordered: 	.byte $5c, $6e, $00
+// expectasmordered: nl:
+// expectasmordered: 	.byte $0a, $00
+// expectasmordered: ps:
+// expectasmordered: pn:
+// expectasmordered: .segment "RODATA"
+// expectasmordered: __str_0:
+// expectasmordered: 	.byte $5c, $6e, $00
+// expectasmordered: __str_1:
+// expectasmordered: 	.byte $0a, $00
+
+include "machine_6502.c26"
+
+int8_t text[3] := "\\n";
+int8_t nl[2] := "\n";
+int8_t *ps := "\\n";
+int8_t *pn := "\n";
+
+int16_t main(void) {
+   return 0;
+}

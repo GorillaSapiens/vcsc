@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: recursive inline-expansion cycle reaches function 'first'
+
+include "machine_6502.c26"
+
+inline uint8_t first(uint8_t value);
+inline uint8_t second(uint8_t value) {
+   return first(value);
+}
+inline uint8_t first(uint8_t value) {
+   return second(value);
+}
+uint8_t main(void) {
+   return first(1`uint8_t);
+}

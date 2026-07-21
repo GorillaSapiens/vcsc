@@ -1,0 +1,11 @@
+// vcsc-cc1
+// expectasm: .import foreign_add
+// expectasm:     jsr foreign_add
+
+include "machine_6502.c26"
+
+extern int16_t foreign_add(int16_t a, int16_t b);
+
+int16_t main(void) {
+   return foreign_add(1, 2);
+}

@@ -1,0 +1,8 @@
+// vcsc-cc1
+
+include "machine_6502.c26"
+
+struct llnode {
+   int16_t data;
+   llnode *next;
+};

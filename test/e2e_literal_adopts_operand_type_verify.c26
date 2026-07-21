@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+type u1x { $size:1 $integer:unsigned $endian:little };
+type u2x { $size:2 $integer:unsigned $endian:little };
+
+type s1x { $size:1 $integer:signed $endian:little };
+type s2x { $size:2 $integer:signed $endian:little };
+
+u1x add_byte(u1x x) {
+   return x + 255;
+}
+
+s1x sub_byte(s1x x) {
+   return x - 1;
+}
+
+u2x add_word(u2x x) {
+   return x + 256;
+}
+
+void main(void) {
+   if (add_byte(1`u1x) != 0`u1x) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (sub_byte(-128`s1x) != 127`s1x) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (add_word(1`u2x) != 257`u2x) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

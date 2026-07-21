@@ -11,25 +11,25 @@ This directory contains starter target files for the Atari 2600 / VCS.
 
 Files:
 
-- `vcs.vcsc` ... VCS machine definition with types, memory regions, and hardware includes
-- `tia.vcsc` ... TIA hardware register bindings
-- `riot.vcsc` ... RIOT I/O and timer register bindings plus RIOT RAM region names
+- `vcs.c26` ... VCS machine definition with types, memory regions, and hardware includes
+- `tia.c26` ... TIA hardware register bindings
+- `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `sound_ntsc.vcsc` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_display.vcsc` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
+- `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
+- `six_glyph_display.c26` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
 - `kernels/standard_4k_ntsc/` ... first minimal standard-kernel source contract and linker configuration
 - `fonts/` ... nine shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
-- `../../examples/01_solid_color/solid_color.vcsc` ... first complete 4K cartridge example
-- `../../examples/02_ode_to_joy/ode_to_joy.vcsc` ... frame-driven music example using a ROM score table
-- `../../examples/03_six_digit_score/six_digit_score.vcsc` ... centered legacy-kernel-derived six-digit `bcd24_t` score display using the shared VCS font catalog
-- `../../examples/04_fingerprint/fingerprint.vcsc` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
+- `../../examples/01_solid_color/solid_color.c26` ... first complete 4K cartridge example
+- `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
+- `../../examples/03_six_digit_score/six_digit_score.c26` ... centered legacy-kernel-derived six-digit `bcd24_t` score display using the shared VCS font catalog
+- `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
 - `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
 - `LEGACY_KERNEL_CONVERSION.md` ... task-19 inventory, compatibility analysis, and staged conversion plan
 
 Typical use:
 
 ```vcsc
-include "vcs.vcsc"
+include "vcs.c26"
 
 int16_t main(void) {
    VBLANK := 0x02;
@@ -40,7 +40,7 @@ int16_t main(void) {
 
 ## 24- and 32-bit binary integers
 
-`vcs.vcsc` defines `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` in addition
+`vcs.c26` defines `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` in addition
 to the 8- and 16-bit ordinary types. The three-byte types range from
 -8388608..8388607 and 0..16777215; the four-byte types range from
 -2147483648..2147483647 and 0..4294967295. They support the same ordinary
@@ -64,7 +64,7 @@ frames += 60;
 
 ## Packed-decimal score and counter types
 
-`vcs.vcsc` defines four unsigned packed-BCD types backed directly by the 6507's
+`vcs.c26` defines four unsigned packed-BCD types backed directly by the 6507's
 decimal-mode `ADC` and `SBC` instructions:
 
 ```vcsc
@@ -90,13 +90,13 @@ minus, and BCD bitfields. `bcd24_t` is especially useful for six-digit scores, w
 Compile with an include path that can see this directory, for example:
 
 ```sh
-vcsc-cc1 -I libraries/vcs source.vcsc
+vcsc-cc1 -I libraries/vcs source.c26
 ```
 
 Build a raw 4K cartridge directly with the driver:
 
 ```sh
-vcsc -I libraries/vcs source.vcsc -o game.bin
+vcsc -I libraries/vcs source.c26 -o game.bin
 ```
 
 A `.bin` output name asks the linker for a contiguous flat binary; this VCS
@@ -104,9 +104,9 @@ layout produces exactly 4096 bytes mapped at `$F000-$FFFF`.
 
 Notes:
 
-- `vcs.vcsc` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.vcsc` and `riot.vcsc`.
+- `vcs.c26` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.c26` and `riot.c26`.
 - Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
-- `tia.vcsc` and `riot.vcsc` can also be included separately if you already have your own base machine definition.
+- `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
 - `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.

@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: packed-BCD value -1 is outside the range 0..99 for a 1-byte type
+include "machine_6502.c26"
+bcd8_t bad := -1;

@@ -1,5 +1,0 @@
-// vcsc-cc1 -I .
-// expectfail
-// expecterr: packed-BCD value 10000 is outside the range 0..9999 for a 2-byte type
-include "machine_6502.vcsc"
-bcd16_t bad := 10000;

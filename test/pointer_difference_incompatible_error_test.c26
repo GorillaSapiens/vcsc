@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: incompatible pointer types in subtraction
+
+include "machine_6502.c26"
+
+int16_t main(void) {
+   uint8_t bytes[2];
+   uint16_t words[2];
+   uint8_t *bp := &bytes[0];
+   uint16_t *wp := &words[0];
+   return bp - wp;
+}

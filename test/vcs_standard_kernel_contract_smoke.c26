@@ -1,0 +1,42 @@
+// vcsc-cc1 -I ../libraries/vcs
+include "vcs.c26"
+
+// Mutable playfield selected by the application. The kernel binds directly to
+// this symbol; it does not own or indirect through a pointer to it.
+uint8_t vcs_standard_playfield[48];
+
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
+
+const uint8_t player_shape[8] := {
+   0b...XX...,
+   0b..XXXX..,
+   0b.XXXXXX.,
+   0bXX.XX.XX,
+   0bXXXXXXXX,
+   0b..X..X..,
+   0b.X....X.,
+   0bX......X
+};
+
+// Task 20b defines only the source contract. Task 20c/20d will replace this
+// no-op definition with the normalized retained assembly implementation.
+void vcs_standard_kernel_drawscreen(void) {
+}
+
+int16_t main(void) {
+   VCS_STANDARD_PLAYER0_X := 40;
+   VCS_STANDARD_PLAYER1_X := 96;
+   VCS_STANDARD_MISSILE0_X := 44;
+   VCS_STANDARD_MISSILE1_X := 100;
+   VCS_STANDARD_BALL_X := 80;
+   vcs_standard_player0_y := 20;
+   vcs_standard_player1_y := 40;
+   vcs_standard_player0_graphics := player_shape;
+   vcs_standard_player1_graphics := player_shape;
+   vcs_standard_player0_height := 7;
+   vcs_standard_player1_height := 7;
+   vcs_standard_score := 123456;
+   VCS_STANDARD_PLAYFIELD[0] := 0xff;
+   vcs_standard_kernel_drawscreen();
+   return 0;
+}

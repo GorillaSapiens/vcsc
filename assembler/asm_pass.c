@@ -934,7 +934,7 @@ static void trace_pass_stable(int pass_index, const asm_pass_stats_t *stats)
 }
 
 //! @brief Handle asm context init logic for assembler pass and relaxation engine.
-void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *listing, int object_mode_o65)
+void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *listing, int object_mode_o26)
 {
    stmt_t *stmt;
    const char *why;
@@ -945,7 +945,7 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
    ihex_image_init(&ctx->image);
    ctx->listing = listing;
    ctx->error_count = 0;
-   ctx->object_mode_o65 = object_mode_o65;
+   ctx->object_mode_o26 = object_mode_o26;
    ctx->imports = NULL;
    ctx->weaks = NULL;
    ctx->segments = NULL;
@@ -1012,7 +1012,7 @@ static void process_const_statement_pass1(asm_context_t *ctx, stmt_t *stmt, long
       }
 
       if (sym && expr_eval(stmt->u.cnst.expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &value) == EXPR_EVAL_OK)
-         symtab_set_value_segment(sym, value, O65_SEG_ABS);
+         symtab_set_value_segment(sym, value, O26_SEG_ABS);
       return;
    }
 
@@ -1035,14 +1035,14 @@ static void process_const_statement_pass1(asm_context_t *ctx, stmt_t *stmt, long
       symtab_set_mutable(sym, 1);
       if (eval_or_report(ctx, stmt->u.cnst.expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &value, stmt))
          return;
-      symtab_set_value_segment(sym, value, O65_SEG_ABS);
+      symtab_set_value_segment(sym, value, O26_SEG_ABS);
       return;
    }
 
    if (declare_symbol_or_report(ctx, stmt->u.cnst.name, stmt)) {
       sym = find_declared_symbol(&ctx->symbols, ctx->prog, stmt, stmt->u.cnst.name);
       if (sym && expr_eval(stmt->u.cnst.expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &value) == EXPR_EVAL_OK)
-         symtab_set_value_segment(sym, value, O65_SEG_ABS);
+         symtab_set_value_segment(sym, value, O26_SEG_ABS);
    }
 }
 
@@ -1073,7 +1073,7 @@ static int resolve_constants(asm_context_t *ctx)
 
          if (!sym->defined || sym->value != value) {
             mut = find_declared_symbol(&ctx->symbols, ctx->prog, stmt, stmt->u.cnst.name);
-            symtab_set_value_segment(mut, value, O65_SEG_ABS);
+            symtab_set_value_segment(mut, value, O26_SEG_ABS);
             changed = 1;
          }
       }
@@ -1110,15 +1110,15 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
 
    reset_segment_pcs(ctx);
    publish_segment_symbols(ctx);
-   if (ctx->object_mode_o65) {
+   if (ctx->object_mode_o26) {
       stmt_t *wstmt;
       for (wstmt = ctx->prog->head; wstmt; wstmt = wstmt->next) {
          if (wstmt->kind != STMT_DIR || !wstmt->u.dir)
             continue;
          if (!strcmp(wstmt->u.dir->name, ".segmentdef")) {
-            asm_warning(wstmt, ".segmentdef is ignored when writing o65 object files");
+            asm_warning(wstmt, ".segmentdef is ignored when writing o26 object files");
          } else if (!strcmp(wstmt->u.dir->name, ".org")) {
-            asm_warning(wstmt, ".org in o65 object mode changes the relative offset within the segment; no absolute placement is recorded");
+            asm_warning(wstmt, ".org in o26 object mode changes the relative offset within the segment; no absolute placement is recorded");
          }
       }
    } else {
@@ -1157,10 +1157,10 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
          if (declare_symbol_or_report(ctx, stmt->label, stmt)) {
             sym = find_declared_symbol(&ctx->symbols, ctx->prog, stmt, stmt->label);
             if (seg->rorg_active) {
-               symtab_set_value_segment(sym, pc_logical, O65_SEG_ABS);
+               symtab_set_value_segment(sym, pc_logical, O26_SEG_ABS);
             } else {
                symtab_set_value_segment_named(sym, pc_logical,
-                                      segment_name_to_o65(stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME),
+                                      segment_name_to_o26(stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME),
                                       stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
             }
          }
@@ -1173,10 +1173,10 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
          } else if (declare_symbol_or_report(ctx, proc_name, stmt)) {
             sym = find_declared_symbol(&ctx->symbols, ctx->prog, stmt, proc_name);
             if (seg->rorg_active) {
-               symtab_set_value_segment(sym, pc_logical, O65_SEG_ABS);
+               symtab_set_value_segment(sym, pc_logical, O26_SEG_ABS);
             } else {
                symtab_set_value_segment_named(sym, pc_logical,
-                                      segment_name_to_o65(stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME),
+                                      segment_name_to_o26(stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME),
                                       stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
             }
          }
@@ -1583,7 +1583,7 @@ static int process_set_statement_emit(asm_context_t *ctx, const stmt_t *stmt)
    if (eval_or_report(ctx, stmt->u.cnst.expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address, &value, stmt))
       return -1;
 
-   symtab_set_value_segment(sym, value, O65_SEG_ABS);
+   symtab_set_value_segment(sym, value, O26_SEG_ABS);
    return 0;
 }
 

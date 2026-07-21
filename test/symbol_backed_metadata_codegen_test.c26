@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// expectasm: .export __sbpmeta$F$a?
+// expectasm: __sbpmeta$F$a? = 0
+// expectasm: .export __sbpmeta$E$a?$b
+// expectasm: __sbpmeta$E$a?$b = 0
+include "machine_6502.c26"
+
+int16_t b(int16_t x);
+
+int16_t a(static int16_t x) {
+   return b(x);
+}
+
+int16_t b(int16_t x) {
+   return x + 1;
+}
+
+int16_t main(void) {
+   return a(3);
+}

@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.c26"
+
+alias foo(x) x
+
+void main(void) {
+   int16_t x;
+   x := foo(x);
+}

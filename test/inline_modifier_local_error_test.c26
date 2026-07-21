@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'inline' applies only to function declarations and definitions
+
+include "machine_6502.c26"
+void main(void) {
+   inline uint8_t value;
+}

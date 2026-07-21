@@ -62,18 +62,18 @@ install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
-	install -m 0644 libraries/vcs/riot.vcsc $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
-	install -m 0644 libraries/vcs/six_glyph_display.vcsc $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.vcsc
-	install -m 0644 libraries/vcs/tia.vcsc $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
-	install -m 0644 libraries/vcs/vcs.vcsc $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
+	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
+	install -m 0644 libraries/vcs/six_glyph_display.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.c26
+	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
+	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc \
+	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26 \
 	  libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/
 	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
-	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.vcsc $(DESTDIR)$(DATADIR)/vcs/fonts/
+	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
 	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels
 	install -m 0644 libraries/vcs/legacy-basic-kernels/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
 	install -m 0644 libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
@@ -92,18 +92,18 @@ uninstall:
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.vcsc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.vcsc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.vcsc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc 2>/dev/null || true
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.vcsc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/fonts 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
@@ -121,29 +121,29 @@ installcheck: tools
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
 	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.vcsc" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_solid_color/solid_color.c26" -o "$(INSTALLCHECK_STAGING)/solid_color.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/solid_color.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.vcsc" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_six_digit_score" \
-	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.vcsc" \
+	  "$(CURDIR)/examples/03_six_digit_score/six_digit_score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/six_digit_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_digit_score.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/04_fingerprint/fingerprint.vcsc" \
+	  "$(CURDIR)/examples/04_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.vcsc"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.vcsc" \
+	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.vcsc" \
+	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096
 
@@ -155,7 +155,7 @@ unit: tools
 	@$(MAKE) --no-print-directory -C ./test unit
 
 sieve: tools
-	./driver/vcsc -I test -T test/generic_6502.cfg test/sieve.vcsc -o sieve.hex
+	./driver/vcsc -I test -T test/generic_6502.cfg test/sieve.c26 -o sieve.hex
 	simulator/vcsc-sim sieve.hex | head
 
 e2e: tools

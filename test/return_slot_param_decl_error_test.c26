@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: '$$' is reserved for the current function's return object
+// expecterr: do not declare it
+// expecterr: return;
+include "machine_6502.c26"
+int16_t bad(int16_t $$) { return 1; }

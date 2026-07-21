@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+bcd32_t inner32(void) {
+   return 12345678;
+}
+
+bcd32_t outer32(void) {
+   return inner32() + 1;
+}
+
+void main(void) {
+   bcd32_t value := outer32();
+   uint8_t *p := (uint8_t *)&value;
+   if (value != 12345679) { fail(1); }
+   if (p[0] != 0x79 || p[1] != 0x56 || p[2] != 0x34 || p[3] != 0x12) { fail(2); }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

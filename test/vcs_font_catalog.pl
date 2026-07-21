@@ -60,7 +60,7 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $fonts=File::Spec->catdir($vcs,'fonts');
-my $example=File::Spec->catfile($repo,'examples','03_six_digit_score','six_digit_score.vcsc');
+my $example=File::Spec->catfile($repo,'examples','03_six_digit_score','six_digit_score.c26');
 my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny);
 my $example_text=read_file($example);
 
@@ -69,8 +69,8 @@ my $example_text=read_file($example);
    and die "example 03 still owns a private font directory\n";
 
 for my $family (@families) {
-   my $dec_file=File::Spec->catfile($fonts,"${family}_decimal.vcsc");
-   my $hex_file=File::Spec->catfile($fonts,"${family}_hex.vcsc");
+   my $dec_file=File::Spec->catfile($fonts,"${family}_decimal.c26");
+   my $hex_file=File::Spec->catfile($fonts,"${family}_hex.c26");
    my $dec_symbol="score_font";
    my $hex_symbol="score_font";
    -f $dec_file or die "missing $dec_file\n";
@@ -81,20 +81,20 @@ for my $family (@families) {
       or die "$family hexadecimal variant does not preserve decimal glyphs\n";
 }
 
--f File::Spec->catfile($fonts,'hexadecimal_decimal.vcsc')
+-f File::Spec->catfile($fonts,'hexadecimal_decimal.c26')
    and die "removed hexadecimal decimal font remains\n";
--f File::Spec->catfile($fonts,'hexadecimal_hex.vcsc')
+-f File::Spec->catfile($fonts,'hexadecimal_hex.c26')
    and die "removed hexadecimal hex font remains\n";
 
 # Every module must build in the real six-digit cartridge, not merely parse.
 for my $family (@families) {
    for my $variant (qw(decimal hex)) {
-      my $module="fonts/${family}_${variant}.vcsc";
+      my $module="fonts/${family}_${variant}.c26";
       my $source=$example_text;
-      $source =~ s/include\s+"fonts\/default_decimal\.vcsc"/include "$module"/
+      $source =~ s/include\s+"fonts\/default_decimal\.c26"/include "$module"/
          or die "could not replace example font include\n";
       my $stem="font_${family}_${variant}";
-      my $src=File::Spec->catfile($tmp,"$stem.vcsc");
+      my $src=File::Spec->catfile($tmp,"$stem.c26");
       my $bin=File::Spec->catfile($tmp,"$stem.bin");
       open(my $fh,'>',$src) or die "could not create $src: $!\n";
       print {$fh} $source;

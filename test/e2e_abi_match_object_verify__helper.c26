@@ -1,0 +1,5 @@
+include "machine_6502.c26"
+
+int16_t helper(int16_t x) {
+   return x + 5;
+}

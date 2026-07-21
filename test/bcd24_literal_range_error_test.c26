@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: packed-BCD value 1000000 is outside the range 0..999999 for a 3-byte type
+include "machine_6502.c26"
+bcd24_t bad := 1000000;

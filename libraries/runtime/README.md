@@ -83,7 +83,7 @@ make clean
 make
 ```
 
-That builds `libvcsc.a65`.
+That builds `libvcsc.l26`.
 
 ## License
 

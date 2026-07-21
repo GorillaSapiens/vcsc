@@ -11,20 +11,20 @@
 //! Compile-time element count for fixed arrays.
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 //! Archive magic shared with vcsc-ar.
-#define VCSC_AR_MAGIC "VCSCAR\1"
+#define VCSC_AR_MAGIC "VCSL26\1"
 #define VCSC_AR_MAGIC_SIZE 7
 
-#define O65_SEG_UNDEF 0
-#define O65_SEG_ABS   1
-#define O65_SEG_TEXT  2
-#define O65_SEG_DATA  3
-#define O65_SEG_BSS   4
-#define O65_SEG_ZP    5
+#define O26_SEG_UNDEF 0
+#define O26_SEG_ABS   1
+#define O26_SEG_TEXT  2
+#define O26_SEG_DATA  3
+#define O26_SEG_BSS   4
+#define O26_SEG_ZP    5
 
-#define O65_RTYPE_LOW  0x20
-#define O65_RTYPE_HIGH 0x40
-#define O65_RTYPE_WORD 0x80
-#define O65_RTYPE_AUX  0x10
+#define O26_RTYPE_LOW  0x20
+#define O26_RTYPE_HIGH 0x40
+#define O26_RTYPE_WORD 0x80
+#define O26_RTYPE_AUX  0x10
 
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
 #define ABI_META_PREFIX "__abimeta$V1$"
@@ -68,7 +68,7 @@ typedef struct {
    uint16_t call_stack_top;
 } linker_config_t;
 
-//! Exported or imported o65 symbol record.
+//! Exported or imported o26 symbol record.
 typedef struct {
    char *name;
    uint8_t segid;
@@ -95,25 +95,25 @@ typedef struct {
    int has_aux_low;
 } reloc_t;
 
-//! One loadable o65 segment plus relocations against it.
+//! One loadable o26 segment plus relocations against it.
 typedef struct {
    uint8_t *data;
    size_t length;
    uint16_t base;
    reloc_t *relocs;
    size_t reloc_count;
-} o65_segment_t;
+} o26_segment_t;
 
 typedef struct archive_member_s archive_member_t;
 
-//! Decoded o65 object plus placement state selected by the linker.
+//! Decoded o26 object plus placement state selected by the linker.
 typedef struct {
    char origin[MAX_PATH];
    uint16_t mode;
    uint16_t tbase, dbase, bbase, zbase, stack;
    uint16_t blen, zlen;
-   o65_segment_t text;
-   o65_segment_t data;
+   o26_segment_t text;
+   o26_segment_t data;
    char **undefs;
    size_t undef_count;
    symbol_t *exports;

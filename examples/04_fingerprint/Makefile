@@ -4,8 +4,8 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: fingerprint.bin
 
-fingerprint.bin: fingerprint.vcsc $(VCS_DIR)/fonts/hexadecimal_hex.vcsc $(VCS_DIR)/six_glyph_display.vcsc $(VCS_DIR)/vcs.vcsc $(VCS_DIR)/tia.vcsc $(VCS_DIR)/riot.vcsc $(VCS_DIR)/vcs_4k.cfg
-	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map fingerprint.map fingerprint.vcsc -o $@
+fingerprint.bin: fingerprint.c26 $(VCS_DIR)/fonts/default_hex.c26 $(VCS_DIR)/six_glyph_display.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs_4k.cfg
+	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map fingerprint.map fingerprint.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 
 clean:

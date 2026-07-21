@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #<{bytes + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda ptr0
+// expectasmordered: sta __vcsc_scratch_
+
+include "machine_6502.c26"
+
+int8_t bytes[2];
+int8_t *bytep;
+int8_t **target := &bytep;
+
+void main(void) {
+   *target := bytes;
+}

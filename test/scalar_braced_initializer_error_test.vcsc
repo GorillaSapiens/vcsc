@@ -1,5 +1,0 @@
-// vcsc-cc1 -I .
-// expectfail
-// expecterr: too many initializers for scalar
-include "machine_6502.vcsc"
-int16_t g := { 1, 2 };

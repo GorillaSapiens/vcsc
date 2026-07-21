@@ -76,7 +76,7 @@ sub run_case {
    $stem =~ s/\.s\z//;
    my $out = File::Spec->catfile($tmp, sprintf('asm_fixture_%02d.out', $index));
    my $err = File::Spec->catfile($tmp, sprintf('asm_fixture_%02d.err', $index));
-   my $product = File::Spec->catfile($tmp, sprintf('%s_%02d.%s', $stem, $index, ($mode eq 'hex') ? 'hex' : 'o65'));
+   my $product = File::Spec->catfile($tmp, sprintf('%s_%02d.%s', $stem, $index, ($mode eq 'hex') ? 'hex' : 'o26'));
    my @cmd = ($asm, '-I', $include);
    if ($mode eq 'hex') {
       push @cmd, "--hex=$product";

@@ -1,7 +1,0 @@
-// vcsc-cc1 -I .
-// expectfail
-// expecterr: unknown_identifier_subscript_error_test.vcsc:6.18] unknown identifier 'missing'
-include "machine_6502.vcsc"
-int16_t main(void) {
-   return missing[0];
-}

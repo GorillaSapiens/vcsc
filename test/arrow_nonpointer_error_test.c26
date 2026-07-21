@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot use '->' on non-pointer 's'
+include "machine_6502.c26"
+struct S {
+   int16_t x;
+};
+int16_t main(void) {
+   S s;
+   return s->x;
+}

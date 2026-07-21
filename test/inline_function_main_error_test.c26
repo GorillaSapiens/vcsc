@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: entry function 'main' cannot be inline
+
+include "machine_6502.c26"
+inline void main(void) {
+}

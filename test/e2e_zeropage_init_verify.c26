@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectsim: OK
+include "machine_6502.c26"
+
+static int8_t ok[4] := { 'O', 'K', '\n', 0 };
+static int8_t bad[5] := { 'B', 'A', 'D', '\n', 0 };
+
+zeropage int16_t z := 5;
+zeropage int8_t pad;
+zeropage int8_t trio[3] := { 1, 2, 3 };
+
+void print_ok(void) {
+   asm lda #0;
+   asm ldx #<ok;
+   asm ldy #>ok;
+   asm jsr $ffff;
+}
+
+void print_bad(void) {
+   asm lda #0;
+   asm ldx #<bad;
+   asm ldy #>bad;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (z == 5 && pad == 0 && trio[0] == 1 && trio[1] == 2 && trio[2] == 3) {
+      print_ok();
+   }
+   else {
+      print_bad();
+   }
+   while (1) {
+   }
+}

@@ -1,0 +1,7 @@
+include "machine_6502.c26"
+
+int16_t b(int16_t x);
+
+int16_t a(static int16_t x) {
+   return b(x);
+}

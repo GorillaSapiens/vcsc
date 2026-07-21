@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: packed-BCD and binary integer values cannot be mixed implicitly
+include "machine_6502.c26"
+uint8_t binary;
+bcd8_t packed;
+void main(void) { packed := (bcd8_t)binary; }

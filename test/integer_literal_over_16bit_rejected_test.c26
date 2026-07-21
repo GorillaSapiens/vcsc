@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: integer '0x10000' is too big for 2 bytes!
+
+include "machine_6502.c26"
+
+void main(void) {
+   uint16_t x := 0x10000;
+}

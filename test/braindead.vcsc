@@ -1,3 +1,0 @@
-// vcsc-cc1 -X parseonly
-
-include "braindead.vcsc"

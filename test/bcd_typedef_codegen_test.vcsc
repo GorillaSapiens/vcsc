@@ -1,9 +1,0 @@
-// vcsc-cc1 -I .
-// expectasm: score:
-// expectasm: 	.byte $90, $78, $56
-// expectasm: sed
-// expectasm: cld
-include "machine_6502.vcsc"
-typedef bcd24_t score_t;
-score_t score := 567890;
-void main(void) { score += 1; }

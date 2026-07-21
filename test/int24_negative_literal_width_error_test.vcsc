@@ -1,7 +1,0 @@
-// vcsc-cc1 -I .
-// expectfail
-// expecterr: integer '16777216' is too big for 3 bytes!
-include "machine_6502.vcsc"
-void main(void) {
-   int24_t bad := -16777216;
-}

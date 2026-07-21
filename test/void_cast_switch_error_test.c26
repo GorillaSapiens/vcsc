@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: void_cast_switch_error_test.c26:7.20] void expression has no value
+include "machine_6502.c26"
+int16_t g;
+int16_t main(void) {
+   switch ((void)g) {
+      case 0: return 0;
+   }
+   return 1;
+}

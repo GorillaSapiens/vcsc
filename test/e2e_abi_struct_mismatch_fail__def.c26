@@ -1,0 +1,8 @@
+include "machine_6502.c26"
+
+struct Packet {
+   int16_t value;
+   int8_t tag;
+};
+
+Packet shared;

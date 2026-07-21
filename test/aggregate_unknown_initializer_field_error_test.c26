@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: aggregate_unknown_initializer_field_error_test.c26:8.19] unknown initializer field 'b' for 'S'
+include "machine_6502.c26"
+struct S {
+   int16_t a;
+};
+S g := { .b := 1 };
+int16_t main(void) {
+   return 0;
+}

@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: break used outside loop
+
+include "machine_6502.c26"
+inline void helper(void) {
+   break;
+}
+void main(void) {
+   while (1`uint8_t) {
+      helper();
+      break;
+   }
+}

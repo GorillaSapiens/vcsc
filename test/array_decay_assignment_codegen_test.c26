@@ -1,0 +1,22 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #<{bytes + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda ptr0
+// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: lda #<{words + 0}
+// expectasmordered: sta ptr0
+// expectasmordered: lda ptr0
+// expectasmordered: sta __vcsc_scratch_
+// forbidasm: lda (ptr0),y
+
+include "machine_6502.c26"
+
+int8_t bytes[2];
+int16_t words[2];
+int8_t *bytep;
+int16_t *wordp;
+
+void main(void) {
+   bytep := bytes;
+   wordp := words;
+}

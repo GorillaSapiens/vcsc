@@ -35,7 +35,7 @@ static void usage(FILE *fp)
       "  -V                   Show generated version string\n"
       "\n"
       "Compatibility:\n"
-      "  vcsc-ld [layout.cfg] input1.o65 [input2.o65 ... inputN.a65] output.hex [output.map]\n");
+      "  vcsc-ld [layout.cfg] input1.o26 [input2.o26 ... inputN.l26] output.hex [output.map]\n");
 }
 
 //! @brief Return whether a string ends with the requested suffix.
@@ -875,17 +875,17 @@ static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_
 //! @brief Add generated symbols to linker layout and image writer state, growing storage or preserving uniqueness as needed.
 static void add_generated_symbols(layout_t *layout)
 {
-   add_global(layout, "__copy_table", layout->copy_table_addr, O65_SEG_ABS, "<linker>");
-   add_global(layout, "__zero_table", layout->zero_table_addr, O65_SEG_ABS, "<linker>");
-   add_global(layout, "__init_table", layout->init_table_addr, O65_SEG_ABS, "<linker>");
-   add_global(layout, "__stack_start", layout->stack_start, O65_SEG_ABS, "<linker>");
-   add_global(layout, "__stack_top", layout->stack_top, O65_SEG_ABS, "<linker>");
+   add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>");
+   add_global(layout, "__zero_table", layout->zero_table_addr, O26_SEG_ABS, "<linker>");
+   add_global(layout, "__init_table", layout->init_table_addr, O26_SEG_ABS, "<linker>");
+   add_global(layout, "__stack_start", layout->stack_start, O26_SEG_ABS, "<linker>");
+   add_global(layout, "__stack_top", layout->stack_top, O26_SEG_ABS, "<linker>");
    if (layout->call_stack_enabled) {
-      add_global(layout, "__call_stack_depth", layout->call_stack_depth, O65_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_extra", layout->call_stack_extra, O65_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_size", layout->call_stack_size, O65_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_start", layout->call_stack_start, O65_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_top", layout->call_stack_top, O65_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_depth", layout->call_stack_depth, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_extra", layout->call_stack_extra, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_size", layout->call_stack_size, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_start", layout->call_stack_start, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_top", layout->call_stack_top, O26_SEG_ABS, "<linker>");
    }
 }
 
@@ -1060,7 +1060,7 @@ static uint16_t object_runtime_addr_for_value(const object_file_t *obj, uint8_t 
    const object_layout_t *lay;
    uint16_t base;
 
-   if (segid == O65_SEG_ABS)
+   if (segid == O26_SEG_ABS)
       return packed_value;
 
    lay = find_layout_for_value(obj, segid, packed_value);
@@ -1069,7 +1069,7 @@ static uint16_t object_runtime_addr_for_value(const object_file_t *obj, uint8_t 
       exit(1);
    }
 
-   base = (segid == O65_SEG_TEXT) ? lay->load_addr : lay->run_addr;
+   base = (segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
    return (uint16_t)(base + (packed_value - lay->packed_base));
 }
 
@@ -1077,10 +1077,10 @@ static uint16_t object_runtime_addr_for_value(const object_file_t *obj, uint8_t 
 static uint16_t object_layout_load_addr(const object_file_t *obj, const object_layout_t *lay)
 {
    switch (lay->image_segid) {
-      case O65_SEG_TEXT:
+      case O26_SEG_TEXT:
          return (uint16_t)(obj->place_text_load + lay->image_base);
 
-      case O65_SEG_DATA:
+      case O26_SEG_DATA:
          return (uint16_t)(obj->place_data_load + lay->image_base);
 
       default:
@@ -1133,12 +1133,12 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          lay->run_addr = 0;
 
          switch (lay->segid) {
-            case O65_SEG_TEXT:
+            case O26_SEG_TEXT:
                lay->load_addr = object_layout_load_addr(obj, lay);
                lay->run_addr = lay->load_addr;
                break;
 
-            case O65_SEG_DATA: {
+            case O26_SEG_DATA: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
                lay->load_addr = object_layout_load_addr(obj, lay);
                lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
@@ -1146,18 +1146,18 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                break;
             }
 
-            case O65_SEG_BSS: {
+            case O26_SEG_BSS: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
                lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
                add_zero_record(layout, lay->name, lay->run_addr, lay->size);
                break;
             }
 
-            case O65_SEG_ZP: {
+            case O26_SEG_ZP: {
                const char *run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") || segment_name_matches_prefix(lay->name, "ZP") || segment_name_matches_prefix(lay->name, "ZERO"))) ? suffix : zp_run_name;
                lay->load_addr = object_layout_load_addr(obj, lay);
                lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
-               if (lay->image_segid == O65_SEG_DATA || lay->image_segid == O65_SEG_TEXT)
+               if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                break;
             }
@@ -1192,7 +1192,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          if (reserved_metadata_has_prefix(obj->exports[j].name))
             continue;
 
-         if (obj->exports[j].segid == O65_SEG_ABS)
+         if (obj->exports[j].segid == O26_SEG_ABS)
             addr = obj->exports[j].value;
          else
             addr = object_runtime_addr_for_value(obj, obj->exports[j].segid, obj->exports[j].value);
@@ -1223,7 +1223,7 @@ static void patch_u16(uint8_t *buf, size_t len, uint32_t off, uint16_t v, const 
 }
 
 //! @brief Handle apply segment relocs logic for linker layout and image writer.
-static void apply_segment_relocs(object_file_t *obj, o65_segment_t *seg, const layout_t *layout, const char *seg_name)
+static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const layout_t *layout, const char *seg_name)
 {
    size_t i;
    for (i = 0; i < seg->reloc_count; ++i) {
@@ -1233,23 +1233,23 @@ static void apply_segment_relocs(object_file_t *obj, o65_segment_t *seg, const l
       const char *who = obj->origin;
       (void)seg_name;
 
-      if (r->segid == O65_SEG_UNDEF) {
+      if (r->segid == O26_SEG_UNDEF) {
          if (r->undef_index >= obj->undef_count) {
             fprintf(stderr, "vcsc-ld: bad undefined-symbol index in %s\n", who);
             exit(1);
          }
          target = lookup_global_addr(layout, obj->undefs[r->undef_index]);
       } else {
-         switch (r->type & (O65_RTYPE_LOW | O65_RTYPE_HIGH | O65_RTYPE_WORD)) {
-            case O65_RTYPE_WORD:
+         switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+            case O26_RTYPE_WORD:
                current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
                break;
 
-            case O65_RTYPE_LOW:
+            case O26_RTYPE_LOW:
                current_word = (uint16_t)(seg->data[r->offset] | ((r->has_aux_low ? r->aux_low : 0) << 8));
                break;
 
-            case O65_RTYPE_HIGH:
+            case O26_RTYPE_HIGH:
                current_word = (uint16_t)((r->has_aux_low ? r->aux_low : 0) | (seg->data[r->offset] << 8));
                break;
 
@@ -1260,16 +1260,16 @@ static void apply_segment_relocs(object_file_t *obj, o65_segment_t *seg, const l
          target = object_runtime_addr_for_value(obj, r->segid, current_word);
       }
 
-      switch (r->type & (O65_RTYPE_LOW | O65_RTYPE_HIGH | O65_RTYPE_WORD)) {
-         case O65_RTYPE_LOW:
+      switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+         case O26_RTYPE_LOW:
             patch_u8(seg->data, seg->length, r->offset, (uint8_t)(target & 0xFFu), who);
             break;
-         case O65_RTYPE_HIGH:
+         case O26_RTYPE_HIGH:
             patch_u8(seg->data, seg->length, r->offset, (uint8_t)((target >> 8) & 0xFFu), who);
             break;
-         case O65_RTYPE_WORD:
+         case O26_RTYPE_WORD:
             current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
-            if (r->segid == O65_SEG_UNDEF)
+            if (r->segid == O26_SEG_UNDEF)
                target = (uint16_t)(target + current_word);
             patch_u16(seg->data, seg->length, r->offset, target, who);
             break;
@@ -1536,10 +1536,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       fprintf(fp, "  %s\n", o->origin);
       for (j = 0; j < o->layout_count; ++j) {
          const object_layout_t *lay = &o->layouts[j];
-         if (lay->segid == O65_SEG_TEXT) {
+         if (lay->segid == O26_SEG_TEXT) {
             fprintf(fp, "     %-16s load=$%04X size=$%04X\n", lay->name, lay->load_addr, lay->size);
          }
-         else if (lay->segid == O65_SEG_DATA) {
+         else if (lay->segid == O26_SEG_DATA) {
             fprintf(fp, "     %-16s load=$%04X run=$%04X size=$%04X\n", lay->name, lay->load_addr, lay->run_addr, lay->size);
          }
          else {
@@ -1676,7 +1676,7 @@ int main(int argc, char **argv)
          continue;
       }
 
-      if (ends_with(arg, ".o65")) {
+      if (ends_with(arg, ".o26")) {
          inputs.cmd_objects = (object_file_t *)xrealloc(inputs.cmd_objects,
             (inputs.cmd_object_count + 1) * sizeof(*inputs.cmd_objects));
          load_object(arg, &inputs.cmd_objects[inputs.cmd_object_count]);
@@ -1690,7 +1690,7 @@ int main(int argc, char **argv)
          continue;
       }
 
-      if (ends_with(arg, ".a65")) {
+      if (ends_with(arg, ".l26")) {
          inputs.archives = (archive_file_t *)xrealloc(inputs.archives,
             (inputs.archive_count + 1) * sizeof(*inputs.archives));
          load_archive(arg, &inputs.archives[inputs.archive_count]);

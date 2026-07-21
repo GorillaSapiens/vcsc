@@ -13,7 +13,7 @@
 #include "ihex.h"
 #include "listing.h"
 #include "source_loader.h"
-#include "o65.h"
+#include "o26.h"
 #include "opcode.h"
 #include "util.h"
 #include "xray.h"
@@ -37,17 +37,17 @@ typedef struct
    bool want_hex;
    bool want_lst;
    bool want_map;
-   bool want_o65;
+   bool want_o26;
 
    const char *hex_path_arg;
    const char *lst_path_arg;
    const char *map_path_arg;
-   const char *o65_path_arg;
+   const char *o26_path_arg;
 
    char *hex_path;
    char *lst_path;
    char *map_path;
-   char *o65_path;
+   char *o26_path;
 } options_t;
 
 //! @brief Print the assembler command-line usage text.
@@ -57,7 +57,7 @@ static void usage(const char *argv0)
       "usage: %s [options] file\n"
       "\n"
       "options:\n"
-      "   -o, --output <file>     write relocatable o65 object output\n"
+      "   -o, --output <file>     write relocatable o26 object output\n"
       "   -I, --include <dir>     add directory to include search path\n"
       "   -D <name[=value]>      define an early immutable symbol; value defaults to 1\n"
       "       --hex[=file]        write Intel HEX output\n"
@@ -66,19 +66,19 @@ static void usage(const char *argv0)
       "       --opcode-cfg <file> load an additional opcode config file\n"
       "       --illegals          load the bundled illegals.cfg opcode set\n"
       "   -i, --input <file>      compatibility alias for positional input file\n"
-      "       --o65[=file]        compatibility alias for object output\n"
+      "       --o26[=file]        write object output; derive .o26 when file is omitted\n"
       "   -X <name>               enable named assembler xray option (use list to see them)\n"
       "   -h, --help              show this help\n"
       "   -V, --version           show version information\n"
       "\n"
       "notes:\n"
       "   bundled default.cfg is always loaded from the source tree or installed share/cfg\n"
-      "   if no primary output is selected, relocatable o65 output is written to a.out\n"
-      "   use --o65 without a filename to preserve the old derived-name behavior (.o65)\n"
+      "   if no primary output is selected, relocatable o26 output is written to a.o26\n"
+      "   use --o26 without a filename to derive the output name with suffix .o26\n"
       "\n"
       "examples:\n"
       "   %s prog.s\n"
-      "   %s -o prog.o65 prog.s\n"
+      "   %s -o prog.o26 prog.s\n"
       "   %s --illegals --hex=prog.hex prog.s\n"
       "   %s --opcode-cfg cpu65c02.cfg -I include prog.s\n"
       "   %s -X passes --hex=prog.hex prog.s\n",
@@ -511,7 +511,7 @@ static bool parse_args(int argc, char **argv, options_t *opt)
    int ch;
    int option_index = 0;
    const char *positional_input = NULL;
-   bool default_o65_output = false;
+   bool default_o26_output = false;
 
    static struct option long_options[] = {
       { "input", required_argument, NULL, 'i' },
@@ -521,7 +521,7 @@ static bool parse_args(int argc, char **argv, options_t *opt)
       { "hex", optional_argument, NULL, 1000 },
       { "lst", optional_argument, NULL, 1001 },
       { "map", optional_argument, NULL, 1002 },
-      { "o65", optional_argument, NULL, 1003 },
+      { "o26", optional_argument, NULL, 1003 },
       { "opcode-cfg", required_argument, NULL, 1004 },
       { "illegals", no_argument, NULL, 1005 },
       { "help", no_argument, NULL, 'h' },
@@ -566,8 +566,8 @@ static bool parse_args(int argc, char **argv, options_t *opt)
          break;
 
       case 'o':
-         opt->want_o65 = true;
-         opt->o65_path_arg = optarg;
+         opt->want_o26 = true;
+         opt->o26_path_arg = optarg;
          break;
 
       case 1000:
@@ -586,8 +586,8 @@ static bool parse_args(int argc, char **argv, options_t *opt)
          break;
 
       case 1003:
-         opt->want_o65 = true;
-         opt->o65_path_arg = optarg;
+         opt->want_o26 = true;
+         opt->o26_path_arg = optarg;
          break;
 
       case 1004:
@@ -628,9 +628,9 @@ static bool parse_args(int argc, char **argv, options_t *opt)
       return false;
    }
 
-   if (!opt->want_hex && !opt->want_o65) {
-      opt->want_o65 = true;
-      default_o65_output = true;
+   if (!opt->want_hex && !opt->want_o26) {
+      opt->want_o26 = true;
+      default_o26_output = true;
    }
 
    if (opt->want_hex) {
@@ -654,13 +654,13 @@ static bool parse_args(int argc, char **argv, options_t *opt)
          opt->map_path = make_output_path(opt->input_path, "map");
    }
 
-   if (opt->want_o65) {
-      if (opt->o65_path_arg)
-         opt->o65_path = xstrdup(opt->o65_path_arg);
-      else if (default_o65_output)
-         opt->o65_path = xstrdup("a.out");
+   if (opt->want_o26) {
+      if (opt->o26_path_arg)
+         opt->o26_path = xstrdup(opt->o26_path_arg);
+      else if (default_o26_output)
+         opt->o26_path = xstrdup("a.o26");
       else
-         opt->o65_path = make_output_path(opt->input_path, "o65");
+         opt->o26_path = make_output_path(opt->input_path, "o26");
    }
 
    return true;
@@ -686,7 +686,7 @@ static void free_options(options_t *opt)
    free(opt->hex_path);
    free(opt->lst_path);
    free(opt->map_path);
-   free(opt->o65_path);
+   free(opt->o26_path);
 }
 
 //! @brief Entry point for the assembler command; parses arguments, runs the requested pipeline, and returns process status.
@@ -697,7 +697,7 @@ int main(int argc, char **argv)
    listing_writer_t lst;
    FILE *hexfp = NULL;
    FILE *mapfp = NULL;
-   FILE *o65fp = NULL;
+   FILE *o26fp = NULL;
    bool lst_open = false;
    bool ctx_init = false;
    bool ir_init = false;
@@ -747,10 +747,10 @@ int main(int argc, char **argv)
       }
    }
 
-   if (opt.want_o65) {
-      o65fp = fopen(opt.o65_path, "wb");
-      if (!o65fp) {
-         perror(opt.o65_path);
+   if (opt.want_o26) {
+      o26fp = fopen(opt.o26_path, "wb");
+      if (!o26fp) {
+         perror(opt.o26_path);
          goto cleanup;
       }
    }
@@ -770,16 +770,16 @@ int main(int argc, char **argv)
       goto cleanup;
    }
 
-   asm_context_init(&ctx, &g_program, lst_open ? &lst : NULL, opt.want_o65);
+   asm_context_init(&ctx, &g_program, lst_open ? &lst : NULL, opt.want_o26);
    ctx_init = true;
 
    asm_relax(&ctx);
 
-   if (!opt.want_o65)
+   if (!opt.want_o26)
       asm_pass2(&ctx);
 
-   if (ctx.error_count == 0 && o65fp) {
-      if (!o65_write_object_file(o65fp, &ctx)) {
+   if (ctx.error_count == 0 && o26fp) {
+      if (!o26_write_object_file(o26fp, &ctx)) {
          rc = 1;
          goto cleanup;
       }
@@ -807,8 +807,8 @@ cleanup:
 
    if (mapfp)
       fclose(mapfp);
-   if (o65fp)
-      fclose(o65fp);
+   if (o26fp)
+      fclose(o26fp);
 
    if (lst_open)
       listing_close(&lst);

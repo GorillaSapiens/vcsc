@@ -17,7 +17,7 @@ sub slurp {
 }
 
 my @removed = (
-   [qw(libraries runtime machine_6502.vcsc)],
+   [qw(libraries runtime machine_6502.c26)],
    [qw(libraries runtime n.cfg)],
    [qw(linker default.cfg)],
 );
@@ -27,18 +27,18 @@ for my $parts (@removed) {
 }
 
 for my $parts (
-   [qw(libraries vcs vcs.vcsc)],
+   [qw(libraries vcs vcs.c26)],
    [qw(libraries vcs vcs_4k.cfg)],
    [qw(libraries vcs legacy-basic-kernels standard std_kernel.asm)],
    [qw(libraries vcs legacy-basic-kernels multisprite multisprite_kernel.asm)],
-   [qw(test machine_6502.vcsc)],
+   [qw(test machine_6502.c26)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required VCS/conversion/test material is missing: $path\n";
 }
 
 my $runtime_make = slurp(File::Spec->catfile($repo, 'libraries', 'runtime', 'Makefile'));
-$runtime_make !~ /\bmachine_6502\.vcsc\b/ or die "runtime install still exports the generic machine target\n";
+$runtime_make !~ /\bmachine_6502\.c26\b/ or die "runtime install still exports the generic machine target\n";
 $runtime_make !~ /\bn\.cfg\b/ or die "runtime install still exports the generic linker layout\n";
 
 my $top_readme = slurp(File::Spec->catfile($repo, 'README.md'));

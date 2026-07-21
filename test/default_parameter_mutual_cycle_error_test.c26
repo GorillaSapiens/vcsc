@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: call graph cycle reaches function 'a' with static activation storage
+include "machine_6502.c26"
+
+
+uint16_t b(uint16_t x);
+
+uint16_t a(uint16_t x) {
+   return b(x);
+}
+
+uint16_t b(uint16_t x) {
+   return a(x);
+}
+
+int16_t main(void) {
+   return 0;
+}

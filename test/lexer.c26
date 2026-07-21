@@ -1,0 +1,79 @@
+// vcsc-cc1 -X parseonly -X dumpast
+
+include "machine_6502.c26"
+
+int16_t v := 0;
+int16_t v := 1;
+int16_t v := 42;
+int16_t v := 123456789;
+int16_t v := 1_000;
+int16_t v := 12_34_56;
+int16_t v := 9_876_543_210;
+int16_t v := 0x1;
+int16_t v := 0XDEADBEEF;
+int16_t v := 0xCAFE;
+int16_t v := 0xF00D;
+int16_t v := 0x1_2;
+int16_t v := 0xDE_AD_BE_EF;
+int16_t v := 0xC0FFEE;
+int16_t v := 0x1A_2B_3C;
+int16_t v := 0b0;
+int16_t v := 0B1;
+int16_t v := 0b1010;
+int16_t v := 0b1111_0000;
+int16_t v := 0B1_0_1_0_1;
+int16_t v := 0b0001_1100;
+int16_t v := 0b..XXX...;
+int16_t v := 0BXX.._0011;
+int16_t v := 0bxx......;
+int16_t v := 01;
+int16_t v := 0777;
+int16_t v := 01234567;
+int16_t v := 07_77;
+
+
+int8_t c := 'a';
+int8_t c := 'Z';
+int8_t c := '_';
+int8_t c := '7';
+int8_t c := '*';
+int8_t c := '\n';
+int8_t c := '\t';
+int8_t c := '\\';
+int8_t c := '\'';
+int8_t c := '\"';
+int8_t c := '\a';
+int8_t c := '\b';
+int8_t c := '\f';
+int8_t c := '\r';
+int8_t c := '\v';
+int8_t c := '\?';
+int8_t c := '\x00';
+int8_t c := '\x41';
+int8_t c := '\x7F';
+int8_t c := '\x1b';
+int8_t c := '\xFF';
+int8_t c := '\u0000';
+int8_t c := '\u00E9';
+int8_t c := '\u03A9';
+int8_t c := '\u2022';
+int8_t c := '\uFFFF';
+
+int8_t *s := "";
+int8_t *s := "hello";
+int8_t *s := "Hello, world!";
+int8_t *s := "1234567890";
+int8_t *s := "!@#$%^&*()";
+int8_t *s := "line\nbreak";
+int8_t *s := "tab\tindent";
+int8_t *s := "quote: \"";
+int8_t *s := "backslash: \\";
+int8_t *s := "mix: \n\t\\\"";
+int8_t *s := "alert\a";
+int8_t *s := "\x41";
+int8_t *s := "\u1234";
+int8_t *s := "\xDE\xAD\xBE\xEF";
+int8_t *s := "\\";
+int8_t *s := "\"";
+int8_t *s := "\\\"";
+int8_t *s := " \t\n ";

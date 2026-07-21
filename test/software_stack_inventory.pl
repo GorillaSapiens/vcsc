@@ -58,7 +58,7 @@ for my $path (@runtime_files) {
 }
 
 my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
-my $archive = File::Spec->catfile($repo, 'libraries', 'runtime', 'libvcsc.a65');
+my $archive = File::Spec->catfile($repo, 'libraries', 'runtime', 'libvcsc.l26');
 open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
 local $/;
 my $members = <$afh>;

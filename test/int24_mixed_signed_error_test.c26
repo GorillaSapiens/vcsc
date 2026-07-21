@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: mixed signed/unsigned ordinary integer operator '+' requires an explicit cast
+include "machine_6502.c26"
+void f(int24_t a, uint24_t b) {
+   a + b;
+}
