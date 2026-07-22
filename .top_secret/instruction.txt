@@ -1,0 +1,1 @@
+Work for up to 10 minutes. Complete as many small roadmap steps as possible, in order. Do not begin a step unless it is likely to finish within the remaining time. Reserve the final two minutes for tests, updating context.txt, cleanup, and packaging a tarball. Do not leave the tree half-modified.
