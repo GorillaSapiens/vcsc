@@ -290,6 +290,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      lda vcs_standard_ball_y
      sta vcs_standard_kernel_scratch + 1
 
+     jsr @prepare_player_state
      lda vcs_standard_player0_y
      ldx #0
      sta WSYNC
@@ -300,7 +301,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      stx CXCLR
          SLEEP 3
 
-     sta vcs_standard_pointer_workspace + 7,x
+     sta vcs_standard_pointer_workspace + 7
 
      ;store these so they can be retrieved later
          ldx #0
@@ -325,7 +326,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 @kerloop:; enter at cycle 59??
 
 @continuekernel:
-     SLEEP 2
 @continuekernel2:
      lda vcs_standard_ball_height
 
@@ -341,20 +341,21 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ; should be playfield+$38 for width=2
 
      dcp vcs_standard_ball_y
-     rol
-     rol
+     sbc vcs_standard_pointer_workspace + 9
      ; rol
      ; rol
 @goback:
      sta ENABL
 @startkernel:
-     lda vcs_standard_player1_height ;3
-     dcp vcs_standard_player1_y ;5
-     bcc @skipDrawP1 ;2
      ldy vcs_standard_player1_y ;3
-     lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
-     ; so it doesn't cross a page boundary!
-
+     dey ;2
+     sty vcs_standard_player1_y ;3
+     cpy vcs_standard_kernel_scratch + 3 ;3, exclusive height
+     bcc @drawP1 ;3 when drawing, 2 when skipped
+     lda vcs_standard_kernel_scratch + 4 ;3, permanent zero
+     jmp @continueP1 ;3
+@drawP1:
+     lda (vcs_standard_player1_graphics),y ;5; graphics range must stay on one page
 @continueP1:
      sta GRP1 ;3
 
@@ -374,13 +375,17 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          sta PF2 ;3
      ; sleep 3
 
-     lda vcs_standard_player0_height
-     dcp vcs_standard_player0_y
-     bcc @skipDrawP0
      ldy vcs_standard_player0_y
+     dey
+     sty vcs_standard_player0_y
+     cpy vcs_standard_kernel_scratch + 2 ; exclusive height
+     bcc @drawP0
+     lda vcs_standard_kernel_scratch + 4 ; permanent zero
+     jmp @continueP0
+@drawP0:
      lda (vcs_standard_player0_graphics),y
 @continueP0:
-     sta GRP0
+     sta.a GRP0
 
              lda vcs_standard_missile0_height ;3
              dcp vcs_standard_missile0_y ;5
@@ -415,7 +420,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
                      ; bmi paddleskipread
                      ; inc paddle0
                      ;donepaddleskip
-                     SLEEP 8
+                     SLEEP 5
                              lda #8
                      sta vcs_standard_pointer_workspace + 6
 
@@ -426,18 +431,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
 
      jmp @goback
-
-; Local cycle-balanced player skip paths. The unconditional jump above and
-; direct BCS to @lastkernelline keep these stubs off every fall-through path.
-@skipDrawP0:
-     lda #0
-     tay
-     jmp @continueP0
-
-@skipDrawP1:
-     lda #0
-     tay
-     jmp @continueP1
 
 @lastkernelline:
              SLEEP 8
@@ -718,6 +711,18 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
  sta VBLANK
  RETURN
 
+@prepare_player_state:
+     lda vcs_standard_player0_height
+     clc
+     adc #1
+     sta vcs_standard_kernel_scratch + 2
+     lda vcs_standard_player1_height
+     clc
+     adc #1
+     sta vcs_standard_kernel_scratch + 3
+     lda #0
+     sta vcs_standard_kernel_scratch + 4
+     rts
 
 .endproc
 .align 256

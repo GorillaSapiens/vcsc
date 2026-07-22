@@ -109,10 +109,22 @@ require_re($active,qr/^\s*lda\s+#37\+128\s*$/m,
    'selected kernel no longer uses the Stella-verified 262-line vblank timer');
 require_re($active,qr/\.align 256\s+\@kerloop:/s,
    'hot two-line kernel loop is no longer page-aligned');
-require_re($active,qr/jmp\s+\@goback\s+.*?\@skipDrawP0:.*?jmp\s+\@continueP0.*?\@skipDrawP1:.*?jmp\s+\@continueP1.*?\@lastkernelline:/s,
-   'cycle-balanced player skip stubs are not local and off the fall-through path');
-require_re($active,qr/\@continuekernel:\s+SLEEP 2\s+\@continuekernel2:/s,
-   'retained two-cycle playfield phase was removed');
+$active !~ /\@skipDrawP[01]:/
+   or die "obsolete steady player skip stubs remain in normalized source\n";
+require_re($active,
+   qr/\@startkernel:\s+ldy vcs_standard_player1_y\s+dey\s+sty vcs_standard_player1_y\s+cpy vcs_standard_kernel_scratch \+ 3\s+bcc \@drawP1\s+lda vcs_standard_kernel_scratch \+ 4\s+jmp \@continueP1\s+\@drawP1:\s+lda \(vcs_standard_player1_graphics\),y\s+\@continueP1:\s+sta GRP1/s,
+   'legal steady player-1 path or its cycle-balanced zero path changed');
+require_re($active,
+   qr/ldy vcs_standard_player0_y\s+dey\s+sty vcs_standard_player0_y\s+cpy vcs_standard_kernel_scratch \+ 2\s+bcc \@drawP0\s+lda vcs_standard_kernel_scratch \+ 4\s+jmp \@continueP0\s+\@drawP0:\s+lda \(vcs_standard_player0_graphics\),y\s+\@continueP0:\s+sta\.a GRP0/s,
+   'legal steady player-0 path or its cycle-balanced zero path changed');
+require_re($active,qr/\@continuekernel:\s+\@continuekernel2:/s,
+   'steady loop did not consume the former two-cycle pad');
+for my $player (0,1) {
+   my $count=()=$active =~ /^\s*dcp\s+vcs_standard_player${player}_y\b/img;
+   $count == 1 or die "player $player DCP count is $count, expected only the final-row duplicate\n";
+}
+require_re($active,qr/jsr \@prepare_player_state.*?\@prepare_player_state:\s+lda vcs_standard_player0_height.*?sta vcs_standard_kernel_scratch \+ 2.*?lda vcs_standard_player1_height.*?sta vcs_standard_kernel_scratch \+ 3.*?lda #0\s+sta vcs_standard_kernel_scratch \+ 4\s+rts/s,
+   'player exclusive-height/zero preparation helper changed');
 require_re($active,qr/^\s*ldx\s+#0\s*$/m,
    'playfield row index is not zero-based');
 $active !~ /vcs_standard_playfield[^\n]*-128/
@@ -124,8 +136,8 @@ for my $operand ('vcs_standard_playfield,x','vcs_standard_playfield+1,x',
 }
 require_re($active,qr/txa\s+sbx\s+#256-4\s+cpx\s+#44\s+bcs\s+\@lastkernelline/s,
    'zero-based playfield loop does not use explicit offset-44 termination');
-require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 8.*?\@lastkernelline:\s+SLEEP 8/s,
-   'zero-based loop compare was not retimed from existing padding');
+require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 5.*?\@lastkernelline:\s+SLEEP 8/s,
+   'zero-based loop/player row transition padding changed');
 my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
 $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";

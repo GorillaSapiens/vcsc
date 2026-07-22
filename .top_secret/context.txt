@@ -1049,7 +1049,7 @@ The first unfinished item is the default next action.
                             simulator, identify sites by final zero-page operand,
                             and document why naive `DEC`/`CMP` expansion drifts.
 
-                  [ ] 20q2. Design and legalize the two player-counter paths.
+                  [x] 20q2. Design and legalize the two player-counter paths.
                             Preserve visible and skipped-row cycle balance, glyph
                             selection, collision state, and all PF write phases.
 
@@ -1146,9 +1146,9 @@ Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20p are complete. Runtime-workspace side-quest items a
 through d are complete. Tasks 20p through 20u are deliberately small
 unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Task 20q1 is complete. Task 20q2 is next: design
-and legalize the two player-counter paths while preserving both visible and
-skipped-row timing. The stack-safe VCSC overscan/vblank hook is deferred to
+before gameplay integration. Tasks 20q1 and 20q2 are complete. Task 20q3 is next: legalize the steady
+ball and missile counters while preserving their enabled/disabled TIA values
+and the locked scanline schedule. The stack-safe VCSC overscan/vblank hook is deferred to
 task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -3160,3 +3160,29 @@ Before returning another modified archive:
   46-scanline DCP schedule regression, and staged installation. The active
   normalized kernel and legacy BASIC sources are unchanged. No files are
   removed; `.top_secret/remove.txt` remains at 895 cumulative paths.
+
+2026-07-22 11:24:00 PDT, legalize steady player DCP paths
+------------------------------------------------------------------------
+* Complete task 20q2. Replace the two steady visible-kernel player-counter
+  `DCP zp` paths with legal `LDY`/`DEY`/`STY`/`CPY` branch diamonds. Precompute
+  each player's exclusive height and a permanent zero byte in three private
+  scratch bytes before entering the visible hot loop.
+* Recover the player-1 cycle by using the retained ball `height+2` scratch value
+  with `SBC` instead of two `ROL` instructions. Recover the player-0 cycles by
+  removing the following two-cycle pad and using a common absolute TIA store.
+  Separately retime first entry and playfield-row transitions. Keep PF1/PF2
+  writes fixed at cycles 24, 31, 38, and 45 without relying on page crossings.
+* Leave the final-row player duplicates for task 20q4. Regenerate the timing and
+  unofficial-opcode inventories: the profile now has 26 explicit padding sites
+  and 12 unofficial sites, including nine remaining `DCP zp` instructions.
+* Update the emulator-backed DCP schedule to lock the three remaining steady
+  objects across 46 scanlines: ball at cycle 45 normally and 42 on row
+  transitions, missile 1 at cycle 5, and missile 0 at cycle 71. The complete
+  static-kernel test continues to verify both players, both missiles, the ball,
+  and PF write phases.
+* Increase standard-kernel private scratch by three bytes: private state is now
+  18 bytes and the mandatory module state is 41 bytes. No files are removed;
+  `.top_secret/remove.txt` remains at 895 cumulative paths. Task 20q3 is next.
+* Pass 288/288 compile tests, 151/151 end-to-end/generic tests, all focused
+  player/DCP/timing regressions, the complete static-kernel ROM execution test,
+  and staged installation. Stop before task 20q3.

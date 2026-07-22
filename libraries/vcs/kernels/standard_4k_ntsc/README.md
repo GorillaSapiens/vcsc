@@ -189,18 +189,18 @@ RAM.”
 | State group | Bytes | Ownership and storage |
 | --- | ---: | --- |
 | Object positions, dimensions, sprite pointers, score, and score color | 23 | Declared by the module; application owns the persistent values in RIOT RAM |
-| Score-pointer/transient workspace, playfield row position, and internal scratch | 15 | Kernel-private RIOT RAM |
+| Score-pointer/transient workspace, playfield row position, and internal scratch | 18 | Kernel-private RIOT RAM |
 | Playfield | 48 | Supplied by the application; mutable RAM or constant ROM |
-| **Mandatory module-declared RAM** | **38** | 23 application-visible + 15 private |
-| **RAM with mutable playfield** | **86** | 38 mandatory + 48 application-selected playfield |
+| **Mandatory module-declared RAM** | **41** | 23 application-visible + 18 private |
+| **RAM with mutable playfield** | **89** | 41 mandatory + 48 application-selected playfield |
 
 The reduced stock VCSC runtime uses eight RIOT bytes. With the ordinary
 `main -> drawscreen` source call depth, the matching linker configuration
 reserves four call-graph bytes plus two hidden-kernel bytes. Therefore:
 
 ```text
-fixed ROM playfield:   128 - 38 - 8 - 6 = 76 bytes left
-mutable RAM playfield: 128 - 86 - 8 - 6 = 28 bytes left
+fixed ROM playfield:   128 - 41 - 8 - 6 = 73 bytes left
+mutable RAM playfield: 128 - 89 - 8 - 6 = 25 bytes left
 ```
 
 Those numbers are budgeting examples, not promises that every future option or
@@ -245,7 +245,7 @@ registers and RIOT `INTIM`/`TIM64T` while the call is active. Applications must
 not expect those register values to survive.
 
 Persistent application-visible state is available again after return. The
-six transient workspace bytes, playfield row position, and two internal scratch
+six transient workspace bytes, playfield row position, and five internal scratch
 bytes are undefined after every draw. The kernel temporarily decrements object Y
 values while drawing but restores the persistent values before return.
 

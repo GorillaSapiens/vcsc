@@ -80,10 +80,10 @@ my $readme_text=read_file($readme);
 
 require_re($module_text,qr/alias\s+VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES\s+23\b/,
    'application-visible display-state contract is not 23 bytes');
-require_re($module_text,qr/alias\s+VCS_STANDARD_PRIVATE_RAM_BYTES\s+15\b/,
-   'private workspace contract is not 15 bytes');
-require_re($module_text,qr/alias\s+VCS_STANDARD_MODULE_RAM_BYTES\s+38\b/,
-   'mandatory module RAM-byte contract is not 38');
+require_re($module_text,qr/alias\s+VCS_STANDARD_PRIVATE_RAM_BYTES\s+18\b/,
+   'private workspace contract is not 18 bytes');
+require_re($module_text,qr/alias\s+VCS_STANDARD_MODULE_RAM_BYTES\s+41\b/,
+   'mandatory module RAM-byte contract is not 41');
 require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD\s+vcs_standard_playfield\b/,
    'application-provided playfield symbol alias is missing');
 require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD_COLUMNS\s+32\b/,
@@ -113,7 +113,7 @@ my @required_readme=(
    'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
    'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
-   'callstack_extra = $0002', 'Mandatory module-declared RAM', '38',
+   'callstack_extra = $0002', 'Mandatory module-declared RAM', '41',
    'fixed ROM playfield', 'mutable RAM playfield', '32 independently controlled bits',
    '16 scanlines', '$00..$D0', 'runtime playfield',
    '88-byte default score table'
@@ -161,7 +161,7 @@ for my $map_text ($ram_map,$rom_map) {
    $workspace == $score_color + 1 or die "private workspace does not follow application display state\n";
    $playfield_pos == $workspace + 12 or die "pointer workspace is not twelve contiguous bytes\n";
    $scratch == $playfield_pos + 1 or die "private playfield position/scratch layout is not contiguous\n";
-   $scratch + 2 - $object_x == 38 or die "mandatory module state span is not 38 bytes\n";
+   $scratch + 5 - $object_x == 41 or die "mandatory module state span is not 41 bytes\n";
    $object_x != 0x80 or die "module state was forced back to the old fixed RAM base\n";
 }
 

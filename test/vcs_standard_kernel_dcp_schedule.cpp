@@ -1,5 +1,5 @@
 //! @file vcs_standard_kernel_dcp_schedule.cpp
-//! @brief Lock the dynamic five-object DCP schedule before legalization.
+//! @brief Lock the remaining ball/missile DCP schedule after player legalization.
 
 #include <cstdint>
 #include <cstdio>
@@ -120,17 +120,14 @@ void expect_line(const std::map<uint64_t, std::vector<DcpEvent>> &by_line,
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 7) {
+   if (argc != 5) {
       std::fprintf(stderr,
-         "usage: %s ROM ball_y player1_y missile1_y player0_y missile0_y\n",
-         argv[0]);
+         "usage: %s ROM ball_y missile1_y missile0_y\n", argv[0]);
       return 2;
    }
    const uint8_t ball_y = parse_zp(argv[2]);
-   const uint8_t player1_y = parse_zp(argv[3]);
-   const uint8_t missile1_y = parse_zp(argv[4]);
-   const uint8_t player0_y = parse_zp(argv[5]);
-   const uint8_t missile0_y = parse_zp(argv[6]);
+   const uint8_t missile1_y = parse_zp(argv[3]);
+   const uint8_t missile0_y = parse_zp(argv[4]);
 
    std::memset(memory_image, 0, sizeof(memory_image));
    std::ifstream rom(argv[1], std::ios::binary);
@@ -165,16 +162,16 @@ int main(int argc, char **argv) {
    for (const DcpEvent &event : dcp_events) by_line[event.line].push_back(event);
 
    for (uint64_t line = 55; line <= 100; ++line) {
-      if ((line & 1) == 0) {
-         expect_line(by_line, line,
-            {{5, missile1_y}, {48, player0_y}, {69, missile0_y}});
+      if ((line & 1) != 0) {
+         expect_line(by_line, line, {{5, missile1_y}, {71, missile0_y}});
       }
       else {
-         const uint64_t ball_cycle = (line % 16 == 5) ? 43 : 45;
-         expect_line(by_line, line, {{ball_cycle, ball_y}, {60, player1_y}});
+         const uint64_t ball_cycle = (line % 16 == 6) ? 42 : 45;
+         expect_line(by_line, line, {{ball_cycle, ball_y}});
       }
    }
 
-   std::printf("vcs_standard_kernel_dcp_schedule ok: 46 scanlines locked\n");
+   std::printf(
+      "vcs_standard_kernel_dcp_schedule ok: 46 scanlines, three DCP objects locked\n");
    return 0;
 }

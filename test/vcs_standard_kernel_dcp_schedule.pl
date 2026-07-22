@@ -45,9 +45,7 @@ $out eq '' && $err eq '' or die "static-kernel build wrote output\n$out$err";
 my $map=read_file($mapfile);
 my @zp=map { map_symbol($map,$_) } qw(
    vcs_standard_ball_y
-   vcs_standard_player1_y
    vcs_standard_missile1_y
-   vcs_standard_player0_y
    vcs_standard_missile0_y
 );
 
@@ -64,7 +62,7 @@ $out eq '' && $err eq '' or die "DCP schedule build wrote output\n$out$err";
 my @args=map { sprintf('0x%02x',$_) } @zp;
 ($rc,$sig,$out,$err)=capture($exe,$bin,@args);
 $rc==0 && !$sig or die "DCP schedule harness failed\n$out$err";
-$out eq "vcs_standard_kernel_dcp_schedule ok: 46 scanlines locked\n"
+$out eq "vcs_standard_kernel_dcp_schedule ok: 46 scanlines, three DCP objects locked\n"
    or die "unexpected DCP schedule output: $out";
 $err eq '' or die "DCP schedule stderr: $err";
 print "vcs_standard_kernel_dcp_schedule ok\n";

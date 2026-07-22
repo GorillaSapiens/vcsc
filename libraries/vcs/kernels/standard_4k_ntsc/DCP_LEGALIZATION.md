@@ -7,50 +7,67 @@
 
 # Standard-kernel DCP legalization
 
-The normalized two-line kernel currently retains eleven zero-page `DCP` sites.
-`DCP zp` performs a five-cycle memory decrement followed by the flag result of
-`CMP A,zp`.  The direct legal spelling:
+The normalized two-line kernel originally retained eleven zero-page `DCP`
+sites. `DCP zp` performs a five-cycle memory decrement followed by the flag
+result of `CMP A,zp`. The direct legal spelling:
 
 ```asm
     dec object_y
     cmp object_y
 ```
 
-is eight cycles.  Replacing all five steady-state object updates naively adds
+is eight cycles. Replacing all five steady-state object updates naively adds
 15 CPU cycles to every two displayed scanlines and makes the playfield write
-phase drift.  It is therefore not a safe textual opcode substitution.
+phase drift. Legalization therefore proceeds one timing family at a time.
 
-## Locked steady-state schedule
+## Completed player paths
 
-`vcs_standard_kernel_dcp_schedule.test` executes the complete static-kernel
-cartridge and records the actual instruction-start phase in frame 3.  In the
-steady two-line body the five object updates are:
+The two steady player counters are now legal. Each path:
+
+1. loads the current row into Y;
+2. decrements Y and stores it back;
+3. compares against a precomputed exclusive height; and
+4. selects either the indexed glyph byte or a permanent zero through a
+   cycle-balanced branch diamond.
+
+The exclusive heights and zero byte occupy three private scratch bytes prepared
+outside the visible hot loop. Player 1's legal path costs one cycle more than the
+old DCP path; the main ball calculation now uses the already-retained
+`height+2` SBC encoding instead of two ROL instructions, recovering that cycle.
+Player 0's path costs two cycles more and uses an absolute TIA store; the next
+iteration's former two-cycle pad is removed. The one-time first-entry save and
+the row-transition delay are separately retimed so all PF writes remain at
+cycles 24, 31, 38, and 45.
+
+The final-row player duplicates still use DCP and are deliberately left for
+20q4.
+
+## Remaining dynamic DCP schedule
+
+`vcs_standard_kernel_dcp_schedule.test` executes the complete example-05
+cartridge and records the remaining ball and missile sites in frame 3. Across
+46 central scanlines:
 
 | Scanline half | Object | DCP start cycle |
 | --- | --- | ---: |
-| odd | ball | 45 normally; 43 on the playfield-row transition |
-| odd | player 1 | 60 |
-| even | missile 1 | 5 |
-| even | player 0 | 48 |
-| even | missile 0 | 69 |
+| first | ball | 45 normally; 42 on the playfield-row transition |
+| second | missile 1 | 5 |
+| second | missile 0 | 71 |
 
-The row-transition ball site occurs every 16 scanlines at lines congruent to 5
-modulo 16 in the harness's frame-relative numbering.  The regression also
-identifies sites by their final zero-page operand rather than by linked code
-address, so ordinary code movement does not invalidate the baseline.
+The regression identifies sites by their final zero-page operands rather than
+linked code addresses, so ordinary code movement does not invalidate the
+baseline. The complete static-kernel test separately verifies stable player
+output, skipped-row zero output, all five TIA objects, and every PF write phase.
 
-## Small legalization slices
+## Remaining slices
 
-1. Preserve this dynamic baseline while designing legal player update paths.
-   Player paths must remain cycle-balanced for both visible and skipped rows.
-2. Legalize the two player counters and verify graphics/collision output plus
-   every playfield-store phase.
-3. Legalize ball and missile counters, again preserving both enabled and
-   disabled paths.
-4. Legalize the alternate/final-row duplicates, remove the DCP inventory row,
-   and only then mark task 20q complete.
+1. **20q3:** legalize the steady ball and missile counters while preserving the
+   enabled/disabled TIA values and the schedule above.
+2. **20q4:** legalize alternate and final-row duplicates, remove the DCP
+   inventory form, and replace this transitional DCP regression with wholly
+   legal-opcode timing coverage.
 
-A deliberate page-crossing branch is not an acceptable one-cycle filler.  The
+A deliberate page-crossing branch is not an acceptable one-cycle filler. The
 linker now works to remove such crossings, and kernel timing must not depend on
-reintroducing one.  Any added legal work must come from explicit padding,
-removed redundant work, or a documented kernel scheduling change.
+reintroducing one. Added work must come from explicit padding, removed
+redundancy, or a documented scheduling change.

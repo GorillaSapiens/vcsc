@@ -24,8 +24,8 @@ alias VCS_STANDARD_PLAYFIELD_COLUMNS 32
 alias VCS_STANDARD_DEFAULT_ROW_SCANLINES 16
 alias VCS_STANDARD_POINTER_WORKSPACE_BYTES 12
 alias VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES 23
-alias VCS_STANDARD_PRIVATE_RAM_BYTES 15
-alias VCS_STANDARD_MODULE_RAM_BYTES 38
+alias VCS_STANDARD_PRIVATE_RAM_BYTES 18
+alias VCS_STANDARD_MODULE_RAM_BYTES 41
 alias VCS_STANDARD_HIDDEN_STACK_BYTES 2
 alias VCS_STANDARD_SCORE_FONT_BYTES 88
 
@@ -80,9 +80,12 @@ uint8_t vcs_standard_pointer_workspace[VCS_STANDARD_POINTER_WORKSPACE_BYTES];
 
 uint8_t vcs_standard_playfield_position;
 
-// Module-private transient bytes corresponding to the retained stack1/stack2
-// workspace. They are ordinary RIOT RAM, not hardware-stack locations.
-uint8_t vcs_standard_kernel_scratch[2];
+// Module-private transient bytes. Bytes 0 and 1 retain the converted
+// stack1/stack2 roles. Bytes 2 and 3 hold exclusive player heights for the
+// legal steady-state player counters, and byte 4 is a permanent zero used by
+// their cycle-balanced skipped-row paths. They are ordinary RIOT RAM, not
+// hardware-stack locations.
+uint8_t vcs_standard_kernel_scratch[5];
 
 // Implemented by the converted kernel source in later task slices. The call
 // begins during application-owned overscan and returns with VBLANK asserted.

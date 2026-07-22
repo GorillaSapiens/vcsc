@@ -688,6 +688,165 @@ ASM
       or die "normalized player-skip destination no longer matches the selected retained source\n";
    $result =~ s/\Q$old_skip_destination\E/$new_skip_destination/;
 
+   # Legalize the two steady-state player counters.  The legal paths keep the
+   # decremented row in Y, compare it against a precomputed exclusive height,
+   # and use cycle-balanced draw/zero diamonds.  Player 1 grows by one cycle;
+   # replace the main ball's four-cycle ROL/ROL encoding with the existing
+   # three-cycle height+2 SBC encoding.  Player 0 deliberately uses a four-cycle
+   # absolute TIA store and grows by two cycles; remove the following two-cycle
+   # loop pad.  The one-time first entry saves one cycle through a direct zero-
+   # page save, and the row-transition path consumes three fewer explicit delay
+   # cycles, so every PF write remains at its original phase.
+   my $old_prepare_call = <<'ASM';
+     lda vcs_standard_player0_y
+     ldx #0
+     sta WSYNC
+ASM
+   my $new_prepare_call = <<'ASM';
+     jsr @prepare_player_state
+     lda vcs_standard_player0_y
+     ldx #0
+     sta WSYNC
+ASM
+   index($result, $old_prepare_call) >= 0
+      or die "normalized player preparation call site no longer matches retained source\n";
+   $result =~ s/\Q$old_prepare_call\E/$new_prepare_call/;
+
+   my $initial_save_count = ($result =~ s/sta vcs_standard_pointer_workspace \+ 7,x/sta vcs_standard_pointer_workspace + 7/);
+   $initial_save_count == 1
+      or die "normalized initial player save count changed: $initial_save_count\n";
+
+   my $steady_pad_count = ($result =~ s/(\@continuekernel:\n)     SLEEP 2\n/$1/);
+   $steady_pad_count == 1
+      or die "normalized steady player-loop padding count changed: $steady_pad_count\n";
+
+   my $old_main_ball = <<'ASM';
+     dcp vcs_standard_ball_y
+     rol
+     rol
+     ; rol
+     ; rol
+@goback:
+ASM
+   my $new_main_ball = <<'ASM';
+     dcp vcs_standard_ball_y
+     sbc vcs_standard_pointer_workspace + 9
+     ; rol
+     ; rol
+@goback:
+ASM
+   index($result, $old_main_ball) >= 0
+      or die "normalized steady ball path no longer matches retained source\n";
+   $result =~ s/\Q$old_main_ball\E/$new_main_ball/;
+
+   my $old_player1 = <<'ASM';
+@startkernel:
+     lda vcs_standard_player1_height ;3
+     dcp vcs_standard_player1_y ;5
+     bcc @skipDrawP1 ;2
+     ldy vcs_standard_player1_y ;3
+     lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
+     ; so it doesn't cross a page boundary!
+
+@continueP1:
+     sta GRP1 ;3
+ASM
+   my $new_player1 = <<'ASM';
+@startkernel:
+     ldy vcs_standard_player1_y ;3
+     dey ;2
+     sty vcs_standard_player1_y ;3
+     cpy vcs_standard_kernel_scratch + 3 ;3, exclusive height
+     bcc @drawP1 ;3 when drawing, 2 when skipped
+     lda vcs_standard_kernel_scratch + 4 ;3, permanent zero
+     jmp @continueP1 ;3
+@drawP1:
+     lda (vcs_standard_player1_graphics),y ;5; graphics range must stay on one page
+@continueP1:
+     sta GRP1 ;3
+ASM
+   index($result, $old_player1) >= 0
+      or die "normalized steady player-1 path no longer matches retained source\n";
+   $result =~ s/\Q$old_player1\E/$new_player1/;
+
+   my $old_player0 = <<'ASM';
+     lda vcs_standard_player0_height
+     dcp vcs_standard_player0_y
+     bcc @skipDrawP0
+     ldy vcs_standard_player0_y
+     lda (vcs_standard_player0_graphics),y
+@continueP0:
+     sta GRP0
+ASM
+   my $new_player0 = <<'ASM';
+     ldy vcs_standard_player0_y
+     dey
+     sty vcs_standard_player0_y
+     cpy vcs_standard_kernel_scratch + 2 ; exclusive height
+     bcc @drawP0
+     lda vcs_standard_kernel_scratch + 4 ; permanent zero
+     jmp @continueP0
+@drawP0:
+     lda (vcs_standard_player0_graphics),y
+@continueP0:
+     sta.a GRP0
+ASM
+   index($result, $old_player0) >= 0
+      or die "normalized steady player-0 path no longer matches retained source\n";
+   $result =~ s/\Q$old_player0\E/$new_player0/;
+
+   my $row_transition_pad_count = ($result =~ s/SLEEP 8\n                             lda #8/SLEEP 5\n                             lda #8/);
+   $row_transition_pad_count == 1
+      or die "normalized player row-transition padding count changed: $row_transition_pad_count\n";
+
+   my $old_main_skip_stubs = <<'ASM';
+; Local cycle-balanced player skip paths. The unconditional jump above and
+; direct BCS to @lastkernelline keep these stubs off every fall-through path.
+@skipDrawP0:
+     lda #0
+     tay
+     jmp @continueP0
+
+@skipDrawP1:
+     lda #0
+     tay
+     jmp @continueP1
+
+ASM
+   index($result, $old_main_skip_stubs) >= 0
+      or die "normalized obsolete steady player skip stubs are missing\n";
+   $result =~ s/\Q$old_main_skip_stubs\E//;
+
+   my $old_player_helper_tail = <<'ASM';
+ sta VBLANK
+ RETURN
+
+
+.endproc
+ASM
+   my $new_player_helper_tail = <<'ASM';
+ sta VBLANK
+ RETURN
+
+@prepare_player_state:
+     lda vcs_standard_player0_height
+     clc
+     adc #1
+     sta vcs_standard_kernel_scratch + 2
+     lda vcs_standard_player1_height
+     clc
+     adc #1
+     sta vcs_standard_kernel_scratch + 3
+     lda #0
+     sta vcs_standard_kernel_scratch + 4
+     rts
+
+.endproc
+ASM
+   index($result, $old_player_helper_tail) >= 0
+      or die "normalized player preparation helper insertion point changed\n";
+   $result =~ s/\Q$old_player_helper_tail\E/$new_player_helper_tail/;
+
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;
    return $result . "\n";

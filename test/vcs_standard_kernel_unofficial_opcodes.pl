@@ -36,7 +36,7 @@ my $tsv=File::Spec->catfile($dir,'standard_4k_ntsc_unofficial_opcodes.tsv');
 my $fresh=`cd '$dir' && ./unofficial_opcodes.pl`; $?==0 or die "generator failed\n";
 $fresh eq read_file($tsv) or die "unofficial-opcode inventory is stale\n";
 my @rows=grep {length} split(/\n/,$fresh); shift @rows eq join("\t",qw(file line mnemonic mode opcode bytes base_cycles page_penalty classification purpose)) or die "bad header\n";
-@rows==14 or die "expected 14 retained unofficial sites, got ".scalar(@rows)."\n";
+@rows==12 or die "expected 12 retained unofficial sites, got ".scalar(@rows)."\n";
 my %count;
 for my $row (@rows) {
    my @f=split(/\t/,$row,-1); @f==10 or die "malformed row: $row\n";
@@ -44,7 +44,7 @@ for my $row (@rows) {
    $f[8] eq 'stable/common' or die "retained site is not stable/common: $row\n";
    length($f[9]) or die "missing purpose: $row\n";
 }
-my %want=('NOP.z:zp'=>1,'ASR:imm'=>1,'DCP:zp'=>11,'SBX:imm'=>1);
+my %want=('NOP.z:zp'=>1,'ASR:imm'=>1,'DCP:zp'=>9,'SBX:imm'=>1);
 join(',',sort keys %count) eq join(',',sort keys %want) or die "retained form set changed\n";
 for my $k (keys %want) { ($count{$k}//0)==$want{$k} or die "$k count changed\n"; }
 
