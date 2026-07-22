@@ -1,20 +1,15 @@
 file	line	mnemonic	mode	opcode	bytes	base_cycles	page_penalty	classification	purpose
 standard_4k_ntsc_macros.inc	23	NOP.z	zp	$04	2	3	none	stable/common	provide an exact three-cycle zero-page delay for odd SLEEP durations
-standard_4k_ntsc_kernel.s	221	LAX	zp	$A7	2	3	none	stable/common	load a packed score byte into A and X for pointer setup
-standard_4k_ntsc_kernel.s	225	LAX	zp	$A7	2	3	none	stable/common	load a packed score byte into A and X for pointer setup
-standard_4k_ntsc_kernel.s	229	LAX	zp	$A7	2	3	none	stable/common	load a packed score byte into A and X for pointer setup
-standard_4k_ntsc_kernel.s	256	ASR	imm	$4B	2	2	none	stable/common	mask and shift the upper score nibble
-standard_4k_ntsc_kernel.s	340	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	349	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	359	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	375	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	383	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	404	SBX	imm	$CB	2	2	none	stable/common	advance the zero-based playfield byte offset by four
-standard_4k_ntsc_kernel.s	421	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	477	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	486	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	496	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	517	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	526	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
-standard_4k_ntsc_kernel.s	672	LAX	indy	$B3	2	5	+1 on crossing	stable/common	load a score glyph byte into A and X
-standard_4k_ntsc_kernel.s	674	LAX	indy	$B3	2	5	+1 on crossing	stable/common	load a score glyph byte into A and X
+standard_4k_ntsc_kernel.s	259	ASR	imm	$4B	2	2	none	stable/common	mask and shift the upper score nibble
+standard_4k_ntsc_kernel.s	343	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	352	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	362	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	378	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	386	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	407	SBX	imm	$CB	2	2	none	stable/common	advance the zero-based playfield byte offset by four
+standard_4k_ntsc_kernel.s	424	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	480	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	489	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	499	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	520	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction
+standard_4k_ntsc_kernel.s	529	DCP	zp	$C7	2	5	none	stable/common	decrement vertical object counter and compare in one read-modify-write instruction

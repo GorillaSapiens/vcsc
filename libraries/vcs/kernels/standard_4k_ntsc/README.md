@@ -79,7 +79,7 @@ Retained comments are copied without symbol rewriting.
 The remaining unofficial forms are classified site-by-site in
 [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md).  The current profile uses
 only the stable/common NMOS subset, but keeps all friendly unofficial
-mnemonics explicitly opt-in while tasks 20p through 20s remove them.
+mnemonics explicitly opt-in while tasks 20q through 20s remove the remaining forms.
 
 The selected source must be assembled with unofficial mnemonics enabled:
 

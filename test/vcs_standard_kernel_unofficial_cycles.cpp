@@ -37,12 +37,9 @@ void check(const char *name,uint64_t got,uint64_t want) {
 }
 }
 int main() {
-   check("LAX zp",run_one(0xa7,0x80),3);
    check("ASR imm",run_one(0x4b,0xf0),2);
    check("DCP zp",run_one(0xc7,0x81),5);
    check("SBX imm",run_one(0xcb,0xfc),2);
-   check("LAX (zp),Y same",run_one(0xb3,0x82,0,0x2000,0x82),5);
-   check("LAX (zp),Y crossing",run_one(0xb3,0x82,1,0x20ff,0x82),6);
    check("NOP zp",run_one(0x04,0x00),3);
    std::puts("vcs_standard_kernel_unofficial_cycles ok");
    return 0;

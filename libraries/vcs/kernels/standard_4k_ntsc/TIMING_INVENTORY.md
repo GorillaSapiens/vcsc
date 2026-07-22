@@ -26,16 +26,17 @@ score table.  These addresses are observations, not new ABI guarantees.
 Inventory summary
 -----------------
 
-The baseline contains 13 relative branches, 30 indexed reads, 11 indexed indirect pointer reads, 28 explicit padding sites, four alignment directives,
-and 19 source-level unofficial-opcode sites.  The unofficial sites are:
+The baseline contains 13 relative branches, 30 indexed reads, 11 indexed indirect pointer reads, 27 explicit padding sites, four alignment directives,
+and 14 source-level unofficial-opcode sites.  The unofficial sites are:
 
 Task 20o classifies those sites and locks their exact bytes and cycles in
 `UNOFFICIAL_OPCODES.md` and `standard_4k_ntsc_unofficial_opcodes.tsv`.
 
 * 11 `DCP`: decrement an object vertical counter and compare it with height in
   one five-cycle read-modify-write instruction;
-* 5 `LAX`: three score-byte pointer-setup loads and two visible score-glyph
-  loads into A and X;
+* task 20p removed all 5 `LAX` sites. Pointer setup now uses legal `LDA`/`TAX`;
+  the visible score path exchanges four cycles of explicit padding for the two
+  added `TAX` instructions and retains its original 21-cycle interval;
 * 1 `SBX`: add four to the zero-based playfield byte offset in two cycles;
   explicit `CPX`/`BCS` now performs loop termination;
 * 1 `ASR`: mask/shift a score nibble during pointer setup;

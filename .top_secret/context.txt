@@ -1034,7 +1034,7 @@ The first unfinished item is the default next action.
                   unstable. Keep assembler illegals opt-in, document every retained
                   use, and add byte/cycle regressions before replacing any opcode.
 
-        [ ] 20p. Remove the standard kernel's remaining `LAX` uses one timing path
+        [x] 20p. Remove the standard kernel's remaining `LAX` uses one timing path
                   at a time with legal `LDA`/`TAX` or equivalent sequences. Absorb
                   added cycles from explicit padding where possible and verify the
                   affected scanline in isolation before continuing.
@@ -1125,11 +1125,10 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20o are complete. Runtime-workspace side-quest items a
+Tasks 20a through 20p are complete. Runtime-workspace side-quest items a
 through d are complete. Tasks 20p through 20u are deliberately small
 unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Task 20p is next: remove the standard kernel's
-remaining `LAX` uses one timing path at a time. The stack-safe VCSC
+before gameplay integration. Task 20p is complete. Task 20q is next: remove the standard kernel's `DCP` and other unofficial read-modify-write operations one family at a time. The stack-safe VCSC
 overscan/vblank hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -3096,3 +3095,26 @@ Before returning another modified archive:
   Pass 288/288 compile tests, 150/150 end-to-end/generic tests, and staged
   installation. No files are removed; `.top_secret/remove.txt` remains at 895
   cumulative paths. Task 20p remains next.
+
+2026-07-22 03:34:00 PDT, remove standard-kernel LAX instructions
+------------------------------------------------------------------------
+* Complete task 20p. Replace the three score-pointer setup `LAX zp` sites with
+  legal `LDA`/`TAX` pairs. Preserve the little-endian packed-BCD mapping to
+  display slots 0,4,3,2,1,5.
+* Replace the two visible score-glyph `LAX (zp),Y` sites with legal
+  `LDA (zp),Y`/`TAX`. The added four cycles are taken from the retained nine
+  cycles of explicit padding, now `SLEEP 5`, so the interval through the first
+  affected TIA graphics write remains exactly 21 cycles. Keep the borrowed
+  stack-pointer glyph pipeline otherwise unchanged.
+* Regenerate the timing and unofficial-opcode inventories. The normalized
+  profile now retains 14 unofficial source sites: 11 DCP, one ASR/ALR, one
+  SBX/AXS, and one odd-delay zero-page NOP. No active `LAX` remains.
+* Tighten normalization and static-cartridge regressions to require the legal
+  load sequence, the six correct `(zp),Y` operands, absence of `LAX`, and the
+  preserved 21-cycle score interval. Update the retained-opcode byte/cycle
+  matrix to cover only forms still used by the profile.
+* Pass 288/288 compile tests, 150/150 end-to-end/generic tests, the complete
+  static-kernel ROM execution checks, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Stop
+  before task 20q.
+

@@ -539,15 +539,18 @@ sub kernel_output {
      stx vcs_standard_pointer_workspace
 ASM
    my $new_score_setup = <<'ASM';
-     lax vcs_standard_score+2
+     lda vcs_standard_score+2
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace
      sty vcs_standard_pointer_workspace+3
-     lax vcs_standard_score+1
+     lda vcs_standard_score+1
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace+1
      sty vcs_standard_pointer_workspace+4
-     lax vcs_standard_score
+     lda vcs_standard_score
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace+2
      sty vcs_standard_pointer_workspace+5
@@ -555,6 +558,31 @@ ASM
    index($result, $old_score_setup) >= 0
       or die "normalized score-pointer setup no longer matches the selected retained source\n";
    $result =~ s/\Q$old_score_setup\E/$new_score_setup/;
+
+   # Legalize the two visible score-glyph LAX loads.  LDA (zp),Y has the same
+   # five-cycle read timing; TAX adds two cycles at each site.  The following
+   # retained nine cycles of explicit padding are reduced to five so the first
+   # TIA graphics write after the pair remains at the identical cycle.  X and
+   # the borrowed stack pointer still carry the same two glyph bytes.
+   my $old_visible_lax = <<'ASM';
+         lax (vcs_standard_pointer_workspace+$2),y ;+5 29 87
+         txs
+         lax (vcs_standard_pointer_workspace+$4),y ;+5 36 108
+             SLEEP 3
+
+                 SLEEP 6
+ASM
+   my $new_visible_lax = <<'ASM';
+         lda (vcs_standard_pointer_workspace+$2),y ;+5 29 87
+         tax
+         txs
+         lda (vcs_standard_pointer_workspace+$4),y ;+5 38 114
+         tax
+             SLEEP 5
+ASM
+   index($result, $old_visible_lax) >= 0
+      or die "normalized visible score LAX path no longer matches retained source\n";
+   $result =~ s/\Q$old_visible_lax\E/$new_visible_lax/;
 
    # The retained kernel biases X by $54 so its sign bit doubles as the row-loop
    # terminator, then subtracts $54 from every playfield operand.  Normalize this

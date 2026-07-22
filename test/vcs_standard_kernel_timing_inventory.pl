@@ -37,12 +37,12 @@ for my $row (@rows) {
    length($f[5]) or die "inventory row has no purpose: $row\n";
 }
 my %want_kind=(relative_branch=>13,indexed_read=>30,indirect_pointer=>11,
-               padding=>28,alignment=>4,segment=>2,unofficial_opcode=>19);
+               padding=>27,alignment=>4,segment=>2,unofficial_opcode=>14);
 for my $name (sort keys %want_kind) {
    ($kind{$name}//0)==$want_kind{$name}
       or die "$name inventory count changed: got ".($kind{$name}//0).", expected $want_kind{$name}\n";
 }
-my %want_illegal=(ASR=>1,DCP=>11,LAX=>5,'NOP.z'=>1,SBX=>1);
+my %want_illegal=(ASR=>1,DCP=>11,'NOP.z'=>1,SBX=>1);
 join(',',sort keys %illegal) eq join(',',sort keys %want_illegal)
    or die "unofficial opcode family set changed\n";
 for my $name (sort keys %want_illegal) {
@@ -51,8 +51,8 @@ for my $name (sort keys %want_illegal) {
 }
 my $docs=read_file($doc);
 for my $needle ('task-20e baseline','13 relative branches','30 indexed reads',
-                '11 indexed indirect pointer reads','19 source-level unofficial-opcode sites',
-                '`DCP`','`LAX`','`SBX`','`ASR`','`NOP.z`') {
+                '11 indexed indirect pointer reads','14 source-level unofficial-opcode sites',
+                '`DCP`','`SBX`','`ASR`','`NOP.z`','task 20p removed all 5 `LAX` sites') {
    index($docs,$needle)>=0 or die "TIMING_INVENTORY.md lacks $needle\n";
 }
 print "vcs_standard_kernel_timing_inventory ok\n";

@@ -16,7 +16,7 @@ sub capture {
    return ($? >> 8,$? & 127,$so,$se);
 }
 sub ihex_data {
-   my($text)=@_; my %m;
+   my($text,$length)=@_; my %m;
    for my $line (split(/\n/,$text)) {
       next if $line eq ''; $line =~ /^:([0-9A-Fa-f]+)$/ or die "bad ihex line: $line\n";
       my $raw=pack('H*',$1); my($len,$hi,$lo,$type)=unpack('C4',$raw);
@@ -24,7 +24,8 @@ sub ihex_data {
       my $addr=($hi<<8)|$lo; my @b=unpack('C*',substr($raw,4,$len));
       $m{$addr+$_}=$b[$_] for 0..$#b;
    }
-   return pack('C*',map {$m{$_}//die sprintf("missing ihex byte %04X\n",$_)} 0x8000..0x800b);
+   return pack('C*',map {$m{$_}//die sprintf("missing ihex byte %04X\n",$_)}
+                         0x8000..0x8000+$length-1);
 }
 
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
@@ -35,7 +36,7 @@ my $tsv=File::Spec->catfile($dir,'standard_4k_ntsc_unofficial_opcodes.tsv');
 my $fresh=`cd '$dir' && ./unofficial_opcodes.pl`; $?==0 or die "generator failed\n";
 $fresh eq read_file($tsv) or die "unofficial-opcode inventory is stale\n";
 my @rows=grep {length} split(/\n/,$fresh); shift @rows eq join("\t",qw(file line mnemonic mode opcode bytes base_cycles page_penalty classification purpose)) or die "bad header\n";
-@rows==19 or die "expected 19 retained unofficial sites, got ".scalar(@rows)."\n";
+@rows==14 or die "expected 14 retained unofficial sites, got ".scalar(@rows)."\n";
 my %count;
 for my $row (@rows) {
    my @f=split(/\t/,$row,-1); @f==10 or die "malformed row: $row\n";
@@ -43,7 +44,7 @@ for my $row (@rows) {
    $f[8] eq 'stable/common' or die "retained site is not stable/common: $row\n";
    length($f[9]) or die "missing purpose: $row\n";
 }
-my %want=('NOP.z:zp'=>1,'LAX:zp'=>3,'ASR:imm'=>1,'DCP:zp'=>11,'SBX:imm'=>1,'LAX:indy'=>2);
+my %want=('NOP.z:zp'=>1,'ASR:imm'=>1,'DCP:zp'=>11,'SBX:imm'=>1);
 join(',',sort keys %count) eq join(',',sort keys %want) or die "retained form set changed\n";
 for my $k (keys %want) { ($count{$k}//0)==$want{$k} or die "$k count changed\n"; }
 
@@ -53,17 +54,15 @@ my $hex=File::Spec->catfile($tmp,'unofficial_probe.hex');
 write_file($src,<<'ASM');
 .segmentdef "CODE", $8000, $0100
 .segment "CODE"
-LAX $80
 ASR #$F0
 DCP $81
 SBX #252
-LAX ($82),Y
 NOP.z $00
 ASM
 my($rc,$sig,$out,$err)=capture($asm,'--illegals',"--hex=$hex",$src);
 $rc==0 && !$sig or die "probe assembly failed\n$out$err";
-my $bytes=ihex_data(read_file($hex));
-unpack('H*',$bytes) eq 'a7804bf0c781cbfcb3820400' or die "retained unofficial byte matrix changed: ".unpack('H*',$bytes)."\n";
+my $bytes=ihex_data(read_file($hex),8);
+unpack('H*',$bytes) eq '4bf0c781cbfc0400' or die "retained unofficial byte matrix changed: ".unpack('H*',$bytes)."\n";
 ($rc,$sig,$out,$err)=capture($asm,"--hex=$hex.no_illegals",$src);
 $rc!=0 or die "unofficial mnemonics assembled without --illegals\n";
 

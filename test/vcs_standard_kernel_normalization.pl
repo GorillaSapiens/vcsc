@@ -134,8 +134,12 @@ require_re($active,qr/^\.import\s+vcs_standard_playfield$/m,
 require_re($active,qr/vcs_standard_pointer_workspace\s*\+\s*11/,
    'normalized source does not address the complete pointer workspace');
 require_re($active,
-   qr/lax vcs_standard_score\+2\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\s+sty vcs_standard_pointer_workspace\+3\s+lax vcs_standard_score\+1\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+1\s+sty vcs_standard_pointer_workspace\+4\s+lax vcs_standard_score\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+2\s+sty vcs_standard_pointer_workspace\+5/s,
-   'normalized score setup no longer maps little-endian BCD to display slots 0,4,3,2,1,5');
+   qr/lda vcs_standard_score\+2\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\s+sty vcs_standard_pointer_workspace\+3\s+lda vcs_standard_score\+1\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+1\s+sty vcs_standard_pointer_workspace\+4\s+lda vcs_standard_score\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+2\s+sty vcs_standard_pointer_workspace\+5/s,
+   'normalized legal score setup no longer maps little-endian BCD to display slots 0,4,3,2,1,5');
+require_re($active,
+   qr/lda \(vcs_standard_pointer_workspace\+\$2\),y\s+tax\s+txs\s+lda \(vcs_standard_pointer_workspace\+\$4\),y\s+tax\s+SLEEP 5/s,
+   'visible score LAX replacement or five-cycle retiming changed');
+$active !~ /^\s*lax\b/im or die "normalized standard kernel still uses LAX\n";
 my @score_rows=($kernel_text =~ /^\s*\.byte\s+%[01]{8}\s*$/mg);
 @score_rows == 88 or die "normalized score table has " . scalar(@score_rows) . " rows, expected 88\n";
 

@@ -218,15 +218,18 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
 
      ;set score pointers
-     lax vcs_standard_score+2
+     lda vcs_standard_score+2
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace
      sty vcs_standard_pointer_workspace+3
-     lax vcs_standard_score+1
+     lda vcs_standard_score+1
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace+1
      sty vcs_standard_pointer_workspace+4
-     lax vcs_standard_score
+     lda vcs_standard_score
+     tax
      jsr @scorepointerset
      stx vcs_standard_pointer_workspace+2
      sty vcs_standard_pointer_workspace+5
@@ -669,12 +672,12 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          sta GRP1 ;+3 8 24 D1 D1 D2 --
          lda (vcs_standard_pointer_workspace+$6),y ;+5 13 39
          sta GRP0 ;+3 16 48 D3 D1 D2 D2
-         lax (vcs_standard_pointer_workspace+$2),y ;+5 29 87
+         lda (vcs_standard_pointer_workspace+$2),y ;+5 29 87
+         tax
          txs
-         lax (vcs_standard_pointer_workspace+$4),y ;+5 36 108
-             SLEEP 3
-
-                 SLEEP 6
+         lda (vcs_standard_pointer_workspace+$4),y ;+5 38 114
+         tax
+             SLEEP 5
 
          lda (vcs_standard_pointer_workspace+$A),y ;+5 21 63
          stx GRP1 ;+3 44 132 D3 D3 D4 D2!

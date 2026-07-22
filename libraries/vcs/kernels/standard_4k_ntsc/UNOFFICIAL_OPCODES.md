@@ -26,9 +26,10 @@ Classification vocabulary
 * **unstable** means software cannot rely on one repeatable result across normal
   NMOS parts or operating conditions.
 
-No silicon-sensitive or unstable opcode is retained by this profile.  All 19
-current source sites use the stable/common subset below.  This classification is
-not an argument for keeping them: tasks 20p through 20s still replace them with
+No silicon-sensitive or unstable opcode is retained by this profile.  The 14 remaining
+source sites use the stable/common subset below. Task 20p removed all five LAX
+sites with legal LDA/TAX sequences while preserving the score scanline phase.  This classification is
+not an argument for keeping them: tasks 20q through 20s still replace them with
 official instructions so the profile no longer requires `--illegals`.
 
 Retained forms
@@ -36,14 +37,12 @@ Retained forms
 
 | Form | Byte | Bytes | Cycles | Sites | Current use |
 |---|---:|---:|---:|---:|---|
-| `LAX zp` | `$A7` | 2 | 3 | 3 | Load each packed score byte into A and X during pointer setup. |
-| `LAX (zp),Y` | `$B3` | 2 | 5, plus 1 on page crossing | 2 | Load two visible score glyph bytes into A and X. |
 | `ASR #imm` / `ALR #imm` | `$4B` | 2 | 2 | 1 | AND then shift the upper score nibble. |
 | `DCP zp` | `$C7` | 2 | 5 | 11 | Decrement a vertical object counter and compare it with A. |
 | `SBX #imm` / `AXS #imm` | `$CB` | 2 | 2 | 1 | Advance the zero-based playfield offset by four. |
 | `NOP zp` | `$04` | 2 | 3 | 1 | Supply the odd three-cycle portion of `SLEEP`. |
 
-The profile does **not** use immediate `LAX` byte `$AB`.  That encoding is often
+The profile no longer uses any `LAX` form. It also never used immediate `LAX` byte `$AB`.  That encoding is often
 called `LXA` or `OAL` and belongs in a more silicon-sensitive/unstable category.
 The older static-kernel smoke check merely searched the ROM for a stray `$AB`
 byte and incorrectly described it as a retained immediate `LAX`; the dedicated
@@ -55,12 +54,12 @@ Opt-in and regressions
 Friendly unofficial mnemonics remain unavailable unless the assembler is run
 with `--illegals`.  The task-20o regression:
 
-1. regenerates and byte-compares the 19-site TSV;
+1. regenerates and byte-compares the 14-site TSV;
 2. assembles one probe containing every distinct retained form and requires the
-   exact byte stream `A7 80 4B F0 C7 81 CB FC B3 82 04 00`;
+   exact byte stream `4B F0 C7 81 CB FC 04 00`;
 3. proves the same source is rejected without `--illegals`; and
-4. executes each form in the bundled NMOS simulator to lock 3, 2, 5, 2, 5/6,
-   and 3 cycles respectively, including the indexed-indirect page penalty.
+4. executes each retained form in the bundled NMOS simulator to lock 2, 5, 2,
+   and 3 cycles respectively.
 
 Regenerate the source inventory from this directory with:
 

@@ -129,16 +129,23 @@ require_re($src,qr/while\s*\(1\)\s*\{\s*vcs_standard_kernel_drawscreen\(\);\s*\}
 # Lock the imported zero-page addends used by the six-digit score pipeline.
 my $kernel_bytes=substr($rom,0x300,0x300);
 for my $pattern (
-   "\xB1\x9F", "\xB3\xA1", "\xB3\xA3",
+   "\xB1\x9F", "\xB1\xA1", "\xB1\xA3",
    "\xB1\xA5", "\xB1\xA7", "\xB1\xA9") {
    index($kernel_bytes,$pattern)>=0
       or die sprintf("kernel is missing score-pointer opcode bytes %s\n",unpack('H*',$pattern));
 }
-index($kernel_bytes,"\xA7")>=0 or die "kernel lost retained LAX zero-page opcode\n";
 index($kernel_bytes,"\x4B")>=0 or die "kernel lost retained ASR opcode\n";
 index($kernel_bytes,"\xCB")>=0 or die "kernel lost retained SBX opcode\n";
 
 my $kernel_text=read_file($kernel);
+$kernel_text !~ /^\s*lax\b/im or die "normalized kernel still contains LAX\n";
+require_re($kernel_text,
+   qr/lda \(vcs_standard_pointer_workspace\+\$2\),y[^\n]*\n\s+tax\s+txs\s+lda \(vcs_standard_pointer_workspace\+\$4\),y[^\n]*\n\s+tax\s+SLEEP 5/s,
+   'legal visible-score load path or its cycle compensation changed');
+my $old_score_path_cycles=5+2+5+3+6;
+my $legal_score_path_cycles=5+2+2+5+2+5;
+$legal_score_path_cycles==$old_score_path_cycles
+   or die "legal visible-score path no longer preserves the original 21-cycle interval\n";
 require_re($kernel_text,qr/^\s*lda\s+#37\+128\s*$/m,
    'kernel no longer contains the Stella-verified 262-line timer value');
 require_re($kernel_text,qr/\.align 256\s+\@kerloop:/s,
