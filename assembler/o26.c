@@ -34,6 +34,9 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 
+#define O26_BRANCH_MAGIC "B26\1"
+#define O26_BRANCH_MAGIC_SIZE 4
+
 #define DEFAULT_SEGMENT_NAME "__default__"
 
 typedef struct o26_reloc {
@@ -79,6 +82,14 @@ typedef struct o26_segment_layout {
    struct o26_segment_layout *next;
 } o26_segment_layout_t;
 
+typedef struct o26_branch {
+   unsigned char segid;
+   unsigned short source;
+   unsigned short target;
+   unsigned char opcode;
+   struct o26_branch *next;
+} o26_branch_t;
+
 typedef struct o26_writer {
    asm_context_t *ctx;
    o26_segment_buf_t text;
@@ -87,6 +98,8 @@ typedef struct o26_writer {
    unsigned short zp_len;
    unsigned short seg_lengths[6];
    o26_segment_layout_t *layouts;
+   o26_branch_t *branches;
+   o26_branch_t *branches_tail;
    o26_undef_t *undefs;
    o26_export_t *exports;
 } o26_writer_t;
@@ -574,6 +587,30 @@ static int add_reloc(o26_segment_buf_t *buf, long offset, unsigned char type, un
    else
       buf->relocs_tail->next = r;
    buf->relocs_tail = r;
+   return 1;
+}
+
+//! @brief Record one actual relative branch for linker diagnostics.
+static int add_branch(o26_writer_t *wr, unsigned char segid, long source, long target, unsigned char opcode)
+{
+   o26_branch_t *branch;
+
+   if (source < 0 || source > 0xffffL || target < 0 || target > 0xffffL)
+      return 0;
+
+   branch = (o26_branch_t *)calloc(1, sizeof(*branch));
+   if (!branch)
+      return 0;
+   branch->segid = segid;
+   branch->source = (unsigned short)source;
+   branch->target = (unsigned short)target;
+   branch->opcode = opcode;
+
+   if (!wr->branches)
+      wr->branches = branch;
+   else
+      wr->branches_tail->next = branch;
+   wr->branches_tail = branch;
    return 1;
 }
 
@@ -1197,6 +1234,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
          reloc_expr_info_t info;
          unsigned char opcode;
          long value;
+         long insn_off = off;
          emit_mode_t emode;
 
          emode = stmt->u.insn.final_mode;
@@ -1208,6 +1246,10 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             }
             if (!buf_write_byte(buf, off++, inv_opcode) || !buf_write_byte(buf, off++, 0x03)) {
                writer_error(wr->ctx, stmt, "failed to write long branch prefix");
+               return 0;
+            }
+            if (!add_branch(wr, (unsigned char)segid, insn_off, insn_off + 5, inv_opcode)) {
+               writer_error(wr->ctx, stmt, "out of memory recording branch metadata");
                return 0;
             }
             if (!opcode_lookup("JMP", EM_ABS, &opcode) || !buf_write_byte(buf, off++, opcode)) {
@@ -1265,6 +1307,10 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                }
                if (!buf_write_byte(buf, off, (unsigned char)(value & 0xFF))) {
                   writer_error(wr->ctx, stmt, "failed to write branch displacement");
+                  return 0;
+               }
+               if (!add_branch(wr, (unsigned char)segid, insn_off, info.value, opcode)) {
+                  writer_error(wr->ctx, stmt, "out of memory recording branch metadata");
                   return 0;
                }
                return 1;
@@ -1396,6 +1442,31 @@ static int write_layouts(FILE *fp, const o26_segment_layout_t *layout)
    return 1;
 }
 
+//! @brief Write relative-branch metadata appended after the layout table.
+static int write_branches(FILE *fp, const o26_branch_t *branch)
+{
+   unsigned int count = 0;
+   const o26_branch_t *p;
+
+   for (p = branch; p; p = p->next)
+      count++;
+   if (count > 0xffffu) {
+      fprintf(stderr, "too many relative branches for current o26 writer\n");
+      return 0;
+   }
+
+   if (fwrite(O26_BRANCH_MAGIC, 1, O26_BRANCH_MAGIC_SIZE, fp) != O26_BRANCH_MAGIC_SIZE ||
+       !write_u16(fp, (unsigned short)count))
+      return 0;
+
+   for (; branch; branch = branch->next) {
+      if (!write_u8(fp, branch->segid) || !write_u16(fp, branch->source) ||
+          !write_u16(fp, branch->target) || !write_u8(fp, branch->opcode))
+         return 0;
+   }
+   return 1;
+}
+
 //! @brief Release layouts storage owned by assembler o26 object writer.
 static void free_layouts(o26_segment_layout_t *layout)
 {
@@ -1404,6 +1475,16 @@ static void free_layouts(o26_segment_layout_t *layout)
       free(layout->name);
       free(layout);
       layout = next;
+   }
+}
+
+//! @brief Release relative-branch metadata storage.
+static void free_branches(o26_branch_t *branch)
+{
+   while (branch) {
+      o26_branch_t *next = branch->next;
+      free(branch);
+      branch = next;
    }
 }
 
@@ -1481,7 +1562,8 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
        !write_reloc_table(fp, wr.text.relocs) ||
        !write_reloc_table(fp, wr.data.relocs) ||
        !write_exports(fp, wr.exports) ||
-       !write_layouts(fp, wr.layouts)) {
+       !write_layouts(fp, wr.layouts) ||
+       !write_branches(fp, wr.branches)) {
       fprintf(stderr, "failed writing o26 object contents\n");
       goto fail;
    }
@@ -1493,6 +1575,7 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
    free_undefs(wr.undefs);
    free_exports(wr.exports);
    free_layouts(wr.layouts);
+   free_branches(wr.branches);
    return ctx->error_count ? 0 : 1;
 
 fail:
@@ -1503,5 +1586,6 @@ fail:
    free_undefs(wr.undefs);
    free_exports(wr.exports);
    free_layouts(wr.layouts);
+   free_branches(wr.branches);
    return 0;
 }

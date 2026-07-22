@@ -2014,6 +2014,29 @@ static const char *page_placement_name(uint16_t addr, uint16_t size, int hard)
    return range_fits_one_page(addr, size) ? "preferred" : "crossing";
 }
 
+//! @brief Return the conventional mnemonic for an NMOS 6502 relative-branch opcode.
+static const char *branch_opcode_name(uint8_t opcode)
+{
+   switch (opcode) {
+      case 0x10: return "BPL";
+      case 0x30: return "BMI";
+      case 0x50: return "BVC";
+      case 0x70: return "BVS";
+      case 0x90: return "BCC";
+      case 0xB0: return "BCS";
+      case 0xD0: return "BNE";
+      case 0xF0: return "BEQ";
+      default:   return "BR?";
+   }
+}
+
+//! @brief Return whether a taken relative branch incurs the NMOS page-cross cycle.
+static int taken_branch_crosses_page(uint16_t source, uint16_t target)
+{
+   uint16_t next_pc = (uint16_t)(source + 2u);
+   return (next_pc & 0xff00u) != (target & 0xff00u);
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in, const layout_t *layout)
 {
@@ -2059,6 +2082,23 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                     page_placement_name(lay->run_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }
+      }
+   }
+
+   fprintf(fp, "\nBRANCHES\n");
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *o = &in->objects[i];
+      size_t j;
+      if (!o->branch_count)
+         continue;
+      fprintf(fp, "  %s\n", o->origin);
+      for (j = 0; j < o->branch_count; ++j) {
+         const branch_t *branch = &o->branches[j];
+         uint16_t source = object_runtime_addr_for_value(o, branch->segid, branch->source);
+         uint16_t target = object_runtime_addr_for_value(o, branch->segid, branch->target);
+         fprintf(fp, "     $%04X -> $%04X %-3s opcode=$%02X taken-page=%s\n",
+                 source, target, branch_opcode_name(branch->opcode), branch->opcode,
+                 taken_branch_crosses_page(source, target) ? "crossing" : "same");
       }
    }
 

@@ -1003,7 +1003,7 @@ The first unfinished item is the default next action.
                   Add a hard page-contained/timing-critical function attribute for
                   cycle-sensitive kernels, with clear failure when it cannot fit.
 
-        [ ] 20k. Preserve relative-branch source/target metadata through assembly,
+        [x] 20k. Preserve relative-branch source/target metadata through assembly,
                   including branches to assembler-local labels that were formerly
                   resolved completely inside one object. Add map diagnostics for
                   taken branches that cross a page; make no placement changes in
@@ -2934,4 +2934,29 @@ Before returning another modified archive:
   compile tests and 146/146 end-to-end/generic tests. Staged installation passes.
   No files are removed; `.top_secret/remove.txt` remains at 895 cumulative
   paths. Stop before task 20k.
+
+2026-07-22 05:08:30 PDT, preserve relative-branch timing metadata
+------------------------------------------------------------------------
+* Complete task 20k. Append a versioned `B26\1` relative-branch table after
+  each current o26 layout tail. Preserve the coarse segment, packed source and
+  target offsets, and actual emitted opcode for every relative branch, including
+  assembler-local labels that were previously resolved completely inside one
+  object. Long-branch expansions record their actual inverted short branch.
+* Decode the optional table in both direct objects and archive members while
+  retaining compatibility with older o26 files that end after exports or any of
+  the three prior layout-tail encodings. The metadata remains diagnostic only:
+  no instruction bytes, displacements, object ordering, or placement policy
+  change in this slice.
+* Add a `BRANCHES` linker-map section with final source/target addresses, branch
+  mnemonic and opcode, and `taken-page=same` or `taken-page=crossing`. Classify
+  the page penalty against the PC after the two-byte branch instruction, matching
+  NMOS 6502/6507 timing rather than merely comparing the opcode address.
+* Add an end-to-end regression whose two branches both target assembler-local
+  labels: one deliberately crosses from post-branch PC `$20FF` to `$2102`, while
+  the other stays within page `$21`. Verify the original compact placement and
+  branch bytes are unchanged. Update the raw layout-tail mutation regression to
+  skip the optional branch table.
+* Pass 288/288 compile tests and 147/147 end-to-end/generic tests. Staged
+  installation passes. No files are removed; `.top_secret/remove.txt` remains
+  at 895 cumulative paths. Stop before task 20l.
 

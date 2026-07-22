@@ -244,30 +244,83 @@ static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t star
 }
 
 //! @brief Parse layouts any into the normalized representation used by linker object/archive loader.
-static int parse_layouts_any(reader_t *r, object_layout_t **out, size_t *count_out)
+//! @brief Parse optional branch metadata following a layout table.
+static int parse_branches_at(const uint8_t *data, size_t size, size_t start,
+   branch_t **out, size_t *count_out, size_t *end_out)
 {
-   size_t end_pos = 0;
+   size_t i;
+   size_t pos = start;
+   uint16_t count;
+   branch_t *items;
 
-   if (parse_layouts_with_mode(r->data, r->size, r->pos, 3, out, count_out, &end_pos) && end_pos == r->size) {
-      r->pos = end_pos;
+   if (pos == size) {
+      *out = NULL;
+      *count_out = 0;
+      *end_out = pos;
       return 1;
    }
-   *out = NULL;
-   *count_out = 0;
+   if (pos + O26_BRANCH_MAGIC_SIZE + 2 > size ||
+       memcmp(data + pos, O26_BRANCH_MAGIC, O26_BRANCH_MAGIC_SIZE) != 0)
+      return 0;
+   pos += O26_BRANCH_MAGIC_SIZE;
+   count = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+   pos += 2;
+   if (pos + (size_t)count * 6u != size)
+      return 0;
 
-   if (parse_layouts_with_mode(r->data, r->size, r->pos, 2, out, count_out, &end_pos) && end_pos == r->size) {
-      r->pos = end_pos;
-      return 1;
+   items = (branch_t *)xcalloc(count ? count : 1, sizeof(*items));
+   for (i = 0; i < count; ++i) {
+      items[i].segid = data[pos++];
+      items[i].source = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+      pos += 2;
+      items[i].target = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+      pos += 2;
+      items[i].opcode = data[pos++];
+      if (items[i].segid < O26_SEG_TEXT || items[i].segid > O26_SEG_ZP) {
+         free(items);
+         return 0;
+      }
    }
-   *out = NULL;
-   *count_out = 0;
 
-   if (parse_layouts_with_mode(r->data, r->size, r->pos, 1, out, count_out, &end_pos) && end_pos == r->size) {
-      r->pos = end_pos;
-      return 1;
+   *out = items;
+   *count_out = count;
+   *end_out = pos;
+   return 1;
+}
+
+//! @brief Parse the newest compatible layout table and optional branch metadata.
+static int parse_layouts_any(reader_t *r, object_layout_t **out, size_t *count_out,
+   branch_t **branches_out, size_t *branch_count_out)
+{
+   int version;
+
+   for (version = 3; version >= 1; --version) {
+      size_t layout_end = 0;
+      size_t metadata_end = 0;
+      object_layout_t *layouts = NULL;
+      size_t layout_count = 0;
+      branch_t *branches = NULL;
+      size_t branch_count = 0;
+
+      if (parse_layouts_with_mode(r->data, r->size, r->pos, version,
+            &layouts, &layout_count, &layout_end) &&
+          parse_branches_at(r->data, r->size, layout_end,
+            &branches, &branch_count, &metadata_end) && metadata_end == r->size) {
+         *out = layouts;
+         *count_out = layout_count;
+         *branches_out = branches;
+         *branch_count_out = branch_count;
+         r->pos = metadata_end;
+         return 1;
+      }
+      free_partial_layouts(layouts, layout_count);
+      free(branches);
    }
+
    *out = NULL;
    *count_out = 0;
+   *branches_out = NULL;
+   *branch_count_out = 0;
    return 0;
 }
 
@@ -308,6 +361,7 @@ static int try_parse_tail(const uint8_t *tail, size_t tail_size,
    reloc_t **data_relocs, size_t *data_reloc_count,
    symbol_t **exports, size_t *export_count,
    object_layout_t **layouts, size_t *layout_count,
+   branch_t **branches, size_t *branch_count,
    char ***undefs, size_t *undef_count,
    const char *label)
 {
@@ -323,7 +377,7 @@ static int try_parse_tail(const uint8_t *tail, size_t tail_size,
          parse_exports(&r, exports, export_count)) {
       if (r.pos == r.size)
          return 1;
-      if (parse_layouts_any(&r, layouts, layout_count) && r.pos == r.size)
+      if (parse_layouts_any(&r, layouts, layout_count, branches, branch_count) && r.pos == r.size)
          return 1;
    }
 
@@ -331,6 +385,7 @@ static int try_parse_tail(const uint8_t *tail, size_t tail_size,
    free(*data_relocs); *data_relocs = NULL; *data_reloc_count = 0;
    free_exports_array(*exports, *export_count); *exports = NULL; *export_count = 0;
    free_layout_array(*layouts, *layout_count); *layouts = NULL; *layout_count = 0;
+   free(*branches); *branches = NULL; *branch_count = 0;
 
    r.pos = save;
    if (parse_reloc_table_old(&r, data_relocs, data_reloc_count) &&
@@ -338,7 +393,7 @@ static int try_parse_tail(const uint8_t *tail, size_t tail_size,
          parse_exports(&r, exports, export_count)) {
       if (r.pos == r.size)
          return 1;
-      if (parse_layouts_any(&r, layouts, layout_count) && r.pos == r.size)
+      if (parse_layouts_any(&r, layouts, layout_count, branches, branch_count) && r.pos == r.size)
          return 1;
    }
 
@@ -346,6 +401,7 @@ static int try_parse_tail(const uint8_t *tail, size_t tail_size,
    free(*data_relocs); *data_relocs = NULL; *data_reloc_count = 0;
    free_exports_array(*exports, *export_count); *exports = NULL; *export_count = 0;
    free_layout_array(*layouts, *layout_count); *layouts = NULL; *layout_count = 0;
+   free(*branches); *branches = NULL; *branch_count = 0;
    return 0;
 }
 
@@ -427,6 +483,8 @@ static void parse_o26_object_from_memory(object_file_t *obj, const uint8_t *data
    size_t data_reloc_count = 0;
    object_layout_t *layouts = NULL;
    size_t layout_count = 0;
+   branch_t *branches = NULL;
+   size_t branch_count = 0;
 
    memset(obj, 0, sizeof(*obj));
    snprintf(obj->origin, sizeof(obj->origin), "%s", label);
@@ -471,6 +529,7 @@ static void parse_o26_object_from_memory(object_file_t *obj, const uint8_t *data
          &data_relocs, &data_reloc_count,
          &exports, &export_count,
          &layouts, &layout_count,
+         &branches, &branch_count,
          &undefs, &undef_count,
          label)) {
       fprintf(stderr, "vcsc-ld: failed to parse o26 relocation/export tail in '%s' (header ended at 0x%zx)\n", label, header_end);
@@ -487,6 +546,8 @@ static void parse_o26_object_from_memory(object_file_t *obj, const uint8_t *data
    obj->export_count = export_count;
    obj->layouts = layouts;
    obj->layout_count = layout_count;
+   obj->branches = branches;
+   obj->branch_count = branch_count;
    synthesize_default_layouts(obj);
 }
 
@@ -767,4 +828,5 @@ void free_object(object_file_t *obj)
    for (i = 0; i < obj->layout_count; ++i)
       free(obj->layouts[i].name);
    free(obj->layouts);
+   free(obj->branches);
 }

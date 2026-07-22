@@ -696,3 +696,10 @@ older layout records.
 ### `.pagecontain`
 
 `.pagecontain` marks the current named segment as a hard page-contained o26 layout. It takes no arguments; keep one constrained object in that segment. The linker places the complete final-sized layout anywhere it fits within one 256-byte page.
+
+After the layout table, current o26 objects also carry a compact relative-branch
+table.  Each record preserves the coarse segment, packed source and target
+offsets, and actual branch opcode.  Local-label branches are included even
+though their displacement was fully resolved by the assembler.  The linker uses
+the records for final-address timing diagnostics; they are not relocations and
+do not currently influence placement.

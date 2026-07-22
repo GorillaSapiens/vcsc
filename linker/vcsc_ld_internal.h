@@ -28,6 +28,9 @@
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 
+#define O26_BRANCH_MAGIC "B26\1"
+#define O26_BRANCH_MAGIC_SIZE 4
+
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
@@ -99,6 +102,13 @@ typedef struct {
    int has_aux_low;
 } reloc_t;
 
+typedef struct {
+   uint8_t segid;
+   uint16_t source;
+   uint16_t target;
+   uint8_t opcode;
+} branch_t;
+
 //! One loadable o26 segment plus relocations against it.
 typedef struct {
    uint8_t *data;
@@ -124,6 +134,8 @@ typedef struct {
    size_t export_count;
    object_layout_t *layouts;
    size_t layout_count;
+   branch_t *branches;
+   size_t branch_count;
    uint16_t place_text_load;
    uint16_t place_data_load;
    uint16_t place_data_run;

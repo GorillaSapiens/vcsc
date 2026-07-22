@@ -40,7 +40,13 @@ sub mark_page_contained {
       if ($name eq $want) { substr($data,$p,1)=chr(ord(substr($data,$p,1))|1); $found++; }
       $p++;
    }
-   $p==length($data) or die "unexpected o26 layout tail\n";
+   if ($p<length($data)) {
+      substr($data,$p,4) eq "B26\1" or die "unexpected o26 layout tail\n";
+      $p+=4;
+      my $branches=get_u16(\$data,\$p);
+      $p += $branches*6;
+   }
+   $p==length($data) or die "unexpected o26 branch tail\n";
    $found==1 or die "layout $want found $found times\n";
    write_file($path,$data);
 }
