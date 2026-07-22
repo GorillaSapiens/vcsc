@@ -727,3 +727,12 @@ low-byte code-placement search.
 Word relocations used by indirect `JMP` additionally carry the
 `O26_RTYPE_INDIRECT_JMP` bit.  It does not change relocation arithmetic; it
 identifies the final vector address for the linker's NMOS `$xxFF` hazard check.
+
+Current version-2 o26 relocations against a symbol defined in the same object
+also carry the exact serialized layout index containing that symbol. This is
+required for affine expressions such as `table-$100`: after the constant is
+applied, the packed numeric value may fall inside a different layout even
+though the expression still denotes an address relative to `table`. The linker
+must relocate against the defining layout, not guess a layout from the altered
+numeric value. Imported-symbol relocations remain global-symbol plus addend and
+do not carry a local layout index.

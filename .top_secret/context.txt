@@ -3271,3 +3271,46 @@ Before returning another modified archive:
   all focused kernel regressions, and staged installation. No files are removed;
   `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
   next; do not resume it until this raster repair is reviewed.
+
+2026-07-22 15:49:00 PDT, replace false motion oracle and repair affine relocation
+------------------------------------------------------------------------
+* Reject the first `06_object_motion_test` as a visual oracle. Its empty
+  playfield made phase errors hard to judge, its deliberately skipped update
+  frames made correct motion look jerky, and its RAM-state assertions did not
+  prove that the TIA received the requested horizontal coordinates.
+* Find and repair the underlying linker defect exposed by the example. A local
+  affine reference such as `@repostable-256` retained only its adjusted packed
+  numeric value; when that value also fit an earlier packed layout, the linker
+  relocated it through the wrong layout. The standard kernel consequently read
+  the wrong HMxx fine-motion byte and collapsed requested X positions into
+  fifteen-pixel plateaus even though the RESP coarse strobe was correct.
+* Advance the o26 format to version 2 and attach the exact defining-layout index
+  to local relocatable affine expressions. Teach the linker to resolve those
+  records through that layout while continuing to accept version-1 objects via
+  the legacy heuristic. Add a focused two-layout regression in which
+  `target-$100` numerically overlaps an earlier layout and must still resolve
+  through `target`'s defining layout.
+* Replace example 06 with a visible gold border and four fixed ruler columns.
+  Move P0, P1, M0, M1, and BL by exactly one public X coordinate on every frame,
+  using distinct ranges and phases so their reversals are asynchronous. Reapply
+  the TIA color and NUSIZ registers that the retained kernel is allowed to
+  borrow or clear. Document the public-X-to-Stella-pixel calibration and the
+  exact fixed vertical bands.
+* Strengthen `vcs_standard_motion.test`: for twenty consecutive frames, derive
+  and check each object's exact RESP cycle and HMxx nibble from the public X
+  coordinate, in addition to checking RAM state and seven complete exact-row
+  object rasters. A dead or misrelocated fine-motion table now fails even when
+  the source variables continue changing correctly.
+* Make example 05 stable after its first frame by reapplying its volatile TIA
+  geometry and colors before every draw. Check in a raw Stella 7.0 `ss1x`
+  reference PNG plus an explicit source-state-to-bounding-box contract for the
+  playfield, all five objects, and score. Keep CPU/TIA-write tests as the fast
+  machine layer and the documented PNG as the visible review layer; do not
+  equate one green trace test with a correct picture again.
+* Verify source-X calibration points 20, 40, 60, 80, 100, 120, and 140 in Stella:
+  every one-coordinate change moves a normal player by one active pixel, while
+  missiles and the ball retain their documented two-pixel origin offset. Pass
+  288/288 compile-only tests, 153/153 end-to-end/generic tests, all focused
+  relocation/kernel regressions, and staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
+  next and is not started.

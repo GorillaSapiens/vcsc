@@ -85,9 +85,18 @@ The repaired helper keeps zero in Y while X advances, reconstructs and saves M0
 Y in the existing twelve-cycle post-positioning slot, and removes the extra
 pre-kernel delay. `examples/06_object_motion_test` gives all five TIA objects
 separate documented vertical bands and independently phased horizontal motion.
-`vcs_standard_motion.test` locks twenty frames of X/Y state and seven complete
-object rasters at exact frame-relative scanlines. A controlled Stella capture of
-the repaired static cartridge is pixel-identical to the pre-task-20q2 image.
+The first version of `vcs_standard_motion.test` still checked only RAM X values
+and vertical TIA writes. That missed a separate linker failure: each
+`@repostable-$100` operand was relocated by its altered packed value, which
+happened to lie in an earlier code layout. RESP coarse positioning worked while
+all five HMxx reads came from unrelated bytes, quantizing movement into roughly
+15-pixel jumps.
+
+Version-2 o26 local relocations now preserve the exact defining layout. The
+motion regression checks every RESP cycle and HMxx nibble for twenty frames,
+and the example moves every object one coordinate per frame against a visible
+ruler playfield. The static example also reapplies volatile TIA geometry every
+frame and carries a reviewed Stella 7.0 raster with exact bounding boxes.
 
 Task 20q is complete. The normalized profile contains no `DCP` instruction; the
 remaining unofficial forms belong to tasks 20r and 20s.

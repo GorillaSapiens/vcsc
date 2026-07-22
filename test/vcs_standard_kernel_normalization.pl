@@ -166,7 +166,7 @@ $as_exit == 0 && !$as_sig
 $as_out eq '' or die "normalized kernel assembly wrote stdout:\n$as_out";
 $as_err eq '' or die "normalized kernel assembly wrote stderr:\n$as_err";
 my $object_text=read_file($object);
-substr($object_text,0,6) eq "\x01\x00o26\x01"
+substr($object_text,0,6) eq "\x01\x00o26\x02"
    or die "normalized kernel did not produce a current o26 object\n";
 my $map_text=read_file($map);
 require_re($map_text,qr/^KERNEL_CODE\s+\$[0-9A-F]{8}\s+\$00000300\b/m,

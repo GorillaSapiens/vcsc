@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -45,6 +46,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $example=File::Spec->catdir($repo,'examples','05_static_kernel_test');
 my $source=File::Spec->catfile($example,'static_kernel_test.c26');
+my $reference=File::Spec->catfile($example,'reference_stella_7.0.png');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'static_kernel_test.bin');
@@ -96,6 +98,9 @@ my $target=map_symbol($map,'target_graphics');
    or die "target graphics cross a page boundary\n";
 
 my $src=read_file($source);
+sha256_hex(read_file($reference)) eq
+   '6ae39084ebe6a91a0e4b0f16546b45c953ede3903f23a86bd9183a4525c25776'
+   or die "reviewed Stella reference PNG changed without updating its contract\n";
 require_re($src,qr/^page\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]\s*:=/m,
    'test playfield is not a page-contained immutable VCSC object');
 $src !~ /alignment_pad|\[97\]/
@@ -107,7 +112,7 @@ require_re($src,qr/COLUBK\s*:=\s*0x84\s*;/,
 require_re($src,qr/COLUPF\s*:=\s*0x2e\s*;/,
    'static scene lost its gold playfield');
 require_re($src,qr/CTRLPF\s*:=\s*0x21\s*;/,
-   'static scene no longer selects reflected playfield plus eight-clock ball width');
+   'static scene no longer selects reflected playfield plus four-clock ball width');
 require_re($src,qr/NUSIZ0\s*:=\s*0x25\s*;/,
    'static scene no longer makes P0 double-width and M0 four clocks wide');
 require_re($src,qr/NUSIZ1\s*:=\s*0x20\s*;/,
@@ -123,8 +128,28 @@ for my $name (qw(PLAYER0 PLAYER1 MISSILE0 MISSILE1 BALL)) {
    require_re($src,qr/VCS_STANDARD_\Q$name\E_X\s*:=/,
       "static scene no longer positions $name");
 }
-require_re($src,qr/while\s*\(1\)\s*\{\s*vcs_standard_kernel_drawscreen\(\);\s*\}/s,
-   'static scene is no longer a deterministic kernel-only loop');
+for my $locked (
+   [qr/VCS_STANDARD_PLAYER0_X\s*:=\s*76\s*;/, 'P0 X'],
+   [qr/VCS_STANDARD_PLAYER1_X\s*:=\s*108\s*;/, 'P1 X'],
+   [qr/VCS_STANDARD_MISSILE0_X\s*:=\s*64\s*;/, 'M0 X'],
+   [qr/VCS_STANDARD_MISSILE1_X\s*:=\s*132\s*;/, 'M1 X'],
+   [qr/VCS_STANDARD_BALL_X\s*:=\s*84\s*;/, 'ball X'],
+   [qr/vcs_standard_player0_y\s*:=\s*78\s*;/, 'P0 Y'],
+   [qr/vcs_standard_player1_y\s*:=\s*42\s*;/, 'P1 Y'],
+   [qr/vcs_standard_missile0_y\s*:=\s*30\s*;/, 'M0 Y'],
+   [qr/vcs_standard_missile1_y\s*:=\s*60\s*;/, 'M1 Y'],
+   [qr/vcs_standard_ball_y\s*:=\s*45\s*;/, 'ball Y'],
+   [qr/vcs_standard_player0_height\s*:=\s*7\s*;/, 'P0 height'],
+   [qr/vcs_standard_player1_height\s*:=\s*7\s*;/, 'P1 height'],
+   [qr/vcs_standard_missile0_height\s*:=\s*5\s*;/, 'M0 height'],
+   [qr/vcs_standard_missile1_height\s*:=\s*7\s*;/, 'M1 height'],
+   [qr/vcs_standard_ball_height\s*:=\s*3\s*;/, 'ball height'],
+) {
+   require_re($src,$locked->[0],"static reference changed $locked->[1]");
+}
+require_re($src,
+   qr/while\s*\(1\)\s*\{\s*configure_static_frame\(\);\s*vcs_standard_kernel_drawscreen\(\);\s*\}/s,
+   'static scene no longer reapplies volatile TIA geometry before each deterministic draw');
 
 # Lock the imported zero-page addends used by the six-digit score pipeline.
 my $kernel_bytes=substr($rom,0x300,0x300);

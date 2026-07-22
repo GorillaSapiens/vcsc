@@ -176,12 +176,13 @@ return with decimal mode clear. The first cartridge, `examples/05_static_kernel_
 status overlay is used as the final timing authority rather than treating
 comments in the retained source as proof.
 
-`examples/06_object_motion_test` is the visual and emulator-backed object
-placement diagnostic. P0, P1, M0, M1, and BL occupy distinct fixed vertical
-bands and move horizontally with separate rates and phases. Its README records
-the exact frame-relative TIA write scanlines; `vcs_standard_motion.test` locks
-those rows and twenty frames of persistent X/Y state rather than relying on a
-screenshot that merely looks plausible.
+`examples/05_static_kernel_test` now carries a checked Stella 7.0 PNG plus exact
+object/playfield bounding boxes. `examples/06_object_motion_test` is the moving
+position diagnostic: a visible ruler playfield remains fixed while all five
+objects move one source coordinate every frame in distinct ranges and phases.
+Its regression locks the frame-relative object rows **and** each RESP cycle and
+HMxx fine-motion value for twenty frames. Merely confirming that the RAM X
+variables changed is explicitly not considered a horizontal-rendering test.
 
 ## State ownership and RAM cost
 

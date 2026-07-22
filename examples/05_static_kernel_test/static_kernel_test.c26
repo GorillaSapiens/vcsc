@@ -50,12 +50,6 @@ page const uint8_t target_graphics[8] := {
 
 void initialize_static_scene(void) {
    COLUBK := 0x84;
-   COLUPF := 0x2e;
-   COLUP0 := 0x0e;
-   COLUP1 := 0x4e;
-   CTRLPF := 0x21;
-   NUSIZ0 := 0x25;
-   NUSIZ1 := 0x20;
 
    VCS_STANDARD_PLAYER0_X := 76;
    VCS_STANDARD_PLAYER1_X := 108;
@@ -85,9 +79,22 @@ void initialize_static_scene(void) {
    TIM64T := 0;
 }
 
+// The retained kernel uses COLUP0/COLUP1 for the score and clears NUSIZ0/1
+// after the object field.  Reapply every frame; these are TIA registers, not
+// persistent application state.
+void configure_static_frame(void) {
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0x4e;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x25;
+   NUSIZ1 := 0x20;
+}
+
 void main(void) {
    initialize_static_scene();
    while (1) {
+      configure_static_frame();
       vcs_standard_kernel_drawscreen();
    }
 }

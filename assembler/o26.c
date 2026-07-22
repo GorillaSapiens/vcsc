@@ -25,13 +25,14 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
+#define O26_RTYPE_LAYOUT 0x04
 
 #define O26_MODE_ALIGN1 0x0000
 #define O26_MODE_OBJECT 0x1000
 #define O26_MODE_16BIT  0x0000
 #define O26_MODE_6502   0x0000
 #define O26_MODE_BREL   0x0000
-#define O26_VERSION     1
+#define O26_VERSION     2
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 #define O26_LAYOUT_INDEX_RANGE    0x02
@@ -46,8 +47,10 @@ typedef struct o26_reloc {
    unsigned char type;
    unsigned char segid;
    unsigned short undef_index;
+   unsigned short layout_index;
    unsigned char aux_low;
    int has_aux_low;
+   int has_layout_index;
    struct o26_reloc *next;
 } o26_reloc_t;
 
@@ -112,9 +115,11 @@ typedef struct reloc_expr_info {
    int is_reloc;
    int segid;
    unsigned short undef_index;
+   unsigned short layout_index;
    long value;
    long reloc_value;
    int part;
+   int has_layout_index;
 } reloc_expr_info_t;
 
 enum {
@@ -352,6 +357,24 @@ static const o26_segment_layout_t *find_layout_const(const o26_writer_t *wr, con
    return NULL;
 }
 
+//! @brief Return the serialized layout index for a named source segment.
+static int find_layout_index(const o26_writer_t *wr, const char *name, unsigned short *index_out)
+{
+   const o26_segment_layout_t *layout;
+   const char *want = name ? name : DEFAULT_SEGMENT_NAME;
+   unsigned int index = 0;
+
+   for (layout = wr->layouts; layout; layout = layout->next, ++index) {
+      if (!strcmp(layout->name, want)) {
+         if (index > 0xFFFFu)
+            return 0;
+         *index_out = (unsigned short)index;
+         return 1;
+      }
+   }
+   return 0;
+}
+
 //! @brief Add layout to assembler o26 object writer state, growing storage or preserving uniqueness as needed.
 static int register_layout(o26_writer_t *wr, const char *name)
 {
@@ -586,6 +609,7 @@ static int buf_write_word(o26_segment_buf_t *buf, long offset, unsigned short v)
 
 //! @brief Add reloc to assembler o26 object writer state, growing storage or preserving uniqueness as needed.
 static int add_reloc(o26_segment_buf_t *buf, long offset, unsigned char type, unsigned char segid, unsigned short undef_index,
+                     int has_layout_index, unsigned short layout_index,
                      int has_aux_low, unsigned char aux_low)
 {
    o26_reloc_t *r;
@@ -598,6 +622,8 @@ static int add_reloc(o26_segment_buf_t *buf, long offset, unsigned char type, un
    r->type = type;
    r->segid = segid;
    r->undef_index = undef_index;
+   r->has_layout_index = has_layout_index;
+   r->layout_index = layout_index;
    r->has_aux_low = has_aux_low;
    r->aux_low = aux_low;
 
@@ -755,6 +781,17 @@ static int analyze_expr(o26_writer_t *wr,
             out->value = packed_symbol_value(wr, sym);
             out->reloc_value = out->value;
             out->part = RELOC_PART_WORD;
+            if (out->is_reloc) {
+               if (!find_layout_index(wr,
+                     sym->segment_name ? sym->segment_name : DEFAULT_SEGMENT_NAME,
+                     &out->layout_index)) {
+                  writer_error(wr->ctx, stmt,
+                     "could not identify the o26 layout containing relocatable symbol %s",
+                     expr->u.ident);
+                  return 0;
+               }
+               out->has_layout_index = 1;
+            }
             return 1;
          }
 
@@ -924,6 +961,8 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
          return 0;
    }
    type |= extra_type;
+   if (info->has_layout_index)
+      type |= O26_RTYPE_LAYOUT;
 
    /* A one-byte relocation still needs both bytes of its expression value so
       the linker can preserve constant addends.  This applies to imported
@@ -931,7 +970,8 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
       not merely to the low byte of external. */
    if (width == 1) {
       type |= O26_RTYPE_AUX;
-      if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index, 1,
+      if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index,
+                     info->has_layout_index, info->layout_index, 1,
                      (unsigned char)((part == RELOC_PART_LOW) ? ((info->reloc_value >> 8) & 0xFF) : (info->reloc_value & 0xFF)))) {
          writer_error(wr->ctx, stmt, "out of memory recording relocation");
          return 0;
@@ -939,7 +979,8 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
       return 1;
    }
 
-   if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index, 0, 0)) {
+   if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index,
+                  info->has_layout_index, info->layout_index, 0, 0)) {
       writer_error(wr->ctx, stmt, "out of memory recording relocation");
       return 0;
    }
@@ -1398,6 +1439,8 @@ static int write_reloc_table(FILE *fp, const o26_reloc_t *r)
       if (!write_u8(fp, (unsigned char)delta) || !write_u8(fp, r->type) || !write_u8(fp, r->segid))
          return 0;
       if (r->segid == O26_SEG_UNDEF && !write_u16(fp, r->undef_index))
+         return 0;
+      if (r->has_layout_index && !write_u16(fp, r->layout_index))
          return 0;
       if (r->has_aux_low && !write_u8(fp, r->aux_low))
          return 0;

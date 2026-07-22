@@ -26,6 +26,7 @@
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
+#define O26_RTYPE_LAYOUT 0x04
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 #define O26_LAYOUT_INDEX_RANGE    0x02
@@ -102,8 +103,10 @@ typedef struct {
    uint8_t type;
    uint8_t segid;
    uint16_t undef_index;
+   uint16_t layout_index;
    uint8_t aux_low;
    int has_aux_low;
+   int has_layout_index;
 } reloc_t;
 
 typedef struct {

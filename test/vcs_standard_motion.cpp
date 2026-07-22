@@ -23,6 +23,10 @@ constexpr uint16_t kGrp1 = 0x001C;
 constexpr uint16_t kEnam0 = 0x001D;
 constexpr uint16_t kEnam1 = 0x001E;
 constexpr uint16_t kEnabl = 0x001F;
+constexpr uint16_t kResp0 = 0x0010;
+constexpr uint16_t kResbl = 0x0014;
+constexpr uint16_t kHmp0 = 0x0020;
+constexpr uint16_t kHmbl = 0x0024;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
@@ -38,6 +42,14 @@ struct WriteEvent { uint16_t address; uint8_t value; };
 struct ObjectLines {
    std::array<std::vector<uint64_t>, ObjectCount> lines;
 };
+struct PositionWrites {
+   std::array<int, ObjectCount> resp_cycle;
+   std::array<int, ObjectCount> hmp_value;
+   PositionWrites() {
+      resp_cycle.fill(-1);
+      hmp_value.fill(-1);
+   }
+};
 
 uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
@@ -51,6 +63,8 @@ uint64_t timer_start = 0;
 uint16_t timer_divisor = 1;
 uint8_t timer_loaded = 0;
 std::map<int, ObjectLines> active_lines;
+std::map<int, PositionWrites> position_writes;
+std::map<int, std::array<uint8_t, ObjectCount>> frame_x;
 
 uint8_t object_x_zp = 0;
 std::array<uint8_t, ObjectCount> y_zp{};
@@ -89,25 +103,25 @@ uint8_t parse_zp(const char *text) {
    return static_cast<uint8_t>(value);
 }
 
-void move_expected(Object object, uint8_t direction) {
+void move_expected(Object object, uint8_t direction, uint8_t low, uint8_t high) {
    uint8_t &x = expected_x[object];
    if ((expected_directions & direction) != 0) {
       ++x;
-      if (x == 148) expected_directions ^= direction;
+      if (x == high) expected_directions ^= direction;
    }
    else {
       --x;
-      if (x == 8) expected_directions ^= direction;
+      if (x == low) expected_directions ^= direction;
    }
 }
 
 void advance_expected_motion() {
    ++expected_motion_frame;
-   move_expected(P0, 0x01);
-   if ((expected_motion_frame & 1) == 0) move_expected(P1, 0x02);
-   if ((expected_motion_frame & 3) == 0) move_expected(M0, 0x04);
-   if ((expected_motion_frame & 3) == 2) move_expected(M1, 0x08);
-   if ((expected_motion_frame & 7) == 3) move_expected(BL, 0x10);
+   move_expected(P0, 0x01, 12, 144);
+   move_expected(P1, 0x02, 20, 148);
+   move_expected(M0, 0x04, 24, 136);
+   move_expected(M1, 0x08, 8, 128);
+   move_expected(BL, 0x10, 32, 120);
 }
 
 void verify_frame_state() {
@@ -136,7 +150,42 @@ void verify_frame_state() {
          frame, actual_motion_frame, expected_motion_frame);
       std::exit(1);
    }
+   frame_x[frame] = expected_x;
    advance_expected_motion();
+}
+
+uint8_t expected_hmp(uint8_t x) {
+   static constexpr std::array<uint8_t, 16> table{{
+      0x80, 0x70, 0x60, 0x50, 0x40, 0x30, 0x20, 0x10,
+      0x00, 0xF0, 0xE0, 0xD0, 0xC0, 0xB0, 0xA0, 0x90
+   }};
+   int remainder = x;
+   do {
+      remainder -= 15;
+   } while (remainder >= 0);
+   const int index = 16 + remainder;
+   if (index < 0 || index >= static_cast<int>(table.size()))
+      fail("horizontal remainder fell outside repostable");
+   return table[static_cast<size_t>(index)];
+}
+
+int expected_resp_cycle(uint8_t x) {
+   return 18 + 5 * (static_cast<int>(x) / 15 + 1);
+}
+
+void record_position_write(uint16_t address, uint8_t value) {
+   if (frame < 0 || frame >= kFramesToCheck) return;
+   PositionWrites &position = position_writes[frame];
+   if (address >= kResp0 && address <= kResbl) {
+      const size_t object = static_cast<size_t>(address - kResp0);
+      if (position.resp_cycle[object] < 0)
+         position.resp_cycle[object] = static_cast<int>(virtual_cycles % kCyclesPerScanline);
+   }
+   else if (address >= kHmp0 && address <= kHmbl) {
+      const size_t object = static_cast<size_t>(address - kHmp0);
+      if (position.hmp_value[object] < 0)
+         position.hmp_value[object] = value;
+   }
 }
 
 void record_active_write(uint16_t address, uint8_t value) {
@@ -180,6 +229,7 @@ void apply_writes() {
                          event.address == kTim64t ? 64 : 1024;
       }
       else {
+         record_position_write(event.address, event.value);
          record_active_write(event.address, event.value);
       }
    }
@@ -201,6 +251,29 @@ void expect_lines(int raster_frame,
       for (uint64_t line : expected) std::fprintf(stderr, " %llu", static_cast<unsigned long long>(line));
       std::fputc('\n', stderr);
       std::exit(1);
+   }
+}
+
+void verify_horizontal_positioning() {
+   for (int checked = 0; checked < kFramesToCheck; ++checked) {
+      const auto xs = frame_x.find(checked);
+      const auto writes_found = position_writes.find(checked);
+      if (xs == frame_x.end() || writes_found == position_writes.end())
+         fail("missing horizontal-position frame");
+      for (size_t object = 0; object < ObjectCount; ++object) {
+         const uint8_t x = xs->second[object];
+         const int want_resp = expected_resp_cycle(x);
+         const int want_hmp = expected_hmp(x);
+         const int got_resp = writes_found->second.resp_cycle[object];
+         const int got_hmp = writes_found->second.hmp_value[object];
+         if (got_resp != want_resp || got_hmp != want_hmp) {
+            std::fprintf(stderr,
+               "vcs_standard_motion: frame %d object %zu X=%u RESP cycle=%d expected=%d HMP=%02X expected=%02X\n",
+               checked, object, x, got_resp, want_resp,
+               got_hmp < 0 ? 0xff : got_hmp, want_hmp);
+            std::exit(1);
+         }
+      }
    }
 }
 } // namespace
@@ -239,6 +312,8 @@ int main(int argc, char **argv) {
    }
    if (frame < kFramesToCheck) fail("instruction limit reached before motion check completed");
 
+   verify_horizontal_positioning();
+
    const std::vector<uint64_t> p0{56, 58, 60, 62, 64, 66, 68, 70};
    const std::vector<uint64_t> p1{178, 180, 182, 184, 186, 188, 190, 192};
    const std::vector<uint64_t> m0{95, 97, 99, 101, 103, 105};
@@ -253,6 +328,6 @@ int main(int argc, char **argv) {
    }
 
    std::printf(
-      "vcs_standard_motion ok: 20 X/Y states and seven exact object rasters locked\n");
+      "vcs_standard_motion ok: 20 smooth X/HMOVE states and seven exact object rasters locked\n");
    return 0;
 }

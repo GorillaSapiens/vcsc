@@ -66,7 +66,7 @@ $out eq '' && $err eq '' or die "motion harness build wrote output\n$out$err";
 my @args=map { sprintf('0x%02x',$_) } @zp;
 ($rc,$sig,$out,$err)=capture($exe,$bin,@args);
 $rc==0 && !$sig or die "motion harness failed\n$out$err";
-$out eq "vcs_standard_motion ok: 20 X/Y states and seven exact object rasters locked\n"
+$out eq "vcs_standard_motion ok: 20 smooth X/HMOVE states and seven exact object rasters locked\n"
    or die "unexpected motion harness output: $out";
 $err eq '' or die "motion harness stderr: $err";
 print "vcs_standard_motion ok\n";

@@ -131,6 +131,10 @@ static int parse_reloc_table_old(reader_t *r, reloc_t **out, size_t *count_out)
       items[count].segid = rd_u8(r);
       if (items[count].segid == O26_SEG_UNDEF)
          items[count].undef_index = rd_u16(r);
+      if (items[count].type & O26_RTYPE_LAYOUT) {
+         items[count].layout_index = rd_u16(r);
+         items[count].has_layout_index = 1;
+      }
       if (items[count].type & O26_RTYPE_AUX) {
          items[count].aux_low = rd_u8(r);
          items[count].has_aux_low = 1;
@@ -518,7 +522,14 @@ static void parse_o26_object_from_memory(object_file_t *obj, const uint8_t *data
       exit(1);
    }
 
-   (void)rd_u8(&r);
+   {
+      uint8_t version = rd_u8(&r);
+      if (version < 1 || version > 2) {
+         fprintf(stderr, "vcsc-ld: unsupported o26 version %u in '%s'\n",
+                 (unsigned)version, label);
+         exit(1);
+      }
+   }
    obj->mode = rd_u16(&r);
    obj->tbase = rd_u16(&r);
    obj->text.length = rd_u16(&r);

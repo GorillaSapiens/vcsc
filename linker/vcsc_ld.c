@@ -1512,6 +1512,30 @@ static uint16_t object_runtime_addr_for_value(const object_file_t *obj, uint8_t 
    return (uint16_t)(base + (packed_value - lay->packed_base));
 }
 
+//! @brief Resolve a packed affine expression against its exact defining layout.
+static uint16_t object_runtime_addr_for_layout_value(const object_file_t *obj,
+   uint16_t layout_index, uint8_t segid, uint16_t packed_value)
+{
+   const object_layout_t *lay;
+   uint16_t base;
+
+   if (layout_index >= obj->layout_count) {
+      fprintf(stderr, "vcsc-ld: relocation layout index %u is out of range in %s\n",
+              (unsigned)layout_index, obj->origin);
+      exit(1);
+   }
+   lay = &obj->layouts[layout_index];
+   if (lay->segid != segid) {
+      fprintf(stderr,
+              "vcsc-ld: relocation layout '%s' has segment %u, expected %u in %s\n",
+              lay->name, (unsigned)lay->segid, (unsigned)segid, obj->origin);
+      exit(1);
+   }
+
+   base = (segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
+   return (uint16_t)((int)base + (int)packed_value - (int)lay->packed_base);
+}
+
 #define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
 
 typedef struct activation_piece_t {
@@ -1936,6 +1960,9 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
             exit(1);
          }
          target = (uint16_t)(lookup_global_addr(layout, obj->undefs[r->undef_index]) + current_word);
+      } else if (r->has_layout_index) {
+         target = object_runtime_addr_for_layout_value(obj, r->layout_index,
+                                                       r->segid, current_word);
       } else {
          target = object_runtime_addr_for_value(obj, r->segid, current_word);
       }

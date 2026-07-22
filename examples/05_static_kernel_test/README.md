@@ -7,11 +7,10 @@
 
 # Static standard-kernel test
 
-`05_static_kernel_test` is the first complete cartridge built from the
-normalized no-bankswitch, no-Superchip standard kernel. It is deliberately not
-a game yet. A fixed Breakout-style inspection scene exercises the asymmetric
-32x12 playfield, both players, both missiles, the ball, and the six-digit score
-without any changing state.
+`05_static_kernel_test` is the fixed visual oracle for the normalized
+no-bankswitch, no-Superchip standard kernel. A Breakout-style inspection scene
+exercises the asymmetric 32x12 playfield, both players, both missiles, the
+ball, and the six-digit score without changing application state.
 
 The application supplies the immutable 48-byte playfield in cartridge ROM and
 includes the source-level standard-kernel state contract. `CTRLPF` is set to
@@ -50,10 +49,17 @@ the skip stubs on the same page so taken branches cannot add a conditional
 page-cross cycle. The star is Stella's normal noncanonical-timing marker for
 this retained kernel profile; the line count and refresh rate are stable.
 
+`reference_stella_7.0.png` and `REFERENCE.md` define the reviewed raster by an
+exact SHA-256 and inclusive bounding boxes for every object, the score, and two
+playfield bars. The application reapplies volatile TIA color/geometry registers
+before every draw, so the reference is stable after the first frame rather than
+accidentally depending on power-up state.
+
 ## Placement and object coverage
 
-The VCSC `page const` playfield declaration carries hard page containment into the object file; no companion assembly or manual offset is required.
-display object visible: a double-width white paddle (P0), an upright white
+The VCSC `page const` playfield declaration carries hard page containment into
+the object file; no companion assembly or manual offset is required. Every
+display object is visible: a double-width white paddle (P0), an upright white
 alien (P1), separate white missiles M0 and M1, and a gold ball.
 `VCS_STANDARD_SPRITE_GLYPH` accepts player art top-to-bottom and reverses
 storage for the kernel's descending row index.
