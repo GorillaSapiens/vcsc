@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_171834.tar.gz
+    vcsc.20260721_183830.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -989,16 +989,25 @@ Assembler-local `@labels` are never treated as source identifiers. Inline asm
 still does not track register or flag clobbers.
 
 Stop-the-line timing/audio repair
----------------------------------
-Before task 20e, examples 02, 03, and 05 received a dedicated emulator-backed
-regression pass. Example 02 now begins silent and starts its first note during
+----------------------------------
+Before task 20e, examples 02, 03, and 05 received dedicated emulator-backed
+regression passes. Example 02 now begins silent and starts its first note during
 the first synchronized overscan, writing control and frequency before volume.
-The shared six-glyph display flushes both delayed player-graphics pipelines with
-`GRP0`, `GRP1`, `GRP0` before and after drawing. Example 05 uses reflected
-playfield mode and a page-stable standard-kernel hot loop whose repeated PF
-stores occur at cycles 24, 31, 38, and 45. Stella verifies stable 262-line NTSC
-output, correct score rows, and a centered untorn playfield. Task 20e remains
-the next queued action.
+
+The shared six-glyph display anchors setup to a fresh scanline and flushes both
+delayed player-graphics pipelines with `GRP0`, `GRP1`, `GRP0`. More importantly,
+the stock 4K profiles now page-align ordinary RODATA: every indexed font read in
+the visible kernel must remain on one page or a conditional page-cross cycle can
+corrupt the top score row, notably when the rightmost digit is `1`.
+
+Example 05 uses reflected playfield mode and a page-stable standard-kernel hot
+loop whose repeated PF stores occur at cycles 24, 31, 38, and 45. The static
+scene visibly exercises P0, P1, M0, M1, and BL; player art is stored through the
+`VCS_STANDARD_SPRITE_GLYPH` reversal helper. Immutable timing-sensitive
+playfields use `.align 256, $54` in a dedicated companion assembly segment rather
+than dummy source arrays. Stella verifies stable 262-line NTSC output, correct
+score rows, an upright target, a visible paddle/projectiles, and a centered
+untorn playfield. Task 20e remains the next queued action.
 
 Open implementation questions
 -----------------------------
@@ -2627,3 +2636,30 @@ Before returning another modified archive:
 * Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
   installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
   20e remains next, now unblocked by the repaired examples and timing kernels.
+
+
+2026-07-21 20:24:32 PDT, finish score-page and static-object repairs
+------------------------------------------------------------------------
+* Reproduce the remaining rightmost-`1` six-glyph glitch and trace it to a
+  conditional `(font),Y` page crossing inside the visible kernel. Page-align
+  RODATA in both stock VCS linker profiles, require the 80-byte font to remain
+  within one page, and anchor six-glyph setup to a fresh scanline before the
+  delayed-latch flush. Add map/code/timing regressions for the contract.
+* Extend `.align` to accept `.align boundary, offset`, meaning the next emitted
+  address satisfies `address % boundary == offset`. Cover direct and o26 output,
+  diagnostics, and documentation.
+* Remove the 97-byte source padding arrays from example 05 and the ROM contract
+  fixture. Put each immutable 48-byte playfield in a dedicated assembly source
+  using `.align 256, $54`, and extend staged installation builds accordingly.
+* Make every standard-kernel object unmistakably visible in example 05. Use
+  reflected playfield plus an eight-clock ball, wider missiles, valid vertical
+  coordinates, a double-width paddle, separated projectile positions, and the
+  public `VCS_STANDARD_SPRITE_GLYPH` top-to-bottom reversal helper for player
+  art. Add a CPU-level object-emission regression proving nonzero P0/P1 graphics
+  and enabled M0/M1/BL output.
+* Verify the rightmost-`1` probe and static scene in Stella 7.0. The repaired
+  static frame shows the paddle, upright alien, both missiles, ball, reflected
+  untorn playfield, and score `123456`; frame timing remains 262-line NTSC.
+* Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
+  20e remains next and was not started.

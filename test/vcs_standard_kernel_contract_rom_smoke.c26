@@ -1,26 +1,9 @@
 // vcsc-cc1 -I ../libraries/vcs
 include "vcs.c26"
 
-// Test-only padding deliberately places the ROM-backed playfield at a
-// timing-safe low byte matching the completed 4K standard-kernel profile.
-const uint8_t vcs_standard_rom_alignment_pad[97] := { 0 };
-
-// Fixed playfield selected by the application. It occupies cartridge ROM and
-// exports the same direct-addressed symbol as the mutable RAM form.
-const uint8_t vcs_standard_playfield[48] := {
-   0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX,
-   0bX......X, 0b........, 0b........, 0bX......X,
-   0bX.XXXX.X, 0bXXXXXXXX, 0bXXXXXXXX, 0bX.XXXX.X,
-   0bX.X..X.X, 0bX......X, 0bX......X, 0bX.X..X.X,
-   0bX.X..X.X, 0bX.XXXX.X, 0bX.XXXX.X, 0bX.X..X.X,
-   0bX.X..X.X, 0bX.X..X.X, 0bX.X..X.X, 0bX.X..X.X,
-   0bX.XXXX.X, 0bX.X..X.X, 0bX.X..X.X, 0bX.XXXX.X,
-   0bX......X, 0bX.X..X.X, 0bX.X..X.X, 0bX......X,
-   0bXXXXXXXX, 0bX.XXXX.X, 0bX.XXXX.X, 0bXXXXXXXX,
-   0b........, 0bX......X, 0bX......X, 0b........,
-   0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX, 0bXXXXXXXX,
-   0b........, 0b........, 0b........, 0b........
-};
+// Immutable playfield is supplied by
+// vcs_standard_kernel_contract_rom_playfield.s using real offset alignment.
+extern const uint8_t vcs_standard_playfield[48];
 
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 
@@ -46,6 +29,7 @@ int16_t main(void) {
    vcs_standard_player0_height := 7;
    vcs_standard_player1_height := 7;
    vcs_standard_score := 123456;
+   COLUBK := vcs_standard_playfield[0];
    vcs_standard_kernel_drawscreen();
    return 0;
 }

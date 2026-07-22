@@ -542,15 +542,15 @@ static int eval_or_report(asm_context_t *ctx,
    return 1;
 }
 
-//! @brief Compute zero-byte padding needed to align an address to a positive boundary.
-static long align_padding_for_address(long address, long boundary)
+//! @brief Compute padding needed to make address congruent to offset modulo boundary.
+static long align_padding_for_address(long address, long boundary, long offset)
 {
    long mod;
 
    if (boundary <= 0)
       return 0;
 
-   mod = address % boundary;
+   mod = (address - offset) % boundary;
    if (mod < 0)
       mod += boundary;
 
@@ -1366,23 +1366,31 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
             }
 
             if (!strcmp(stmt->u.dir->name, ".align")) {
+               const expr_list_node_t *args = stmt->u.dir->exprs;
                long boundary;
+               long offset = 0;
                long count;
 
-               if (!stmt->u.dir->exprs || stmt->u.dir->exprs->next) {
-                  asm_error(ctx, stmt, ".align expects exactly one expression");
+               if (!args || (args->next && args->next->next)) {
+                  asm_error(ctx, stmt, ".align expects one or two expressions");
                   break;
                }
 
-               if (eval_or_report(ctx, stmt->u.dir->exprs->expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &boundary, stmt))
+               if (eval_or_report(ctx, args->expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &boundary, stmt))
+                  break;
+               if (args->next && eval_or_report(ctx, args->next->expr, &ctx->symbols, stmt->scope, stmt->file, pc_logical, &offset, stmt))
                   break;
 
                if (boundary <= 0) {
                   asm_error(ctx, stmt, ".align requires a positive boundary");
                   break;
                }
+               if (offset < 0 || offset >= boundary) {
+                  asm_error(ctx, stmt, ".align offset must be from zero through boundary minus one");
+                  break;
+               }
 
-               count = align_padding_for_address(pc_logical, boundary);
+               count = align_padding_for_address(pc_logical, boundary, offset);
                segment_advance(ctx, seg, stmt, count);
                break;
             }
@@ -1743,24 +1751,32 @@ static int directive_emit_pass2(asm_context_t *ctx,
    }
 
    if (!strcmp(dir->name, ".align")) {
+      const expr_list_node_t *args = dir->exprs;
       long boundary;
+      long offset = 0;
       long count;
       long i;
 
-      if (!dir->exprs || dir->exprs->next) {
-         asm_error(ctx, stmt, ".align expects exactly one expression");
+      if (!args || (args->next && args->next->next)) {
+         asm_error(ctx, stmt, ".align expects one or two expressions");
          return -1;
       }
 
-      if (eval_or_report(ctx, dir->exprs->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &boundary, stmt))
+      if (eval_or_report(ctx, args->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &boundary, stmt))
+         return -1;
+      if (args->next && eval_or_report(ctx, args->next->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &offset, stmt))
          return -1;
 
       if (boundary <= 0) {
          asm_error(ctx, stmt, ".align requires a positive boundary");
          return -1;
       }
+      if (offset < 0 || offset >= boundary) {
+         asm_error(ctx, stmt, ".align offset must be from zero through boundary minus one");
+         return -1;
+      }
 
-      count = align_padding_for_address(logical_pc, boundary);
+      count = align_padding_for_address(logical_pc, boundary, offset);
       for (i = 0; i < count; i++) {
          if (!emit_byte(ctx, pc, 0x00, stmt))
             return -1;

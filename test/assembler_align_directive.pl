@@ -79,7 +79,7 @@ sub parse_ihex {
 }
 
 my ($exit, undef, $err, $hex, $cmd) = run_asm('align_good', <<'ASM');
-.segmentdef "CODE", $8000, $0100
+.segmentdef "CODE", $8000, $0200
 .segment "CODE"
 .byte $AA
 .align 4
@@ -88,6 +88,10 @@ middle:
 .word middle
 .align 1
 .byte $CC
+.align 16, 5
+offset_label:
+.byte $DD
+.word offset_label
 ASM
 
 if ($exit != 0) {
@@ -104,6 +108,12 @@ my @expect = (
    [ 0x8005, 0x04 ],
    [ 0x8006, 0x80 ],
    [ 0x8007, 0xCC ],
+   [ 0x8008, 0x00 ], [ 0x8009, 0x00 ], [ 0x800A, 0x00 ],
+   [ 0x800B, 0x00 ], [ 0x800C, 0x00 ], [ 0x800D, 0x00 ],
+   [ 0x800E, 0x00 ], [ 0x800F, 0x00 ], [ 0x8010, 0x00 ],
+   [ 0x8011, 0x00 ], [ 0x8012, 0x00 ], [ 0x8013, 0x00 ],
+   [ 0x8014, 0x00 ],
+   [ 0x8015, 0xDD ], [ 0x8016, 0x15 ], [ 0x8017, 0x80 ],
 );
 
 for my $pair (@expect) {
@@ -115,7 +125,9 @@ for my $pair (@expect) {
 
 my @bad = (
    [ align_zero => ".align 0\n", '.align requires a positive boundary' ],
-   [ align_extra_arg => ".align 4, 0\n", '.align expects exactly one expression' ],
+   [ align_extra_arg => ".align 4, 0, 1\n", '.align expects one or two expressions' ],
+   [ align_negative_offset => ".align 4, -1\n", '.align offset must be from zero through boundary minus one' ],
+   [ align_large_offset => ".align 4, 4\n", '.align offset must be from zero through boundary minus one' ],
 );
 
 for my $case (@bad) {

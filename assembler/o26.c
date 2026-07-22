@@ -257,15 +257,15 @@ static int stmt_emits_load_image_bytes(const stmt_t *stmt)
    }
 }
 
-//! @brief Compute zero-byte padding needed to align an address to a positive boundary.
-static long align_padding_for_address(long address, long boundary)
+//! @brief Compute padding needed to make address congruent to offset modulo boundary.
+static long align_padding_for_address(long address, long boundary, long offset)
 {
    long mod;
 
    if (boundary <= 0)
       return 0;
 
-   mod = address % boundary;
+   mod = (address - offset) % boundary;
    if (mod < 0)
       mod += boundary;
 
@@ -1120,19 +1120,29 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
          }
 
          if (!strcmp(stmt->u.dir->name, ".align")) {
+            const expr_list_node_t *args = stmt->u.dir->exprs;
             long boundary;
+            long offset = 0;
             long count;
             const o26_segment_layout_t *layout;
 
-            if (!stmt->u.dir->exprs || stmt->u.dir->exprs->next) {
-               writer_error(wr->ctx, stmt, ".align expects exactly one expression");
+            if (!args || (args->next && args->next->next)) {
+               writer_error(wr->ctx, stmt, ".align expects one or two expressions");
                return 0;
             }
-            if (expr_eval(stmt->u.dir->exprs->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &boundary) != EXPR_EVAL_OK || boundary <= 0) {
+            if (expr_eval(args->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &boundary) != EXPR_EVAL_OK || boundary <= 0) {
                writer_error(wr->ctx, stmt, "invalid .align boundary in o26 output");
                return 0;
             }
-            count = align_padding_for_address(stmt->address, boundary);
+            if (args->next && expr_eval(args->next->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &offset) != EXPR_EVAL_OK) {
+               writer_error(wr->ctx, stmt, "invalid .align offset in o26 output");
+               return 0;
+            }
+            if (offset < 0 || offset >= boundary) {
+               writer_error(wr->ctx, stmt, ".align offset must be from zero through boundary minus one");
+               return 0;
+            }
+            count = align_padding_for_address(stmt->address, boundary, offset);
             layout = find_layout_const(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
             if (segid == O26_SEG_ZP && (!layout || layout->image_segid != O26_SEG_DATA))
                return 1;

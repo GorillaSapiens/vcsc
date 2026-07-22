@@ -71,8 +71,10 @@ clear pixel and `X` for a set pixel. Rows are listed top-to-bottom; a small
 compile-time alias reverses each eight-row group because this score kernel reads
 row 7 down through row 0.
 
-Each glyph pointer includes low-byte carry into the font address high byte, so a
-font may land anywhere in cartridge ROM and does not need page alignment.
+Each glyph pointer includes low-byte carry into the font address high byte, but
+the visible kernel still requires all 80 font bytes to remain within one page;
+an indexed page crossing adds a cycle. The stock 4K profile page-aligns RODATA,
+and the font include deliberately precedes every other constant table.
 
 The frame has stable 262-line NTSC timing. Stella 7.0 was used to verify the
 actual TIA output, including correct digit order, centering, blue background,

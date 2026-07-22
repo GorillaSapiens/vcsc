@@ -29,6 +29,10 @@ alias VCS_STANDARD_MODULE_RAM_BYTES 38
 alias VCS_STANDARD_HIDDEN_STACK_BYTES 2
 alias VCS_STANDARD_SCORE_FONT_BYTES 88
 
+// The retained kernel reads active sprite rows from highest index to zero.
+// Applications may write art top-to-bottom through this storage-order helper.
+alias VCS_STANDARD_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+
 // The application-provided storage symbol. It is intentionally an alias rather
 // than a declaration so the application chooses const ROM or mutable RAM type.
 alias VCS_STANDARD_PLAYFIELD vcs_standard_playfield

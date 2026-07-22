@@ -38,17 +38,18 @@ void six_glyph_setup(void) {
 }
 
 void six_glyph_draw(void) {
+   // Anchor setup to a fresh scanline, then flush both current and delayed
+   // player latches immediately.  Clearing before color/VDEL setup keeps stale
+   // glyph data from reaching the first player copies on this otherwise blank
+   // scanline.
+   WSYNC := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
    COLUP0 := 0x0e;
    COLUP1 := 0x0e;
    VDELP0 := 1;
    VDELP1 := 1;
-
-   // With delayed player graphics enabled, clearing only GRP0/GRP1 leaves one
-   // stale delayed latch behind. The third GRP0 write flushes both pipelines so
-   // a score update cannot repeat the first row from the previous frame.
-   GRP0 := 0;
-   GRP1 := 0;
-   GRP0 := 0;
    six_glyph_row := 7;
 
    // Canonical documented-opcode 48-pixel pipeline. Digit 1 is preloaded

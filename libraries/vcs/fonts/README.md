@@ -19,6 +19,10 @@ Each family has two modules:
 
 Include exactly one font module in a translation unit. Every module defines the
 common table symbol `score_font`, which is the interface expected by score kernels.
+The stock 4K linker profiles page-align RODATA, and score examples include the
+font before other constant data, so the complete 80-byte decimal table remains
+within one page. This is a timing requirement: `(score_font + digit * 8),Y`
+gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
 
 | Family | Decimal module | Hexadecimal module | Notes |
 |---|---|---|---|

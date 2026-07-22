@@ -50,13 +50,15 @@ sub timing_safe_playfield {
 }
 sub build_smoke {
    my ($driver,$vcs,$cfg,$src,$bin,$map)=@_;
+   my @sources=ref($src) eq 'ARRAY' ? @$src : ($src);
+   my $label=join(',',@sources);
    my ($exit,$sig,$out,$err)=run_capture(
-      $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$src,'-o',$bin);
-   die "contract smoke build $src exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+      $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,@sources,'-o',$bin);
+   die "contract smoke build $label exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
       if $exit || $sig;
-   die "contract smoke build $src wrote stdout:\n$out" if $out ne '';
-   die "contract smoke build $src wrote stderr:\n$err" if $err ne '';
-   -s $bin == 4096 or die "contract smoke cartridge $src is not 4096 bytes\n";
+   die "contract smoke build $label wrote stdout:\n$out" if $out ne '';
+   die "contract smoke build $label wrote stderr:\n$err" if $err ne '';
+   -s $bin == 4096 or die "contract smoke cartridge $label is not 4096 bytes\n";
    return read_file($map);
 }
 
@@ -124,19 +126,24 @@ require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\
 
 my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.c26');
 my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.c26');
+my $rom_playfield=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_playfield.s');
 my $ram_src_text=read_file($ram_src);
 my $rom_src_text=read_file($rom_src);
 require_re($ram_src_text,qr/^uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
    'RAM smoke does not provide a mutable 48-byte playfield');
-require_re($rom_src_text,qr/^const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*:=/m,
-   'ROM smoke does not provide a constant 48-byte playfield');
+require_re($rom_src_text,qr/^extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
+   'ROM smoke does not import a constant 48-byte playfield');
+my $rom_playfield_text=read_file($rom_playfield);
+require_re($rom_playfield_text,qr/^\s*\.align\s+256\s*,\s*\$54\s*$/m,
+   'ROM smoke playfield does not use offset alignment');
+$rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned\n";
 
 my $ram_map=build_smoke(
    $driver,$vcs,$cfg,$ram_src,
    File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'),
    File::Spec->catfile($tmp,'standard_kernel_contract_ram.map'));
 my $rom_map=build_smoke(
-   $driver,$vcs,$cfg,$rom_src,
+   $driver,$vcs,$cfg,[$rom_playfield,$rom_src],
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.map'));
 

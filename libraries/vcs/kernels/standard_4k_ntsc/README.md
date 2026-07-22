@@ -290,3 +290,13 @@ The retained startup, footer vectors, generated application fragments,
 playfield helper libraries, vertical-reflect source, status-bar source,
 multisprite source, and bank/Superchip manifests are excluded. The retained
 source tree remains untouched; adapted files live beside this contract.
+
+### Application sprite and projectile notes
+
+The kernel supports P0, P1, M0, M1, and BL simultaneously. Player rows are
+fetched from highest index down to zero; use `VCS_STANDARD_SPRITE_GLYPH(...)`
+when writing eight-row art top-to-bottom. Player graphics must remain within
+one 256-byte page because a page-crossing indirect load changes visible-kernel
+timing. The standard profile page-aligns RODATA, and the static example keeps
+its two eight-byte player tables first in that segment. Missile width comes
+from the upper NUSIZ bits, while player copy/size comes from the lower bits.

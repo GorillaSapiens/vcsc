@@ -4,52 +4,35 @@
 
 include "vcs.c26"
 
-// Profile-specific ROM padding places the immutable playfield in the retained
-// kernel's timing-safe low-byte window ($54..$D0).
-const uint8_t vcs_standard_playfield_alignment_pad[97] := {
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-// Twelve 32-column rows, four kernel-native bytes per row. The upper rows form
-// a coarse brick field, the middle is open, and the lower rows provide a floor
-// and timing-visible asymmetric markers.
-const uint8_t vcs_standard_playfield[48] := {
-   0xff, 0xff, 0xff, 0xff,
-   0xaa, 0x55, 0xaa, 0x55,
-   0x55, 0xaa, 0x55, 0xaa,
-   0xcc, 0x33, 0xcc, 0x33,
-   0x33, 0xcc, 0x33, 0xcc,
-   0x00, 0x00, 0x00, 0x00,
-   0x80, 0x00, 0x00, 0x01,
-   0x80, 0x00, 0x00, 0x01,
-   0x80, 0x00, 0x00, 0x01,
-   0x00, 0x00, 0x00, 0x00,
-   0xff, 0xff, 0xff, 0xff,
-   0x81, 0x00, 0x00, 0x81
-};
+// Immutable playfield exported by static_kernel_playfield.s.
+extern const uint8_t vcs_standard_playfield[48];
 
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 
 const uint8_t paddle_graphics[8] := {
-   0b..XXXX..,
-   0b.XXXXXX.,
-   0bXXXXXXXX,
-   0bXXX..XXX,
-   0bXXX..XXX,
-   0bXXXXXXXX,
-   0b.XXXXXX.,
-   0b..XXXX..
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........
+   )
 };
 
 const uint8_t target_graphics[8] := {
-   0b..XXXX..,
-   0b.XXXXXX.,
-   0bXX.XX.XX,
-   0bXXXXXXXX,
-   0b.X.XX.X.,
-   0bX.X..X.X,
-   0bX......X,
-   0b.X....X.
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.X.XX.X.,
+      0bX.X..X.X,
+      0bX......X,
+      0b.X....X.
+   )
 };
 
 void initialize_static_scene(void) {
@@ -57,29 +40,29 @@ void initialize_static_scene(void) {
    COLUPF := 0x2e;
    COLUP0 := 0x0e;
    COLUP1 := 0x4e;
-   CTRLPF := 1;
-   NUSIZ0 := 0;
-   NUSIZ1 := 0;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x25;
+   NUSIZ1 := 0x20;
 
    VCS_STANDARD_PLAYER0_X := 76;
    VCS_STANDARD_PLAYER1_X := 108;
-   VCS_STANDARD_MISSILE0_X := 32;
+   VCS_STANDARD_MISSILE0_X := 64;
    VCS_STANDARD_MISSILE1_X := 132;
    VCS_STANDARD_BALL_X := 84;
 
-   vcs_standard_player0_y := 180;
-   vcs_standard_player1_y := 68;
-   vcs_standard_missile0_y := 120;
-   vcs_standard_missile1_y := 148;
-   vcs_standard_ball_y := 106;
+   vcs_standard_player0_y := 78;
+   vcs_standard_player1_y := 42;
+   vcs_standard_missile0_y := 30;
+   vcs_standard_missile1_y := 60;
+   vcs_standard_ball_y := 45;
 
    vcs_standard_player0_graphics := paddle_graphics;
    vcs_standard_player1_graphics := target_graphics;
    vcs_standard_player0_height := 7;
    vcs_standard_player1_height := 7;
-   vcs_standard_missile0_height := 11;
-   vcs_standard_missile1_height := 15;
-   vcs_standard_ball_height := 2;
+   vcs_standard_missile0_height := 5;
+   vcs_standard_missile1_height := 7;
+   vcs_standard_ball_height := 3;
 
    vcs_standard_score := 123456;
    vcs_standard_score_color := 0x0e;

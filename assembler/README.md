@@ -561,18 +561,23 @@ The conditional directive family is:
 
 ### Alignment directive
 
-`.align expr` advances the current segment address to the next multiple of `expr` and emits zero padding for the skipped bytes.  The expression must evaluate to a positive value.  `.align 1` is accepted and emits no padding.
+`.align boundary` advances the current segment address to the next multiple of `boundary` and emits zero padding for the skipped bytes. `.align boundary, offset` instead advances until `address % boundary == offset`; `offset` must be from zero through `boundary - 1`. The boundary must be positive, and `.align 1` is accepted as a no-op.
 
 ```asm
-.segmentdef "CODE", $8000, $0100
+.segmentdef "CODE", $8000, $0200
 .segment "CODE"
 .byte $AA
 .align 4
 next:
 .byte $BB        ; next is $8004
+
+; Place the next object at low byte $54 without a dummy source array.
+.align 256, $54
+timing_table:
+.byte $CC        ; timing_table is $8054
 ```
 
-In o26 object output, `.align` pads within the current packed segment.  Final absolute alignment depends on where the linker places that segment.
+In o26 object output, `.align` pads within the current packed segment. Final absolute alignment depends on where the linker places that segment; use linker segment alignment too when the segment base itself has an absolute alignment contract.
 
 ### Relocatable origin directives
 

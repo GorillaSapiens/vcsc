@@ -66,6 +66,7 @@ my $ex=File::Spec->catdir($repo,'examples','03_six_digit_score');
 my $src=File::Spec->catfile($ex,'six_digit_score.c26');
 my $font=File::Spec->catfile($vcs,'fonts','default_decimal.c26');
 my $shared=File::Spec->catfile($vcs,'six_glyph_display.c26');
+my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');
 my $font_symbol='score_font';
 my $bin=File::Spec->catfile($tmp,'six_digit_score.bin');
 my $map=File::Spec->catfile($tmp,'six_digit_score.map');
@@ -101,6 +102,12 @@ my $font_addr;
 if ($map_text =~ /\$([Ff][0-9A-Fa-f]{3})\s+\Q$font_symbol\E/) { $font_addr=hex($1); }
 elsif ($map_text =~ /\Q$font_symbol\E\s+\$([Ff][0-9A-Fa-f]{3})/) { $font_addr=hex($1); }
 else { die "score map is missing $font_symbol\n"; }
+($font_addr & 0xff)==0
+   or die sprintf("score font starts at %04X instead of a page boundary\n",$font_addr);
+(($font_addr + 79) >> 8)==($font_addr >> 8)
+   or die "score font crosses a page boundary\n";
+require_re(read_file($cfg),qr/^\s*RODATA:.*?align\s*=\s*\$0100\s*;/m,
+           'stock 4K linker profile no longer page-aligns RODATA');
 
 my @font=parse_font(read_file($font),$font_symbol,80);
 @font==80 or die "active font has ".scalar(@font)." bytes, expected 80\n";
@@ -114,6 +121,8 @@ my $s=read_file($src);
 my $shared_text=read_file($shared);
 require_re($s,qr/include\s+"fonts\/default_decimal\.c26"/,
            'example no longer includes the shared Default decimal font');
+require_re($s,qr/include\s+"fonts\/default_decimal\.c26".*?bcd24_t\s+score/s,
+           'font include no longer precedes score/data declarations');
 require_re(read_file($font),qr/0b[.Xx01]{8}/,
            'active font no longer uses visual binary rows');
 require_re(read_file($font),qr/CC0-1\.0/,
@@ -179,8 +188,8 @@ defined($draw) or die "generated assembly is missing six_glyph_draw\n";
 $draw !~ /\bjsr\b/ or die "six_glyph_draw contains a nested call in the timed kernel\n";
 $draw !~ /\b(?:lax|tsx|txs)\b/ or die "score kernel uses an unofficial or stack-pointer opcode\n";
 $generated !~ /saved_stack_pointer/ or die "obsolete saved-stack variable remains\n";
-require_re($draw,qr/sta\s+\$25\s+sta\s+\$26\s+lda\s+#\$00\s+sta\s+\$1B\s+sta\s+\$1C\s+sta\s+\$1B/s,
-           'score setup does not triple-clear the current and delayed GRP latches');
+require_re($draw,qr/lda\s+#\$00\s+sta\s+\$02\s+sta\s+\$1B\s+sta\s+\$1C\s+sta\s+\$1B\s+lda\s+#\$0e\s+sta\s+\$06\s+sta\s+\$07\s+lda\s+#\$01\s+sta\s+\$25\s+sta\s+\$26/s,
+           'score setup is not fresh-scanline anchored with latch clearing before color/VDEL setup');
 require_re($draw,qr/lda\s+#\$00\s+sta\s+\$1B\s+sta\s+\$1C\s+sta\s+\$1B\s+sta\s+\$25\s+sta\s+\$26/s,
            'score cleanup does not flush delayed GRP latches before disabling VDEL');
 
@@ -231,7 +240,7 @@ die "timing harness build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err
    if $exit || $sig;
 die "timing harness build wrote unexpected stdout:\n$out" if $out ne '';
 
-($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','265');
+($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','263');
 die "timing verification exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
    if $exit || $sig;
 $out =~ /^vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n$/

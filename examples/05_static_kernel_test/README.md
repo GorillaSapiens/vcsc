@@ -49,3 +49,13 @@ cycle-balanced ten-cycle player draw/skip paths, aligns the hot loop, and keeps
 the skip stubs on the same page so taken branches cannot add a conditional
 page-cross cycle. The star is Stella's normal noncanonical-timing marker for
 this retained kernel profile; the line count and refresh rate are stable.
+
+## Placement and object coverage
+
+`static_kernel_playfield.s` uses `.align 256, $54` to place the immutable
+48-byte playfield at the retained kernel's timing-safe low-byte offset. There
+is no source-level padding array. The scene deliberately makes every supported
+display object visible: a double-width white paddle (P0), an upright white
+alien (P1), separate white missiles M0 and M1, and a gold ball.
+`VCS_STANDARD_SPRITE_GLYPH` accepts player art top-to-bottom and reverses
+storage for the kernel's descending row index.

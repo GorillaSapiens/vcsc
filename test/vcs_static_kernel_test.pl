@@ -45,18 +45,21 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $example=File::Spec->catdir($repo,'examples','05_static_kernel_test');
 my $source=File::Spec->catfile($example,'static_kernel_test.c26');
+my $playfield_source=File::Spec->catfile($example,'static_kernel_playfield.s');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'static_kernel_test.bin');
 my $mapfile=File::Spec->catfile($tmp,'static_kernel_test.map');
 my $phase_source=File::Spec->catfile($repo,'test','vcs_playfield_phase.cpp');
 my $phase_exe=File::Spec->catfile($tmp,'vcs_playfield_phase');
+my $objects_source=File::Spec->catfile($repo,'test','vcs_standard_objects.cpp');
+my $objects_exe=File::Spec->catfile($tmp,'vcs_standard_objects');
 my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
 my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
    $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
-   $source,$kernel,'-o',$bin);
+   $playfield_source,$source,$kernel,'-o',$bin);
 $exit == 0 && !$sig
    or die "static-kernel build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
 $out eq '' or die "static-kernel build wrote stdout:\n$out";
@@ -82,24 +85,46 @@ map_symbol($map,'vcs_standard_kernel_drawscreen')==0xf300
 map_symbol($map,'vcs_standard_score_table')==0xf600
    or die "score table moved from F600\n";
 my $playfield=map_symbol($map,'vcs_standard_playfield');
-$playfield==0xf154
-   or die sprintf("ROM playfield landed at %04X instead of deliberate timing-safe F154\n",$playfield);
-($playfield & 0xff)>=0x54 && ($playfield & 0xff)<=0xd0
-   or die "ROM playfield lies outside the retained timing-safe low-byte window\n";
+($playfield & 0xff)==0x54
+   or die sprintf("ROM playfield landed at low byte %02X instead of aligned offset 54\n",$playfield & 0xff);
+$playfield>=0xf000 && $playfield+47<=0xfff9
+   or die "ROM playfield lies outside cartridge data space\n";
+my $paddle=map_symbol($map,'paddle_graphics');
+my $target=map_symbol($map,'target_graphics');
+($paddle & 0xff)<=0xf8 && ($paddle >> 8)==(($paddle+7) >> 8)
+   or die "paddle graphics cross a page boundary\n";
+($target & 0xff)<=0xf8 && ($target >> 8)==(($target+7) >> 8)
+   or die "target graphics cross a page boundary\n";
 
 my $src=read_file($source);
-require_re($src,qr/const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]/,
-   'test playfield is no longer immutable cartridge data');
+require_re($src,qr/extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]/,
+   'test playfield is no longer declared as immutable companion cartridge data');
+my $playfield_text=read_file($playfield_source);
+require_re($playfield_text,qr/^\s*\.segment\s+"PLAYFIELD_RODATA"/m,
+   'playfield companion lost its dedicated linker segment');
+require_re($playfield_text,qr/^\s*\.align\s+256\s*,\s*\$54\s*$/m,
+   'playfield companion no longer uses real offset alignment');
+$src !~ /alignment_pad|\[97\]/
+   or die "dummy source padding array returned\n";
 require_re($src,qr/vcs_standard_score\s*:=\s*123456\s*;/,
    'static score is no longer 123456');
 require_re($src,qr/COLUBK\s*:=\s*0x84\s*;/,
    'static scene lost its medium-blue background');
 require_re($src,qr/COLUPF\s*:=\s*0x2e\s*;/,
    'static scene lost its gold playfield');
-require_re($src,qr/CTRLPF\s*:=\s*1\s*;/,
-   'static scene no longer selects the reflected asymmetric-playfield timing mode');
+require_re($src,qr/CTRLPF\s*:=\s*0x21\s*;/,
+   'static scene no longer selects reflected playfield plus eight-clock ball width');
+require_re($src,qr/NUSIZ0\s*:=\s*0x25\s*;/,
+   'static scene no longer makes P0 double-width and M0 four clocks wide');
+require_re($src,qr/NUSIZ1\s*:=\s*0x20\s*;/,
+   'static scene no longer makes M1 four clocks wide');
 require_re($src,qr/vcs_standard_score_color\s*:=\s*0x0e\s*;/,
    'static scene lost its white score');
+require_re($src,qr/VCS_STANDARD_SPRITE_GLYPH\s*\(/,
+   'static scene no longer stores player art through the top-to-bottom reversal helper');
+require_re(read_file(File::Spec->catfile($profile,'standard_4k_ntsc.c26')),
+   qr/alias\s+VCS_STANDARD_SPRITE_GLYPH\s*\([^)]*\)\s+h,g,f,e,d,c,b,a/,
+   'public sprite reversal helper changed');
 for my $name (qw(PLAYER0 PLAYER1 MISSILE0 MISSILE1 BALL)) {
    require_re($src,qr/VCS_STANDARD_\Q$name\E_X\s*:=/,
       "static scene no longer positions $name");
@@ -137,5 +162,17 @@ $exit == 0 && !$sig
 $out =~ /^vcs_playfield_phase ok: \d+ scanlines at cycles 24,31,38,45\n$/
    or die "unexpected playfield-phase output:\n$out";
 $err eq '' or die "playfield-phase verifier wrote stderr:\n$err";
+
+($exit,$sig,$out,$err)=run_capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos_dir,$objects_source,$mos_source,'-o',$objects_exe);
+$exit == 0 && !$sig
+   or die "object harness build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
+$out eq '' or die "object harness build wrote stdout:\n$out";
+($exit,$sig,$out,$err)=run_capture($objects_exe,$bin);
+$exit == 0 && !$sig
+   or die "object verification failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
+$out =~ /^vcs_standard_objects ok: P0=\d+ P1=\d+ M0=\d+ M1=\d+ BL=\d+\n$/
+   or die "unexpected object-verifier output:\n$out";
+$err eq '' or die "object verifier wrote stderr:\n$err";
 
 print "vcs_static_kernel_test ok\n";
