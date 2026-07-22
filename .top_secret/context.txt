@@ -960,7 +960,7 @@ The first unfinished item is the default next action.
                   zero-page opcode bytes, correct six-digit score order, hidden
                   stack allowance, and stable Stella-reported 262-line NTSC
                   timing.
-        [ ] 20e. Inventory every page-sensitive operation and every unofficial
+        [x] 20e. Inventory every page-sensitive operation and every unofficial
                   opcode in the normalized standard kernel before changing code.
                   Record relative branches, indexed reads, indirect pointers,
                   function/loop page ranges, current cycle padding, and each
@@ -1112,12 +1112,12 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20d are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20e through 20s are deliberately small placement,
+Tasks 20a through 20e are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20f through 20s are deliberately small placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20e is next: inventory every page-
-sensitive operation and unofficial opcode in the normalized standard kernel.
-The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
+completed before gameplay integration. Task 20f is next: remove the inherited
+`$54`-biased playfield index without changing visible-kernel timing. The stack-
+safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2789,3 +2789,21 @@ Before returning another modified archive:
   silicon-probe examples remain explicit opt-in users of unofficial opcodes.
 * This revision changes `.top_secret/context.txt` only. No compiler, assembler,
   linker, kernel, example, test, or removal-ledger file is changed.
+
+
+2026-07-21 21:24:42 PDT, inventory standard-kernel timing hazards
+------------------------------------------------------------------------
+* Complete task 20e without modifying generated kernel behavior. Add
+  `inventory.pl` and a committed TSV baseline generated from the normalized
+  macro and kernel sources.
+* Record 13 relative branches, 30 indexed reads, 11 indexed-indirect pointer
+  reads, 28 explicit padding sites, four page/alignment anchors, and both linked
+  kernel segment ranges.
+* Classify all 19 source-level unofficial-opcode sites: 11 DCP, five LAX, one
+  SBX, one ASR, and the odd-SLEEP NOP.z hidden in the macro layer. Record the
+  purpose of every site so later legalization work can explain exact changes.
+* Add `TIMING_INVENTORY.md` and an end-to-end regression that regenerates the
+  TSV byte-for-byte, validates category/family counts, and rejects undocumented
+  inventory drift.
+* Stop before task 20f under the requested short-session budget. Task 20f is
+  next: remove the inherited `$54`-biased playfield index. No files are removed.
