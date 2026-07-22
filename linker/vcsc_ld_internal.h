@@ -190,9 +190,16 @@ typedef struct {
 } call_graph_edge_t;
 
 typedef struct {
+   uint32_t start;
+   uint32_t end;
+} memory_hole_t;
+
+typedef struct {
    char name[MAX_NAME];
    uint16_t cur;
    uint32_t end;
+   memory_hole_t *holes;
+   size_t hole_count;
 } memory_cursor_t;
 
 typedef struct {

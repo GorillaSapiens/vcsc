@@ -1,0 +1,3 @@
+# runner: perl @TEST_ROOT@/linker_soft_page_preference.pl @REPO@ @TMP@
+# expectexit: 0
+# expectstdout: linker soft page preference reuses holes without image growth

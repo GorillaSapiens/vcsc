@@ -651,6 +651,16 @@ void main(void) {
 - Struct, union, and array returns.
 - The parent runtime's software stack, frame pointer, `sbrk`, and interrupt-entry library.
 
-### Page-contained data
+### Page-aware data objects
 
-At file scope, `page` on a data-object definition requests hard 256-byte page containment, for example `page const uint8_t table[80] := { ... };`. The compiler emits a private object segment with `.pagecontain`; the linker chooses the address. Functions, locals, extern declarations, absolute refs, and named `mem` regions do not yet accept `page`.
+Every file-scope data-object definition is emitted in a private compiler-owned
+segment. This preserves the size and boundary of even a one- or two-byte scalar
+so the linker can reuse same-page holes without changing source order or adding
+padding. The ordinary placement is a soft preference only.
+
+At file scope, `page` requests hard 256-byte page containment, for example
+`page const uint8_t table[80] := { ... };`. The same private segment is marked
+with `.pagecontain`, and the linker must find a legal address or reject the
+link. Functions, locals, extern declarations, absolute refs, and named `mem`
+regions do not yet accept the hard `page` modifier. Ordinary objects in named
+`mem` regions still receive private soft-placement segments.

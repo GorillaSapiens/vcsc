@@ -107,10 +107,13 @@ __sbpmeta$F$main = 0
 ASM
 my $mis_obj=File::Spec->catfile($tmp,'misaligned.o26');
 require_ok('misaligned assembly',$as,'-o',$mis_obj,$mis_src);
-my ($mis_exit,$mis_sig,undef,$mis_err)=run_capture(
-   $ld,'-T',$cfg,'-o',File::Spec->catfile($tmp,'misaligned.bin'),$mis_obj,$runtime);
-$mis_exit != 0 && !$mis_sig or die "internally misaligned object unexpectedly linked\n";
-$mis_err =~ /packed offset \$0001 is not aligned/
-   or die "internal alignment rejection was unclear:\n$mis_err";
+my $mis_map=File::Spec->catfile($tmp,'misaligned.map');
+require_ok('independent aligned layout link',$ld,'-T',$cfg,'-Map',$mis_map,
+   '-o',File::Spec->catfile($tmp,'misaligned.bin'),$mis_obj,$runtime);
+my $mis_text=slurp($mis_map);
+$mis_text =~ /^\s*\$([0-9A-Fa-f]{4})\s+main\b/m
+   or die "independent aligned map lacks main\n";
+(hex($1) & 0xff) == 0
+   or die sprintf("independent KERNEL_CODE layout was placed at %04X\n",hex($1));
 
 print "linker segment alignment enforced\n";

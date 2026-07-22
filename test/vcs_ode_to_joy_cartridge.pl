@@ -91,8 +91,10 @@ $map_text =~ /__stack_top\s+\$00F9/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";
 $map_text =~ /BSS\s+run=\$0088\s+size=\$0000/
    or die "direct indexed player unexpectedly allocates BSS scratch\n";
-$map_text =~ /DATA\s+load=\$[0-9A-F]+\s+run=\$0088\s+size=\$0002/
-   or die "player state is not exactly the two index/counter bytes\n";
+$map_text =~ /DATA\.__vcsc_object\$music_index\s+load=\$[0-9A-F]+\s+run=\$0088\s+size=\$0001/
+   or die "music_index is not the first one-byte player-state object\n";
+$map_text =~ /DATA\.__vcsc_object\$music_counter\s+load=\$[0-9A-F]+\s+run=\$0089\s+size=\$0001/
+   or die "music_counter is not the second one-byte player-state object\n";
 $map_text =~ /\bmusic\b/ or die "map is missing ROM score symbol music\n";
 $map_text =~ /\bmusic_index\b/ or die "map is missing music_index\n";
 $map_text !~ /\bmusic_current\b/ or die "map still contains obsolete music_current\n";
@@ -100,8 +102,8 @@ $map_text !~ /\bmusic_steps_left\b/ or die "map still contains obsolete music_st
 $map_text =~ /\bmusic_counter\b/ or die "map is missing music_counter\n";
 $map_text =~ /\bmusic_tick\b/ or die "map is missing music_tick\n";
 $map_text =~ /\bmusic_apply_current\b/ or die "map is missing music_apply_current\n";
-$map_text =~ /RODATA\s+load=\$[0-9A-F]+\s+size=\$0080/
-   or die "score is not a 128-byte RODATA object\n";
+$map_text =~ /RODATA\.__vcsc_object\$music\s+load=\$[0-9A-F]+\s+size=\$0080/
+   or die "score is not a distinct 128-byte RODATA object\n";
 
 my $source_text=read_file($source);
 $source_text =~ /alias\s+MUSIC_STEP_COUNT\s+32/

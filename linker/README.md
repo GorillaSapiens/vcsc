@@ -232,13 +232,26 @@ Resolution is symbol-driven and left-to-right over the command line, but strong 
 For `.l26` inputs, only the single member object that defines the selected symbol is pulled in.
 This matches the assembler's `.weak foo` directive, which exports a weak definition under the external name `__weak_foo`.
 
-### Hard page-contained object layouts
+### Page-aware object placement
 
 The current o26 layout tail carries a flags byte for each named layout. Bit 0
 (`O26_LAYOUT_PAGE_CONTAINED`) is a hard placement constraint: the complete
 layout must reside within one 256-byte page. The linker derives the legal
-low-byte range from the final layout size, chooses the earliest address that
-fits without reordering unrelated objects, and rejects layouts larger than 256
-bytes with a deterministic diagnostic. Older o26 layout tails without the flags
-byte remain readable. Source-level declaration syntax is intentionally deferred
-to the next integration slice.
+low-byte range from the final layout size and rejects impossible constraints
+with deterministic diagnostics. Older o26 layout tails without the flags byte
+remain readable.
+
+Every named ROM or RAM layout also receives a soft page-containment preference.
+Alignment and hard-placement gaps are retained as per-MEMORY-region holes. An
+object of at most 256 bytes is placed in the earliest hole where it fits wholly
+inside one page; if no such hole exists, the linker keeps compact high-water
+placement rather than adding padding merely to satisfy the preference. Text,
+constant data, initialized-data load images, BSS, zero-page data, activation
+overlays, and linker-generated initialization tables all use this policy. Named
+text and initializer layouts are written independently, so one translation
+unit's arrays and scalars do not inherit a single packed placement.
+
+The map reports `page=hard`, `page=preferred`, or `page=crossing`. Initialized
+RAM objects report both `load-page=` and `run-page=`. A `crossing` report means
+the object could not be kept within one page without increasing the occupied
+region extent; it is not a link error unless the hard flag is present.

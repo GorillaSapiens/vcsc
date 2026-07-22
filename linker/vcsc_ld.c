@@ -357,6 +357,29 @@ static const segment_rule_t *find_segment_rule(const linker_config_t *cfg, const
    return NULL;
 }
 
+
+//! @brief Find the linker rule governing a private compiler-owned subsegment.
+static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg,
+                                                       const char *name,
+                                                       const segment_rule_t *fallback)
+{
+   const segment_rule_t *rule = find_segment_rule(cfg, name);
+   char base[MAX_NAME];
+   const char *dot;
+   size_t n;
+
+   if (rule || !name)
+      return rule ? rule : fallback;
+   dot = strchr(name, '.');
+   n = dot ? (size_t)(dot - name) : strlen(name);
+   if (n == 0 || n >= sizeof(base))
+      return fallback;
+   memcpy(base, name, n);
+   base[n] = '\0';
+   rule = find_segment_rule(cfg, base);
+   return rule ? rule : fallback;
+}
+
 //! @brief Trim leading and trailing whitespace in place and return the first non-space byte.
 static char *trim(char *s)
 {
@@ -1012,17 +1035,31 @@ static int segment_name_matches_prefix(const char *name, const char *prefix)
    return strncasecmp(name, prefix, n) == 0 && (name[n] == '\0' || name[n] == '.');
 }
 
-//! @brief Return segment name suffix data used by linker layout and image writer; returned pointers alias existing storage unless explicitly allocated by the function name.
-static const char *segment_name_suffix(const char *name)
+//! @brief Return the optional named-memory suffix before compiler-owned object metadata.
+static const char *segment_name_suffix(const char *name, char *buf, size_t bufsz)
 {
    const char *dot;
+   const char *end;
+   size_t n;
 
-   if (!name)
+   if (!name || !buf || bufsz == 0)
       return NULL;
    dot = strchr(name, '.');
-   if (dot && !strncmp(dot + 1, "__vcsc_page$", sizeof("__vcsc_page$") - 1))
+   if (!dot || !dot[1])
       return NULL;
-   return (dot && dot[1]) ? dot + 1 : NULL;
+   dot++;
+   if (!strncmp(dot, "__vcsc_page$", sizeof("__vcsc_page$") - 1) ||
+       !strncmp(dot, "__vcsc_object$", sizeof("__vcsc_object$") - 1))
+      return NULL;
+   end = strstr(dot, ".__vcsc_object$");
+   if (!end)
+      end = strstr(dot, ".__vcsc_page$");
+   n = end ? (size_t)(end - dot) : strlen(dot);
+   if (n == 0 || n >= bufsz)
+      return NULL;
+   memcpy(buf, dot, n);
+   buf[n] = '\0';
+   return buf;
 }
 
 //! @brief Return rule run region name data used by linker layout and image writer; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -1059,40 +1096,77 @@ static memory_cursor_t *ensure_cursor(layout_t *layout, const linker_config_t *c
    return &layout->cursors[layout->cursor_count++];
 }
 
-//! @brief Extract alloc from region for linker layout and image writer.
-static uint16_t alloc_from_region(layout_t *layout, const linker_config_t *cfg, const char *mem_name,
-   uint16_t size, const char *what, const char *origin)
+static int range_fits_one_page(uint32_t addr, uint16_t size);
+
+//! @brief Remember an unused address interval created by alignment or a hard placement constraint.
+static void cursor_add_hole(memory_cursor_t *cursor, uint32_t start, uint32_t end)
 {
-   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
-   uint32_t addr = cursor->cur;
-   uint32_t end = addr + size;
-
-   if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
-      fprintf(stderr, "vcsc-ld: %s overflow while placing %s from %s in %s\n", mem_name, what, origin, mem_name);
-      exit(1);
-   }
-
-   cursor->cur = (uint16_t)end;
-   return (uint16_t)addr;
+   if (!cursor || end <= start)
+      return;
+   cursor->holes = (memory_hole_t *)xrealloc(cursor->holes,
+      (cursor->hole_count + 1) * sizeof(*cursor->holes));
+   cursor->holes[cursor->hole_count].start = start;
+   cursor->holes[cursor->hole_count].end = end;
+   cursor->hole_count++;
 }
 
-//! @brief Allocate from a region after advancing its cursor to a power-of-two boundary.
-static uint16_t alloc_from_region_aligned(layout_t *layout, const linker_config_t *cfg,
-   const char *mem_name, uint16_t size, uint16_t alignment, const char *what, const char *origin)
+//! @brief Consume one same-page range from the earliest previously created hole.
+static uint32_t align_up_u32(uint32_t value, uint16_t alignment)
 {
-   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
-   uint32_t aligned;
-
    if (alignment <= 1)
-      return alloc_from_region(layout, cfg, mem_name, size, what, origin);
-   aligned = ((uint32_t)cursor->cur + alignment - 1u) & ~((uint32_t)alignment - 1u);
-   if (aligned > cursor->end || aligned > 0xffffu) {
-      fprintf(stderr, "vcsc-ld: %s overflow while aligning %s from %s to $%04X\n",
-              mem_name, what, origin, alignment);
-      exit(1);
+      return value;
+   return (value + alignment - 1u) & ~((uint32_t)alignment - 1u);
+}
+
+//! @brief Consume the earliest hole satisfying alignment and optional page containment.
+static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t alignment,
+                            int require_page, uint16_t *addr_out)
+{
+   size_t i;
+   size_t best_i = 0;
+   uint32_t best_addr = 0;
+   int found = 0;
+
+   if (!cursor || !addr_out || size == 0)
+      return 0;
+   for (i = 0; i < cursor->hole_count; ++i) {
+      memory_hole_t hole = cursor->holes[i];
+      uint32_t addr = align_up_u32(hole.start, alignment);
+
+      while (addr + size <= hole.end && addr <= 0xffffu) {
+         if (!require_page || range_fits_one_page(addr, size))
+            break;
+         addr = align_up_u32((addr + 0x100u) & ~0xffu, alignment);
+      }
+      if (addr + size > hole.end || addr > 0xffffu)
+         continue;
+      if (!found || addr < best_addr) {
+         found = 1;
+         best_i = i;
+         best_addr = addr;
+      }
    }
-   cursor->cur = (uint16_t)aligned;
-   return alloc_from_region(layout, cfg, mem_name, size, what, origin);
+   if (found) {
+      memory_hole_t hole = cursor->holes[best_i];
+      uint32_t before_end = best_addr;
+      uint32_t after_start = best_addr + size;
+
+      if (before_end > hole.start && after_start < hole.end) {
+         cursor->holes[best_i].end = before_end;
+         cursor_add_hole(cursor, after_start, hole.end);
+      } else if (before_end > hole.start) {
+         cursor->holes[best_i].end = before_end;
+      } else if (after_start < hole.end) {
+         cursor->holes[best_i].start = after_start;
+      } else {
+         memmove(&cursor->holes[best_i], &cursor->holes[best_i + 1],
+                 (cursor->hole_count - best_i - 1) * sizeof(*cursor->holes));
+         cursor->hole_count--;
+      }
+      *addr_out = (uint16_t)best_addr;
+      return 1;
+   }
+   return 0;
 }
 
 //! @brief Return whether a complete object range remains within one 256-byte page.
@@ -1103,112 +1177,41 @@ static int range_fits_one_page(uint32_t addr, uint16_t size)
    return (addr & 0xffu) + (uint32_t)size <= 0x0100u;
 }
 
-//! @brief Allocate one independently placed layout under a hard page-containment constraint.
-static uint16_t alloc_from_region_page_contained(layout_t *layout, const linker_config_t *cfg,
-   const char *mem_name, uint16_t size, const char *what, const char *origin)
+//! @brief Place one object with required alignment and hard or soft page policy.
+static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t *cfg,
+   const char *mem_name, uint16_t size, uint16_t alignment, int hard_page,
+   const char *what, const char *origin)
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
-   uint32_t addr = cursor->cur;
+   uint16_t hole_addr;
+   uint32_t addr;
    uint32_t end;
+   int wants_page = size > 0 && size <= 0x0100u;
 
-   if (size > 0x0100u) {
+   if (size == 0)
+      return cursor->cur;
+   if (hard_page && size > 0x0100u) {
       fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
               what, origin, size);
       exit(1);
    }
-   if (!range_fits_one_page(addr, size))
-      addr = (addr + 0xffu) & ~0xffu;
+   if (wants_page && cursor_take_hole(cursor, size, alignment, 1, &hole_addr))
+      return hole_addr;
+
+   addr = align_up_u32(cursor->cur, alignment);
+   if (hard_page) {
+      while (!range_fits_one_page(addr, size))
+         addr = align_up_u32((addr + 0x100u) & ~0xffu, alignment);
+   }
+   cursor_add_hole(cursor, cursor->cur, addr);
    end = addr + size;
    if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
-      fprintf(stderr, "vcsc-ld: %s overflow while placing page-contained %s from %s in %s\n",
+      fprintf(stderr, "vcsc-ld: %s overflow while placing %s from %s in %s\n",
               mem_name, what, origin, mem_name);
       exit(1);
    }
    cursor->cur = (uint16_t)end;
    return (uint16_t)addr;
-}
-
-//! @brief Return whether one candidate text base satisfies every hard layout constraint.
-static int object_text_page_constraints_fit(const object_file_t *obj, uint32_t base)
-{
-   size_t i;
-   for (i = 0; i < obj->layout_count; ++i) {
-      const object_layout_t *lay = &obj->layouts[i];
-      if (lay->segid != O26_SEG_TEXT || !(lay->flags & O26_LAYOUT_PAGE_CONTAINED))
-         continue;
-      if (!range_fits_one_page(base + lay->packed_base, lay->size))
-         return 0;
-   }
-   return 1;
-}
-
-//! @brief Place packed text while satisfying all hard page-contained sub-layouts.
-static uint16_t alloc_text_with_page_constraints(layout_t *layout, const linker_config_t *cfg,
-   const char *mem_name, const object_file_t *obj, uint16_t alignment)
-{
-   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
-   uint32_t step = alignment > 1 ? alignment : 1;
-   uint32_t addr = cursor->cur;
-   uint32_t limit = cursor->end;
-   size_t i;
-   int has_constraint = 0;
-
-   for (i = 0; i < obj->layout_count; ++i) {
-      if (obj->layouts[i].segid == O26_SEG_TEXT &&
-          (obj->layouts[i].flags & O26_LAYOUT_PAGE_CONTAINED))
-         has_constraint = 1;
-   }
-   if (!has_constraint)
-      return alloc_from_region_aligned(layout, cfg, mem_name,
-         (uint16_t)obj->text.length, alignment, "text", obj->origin);
-
-   for (i = 0; i < obj->layout_count; ++i) {
-      const object_layout_t *lay = &obj->layouts[i];
-      if (lay->segid == O26_SEG_TEXT && (lay->flags & O26_LAYOUT_PAGE_CONTAINED) && lay->size > 0x0100u) {
-         fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
-                 lay->name, obj->origin, lay->size);
-         exit(1);
-      }
-   }
-
-   if (alignment > 1)
-      addr = (addr + alignment - 1u) & ~((uint32_t)alignment - 1u);
-   while (addr + obj->text.length <= limit && addr + obj->text.length <= 0x10000u &&
-          (!str_ieq(mem_name, "ROM") || addr + obj->text.length <= 0xFFFAu)) {
-      if (object_text_page_constraints_fit(obj, addr)) {
-         cursor->cur = (uint16_t)(addr + obj->text.length);
-         return (uint16_t)addr;
-      }
-      addr += step;
-   }
-
-   fprintf(stderr, "vcsc-ld: %s overflow while placing page-constrained text from %s in %s\n",
-           mem_name, obj->origin, mem_name);
-   exit(1);
-}
-
-//! @brief Return the strongest linker-script alignment requested by text layouts in one object.
-static uint16_t object_text_alignment(const linker_config_t *cfg, const object_file_t *obj)
-{
-   uint16_t result = 1;
-   size_t i;
-
-   for (i = 0; i < obj->layout_count; ++i) {
-      const object_layout_t *lay = &obj->layouts[i];
-      const segment_rule_t *rule;
-      if (lay->segid != O26_SEG_TEXT || lay->size == 0)
-         continue;
-      rule = find_segment_rule(cfg, lay->name);
-      if (rule && rule->align > result) {
-         if ((lay->packed_base & (rule->align - 1u)) != 0) {
-            fprintf(stderr, "vcsc-ld: segment %s in %s requests alignment $%04X but packed offset $%04X is not aligned\n",
-                    lay->name, obj->origin, rule->align, lay->packed_base);
-            exit(1);
-         }
-         result = rule->align;
-      }
-   }
-   return result;
 }
 
 //! @brief Add copy record to linker layout and image writer state, growing storage or preserving uniqueness as needed.
@@ -1294,22 +1297,6 @@ static uint16_t object_runtime_addr_for_value(const object_file_t *obj, uint8_t 
    base = (segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
    return (uint16_t)(base + (packed_value - lay->packed_base));
 }
-
-//! @brief Handle object layout load addr logic for linker layout and image writer.
-static uint16_t object_layout_load_addr(const object_file_t *obj, const object_layout_t *lay)
-{
-   switch (lay->image_segid) {
-      case O26_SEG_TEXT:
-         return (uint16_t)(obj->place_text_load + lay->image_base);
-
-      case O26_SEG_DATA:
-         return (uint16_t)(obj->place_data_load + lay->image_base);
-
-      default:
-         return 0;
-   }
-}
-
 
 #define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
 
@@ -1479,8 +1466,8 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
                  regions[i]);
          exit(1);
       }
-      block_start = alloc_from_region(layout, cfg, regions[i], (uint16_t)extent,
-                                      "activation overlay", "<call graph>");
+      block_start = alloc_from_region_policy(layout, cfg, regions[i], (uint16_t)extent,
+                                      1, 0, "activation overlay", "<call graph>");
 
       for (j = 0; j < piece_count; ++j) {
          activation_piece_t *piece = &pieces[j];
@@ -1548,18 +1535,56 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
    for (i = 0; i < in->object_count; ++i) {
       object_file_t *obj = &in->objects[i];
-      obj->place_text_load = alloc_text_with_page_constraints(layout, cfg, code_load_name,
-         obj, object_text_alignment(cfg, obj));
-      obj->place_data_load = alloc_from_region(layout, cfg, data_load_name, (uint16_t)obj->data.length, "data load image", obj->origin);
+
+      obj->place_text_load = 0;
+      obj->place_data_load = 0;
+      for (j = 0; j < obj->layout_count; ++j) {
+         obj->layouts[j].load_addr = 0;
+         obj->layouts[j].run_addr = 0;
+      }
+
+      /* Place each ROM-resident text layout independently. Compiler data
+         objects therefore remain individually movable instead of inheriting
+         the page fate of an entire translation unit. */
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         const segment_rule_t *rule;
+         const char *load_name;
+
+         if (lay->segid != O26_SEG_TEXT)
+            continue;
+         rule = find_layout_segment_rule(cfg, lay->name, code);
+         load_name = (rule && rule->load_name[0]) ? rule->load_name : code_load_name;
+         lay->load_addr = alloc_from_region_policy(layout, cfg, load_name, lay->size,
+            rule ? rule->align : 1,
+            (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
+            lay->name, obj->origin);
+         lay->run_addr = lay->load_addr;
+      }
+
+      /* Place initialized RAM images independently as ordinary soft ROM
+         objects. Hard page containment applies to the runtime object, not to
+         its initializer copy in cartridge ROM. */
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         const segment_rule_t *rule;
+         const char *load_name;
+
+         if (lay->segid == O26_SEG_TEXT ||
+             (lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT))
+            continue;
+         rule = find_layout_segment_rule(cfg, lay->name, data);
+         load_name = (rule && rule->load_name[0]) ? rule->load_name : data_load_name;
+         lay->load_addr = alloc_from_region_policy(layout, cfg, load_name, lay->size,
+            rule ? rule->align : 1, 0, lay->name, obj->origin);
+      }
 
       for (j = 0; j < obj->layout_count; ++j) {
          object_layout_t *lay = &obj->layouts[j];
-         const char *suffix = segment_name_suffix(lay->name);
+         char suffix_storage[MAX_NAME];
+         const char *suffix = segment_name_suffix(lay->name, suffix_storage, sizeof(suffix_storage));
          char activation_region[MAX_NAME];
          const char *activation_owner = NULL;
-
-         lay->load_addr = 0;
-         lay->run_addr = 0;
 
          if (activation_segment_parse(lay->name, activation_region,
                                       sizeof(activation_region),
@@ -1570,37 +1595,35 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
          switch (lay->segid) {
             case O26_SEG_TEXT:
-               lay->load_addr = object_layout_load_addr(obj, lay);
-               lay->run_addr = lay->load_addr;
                break;
 
             case O26_SEG_DATA: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
-               lay->load_addr = object_layout_load_addr(obj, lay);
-               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
-                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
-                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
+                  lay->name, obj->origin);
                add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                break;
             }
 
             case O26_SEG_BSS: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
-               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
-                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
-                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
+                  lay->name, obj->origin);
                add_zero_record(layout, lay->name, lay->run_addr, lay->size);
                break;
             }
 
             case O26_SEG_ZP: {
                const char *run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") || segment_name_matches_prefix(lay->name, "ZP") || segment_name_matches_prefix(lay->name, "ZERO"))) ? suffix : zp_run_name;
-               lay->load_addr = object_layout_load_addr(obj, lay);
-               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
-                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
-                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
+                  lay->name, obj->origin);
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
+               else if (strstr(lay->name, ".__vcsc_object$") != NULL)
+                  add_zero_record(layout, lay->name, lay->run_addr, lay->size);
                break;
             }
          }
@@ -1609,14 +1632,17 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
    layout_activation_segments(cfg, in, layout, bss_run_name, zp_run_name);
 
-   layout->copy_table_addr = alloc_from_region(layout, cfg, data_load_name,
-      (uint16_t)((layout->copy_record_count + 1) * 6), "__copy_table", "<linker>");
-   layout->zero_table_addr = alloc_from_region(layout, cfg, data_load_name,
-      (uint16_t)((layout->zero_record_count + 1) * 4), "__zero_table", "<linker>");
+   layout->copy_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+      (uint16_t)((layout->copy_record_count + 1) * 6), 1, 0,
+      "__copy_table", "<linker>");
+   layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+      (uint16_t)((layout->zero_record_count + 1) * 4), 1, 0,
+      "__zero_table", "<linker>");
    {
       size_t init_count = count_init_functions_in_input(in);
-      layout->init_table_addr = alloc_from_region(layout, cfg, data_load_name,
-         (uint16_t)((init_count + 1) * 2), "__init_table", "<linker>");
+      layout->init_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+         (uint16_t)((init_count + 1) * 2), 1, 0,
+         "__init_table", "<linker>");
       layout->init_table_size = (uint16_t)((init_count + 1) * 2);
    }
    layout->copy_table_size = (uint16_t)((layout->copy_record_count + 1) * 6);
@@ -1817,10 +1843,36 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
    memset(used, 0, 65536);
 
    for (i = 0; i < in->object_count; ++i) {
-      image_write(image, used, in->objects[i].place_text_load, in->objects[i].text.data,
-         in->objects[i].text.length, in->objects[i].origin);
-      image_write(image, used, in->objects[i].place_data_load, in->objects[i].data.data,
-         in->objects[i].data.length, in->objects[i].origin);
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         const uint8_t *src;
+         size_t image_len;
+
+         if (lay->size == 0)
+            continue;
+         if (lay->image_segid == O26_SEG_TEXT) {
+            image_len = obj->text.length;
+            if ((uint32_t)lay->image_base + lay->size > image_len) {
+               fprintf(stderr, "vcsc-ld: text image layout %s exceeds packed image in %s\n",
+                       lay->name, obj->origin);
+               exit(1);
+            }
+            src = obj->text.data + lay->image_base;
+         } else if (lay->image_segid == O26_SEG_DATA) {
+            image_len = obj->data.length;
+            if ((uint32_t)lay->image_base + lay->size > image_len) {
+               fprintf(stderr, "vcsc-ld: data image layout %s exceeds packed image in %s\n",
+                       lay->name, obj->origin);
+               exit(1);
+            }
+            src = obj->data.data + lay->image_base;
+         } else {
+            continue;
+         }
+         image_write(image, used, lay->load_addr, src, lay->size, obj->origin);
+      }
    }
 
    if (layout->copy_table_size > 0) {
@@ -1952,6 +2004,16 @@ static void write_flat_binary(const char *path, const uint8_t *image, const uint
    }
 }
 
+//! @brief Describe one object's page-containment result for the linker map.
+static const char *page_placement_name(uint16_t addr, uint16_t size, int hard)
+{
+   if (hard)
+      return "hard";
+   if (size > 0x0100u)
+      return "crossing";
+   return range_fits_one_page(addr, size) ? "preferred" : "crossing";
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in, const layout_t *layout)
 {
@@ -1979,13 +2041,23 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       for (j = 0; j < o->layout_count; ++j) {
          const object_layout_t *lay = &o->layouts[j];
          if (lay->segid == O26_SEG_TEXT) {
-            fprintf(fp, "     %-16s load=$%04X size=$%04X\n", lay->name, lay->load_addr, lay->size);
+            fprintf(fp, "     %-16s load=$%04X size=$%04X page=%s\n",
+                    lay->name, lay->load_addr, lay->size,
+                    page_placement_name(lay->load_addr, lay->size,
+                       (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }
          else if (lay->segid == O26_SEG_DATA) {
-            fprintf(fp, "     %-16s load=$%04X run=$%04X size=$%04X\n", lay->name, lay->load_addr, lay->run_addr, lay->size);
+            fprintf(fp, "     %-16s load=$%04X run=$%04X size=$%04X load-page=%s run-page=%s\n",
+                    lay->name, lay->load_addr, lay->run_addr, lay->size,
+                    page_placement_name(lay->load_addr, lay->size, 0),
+                    page_placement_name(lay->run_addr, lay->size,
+                       (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }
          else {
-            fprintf(fp, "     %-16s run=$%04X size=$%04X\n", lay->name, lay->run_addr, lay->size);
+            fprintf(fp, "     %-16s run=$%04X size=$%04X page=%s\n",
+                    lay->name, lay->run_addr, lay->size,
+                    page_placement_name(lay->run_addr, lay->size,
+                       (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }
       }
    }
@@ -2215,6 +2287,8 @@ int main(int argc, char **argv)
    for (i = 0; i < layout.zero_record_count; ++i)
       free(layout.zero_records[i].name);
    free(layout.zero_records);
+   for (i = 0; i < layout.cursor_count; ++i)
+      free(layout.cursors[i].holes);
    free(layout.cursors);
 
    return 0;

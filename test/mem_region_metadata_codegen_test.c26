@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
 // expectasm: __memmeta$V1$banana$S0400$Z0100$Trw = 0
 // expectasm: .export __memmeta$V1$banana$S0400$Z0100$Trw
-// expectasmordered: .segment "BSS.banana"
+// expectasmordered: .segment "BSS.banana.__vcsc_object$x?"
 // expectasmordered: x?:
 // expectasmordered: 	.res 2
 include "machine_6502.c26"

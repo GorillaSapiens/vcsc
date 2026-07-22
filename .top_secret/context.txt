@@ -990,7 +990,7 @@ The first unfinished item is the default next action.
                   source should declare timing-sensitive arrays normally and let
                   their module/interface metadata carry the constraint.
 
-        [ ] 20i. Add a soft page-containment placement preference for every ROM
+        [x] 20i. Add a soft page-containment placement preference for every ROM
                   and RAM object, including small scalars, without turning it into
                   a hard requirement or gratuitously growing the image. Prefer an
                   available same-page hole; otherwise retain compact placement.
@@ -1112,11 +1112,10 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20h are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20i through 20s are deliberately small placement,
+Tasks 20a through 20i are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20j through 20s are deliberately small function-placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20i is next: add soft page-containment placement preferences and map reporting for ordinary objects. The
-stack-safe VCSC overscan/vblank hook is deferred to task 20t.
+completed before gameplay integration. Task 20j is next: preserve function boundaries and sizes, prefer same-page placement for small functions, and add a hard timing-critical function constraint. The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2880,3 +2879,32 @@ Before returning another modified archive:
   to cross a page. The two retired companion assembly sources raise
   `.top_secret/remove.txt` to 895 cumulative paths. Stop before task 20i.
 
+
+2026-07-21 23:27:16 PDT, add soft page-aware object packing
+------------------------------------------------------------------------
+* Complete task 20i. Emit every file-scope VCSC data definition in a private
+  compiler-owned layout, including ordinary one- and two-byte scalars. Retain
+  `.pagecontain` only as the hard form; ordinary objects carry no hard flag.
+* Place named ROM text, constant data, initialized-data load images, DATA, BSS,
+  zero-page data, activation overlays, and linker-generated startup tables as
+  independent objects. Preserve each layout's own alignment and named-memory
+  region instead of forcing a complete translation unit to share one packed
+  address.
+* Track alignment and hard-constraint gaps as per-MEMORY-region holes. Objects
+  no larger than 256 bytes reuse the earliest hole in which their complete range
+  stays on one page. If no such hole exists, retain compact high-water placement
+  and report the unavoidable crossing instead of adding padding. Hard page
+  containment remains mandatory and fails deterministically when impossible.
+* Extend map output with `page=hard`, `page=preferred`, and `page=crossing`;
+  initialized RAM objects report both load-image and runtime page results. Update
+  segment-alignment coverage to accept independently aligned layouts that were
+  formerly rejected only because their packed translation-unit offset was not
+  aligned.
+* Zero compiler-owned uninitialized zero-page objects through the startup zero
+  table while deliberately excluding the runtime's own zero-page workspace,
+  whose pointers drive that table. Add compiler private-object coverage and a
+  linker regression proving same-page hole reuse without increasing the region
+  high-water mark, plus compact crossing when no hole is available.
+* Pass 287/287 compile tests and 145/145 end-to-end/generic tests. Staged
+  installation passes. No files are removed; `.top_secret/remove.txt` remains
+  at 895 cumulative paths. Stop before task 20j.

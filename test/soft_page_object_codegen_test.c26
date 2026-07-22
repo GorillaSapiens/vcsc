@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasm: .segment "RODATA.__vcsc_object$rom_byte"
+// expectasm: .segment "DATA.__vcsc_object$ram_init"
+// expectasm: .segment "BSS.__vcsc_object$ram_zero"
+// expectasm: .segment "ZEROPAGE.zeropage.__vcsc_object$zp_zero"
+// expectasmnot: .pagecontain
+include "machine_6502.c26"
+
+const uint8_t rom_byte := 1;
+uint16_t ram_init := 2;
+uint16_t ram_zero;
+zeropage uint16_t zp_zero;
+
+uint8_t main(void) {
+   return rom_byte + (uint8_t)ram_init + (uint8_t)ram_zero + (uint8_t)zp_zero;
+}
