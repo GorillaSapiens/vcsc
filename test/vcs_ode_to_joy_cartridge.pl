@@ -114,10 +114,16 @@ $source_text !~ /music_tick\(\);\s*asm lda \#2;\s*asm sta VSYNC;/s
    or die "music_tick still runs outside the fixed frame budget\n";
 $source_text =~ /uint8_t\s+music_index\s*:=\s*0\s*;/
    or die "source does not retain the current score index\n";
-$source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\+\+.*music\[music_index\]\.timing.*music_index\+\+.*music_index\s*==\s*MUSIC_STEP_COUNT.*music_apply_current\(\)/s
-   or die "music_tick is not implemented with direct indexed score access\n";
-$source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*music\[music_index\]\.volume.*AUDF0\s*:=\s*music\[music_index\]\.frequency.*AUDC0\s*:=\s*music\[music_index\]\.control/s
-   or die "source-level indexed player does not update all channel-0 registers\n";
+$source_text =~ /uint8_t\s+music_counter\s*:=\s*0xff\s*;/
+   or die "source does not use the pre-first-note counter sentinel\n";
+$source_text =~ /AUDV0\s*:=\s*0\s*;/
+   or die "source does not explicitly silence channel 0 before the first frame\n";
+$source_text !~ /AUDV1\s*:=\s*0\s*;\s*music_apply_current\(\)\s*;/s
+   or die "first note is still applied before frame synchronization\n";
+$source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\s*==\s*0xff.*music_counter\s*:=\s*0.*music_apply_current\(\).*return.*music_counter\+\+.*music\[music_index\]\.timing.*music_index\+\+.*music_index\s*==\s*MUSIC_STEP_COUNT.*music_apply_current\(\)/s
+   or die "music_tick does not synchronize the first note before direct indexed playback\n";
+$source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDC0\s*:=\s*music\[music_index\]\.control.*AUDF0\s*:=\s*music\[music_index\]\.frequency.*AUDV0\s*:=\s*music\[music_index\]\.volume/s
+   or die "source does not program control/frequency before enabling channel-0 volume\n";
 -f File::Spec->catfile($example_dir,'music_player.s')
    and die "obsolete companion assembly player still exists\n";
 
@@ -129,7 +135,7 @@ die "timing harness build exited $exit signal $signal\nstdout:\n$stdout\nstderr:
    if $exit != 0 || $signal != 0;
 die "timing harness build wrote unexpected stdout:\n$stdout" if $stdout ne '';
 
-($exit,$signal,$stdout,$stderr)=run_capture($timing_exe,$binary,'1500');
+($exit,$signal,$stdout,$stderr)=run_capture($timing_exe,$binary,'1500','--audio-start-synced');
 die "timing verification exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
    if $exit != 0 || $signal != 0;
 $stdout =~ /^vcs_frame_timing ok: 1497 frames at 262 lines, \d+ AUDV0 writes\n$/

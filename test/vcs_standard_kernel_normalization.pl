@@ -100,13 +100,19 @@ $active !~ /\b(?:AXS|ALR)\b/i
 require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;
-$aligns == 3 or die "selected source has $aligns page alignments, expected three\n";
+$aligns == 4 or die "selected source has $aligns page alignments, expected four\n";
 require_re($config_text,qr/^\s*KERNEL_CODE:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
    'kernel code segment is not page-aligned by the linker profile');
 require_re($config_text,qr/^\s*KERNEL_RODATA:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
    'kernel score-table segment is not page-aligned by the linker profile');
 require_re($active,qr/^\s*lda\s+#37\+128\s*$/m,
    'selected kernel no longer uses the Stella-verified 262-line vblank timer');
+require_re($active,qr/\.align 256\s+\@kerloop:/s,
+   'hot two-line kernel loop is no longer page-aligned');
+require_re($active,qr/jmp\s+\@goback\s+.*?\@skipDrawP0:.*?jmp\s+\@continueP0.*?\@skipDrawP1:.*?jmp\s+\@continueP1.*?\@lastkernelline:/s,
+   'cycle-balanced player skip stubs are not local and off the fall-through path');
+require_re($active,qr/\@continuekernel:\s+SLEEP 2\s+\@continuekernel2:/s,
+   'retained two-cycle playfield phase was removed');
 my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
 $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";

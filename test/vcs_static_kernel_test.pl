@@ -49,6 +49,10 @@ my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'static_kernel_test.bin');
 my $mapfile=File::Spec->catfile($tmp,'static_kernel_test.map');
+my $phase_source=File::Spec->catfile($repo,'test','vcs_playfield_phase.cpp');
+my $phase_exe=File::Spec->catfile($tmp,'vcs_playfield_phase');
+my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
+my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
    $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
@@ -92,6 +96,8 @@ require_re($src,qr/COLUBK\s*:=\s*0x84\s*;/,
    'static scene lost its medium-blue background');
 require_re($src,qr/COLUPF\s*:=\s*0x2e\s*;/,
    'static scene lost its gold playfield');
+require_re($src,qr/CTRLPF\s*:=\s*1\s*;/,
+   'static scene no longer selects the reflected asymmetric-playfield timing mode');
 require_re($src,qr/vcs_standard_score_color\s*:=\s*0x0e\s*;/,
    'static scene lost its white score');
 for my $name (qw(PLAYER0 PLAYER1 MISSILE0 MISSILE1 BALL)) {
@@ -116,5 +122,20 @@ index($kernel_bytes,"\xCB")>=0 or die "kernel lost retained SBX opcode\n";
 my $kernel_text=read_file($kernel);
 require_re($kernel_text,qr/^\s*lda\s+#37\+128\s*$/m,
    'kernel no longer contains the Stella-verified 262-line timer value');
+require_re($kernel_text,qr/\.align 256\s+\@kerloop:/s,
+   'hot playfield loop is not pinned to a page boundary');
+
+my $cxx=$ENV{CXX} || 'c++';
+($exit,$sig,$out,$err)=run_capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos_dir,$phase_source,$mos_source,'-o',$phase_exe);
+$exit == 0 && !$sig
+   or die "playfield-phase harness build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
+$out eq '' or die "playfield-phase harness build wrote stdout:\n$out";
+($exit,$sig,$out,$err)=run_capture($phase_exe,$bin);
+$exit == 0 && !$sig
+   or die "playfield-phase verification failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
+$out =~ /^vcs_playfield_phase ok: \d+ scanlines at cycles 24,31,38,45\n$/
+   or die "unexpected playfield-phase output:\n$out";
+$err eq '' or die "playfield-phase verifier wrote stderr:\n$err";
 
 print "vcs_static_kernel_test ok\n";

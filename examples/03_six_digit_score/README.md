@@ -40,6 +40,12 @@ Horizontal player positioning and `HMOVE` happen once while `VBLANK` is set;
 the positions persist across frames. No undocumented opcode, stack-pointer
 trick, or visible-frame HMOVE is used.
 
+Because both player graphics use vertical delay, the display module clears
+`GRP0`, `GRP1`, and `GRP0` again before drawing and repeats the same three-write
+flush before disabling `VDELP0`/`VDELP1`. The extra `GRP0` write clears the
+otherwise stale delayed latch that could duplicate the first score row after a
+value update.
+
 These helpers remain ordinary VCSC functions: each call is `JSR`, the body, and
 `RTS`; parameters and named locals use fixed symbols rather than a per-call
 frame. Source-level inline functions are available, but this example keeps the

@@ -52,15 +52,25 @@ const MusicStep music[MUSIC_STEP_COUNT] := {
 };
 
 uint8_t music_index := 0;
-uint8_t music_counter := 0;
+uint8_t music_counter := 0xff;
 
 void music_apply_current(void) {
-   AUDV0 := music[music_index].volume;
-   AUDF0 := music[music_index].frequency;
+   // Change waveform and frequency while silent, then enable volume last.
+   // This prevents a startup chirp or fragment of the reset-time register state.
    AUDC0 := music[music_index].control;
+   AUDF0 := music[music_index].frequency;
+   AUDV0 := music[music_index].volume;
 }
 
 void music_tick(void) {
+   // $ff means that no note has started yet. Begin the first note at the same
+   // overscan phase used by every later score transition.
+   if (music_counter == 0xff) {
+      music_counter := 0;
+      music_apply_current();
+      return;
+   }
+
    music_counter++;
    if (music_counter > music[music_index].timing) {
       music_counter := 0;
@@ -83,9 +93,8 @@ void main(void) {
    ENAM1 := 0;
    ENABL := 0;
    COLUBK := 0x84;
+   AUDV0 := 0;
    AUDV1 := 0;
-
-   music_apply_current();
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    asm @frame:;

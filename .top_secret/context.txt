@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_151846.tar.gz
+    vcsc.20260721_171834.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -987,6 +987,18 @@ The compiler rejects:
 
 Assembler-local `@labels` are never treated as source identifiers. Inline asm
 still does not track register or flag clobbers.
+
+Stop-the-line timing/audio repair
+---------------------------------
+Before task 20e, examples 02, 03, and 05 received a dedicated emulator-backed
+regression pass. Example 02 now begins silent and starts its first note during
+the first synchronized overscan, writing control and frequency before volume.
+The shared six-glyph display flushes both delayed player-graphics pipelines with
+`GRP0`, `GRP1`, `GRP0` before and after drawing. Example 05 uses reflected
+playfield mode and a page-stable standard-kernel hot loop whose repeated PF
+stores occur at cycles 24, 31, 38, and 45. Stella verifies stable 262-line NTSC
+output, correct score rows, and a centered untorn playfield. Task 20e remains
+the next queued action.
 
 Open implementation questions
 -----------------------------
@@ -2586,3 +2598,32 @@ Before returning another modified archive:
   kernel source, and profile script. Pass 285/285 compile tests, 142/142
   end-to-end/generic tests, and staged installation. `.top_secret/remove.txt`
   remains at 893 cumulative paths. Task 20e is next.
+
+
+2026-07-21 18:03:45 PDT, repair audio and visible-kernel regressions
+------------------------------------------------------------------------
+* Stop task 20e work and reproduce the reported regressions in examples 02, 03,
+  and 05 under Stella 7.0 before making further kernel changes.
+* Make Ode to Joy start both audio channels silent. Use `$ff` as the not-yet-
+  started music-counter state, begin the first note during the first synchronized
+  overscan, and write `AUDC0`, `AUDF0`, then `AUDV0` last. Extend the timing
+  harness and cartridge regression to require this startup phase and ordering.
+* Flush the shared six-glyph display's delayed player latches with
+  `GRP0`/`GRP1`/`GRP0` before drawing and before disabling VDEL. Add generated-
+  code checks and verify seven consecutive score-update-adjacent Stella captures
+  have identical eight-row geometry with no duplicated first row.
+* Set example 05 `CTRLPF` to reflected mode. Preserve the retained standard
+  kernel's original ten-cycle player draw/skip paths, align the hot loop, and
+  move the skip stubs onto the same page outside fall-through execution. This
+  removes conditional page-cross drift without retiming the visible paths.
+* Add `test/vcs_playfield_phase.cpp` and integrate it into the static-kernel
+  regression. More than 150 complete visible scanlines must write PF1/PF2 in
+  order at CPU cycles 24, 31, 38, and 45. Keep the normalizer regression pinned
+  to the page-aligned loop, local skip stubs, and retained `SLEEP 2` path.
+* Calibrate the lightweight frame harness per cartridge against Stella's
+  displayed 262-line frame rather than treating its raw VSYNC interval as the
+  display line count. Stella now shows example 05 centered and untorn with score
+  `123456`; example 03 remains stable while updating.
+* Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
+  20e remains next, now unblocked by the repaired examples and timing kernels.

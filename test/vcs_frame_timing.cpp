@@ -28,6 +28,8 @@ constexpr uint64_t kExpectedDisplayedScanlines = 262;
 constexpr uint64_t kDefaultVsyncIntervalScanlines = 263;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kAudc0 = 0x0015;
+constexpr uint16_t kAudf0 = 0x0017;
 constexpr uint16_t kAudv0 = 0x0019;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
@@ -55,6 +57,11 @@ bool timer_overrun_read = false;
 uint64_t audv0_writes = 0;
 bool saw_audv0_zero = false;
 bool saw_audv0_nonzero = false;
+bool saw_initial_audv0_zero = false;
+bool saw_first_nonzero_audv0 = false;
+uint64_t first_nonzero_audv0_cycle = 0;
+std::vector<uint16_t> channel0_write_order;
+size_t first_nonzero_audv0_order = 0;
 
 uint8_t timer_value(uint64_t cycle) {
    if (!timer_active) {
@@ -125,10 +132,22 @@ void apply_writes() {
                event.address == kTim64t || event.address == kT1024t) {
          load_timer(event.address, event.value);
       }
-      else if (event.address == kAudv0) {
-         ++audv0_writes;
-         saw_audv0_zero |= event.value == 0;
-         saw_audv0_nonzero |= event.value != 0;
+      else if (event.address == kAudc0 || event.address == kAudf0 ||
+               event.address == kAudv0) {
+         channel0_write_order.push_back(event.address);
+         if (event.address == kAudv0) {
+            ++audv0_writes;
+            saw_audv0_zero |= event.value == 0;
+            saw_audv0_nonzero |= event.value != 0;
+            if (!saw_first_nonzero_audv0 && event.value == 0) {
+               saw_initial_audv0_zero = true;
+            }
+            if (!saw_first_nonzero_audv0 && event.value != 0) {
+               saw_first_nonzero_audv0 = true;
+               first_nonzero_audv0_cycle = virtual_cycles;
+               first_nonzero_audv0_order = channel0_write_order.size() - 1;
+            }
+         }
       }
    }
    writes.clear();
@@ -144,16 +163,20 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--raw-lines N]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--raw-lines N]\n",
          argv[0]);
       return 2;
    }
 
    bool require_audio = true;
+   bool require_audio_start_sync = false;
    uint64_t expected_raw_lines = kDefaultVsyncIntervalScanlines;
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
          require_audio = false;
+      }
+      else if (std::strcmp(argv[i], "--audio-start-synced") == 0) {
+         require_audio_start_sync = true;
       }
       else if (std::strcmp(argv[i], "--raw-lines") == 0) {
          if (++i >= argc) {
@@ -243,6 +266,20 @@ int main(int argc, char **argv) {
    if (require_audio &&
        (audv0_writes < 64 || !saw_audv0_zero || !saw_audv0_nonzero)) {
       fail("test run did not exercise repeated sounding and silent score steps");
+   }
+   if (require_audio_start_sync) {
+      if (!saw_initial_audv0_zero || !saw_first_nonzero_audv0) {
+         fail("audio did not begin from an explicit silent state");
+      }
+      if (vsync_assertions.empty() ||
+          first_nonzero_audv0_cycle <= vsync_assertions.front()) {
+         fail("first sounding note began before the first synchronized frame");
+      }
+      if (first_nonzero_audv0_order < 2 ||
+          channel0_write_order[first_nonzero_audv0_order - 2] != kAudc0 ||
+          channel0_write_order[first_nonzero_audv0_order - 1] != kAudf0) {
+         fail("first note did not program AUDC0/AUDF0 before enabling AUDV0");
+      }
    }
 
    std::printf("vcs_frame_timing ok: %zu frames at %llu lines, %llu AUDV0 writes\n",

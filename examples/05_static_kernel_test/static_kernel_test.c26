@@ -31,14 +31,14 @@ const uint8_t vcs_standard_playfield[48] := {
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 
 const uint8_t paddle_graphics[8] := {
+   0b..XXXX..,
+   0b.XXXXXX.,
    0bXXXXXXXX,
+   0bXXX..XXX,
+   0bXXX..XXX,
    0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bXXXXXXXX
+   0b.XXXXXX.,
+   0b..XXXX..
 };
 
 const uint8_t target_graphics[8] := {
@@ -57,7 +57,7 @@ void initialize_static_scene(void) {
    COLUPF := 0x2e;
    COLUP0 := 0x0e;
    COLUP1 := 0x4e;
-   CTRLPF := 0;
+   CTRLPF := 1;
    NUSIZ0 := 0;
    NUSIZ1 := 0;
 

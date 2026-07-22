@@ -40,10 +40,15 @@ void six_glyph_setup(void) {
 void six_glyph_draw(void) {
    COLUP0 := 0x0e;
    COLUP1 := 0x0e;
-   GRP0 := 0;
-   GRP1 := 0;
    VDELP0 := 1;
    VDELP1 := 1;
+
+   // With delayed player graphics enabled, clearing only GRP0/GRP1 leaves one
+   // stale delayed latch behind. The third GRP0 write flushes both pipelines so
+   // a score update cannot repeat the first row from the previous frame.
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
    six_glyph_row := 7;
 
    // Canonical documented-opcode 48-pixel pipeline. Digit 1 is preloaded
@@ -72,8 +77,10 @@ void six_glyph_draw(void) {
    asm dec six_glyph_row;
    asm bpl @six_glyph_loop;
 
+   // Flush delayed graphics before disabling VDEL for the next frame.
    GRP0 := 0;
    GRP1 := 0;
+   GRP0 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
    WSYNC := 0;

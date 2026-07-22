@@ -28,6 +28,7 @@ alias MUSIC_VOLUME_OFF        0
 alias MUSIC_VOLUME_SOFT       6
 alias MUSIC_VOLUME_MEDIUM     8
 alias MUSIC_VOLUME_LOUD      12
+alias MUSIC_VOLUME_MAX       15
 
 // music_tick() advances when counter > timing, so these aliases represent
 // 2, 15, 30, and 60 NTSC frames respectively.

@@ -14,9 +14,11 @@ a game yet. A fixed Breakout-style inspection scene exercises the asymmetric
 without any changing state.
 
 The application supplies the immutable 48-byte playfield in cartridge ROM and
-includes the source-level standard-kernel state contract. The cycle-counted
-normalized kernel remains a companion assembly input. This makes placement, opcode, and scanline checks deterministic before task
-20e adds a VCSC overscan/vblank gameplay hook.
+includes the source-level standard-kernel state contract. `CTRLPF` is set to
+reflected-playfield mode, as required by this asymmetric standard-kernel write
+schedule. The cycle-counted normalized kernel remains a companion assembly
+input. This makes placement, opcode, and scanline checks deterministic before
+task 20e adds a VCSC overscan/vblank gameplay hook.
 
 Build after building the toolchain:
 
@@ -36,9 +38,14 @@ The linked cartridge deliberately fixes the timing-sensitive regions:
 - 88-byte decimal score table: `$F600..$F657`;
 - immutable playfield base: `$F154`, inside the required `$54..$D0` low-byte
   window;
-- hidden assembly stack allowance: two bytes beyond the ordinary call graph.
+- hidden assembly stack allowance: two bytes beyond the ordinary call graph;
+- repeated visible playfield writes at CPU cycles `24, 31, 38, 45` on each
+  complete kernel scanline.
 
 Stella 7.0's developer overlay reports `262 / 60.0Hz => NTSC*`, and the rendered
-frame shows the fixed `123456` score with the asymmetric playfield and object
-state. The star is Stella's normal noncanonical-timing marker for this retained
-kernel profile; the line count and refresh rate are stable.
+frame shows the fixed `123456` score with a centered, untorn asymmetric
+playfield and object state. The normalized kernel preserves the retained
+cycle-balanced ten-cycle player draw/skip paths, aligns the hot loop, and keeps
+the skip stubs on the same page so taken branches cannot add a conditional
+page-cross cycle. The star is Stella's normal noncanonical-timing marker for
+this retained kernel profile; the line count and refresh rate are stable.

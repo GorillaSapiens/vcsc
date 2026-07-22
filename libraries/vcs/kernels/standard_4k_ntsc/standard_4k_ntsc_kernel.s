@@ -318,16 +318,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      sta vcs_standard_playfield_position
      jmp @startkernel
 
-@skipDrawP0:
-     lda #0
-     tay
-     jmp @continueP0
-
-@skipDrawP1:
-     lda #0
-     tay
-     jmp @continueP1
-
+.align 256
 @kerloop:; enter at cycle 59??
 
 @continuekernel:
@@ -432,6 +423,17 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
      jmp @goback
 
+; Local cycle-balanced player skip paths. The unconditional jump above and
+; direct BMI to @lastkernelline keep these stubs off every fall-through path.
+@skipDrawP0:
+     lda #0
+     tay
+     jmp @continueP0
+
+@skipDrawP1:
+     lda #0
+     tay
+     jmp @continueP1
 
 @lastkernelline:
              SLEEP 10

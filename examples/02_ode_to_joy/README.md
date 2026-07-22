@@ -13,8 +13,11 @@ Beethoven's **Ode to Joy** repeatedly on TIA audio channel 0.
 The score is a const ROM array of `MusicStep` structs containing volume,
 frequency, control, and timing. Two-frame silent score steps articulate
 repeated notes. `music_tick()` runs once per television frame, advances a frame
-counter, changes steps when the current timing expires, wraps at the end, and
-writes `AUDV0`, `AUDF0`, and `AUDC0`.
+counter, changes steps when the current timing expires, and wraps at the end.
+The cartridge starts both channels silent. The first note begins during the
+first synchronized overscan rather than during reset-time setup, and every note
+transition writes `AUDC0`, then `AUDF0`, then enables `AUDV0` last. This avoids
+playing a fragment of an old waveform or frequency during startup.
 
 The score and player are both implemented in `ode_to_joy.c26`. The player uses
 the natural indexed form `music[music_index].field`. For an ordinary `uint8_t`
@@ -23,8 +26,10 @@ compiler-owned zero-page scratch; it does not allocate per-expression BSS or
 call the generic multiplication helper.
 The kernel starts `TIM64T`, calls the source-level player while the timer counts
 down, waits for `INTIM` to reach zero, and uses two final `WSYNC`s before the
-next VSYNC. Stella then reports a stable 262-line NTSC frame; the raw interval
-between successive VSYNC assertions is 263 whole scanlines.
+next VSYNC. Stella reports a stable 262-line NTSC frame. A dynamic regression
+also verifies that audio is silent before the first frame boundary and that the
+first audible note uses the same overscan phase and register order as every
+later transition.
 
 The note aliases in `libraries/vcs/sound_ntsc.c26` use the NTSC lead voice
 (`AUDC=12`). The TIA's scale is not equal-tempered, so the values are useful

@@ -179,6 +179,10 @@ defined($draw) or die "generated assembly is missing six_glyph_draw\n";
 $draw !~ /\bjsr\b/ or die "six_glyph_draw contains a nested call in the timed kernel\n";
 $draw !~ /\b(?:lax|tsx|txs)\b/ or die "score kernel uses an unofficial or stack-pointer opcode\n";
 $generated !~ /saved_stack_pointer/ or die "obsolete saved-stack variable remains\n";
+require_re($draw,qr/sta\s+\$25\s+sta\s+\$26\s+lda\s+#\$00\s+sta\s+\$1B\s+sta\s+\$1C\s+sta\s+\$1B/s,
+           'score setup does not triple-clear the current and delayed GRP latches');
+require_re($draw,qr/lda\s+#\$00\s+sta\s+\$1B\s+sta\s+\$1C\s+sta\s+\$1B\s+sta\s+\$25\s+sta\s+\$26/s,
+           'score cleanup does not flush delayed GRP latches before disabling VDEL');
 
 my ($loop)=$draw =~ /(\@six_glyph_loop:.*?bpl \@six_glyph_loop)/s;
 defined($loop) or die "generated assembly is missing the score row loop\n";

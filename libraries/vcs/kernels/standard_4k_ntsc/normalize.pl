@@ -556,6 +556,61 @@ ASM
       or die "normalized score-pointer setup no longer matches the selected retained source\n";
    $result =~ s/\Q$old_score_setup\E/$new_score_setup/;
 
+   # The retained skip paths are cycle-balanced at ten cycles, but their
+   # original placement before the hot loop can put the BCC targets on the
+   # previous page after linking. A taken cross-page branch adds one cycle and
+   # makes the two-line playfield schedule drift, producing visible horizontal
+   # tears. Align the hot loop to a page and move the unreachable skip stubs
+   # after the unconditional @goback jump, where both BCC targets remain local
+   # without changing either draw/skip path or the retained SLEEP 2 phase.
+   my $old_skip_layout = <<'ASM';
+@skipDrawP0:
+     lda #0
+     tay
+     jmp @continueP0
+
+@skipDrawP1:
+     lda #0
+     tay
+     jmp @continueP1
+
+@kerloop:; enter at cycle 59??
+ASM
+   my $new_skip_layout = <<'ASM';
+.align 256
+@kerloop:; enter at cycle 59??
+ASM
+   index($result, $old_skip_layout) >= 0
+      or die "normalized player-skip layout no longer matches the selected retained source\n";
+   $result =~ s/\Q$old_skip_layout\E/$new_skip_layout/;
+
+   my $old_skip_destination = <<'ASM';
+     jmp @goback
+
+
+@lastkernelline:
+ASM
+   my $new_skip_destination = <<'ASM';
+     jmp @goback
+
+; Local cycle-balanced player skip paths. The unconditional jump above and
+; direct BMI to @lastkernelline keep these stubs off every fall-through path.
+@skipDrawP0:
+     lda #0
+     tay
+     jmp @continueP0
+
+@skipDrawP1:
+     lda #0
+     tay
+     jmp @continueP1
+
+@lastkernelline:
+ASM
+   index($result, $old_skip_destination) >= 0
+      or die "normalized player-skip destination no longer matches the selected retained source\n";
+   $result =~ s/\Q$old_skip_destination\E/$new_skip_destination/;
+
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;
    return $result . "\n";
