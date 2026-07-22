@@ -31,7 +31,7 @@
 .importzp vcs_standard_score_color
 .importzp vcs_standard_pointer_workspace
 .importzp vcs_standard_playfield_position
-.importzp vcs_standard_kernel_scratch
+.importzp vcs_standard_object_masks
 .import vcs_standard_playfield
 
 ; Canonical TIA and RIOT addresses used by the selected source.
@@ -118,6 +118,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      sta VBLANK
          lda #37+128
      sta TIM64T
+     jsr vcs_standard_prepare_object_masks
 
 
    .if {<*} > $e9 && {<*} < $fa
@@ -285,12 +286,10 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          inx
 
      inx
-     stx vcs_standard_kernel_scratch + 0
+     stx vcs_standard_object_masks + 3
 
-     lda vcs_standard_ball_y
-     sta vcs_standard_kernel_scratch + 1
-
-     jsr @prepare_player_state
+     ; Preserve the 37-cycle player-state helper call moved into VBLANK.
+     jsr vcs_standard_kernel_setup_delay
      lda vcs_standard_player0_y
      ldx #0
      sta WSYNC
@@ -308,10 +307,8 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
      dec vcs_standard_player0_y
 
-     lda vcs_standard_missile0_y
-     sta vcs_standard_pointer_workspace + 10
-     lda vcs_standard_missile1_y
-     sta vcs_standard_pointer_workspace + 11
+     ; Preserve the twelve setup cycles formerly used to save missile Y.
+     SLEEP 12
 
      lda vcs_standard_playfield_position
      sta vcs_standard_pointer_workspace + 6
@@ -327,7 +324,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
 @continuekernel:
 @continuekernel2:
-     lda vcs_standard_ball_height
+     lda vcs_standard_object_masks + 23
 
          ldy vcs_standard_playfield,x
          sty PF1 ;3
@@ -340,8 +337,8 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
      ; should be playfield+$38 for width=2
 
-     dcp vcs_standard_ball_y
-     sbc vcs_standard_pointer_workspace + 9
+     lsr vcs_standard_object_masks,x
+     adc #0
      ; rol
      ; rol
 @goback:
@@ -350,19 +347,19 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ldy vcs_standard_player1_y ;3
      dey ;2
      sty vcs_standard_player1_y ;3
-     cpy vcs_standard_kernel_scratch + 3 ;3, exclusive height
+     cpy vcs_standard_object_masks + 15 ;3, exclusive height
      bcc @drawP1 ;3 when drawing, 2 when skipped
-     lda vcs_standard_kernel_scratch + 4 ;3, permanent zero
+     lda vcs_standard_object_masks + 19 ;3, permanent zero
      jmp @continueP1 ;3
 @drawP1:
      lda (vcs_standard_player1_graphics),y ;5; graphics range must stay on one page
 @continueP1:
      sta GRP1 ;3
 
-         lda vcs_standard_missile1_height ;3
-         dcp vcs_standard_missile1_y ;5
-         rol;2
-         rol;2
+         lsr vcs_standard_object_masks + 1,x ;6
+         lda #1 ;2, carry preserved
+         adc #0 ;2, bit 1 becomes the enable result
+         nop ;2
          sta ENAM1 ;3
 
          lda vcs_standard_playfield,x ;4
@@ -378,19 +375,19 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ldy vcs_standard_player0_y
      dey
      sty vcs_standard_player0_y
-     cpy vcs_standard_kernel_scratch + 2 ; exclusive height
+     cpy vcs_standard_object_masks + 11 ; exclusive height
      bcc @drawP0
-     lda vcs_standard_kernel_scratch + 4 ; permanent zero
+     lda vcs_standard_object_masks + 19 ; permanent zero
      jmp @continueP0
 @drawP0:
      lda (vcs_standard_player0_graphics),y
 @continueP0:
      sta.a GRP0
 
-             lda vcs_standard_missile0_height ;3
-             dcp vcs_standard_missile0_y ;5
-             sbc vcs_standard_kernel_scratch + 0
-             sta ENAM0 ;3
+             lsr vcs_standard_object_masks + 2,x ;6
+             lda #1 ;2, carry preserved
+             adc #0 ;2, bit 1 becomes the enable result
+             sta.a ENAM0 ;4
          dec vcs_standard_pointer_workspace + 6
          bne @continuekernel
 
@@ -425,9 +422,9 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
                      sta vcs_standard_pointer_workspace + 6
 
 
-     lda vcs_standard_ball_height
-     dcp vcs_standard_ball_y
-     sbc vcs_standard_pointer_workspace + 9
+     lsr vcs_standard_object_masks - 4,x
+     lda vcs_standard_object_masks + 23
+     adc #0
 
 
      jmp @goback
@@ -447,11 +444,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
    .endif
      ; this is a kludge to prevent page wrapping - fix!!!
 
-@skipDrawlastP1:
-     lda #0
-     tay ; added so we don't cross a page
-     jmp @continuelastP1
-
 @endkerloop:; enter at cycle 59??
 
      nop
@@ -467,29 +459,19 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          sty PF2 ;3
 
 @enterlastkernel:
-     lda vcs_standard_ball_height
-
-     ; tya
-     dcp vcs_standard_ball_y
-     ; sleep 4
-
-     ; sbc stack3
-     rol
-     rol
+     lda vcs_standard_object_masks + 27
+     bit vcs_standard_object_masks + 19
+     SLEEP 6
      sta ENABL
 
-     lda vcs_standard_player1_height ;3
-     dcp vcs_standard_player1_y ;5
-     bcc @skipDrawlastP1
-     ldy vcs_standard_player1_y ;3
-     lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
-     ; so it doesn't cross a page boundary!
-
-@continuelastP1:
+     lda vcs_standard_object_masks + 31
+     bit vcs_standard_object_masks + 19
+     SLEEP 12
      sta GRP1 ;3
 
-         lda vcs_standard_missile1_height ;3
-         dcp vcs_standard_missile1_y ;5
+         lda vcs_standard_object_masks + 35
+         bit vcs_standard_object_masks + 19
+         nop
 
      dex
      ;dec temp4 ; might try putting this above PF writes
@@ -505,22 +487,20 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          ldy.a vcs_standard_playfield-48+4*12+46-0
          sty PF2 ;3
 
-         rol;2
-         rol;2
+         SLEEP 4
          sta ENAM1 ;3
 
-     lda.a vcs_standard_player0_height
-     dcp vcs_standard_player0_y
-     bcc @skipDrawlastP0
-     ldy vcs_standard_player0_y
-     lda (vcs_standard_player0_graphics),y
-@continuelastP0:
+     lda vcs_standard_object_masks + 39
+     bit vcs_standard_object_masks + 19
+     bit vcs_standard_object_masks + 19
+     SLEEP 10
      sta GRP0
 
 
-         lda vcs_standard_missile0_height ;3
-         dcp vcs_standard_missile0_y ;5
-         sbc vcs_standard_kernel_scratch + 0
+         lda vcs_standard_object_masks + 43
+         bit vcs_standard_object_masks + 19
+         bit vcs_standard_object_masks + 19
+         nop
          sta ENAM0 ;3
          jmp @endkerloop
 
@@ -531,12 +511,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          ; plus we get a lo-res paddle read
          ; bmi donepaddleskip
      ; endif
-
-@skipDrawlastP0:
-     lda #0
-     tay
-     jmp @continuelastP0
-
 
 @endkernel:
      ; 6 digit score routine
@@ -574,7 +548,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          sta vcs_standard_missile1_y
              lda vcs_standard_pointer_workspace + 10
              sta vcs_standard_missile0_y
-     lda vcs_standard_kernel_scratch + 1
+     lda vcs_standard_object_masks + 7
      sta vcs_standard_ball_y
 
      ; strangely, this isn't required any more. might have
@@ -610,7 +584,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
          sta HMCLR
          tsx
-         stx vcs_standard_kernel_scratch + 0
+         stx vcs_standard_object_masks + 3
          ldx #$E0
          stx HMP0
 
@@ -681,7 +655,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          dey
          bpl @loop2 ;+2 60 180
 
-         ldx vcs_standard_kernel_scratch + 0
+         ldx vcs_standard_object_masks + 3
          txs
          ; lda scorepointers+1
          ldy vcs_standard_pointer_workspace + 6
@@ -710,19 +684,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
  sta WSYNC
  sta VBLANK
  RETURN
-
-@prepare_player_state:
-     lda vcs_standard_player0_height
-     clc
-     adc #1
-     sta vcs_standard_kernel_scratch + 2
-     lda vcs_standard_player1_height
-     clc
-     adc #1
-     sta vcs_standard_kernel_scratch + 3
-     lda #0
-     sta vcs_standard_kernel_scratch + 4
-     rts
 
 .endproc
 .align 256
@@ -839,4 +800,260 @@ vcs_standard_score_table:
    .byte %00000000
    .byte %00000000
    .byte %00000000
+
+.segment "CODE"
+.proc vcs_standard_kernel_setup_delay
+     SLEEP 25
+     rts
+.endproc
+
+.proc vcs_standard_prepare_object_masks
+.export vcs_standard_prepare_object_masks
+
+; The fourth byte in each four-byte mask record is prep/private scratch.
+
+     lda #0
+     ldx #0
+@clear:
+     sta vcs_standard_object_masks,x
+     sta vcs_standard_object_masks + 1,x
+     sta vcs_standard_object_masks + 2,x
+     txa
+     clc
+     adc #4
+     tax
+     cpx #44
+     bcc @clear
+
+     lda #87
+     sta vcs_standard_object_masks + 31
+     lda vcs_standard_ball_y
+     ldy vcs_standard_ball_height
+     ldx #0
+     jsr @prepare_one
+
+     lda #88
+     sta vcs_standard_object_masks + 31
+     lda vcs_standard_missile1_y
+     ldy vcs_standard_missile1_height
+     ldx #1
+     jsr @prepare_one
+
+     lda vcs_standard_missile0_y
+     ldy vcs_standard_missile0_height
+     ldx #2
+     jsr @prepare_one
+
+     lda vcs_standard_ball_y
+     sta vcs_standard_object_masks + 7
+     sec
+     sbc #87
+     sta vcs_standard_ball_y
+     lda vcs_standard_missile0_y
+     sta vcs_standard_pointer_workspace + 10
+     sec
+     sbc #88
+     sta vcs_standard_missile0_y
+     lda vcs_standard_missile1_y
+     sta vcs_standard_pointer_workspace + 11
+     sec
+     sbc #88
+     sta vcs_standard_missile1_y
+
+     lda vcs_standard_player0_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 11
+     lda vcs_standard_player1_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 15
+     lda #0
+     sta vcs_standard_object_masks + 19
+     lda #1
+     sta vcs_standard_object_masks + 23
+
+     ; Precompute the five final-row bytes. The object counters already carry
+     ; their steady-loop bias, so these legal DEC/CMP sequences reproduce the
+     ; final DCP result before visible drawing begins.
+     lda vcs_standard_ball_height
+     dec vcs_standard_ball_y
+     cmp vcs_standard_ball_y
+     rol
+     rol
+     sta vcs_standard_object_masks + 27
+
+     lda vcs_standard_player1_y
+     sec
+     sbc #89
+     tay
+     cpy vcs_standard_object_masks + 15
+     bcs @final_player1_zero
+     lda (vcs_standard_player1_graphics),y
+     jmp @final_player1_store
+@final_player1_zero:
+     lda #0
+@final_player1_store:
+     sta vcs_standard_object_masks + 31
+
+     lda vcs_standard_missile1_height
+     dec vcs_standard_missile1_y
+     cmp vcs_standard_missile1_y
+     rol
+     rol
+     sta vcs_standard_object_masks + 35
+
+     lda vcs_standard_player0_y
+     sec
+     sbc #89
+     tay
+     cpy vcs_standard_object_masks + 11
+     bcs @final_player0_zero
+     lda (vcs_standard_player0_graphics),y
+     jmp @final_player0_store
+@final_player0_zero:
+     lda #0
+@final_player0_store:
+     sta vcs_standard_object_masks + 39
+
+     lda vcs_standard_missile0_height
+     dec vcs_standard_missile0_y
+     cmp vcs_standard_missile0_y
+     lda #$fd
+     adc #0
+     sta vcs_standard_object_masks + 43
+     rts
+
+@prepare_one:
+     sta vcs_standard_object_masks + 11
+     stx vcs_standard_object_masks + 3
+     sty vcs_standard_object_masks + 35
+     sec
+     sbc vcs_standard_object_masks + 35
+     sta vcs_standard_object_masks + 7
+     sta vcs_standard_object_masks + 39
+     cmp vcs_standard_object_masks + 11
+     bcc @no_wrap
+     beq @no_wrap
+
+     lda vcs_standard_object_masks + 11
+     beq @wrapped_high
+     cmp vcs_standard_object_masks + 31
+     bcc @wrapped_low_ready
+     beq @wrapped_low_ready
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+@wrapped_low_ready:
+     lda #1
+     sta vcs_standard_object_masks + 7
+     jsr @set_range
+
+@wrapped_high:
+     lda vcs_standard_object_masks + 39
+     cmp vcs_standard_object_masks + 31
+     bcc @wrapped_high_ready
+     beq @wrapped_high_ready
+     rts
+@wrapped_high_ready:
+     sta vcs_standard_object_masks + 7
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+     jsr @set_range
+     rts
+
+@no_wrap:
+     lda vcs_standard_object_masks + 7
+     bne @no_wrap_first_ready
+     lda #1
+     sta vcs_standard_object_masks + 7
+@no_wrap_first_ready:
+     lda vcs_standard_object_masks + 11
+     cmp vcs_standard_object_masks + 31
+     bcc @no_wrap_last_ready
+     beq @no_wrap_last_ready
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+@no_wrap_last_ready:
+     lda vcs_standard_object_masks + 7
+     cmp vcs_standard_object_masks + 11
+     bcc @set_range
+     beq @set_range
+     rts
+
+@set_range:
+     lda vcs_standard_object_masks + 7
+     sec
+     sbc #1
+     tay
+     and #7
+     tax
+     lda @start_bits,x
+     sta vcs_standard_object_masks + 23
+     tya
+     lsr
+     lsr
+     lsr
+     sta vcs_standard_object_masks + 15
+
+     lda vcs_standard_object_masks + 11
+     sec
+     sbc #1
+     tay
+     and #7
+     tax
+     lda @end_bits,x
+     sta vcs_standard_object_masks + 27
+     tya
+     lsr
+     lsr
+     lsr
+     sta vcs_standard_object_masks + 19
+
+     lda vcs_standard_object_masks + 15
+     asl
+     asl
+     clc
+     adc vcs_standard_object_masks + 3
+     tax
+     lda vcs_standard_object_masks + 15
+     cmp vcs_standard_object_masks + 19
+     bne @range_many
+     lda vcs_standard_object_masks + 23
+     and vcs_standard_object_masks + 27
+     ora vcs_standard_object_masks,x
+     sta vcs_standard_object_masks,x
+     rts
+
+@range_many:
+     lda vcs_standard_object_masks,x
+     ora vcs_standard_object_masks + 23
+     sta vcs_standard_object_masks,x
+     inc vcs_standard_object_masks + 15
+@range_middle:
+     lda vcs_standard_object_masks + 15
+     cmp vcs_standard_object_masks + 19
+     bcs @range_last
+     txa
+     clc
+     adc #4
+     tax
+     lda #$ff
+     sta vcs_standard_object_masks,x
+     inc vcs_standard_object_masks + 15
+     jmp @range_middle
+@range_last:
+     txa
+     clc
+     adc #4
+     tax
+     lda vcs_standard_object_masks,x
+     ora vcs_standard_object_masks + 27
+     sta vcs_standard_object_masks,x
+     rts
+
+@start_bits:
+     .byte $ff,$fe,$fc,$f8,$f0,$e0,$c0,$80
+@end_bits:
+     .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff
+.endproc
 

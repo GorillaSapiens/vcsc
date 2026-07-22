@@ -16,58 +16,58 @@ result of `CMP A,zp`. The direct legal spelling:
     cmp object_y
 ```
 
-is eight cycles. Replacing all five steady-state object updates naively adds
-15 CPU cycles to every two displayed scanlines and makes the playfield write
-phase drift. Legalization therefore proceeds one timing family at a time.
+is eight cycles. Replacing all five steady-state object updates naively would
+add 15 CPU cycles to every two displayed scanlines and visibly move the
+playfield writes. Task 20q therefore legalized one timing family at a time.
 
-## Completed player paths
+## Player paths
 
-The two steady player counters are now legal. Each path:
+The two steady player counters use legal `LDY`/`DEY`/`STY`/`CPY` branch
+diamonds. Each path decrements the row, compares it with a precomputed exclusive
+height, and selects either the indexed glyph or a permanent zero byte. The draw
+and skip arms remain cycle-balanced.
 
-1. loads the current row into Y;
-2. decrements Y and stores it back;
-3. compares against a precomputed exclusive height; and
-4. selects either the indexed glyph byte or a permanent zero through a
-   cycle-balanced branch diamond.
+Player 1's extra cycle was recovered by replacing the old ball `ROL` pair with
+the already-retained `height+2` subtraction. Player 0 uses an absolute TIA store
+and consumes the next iteration's former two-cycle pad. First entry and row
+transitions are retimed separately, so PF1/PF2 writes remain at cycles 24, 31,
+38, and 45.
 
-The exclusive heights and zero byte occupy three private scratch bytes prepared
-outside the visible hot loop. Player 1's legal path costs one cycle more than the
-old DCP path; the main ball calculation now uses the already-retained
-`height+2` SBC encoding instead of two ROL instructions, recovering that cycle.
-Player 0's path costs two cycles more and uses an absolute TIA store; the next
-iteration's former two-cycle pad is removed. The one-time first-entry save and
-the row-transition delay are separately retimed so all PF writes remain at
-cycles 24, 31, 38, and 45.
+## Steady ball and missile paths
 
-The final-row player duplicates still use DCP and are deliberately left for
-20q4.
+During VBLANK, `vcs_standard_prepare_object_masks` computes one packed bit per
+live BL, M1, and M0 update. The visible kernel consumes the bits with legal
+zero-page-indexed `LSR` instructions. Loading constant 1 preserves carry, and
+`ADC #0` maps the shifted carry directly into TIA enable bit 1.
 
-## Remaining dynamic DCP schedule
+The legal schedule is locked across 46 central scanlines:
 
-`vcs_standard_kernel_dcp_schedule.test` executes the complete example-05
-cartridge and records the remaining ball and missile sites in frame 3. Across
-46 central scanlines:
-
-| Scanline half | Object | DCP start cycle |
+| Scanline half | Object | Legal `LSR` start cycle |
 | --- | --- | ---: |
-| first | ball | 45 normally; 42 on the playfield-row transition |
-| second | missile 1 | 5 |
-| second | missile 0 | 71 |
+| first | ball | 45 normally; 39 on a playfield-row transition |
+| second | missile 1 | 2 |
+| second | missile 0 | 68 |
 
-The regression identifies sites by their final zero-page operands rather than
-linked code addresses, so ordinary code movement does not invalidate the
-baseline. The complete static-kernel test separately verifies stable player
-output, skipped-row zero output, all five TIA objects, and every PF write phase.
+The packed masks raise mandatory module RAM to 80 bytes and require a ROM
+playfield in this profile. A mutable 48-byte playfield no longer fits alongside
+the mask workspace and reserved hardware stack.
 
-## Remaining slices
+## Final-row paths
 
-1. **20q3:** legalize the steady ball and missile counters while preserving the
-   enabled/disabled TIA values and the schedule above.
-2. **20q4:** legalize alternate and final-row duplicates, remove the DCP
-   inventory form, and replace this transitional DCP regression with wholly
-   legal-opcode timing coverage.
+The five final-row duplicates are also legal. The VBLANK helper precomputes the
+exact bytes that the old final `DCP` sequences would have produced:
 
-A deliberate page-crossing branch is not an acceptable one-cycle filler. The
-linker now works to remove such crossings, and kernel timing must not depend on
-reintroducing one. Added work must come from explicit padding, removed
-redundancy, or a documented scheduling change.
+* BL, M1, and M0 retain the old compare/carry-to-TIA value, including otherwise
+  ignored high bits;
+* P0 and P1 retain the exact final glyph-or-zero selection at row `Y - 89`;
+* the final-row visible code loads those bytes and uses explicit legal `BIT` and
+  `NOP` delays to preserve every TIA store cycle.
+
+The formerly temporary schedule regression is now
+`vcs_standard_kernel_legal_schedule.test`. It locks the three steady mask
+operands and cycles and checks all five final precomputed values. The complete
+static-kernel execution test separately verifies object output, PF phases,
+persistent-state restoration, and a stable 262-line frame.
+
+Task 20q is complete. The normalized profile contains no `DCP` instruction; the
+remaining unofficial forms belong to tasks 20r and 20s.

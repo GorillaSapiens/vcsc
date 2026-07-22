@@ -35,8 +35,8 @@ my $profile=File::Spec->catdir($vcs,qw(kernels standard_4k_ntsc));
 my $source=File::Spec->catfile($repo,qw(examples 05_static_kernel_test static_kernel_test.c26));
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
-my $bin=File::Spec->catfile($tmp,'dcp_schedule.bin');
-my $mapfile=File::Spec->catfile($tmp,'dcp_schedule.map');
+my $bin=File::Spec->catfile($tmp,'legal_schedule.bin');
+my $mapfile=File::Spec->catfile($tmp,'legal_schedule.map');
 my($rc,$sig,$out,$err)=capture(
    $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
    $source,$kernel,'-o',$bin);
@@ -44,25 +44,24 @@ $rc==0 && !$sig or die "static-kernel build failed\n$out$err";
 $out eq '' && $err eq '' or die "static-kernel build wrote output\n$out$err";
 my $map=read_file($mapfile);
 my @zp=map { map_symbol($map,$_) } qw(
-   vcs_standard_ball_y
-   vcs_standard_missile1_y
-   vcs_standard_missile0_y
+   vcs_standard_object_masks
 );
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
-my $src=File::Spec->catfile($repo,'test','vcs_standard_kernel_dcp_schedule.cpp');
-my $exe=File::Spec->catfile($tmp,'dcp_schedule');
+my $src=File::Spec->catfile($repo,'test','vcs_standard_kernel_legal_schedule.cpp');
+my $exe=File::Spec->catfile($tmp,'legal_schedule');
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 ($rc,$sig,$out,$err)=capture(
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
-$rc==0 && !$sig or die "DCP schedule harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "DCP schedule build wrote output\n$out$err";
-my @args=map { sprintf('0x%02x',$_) } @zp;
+$rc==0 && !$sig or die "mask schedule harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "mask schedule build wrote output\n$out$err";
+my $base=$zp[0];
+my @args=(sprintf('0x%02x',$base));
 ($rc,$sig,$out,$err)=capture($exe,$bin,@args);
-$rc==0 && !$sig or die "DCP schedule harness failed\n$out$err";
-$out eq "vcs_standard_kernel_dcp_schedule ok: 46 scanlines, three DCP objects locked\n"
-   or die "unexpected DCP schedule output: $out";
-$err eq '' or die "DCP schedule stderr: $err";
-print "vcs_standard_kernel_dcp_schedule ok\n";
+$rc==0 && !$sig or die "mask schedule harness failed\n$out$err";
+$out eq "vcs_standard_kernel_legal_schedule ok: 46 scanlines, three steady masks and five final values locked\n"
+   or die "unexpected mask schedule output: $out";
+$err eq '' or die "mask schedule stderr: $err";
+print "vcs_standard_kernel_legal_schedule ok\n";

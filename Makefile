@@ -158,11 +158,16 @@ installcheck: tools
 	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26"` -gt 0; \
 	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323601"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	if "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin"` -eq 4096; \
+	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin" \
+	  >"$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stdout" \
+	  2>"$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stderr"; then \
+	  echo "mutable standard-kernel playfield unexpectedly linked" >&2; exit 1; \
+	fi; \
+	test ! -s "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stdout"; \
+	grep -q "RAM overflow" "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stderr"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.c26" \

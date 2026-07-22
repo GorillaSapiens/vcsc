@@ -36,7 +36,7 @@ my $tsv=File::Spec->catfile($dir,'standard_4k_ntsc_unofficial_opcodes.tsv');
 my $fresh=`cd '$dir' && ./unofficial_opcodes.pl`; $?==0 or die "generator failed\n";
 $fresh eq read_file($tsv) or die "unofficial-opcode inventory is stale\n";
 my @rows=grep {length} split(/\n/,$fresh); shift @rows eq join("\t",qw(file line mnemonic mode opcode bytes base_cycles page_penalty classification purpose)) or die "bad header\n";
-@rows==12 or die "expected 12 retained unofficial sites, got ".scalar(@rows)."\n";
+@rows==3 or die "expected 3 retained unofficial sites, got ".scalar(@rows)."\n";
 my %count;
 for my $row (@rows) {
    my @f=split(/\t/,$row,-1); @f==10 or die "malformed row: $row\n";
@@ -44,7 +44,7 @@ for my $row (@rows) {
    $f[8] eq 'stable/common' or die "retained site is not stable/common: $row\n";
    length($f[9]) or die "missing purpose: $row\n";
 }
-my %want=('NOP.z:zp'=>1,'ASR:imm'=>1,'DCP:zp'=>9,'SBX:imm'=>1);
+my %want=('NOP.z:zp'=>1,'ASR:imm'=>1,'SBX:imm'=>1);
 join(',',sort keys %count) eq join(',',sort keys %want) or die "retained form set changed\n";
 for my $k (keys %want) { ($count{$k}//0)==$want{$k} or die "$k count changed\n"; }
 
@@ -55,14 +55,13 @@ write_file($src,<<'ASM');
 .segmentdef "CODE", $8000, $0100
 .segment "CODE"
 ASR #$F0
-DCP $81
 SBX #252
 NOP.z $00
 ASM
 my($rc,$sig,$out,$err)=capture($asm,'--illegals',"--hex=$hex",$src);
 $rc==0 && !$sig or die "probe assembly failed\n$out$err";
-my $bytes=ihex_data(read_file($hex),8);
-unpack('H*',$bytes) eq '4bf0c781cbfc0400' or die "retained unofficial byte matrix changed: ".unpack('H*',$bytes)."\n";
+my $bytes=ihex_data(read_file($hex),6);
+unpack('H*',$bytes) eq '4bf0cbfc0400' or die "retained unofficial byte matrix changed: ".unpack('H*',$bytes)."\n";
 ($rc,$sig,$out,$err)=capture($asm,"--hex=$hex.no_illegals",$src);
 $rc!=0 or die "unofficial mnemonics assembled without --illegals\n";
 
@@ -80,7 +79,7 @@ $out eq "vcs_standard_kernel_unofficial_cycles ok\n" or die "unexpected cycle ou
 $err eq '' or die "cycle harness stderr: $err";
 
 my $doc=read_file(File::Spec->catfile($dir,'UNOFFICIAL_OPCODES.md'));
-for my $needle ('stable/common','silicon-sensitive','unstable','No silicon-sensitive or unstable opcode is retained','`$A7`','`$B3`','`$4B`','`$C7`','`$CB`','`$04`') {
+for my $needle ('stable/common','silicon-sensitive','unstable','No silicon-sensitive or unstable opcode is retained','`$A7`','`$B3`','`$4B`','`$CB`','`$04`') {
    index($doc,$needle)>=0 or die "UNOFFICIAL_OPCODES.md lacks $needle\n";
 }
 print "vcs_standard_kernel_unofficial_opcodes ok\n";

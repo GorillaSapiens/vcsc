@@ -881,6 +881,9 @@ test/vcs_headers_smoke_test.n
 test/vcs_return_epilogue_encoding.pl
 test/vcs_return_epilogue_encoding.test
 test/vcs_standard_kernel_contract_rom_playfield.s
+test/vcs_standard_kernel_dcp_schedule.cpp
+test/vcs_standard_kernel_dcp_schedule.pl
+test/vcs_standard_kernel_dcp_schedule.test
 test/visible_same_type_operator_beats_helper_codegen_test.n
 test/void_cast_assignment_error_test.n
 test/void_cast_condition_error_test.n

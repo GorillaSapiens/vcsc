@@ -19,21 +19,23 @@ Current linked layout
 
 The `examples/05_static_kernel_test` baseline map places `KERNEL_CODE` at
 `$F300..$F5FF` (size `$0300`), `KERNEL_RODATA` at `$F600..$F657` (size `$0058`),
-and the immutable 48-byte playfield at `$F754..$F783`.  The source presently has
+and the immutable 48-byte playfield at `$F100..$F12F`.  The source presently has
 page anchors before the main visible loop, last-line kernel, score loop, and
 score table.  These addresses are observations, not new ABI guarantees.
 
 Inventory summary
 -----------------
 
-The baseline contains 13 relative branches, 30 indexed reads, 11 indexed indirect pointer reads, 26 explicit padding sites, four alignment directives,
-and 12 source-level unofficial-opcode sites.  The unofficial sites are:
+The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 35 explicit
+padding sites, four alignment directives,
+and 3 source-level unofficial-opcode sites. The unofficial sites are:
 
 Task 20o classifies those sites and locks their exact bytes and cycles in
 `UNOFFICIAL_OPCODES.md` and `standard_4k_ntsc_unofficial_opcodes.tsv`.
 
-* 9 `DCP`: decrement an object vertical counter and compare it with height in
-  one five-cycle read-modify-write instruction;
+* task 20q removed all 11 `DCP` sites. Steady BL/M1/M0 updates consume packed
+  legal `LSR` masks, and the five final-row results are precomputed legally in
+  VBLANK and loaded through cycle-equivalent `BIT`/`NOP` schedules;
 * task 20p removed all 5 `LAX` sites. Pointer setup now uses legal `LDA`/`TAX`;
   the visible score path exchanges four cycles of explicit padding for the two
   added `TAX` instructions and retains its original 21-cycle interval;

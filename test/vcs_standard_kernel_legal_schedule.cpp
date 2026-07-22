@@ -1,5 +1,5 @@
-//! @file vcs_standard_kernel_dcp_schedule.cpp
-//! @brief Lock the remaining ball/missile DCP schedule after player legalization.
+//! @file vcs_standard_kernel_legal_schedule.cpp
+//! @brief Lock the legal steady ball/missile packed-mask schedule.
 
 #include <cstdint>
 #include <cstdio>
@@ -22,16 +22,16 @@ constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
 constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
-constexpr uint8_t kDcpZp = 0xC7;
+constexpr uint8_t kLsrZpX = 0x56;
 
 struct WriteEvent { uint16_t address; uint8_t value; };
-struct DcpEvent { uint64_t line; uint64_t cycle; uint8_t operand; };
+struct MaskEvent { uint64_t line; uint64_t cycle; uint8_t operand; };
 
 uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
 uint64_t cpu_cycles = 0;
 std::vector<WriteEvent> writes;
-std::vector<DcpEvent> dcp_events;
+std::vector<MaskEvent> mask_events;
 bool vsync_asserted = false;
 int frame = -1;
 uint64_t frame_start = 0;
@@ -41,7 +41,7 @@ uint16_t timer_divisor = 1;
 uint8_t timer_loaded = 0;
 
 [[noreturn]] void fail(const char *message) {
-   std::fprintf(stderr, "vcs_standard_kernel_dcp_schedule: %s\n", message);
+   std::fprintf(stderr, "vcs_standard_kernel_legal_schedule: %s\n", message);
    std::exit(1);
 }
 
@@ -96,17 +96,17 @@ uint8_t parse_zp(const char *text) {
    return static_cast<uint8_t>(value);
 }
 
-void expect_line(const std::map<uint64_t, std::vector<DcpEvent>> &by_line,
+void expect_line(const std::map<uint64_t, std::vector<MaskEvent>> &by_line,
                  uint64_t line,
                  const std::vector<std::pair<uint64_t, uint8_t>> &expected) {
    const auto found = by_line.find(line);
-   if (found == by_line.end()) fail("missing DCP line");
-   if (found->second.size() != expected.size()) fail("wrong DCP count on line");
+   if (found == by_line.end()) fail("missing legal-mask line");
+   if (found->second.size() != expected.size()) fail("wrong legal-mask count on line");
    for (size_t i = 0; i < expected.size(); ++i) {
       if (found->second[i].cycle != expected[i].first ||
           found->second[i].operand != expected[i].second) {
          std::fprintf(stderr,
-            "vcs_standard_kernel_dcp_schedule: line %llu event %zu is zp $%02x "
+            "vcs_standard_kernel_legal_schedule: line %llu event %zu is zp $%02x "
             "cycle %llu; expected zp $%02x cycle %llu\n",
             static_cast<unsigned long long>(line), i,
             found->second[i].operand,
@@ -120,14 +120,15 @@ void expect_line(const std::map<uint64_t, std::vector<DcpEvent>> &by_line,
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 5) {
+   if (argc != 3) {
       std::fprintf(stderr,
-         "usage: %s ROM ball_y missile1_y missile0_y\n", argv[0]);
+         "usage: %s ROM object_masks_zp\n", argv[0]);
       return 2;
    }
-   const uint8_t ball_y = parse_zp(argv[2]);
-   const uint8_t missile1_y = parse_zp(argv[3]);
-   const uint8_t missile0_y = parse_zp(argv[4]);
+   const uint8_t masks = parse_zp(argv[2]);
+   const uint8_t ball_mask = masks;
+   const uint8_t missile1_mask = static_cast<uint8_t>(masks + 1);
+   const uint8_t missile0_mask = static_cast<uint8_t>(masks + 2);
 
    std::memset(memory_image, 0, sizeof(memory_image));
    std::ifstream rom(argv[1], std::ios::binary);
@@ -144,9 +145,9 @@ int main(int argc, char **argv) {
         instructions < kInstructionLimit && frame < 3;
         ++instructions) {
       const uint16_t pc = cpu.GetPC();
-      if (frame == 2 && memory_image[pc] == kDcpZp) {
+      if (frame == 2 && memory_image[pc] == kLsrZpX) {
          const uint64_t relative = virtual_cycles - frame_start;
-         dcp_events.push_back({relative / kCyclesPerScanline,
+         mask_events.push_back({relative / kCyclesPerScanline,
                                relative % kCyclesPerScanline,
                                memory_image[static_cast<uint16_t>(pc + 1)]});
       }
@@ -158,20 +159,36 @@ int main(int argc, char **argv) {
    }
    if (frame < 3) fail("instruction limit reached before three frames");
 
-   std::map<uint64_t, std::vector<DcpEvent>> by_line;
-   for (const DcpEvent &event : dcp_events) by_line[event.line].push_back(event);
+   std::map<uint64_t, std::vector<MaskEvent>> by_line;
+   for (const MaskEvent &event : mask_events) by_line[event.line].push_back(event);
 
    for (uint64_t line = 55; line <= 100; ++line) {
       if ((line & 1) != 0) {
-         expect_line(by_line, line, {{5, missile1_y}, {71, missile0_y}});
+         expect_line(by_line, line, {{2, missile1_mask}, {68, missile0_mask}});
       }
       else {
-         const uint64_t ball_cycle = (line % 16 == 6) ? 42 : 45;
-         expect_line(by_line, line, {{ball_cycle, ball_y}});
+         const bool alternate = (line % 16 == 6);
+         expect_line(by_line, line, {{alternate ? 39u : 45u,
+                                      static_cast<uint8_t>(alternate ? ball_mask - 4 : ball_mask)}});
+      }
+   }
+
+   // The static fixture's final-row DCP semantics, precomputed legally during
+   // VBLANK: BL, P1 glyph, M1, P0 glyph, and M0 respectively.
+   const std::pair<uint8_t, uint8_t> final_values[] = {
+      {27, 0x0c}, {31, 0x00}, {35, 0x1c}, {39, 0x00}, {43, 0xfd}
+   };
+   for (const auto &entry : final_values) {
+      const uint8_t actual = memory_image[static_cast<uint8_t>(masks + entry.first)];
+      if (actual != entry.second) {
+         std::fprintf(stderr,
+            "vcs_standard_kernel_legal_schedule: final mask +%u is $%02x; expected $%02x\n",
+            entry.first, actual, entry.second);
+         return 1;
       }
    }
 
    std::printf(
-      "vcs_standard_kernel_dcp_schedule ok: 46 scanlines, three DCP objects locked\n");
+      "vcs_standard_kernel_legal_schedule ok: 46 scanlines, three steady masks and five final values locked\n");
    return 0;
 }

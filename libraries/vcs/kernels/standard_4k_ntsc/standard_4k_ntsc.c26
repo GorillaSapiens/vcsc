@@ -2,13 +2,14 @@
 //
 // Include vcs.c26 before this module. The application must define exactly one
 // contiguous 48-byte object named vcs_standard_playfield before including this
-// file. It may be writable uint8_t storage in RIOT RAM or const uint8_t storage
-// in cartridge ROM. The kernel binds to that symbol directly; there is no
-// runtime playfield pointer and therefore no indirect-load timing penalty.
+// file. This selected timing profile requires const uint8_t storage in
+// cartridge ROM; its packed object masks leave insufficient RIOT RAM for a
+// mutable 48-byte playfield. The kernel binds to the symbol directly, so there
+// is no runtime playfield pointer or indirect-load timing penalty.
 //
-// This file contains no converted assembly yet. Task 20c will add the
-// mechanically normalized implementation. Ordinary linker allocation is used
-// except for the explicitly documented adjacency and linked-address constraints.
+// The mechanically normalized assembly implementation is linked separately.
+// Ordinary linker allocation is used except for the explicitly documented
+// adjacency and linked-address constraints.
 
 alias VCS_STANDARD_OBJECT_PLAYER0 0
 alias VCS_STANDARD_OBJECT_PLAYER1 1
@@ -24,17 +25,17 @@ alias VCS_STANDARD_PLAYFIELD_COLUMNS 32
 alias VCS_STANDARD_DEFAULT_ROW_SCANLINES 16
 alias VCS_STANDARD_POINTER_WORKSPACE_BYTES 12
 alias VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES 23
-alias VCS_STANDARD_PRIVATE_RAM_BYTES 18
-alias VCS_STANDARD_MODULE_RAM_BYTES 41
-alias VCS_STANDARD_HIDDEN_STACK_BYTES 2
+alias VCS_STANDARD_PRIVATE_RAM_BYTES 57
+alias VCS_STANDARD_MODULE_RAM_BYTES 80
+alias VCS_STANDARD_HIDDEN_STACK_BYTES 6
 alias VCS_STANDARD_SCORE_FONT_BYTES 88
 
 // The retained kernel reads active sprite rows from highest index to zero.
 // Applications may write art top-to-bottom through this storage-order helper.
 alias VCS_STANDARD_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-// The application-provided storage symbol. It is intentionally an alias rather
-// than a declaration so the application chooses const ROM or mutable RAM type.
+// The application-provided ROM storage symbol. It remains an alias rather than
+// a declaration so the application supplies the exact 48-byte contents.
 alias VCS_STANDARD_PLAYFIELD vcs_standard_playfield
 
 alias VCS_STANDARD_PLAYER0_X vcs_standard_object_x[VCS_STANDARD_OBJECT_PLAYER0]
@@ -80,12 +81,13 @@ uint8_t vcs_standard_pointer_workspace[VCS_STANDARD_POINTER_WORKSPACE_BYTES];
 
 uint8_t vcs_standard_playfield_position;
 
-// Module-private transient bytes. Bytes 0 and 1 retain the converted
-// stack1/stack2 roles. Bytes 2 and 3 hold exclusive player heights for the
-// legal steady-state player counters, and byte 4 is a permanent zero used by
-// their cycle-balanced skipped-row paths. They are ordinary RIOT RAM, not
-// hardware-stack locations.
-uint8_t vcs_standard_kernel_scratch[5];
+// Packed vertical enable masks for the legal ball/missile paths. Each four-byte
+// record covers eight two-line kernel iterations at one playfield X value:
+// ball, missile 1, missile 0, private scratch. The first five record-scratch
+// bytes retain the converted stack1/stack2 roles, the two exclusive player
+// heights, and the permanent player-zero byte. This interleaving reuses bytes
+// that indexed mask updates never touch.
+uint8_t vcs_standard_object_masks[44];
 
 // Implemented by the converted kernel source in later task slices. The call
 // begins during application-owned overscan and returns with VBLANK asserted.

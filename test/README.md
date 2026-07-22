@@ -83,10 +83,11 @@ underscores, and width overflow after normalization.
 
 `vcs_standard_kernel_contract.test` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-kernel module. It checks the
-38-byte mandatory state span, the application-provided RAM-or-ROM playfield,
-the documented frame/clobber/page contract, the two-byte hidden assembly-stack
-reserve, the linker map and generated symbols, rejection of `callstack_extra`
-without call-graph sizing, and both 4096-byte storage-choice smoke cartridges.
+80-byte mandatory state span, the required ROM playfield, the documented
+frame/clobber/page contract, the six-byte hidden assembly-stack reserve, the
+linker map and generated symbols, rejection of `callstack_extra` without
+call-graph sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM
+smoke cartridge.
 
 `vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
 normalization. It regenerates the selected source beside the checked-in outputs and requires byte identity,
@@ -96,12 +97,11 @@ assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
 segment map and score table, rejects assembly without unofficial mnemonics, and
 assembles a smoke source that invokes every retained macro.
 
-`vcs_standard_kernel_dcp_schedule.test` locks the live pre-legalization
-schedule for the five vertical-object `DCP` updates. It executes the complete
-static-kernel cartridge, identifies sites through their final zero-page
-operands, and checks 46 steady-state scanlines including the alternate ball
-phase at each playfield-row transition. This is a temporary task-20q baseline:
-it must be replaced, not weakened, as each DCP family is legalized.
+`vcs_standard_kernel_legal_schedule.test` executes the complete static-kernel
+cartridge and locks the legal packed-mask schedule across 46 steady-state
+scanlines, including the alternate ball phase at each playfield-row transition.
+It also checks the five exact final-row bytes precomputed during VBLANK, covering
+all former `DCP` families even when the static scene exits before the P0/M0 half.
 
 `assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented

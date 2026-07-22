@@ -83,10 +83,11 @@ underscores, and width overflow after normalization.
 
 `vcs_standard_kernel_contract.test` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-kernel module. It checks the
-38-byte mandatory state span, the application-provided RAM-or-ROM playfield,
-the documented frame/clobber/page contract, the two-byte hidden assembly-stack
-reserve, the linker map and generated symbols, rejection of `callstack_extra`
-without call-graph sizing, and both 4096-byte storage-choice smoke cartridges.
+80-byte mandatory state span, the required ROM playfield, the documented
+frame/clobber/page contract, the six-byte hidden assembly-stack reserve, the
+linker map and generated symbols, rejection of `callstack_extra` without
+call-graph sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM
+smoke cartridge.
 
 `vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
 normalization. It regenerates the selected source beside the checked-in outputs and requires byte identity,

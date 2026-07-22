@@ -112,19 +112,21 @@ require_re($active,qr/\.align 256\s+\@kerloop:/s,
 $active !~ /\@skipDrawP[01]:/
    or die "obsolete steady player skip stubs remain in normalized source\n";
 require_re($active,
-   qr/\@startkernel:\s+ldy vcs_standard_player1_y\s+dey\s+sty vcs_standard_player1_y\s+cpy vcs_standard_kernel_scratch \+ 3\s+bcc \@drawP1\s+lda vcs_standard_kernel_scratch \+ 4\s+jmp \@continueP1\s+\@drawP1:\s+lda \(vcs_standard_player1_graphics\),y\s+\@continueP1:\s+sta GRP1/s,
+   qr/\@startkernel:\s+ldy vcs_standard_player1_y\s+dey\s+sty vcs_standard_player1_y\s+cpy vcs_standard_object_masks \+ 15\s+bcc \@drawP1\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP1\s+\@drawP1:\s+lda \(vcs_standard_player1_graphics\),y\s+\@continueP1:\s+sta GRP1/s,
    'legal steady player-1 path or its cycle-balanced zero path changed');
 require_re($active,
-   qr/ldy vcs_standard_player0_y\s+dey\s+sty vcs_standard_player0_y\s+cpy vcs_standard_kernel_scratch \+ 2\s+bcc \@drawP0\s+lda vcs_standard_kernel_scratch \+ 4\s+jmp \@continueP0\s+\@drawP0:\s+lda \(vcs_standard_player0_graphics\),y\s+\@continueP0:\s+sta\.a GRP0/s,
+   qr/ldy vcs_standard_player0_y\s+dey\s+sty vcs_standard_player0_y\s+cpy vcs_standard_object_masks \+ 11\s+bcc \@drawP0\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP0\s+\@drawP0:\s+lda \(vcs_standard_player0_graphics\),y\s+\@continueP0:\s+sta\.a GRP0/s,
    'legal steady player-0 path or its cycle-balanced zero path changed');
 require_re($active,qr/\@continuekernel:\s+\@continuekernel2:/s,
    'steady loop did not consume the former two-cycle pad');
-for my $player (0,1) {
-   my $count=()=$active =~ /^\s*dcp\s+vcs_standard_player${player}_y\b/img;
-   $count == 1 or die "player $player DCP count is $count, expected only the final-row duplicate\n";
-}
-require_re($active,qr/jsr \@prepare_player_state.*?\@prepare_player_state:\s+lda vcs_standard_player0_height.*?sta vcs_standard_kernel_scratch \+ 2.*?lda vcs_standard_player1_height.*?sta vcs_standard_kernel_scratch \+ 3.*?lda #0\s+sta vcs_standard_kernel_scratch \+ 4\s+rts/s,
-   'player exclusive-height/zero preparation helper changed');
+$active !~ /^\s*dcp\b/im
+   or die "normalized standard kernel still uses DCP\n";
+require_re($active,qr/jsr vcs_standard_prepare_object_masks.*?\.proc vcs_standard_prepare_object_masks.*?lda vcs_standard_player0_height.*?sta vcs_standard_object_masks \+ 11.*?lda vcs_standard_player1_height.*?sta vcs_standard_object_masks \+ 15.*?lda #0\s+sta vcs_standard_object_masks \+ 19.*?lda #1\s+sta vcs_standard_object_masks \+ 23.*?lda vcs_standard_ball_height\s+dec vcs_standard_ball_y\s+cmp vcs_standard_ball_y\s+rol\s+rol\s+sta vcs_standard_object_masks \+ 27.*?sbc #89.*?sta vcs_standard_object_masks \+ 31.*?lda vcs_standard_missile1_height\s+dec vcs_standard_missile1_y.*?sta vcs_standard_object_masks \+ 35.*?sbc #89.*?sta vcs_standard_object_masks \+ 39.*?lda vcs_standard_missile0_height\s+dec vcs_standard_missile0_y.*?lda #\$fd\s+adc #0\s+sta vcs_standard_object_masks \+ 43\s+rts/s,
+   'object-mask/player-state/final-value preparation helper changed');
+require_re($active,qr/\@enterlastkernel:\s+lda vcs_standard_object_masks \+ 27\s+bit vcs_standard_object_masks \+ 19\s+SLEEP 6\s+sta ENABL\s+lda vcs_standard_object_masks \+ 31\s+bit vcs_standard_object_masks \+ 19\s+SLEEP 12\s+sta GRP1.*?lda vcs_standard_object_masks \+ 35\s+bit vcs_standard_object_masks \+ 19\s+nop.*?SLEEP 4\s+sta ENAM1.*?lda vcs_standard_object_masks \+ 39\s+bit vcs_standard_object_masks \+ 19\s+bit vcs_standard_object_masks \+ 19\s+SLEEP 10\s+sta GRP0.*?lda vcs_standard_object_masks \+ 43\s+bit vcs_standard_object_masks \+ 19\s+bit vcs_standard_object_masks \+ 19\s+nop\s+sta ENAM0/s,
+   'legal final-row object schedule changed');
+require_re($active,qr/lsr vcs_standard_object_masks,x\s+adc #0.*?lsr vcs_standard_object_masks \+ 1,x.*?adc #0.*?lsr vcs_standard_object_masks \+ 2,x.*?adc #0/s,
+   'legal steady ball/missile mask schedule changed');
 require_re($active,qr/^\s*ldx\s+#0\s*$/m,
    'playfield row index is not zero-based');
 $active !~ /vcs_standard_playfield[^\n]*-128/

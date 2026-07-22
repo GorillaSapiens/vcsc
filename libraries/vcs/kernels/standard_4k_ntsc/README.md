@@ -79,7 +79,7 @@ Retained comments are copied without symbol rewriting.
 The remaining unofficial forms are classified site-by-site in
 [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md).  The current profile uses
 only the stable/common NMOS subset, but keeps all friendly unofficial
-mnemonics explicitly opt-in while tasks 20q through 20s remove the remaining forms.
+mnemonics explicitly opt-in while tasks 20r through 20s remove the remaining forms.
 
 The selected source must be assembled with unofficial mnemonics enabled:
 
@@ -98,16 +98,8 @@ opcode bytes, and has been verified by Stella 7.0 at a stable 262 lines and
 
 ## Source-level inclusion
 
-The application includes the machine definition, defines the playfield object,
-and then includes the kernel contract. A mutable playfield uses RIOT RAM:
-
-```vcsc
-include "vcs.c26"
-uint8_t vcs_standard_playfield[48];
-include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
-```
-
-A fixed playfield uses cartridge ROM:
+The application includes the machine definition, defines a fixed playfield in
+cartridge ROM, and then includes the kernel contract:
 
 ```vcsc
 include "vcs.c26"
@@ -116,6 +108,10 @@ const uint8_t vcs_standard_playfield[48] := {
 };
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 ```
+
+The symbol remains application-provided and directly linked, but this selected
+profile no longer has enough RIOT RAM for a mutable playfield. The contract
+regression deliberately verifies that a 48-byte RAM definition fails cleanly.
 
 The object name and extent are contractual. The module aliases it as
 `VCS_STANDARD_PLAYFIELD`. The kernel references that symbol directly with
@@ -189,23 +185,22 @@ RAM.”
 | State group | Bytes | Ownership and storage |
 | --- | ---: | --- |
 | Object positions, dimensions, sprite pointers, score, and score color | 23 | Declared by the module; application owns the persistent values in RIOT RAM |
-| Score-pointer/transient workspace, playfield row position, and internal scratch | 18 | Kernel-private RIOT RAM |
-| Playfield | 48 | Supplied by the application; mutable RAM or constant ROM |
-| **Mandatory module-declared RAM** | **41** | 23 application-visible + 18 private |
-| **RAM with mutable playfield** | **89** | 41 mandatory + 48 application-selected playfield |
+| Score-pointer/transient workspace, playfield row position, and packed object masks | 57 | Kernel-private RIOT RAM |
+| Playfield | 48 | Supplied by the application; constant ROM in this timing profile |
+| **Mandatory module-declared RAM** | **80** | 23 application-visible + 57 private |
 
 The reduced stock VCSC runtime uses eight RIOT bytes. With the ordinary
 `main -> drawscreen` source call depth, the matching linker configuration
-reserves four call-graph bytes plus two hidden-kernel bytes. Therefore:
+reserves four call-graph bytes plus six hidden-kernel bytes. Therefore:
 
 ```text
-fixed ROM playfield:   128 - 41 - 8 - 6 = 73 bytes left
-mutable RAM playfield: 128 - 89 - 8 - 6 = 25 bytes left
+fixed ROM playfield: 128 - 80 - 8 - 10 = 30 bytes left
 ```
 
-Those numbers are budgeting examples, not promises that every future option or
-initializer will fit. A game pays the 48-byte RIOT cost only when it actually
-needs to alter the playfield at runtime.
+The legal ball/missile schedule spends 44 bytes on packed vertical masks. A
+48-byte mutable playfield therefore no longer fits this 128-byte RIOT-RAM
+profile; applications requiring runtime playfield mutation need a different
+kernel/RAM tradeoff rather than a link that only works by accident.
 
 ## Demonstrable placement constraints
 
@@ -222,7 +217,7 @@ Most state has no fixed address. Only these constraints are contractual:
   cross a 256-byte page, so its low byte may be anywhere in `$00..$D0`. The
   normalized kernel uses an ordinary zero-based X offset and direct
   `vcs_standard_playfield+column,x` accesses; the inherited `$54` bias is gone.
-  This condition applies equally to RAM and ROM playfields.
+  This profile applies the condition to its required ROM playfield.
 - Each active P0/P1 sprite table must stay within one 256-byte page for every
   row the kernel may read; a page-crossing indirect load changes scanline timing.
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
@@ -232,9 +227,10 @@ Most state has no fixed address. Only these constraints are contractual:
 - The score-table segment has its own `.align 256`, and the linker profile
   enforces page alignment for both `KERNEL_CODE` and `KERNEL_RODATA` objects.
 
-The source-contract regression builds both a RAM and a ROM playfield and rejects
-either linked address if its 48 bytes cross a page. ROM fixtures use the VCSC
-`page` modifier, so no companion assembly or manual page offset is required.
+The source-contract regression builds a ROM playfield, rejects page crossing,
+and also proves that the formerly supported mutable 48-byte playfield now fails
+cleanly for lack of RIOT RAM. ROM fixtures use the VCSC `page` modifier, so no
+companion assembly or manual page offset is required.
 There is no fixed `$80`-based variable map and no special `$54` lower bound.
 
 ## Register, flag, and hardware-register clobbers
@@ -245,18 +241,19 @@ registers and RIOT `INTIM`/`TIM64T` while the call is active. Applications must
 not expect those register values to survive.
 
 Persistent application-visible state is available again after return. The
-six transient workspace bytes, playfield row position, and five internal scratch
-bytes are undefined after every draw. The kernel temporarily decrements object Y
+six transient workspace bytes, playfield row position, and packed object-mask
+workspace are undefined after every draw. The kernel temporarily decrements object Y
 values while drawing but restores the persistent values before return.
 
 ## Hidden hardware-stack use
 
 A normal VCSC call to `vcs_standard_kernel_drawscreen()` is visible to the
-source call graph. The retained overscan routine additionally calls
-`scorepointerset`; that one nested JSR level is hidden inside assembly and needs
-two more hardware-stack bytes.
+source call graph. Assembly-internal setup now reaches three nested JSR levels
+while the packed object-mask builder calls its range helper; that hidden maximum
+needs six more hardware-stack bytes. The one-level score-pointer and setup-delay
+calls fit inside the same allowance.
 
-`vcs_standard_4k_ntsc.cfg` therefore sets `callstack_extra = $0002`. The linker
+`vcs_standard_4k_ntsc.cfg` therefore sets `callstack_extra = $0006`. The linker
 adds that amount to its normal call-graph and initializer reserves and exposes
 it as `__call_stack_extra`. The score row pipeline temporarily copies and
 restores S but performs no push, pull, call, or return while S is repurposed, so

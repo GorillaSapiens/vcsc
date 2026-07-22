@@ -26,11 +26,12 @@ Classification vocabulary
 * **unstable** means software cannot rely on one repeatable result across normal
   NMOS parts or operating conditions.
 
-No silicon-sensitive or unstable opcode is retained by this profile.  The 12 remaining
-source sites use the stable/common subset below. Task 20p removed all five LAX
-sites with legal LDA/TAX sequences while preserving the score scanline phase.  This classification is
-not an argument for keeping them: tasks 20q3 through 20s still replace them with
-official instructions so the profile no longer requires `--illegals`.
+No silicon-sensitive or unstable opcode is retained by this profile. The three
+remaining source sites use the stable/common subset below. Task 20p removed all
+five `LAX` sites, and task 20q removed all eleven `DCP` sites while preserving
+the visible scanline phases. This classification is not an argument for keeping
+the last forms: tasks 20r through 20s replace them with official instructions so
+the profile no longer requires `--illegals`.
 
 Retained forms
 --------------
@@ -38,7 +39,6 @@ Retained forms
 | Form | Byte | Bytes | Cycles | Sites | Current use |
 |---|---:|---:|---:|---:|---|
 | `ASR #imm` / `ALR #imm` | `$4B` | 2 | 2 | 1 | AND then shift the upper score nibble. |
-| `DCP zp` | `$C7` | 2 | 5 | 9 | Decrement a vertical object counter and compare it with A. |
 | `SBX #imm` / `AXS #imm` | `$CB` | 2 | 2 | 1 | Advance the zero-based playfield offset by four. |
 | `NOP zp` | `$04` | 2 | 3 | 1 | Supply the odd three-cycle portion of `SLEEP`. |
 
@@ -54,11 +54,11 @@ Opt-in and regressions
 Friendly unofficial mnemonics remain unavailable unless the assembler is run
 with `--illegals`.  The task-20o regression:
 
-1. regenerates and byte-compares the 12-site TSV;
+1. regenerates and byte-compares the 3-site TSV;
 2. assembles one probe containing every distinct retained form and requires the
-   exact byte stream `4B F0 C7 81 CB FC 04 00`;
+   exact byte stream `4B F0 CB FC 04 00`;
 3. proves the same source is rejected without `--illegals`; and
-4. executes each retained form in the bundled NMOS simulator to lock 2, 5, 2,
+4. executes each retained form in the bundled NMOS simulator to lock 2, 2,
    and 3 cycles respectively.
 
 Regenerate the source inventory from this directory with:

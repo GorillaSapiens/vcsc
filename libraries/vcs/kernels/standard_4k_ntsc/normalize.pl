@@ -847,6 +847,572 @@ ASM
       or die "normalized player preparation helper insertion point changed\n";
    $result =~ s/\Q$old_player_helper_tail\E/$new_player_helper_tail/;
 
+   # Normalize retained trailing whitespace before matching the q3 slices.
+   $result =~ s/[ \t]+$//mg;
+   $result =~ s/\n{4,}/\n\n\n/g;
+
+   # Legalize the steady ball and missile counters. Build three packed
+   # one-bit-per-update masks during VBLANK, then consume them with legal LSR
+   # instructions in the visible kernel. LDA preserves carry, so loading 1 and
+   # ADC #0 maps the shifted mask bit directly into TIA enable bit 1. The
+   # retained setup and store widths keep every enabled/disabled path and PF
+   # write at its original cycle.
+   my %q3_scratch_offset = (0 => 3, 1 => 7, 2 => 11, 3 => 15, 4 => 19);
+   for my $old_offset (sort keys %q3_scratch_offset) {
+      my $new_offset = $q3_scratch_offset{$old_offset};
+      my $count = ($result =~ s/vcs_standard_kernel_scratch \+ $old_offset/vcs_standard_object_masks + $new_offset/g);
+      my %expected = (0 => 5, 1 => 2, 2 => 2, 3 => 2, 4 => 3);
+      $count == $expected{$old_offset}
+         or die "normalized q3 scratch offset $old_offset count changed: $count\n";
+   }
+   my $q3_import_count = ($result =~ s/vcs_standard_kernel_scratch/vcs_standard_object_masks/g);
+   $q3_import_count == 1
+      or die "normalized q3 scratch import count changed: $q3_import_count\n";
+
+   my $q3_timer_old = <<'ASM';
+         lda #37+128
+     sta TIM64T
+ASM
+   my $q3_timer_new = <<'ASM';
+         lda #37+128
+     sta TIM64T
+     jsr vcs_standard_prepare_object_masks
+ASM
+   index($result, $q3_timer_old) >= 0
+      or die "normalized q3 VBLANK timer insertion point changed\n";
+   $result =~ s/\Q$q3_timer_old\E/$q3_timer_new/;
+
+   my $q3_initial_old = <<'ASM';
+     stx vcs_standard_object_masks + 3
+
+     lda vcs_standard_ball_y
+     sta vcs_standard_object_masks + 7
+
+     jsr @prepare_player_state
+     lda vcs_standard_player0_y
+ASM
+   my $q3_initial_new = <<'ASM';
+     stx vcs_standard_object_masks + 3
+
+     ; Preserve the 37-cycle player-state helper call moved into VBLANK.
+     jsr vcs_standard_kernel_setup_delay
+     lda vcs_standard_player0_y
+ASM
+   index($result, $q3_initial_old) >= 0
+      or die "normalized q3 initial object setup changed\n";
+   $result =~ s/\Q$q3_initial_old\E/$q3_initial_new/;
+
+   my $q3_missile_save_old = <<'ASM';
+     lda vcs_standard_missile0_y
+     sta vcs_standard_pointer_workspace + 10
+     lda vcs_standard_missile1_y
+     sta vcs_standard_pointer_workspace + 11
+ASM
+   my $q3_missile_save_new = <<'ASM';
+     ; Preserve the twelve setup cycles formerly used to save missile Y.
+     SLEEP 12
+ASM
+   index($result, $q3_missile_save_old) >= 0
+      or die "normalized q3 missile-save timing site changed\n";
+   $result =~ s/\Q$q3_missile_save_old\E/$q3_missile_save_new/;
+
+   my $q3_ball_old = <<'ASM';
+@continuekernel:
+@continuekernel2:
+     lda vcs_standard_ball_height
+
+         ldy vcs_standard_playfield,x
+         sty PF1 ;3
+         ldy vcs_standard_playfield+1,x ;4
+         sty PF2 ;3
+         ldy vcs_standard_playfield+3,x ;4
+         sty PF1 ; 3 too early?
+         ldy vcs_standard_playfield+2,x;4
+         sty PF2 ;3
+
+     ; should be playfield+$38 for width=2
+
+     dcp vcs_standard_ball_y
+     sbc vcs_standard_pointer_workspace + 9
+     ; rol
+     ; rol
+@goback:
+     sta ENABL
+ASM
+   my $q3_ball_new = <<'ASM';
+@continuekernel:
+@continuekernel2:
+     lda vcs_standard_object_masks + 23
+
+         ldy vcs_standard_playfield,x
+         sty PF1 ;3
+         ldy vcs_standard_playfield+1,x ;4
+         sty PF2 ;3
+         ldy vcs_standard_playfield+3,x ;4
+         sty PF1 ; 3 too early?
+         ldy vcs_standard_playfield+2,x;4
+         sty PF2 ;3
+
+     ; should be playfield+$38 for width=2
+
+     lsr vcs_standard_object_masks,x
+     adc #0
+     ; rol
+     ; rol
+@goback:
+     sta ENABL
+ASM
+   index($result, $q3_ball_old) >= 0
+      or die "normalized q3 steady ball path changed\n";
+   $result =~ s/\Q$q3_ball_old\E/$q3_ball_new/;
+
+   my $q3_m1_old = <<'ASM';
+         lda vcs_standard_missile1_height ;3
+         dcp vcs_standard_missile1_y ;5
+         rol;2
+         rol;2
+         sta ENAM1 ;3
+ASM
+   my $q3_m1_new = <<'ASM';
+         lsr vcs_standard_object_masks + 1,x ;6
+         lda #1 ;2, carry preserved
+         adc #0 ;2, bit 1 becomes the enable result
+         nop ;2
+         sta ENAM1 ;3
+ASM
+   index($result, $q3_m1_old) >= 0
+      or die "normalized q3 steady missile-1 path changed\n";
+   $result =~ s/\Q$q3_m1_old\E/$q3_m1_new/;
+
+   my $q3_m0_old = <<'ASM';
+             lda vcs_standard_missile0_height ;3
+             dcp vcs_standard_missile0_y ;5
+             sbc vcs_standard_object_masks + 3
+             sta ENAM0 ;3
+ASM
+   my $q3_m0_new = <<'ASM';
+             lsr vcs_standard_object_masks + 2,x ;6
+             lda #1 ;2, carry preserved
+             adc #0 ;2, bit 1 becomes the enable result
+             sta.a ENAM0 ;4
+ASM
+   index($result, $q3_m0_old) >= 0
+      or die "normalized q3 steady missile-0 path changed\n";
+   $result =~ s/\Q$q3_m0_old\E/$q3_m0_new/;
+
+   my $q3_alt_ball_old = <<'ASM';
+     lda vcs_standard_ball_height
+     dcp vcs_standard_ball_y
+     sbc vcs_standard_pointer_workspace + 9
+ASM
+   my $q3_alt_ball_new = <<'ASM';
+     lsr vcs_standard_object_masks - 4,x
+     lda vcs_standard_object_masks + 23
+     adc #0
+ASM
+   index($result, $q3_alt_ball_old) >= 0
+      or die "normalized q3 alternate ball path changed\n";
+   $result =~ s/\Q$q3_alt_ball_old\E/$q3_alt_ball_new/;
+
+   my $q3_old_player_helper = <<'ASM';
+@prepare_player_state:
+     lda vcs_standard_player0_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 11
+     lda vcs_standard_player1_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 15
+     lda #0
+     sta vcs_standard_object_masks + 19
+     rts
+
+ASM
+   index($result, $q3_old_player_helper) >= 0
+      or die "normalized q3 obsolete player helper changed\n";
+   $result =~ s/\Q$q3_old_player_helper\E//;
+
+   # Legalize the five final-row DCP duplicates. The blanking helper
+   # precomputes the exact final TIA/glyph bytes in otherwise-unused fourth
+   # bytes of the mask records. The visible final-row path then uses only legal
+   # loads, BIT delays, and NOP padding while retaining every old store cycle.
+   my $q4_skip_p1_old = <<'ASM';
+@skipDrawlastP1:
+     lda #0
+     tay ; added so we don't cross a page
+     jmp @continuelastP1
+
+ASM
+   index($result, $q4_skip_p1_old) >= 0
+      or die "normalized q4 final player-1 skip block changed\n";
+   $result =~ s/\Q$q4_skip_p1_old\E//;
+
+   my $q4_ball_p1_old = <<'ASM';
+@enterlastkernel:
+     lda vcs_standard_ball_height
+
+     ; tya
+     dcp vcs_standard_ball_y
+     ; sleep 4
+
+     ; sbc stack3
+     rol
+     rol
+     sta ENABL
+
+     lda vcs_standard_player1_height ;3
+     dcp vcs_standard_player1_y ;5
+     bcc @skipDrawlastP1
+     ldy vcs_standard_player1_y ;3
+     lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
+     ; so it doesn't cross a page boundary!
+
+@continuelastP1:
+     sta GRP1 ;3
+
+         lda vcs_standard_missile1_height ;3
+         dcp vcs_standard_missile1_y ;5
+ASM
+   my $q4_ball_p1_new = <<'ASM';
+@enterlastkernel:
+     lda vcs_standard_object_masks + 27
+     bit vcs_standard_object_masks + 19
+     SLEEP 6
+     sta ENABL
+
+     lda vcs_standard_object_masks + 31
+     bit vcs_standard_object_masks + 19
+     SLEEP 12
+     sta GRP1 ;3
+
+         lda vcs_standard_object_masks + 35
+         bit vcs_standard_object_masks + 19
+         nop
+ASM
+   index($result, $q4_ball_p1_old) >= 0
+      or die "normalized q4 final ball/player-1/missile-1 block changed\n";
+   $result =~ s/\Q$q4_ball_p1_old\E/$q4_ball_p1_new/;
+
+   my $q4_m1_finish_old = <<'ASM';
+         rol;2
+         rol;2
+         sta ENAM1 ;3
+ASM
+   my $q4_m1_finish_new = <<'ASM';
+         SLEEP 4
+         sta ENAM1 ;3
+ASM
+   index($result, $q4_m1_finish_old) >= 0
+      or die "normalized q4 final missile-1 finish changed\n";
+   $result =~ s/\Q$q4_m1_finish_old\E/$q4_m1_finish_new/;
+
+   my $q4_p0_m0_old = <<'ASM';
+     lda.a vcs_standard_player0_height
+     dcp vcs_standard_player0_y
+     bcc @skipDrawlastP0
+     ldy vcs_standard_player0_y
+     lda (vcs_standard_player0_graphics),y
+@continuelastP0:
+     sta GRP0
+
+
+         lda vcs_standard_missile0_height ;3
+         dcp vcs_standard_missile0_y ;5
+         sbc vcs_standard_object_masks + 3
+         sta ENAM0 ;3
+         jmp @endkerloop
+ASM
+   my $q4_p0_m0_new = <<'ASM';
+     lda vcs_standard_object_masks + 39
+     bit vcs_standard_object_masks + 19
+     bit vcs_standard_object_masks + 19
+     SLEEP 10
+     sta GRP0
+
+
+         lda vcs_standard_object_masks + 43
+         bit vcs_standard_object_masks + 19
+         bit vcs_standard_object_masks + 19
+         nop
+         sta ENAM0 ;3
+         jmp @endkerloop
+ASM
+   index($result, $q4_p0_m0_old) >= 0
+      or die "normalized q4 final player-0/missile-0 block changed\n";
+   $result =~ s/\Q$q4_p0_m0_old\E/$q4_p0_m0_new/;
+
+   my $q4_skip_p0_old = <<'ASM';
+@skipDrawlastP0:
+     lda #0
+     tay
+     jmp @continuelastP0
+
+
+ASM
+   index($result, $q4_skip_p0_old) >= 0
+      or die "normalized q4 final player-0 skip block changed\n";
+   $result =~ s/\Q$q4_skip_p0_old\E//;
+
+   my $q3_helper = <<'ASM';
+.segment "CODE"
+.proc vcs_standard_kernel_setup_delay
+     SLEEP 25
+     rts
+.endproc
+
+.proc vcs_standard_prepare_object_masks
+.export vcs_standard_prepare_object_masks
+
+; The fourth byte in each four-byte mask record is prep/private scratch.
+
+     lda #0
+     ldx #0
+@clear:
+     sta vcs_standard_object_masks,x
+     sta vcs_standard_object_masks + 1,x
+     sta vcs_standard_object_masks + 2,x
+     txa
+     clc
+     adc #4
+     tax
+     cpx #44
+     bcc @clear
+
+     lda #87
+     sta vcs_standard_object_masks + 31
+     lda vcs_standard_ball_y
+     ldy vcs_standard_ball_height
+     ldx #0
+     jsr @prepare_one
+
+     lda #88
+     sta vcs_standard_object_masks + 31
+     lda vcs_standard_missile1_y
+     ldy vcs_standard_missile1_height
+     ldx #1
+     jsr @prepare_one
+
+     lda vcs_standard_missile0_y
+     ldy vcs_standard_missile0_height
+     ldx #2
+     jsr @prepare_one
+
+     lda vcs_standard_ball_y
+     sta vcs_standard_object_masks + 7
+     sec
+     sbc #87
+     sta vcs_standard_ball_y
+     lda vcs_standard_missile0_y
+     sta vcs_standard_pointer_workspace + 10
+     sec
+     sbc #88
+     sta vcs_standard_missile0_y
+     lda vcs_standard_missile1_y
+     sta vcs_standard_pointer_workspace + 11
+     sec
+     sbc #88
+     sta vcs_standard_missile1_y
+
+     lda vcs_standard_player0_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 11
+     lda vcs_standard_player1_height
+     clc
+     adc #1
+     sta vcs_standard_object_masks + 15
+     lda #0
+     sta vcs_standard_object_masks + 19
+     lda #1
+     sta vcs_standard_object_masks + 23
+
+     ; Precompute the five final-row bytes. The object counters already carry
+     ; their steady-loop bias, so these legal DEC/CMP sequences reproduce the
+     ; final DCP result before visible drawing begins.
+     lda vcs_standard_ball_height
+     dec vcs_standard_ball_y
+     cmp vcs_standard_ball_y
+     rol
+     rol
+     sta vcs_standard_object_masks + 27
+
+     lda vcs_standard_player1_y
+     sec
+     sbc #89
+     tay
+     cpy vcs_standard_object_masks + 15
+     bcs @final_player1_zero
+     lda (vcs_standard_player1_graphics),y
+     jmp @final_player1_store
+@final_player1_zero:
+     lda #0
+@final_player1_store:
+     sta vcs_standard_object_masks + 31
+
+     lda vcs_standard_missile1_height
+     dec vcs_standard_missile1_y
+     cmp vcs_standard_missile1_y
+     rol
+     rol
+     sta vcs_standard_object_masks + 35
+
+     lda vcs_standard_player0_y
+     sec
+     sbc #89
+     tay
+     cpy vcs_standard_object_masks + 11
+     bcs @final_player0_zero
+     lda (vcs_standard_player0_graphics),y
+     jmp @final_player0_store
+@final_player0_zero:
+     lda #0
+@final_player0_store:
+     sta vcs_standard_object_masks + 39
+
+     lda vcs_standard_missile0_height
+     dec vcs_standard_missile0_y
+     cmp vcs_standard_missile0_y
+     lda #$fd
+     adc #0
+     sta vcs_standard_object_masks + 43
+     rts
+
+@prepare_one:
+     sta vcs_standard_object_masks + 11
+     stx vcs_standard_object_masks + 3
+     sty vcs_standard_object_masks + 35
+     sec
+     sbc vcs_standard_object_masks + 35
+     sta vcs_standard_object_masks + 7
+     sta vcs_standard_object_masks + 39
+     cmp vcs_standard_object_masks + 11
+     bcc @no_wrap
+     beq @no_wrap
+
+     lda vcs_standard_object_masks + 11
+     beq @wrapped_high
+     cmp vcs_standard_object_masks + 31
+     bcc @wrapped_low_ready
+     beq @wrapped_low_ready
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+@wrapped_low_ready:
+     lda #1
+     sta vcs_standard_object_masks + 7
+     jsr @set_range
+
+@wrapped_high:
+     lda vcs_standard_object_masks + 39
+     cmp vcs_standard_object_masks + 31
+     bcc @wrapped_high_ready
+     beq @wrapped_high_ready
+     rts
+@wrapped_high_ready:
+     sta vcs_standard_object_masks + 7
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+     jsr @set_range
+     rts
+
+@no_wrap:
+     lda vcs_standard_object_masks + 7
+     bne @no_wrap_first_ready
+     lda #1
+     sta vcs_standard_object_masks + 7
+@no_wrap_first_ready:
+     lda vcs_standard_object_masks + 11
+     cmp vcs_standard_object_masks + 31
+     bcc @no_wrap_last_ready
+     beq @no_wrap_last_ready
+     lda vcs_standard_object_masks + 31
+     sta vcs_standard_object_masks + 11
+@no_wrap_last_ready:
+     lda vcs_standard_object_masks + 7
+     cmp vcs_standard_object_masks + 11
+     bcc @set_range
+     beq @set_range
+     rts
+
+@set_range:
+     lda vcs_standard_object_masks + 7
+     sec
+     sbc #1
+     tay
+     and #7
+     tax
+     lda @start_bits,x
+     sta vcs_standard_object_masks + 23
+     tya
+     lsr
+     lsr
+     lsr
+     sta vcs_standard_object_masks + 15
+
+     lda vcs_standard_object_masks + 11
+     sec
+     sbc #1
+     tay
+     and #7
+     tax
+     lda @end_bits,x
+     sta vcs_standard_object_masks + 27
+     tya
+     lsr
+     lsr
+     lsr
+     sta vcs_standard_object_masks + 19
+
+     lda vcs_standard_object_masks + 15
+     asl
+     asl
+     clc
+     adc vcs_standard_object_masks + 3
+     tax
+     lda vcs_standard_object_masks + 15
+     cmp vcs_standard_object_masks + 19
+     bne @range_many
+     lda vcs_standard_object_masks + 23
+     and vcs_standard_object_masks + 27
+     ora vcs_standard_object_masks,x
+     sta vcs_standard_object_masks,x
+     rts
+
+@range_many:
+     lda vcs_standard_object_masks,x
+     ora vcs_standard_object_masks + 23
+     sta vcs_standard_object_masks,x
+     inc vcs_standard_object_masks + 15
+@range_middle:
+     lda vcs_standard_object_masks + 15
+     cmp vcs_standard_object_masks + 19
+     bcs @range_last
+     txa
+     clc
+     adc #4
+     tax
+     lda #$ff
+     sta vcs_standard_object_masks,x
+     inc vcs_standard_object_masks + 15
+     jmp @range_middle
+@range_last:
+     txa
+     clc
+     adc #4
+     tax
+     lda vcs_standard_object_masks,x
+     ora vcs_standard_object_masks + 27
+     sta vcs_standard_object_masks,x
+     rts
+
+@start_bits:
+     .byte $ff,$fe,$fc,$f8,$f0,$e0,$c0,$80
+@end_bits:
+     .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff
+.endproc
+ASM
+   $result .= "\n" . $q3_helper;
+
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;
    return $result . "\n";

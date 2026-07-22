@@ -1039,7 +1039,7 @@ The first unfinished item is the default next action.
                   added cycles from explicit padding where possible and verify the
                   affected scanline in isolation before continuing.
 
-        [ ] 20q. Remove `DCP` and other unofficial read-modify-write operations
+        [x] 20q. Remove `DCP` and other unofficial read-modify-write operations
                   from the standard kernel one family at a time. Use legal
                   decrement/compare sequences, relocate work outside visible
                   scanlines when practical, and preserve collision/state results.
@@ -1053,11 +1053,11 @@ The first unfinished item is the default next action.
                             Preserve visible and skipped-row cycle balance, glyph
                             selection, collision state, and all PF write phases.
 
-                  [ ] 20q3. Legalize ball and missile counters after the player
+                  [x] 20q3. Legalize ball and missile counters after the player
                             schedule is stable. Preserve enabled/disabled timing
                             and the existing ENABL/ENAM bit results.
 
-                  [ ] 20q4. Legalize the alternate and final-row duplicates,
+                  [x] 20q4. Legalize the alternate and final-row duplicates,
                             remove the DCP inventory form, and replace the
                             temporary DCP schedule regression with legal-opcode
                             timing coverage before marking 20q complete.
@@ -1146,10 +1146,10 @@ Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20p are complete. Runtime-workspace side-quest items a
 through d are complete. Tasks 20p through 20u are deliberately small
 unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Tasks 20q1 and 20q2 are complete. Task 20q3 is next: legalize the steady
-ball and missile counters while preserving their enabled/disabled TIA values
-and the locked scanline schedule. The stack-safe VCSC overscan/vblank hook is deferred to
-task 20v.
+before gameplay integration. Task 20q is complete: all eleven `DCP` sites are gone, including the
+alternate and final-row schedules. Task 20r is next: replace the remaining
+unofficial delay and one-off instructions with legal equivalents. The
+stack-safe VCSC overscan/vblank hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3186,3 +3186,57 @@ Before returning another modified archive:
 * Pass 288/288 compile tests, 151/151 end-to-end/generic tests, all focused
   player/DCP/timing regressions, the complete static-kernel ROM execution test,
   and staged installation. Stop before task 20q3.
+
+2026-07-22 12:30:37 PDT, legalize steady ball and missile DCP paths
+------------------------------------------------------------------------
+* Complete task 20q3. Build packed BL/M1/M0 vertical-enable masks during
+  VBLANK and consume them with legal zero-page-indexed `LSR` instructions in
+  the steady two-line kernel. The alternate ball update is mask-driven as the
+  eighth bit of each record; final-row duplicates remain for task 20q4.
+* Preserve TIA enable bit 1 without unofficial flags tricks: load constant 1
+  without disturbing carry, then use `ADC #0`. Retain enabled/disabled cycle
+  balance and PF1/PF2 writes at cycles 24, 31, 38, and 45. Preserve the old
+  scanline half ordering with a compact external 37-cycle setup-delay call.
+* Move original ball/missile Y preservation and counter biasing into blanking.
+  Add a generated assembly mask builder and raise hidden assembly stack reserve
+  to six bytes for its three-level nested helper path.
+* Replace the steady DCP schedule assertions with legal-mask timing assertions:
+  ball `LSR` at cycle 45 normally and 39 on row transitions, missile 1 at cycle
+  2, and missile 0 at cycle 68. The static cartridge still renders all five
+  objects and a stable 262-line frame.
+* Regenerate timing and unofficial-opcode inventories. Five final-row `DCP zp`
+  sites remain. Mandatory module RAM is now 80 bytes (23 visible + 57 private);
+  this profile consequently requires a ROM playfield, and the contract test
+  proves the old mutable 48-byte playfield fails cleanly for RIOT-RAM exhaustion.
+* Pass normalization, legal-mask schedule, timing inventory, unofficial-opcode,
+  source-contract, and complete static-kernel ROM execution tests. The full
+  suite passes 288/288 compile-only tests and 151/151 end-to-end/generic tests.
+  No files are removed; `.top_secret/remove.txt` remains at 895 cumulative
+  paths. Task 20q4 is next.
+
+2026-07-22 12:42:59 PDT, complete standard-kernel DCP legalization
+------------------------------------------------------------------------
+* Complete tasks 20q4 and 20q. Remove the five final-row `DCP zp` duplicates;
+  the normalized standard kernel now contains no `DCP` instruction.
+* Precompute the exact final BL, P1, M1, P0, and M0 bytes during VBLANK in the
+  five otherwise-free fourth bytes of the packed mask records. Preserve the old
+  final compare/carry results, player glyph-or-zero selection at `Y - 89`, and
+  persistent-state restoration.
+* Replace the final visible paths with legal `LDA`, `BIT`, and `NOP` schedules.
+  Keep the existing ENABL, GRP1, ENAM1, GRP0, and ENAM0 store phases and retain
+  the complete static scene and 262-line frame.
+* Rename the transitional `vcs_standard_kernel_dcp_schedule` regression to
+  `vcs_standard_kernel_legal_schedule`. Continue locking the three steady mask
+  cycles across 46 scanlines and add checks for all five exact precomputed
+  final-row values, including the normally unexecuted P0/M0 half.
+* Regenerate timing and unofficial-opcode inventories. The profile now has 35
+  explicit padding sites and three unofficial sites: one `ASR`, one `SBX`, and
+  one `NOP.z`. Remove `DCP` from the retained-form probe and cycle matrix.
+* Repair staged installation checking for the task-20q3 ROM-only contract: the
+  installed mutable-playfield smoke must fail with RAM exhaustion, while the
+  ROM playfield and complete static kernel must still build as 4096-byte images.
+* Pass 288/288 compile-only tests, 151/151 end-to-end/generic tests, all focused
+  normalization/legal-schedule/inventory/contract/static-kernel regressions, and
+  staged installation. Rename three test files; `.top_secret/remove.txt` now
+  records 898 cumulative paths. Stop before task 20r.
+

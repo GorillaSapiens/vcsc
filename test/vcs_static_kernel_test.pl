@@ -77,8 +77,8 @@ require_re($map,qr/^\s*KERNEL_CODE\s+load=\$F300\s+size=\$0300\b/m,
    'kernel code is not fixed at the page-aligned F300..F5FF window');
 require_re($map,qr/^\s*KERNEL_RODATA\s+load=\$F600\s+size=\$0058\b/m,
    'score table is not fixed at the page-aligned F600 window');
-require_re($map,qr/region=RAM\s+depth=2\s+bytes=\$0006\s+physical=\$00FA-\$00FF\s+extra=\$0002/,
-   'map lost the standard kernel hidden-stack allowance');
+require_re($map,qr/region=RAM\s+depth=2\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0006/,
+   'map lost the standard kernel object-mask helper stack allowance');
 map_symbol($map,'vcs_standard_kernel_drawscreen')==0xf300
    or die "standard kernel entry moved from F300\n";
 map_symbol($map,'vcs_standard_score_table')==0xf600
