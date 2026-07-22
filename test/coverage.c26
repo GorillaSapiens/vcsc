@@ -45,6 +45,7 @@ int16_t s[12] @ 27 := { 1, 1, 1 };
 int16_t five := 5;
 const int16_t six := 6;
 static const int16_t seven := 7;
+page const int16_t page_eight := 8;
 
 extern int16_t foreign(int16_t x);
 extern int16_t foreign_add(int16_t a, int16_t b);

@@ -102,12 +102,8 @@ my $font_addr;
 if ($map_text =~ /\$([Ff][0-9A-Fa-f]{3})\s+\Q$font_symbol\E/) { $font_addr=hex($1); }
 elsif ($map_text =~ /\Q$font_symbol\E\s+\$([Ff][0-9A-Fa-f]{3})/) { $font_addr=hex($1); }
 else { die "score map is missing $font_symbol\n"; }
-($font_addr & 0xff)==0
-   or die sprintf("score font starts at %04X instead of a page boundary\n",$font_addr);
 (($font_addr + 79) >> 8)==($font_addr >> 8)
    or die "score font crosses a page boundary\n";
-require_re(read_file($cfg),qr/^\s*RODATA:.*?align\s*=\s*\$0100\s*;/m,
-           'stock 4K linker profile no longer page-aligns RODATA');
 
 my @font=parse_font(read_file($font),$font_symbol,80);
 @font==80 or die "active font has ".scalar(@font)." bytes, expected 80\n";
@@ -121,6 +117,8 @@ my $s=read_file($src);
 my $shared_text=read_file($shared);
 require_re($s,qr/include\s+"fonts\/default_decimal\.c26"/,
            'example no longer includes the shared Default decimal font');
+require_re(read_file($font),qr/^page\s+const\s+uint8_t\s+score_font\s*\[/m,
+           'shared score font no longer carries hard page containment');
 require_re($s,qr/include\s+"fonts\/default_decimal\.c26".*?bcd24_t\s+score/s,
            'font include no longer precedes score/data declarations');
 require_re(read_file($font),qr/0b[.Xx01]{8}/,

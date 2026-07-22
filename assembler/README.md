@@ -692,3 +692,7 @@ field. Bit 0 is reserved for the linker's hard page-containment contract. The
 ordinary assembler does not yet expose source syntax for setting that bit; that
 is a separate interface step. The linker remains backward-compatible with the
 older layout records.
+
+### `.pagecontain`
+
+`.pagecontain` marks the current named segment as a hard page-contained o26 layout. It takes no arguments; keep one constrained object in that segment. The linker places the complete final-sized layout anywhere it fits within one 256-byte page.

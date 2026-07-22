@@ -19,6 +19,7 @@ examples/03_six_digit_score/fonts/clean.c26
 examples/03_six_digit_score/fonts/clean.inc
 examples/03_six_digit_score/fonts/default.inc
 examples/03_six_digit_score/score_font.s
+examples/05_static_kernel_test/static_kernel_playfield.s
 libraries/float/.gitignore
 libraries/float/Makefile
 libraries/float/README.md
@@ -879,6 +880,7 @@ test/variadic_zero_call_codegen_test.n
 test/vcs_headers_smoke_test.n
 test/vcs_return_epilogue_encoding.pl
 test/vcs_return_epilogue_encoding.test
+test/vcs_standard_kernel_contract_rom_playfield.s
 test/visible_same_type_operator_beats_helper_codegen_test.n
 test/void_cast_assignment_error_test.n
 test/void_cast_condition_error_test.n

@@ -400,6 +400,10 @@ void remember_function(const ASTNode *node, const char *name) {
       error_user("[%s:%d.%d] unnamed function declaration is not supported here",
                  node->file, node->line, node->column);
    }
+   if (has_modifier((ASTNode *)modifiers, "page")) {
+      error_user("[%s:%d.%d] 'page' applies only to data-object definitions; function page placement is task 20j",
+                 node->file, node->line, node->column);
+   }
    if (function_is_inline(node) && has_modifier((ASTNode *)modifiers, "extern")) {
       error_user("[%s:%d.%d] inline function '%s' cannot be extern; its body must be available for source-level expansion",
                  node->file, node->line, node->column, name);

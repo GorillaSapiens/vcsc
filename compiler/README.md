@@ -650,3 +650,7 @@ void main(void) {
 - Recursive or reentrant functions and software call frames.
 - Struct, union, and array returns.
 - The parent runtime's software stack, frame pointer, `sbrk`, and interrupt-entry library.
+
+### Page-contained data
+
+At file scope, `page` on a data-object definition requests hard 256-byte page containment, for example `page const uint8_t table[80] := { ... };`. The compiler emits a private object segment with `.pagecontain`; the linker chooses the address. Functions, locals, extern declarations, absolute refs, and named `mem` regions do not yet accept `page`.

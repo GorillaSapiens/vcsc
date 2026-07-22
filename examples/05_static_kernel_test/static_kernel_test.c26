@@ -4,12 +4,25 @@
 
 include "vcs.c26"
 
-// Immutable playfield exported by static_kernel_playfield.s.
-extern const uint8_t vcs_standard_playfield[48];
+// Immutable 32x12 asymmetric diagnostic playfield.
+page const uint8_t vcs_standard_playfield[48] := {
+   0xff, 0xff, 0xff, 0xff,
+   0xaa, 0x55, 0xaa, 0x55,
+   0x55, 0xaa, 0x55, 0xaa,
+   0xcc, 0x33, 0xcc, 0x33,
+   0x33, 0xcc, 0x33, 0xcc,
+   0x00, 0x00, 0x00, 0x00,
+   0x80, 0x00, 0x00, 0x01,
+   0x80, 0x00, 0x00, 0x01,
+   0x80, 0x00, 0x00, 0x01,
+   0x00, 0x00, 0x00, 0x00,
+   0xff, 0xff, 0xff, 0xff,
+   0x81, 0x00, 0x00, 0x81
+};
 
 include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
 
-const uint8_t paddle_graphics[8] := {
+page const uint8_t paddle_graphics[8] := {
    VCS_STANDARD_SPRITE_GLYPH(
       0b........,
       0b........,
@@ -22,7 +35,7 @@ const uint8_t paddle_graphics[8] := {
    )
 };
 
-const uint8_t target_graphics[8] := {
+page const uint8_t target_graphics[8] := {
    VCS_STANDARD_SPRITE_GLYPH(
       0b..XXXX..,
       0b.XXXXXX.,

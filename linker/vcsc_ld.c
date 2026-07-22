@@ -1020,6 +1020,8 @@ static const char *segment_name_suffix(const char *name)
    if (!name)
       return NULL;
    dot = strchr(name, '.');
+   if (dot && !strncmp(dot + 1, "__vcsc_page$", sizeof("__vcsc_page$") - 1))
+      return NULL;
    return (dot && dot[1]) ? dot + 1 : NULL;
 }
 

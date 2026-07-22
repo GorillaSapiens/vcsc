@@ -126,16 +126,12 @@ require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\
 
 my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.c26');
 my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.c26');
-my $rom_playfield=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_playfield.s');
 my $ram_src_text=read_file($ram_src);
 my $rom_src_text=read_file($rom_src);
 require_re($ram_src_text,qr/^uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
    'RAM smoke does not provide a mutable 48-byte playfield');
-require_re($rom_src_text,qr/^extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
-   'ROM smoke does not import a constant 48-byte playfield');
-my $rom_playfield_text=read_file($rom_playfield);
-require_re($rom_playfield_text,qr/^\s*\.align\s+256\s*$/m,
-   'ROM smoke playfield is not temporarily page-aligned');
+require_re($rom_src_text,qr/^page\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*:=/m,
+   'ROM smoke does not define a page-contained constant 48-byte playfield');
 $rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned\n";
 
 my $ram_map=build_smoke(
@@ -143,7 +139,7 @@ my $ram_map=build_smoke(
    File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'),
    File::Spec->catfile($tmp,'standard_kernel_contract_ram.map'));
 my $rom_map=build_smoke(
-   $driver,$vcs,$cfg,[$rom_playfield,$rom_src],
+   $driver,$vcs,$cfg,$rom_src,
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.map'));
 

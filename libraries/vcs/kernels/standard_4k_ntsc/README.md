@@ -228,8 +228,8 @@ Most state has no fixed address. Only these constraints are contractual:
   enforces page alignment for both `KERNEL_CODE` and `KERNEL_RODATA` objects.
 
 The source-contract regression builds both a RAM and a ROM playfield and rejects
-either linked address if its 48 bytes cross a page. Until the page-containment
-linker constraint is implemented, ROM fixtures use temporary `.align 256`.
+either linked address if its 48 bytes cross a page. ROM fixtures use the VCSC
+`page` modifier, so no companion assembly or manual page offset is required.
 There is no fixed `$80`-based variable map and no special `$54` lower bound.
 
 ## Register, flag, and hardware-register clobbers
@@ -296,6 +296,6 @@ The kernel supports P0, P1, M0, M1, and BL simultaneously. Player rows are
 fetched from highest index down to zero; use `VCS_STANDARD_SPRITE_GLYPH(...)`
 when writing eight-row art top-to-bottom. Player graphics must remain within
 one 256-byte page because a page-crossing indirect load changes visible-kernel
-timing. The standard profile page-aligns RODATA, and the static example keeps
-its two eight-byte player tables first in that segment. Missile width comes
+timing. The static example marks both player tables `page`, allowing the linker
+to place each table wherever it fits without broad RODATA alignment. Missile width comes
 from the upper NUSIZ bits, while player copy/size comes from the lower bits.

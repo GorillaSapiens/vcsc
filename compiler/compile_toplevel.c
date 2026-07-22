@@ -551,6 +551,17 @@ void compile_union_decl_stmt(ASTNode *node) {
 }
 
 
+//! @brief Select a unique compiler-owned segment for one hard page-contained object.
+static void emit_page_object_segment(EmitSink *sink, const char *base_segment, const char *symname) {
+   emit(sink, ".segment \"%s.__vcsc_page$%s\"\n", base_segment, symname);
+   emit(sink, ".pagecontain\n");
+}
+
+//! @brief Restore the ordinary compiler segment after one hard page-contained object.
+static void restore_object_segment(EmitSink *sink, const char *base_segment) {
+   emit(sink, ".segment \"%s\"\n", base_segment);
+}
+
 //! @brief Lower global decl item from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_global_decl_item(ASTNode *node) {
    ASTNode *modifiers  = node->children[0];
@@ -586,11 +597,21 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_static = has_modifier(modifiers, "static");
    bool is_zeropage = modifiers_imply_zeropage(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
+   bool is_page = has_modifier(modifiers, "page");
    bool is_absolute_ref = is_ref && addrspec != NULL;
    emit_mem_region_metadata_for_modifiers(node, modifiers);
    int size = declarator_storage_size(type, declarator);
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
+
+   if (is_page && modifiers_imply_mem_storage(modifiers)) {
+      error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
+                 node->file, node->line, node->column);
+   }
+   if (is_page && (is_extern || is_absolute_ref)) {
+      error_user("[%s:%d.%d] 'page' requires a file-scope data-object definition",
+                 node->file, node->line, node->column);
+   }
 
    if (addrspec != NULL && !is_ref) {
       warn_address_spec_without_ref(node, name);
@@ -664,16 +685,20 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-         emit(&es_zp, ".segment \"%s\"\n", segbuf);
+         if (is_page) emit_page_object_segment(&es_zp, "ZEROPAGE", symname);
+         else emit(&es_zp, ".segment \"%s\"\n", segbuf);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
+         if (is_page) restore_object_segment(&es_zp, "ZEROPAGE");
       }
       else {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
-         emit(&es_bss, ".segment \"%s\"\n", segbuf);
+         if (is_page) emit_page_object_segment(&es_bss, "BSS", symname);
+         else emit(&es_bss, ".segment \"%s\"\n", segbuf);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
+         if (is_page) restore_object_segment(&es_bss, "BSS");
       }
       return;
    }
@@ -688,9 +713,11 @@ void compile_global_decl_item(ASTNode *node) {
          if (is_zeropage) {
             char segbuf[256];
             build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-            emit(&es_zpdata, ".segment \"%s\"\n", segbuf);
+            if (is_page) emit_page_object_segment(&es_zpdata, "ZEROPAGE", symname);
+            else emit(&es_zpdata, ".segment \"%s\"\n", segbuf);
             emit(&es_zpdata, "%s:\n", symname);
             emit_sink_append(&es_zpdata, &init_es);
+            if (is_page) restore_object_segment(&es_zpdata, "ZEROPAGE");
          }
          else if (modifiers_imply_mem_storage(modifiers)) {
             char segbuf[256];
@@ -701,8 +728,11 @@ void compile_global_decl_item(ASTNode *node) {
          }
          else {
             EmitSink *es = is_const ? &es_rodata : &es_data;
+            const char *base = is_const ? "RODATA" : "DATA";
+            if (is_page) emit_page_object_segment(es, base, symname);
             emit(es, "%s:\n", symname);
             emit_sink_append(es, &init_es);
+            if (is_page) restore_object_segment(es, base);
          }
          return;
       }
@@ -710,16 +740,20 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-         emit(&es_zp, ".segment \"%s\"\n", segbuf);
+         if (is_page) emit_page_object_segment(&es_zp, "ZEROPAGE", symname);
+         else emit(&es_zp, ".segment \"%s\"\n", segbuf);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
+         if (is_page) restore_object_segment(&es_zp, "ZEROPAGE");
       }
       else {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
-         emit(&es_bss, ".segment \"%s\"\n", segbuf);
+         if (is_page) emit_page_object_segment(&es_bss, "BSS", symname);
+         else emit(&es_bss, ".segment \"%s\"\n", segbuf);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
+         if (is_page) restore_object_segment(&es_bss, "BSS");
       }
       remember_pending_global_init(name, symbuf, type, declarator, uexpr ? uexpr : expression, size, is_zeropage, false, NULL, NULL);
    }

@@ -45,7 +45,6 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $example=File::Spec->catdir($repo,'examples','05_static_kernel_test');
 my $source=File::Spec->catfile($example,'static_kernel_test.c26');
-my $playfield_source=File::Spec->catfile($example,'static_kernel_playfield.s');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'static_kernel_test.bin');
@@ -59,7 +58,7 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
    $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
-   $playfield_source,$source,$kernel,'-o',$bin);
+   $source,$kernel,'-o',$bin);
 $exit == 0 && !$sig
    or die "static-kernel build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
 $out eq '' or die "static-kernel build wrote stdout:\n$out";
@@ -85,8 +84,8 @@ map_symbol($map,'vcs_standard_kernel_drawscreen')==0xf300
 map_symbol($map,'vcs_standard_score_table')==0xf600
    or die "score table moved from F600\n";
 my $playfield=map_symbol($map,'vcs_standard_playfield');
-($playfield & 0xff)==0x00
-   or die sprintf("ROM playfield landed at low byte %02X instead of temporary page alignment\n",$playfield & 0xff);
+(($playfield & 0xff) <= 0xd0 && ($playfield >> 8)==(($playfield+47) >> 8))
+   or die sprintf("ROM playfield crosses a page at %04X\n",$playfield);
 $playfield>=0xf000 && $playfield+47<=0xfff9
    or die "ROM playfield lies outside cartridge data space\n";
 my $paddle=map_symbol($map,'paddle_graphics');
@@ -97,13 +96,8 @@ my $target=map_symbol($map,'target_graphics');
    or die "target graphics cross a page boundary\n";
 
 my $src=read_file($source);
-require_re($src,qr/extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]/,
-   'test playfield is no longer declared as immutable companion cartridge data');
-my $playfield_text=read_file($playfield_source);
-require_re($playfield_text,qr/^\s*\.segment\s+"PLAYFIELD_RODATA"/m,
-   'playfield companion lost its dedicated linker segment');
-require_re($playfield_text,qr/^\s*\.align\s+256\s*$/m,
-   'playfield companion is not temporarily page-aligned');
+require_re($src,qr/^page\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]\s*:=/m,
+   'test playfield is not a page-contained immutable VCSC object');
 $src !~ /alignment_pad|\[97\]/
    or die "dummy source padding array returned\n";
 require_re($src,qr/vcs_standard_score\s*:=\s*123456\s*;/,

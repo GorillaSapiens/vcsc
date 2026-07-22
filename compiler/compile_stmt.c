@@ -631,6 +631,10 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
    validate_nonreserved_implementation_name(name, node);
+   if (has_modifier(modifiers, "page")) {
+      error_user("[%s:%d.%d] 'page' currently applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry;
 

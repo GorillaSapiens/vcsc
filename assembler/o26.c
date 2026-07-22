@@ -381,6 +381,7 @@ static int register_layout(o26_writer_t *wr, const char *name)
    layout->packed_base = wr->seg_lengths[segid];
    layout->image_base = (unsigned short)((layout->image_segid == O26_SEG_DATA && segid == O26_SEG_ZP) ? wr->seg_lengths[O26_SEG_DATA] : layout->packed_base);
    layout->used_size = (unsigned short)((seg->used_size < 0) ? 0 : seg->used_size);
+   layout->flags = seg->page_contained ? O26_LAYOUT_PAGE_CONTAINED : 0;
    layout->next = NULL;
 
    if (!wr->layouts)
@@ -1118,6 +1119,14 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                   writer_error(wr->ctx, stmt, "failed to terminate o26 string");
                   return 0;
                }
+            }
+            return 1;
+         }
+
+         if (!strcmp(stmt->u.dir->name, ".pagecontain")) {
+            if (stmt->u.dir->exprs || stmt->u.dir->string) {
+               writer_error(wr->ctx, stmt, ".pagecontain expects no arguments");
+               return 0;
             }
             return 1;
          }

@@ -38,6 +38,7 @@ typedef struct asm_segment {
    long rorg_pc;
    int defined;
    int overflow_warned;
+   int page_contained;
    struct asm_segment *next;
 } asm_segment_t;
 

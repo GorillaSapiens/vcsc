@@ -52,10 +52,7 @@ this retained kernel profile; the line count and refresh rate are stable.
 
 ## Placement and object coverage
 
-`static_kernel_playfield.s` temporarily uses `.align 256` to keep the immutable
-48-byte playfield within one page until linker page-containment metadata lands.
-The kernel now uses ordinary zero-based indexing; there is no `$54` placement
-rule and no source-level padding array. The scene deliberately makes every supported
+The VCSC `page const` playfield declaration carries hard page containment into the object file; no companion assembly or manual offset is required.
 display object visible: a double-width white paddle (P0), an upright white
 alien (P1), separate white missiles M0 and M1, and a gold ball.
 `VCS_STANDARD_SPRITE_GLYPH` accepts player art top-to-bottom and reverses

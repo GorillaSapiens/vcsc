@@ -67,6 +67,7 @@ union int16_t { // should cause an error
 
 int16_t ia;
 static int16_t ib;
+page int16_t page_object;
 zeropage const ref static int16_t ic, id;
 
 zeropage int16_t ie @ 12;

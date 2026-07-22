@@ -1314,6 +1314,15 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                break;
             }
 
+            if (!strcmp(stmt->u.dir->name, ".pagecontain")) {
+               if (stmt->u.dir->exprs || stmt->u.dir->string) {
+                  asm_error(ctx, stmt, ".pagecontain expects no arguments");
+                  break;
+               }
+               seg->page_contained = 1;
+               break;
+            }
+
             if (!strcmp(stmt->u.dir->name, ".segment") ||
                 !strcmp(stmt->u.dir->name, ".segmentdef") ||
                 !strcmp(stmt->u.dir->name, ".global") ||
@@ -1732,6 +1741,7 @@ static int directive_emit_pass2(asm_context_t *ctx,
        !strcmp(dir->name, ".rend") ||
        !strcmp(dir->name, ".segment") ||
        !strcmp(dir->name, ".segmentdef") ||
+       !strcmp(dir->name, ".pagecontain") ||
        !strcmp(dir->name, ".global") ||
        !strcmp(dir->name, ".export") ||
        !strcmp(dir->name, ".import") ||

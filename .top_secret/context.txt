@@ -983,7 +983,7 @@ The first unfinished item is the default next action.
                   constraints and deterministic diagnostics. Do not reorder
                   unrelated objects in this first slice.
 
-        [ ] 20h. Expose hard page containment to VCSC declarations and assembler
+        [x] 20h. Expose hard page containment to VCSC declarations and assembler
                   data objects, then apply it to the standard playfield and shared
                   score fonts. Remove the companion-source `.align 256, $54`
                   workaround and any manually selected page offsets. Application
@@ -1112,12 +1112,10 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20g are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20h through 20s are deliberately small placement,
+Tasks 20a through 20h are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20i through 20s are deliberately small placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20h is next: expose hard page
-containment to VCSC and assembler data declarations, then apply it to the
-standard playfield and shared score fonts. The
+completed before gameplay integration. Task 20i is next: add soft page-containment placement preferences and map reporting for ordinary objects. The
 stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -2854,3 +2852,31 @@ Before returning another modified archive:
   hard-page-containment regression, and staged installation. No files are
   removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Task 20h
   is next.
+
+2026-07-21 22:40:00 PDT, expose hard page-contained data declarations
+------------------------------------------------------------------------
+* Complete task 20h. Add the file-scope VCSC `page` modifier for data-object
+  definitions. The compiler emits one private named segment per constrained
+  object, marks it with `.pagecontain`, and restores the ordinary segment after
+  the object. Reject functions, locals, extern declarations, absolute refs, and
+  named `mem` combinations until their later dedicated placement tasks.
+* Add assembler `.pagecontain`, which marks the complete current named o26
+  layout with `O26_LAYOUT_PAGE_CONTAINED`. It takes no operands and leaves
+  address selection entirely to the linker. Compiler-owned page segment names
+  use the default DATA/BSS/ZEROPAGE region rather than being mistaken for named
+  memory regions.
+* Convert every shared decimal/hex score font to `page const`. Move the example
+  05 and ROM-contract 48-byte playfields into ordinary VCSC `page const`
+  declarations, and mark example 05's two timing-sensitive player tables `page`.
+  Remove the two companion assembly sources and broad RODATA alignment; retain
+  only the kernel code/table page guards required by the converted kernel.
+* Add `page_object_codegen_test.c26`, extend grammar coverage, and update the
+  static-kernel, ROM-contract, six-digit-score, font-catalog, documentation, and
+  staged-install inputs for declaration-carried constraints.
+* Pass 286/286 compile tests and all 144/144 end-to-end/generic tests. The
+  continuous e2e invocation reached 134/144 before its execution timeout; the
+  remaining ten fixtures then passed explicitly. Staged installation passes,
+  both 4K cartridges remain exact size, and constrained tables are verified not
+  to cross a page. The two retired companion assembly sources raise
+  `.top_secret/remove.txt` to 895 cumulative paths. Stop before task 20i.
+
