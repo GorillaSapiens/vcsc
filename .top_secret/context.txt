@@ -3079,3 +3079,20 @@ Before returning another modified archive:
   installation. No files are removed; `.top_secret/remove.txt` remains at 895
   cumulative paths. Stop before task 20p under the requested short-session
   budget.
+
+2026-07-22 00:24:00 PDT, remove unofficial-opcode test timeout flake
+------------------------------------------------------------------------
+* Fix `vcs_standard_kernel_unofficial_opcodes.test` timing out under the generic
+  runner despite passing when run directly. The descriptor had inherited the
+  runner's two-second default while its cycle regression compiled the complete
+  2,752-line MOS 6502 simulator core on every invocation.
+* Link the small cycle harness against `simulator/mos6502/mos6502.o`, which is
+  already built with `ILLEGAL_OPCODES` by the root `tools` prerequisite. Retain
+  source compilation as a standalone fallback when that object is absent.
+* Give the descriptor an explicit 20-second timeout so the fallback remains
+  reliable on slower hosts or under load. Opcode coverage, expected bytes, and
+  cycle assertions are unchanged.
+* Focused runtime fell from 1.61 seconds to 0.12 seconds on the validation host.
+  Pass 288/288 compile tests, 150/150 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Task 20p remains next.
