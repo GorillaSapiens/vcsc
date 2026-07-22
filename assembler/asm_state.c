@@ -465,14 +465,23 @@ static const char *symbol_storage_name(const program_ir_t *prog, const stmt_t *s
 }
 
 //! @brief Compute segments and update assembler symbol, scope, and segment state state once prerequisite pass data is available.
-static void assign_segments(program_ir_t *prog)
+static void assign_segments(asm_context_t *ctx)
 {
+   typedef struct segment_stack {
+      char *name;
+      struct segment_stack *next;
+   } segment_stack_t;
+
+   program_ir_t *prog = ctx->prog;
    stmt_t *stmt;
    char *current_segment;
+   segment_stack_t *proc_stack = NULL;
 
    current_segment = xstrdup(DEFAULT_SEGMENT_NAME);
 
    for (stmt = prog->head; stmt; stmt = stmt->next) {
+      const char *proc_name;
+
       free(stmt->segment);
       stmt->segment = xstrdup(current_segment);
 
@@ -490,9 +499,51 @@ static void assign_segments(program_ir_t *prog)
          stmt->segment = xstrdup(segname);
 
          free(segname);
+         continue;
+      }
+
+      /* In relocatable objects, make every procedure an independently movable
+         text layout. This preserves exact function boundaries and sizes for the
+         linker without changing flat-binary assembly semantics. */
+      proc_name = (ctx->object_mode_o26 && !strcasecmp(current_segment, "CODE"))
+         ? proc_decl_name(stmt) : NULL;
+      if (proc_name) {
+         segment_stack_t *frame;
+         char private_name[4096];
+
+         frame = (segment_stack_t *)calloc(1, sizeof(*frame));
+         if (!frame) {
+            fprintf(stderr, "out of memory\n");
+            exit(1);
+         }
+         frame->name = current_segment;
+         frame->next = proc_stack;
+         proc_stack = frame;
+
+         snprintf(private_name, sizeof(private_name), "%s.__vcsc_function$%s",
+                  current_segment, proc_name);
+         current_segment = xstrdup(private_name);
+         free(stmt->segment);
+         stmt->segment = xstrdup(current_segment);
+         continue;
+      }
+
+      if (ctx->object_mode_o26 && stmt->kind == STMT_DIR && stmt->u.dir &&
+          !strcmp(stmt->u.dir->name, ".endproc") && proc_stack) {
+         segment_stack_t *frame = proc_stack;
+         proc_stack = frame->next;
+         free(current_segment);
+         current_segment = frame->name;
+         free(frame);
       }
    }
 
+   while (proc_stack) {
+      segment_stack_t *frame = proc_stack->next;
+      free(proc_stack->name);
+      free(proc_stack);
+      proc_stack = frame;
+   }
    free(current_segment);
 }
 
@@ -824,7 +875,7 @@ void validate_imports(asm_context_t *ctx)
 //! @brief Handle asm prepare context state logic for assembler symbol, scope, and segment state.
 void asm_prepare_context_state(asm_context_t *ctx)
 {
-   assign_segments(ctx->prog);
+   assign_segments(ctx);
    assign_scopes(ctx->prog);
    gather_segment_uses(ctx);
    ensure_default_segment(ctx);

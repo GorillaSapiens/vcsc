@@ -207,6 +207,9 @@ void compile_function_decl(ASTNode *node) {
       emit(&es_zp, "\t.res %d\n", return_entry->size);
    }
    emit(&es_code, ".proc %s\n", sym);
+   if (has_modifier(modifiers, "page")) {
+      emit(&es_code, ".pagecontain\n");
+   }
 
    if (!is_empty(body)) {
       if (!strcmp(body->name, "statement_list")) {

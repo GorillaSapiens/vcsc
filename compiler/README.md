@@ -661,6 +661,10 @@ padding. The ordinary placement is a soft preference only.
 At file scope, `page` requests hard 256-byte page containment, for example
 `page const uint8_t table[80] := { ... };`. The same private segment is marked
 with `.pagecontain`, and the linker must find a legal address or reject the
-link. Functions, locals, extern declarations, absolute refs, and named `mem`
-regions do not yet accept the hard `page` modifier. Ordinary objects in named
-`mem` regions still receive private soft-placement segments.
+link. A non-inline function definition is likewise emitted as its own `CODE` layout,
+so the linker knows its exact boundary and size. Ordinary functions receive the
+same soft containment preference. `page` on a function definition upgrades that
+function to hard containment; declarations without a body reject `page` because
+the final size is not yet known. Locals, extern data declarations, absolute refs,
+and named `mem` data regions do not yet accept the hard `page` modifier. Ordinary
+objects in named `mem` regions still receive private soft-placement segments.

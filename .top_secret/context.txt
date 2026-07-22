@@ -997,7 +997,7 @@ The first unfinished item is the default next action.
                   Report hard placements, preferred placements, and unavoidable
                   crossings in the map.
 
-        [ ] 20j. Preserve function boundaries and sizes in linker metadata. For
+        [x] 20j. Preserve function boundaries and sizes in linker metadata. For
                   functions no larger than one page, prefer placing the complete
                   function within one page when it does not increase image size.
                   Add a hard page-contained/timing-critical function attribute for
@@ -1113,9 +1113,9 @@ The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20i are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20j through 20s are deliberately small function-placement,
+through d are complete. Tasks 20k through 20s are deliberately small function-placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20j is next: preserve function boundaries and sizes, prefer same-page placement for small functions, and add a hard timing-critical function constraint. The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
+completed before gameplay integration. Task 20k is next: preserve relative-branch source/target metadata through assembly and report taken branches that cross a page without changing placement. The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2908,3 +2908,30 @@ Before returning another modified archive:
 * Pass 287/287 compile tests and 145/145 end-to-end/generic tests. Staged
   installation passes. No files are removed; `.top_secret/remove.txt` remains
   at 895 cumulative paths. Stop before task 20j.
+
+2026-07-22 04:46:17 PDT, preserve function layouts for page-aware placement
+------------------------------------------------------------------------
+* Complete task 20j. In relocatable o26 mode, each `.proc` beginning in the
+  ordinary `CODE` segment receives a private `CODE.__vcsc_function$NAME`
+  layout. This preserves exact function boundaries and sizes for the linker
+  while leaving flat-binary assembly and explicitly managed kernel segments
+  unchanged.
+* Give every ordinary function the existing soft page-containment preference.
+  Functions no larger than 256 bytes reuse a same-page hole when possible
+  without increasing the MEMORY-region high-water mark; unavoidable crossings
+  remain compact and are reported in the map.
+* Allow `page` on a non-inline function definition. The compiler emits
+  `.pagecontain` inside that function's private layout, making containment a
+  hard linker requirement. Reject `page` on declarations without bodies because
+  the final function size is unknown. Oversized hard functions fail with the
+  private function-layout name and exact size in the diagnostic.
+* Keep the normalized standard kernel's explicit `KERNEL_CODE` layout intact;
+  automatic procedure splitting applies only to ordinary `CODE`. Update the
+  return-memory byte regression to resolve each function through its own load
+  address rather than assuming one packed translation-unit CODE base.
+* Add compiler code-generation coverage and an end-to-end linker regression for
+  preferred, crossing, hard, and oversized function placement. Pass 288/288
+  compile tests and 146/146 end-to-end/generic tests. Staged installation passes.
+  No files are removed; `.top_secret/remove.txt` remains at 895 cumulative
+  paths. Stop before task 20k.
+

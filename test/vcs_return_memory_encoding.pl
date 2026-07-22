@@ -136,9 +136,12 @@ my $rom_start=hex($1);
 $ldmap =~ /\Q$object\E\n(.*?)(?=\n  \S|\nTABLES)/s
    or die "linker map is missing test object layout\n";
 my $layout=$1;
-$layout =~ /CODE\s+load=\$([0-9A-Fa-f]+)/
-   or die "test object has no CODE layout\n";
-my $code_load=hex($1);
+sub function_load {
+   my ($layout_text,$name)=@_;
+   $layout_text =~ /CODE\.__vcsc_function\$\Q$name\E\s+load=\$([0-9A-Fa-f]+)/
+      or die "test object has no function layout for $name\n";
+   return hex($1);
+}
 
 my $return8_slot=linker_symbol($ldmap,'return8$__return');
 my $return16_slot=linker_symbol($ldmap,'return16$__return');
@@ -168,7 +171,7 @@ for my $item (
    [ return32 => $return32_fini_off ],
 ) {
    my ($name,$off)=@$item;
-   my $pos=$code_load+$off-$rom_start;
+   my $pos=function_load($layout,$name)+$off-$rom_start;
    my $byte=unpack('C',substr($rom,$pos,1));
    $byte == 0x60 or die sprintf("%s epilogue byte is %02X, expected RTS (60)\n",$name,$byte);
 }

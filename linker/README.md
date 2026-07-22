@@ -255,3 +255,11 @@ The map reports `page=hard`, `page=preferred`, or `page=crossing`. Initialized
 RAM objects report both `load-page=` and `run-page=`. A `crossing` report means
 the object could not be kept within one page without increasing the occupied
 region extent; it is not a link error unless the hard flag is present.
+
+Compiler and assembler procedures in the ordinary `CODE` segment are represented
+as independent `CODE.__vcsc_function$NAME` layouts. Their map entries therefore
+report exact function size and page status. Functions up to 256 bytes are kept
+within one page when an existing hole permits it without increasing the region
+high-water mark. A function definition marked `page` carries the hard flag and
+fails clearly when its final size exceeds one page or no legal placement exists.
+Explicit kernel code segments are not split automatically.

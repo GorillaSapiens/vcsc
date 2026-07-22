@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasm: .proc hard_page_function
+// expectasm: .pagecontain
+include "machine_6502.c26"
+
+page uint8_t hard_page_function(uint8_t value) {
+   return value + 1;
+}
+
+uint8_t ordinary_function(uint8_t value) {
+   return hard_page_function(value);
+}
+
+uint8_t main(void) {
+   return ordinary_function(1);
+}
