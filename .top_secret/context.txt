@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_183830.tar.gz
+    vcsc.20260721_210248.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -960,10 +960,106 @@ The first unfinished item is the default next action.
                   zero-page opcode bytes, correct six-digit score order, hidden
                   stack allowance, and stable Stella-reported 262-line NTSC
                   timing.
-        [ ] 20e. Connect one stack-safe void VCSC overscan/vblank hook and expose
+        [ ] 20e. Inventory every page-sensitive operation and every unofficial
+                  opcode in the normalized standard kernel before changing code.
+                  Record relative branches, indexed reads, indirect pointers,
+                  function/loop page ranges, current cycle padding, and each
+                  unofficial opcode's purpose. Add a machine-readable or test-
+                  consumable report so later placement/legalization work can
+                  prove it changed only the intended timing paths.
+
+        [ ] 20f. Remove the inherited `$54`-biased playfield index. Start X at a
+                  normal zero-based row offset, address `vcs_standard_playfield`
+                  directly, replace the sign-bit loop termination trick, and
+                  retime only from existing padding. Eliminate the special
+                  `$54..$D0` placement window and its backward relocation. Keep
+                  PF-write phases and Stella-reported 262-line timing unchanged.
+
+        [ ] 20g. Add an explicit hard page-containment constraint to the object
+                  format and linker. A constrained object may begin at any address
+                  for which its complete size fits in one 256-byte page; the
+                  linker derives the allowable low-byte range from the final
+                  object size and packs it wherever it fits. Cover impossible
+                  constraints and deterministic diagnostics. Do not reorder
+                  unrelated objects in this first slice.
+
+        [ ] 20h. Expose hard page containment to VCSC declarations and assembler
+                  data objects, then apply it to the standard playfield and shared
+                  score fonts. Remove the companion-source `.align 256, $54`
+                  workaround and any manually selected page offsets. Application
+                  source should declare timing-sensitive arrays normally and let
+                  their module/interface metadata carry the constraint.
+
+        [ ] 20i. Add a soft page-containment placement preference for every ROM
+                  and RAM object, including small scalars, without turning it into
+                  a hard requirement or gratuitously growing the image. Prefer an
+                  available same-page hole; otherwise retain compact placement.
+                  Report hard placements, preferred placements, and unavoidable
+                  crossings in the map.
+
+        [ ] 20j. Preserve function boundaries and sizes in linker metadata. For
+                  functions no larger than one page, prefer placing the complete
+                  function within one page when it does not increase image size.
+                  Add a hard page-contained/timing-critical function attribute for
+                  cycle-sensitive kernels, with clear failure when it cannot fit.
+
+        [ ] 20k. Preserve relative-branch source/target metadata through assembly,
+                  including branches to assembler-local labels that were formerly
+                  resolved completely inside one object. Add map diagnostics for
+                  taken branches that cross a page; make no placement changes in
+                  this slice.
+
+        [ ] 20l. Add branch-aware code placement for functions/segments. For each
+                  small timing-sensitive unit, try all useful low-byte placements;
+                  for ordinary code, use deterministic greedy placement plus
+                  bounded local swaps/moves. Minimize taken branch page crossings
+                  first, then padding/image growth. Keep the search deliberately
+                  bounded for short, reliable sessions.
+
+        [ ] 20m. Add indexed-access range metadata for timing-sensitive table
+                  reads. Allow a declaration or kernel contract to state the
+                  largest legal index and require every effective address in that
+                  range to remain on one page. Infer the full declared object range
+                  when that is safe; require explicit metadata for pointer-based or
+                  deliberately partial ranges.
+
+        [ ] 20n. Add hard NMOS 6502/6507 page-wrap hazard checks. Reject or
+                  relocate indirect `JMP` pointer words beginning at `$xxFF`, and
+                  prevent two-byte zero-page pointers from beginning at `$FF`.
+                  Document intentional zero-page wrap semantics separately so the
+                  linker does not confuse a hardware hazard with a requested wrap.
+
+        [ ] 20o. Inventory and classify every unofficial opcode still used by the
+                  converted standard kernel: stable/common, silicon-sensitive, or
+                  unstable. Keep assembler illegals opt-in, document every retained
+                  use, and add byte/cycle regressions before replacing any opcode.
+
+        [ ] 20p. Remove the standard kernel's remaining `LAX` uses one timing path
+                  at a time with legal `LDA`/`TAX` or equivalent sequences. Absorb
+                  added cycles from explicit padding where possible and verify the
+                  affected scanline in isolation before continuing.
+
+        [ ] 20q. Remove `DCP` and other unofficial read-modify-write operations
+                  from the standard kernel one family at a time. Use legal
+                  decrement/compare sequences, relocate work outside visible
+                  scanlines when practical, and preserve collision/state results.
+
+        [ ] 20r. Replace unofficial delay NOPs and any remaining unofficial
+                  one-off instructions with legal `NOP`, `BIT`, or reordered legal
+                  work. Verify bus side effects, flags, and cycle counts rather
+                  than treating equal instruction length as sufficient.
+
+        [ ] 20s. Make the normalized standard-kernel profile assemble without
+                  `--illegals`. Add a regression that rejects unofficial opcode
+                  bytes in the profile while leaving explicit illegal-opcode probe
+                  examples opt-in and unaffected.
+
+        [ ] 20t. Connect one stack-safe void VCSC overscan/vblank hook and expose
                   kernel state through module-owned declarations. Add options one
-                  at a time only after the minimal integration is stable.
-        [ ] 20f. Port the multisprite integration only after the standard kernel
+                  at a time only after the placement and legal-opcode cleanup is
+                  stable.
+
+        [ ] 20u. Port the multisprite integration only after the standard kernel
                   works; give it its own contract and defer Superchip and 8K+
                   bankswitching to separate linker/runtime milestones.
 
@@ -1004,10 +1100,12 @@ Example 05 uses reflected playfield mode and a page-stable standard-kernel hot
 loop whose repeated PF stores occur at cycles 24, 31, 38, and 45. The static
 scene visibly exercises P0, P1, M0, M1, and BL; player art is stored through the
 `VCS_STANDARD_SPRITE_GLYPH` reversal helper. Immutable timing-sensitive
-playfields use `.align 256, $54` in a dedicated companion assembly segment rather
-than dummy source arrays. Stella verifies stable 262-line NTSC output, correct
-score rows, an upright target, a visible paddle/projectiles, and a centered
-untorn playfield. Task 20e remains the next queued action.
+playfields currently use the temporary `.align 256, $54` companion-source
+workaround. Tasks 20e through 20s replace that inherited placement trick with
+linker-understood page constraints, branch-aware placement, NMOS wrap-hazard
+checks, and a legal-opcode standard kernel. Stella verifies stable 262-line NTSC
+output, correct score rows, an upright target, visible paddle/projectiles, and a
+centered untorn playfield. The gameplay hook is deferred to task 20t.
 
 Open implementation questions
 -----------------------------
@@ -1015,9 +1113,11 @@ The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20d are complete. Runtime-workspace side-quest items a
-through d are complete. Task 20e is the next queued action: connect one
-stack-safe void VCSC overscan/vblank hook and expose the standard-kernel state
-through module-owned declarations.
+through d are complete. Tasks 20e through 20s are deliberately small placement,
+page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
+completed before gameplay integration. Task 20e is next: inventory every page-
+sensitive operation and unofficial opcode in the normalized standard kernel.
+The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2663,3 +2763,29 @@ Before returning another modified archive:
 * Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
   installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
   20e remains next and was not started.
+
+
+2026-07-21 21:20:00 PDT, plan page-aware linker and legal-kernel cleanup
+------------------------------------------------------------------------
+* Insert tasks 20e through 20s before the gameplay hook and split the work into
+  short, independently testable slices. Defer the stack-safe VCSC hook to 20t
+  and multisprite integration to 20u.
+* Plan removal of the inherited `$54`-biased playfield indexing before adding
+  general page-placement machinery. The normalized kernel should use ordinary
+  zero-based array addressing and no longer require a `$54..$D0` low-byte
+  window or backward relocation.
+* Plan hard page-containment metadata and source declarations, followed by a
+  compact soft pagefit preference for all objects. The linker will derive the
+  legal start range from final object size and place constrained arrays wherever
+  they fit rather than requiring hand-selected `.align` offsets.
+* Plan function-boundary metadata, preferred/hard function page containment,
+  preserved branch-edge metadata, bounded branch-aware placement, and explicit
+  indexed-table range constraints.
+* Plan hard NMOS wrap-hazard checks for indirect-JMP vectors at `$xxFF` and
+  two-byte zero-page pointers at `$FF`.
+* Plan an unofficial-opcode inventory followed by small legalization slices for
+  `LAX`, `DCP`/other RMW operations, and delay/one-off opcodes. The final
+  normalized standard profile must assemble without `--illegals`; dedicated
+  silicon-probe examples remain explicit opt-in users of unofficial opcodes.
+* This revision changes `.top_secret/context.txt` only. No compiler, assembler,
+  linker, kernel, example, test, or removal-ledger file is changed.
