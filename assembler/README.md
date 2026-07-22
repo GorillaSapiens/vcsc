@@ -686,6 +686,15 @@ Outermost operand parentheses are always 6502 addressing syntax.  For example, `
 
 For ordinary mnemonics, suffixes force the final addressing family where the mnemonic supports it, and impossible mnemonic/mode combinations are rejected.  For example, `LDA.a $12` forces absolute encoding, while `JMP.ix ($20,X)` is rejected because `JMP` has no indexed-indirect encoding.
 
+NMOS 6502/6507 indirect `JMP` has a silicon page-wrap bug: a vector operand at
+`$xxFF` fetches its high byte from `$xx00`, not `$xx+1:00`.  The assembler
+therefore rejects a resolved `JMP ($xxFF)`.  Relocatable indirect-JMP operands
+carry a dedicated relocation flag so the linker can apply the same check after
+final placement.  This does not reject ordinary indexed-indirect or
+indirect-indexed zero-page operands such as `LDA ($FF),Y`; their `$FF` to `$00`
+zero-page wrap is part of the documented addressing-mode semantics and may be
+used intentionally.
+
 
 The current o26 writer emits a per-layout flags byte followed by an indexed-
 range start and maximum index. Bit 0 is the hard whole-layout page-containment
@@ -714,3 +723,7 @@ though their displacement was fully resolved by the assembler. The records are
 not relocations and never change branch bytes or displacements, but the linker
 uses them both for final-address timing diagnostics and for its bounded
 low-byte code-placement search.
+
+Word relocations used by indirect `JMP` additionally carry the
+`O26_RTYPE_INDIRECT_JMP` bit.  It does not change relocation arithmetic; it
+identifies the final vector address for the linker's NMOS `$xxFF` hazard check.

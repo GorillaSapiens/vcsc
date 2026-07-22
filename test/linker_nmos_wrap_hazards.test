@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/linker_nmos_wrap_hazards.pl @REPO@ @TMP@
+# phase: e2e
+# expectstdout: NMOS page-wrap hazards rejected
+# expectexit: 0

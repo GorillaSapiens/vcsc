@@ -1172,6 +1172,12 @@ static int object_page_constraints_hold(const object_layout_t *lay, uint32_t add
 {
    if (!lay)
       return 1;
+   /* A multi-byte object in the 6502 zero page may not wrap from $FF to
+      $00.  Intentional wraparound remains expressible as separate one-byte
+      objects; it is not a valid placement for one contiguous object. */
+   if (lay->segid == O26_SEG_ZP &&
+       addr + (uint32_t)lay->size > 0x0100u)
+      return 0;
    if ((lay->flags & O26_LAYOUT_PAGE_CONTAINED) &&
        !range_fits_one_page(addr, lay->size))
       return 0;
@@ -1294,10 +1300,24 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
       return hole_addr;
 
    addr = align_up_u32(cursor->cur, alignment);
-   while (!object_page_constraints_hold(constraints, addr))
+   while (!object_page_constraints_hold(constraints, addr)) {
       addr = align_up_u32(addr + 1u, alignment);
+      if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u) {
+         fprintf(stderr,
+                 "vcsc-ld: zero-page object %s from %s cannot cross $00FF/$0000; use separate one-byte objects only for intentional wrap semantics\n",
+                 what, origin);
+         exit(1);
+      }
+   }
    cursor_add_hole(cursor, cursor->cur, addr);
    end = addr + size;
+   if (constraints && constraints->segid == O26_SEG_ZP && size > 1 &&
+       end > cursor->end) {
+      fprintf(stderr,
+              "vcsc-ld: zero-page object %s from %s cannot cross $00FF/$0000; use separate one-byte objects only for intentional wrap semantics\n",
+              what, origin);
+      exit(1);
+   }
    if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
       fprintf(stderr, "vcsc-ld: %s overflow while placing %s from %s in %s\n",
               mem_name, what, origin, mem_name);
@@ -1918,6 +1938,13 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
          target = (uint16_t)(lookup_global_addr(layout, obj->undefs[r->undef_index]) + current_word);
       } else {
          target = object_runtime_addr_for_value(obj, r->segid, current_word);
+      }
+
+      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (target & 0xffu) == 0xffu) {
+         fprintf(stderr,
+                 "vcsc-ld: indirect JMP vector at $%04X in %s triggers the NMOS 6502/6507 page-wrap bug\n",
+                 target, who);
+         exit(1);
       }
 
       switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {

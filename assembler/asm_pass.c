@@ -2096,6 +2096,13 @@ static int insn_emit_pass2(asm_context_t *ctx,
          break;
    }
 
+   if (!ctx->object_mode_o26 && emode == EM_IND && (value & 0xff) == 0xff) {
+      asm_error(ctx, stmt,
+                "indirect JMP vector at $%04lX triggers the NMOS 6502/6507 page-wrap bug",
+                value & 0xffff);
+      return -1;
+   }
+
    switch (emode) {
       case EM_IMMEDIATE:
       case EM_ZP:

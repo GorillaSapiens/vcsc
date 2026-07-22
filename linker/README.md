@@ -279,6 +279,23 @@ its final base, start offset, maximum index, final address interval, and page
 status. A whole object may report `page=crossing` while its required indexed
 window correctly reports `page=same`.
 
+### NMOS page-wrap hazards
+
+The linker rejects a relocatable indirect-`JMP` vector whose final address has
+low byte `$FF`. On the NMOS 6502/6507, `JMP ($xxFF)` fetches the vector high
+byte from `$xx00`; silently accepting that placement would redirect control to
+an address assembled from two different pages. The assembler marks only real
+indirect-JMP word relocations, so ordinary data words containing `$6C` are not
+misidentified as instructions.
+
+Every contiguous zero-page layout must also end at or before `$00FF`. In
+particular, a two-byte pointer cannot begin at `$FF`; the linker relocates it
+when another address is available and otherwise fails with an explicit
+diagnostic. Intentional zero-page wrap remains possible, but it must be stated
+as separate one-byte objects (for example one byte at `$FF` and one at `$00`).
+The linker deliberately does not reject instruction operands such as
+`LDA ($FF),Y`, whose pointer-byte wrap is normal 6502 addressing behavior.
+
 Compiler and assembler procedures in the ordinary `CODE` segment are represented
 as independent `CODE.__vcsc_function$NAME` layouts. Their map entries therefore
 report exact function size and page status. Functions up to 256 bytes are kept

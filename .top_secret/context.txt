@@ -1023,7 +1023,7 @@ The first unfinished item is the default next action.
                   when that is safe; require explicit metadata for pointer-based or
                   deliberately partial ranges.
 
-        [ ] 20n. Add hard NMOS 6502/6507 page-wrap hazard checks. Reject or
+        [x] 20n. Add hard NMOS 6502/6507 page-wrap hazard checks. Reject or
                   relocate indirect `JMP` pointer words beginning at `$xxFF`, and
                   prevent two-byte zero-page pointers from beginning at `$FF`.
                   Document intentional zero-page wrap semantics separately so the
@@ -1125,11 +1125,11 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20m are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20n through 20u are deliberately small placement,
-page-timing, silicon-hazard, unofficial-opcode, source-suffix, and reporting
-slices that must be completed before gameplay integration. Task 20n is next:
-add hard NMOS 6502/6507 page-wrap hazard checks. The stack-safe VCSC
+Tasks 20a through 20n are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20o through 20u are deliberately small
+unofficial-opcode, source-suffix, and reporting slices that must be completed
+before gameplay integration. Task 20o is next: refresh and classify the
+standard kernel's unofficial-opcode inventory. The stack-safe VCSC
 overscan/vblank hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -3025,4 +3025,26 @@ Before returning another modified archive:
   installation. No files are removed; `.top_secret/remove.txt` remains at 895
   cumulative paths. Stop before task 20n under the requested short-session
   budget.
+
+2026-07-22 06:36:39 PDT, reject NMOS page-wrap hazards
+------------------------------------------------------------------------
+* Complete task 20n. Reject resolved `JMP ($xxFF)` operands in both flat and
+  relocatable assembly. Mark relocatable indirect-JMP word operands with the
+  dedicated `O26_RTYPE_INDIRECT_JMP` bit so the linker can apply the same check
+  after final symbol placement without scanning arbitrary `$6C` data bytes.
+* Reject a final indirect-JMP vector whose low byte is `$FF`, with a diagnostic
+  explaining the NMOS 6502/6507 high-byte fetch from `$xx00`. Safe vectors at
+  `$xxFE` and below remain unaffected.
+* Treat every contiguous zero-page layout as confined to `$0000..$00FF`. A
+  multi-byte object can no longer begin at `$FF` or spill into `$0100`; the
+  linker relocates it when possible and otherwise emits an explicit wrap
+  diagnostic. Intentional zero-page wrap remains expressible as separate
+  one-byte objects, and instruction operands such as `LDA ($FF),Y` remain legal.
+* Add a focused end-to-end regression covering literal and relocatable indirect
+  JMP hazards, a safe `$xxFE` vector, legal instruction-level zero-page wrap,
+  and an impossible two-byte zero-page placement. Update assembler and linker
+  documentation.
+* Pass 288/288 compile tests, 149/149 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20o.
 

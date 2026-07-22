@@ -24,6 +24,7 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_RTYPE_HIGH 0x40
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
+#define O26_RTYPE_INDIRECT_JMP 0x08
 
 #define O26_MODE_ALIGN1 0x0000
 #define O26_MODE_OBJECT 0x1000
@@ -897,7 +898,8 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
                                 o26_segment_buf_t *buf,
                                 long offset,
                                 const reloc_expr_info_t *info,
-                                int width)
+                                int width,
+                                unsigned char extra_type)
 {
    unsigned char type;
    int part;
@@ -921,6 +923,7 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
          writer_error(wr->ctx, stmt, "unsupported relocation width/part combination");
          return 0;
    }
+   type |= extra_type;
 
    /* A one-byte relocation still needs both bytes of its expression value so
       the linker can preserve constant addends.  This applies to imported
@@ -1131,7 +1134,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                if (!analyze_expr(wr, stmt, node->expr, off, &info))
                   return 0;
                if (!buf_write_byte(buf, off, (unsigned char)(info.value & 0xFF)) ||
-                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 1)) {
+                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 1, 0)) {
                   writer_error(wr->ctx, stmt, "failed to write o26 data");
                   return 0;
                }
@@ -1146,7 +1149,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                if (!analyze_expr(wr, stmt, node->expr, off, &info))
                   return 0;
                if (!buf_write_word(buf, off, (unsigned short)(info.value & 0xFFFF)) ||
-                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2)) {
+                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2, 0)) {
                   writer_error(wr->ctx, stmt, "failed to write o26 data");
                   return 0;
                }
@@ -1304,7 +1307,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             case EM_INDX:
             case EM_INDY:
                if (!buf_write_byte(buf, off, (unsigned char)(value & 0xFF)) ||
-                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 1)) {
+                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 1, 0)) {
                   writer_error(wr->ctx, stmt, "failed to write o26 operand");
                   return 0;
                }
@@ -1341,8 +1344,15 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             case EM_ABSX:
             case EM_ABSY:
             case EM_IND:
+               if (emode == EM_IND && !info.is_reloc && (value & 0xff) == 0xff) {
+                  writer_error(wr->ctx, stmt,
+                     "indirect JMP vector at $%04lX triggers the NMOS 6502/6507 page-wrap bug",
+                     value & 0xffff);
+                  return 0;
+               }
                if (!buf_write_word(buf, off, (unsigned short)(value & 0xFFFF)) ||
-                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2)) {
+                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2,
+                      emode == EM_IND ? O26_RTYPE_INDIRECT_JMP : 0)) {
                   writer_error(wr->ctx, stmt, "failed to write o26 address");
                   return 0;
                }
