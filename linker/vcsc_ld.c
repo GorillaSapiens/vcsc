@@ -1093,6 +1093,98 @@ static uint16_t alloc_from_region_aligned(layout_t *layout, const linker_config_
    return alloc_from_region(layout, cfg, mem_name, size, what, origin);
 }
 
+//! @brief Return whether a complete object range remains within one 256-byte page.
+static int range_fits_one_page(uint32_t addr, uint16_t size)
+{
+   if (size > 0x0100u)
+      return 0;
+   return (addr & 0xffu) + (uint32_t)size <= 0x0100u;
+}
+
+//! @brief Allocate one independently placed layout under a hard page-containment constraint.
+static uint16_t alloc_from_region_page_contained(layout_t *layout, const linker_config_t *cfg,
+   const char *mem_name, uint16_t size, const char *what, const char *origin)
+{
+   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   uint32_t addr = cursor->cur;
+   uint32_t end;
+
+   if (size > 0x0100u) {
+      fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
+              what, origin, size);
+      exit(1);
+   }
+   if (!range_fits_one_page(addr, size))
+      addr = (addr + 0xffu) & ~0xffu;
+   end = addr + size;
+   if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
+      fprintf(stderr, "vcsc-ld: %s overflow while placing page-contained %s from %s in %s\n",
+              mem_name, what, origin, mem_name);
+      exit(1);
+   }
+   cursor->cur = (uint16_t)end;
+   return (uint16_t)addr;
+}
+
+//! @brief Return whether one candidate text base satisfies every hard layout constraint.
+static int object_text_page_constraints_fit(const object_file_t *obj, uint32_t base)
+{
+   size_t i;
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *lay = &obj->layouts[i];
+      if (lay->segid != O26_SEG_TEXT || !(lay->flags & O26_LAYOUT_PAGE_CONTAINED))
+         continue;
+      if (!range_fits_one_page(base + lay->packed_base, lay->size))
+         return 0;
+   }
+   return 1;
+}
+
+//! @brief Place packed text while satisfying all hard page-contained sub-layouts.
+static uint16_t alloc_text_with_page_constraints(layout_t *layout, const linker_config_t *cfg,
+   const char *mem_name, const object_file_t *obj, uint16_t alignment)
+{
+   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   uint32_t step = alignment > 1 ? alignment : 1;
+   uint32_t addr = cursor->cur;
+   uint32_t limit = cursor->end;
+   size_t i;
+   int has_constraint = 0;
+
+   for (i = 0; i < obj->layout_count; ++i) {
+      if (obj->layouts[i].segid == O26_SEG_TEXT &&
+          (obj->layouts[i].flags & O26_LAYOUT_PAGE_CONTAINED))
+         has_constraint = 1;
+   }
+   if (!has_constraint)
+      return alloc_from_region_aligned(layout, cfg, mem_name,
+         (uint16_t)obj->text.length, alignment, "text", obj->origin);
+
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *lay = &obj->layouts[i];
+      if (lay->segid == O26_SEG_TEXT && (lay->flags & O26_LAYOUT_PAGE_CONTAINED) && lay->size > 0x0100u) {
+         fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
+                 lay->name, obj->origin, lay->size);
+         exit(1);
+      }
+   }
+
+   if (alignment > 1)
+      addr = (addr + alignment - 1u) & ~((uint32_t)alignment - 1u);
+   while (addr + obj->text.length <= limit && addr + obj->text.length <= 0x10000u &&
+          (!str_ieq(mem_name, "ROM") || addr + obj->text.length <= 0xFFFAu)) {
+      if (object_text_page_constraints_fit(obj, addr)) {
+         cursor->cur = (uint16_t)(addr + obj->text.length);
+         return (uint16_t)addr;
+      }
+      addr += step;
+   }
+
+   fprintf(stderr, "vcsc-ld: %s overflow while placing page-constrained text from %s in %s\n",
+           mem_name, obj->origin, mem_name);
+   exit(1);
+}
+
 //! @brief Return the strongest linker-script alignment requested by text layouts in one object.
 static uint16_t object_text_alignment(const linker_config_t *cfg, const object_file_t *obj)
 {
@@ -1454,8 +1546,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
    for (i = 0; i < in->object_count; ++i) {
       object_file_t *obj = &in->objects[i];
-      obj->place_text_load = alloc_from_region_aligned(layout, cfg, code_load_name,
-         (uint16_t)obj->text.length, object_text_alignment(cfg, obj), "text", obj->origin);
+      obj->place_text_load = alloc_text_with_page_constraints(layout, cfg, code_load_name,
+         obj, object_text_alignment(cfg, obj));
       obj->place_data_load = alloc_from_region(layout, cfg, data_load_name, (uint16_t)obj->data.length, "data load image", obj->origin);
 
       for (j = 0; j < obj->layout_count; ++j) {
@@ -1483,14 +1575,18 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             case O26_SEG_DATA: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
                lay->load_addr = object_layout_load_addr(obj, lay);
-               lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
+                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
+                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
                add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                break;
             }
 
             case O26_SEG_BSS: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
-               lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
+                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
+                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
                add_zero_record(layout, lay->name, lay->run_addr, lay->size);
                break;
             }
@@ -1498,7 +1594,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             case O26_SEG_ZP: {
                const char *run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") || segment_name_matches_prefix(lay->name, "ZP") || segment_name_matches_prefix(lay->name, "ZERO"))) ? suffix : zp_run_name;
                lay->load_addr = object_layout_load_addr(obj, lay);
-               lay->run_addr = alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
+               lay->run_addr = (lay->flags & O26_LAYOUT_PAGE_CONTAINED)
+                  ? alloc_from_region_page_contained(layout, cfg, run_name, lay->size, lay->name, obj->origin)
+                  : alloc_from_region(layout, cfg, run_name, lay->size, lay->name, obj->origin);
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                break;

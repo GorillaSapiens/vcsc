@@ -32,6 +32,8 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_MODE_BREL   0x0000
 #define O26_VERSION     1
 
+#define O26_LAYOUT_PAGE_CONTAINED 0x01
+
 #define DEFAULT_SEGMENT_NAME "__default__"
 
 typedef struct o26_reloc {
@@ -73,6 +75,7 @@ typedef struct o26_segment_layout {
    unsigned short packed_base;
     unsigned short image_base;
    unsigned short used_size;
+   unsigned char flags;
    struct o26_segment_layout *next;
 } o26_segment_layout_t;
 
@@ -1376,7 +1379,8 @@ static int write_layouts(FILE *fp, const o26_segment_layout_t *layout)
 
    for (; layout; layout = layout->next) {
       if (!write_cstr(fp, layout->name) || !write_u8(fp, layout->segid) || !write_u16(fp, layout->packed_base) ||
-          !write_u16(fp, layout->used_size) || !write_u8(fp, layout->image_segid) || !write_u16(fp, layout->image_base))
+          !write_u16(fp, layout->used_size) || !write_u8(fp, layout->image_segid) || !write_u16(fp, layout->image_base) ||
+          !write_u8(fp, layout->flags))
          return 0;
    }
 

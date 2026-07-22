@@ -188,7 +188,7 @@ static int scan_cstr_bytes(const uint8_t *data, size_t size, size_t *pos, char *
 }
 
 //! @brief Parse layouts with mode into the normalized representation used by linker object/archive loader.
-static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t start, int v2,
+static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t start, int version,
    object_layout_t **out, size_t *count_out, size_t *end_out)
 {
    size_t i;
@@ -212,7 +212,7 @@ static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t star
       pos += 2;
       items[i].size = (uint16_t)(data[pos] | (data[pos + 1] << 8));
       pos += 2;
-      if (v2) {
+      if (version >= 2) {
          if (pos + 3 > size) {
             free_partial_layouts(items, count);
             return 0;
@@ -223,6 +223,17 @@ static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t star
       } else {
          items[i].image_segid = items[i].segid;
          items[i].image_base = items[i].packed_base;
+      }
+      if (version >= 3) {
+         if (pos + 1 > size) {
+            free_partial_layouts(items, count);
+            return 0;
+         }
+         items[i].flags = data[pos++];
+         if (items[i].flags & ~O26_LAYOUT_PAGE_CONTAINED) {
+            free_partial_layouts(items, count);
+            return 0;
+         }
       }
    }
 
@@ -237,14 +248,21 @@ static int parse_layouts_any(reader_t *r, object_layout_t **out, size_t *count_o
 {
    size_t end_pos = 0;
 
-   if (parse_layouts_with_mode(r->data, r->size, r->pos, 1, out, count_out, &end_pos) && end_pos == r->size) {
+   if (parse_layouts_with_mode(r->data, r->size, r->pos, 3, out, count_out, &end_pos) && end_pos == r->size) {
       r->pos = end_pos;
       return 1;
    }
    *out = NULL;
    *count_out = 0;
 
-   if (parse_layouts_with_mode(r->data, r->size, r->pos, 0, out, count_out, &end_pos) && end_pos == r->size) {
+   if (parse_layouts_with_mode(r->data, r->size, r->pos, 2, out, count_out, &end_pos) && end_pos == r->size) {
+      r->pos = end_pos;
+      return 1;
+   }
+   *out = NULL;
+   *count_out = 0;
+
+   if (parse_layouts_with_mode(r->data, r->size, r->pos, 1, out, count_out, &end_pos) && end_pos == r->size) {
       r->pos = end_pos;
       return 1;
    }

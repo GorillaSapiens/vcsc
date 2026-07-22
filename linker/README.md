@@ -231,3 +231,14 @@ When a reference to `foo` cannot be satisfied by a strong exported `foo`, the li
 Resolution is symbol-driven and left-to-right over the command line, but strong definitions are preferred globally over weak fallbacks for the same symbol.
 For `.l26` inputs, only the single member object that defines the selected symbol is pulled in.
 This matches the assembler's `.weak foo` directive, which exports a weak definition under the external name `__weak_foo`.
+
+### Hard page-contained object layouts
+
+The current o26 layout tail carries a flags byte for each named layout. Bit 0
+(`O26_LAYOUT_PAGE_CONTAINED`) is a hard placement constraint: the complete
+layout must reside within one 256-byte page. The linker derives the legal
+low-byte range from the final layout size, chooses the earliest address that
+fits without reordering unrelated objects, and rejects layouts larger than 256
+bytes with a deterministic diagnostic. Older o26 layout tails without the flags
+byte remain readable. Source-level declaration syntax is intentionally deferred
+to the next integration slice.

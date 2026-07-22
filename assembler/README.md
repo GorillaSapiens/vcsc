@@ -686,3 +686,9 @@ Outermost operand parentheses are always 6502 addressing syntax.  For example, `
 
 For ordinary mnemonics, suffixes force the final addressing family where the mnemonic supports it, and impossible mnemonic/mode combinations are rejected.  For example, `LDA.a $12` forces absolute encoding, while `JMP.ix ($20,X)` is rejected because `JMP` has no indexed-indirect encoding.
 
+
+The o26 writer now emits a per-layout flags byte after each layout's image-base
+field. Bit 0 is reserved for the linker's hard page-containment contract. The
+ordinary assembler does not yet expose source syntax for setting that bit; that
+is a separate interface step. The linker remains backward-compatible with the
+older layout records.

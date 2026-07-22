@@ -26,6 +26,8 @@
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 
+#define O26_LAYOUT_PAGE_CONTAINED 0x01
+
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
@@ -83,6 +85,7 @@ typedef struct {
    uint16_t packed_base;
    uint16_t image_base;
    uint16_t size;
+   uint8_t flags;
    uint16_t load_addr;
    uint16_t run_addr;
 } object_layout_t;

@@ -975,7 +975,7 @@ The first unfinished item is the default next action.
                   `$54..$D0` placement window and its backward relocation. Keep
                   PF-write phases and Stella-reported 262-line timing unchanged.
 
-        [ ] 20g. Add an explicit hard page-containment constraint to the object
+        [x] 20g. Add an explicit hard page-containment constraint to the object
                   format and linker. A constrained object may begin at any address
                   for which its complete size fits in one 256-byte page; the
                   linker derives the allowable low-byte range from the final
@@ -1100,8 +1100,8 @@ Example 05 uses reflected playfield mode and a page-stable standard-kernel hot
 loop whose repeated PF stores occur at cycles 24, 31, 38, and 45. The static
 scene visibly exercises P0, P1, M0, M1, and BL; player art is stored through the
 `VCS_STANDARD_SPRITE_GLYPH` reversal helper. Immutable timing-sensitive
-playfields currently use the temporary `.align 256, $54` companion-source
-workaround. Tasks 20e through 20s replace that inherited placement trick with
+playfields currently use temporary page-boundary companion-source alignment.
+Tasks 20e through 20s replace that source-level placement workaround with
 linker-understood page constraints, branch-aware placement, NMOS wrap-hazard
 checks, and a legal-opcode standard kernel. Stella verifies stable 262-line NTSC
 output, correct score rows, an upright target, visible paddle/projectiles, and a
@@ -1112,11 +1112,12 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20f are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20g through 20s are deliberately small placement,
+Tasks 20a through 20g are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20h through 20s are deliberately small placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20g is next: add the object/linker
-hard page-containment constraint without reordering unrelated objects. The
+completed before gameplay integration. Task 20h is next: expose hard page
+containment to VCSC and assembler data declarations, then apply it to the
+standard playfield and shared score fonts. The
 stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -2831,3 +2832,25 @@ Before returning another modified archive:
   removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Stop before
   task 20g under the requested short-session budget.
 
+
+
+2026-07-21 22:16:00 PDT, add hard object page containment
+------------------------------------------------------------------------
+* Complete task 20g. Extend each named o26 layout record with a flags byte and
+  define bit 0 as a hard requirement that the complete final-sized layout fit
+  within one 256-byte page. Keep the linker backward-compatible with both older
+  layout-tail encodings.
+* Place packed text objects at the earliest aligned base satisfying every hard
+  contained sub-layout, without reordering unrelated objects. Apply the same
+  earliest-fit rule to independently allocated DATA, BSS, and zero-page layouts.
+* Derive the valid low-byte range from the final object size. Reject objects
+  larger than 256 bytes and region layouts with no legal placement using stable,
+  explicit diagnostics.
+* Add an end-to-end raw-object regression that sets the new layout bit, proves a
+  crossing object is shifted only to the earliest legal address, and proves a
+  257-byte constrained object is rejected. Document the object-format flag and
+  intentionally defer user-facing declaration syntax to task 20h.
+* Pass 285/285 compile tests, 144/144 end-to-end/generic tests, the focused
+  hard-page-containment regression, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Task 20h
+  is next.
