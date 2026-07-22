@@ -76,6 +76,11 @@ table. DASM's address-dependent page-tail `REPEAT` cannot use
 slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
 Retained comments are copied without symbol rewriting.
 
+The remaining unofficial forms are classified site-by-site in
+[`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md).  The current profile uses
+only the stable/common NMOS subset, but keeps all friendly unofficial
+mnemonics explicitly opt-in while tasks 20p through 20s remove them.
+
 The selected source must be assembled with unofficial mnemonics enabled:
 
 ```sh

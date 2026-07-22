@@ -134,7 +134,7 @@ for my $pattern (
    index($kernel_bytes,$pattern)>=0
       or die sprintf("kernel is missing score-pointer opcode bytes %s\n",unpack('H*',$pattern));
 }
-index($kernel_bytes,"\xAB")>=0 or die "kernel lost retained LAX immediate opcode\n";
+index($kernel_bytes,"\xA7")>=0 or die "kernel lost retained LAX zero-page opcode\n";
 index($kernel_bytes,"\x4B")>=0 or die "kernel lost retained ASR opcode\n";
 index($kernel_bytes,"\xCB")>=0 or die "kernel lost retained SBX opcode\n";
 

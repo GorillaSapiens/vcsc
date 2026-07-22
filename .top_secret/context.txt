@@ -1029,7 +1029,7 @@ The first unfinished item is the default next action.
                   Document intentional zero-page wrap semantics separately so the
                   linker does not confuse a hardware hazard with a requested wrap.
 
-        [ ] 20o. Inventory and classify every unofficial opcode still used by the
+        [x] 20o. Inventory and classify every unofficial opcode still used by the
                   converted standard kernel: stable/common, silicon-sensitive, or
                   unstable. Keep assembler illegals opt-in, document every retained
                   use, and add byte/cycle regressions before replacing any opcode.
@@ -1125,11 +1125,11 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20n are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20o through 20u are deliberately small
+Tasks 20a through 20o are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20p through 20u are deliberately small
 unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Task 20o is next: refresh and classify the
-standard kernel's unofficial-opcode inventory. The stack-safe VCSC
+before gameplay integration. Task 20p is next: remove the standard kernel's
+remaining `LAX` uses one timing path at a time. The stack-safe VCSC
 overscan/vblank hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -3048,3 +3048,34 @@ Before returning another modified archive:
   installation. No files are removed; `.top_secret/remove.txt` remains at 895
   cumulative paths. Stop before task 20o.
 
+
+
+2026-07-22 06:59:22 PDT, classify and lock retained unofficial opcodes
+------------------------------------------------------------------------
+* Complete task 20o. Add a reproducible 19-site unofficial-opcode inventory for
+  the normalized standard kernel, generated from the maintained macro and
+  kernel sources. Record source location, addressing mode, exact opcode byte,
+  instruction width, base cycles, page-cross penalty, classification, and the
+  retained purpose of every site.
+* Classify every currently retained form as stable/common on original NMOS
+  6502/6507 silicon: LAX zero page (`$A7`), LAX (zp),Y (`$B3`), ASR/ALR
+  immediate (`$4B`), DCP zero page (`$C7`), SBX/AXS immediate (`$CB`), and the
+  three-cycle zero-page NOP (`$04`). Explicitly document that no
+  silicon-sensitive or unstable form remains in this profile and that this does
+  not imply portability to CMOS descendants, clones, or FPGA cores.
+* Add a dedicated byte/cycle regression. Assemble one probe containing every
+  distinct retained form and require bytes
+  `A7 80 4B F0 C7 81 CB FC B3 82 04 00`; prove the source fails without
+  `--illegals`; execute the forms in the bundled NMOS simulator and lock cycle
+  counts 3, 2, 5, 2, 5/6, and 3, including the indexed-indirect page penalty.
+* Correct the old static-kernel smoke wording/check that described a stray `$AB`
+  byte as immediate LAX. The retained score-pointer loads are the stable/common
+  `$A7` zero-page form; visible glyph loads are `$B3` indexed-indirect.
+* Install the classification document and generated table with the standard
+  kernel support bundle. Preserve kernel bytes, placement, scanline timing, and
+  the opt-in `--illegals` policy.
+* Pass 288/288 compile tests, 150/150 end-to-end/generic tests, focused byte and
+  cycle checks, the static-kernel timing/object regression, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20p under the requested short-session
+  budget.

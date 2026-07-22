@@ -29,6 +29,9 @@ Inventory summary
 The baseline contains 13 relative branches, 30 indexed reads, 11 indexed indirect pointer reads, 28 explicit padding sites, four alignment directives,
 and 19 source-level unofficial-opcode sites.  The unofficial sites are:
 
+Task 20o classifies those sites and locks their exact bytes and cycles in
+`UNOFFICIAL_OPCODES.md` and `standard_4k_ntsc_unofficial_opcodes.tsv`.
+
 * 11 `DCP`: decrement an object vertical counter and compare it with height in
   one five-cycle read-modify-write instruction;
 * 5 `LAX`: three score-byte pointer-setup loads and two visible score-glyph
