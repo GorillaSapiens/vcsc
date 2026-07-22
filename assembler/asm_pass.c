@@ -281,8 +281,79 @@ static int insn_can_relax_long_branch(const stmt_t *stmt, const asm_context_t *c
    return disp >= -128 && disp <= 127;
 }
 
+
+//! @brief Return whether an expression contains any identifier term.
+static int expr_contains_ident(const expr_t *expr)
+{
+   if (!expr)
+      return 0;
+   switch (expr->kind) {
+      case EXPR_IDENT:
+         return 1;
+      case EXPR_UNARY:
+         return expr_contains_ident(expr->u.unary.child);
+      case EXPR_BINARY:
+         return expr_contains_ident(expr->u.binary.left) ||
+                expr_contains_ident(expr->u.binary.right);
+      case EXPR_NUMBER:
+      case EXPR_CHARCONST:
+      case EXPR_PC:
+         return 0;
+   }
+   return 0;
+}
+
+//! @brief Return the imported base in a symbol-plus/minus-constant expression.
+static const char *expr_reloc_ident(const expr_t *expr)
+{
+   const char *base;
+
+   if (!expr)
+      return NULL;
+
+   switch (expr->kind) {
+      case EXPR_IDENT:
+         return expr->u.ident;
+
+      case EXPR_UNARY:
+         return expr->u.unary.op == EXPR_UOP_POS
+            ? expr_reloc_ident(expr->u.unary.child) : NULL;
+
+      case EXPR_BINARY:
+         if (expr->u.binary.op == EXPR_BOP_ADD) {
+            base = expr_reloc_ident(expr->u.binary.left);
+            if (base && !expr_contains_ident(expr->u.binary.right))
+               return base;
+            base = expr_reloc_ident(expr->u.binary.right);
+            if (base && !expr_contains_ident(expr->u.binary.left))
+               return base;
+         }
+         if (expr->u.binary.op == EXPR_BOP_SUB) {
+            base = expr_reloc_ident(expr->u.binary.left);
+            if (base && !expr_contains_ident(expr->u.binary.right))
+               return base;
+         }
+         return NULL;
+
+      case EXPR_NUMBER:
+      case EXPR_CHARCONST:
+      case EXPR_PC:
+         return NULL;
+   }
+
+   return NULL;
+}
+
+//! @brief Return whether an operand expression is based on a zero-page import.
+static int expr_is_zp_import(const asm_context_t *ctx, const expr_t *expr)
+{
+   const char *name = expr_reloc_ident(expr);
+   return name && import_is_zp(ctx, name);
+}
+
 //! @brief Handle choose initial emit mode logic for assembler pass and relaxation engine.
-static int choose_initial_emit_mode(const insn_info_t *insn, emit_mode_t *out_mode, const char **why)
+static int choose_initial_emit_mode(const asm_context_t *ctx, const insn_info_t *insn,
+                                    emit_mode_t *out_mode, const char **why)
 {
    addr_mode_t mode;
    unsigned char dummy;
@@ -368,6 +439,10 @@ static int choose_initial_emit_mode(const insn_info_t *insn, emit_mode_t *out_mo
          return 1;
 
       case AM_ZP_OR_ABS:
+         if (expr_is_zp_import(ctx, insn->expr) && opcode_lookup(insn->opcode, EM_ZP, &dummy)) {
+            *out_mode = EM_ZP;
+            return 1;
+         }
          if (is_raw_opcode) {
             if (why)
                *why = "raw opcodes need an explicit mode suffix (.z/.a/.i) for ambiguous operand shapes";
@@ -384,6 +459,10 @@ static int choose_initial_emit_mode(const insn_info_t *insn, emit_mode_t *out_mo
          break;
 
       case AM_ZPX_OR_ABSX:
+         if (expr_is_zp_import(ctx, insn->expr) && opcode_lookup(insn->opcode, EM_ZPX, &dummy)) {
+            *out_mode = EM_ZPX;
+            return 1;
+         }
          if (is_raw_opcode) {
             if (why)
                *why = "raw opcodes need an explicit mode suffix (.zx/.ax) for indexed ambiguous operand shapes";
@@ -400,6 +479,10 @@ static int choose_initial_emit_mode(const insn_info_t *insn, emit_mode_t *out_mo
          break;
 
       case AM_ZPY_OR_ABSY:
+         if (expr_is_zp_import(ctx, insn->expr) && opcode_lookup(insn->opcode, EM_ZPY, &dummy)) {
+            *out_mode = EM_ZPY;
+            return 1;
+         }
          if (is_raw_opcode) {
             if (why)
                *why = "raw opcodes need an explicit mode suffix (.zy/.ay) for indexed ambiguous operand shapes";
@@ -951,13 +1034,17 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
    ctx->segments = NULL;
 
    asm_prepare_context_state(ctx);
-
+   /* Addressing-mode selection happens before the first relaxation pass, so
+      collect .importzp/.zpimport declarations now.  Otherwise unresolved
+      zero-page imports default to absolute modes and cycle-counted modules gain
+      an extra byte and often an extra cycle per access. */
+   gather_imports(ctx);
 
    for (stmt = prog->head; stmt; stmt = stmt->next) {
       if (stmt->kind != STMT_INSN)
          continue;
 
-      if (!choose_initial_emit_mode(&stmt->u.insn, &stmt->u.insn.final_mode, &why)) {
+      if (!choose_initial_emit_mode(ctx, &stmt->u.insn, &stmt->u.insn.final_mode, &why)) {
          asm_error(ctx, stmt, "%s%s ... %s",
                    stmt->u.insn.opcode,
                    mode_spec_suffix(stmt->u.insn.spec),
@@ -1391,10 +1478,7 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
 //! @brief Return whether expr is imported zero-page reference in assembler pass and relaxation engine.
 static int expr_is_imported_zp_reference(const asm_context_t *ctx, const expr_t *expr)
 {
-   if (!expr || expr->kind != EXPR_IDENT)
-      return 0;
-
-   return import_is_zp(ctx, expr->u.ident);
+   return expr_is_zp_import(ctx, expr);
 }
 
 //! @brief Return whether relax to zero-page family applies in assembler pass and relaxation engine.

@@ -227,7 +227,7 @@ die "timing harness build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err
    if $exit || $sig;
 die "timing harness build wrote unexpected stdout:\n$out" if $out ne '';
 
-($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio');
+($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','265');
 die "timing verification exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
    if $exit || $sig;
 $out =~ /^vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n$/

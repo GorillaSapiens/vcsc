@@ -51,6 +51,7 @@ typedef struct {
    char run_name[MAX_NAME];
    char type[16];
    int define_yes;
+   uint16_t align;
 } segment_rule_t;
 
 //! Complete in-memory linker configuration.

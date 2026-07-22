@@ -85,9 +85,9 @@ Across all retained kernels, unofficial `DCP` appears 22 times, `LAX` 13 times,
 and `SBX` 10 times. The bundled illegal-opcode table accepts the retained
 `SBX` spelling directly as an alias for `AXS`, and accepts `ASR` directly as an
 alias for `ALR`. The selected minimal branch therefore preserves both original
-mnemonics during normalization. Every converted kernel
-build must deliberately enable the unofficial table and task 20d must
-regression-test the final emitted bytes.
+mnemonics during normalization. Every converted kernel build must deliberately enable the unofficial table.
+`examples/05_static_kernel_test` and its regression now verify the selected
+profile's final unofficial opcode bytes after complete-cartridge linking.
 
 ## Mechanical DASM-to-VCSC syntax work
 

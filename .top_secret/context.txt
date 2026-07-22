@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_134206.tar.gz
+    vcsc.20260721_151846.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -643,16 +643,16 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    139 passed, 0 failed, 139 total
+    142 passed, 0 failed, 142 total
 
 Staged install check:
 
     passed
 
-All four examples build directly as raw 4096-byte cartridges without an
-explicit `-T`. The staged installed toolchain also compiles the VCS header smoke
-program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t` and produces
-an exact 4096-byte cartridge.
+Examples 01 through 04 build directly as raw 4096-byte cartridges with the
+stock VCS script. Example 05 builds as an exact 4096-byte cartridge with the
+standard-kernel profile script. The staged installed toolchain also compiles the
+VCS header smoke program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t`.
 Bare `vcsc-ld` invocation without a script still fails with a focused diagnostic,
 while retained generic e2e tests use `test/generic_6502.cfg`.
 
@@ -953,9 +953,13 @@ The first unfinished item is the default next action.
         [x] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
                   retained macros, directives, conditionals, expressions, and
                   forced addressing modes needed by that one configuration.
-        [ ] 20d. Build a no-bankswitch, no-Superchip standard-kernel cartridge
-                  with fixed test state and verify size, map, emitted opcode
-                  bytes, and stable 262-line NTSC timing.
+        [x] 20d. Build `examples/05_static_kernel_test`, a no-bankswitch,
+                  no-Superchip standard-kernel cartridge with fixed Breakout-
+                  style inspection state. Verify exact 4K size, timing-safe ROM
+                  placement, page-aligned kernel/table windows, unofficial and
+                  zero-page opcode bytes, correct six-digit score order, hidden
+                  stack allowance, and stable Stella-reported 262-line NTSC
+                  timing.
         [ ] 20e. Connect one stack-safe void VCSC overscan/vblank hook and expose
                   kernel state through module-owned declarations. Add options one
                   at a time only after the minimal integration is stable.
@@ -989,10 +993,10 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20c are complete. Runtime-workspace side-quest items a
-through d are complete. Task 20d is the next queued action: build the first
-no-bankswitch, no-Superchip cartridge from the normalized standard kernel and
-verify its final map, opcode bytes, and stable 262-line NTSC timing.
+Tasks 20a through 20d are complete. Runtime-workspace side-quest items a
+through d are complete. Task 20e is the next queued action: connect one
+stack-safe void VCSC overscan/vblank hook and expose the standard-kernel state
+through module-owned declarations.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2559,3 +2563,26 @@ Before returning another modified archive:
   installation check passes. `.top_secret/remove.txt` remains at 893 cumulative
   paths. Task 20d is next.
 
+
+
+2026-07-21 16:33:10 PDT, build the static standard-kernel cartridge
+------------------------------------------------------------------------
+* Complete task 20d with `examples/05_static_kernel_test`, an exact 4096-byte
+  unbanked NTSC cartridge using the normalized no-Superchip standard kernel.
+  The deterministic Breakout-style scene exercises the asymmetric 32x12 ROM
+  playfield, both players, both missiles, the ball, and score `123456`.
+* Fix assembler relocation handling so one-byte imported-symbol expressions
+  retain constant addends and `.importzp` declarations select zero-page modes
+  before relaxation. This restores the six distinct score pointers and the
+  cycle/byte lengths required by the retained kernel.
+* Add linker-script segment alignment and narrowly accept the retained kernel's
+  one-page backward segment-relative operand bias. Fix kernel/table placement at
+  `$F300` and `$F600`, and deliberately place the immutable playfield at `$F154`
+  inside its timing-safe low-byte window.
+* Add focused assembler, linker, cartridge-map/opcode, and Stella-calibrated
+  frame-timing regressions. The final Stella 7.0 developer overlay reports a
+  stable `262 / 60.0Hz => NTSC*` frame and the rendered score reads `123456`.
+* Extend staged installation to build example 05 with installed tools, headers,
+  kernel source, and profile script. Pass 285/285 compile tests, 142/142
+  end-to-end/generic tests, and staged installation. `.top_secret/remove.txt`
+  remains at 893 cumulative paths. Task 20e is next.

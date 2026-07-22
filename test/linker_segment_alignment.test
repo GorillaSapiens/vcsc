@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/linker_segment_alignment.pl @REPO@ @TMP@
+# phase: e2e
+# expectstdout: linker segment alignment enforced
+# expectexit: 0

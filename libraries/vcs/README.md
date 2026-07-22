@@ -23,6 +23,7 @@ Files:
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
 - `../../examples/03_six_digit_score/six_digit_score.c26` ... centered legacy-kernel-derived six-digit `bcd24_t` score display using the shared VCS font catalog
 - `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
+- `../../examples/05_static_kernel_test/static_kernel_test.c26` ... deterministic 4K bring-up cartridge for the normalized standard kernel
 - `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
 - `LEGACY_KERNEL_CONVERSION.md` ... retained-kernel inventory, compatibility analysis, and staged conversion plan
 

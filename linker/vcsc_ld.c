@@ -427,6 +427,13 @@ static void parse_segment_property(segment_rule_t *seg, const char *key, const c
       snprintf(seg->type, sizeof(seg->type), "%s", value);
    } else if (str_ieq(key, "define")) {
       seg->define_yes = str_ieq(value, "yes");
+   } else if (str_ieq(key, "align")) {
+      parse_result_t n = parse_number(value);
+      if (!n.ok || n.value == 0 || n.value > 0x8000u || (n.value & (n.value - 1u)) != 0) {
+         fprintf(stderr, "vcsc-ld: bad segment alignment '%s'; expected a power of two from 1 through $8000\n", value);
+         exit(1);
+      }
+      seg->align = (uint16_t)n.value;
    }
 }
 
@@ -1067,6 +1074,49 @@ static uint16_t alloc_from_region(layout_t *layout, const linker_config_t *cfg, 
    return (uint16_t)addr;
 }
 
+//! @brief Allocate from a region after advancing its cursor to a power-of-two boundary.
+static uint16_t alloc_from_region_aligned(layout_t *layout, const linker_config_t *cfg,
+   const char *mem_name, uint16_t size, uint16_t alignment, const char *what, const char *origin)
+{
+   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   uint32_t aligned;
+
+   if (alignment <= 1)
+      return alloc_from_region(layout, cfg, mem_name, size, what, origin);
+   aligned = ((uint32_t)cursor->cur + alignment - 1u) & ~((uint32_t)alignment - 1u);
+   if (aligned > cursor->end || aligned > 0xffffu) {
+      fprintf(stderr, "vcsc-ld: %s overflow while aligning %s from %s to $%04X\n",
+              mem_name, what, origin, alignment);
+      exit(1);
+   }
+   cursor->cur = (uint16_t)aligned;
+   return alloc_from_region(layout, cfg, mem_name, size, what, origin);
+}
+
+//! @brief Return the strongest linker-script alignment requested by text layouts in one object.
+static uint16_t object_text_alignment(const linker_config_t *cfg, const object_file_t *obj)
+{
+   uint16_t result = 1;
+   size_t i;
+
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *lay = &obj->layouts[i];
+      const segment_rule_t *rule;
+      if (lay->segid != O26_SEG_TEXT || lay->size == 0)
+         continue;
+      rule = find_segment_rule(cfg, lay->name);
+      if (rule && rule->align > result) {
+         if ((lay->packed_base & (rule->align - 1u)) != 0) {
+            fprintf(stderr, "vcsc-ld: segment %s in %s requests alignment $%04X but packed offset $%04X is not aligned\n",
+                    lay->name, obj->origin, rule->align, lay->packed_base);
+            exit(1);
+         }
+         result = rule->align;
+      }
+   }
+   return result;
+}
+
 //! @brief Add copy record to linker layout and image writer state, growing storage or preserving uniqueness as needed.
 static void add_copy_record(layout_t *layout, const char *name, uint16_t load_addr, uint16_t run_addr, uint16_t size)
 {
@@ -1098,12 +1148,15 @@ static void add_zero_record(layout_t *layout, const char *name, uint16_t run_add
 static const object_layout_t *find_layout_for_value(const object_file_t *obj, uint8_t segid, uint16_t packed_value)
 {
    const object_layout_t *fallback = NULL;
+   const object_layout_t *page_bias = NULL;
+   uint16_t page_bias_distance = 0xffffu;
    size_t i;
 
    for (i = 0; i < obj->layout_count; ++i) {
       const object_layout_t *lay = &obj->layouts[i];
       uint32_t start = lay->packed_base;
       uint32_t end = (uint32_t)lay->packed_base + lay->size;
+      uint16_t before;
 
       if (lay->segid != segid)
          continue;
@@ -1111,9 +1164,22 @@ static const object_layout_t *find_layout_for_value(const object_file_t *obj, ui
          return lay;
       if (packed_value == end)
          fallback = lay;
+
+      /* Cycle-counted 6502 code sometimes deliberately forms an absolute,Y
+         base one page before a local table, then supplies a negative byte in Y
+         so the effective address lands back inside the table.  The packed
+         segment-relative addend consequently wraps below zero (for example
+         $FF9F for local label $009F minus $0100).  Accept only a one-page
+         backward bias and choose the nearest matching layout; ordinary direct
+         in-range references above remain unambiguous. */
+      before = (uint16_t)(lay->packed_base - packed_value);
+      if (before > 0 && before <= 0x0100u && before < page_bias_distance) {
+         page_bias = lay;
+         page_bias_distance = before;
+      }
    }
 
-   return fallback;
+   return fallback ? fallback : page_bias;
 }
 
 //! @brief Handle object runtime addr for value logic for linker layout and image writer.
@@ -1388,7 +1454,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
    for (i = 0; i < in->object_count; ++i) {
       object_file_t *obj = &in->objects[i];
-      obj->place_text_load = alloc_from_region(layout, cfg, code_load_name, (uint16_t)obj->text.length, "text", obj->origin);
+      obj->place_text_load = alloc_from_region_aligned(layout, cfg, code_load_name,
+         (uint16_t)obj->text.length, object_text_alignment(cfg, obj), "text", obj->origin);
       obj->place_data_load = alloc_from_region(layout, cfg, data_load_name, (uint16_t)obj->data.length, "data load image", obj->origin);
 
       for (j = 0; j < obj->layout_count; ++j) {
@@ -1510,30 +1577,31 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
       const char *who = obj->origin;
       (void)seg_name;
 
+      switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+         case O26_RTYPE_WORD:
+            current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
+            break;
+
+         case O26_RTYPE_LOW:
+            current_word = (uint16_t)(seg->data[r->offset] | ((r->has_aux_low ? r->aux_low : 0) << 8));
+            break;
+
+         case O26_RTYPE_HIGH:
+            current_word = (uint16_t)((r->has_aux_low ? r->aux_low : 0) | (seg->data[r->offset] << 8));
+            break;
+
+         default:
+            current_word = seg->data[r->offset];
+            break;
+      }
+
       if (r->segid == O26_SEG_UNDEF) {
          if (r->undef_index >= obj->undef_count) {
             fprintf(stderr, "vcsc-ld: bad undefined-symbol index in %s\n", who);
             exit(1);
          }
-         target = lookup_global_addr(layout, obj->undefs[r->undef_index]);
+         target = (uint16_t)(lookup_global_addr(layout, obj->undefs[r->undef_index]) + current_word);
       } else {
-         switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
-            case O26_RTYPE_WORD:
-               current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
-               break;
-
-            case O26_RTYPE_LOW:
-               current_word = (uint16_t)(seg->data[r->offset] | ((r->has_aux_low ? r->aux_low : 0) << 8));
-               break;
-
-            case O26_RTYPE_HIGH:
-               current_word = (uint16_t)((r->has_aux_low ? r->aux_low : 0) | (seg->data[r->offset] << 8));
-               break;
-
-            default:
-               current_word = seg->data[r->offset];
-               break;
-         }
          target = object_runtime_addr_for_value(obj, r->segid, current_word);
       }
 
@@ -1545,9 +1613,6 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
             patch_u8(seg->data, seg->length, r->offset, (uint8_t)((target >> 8) & 0xFFu), who);
             break;
          case O26_RTYPE_WORD:
-            current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
-            if (r->segid == O26_SEG_UNDEF)
-               target = (uint16_t)(target + current_word);
             patch_u16(seg->data, seg->length, r->offset, target, who);
             break;
          default:

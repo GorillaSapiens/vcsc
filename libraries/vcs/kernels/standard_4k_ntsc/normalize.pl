@@ -494,7 +494,7 @@ sub kernel_output {
    push @out, '.export __sbpmeta$F$vcs_standard_kernel_drawscreen';
    push @out, '__sbpmeta$F$vcs_standard_kernel_drawscreen = 0';
    push @out, '';
-   push @out, '.segment "CODE"';
+   push @out, '.segment "KERNEL_CODE"';
    push @out, '.proc vcs_standard_kernel_drawscreen';
    push @out, '; ---- normalized from standard/std_overscan.asm ----';
    my @overscan_body = grep { $_->[1] !~ /^drawscreen\b/ } @$overscan;
@@ -503,8 +503,9 @@ sub kernel_output {
    push @out, '; ---- normalized from standard/std_kernel.asm ----';
    push @out, translate_source_set($kernel, \%labels);
    push @out, '.endproc';
+   push @out, '.align 256';
    push @out, '';
-   push @out, '.segment "RODATA"';
+   push @out, '.segment "KERNEL_RODATA"';
    push @out, '.export vcs_standard_score_table';
    push @out, 'vcs_standard_score_table:';
    my @score = extract_score_bytes();
@@ -517,6 +518,44 @@ sub kernel_output {
    }
 
    my $result = join("\n", @out);
+
+   # The retained BASIC score bytes and the VCSC bcd24_t representation use
+   # opposite byte/digit placement conventions.  Keep the original timed
+   # display pipeline, but seed its six low-byte slots in the order required
+   # for little-endian packed BCD: slots ultimately displayed as
+   # 0,4,3,2,1,5 must contain digits 1..6.
+   my $old_score_setup = <<'ASM';
+     lax vcs_standard_score+2
+     jsr @scorepointerset
+     sty vcs_standard_pointer_workspace+5
+     stx vcs_standard_pointer_workspace+2
+     lax vcs_standard_score+1
+     jsr @scorepointerset
+     sty vcs_standard_pointer_workspace+4
+     stx vcs_standard_pointer_workspace+1
+     lax vcs_standard_score
+     jsr @scorepointerset
+     sty vcs_standard_pointer_workspace+3
+     stx vcs_standard_pointer_workspace
+ASM
+   my $new_score_setup = <<'ASM';
+     lax vcs_standard_score+2
+     jsr @scorepointerset
+     stx vcs_standard_pointer_workspace
+     sty vcs_standard_pointer_workspace+3
+     lax vcs_standard_score+1
+     jsr @scorepointerset
+     stx vcs_standard_pointer_workspace+1
+     sty vcs_standard_pointer_workspace+4
+     lax vcs_standard_score
+     jsr @scorepointerset
+     stx vcs_standard_pointer_workspace+2
+     sty vcs_standard_pointer_workspace+5
+ASM
+   index($result, $old_score_setup) >= 0
+      or die "normalized score-pointer setup no longer matches the selected retained source\n";
+   $result =~ s/\Q$old_score_setup\E/$new_score_setup/;
+
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;
    return $result . "\n";

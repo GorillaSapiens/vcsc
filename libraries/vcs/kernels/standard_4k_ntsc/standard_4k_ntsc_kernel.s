@@ -91,7 +91,7 @@ __abimeta$V1$function$definition$vcs_standard_kernel_drawscreen$return$modeQ3Dre
 .export __sbpmeta$F$vcs_standard_kernel_drawscreen
 __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
-.segment "CODE"
+.segment "KERNEL_CODE"
 .proc vcs_standard_kernel_drawscreen
 ; ---- normalized from standard/std_overscan.asm ----
 ; Provided under the CC0 license. See the included LICENSE.txt for details.
@@ -220,16 +220,16 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ;set score pointers
      lax vcs_standard_score+2
      jsr @scorepointerset
-     sty vcs_standard_pointer_workspace+5
-     stx vcs_standard_pointer_workspace+2
+     stx vcs_standard_pointer_workspace
+     sty vcs_standard_pointer_workspace+3
      lax vcs_standard_score+1
      jsr @scorepointerset
-     sty vcs_standard_pointer_workspace+4
      stx vcs_standard_pointer_workspace+1
+     sty vcs_standard_pointer_workspace+4
      lax vcs_standard_score
      jsr @scorepointerset
-     sty vcs_standard_pointer_workspace+3
-     stx vcs_standard_pointer_workspace
+     stx vcs_standard_pointer_workspace+2
+     sty vcs_standard_pointer_workspace+5
 
 @vblk:
      ; run possible vblank bB code
@@ -714,8 +714,9 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
 
 .endproc
+.align 256
 
-.segment "RODATA"
+.segment "KERNEL_RODATA"
 .export vcs_standard_score_table
 vcs_standard_score_table:
 ; digit 0

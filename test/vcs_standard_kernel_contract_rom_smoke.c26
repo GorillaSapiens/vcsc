@@ -1,9 +1,9 @@
 // vcsc-cc1 -I ../libraries/vcs
 include "vcs.c26"
 
-// Test-only padding arranges a timing-safe low byte with the current no-op
-// smoke link. Task 20d must enforce the final linked kernel placement.
-const uint8_t vcs_standard_rom_alignment_pad[81] := { 0 };
+// Test-only padding deliberately places the ROM-backed playfield at a
+// timing-safe low byte matching the completed 4K standard-kernel profile.
+const uint8_t vcs_standard_rom_alignment_pad[97] := { 0 };
 
 // Fixed playfield selected by the application. It occupies cartridge ROM and
 // exports the same direct-addressed symbol as the mutable RAM form.

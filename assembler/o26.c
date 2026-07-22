@@ -863,7 +863,11 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
          return 0;
    }
 
-   if (width == 1 && info->segid != O26_SEG_UNDEF) {
+   /* A one-byte relocation still needs both bytes of its expression value so
+      the linker can preserve constant addends.  This applies to imported
+      symbols too: (external+8),Y must relocate to the low byte of external+8,
+      not merely to the low byte of external. */
+   if (width == 1) {
       type |= O26_RTYPE_AUX;
       if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index, 1,
                      (unsigned char)((part == RELOC_PART_LOW) ? ((info->reloc_value >> 8) & 0xFF) : (info->reloc_value & 0xFF)))) {

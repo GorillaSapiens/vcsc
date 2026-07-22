@@ -127,6 +127,7 @@ the user does not provide `-T`.
 - `run = NAME`
 - `type = ro/rw/zp/data/bss`
 - `define = yes/no`
+- `align = N` on a segment rule, where N is a power of two
 - `callstack = callgraph/no`
 - `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
 

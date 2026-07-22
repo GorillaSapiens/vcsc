@@ -48,6 +48,7 @@ my $profile=File::Spec->catdir($repo,'libraries','vcs','kernels','standard_4k_nt
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $macros=File::Spec->catfile($profile,'standard_4k_ntsc_macros.inc');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
+my $config=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $generated=File::Spec->catdir($tmp,'normalized');
 make_path($generated);
 
@@ -71,6 +72,7 @@ for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s') {
 
 my $macro_text=read_file($macros);
 my $kernel_text=read_file($kernel);
+my $config_text=read_file($config);
 my @macro_defs=($macro_text =~ /^MACRO\s+([A-Za-z_][A-Za-z0-9_]*)\b/mg);
 join(',',@macro_defs) eq 'SLEEP,VERTICAL_SYNC,CLEAN_START,SET_POINTER,RETURN'
    or die "normalized macro set/order is wrong: @macro_defs\n";
@@ -98,7 +100,13 @@ $active !~ /\b(?:AXS|ALR)\b/i
 require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;
-$aligns == 2 or die "selected source has $aligns page alignments, expected two\n";
+$aligns == 3 or die "selected source has $aligns page alignments, expected three\n";
+require_re($config_text,qr/^\s*KERNEL_CODE:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
+   'kernel code segment is not page-aligned by the linker profile');
+require_re($config_text,qr/^\s*KERNEL_RODATA:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
+   'kernel score-table segment is not page-aligned by the linker profile');
+require_re($active,qr/^\s*lda\s+#37\+128\s*$/m,
+   'selected kernel no longer uses the Stella-verified 262-line vblank timer');
 my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
 $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";
@@ -106,6 +114,9 @@ require_re($active,qr/^\.import\s+vcs_standard_playfield$/m,
    'application-provided playfield is not imported directly');
 require_re($active,qr/vcs_standard_pointer_workspace\s*\+\s*11/,
    'normalized source does not address the complete pointer workspace');
+require_re($active,
+   qr/lax vcs_standard_score\+2\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\s+sty vcs_standard_pointer_workspace\+3\s+lax vcs_standard_score\+1\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+1\s+sty vcs_standard_pointer_workspace\+4\s+lax vcs_standard_score\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+2\s+sty vcs_standard_pointer_workspace\+5/s,
+   'normalized score setup no longer maps little-endian BCD to display slots 0,4,3,2,1,5');
 my @score_rows=($kernel_text =~ /^\s*\.byte\s+%[01]{8}\s*$/mg);
 @score_rows == 88 or die "normalized score table has " . scalar(@score_rows) . " rows, expected 88\n";
 
@@ -121,10 +132,10 @@ my $object_text=read_file($object);
 substr($object_text,0,6) eq "\x01\x00o26\x01"
    or die "normalized kernel did not produce a current o26 object\n";
 my $map_text=read_file($map);
-require_re($map_text,qr/^CODE\s+\$[0-9A-F]{8}\s+\$000002F9\b/m,
-   'normalized CODE size changed unexpectedly');
-require_re($map_text,qr/^RODATA\s+\$[0-9A-F]{8}\s+\$00000058\b/m,
-   'normalized default score table is not 88 bytes');
+require_re($map_text,qr/^KERNEL_CODE\s+\$[0-9A-F]{8}\s+\$00000300\b/m,
+   'normalized KERNEL_CODE size/alignment changed unexpectedly');
+require_re($map_text,qr/^KERNEL_RODATA\s+\$[0-9A-F]{8}\s+\$00000058\b/m,
+   'normalized KERNEL_RODATA score table is not 88 bytes');
 require_re($map_text,qr/\bvcs_standard_kernel_drawscreen\b/,
    'normalized object map is missing the exported kernel entry');
 

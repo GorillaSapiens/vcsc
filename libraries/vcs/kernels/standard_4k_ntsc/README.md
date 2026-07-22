@@ -69,8 +69,9 @@ The conversion is intentionally not a general DASM-compatibility mode. It
 selects only this profile's active conditional branches, changes bare DASM
 labels to procedure-local `@label:` definitions, binds retained fixed-map names
 to the module symbols, preserves the retained `SBX`/`ASR` spellings now accepted
-by `illegals.cfg`, converts forced `.w` addressing to `.a`/`.ax`/`.ay`, and preserves the two
-page-alignment guards. DASM's address-dependent page-tail `REPEAT` cannot use
+by `illegals.cfg`, converts forced `.w` addressing to `.a`/`.ax`/`.ay`, preserves the two
+retained code-page guards, and adds an explicit page boundary before the score
+table. DASM's address-dependent page-tail `REPEAT` cannot use
 `vcsc-as`'s pre-layout `.repeat`; the normalizer emits sixteen conditional NOP
 slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
 Retained comments are copied without symbol rewriting.
@@ -84,9 +85,11 @@ vcsc-as --illegals \
   libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
 ```
 
-That produces an unresolved relocatable kernel object by design. Linking it to
-module state, enforcing final page placement, checking exact opcode bytes, and
-proving 262-line timing belong to the complete-cartridge integration step.
+That produces an unresolved relocatable kernel object by design.
+`examples/05_static_kernel_test` is the first complete integration: it links the
+object to module state, enforces final page placement, checks exact unofficial
+opcode bytes, and has been verified by Stella 7.0 at a stable 262 lines and
+60.0 Hz.
 
 ## Source-level inclusion
 
@@ -121,7 +124,9 @@ Build with the matching linker configuration and illegal-opcode table:
 ```sh
 vcsc -I libraries/vcs -Wa,--illegals \
   -T libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
-  game.c26 -o game.bin
+  game.c26 \
+  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s \
+  -o game.bin
 ```
 
 The module exports one entry point:
@@ -165,10 +170,10 @@ module. The module:
 5. asserts `VBLANK` before returning to application overscan.
 
 The call must begin with decimal mode clear. The converted wrapper must also
-return with decimal mode clear. The first cartridge must produce a stable
-262-scanline non-interlaced NTSC frame; complete-cartridge testing must verify
-the exact phase lengths rather than treating comments in the retained source as
-proof.
+return with decimal mode clear. The first cartridge, `examples/05_static_kernel_test`, produces a stable
+262-scanline non-interlaced NTSC frame at 60.0 Hz in Stella 7.0. The developer
+status overlay is used as the final timing authority rather than treating
+comments in the retained source as proof.
 
 ## State ownership and RAM cost
 
@@ -184,13 +189,13 @@ RAM.”
 | **Mandatory module-declared RAM** | **38** | 23 application-visible + 15 private |
 | **RAM with mutable playfield** | **86** | 38 mandatory + 48 application-selected playfield |
 
-The stock VCSC runtime currently uses 16 more RIOT bytes. With the ordinary
+The reduced stock VCSC runtime uses eight RIOT bytes. With the ordinary
 `main -> drawscreen` source call depth, the matching linker configuration
 reserves four call-graph bytes plus two hidden-kernel bytes. Therefore:
 
 ```text
-fixed ROM playfield:   128 - 38 - 16 - 6 = 68 bytes left
-mutable RAM playfield: 128 - 86 - 16 - 6 = 20 bytes left
+fixed ROM playfield:   128 - 38 - 8 - 6 = 76 bytes left
+mutable RAM playfield: 128 - 86 - 8 - 6 = 28 bytes left
 ```
 
 Those numbers are budgeting examples, not promises that every future option or
@@ -217,8 +222,9 @@ Most state has no fixed address. Only these constraints are contractual:
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
   retained blank glyph therefore cannot cross a page boundary.
 - Two cycle-critical code regions retain page-alignment guards from the source.
-  The normalized source preserves both guards with `.align 256`; no absolute ROM
-  address is required.
+  The normalized source preserves both guards with `.align 256`.
+- The score-table segment has its own `.align 256`, and the linker profile
+  enforces page alignment for both `KERNEL_CODE` and `KERNEL_RODATA` objects.
 
 The source-contract regression builds both a RAM and a ROM playfield and rejects
 either linked address if its low byte falls outside `$54..$D0`. The complete
@@ -258,11 +264,10 @@ update this contract and its regression before it is accepted.
 ## ROM and feature-cost ledger
 
 The `.c26` source contract itself emits no code and no initialized data. A ROM
-playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized
-object currently contains a 761-byte `CODE` segment and an 88-byte `RODATA`
-score table before final placement. Those are review figures, not the final
-cartridge cost: complete-cartridge integration must record linked padding,
-placement, and total ROM use from the first real cartridge map.
+playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized object contains a page-padded 768-byte `KERNEL_CODE` segment
+and an 88-byte `KERNEL_RODATA` score table. In the first complete cartridge they
+are fixed at `$F300..$F5FF` and `$F600..$F657`; the application playfield is ROM
+backed at `$F154`. These are measured map values for the selected profile.
 
 All listed optional features are rejected by this profile, so no speculative
 RAM or ROM deltas are contractual. A feature may be added only as a later
