@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/vcs_standard_pairwise.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 120
+# expectstdout: vcs_standard_pairwise ok

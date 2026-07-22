@@ -111,6 +111,15 @@ exact frame-relative scanlines. This catches corrupt
 packed masks, state lost through horizontal-position scratch reuse, and any
 whole-frame vertical displacement that instruction-level cycle tests miss.
 
+`vcs_standard_pairwise.test` jumps directly into the linked standard kernel's
+actual horizontal-position routine and exhausts all `5 choose 2` object pairs
+at every `160 * 160` coordinate combination: 256,000 cases. The remaining
+three objects stay at distinct sentinel coordinates. Every case requires one
+correct RESP strobe and HMxx write per object, the correct divide-by-15
+remainder, unchanged public X state, and no cross-object positioning damage.
+This provides exhaustive pairwise coverage without spending 256,000 complete
+television frames.
+
 `assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented
 out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both

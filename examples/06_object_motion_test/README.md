@@ -58,6 +58,13 @@ motion nibble against the independent divide-by-15/reposition model. It also
 requires every object to reach both X=0 and X=159. That catches 15-pixel
 quantization, a dead fine-motion table, or a shortened object-specific range.
 
+The separate `vcs_standard_pairwise.test` leaves this human-readable animation
+unchanged and exhausts every pair of P0/P1/M0/M1/BL coordinates: ten pairs times
+160 times 160, or 256,000 direct executions of the linked kernel's horizontal-
+position routine. The other three objects remain at distinct sentinel X values,
+so pair interactions and shared-scratch corruption cannot hide behind the
+motion sequence used by this example.
+
 ## Vertical contract
 
 The Y values are the public counter coordinates. The exact active TIA-write

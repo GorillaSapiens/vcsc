@@ -3332,3 +3332,25 @@ Before returning another modified archive:
 * Update the example, kernel, legalization, and test documentation. No kernel,
   compiler, assembler, linker, ABI, or roadmap implementation is changed; task
   20r remains next.
+
+2026-07-22 16:38:48 PDT, add exhaustive pairwise horizontal-position regression
+------------------------------------------------------------------------
+* Leave `examples/06_object_motion_test/object_motion_test.c26` unchanged. Add
+  `vcs_standard_pairwise.test` as a dedicated machine-level regression for
+  the linked standard kernel's actual horizontal-position routine.
+* Exhaust all ten unordered pairs of P0, P1, M0, M1, and BL across every
+  X=0..159 by X=0..159 combination: 256,000 direct 6502 executions. Hold the
+  other three objects at distinct sentinel coordinates in each case.
+* For all five objects in every case, require exactly one RESP strobe and one
+  HMxx write, the independent expected RESP cycle and fine-motion nibble, the
+  exact stored divide-by-15 remainder, and unchanged public X state. Locate the
+  linked routine by a unique resolved instruction signature rather than adding
+  test-only symbols to the kernel ABI.
+* Document the division of labor: example 06 remains the readable animated
+  diagnostic, while the new test supplies exhaustive pairwise positioning
+  coverage without simulating 256,000 complete frames. No compiler, assembler,
+  linker, kernel, ABI, example-source, or roadmap implementation is changed;
+  task 20r remains next.
+* Pass 288/288 compile-only tests, 154/154 end-to-end/generic tests, the focused
+  256,000-case pairwise regression, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
