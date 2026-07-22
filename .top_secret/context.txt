@@ -1044,6 +1044,24 @@ The first unfinished item is the default next action.
                   decrement/compare sequences, relocate work outside visible
                   scanlines when practical, and preserve collision/state results.
 
+                  [x] 20q1. Lock the dynamic pre-legalization baseline. Record
+                            every steady two-line object-update phase in the
+                            simulator, identify sites by final zero-page operand,
+                            and document why naive `DEC`/`CMP` expansion drifts.
+
+                  [ ] 20q2. Design and legalize the two player-counter paths.
+                            Preserve visible and skipped-row cycle balance, glyph
+                            selection, collision state, and all PF write phases.
+
+                  [ ] 20q3. Legalize ball and missile counters after the player
+                            schedule is stable. Preserve enabled/disabled timing
+                            and the existing ENABL/ENAM bit results.
+
+                  [ ] 20q4. Legalize the alternate and final-row duplicates,
+                            remove the DCP inventory form, and replace the
+                            temporary DCP schedule regression with legal-opcode
+                            timing coverage before marking 20q complete.
+
         [ ] 20r. Replace unofficial delay NOPs and any remaining unofficial
                   one-off instructions with legal `NOP`, `BIT`, or reordered legal
                   work. Verify bus side effects, flags, and cycle counts rather
@@ -1128,8 +1146,10 @@ Tasks 18a through 18f and the task-19 legacy inventory are complete.
 Tasks 20a through 20p are complete. Runtime-workspace side-quest items a
 through d are complete. Tasks 20p through 20u are deliberately small
 unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Task 20p is complete. Task 20q is next: remove the standard kernel's `DCP` and other unofficial read-modify-write operations one family at a time. The stack-safe VCSC
-overscan/vblank hook is deferred to task 20v.
+before gameplay integration. Task 20q1 is complete. Task 20q2 is next: design
+and legalize the two player-counter paths while preserving both visible and
+skipped-row timing. The stack-safe VCSC overscan/vblank hook is deferred to
+task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3118,3 +3138,25 @@ Before returning another modified archive:
   removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Stop
   before task 20q.
 
+
+2026-07-22 10:45:04 PDT, lock DCP legalization timing baseline
+------------------------------------------------------------------------
+* Begin task 20q as four deliberately small slices rather than attempting an
+  unsafe eleven-site textual rewrite. Complete 20q1 and leave the active kernel
+  bytes unchanged.
+* Add `DCP_LEGALIZATION.md`. Document that `DCP zp` is five cycles while the
+  direct legal `DEC zp`/`CMP zp` spelling is eight, so naive replacement adds
+  15 cycles to each steady two-scanline five-object update and visibly drifts
+  the playfield schedule.
+* Add an emulator-backed DCP schedule regression using the complete example-05
+  cartridge. Identify the five live sites through their final zero-page
+  operands rather than linked code addresses and lock 46 central scanlines:
+  ball at cycle 45 (43 on row transitions), player 1 at 60, missile 1 at 5,
+  player 0 at 48, and missile 0 at 69.
+* Split the remaining work into player paths, ball/missile paths, and the
+  alternate/final-row duplicates. Explicitly forbid using a deliberate branch
+  page crossing as a one-cycle filler. Task 20q2 is next.
+* Pass 288/288 compile tests, 151/151 end-to-end/generic tests, the focused
+  46-scanline DCP schedule regression, and staged installation. The active
+  normalized kernel and legacy BASIC sources are unchanged. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths.

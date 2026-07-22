@@ -96,6 +96,13 @@ assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
 segment map and score table, rejects assembly without unofficial mnemonics, and
 assembles a smoke source that invokes every retained macro.
 
+`vcs_standard_kernel_dcp_schedule.test` locks the live pre-legalization
+schedule for the five vertical-object `DCP` updates. It executes the complete
+static-kernel cartridge, identifies sites through their final zero-page
+operands, and checks 46 steady-state scanlines including the alternate ball
+phase at each playfield-row transition. This is a temporary task-20q baseline:
+it must be replaced, not weakened, as each DCP family is legalized.
+
 `assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented
 out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both
