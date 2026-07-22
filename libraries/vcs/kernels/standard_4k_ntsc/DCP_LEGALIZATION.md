@@ -65,9 +65,29 @@ exact bytes that the old final `DCP` sequences would have produced:
 
 The formerly temporary schedule regression is now
 `vcs_standard_kernel_legal_schedule.test`. It locks the three steady mask
-operands and cycles and checks all five final precomputed values. The complete
-static-kernel execution test separately verifies object output, PF phases,
-persistent-state restoration, and a stable 262-line frame.
+operands and cycles and checks all five final precomputed values.
+
+## Post-legalization raster repair
+
+The original task-20q tests were not sufficient: they proved selected
+instruction phases and merely counted that each object appeared, but did not
+lock the complete raster. Three rendering regressions consequently survived:
+
+* the mask-clear loop used `TXA` to advance its record offset and then reused A
+  as the value to store, filling later mask records with offsets instead of
+  zero;
+* M0's application Y value was saved in pointer workspace before the horizontal
+  positioning loop reused that byte, so later frames restored a corrupted Y;
+* a 37-cycle pre-kernel setup call crossed a scanline, and its replacement delay
+  preserved that unintended whole-frame vertical shift.
+
+The repaired helper keeps zero in Y while X advances, reconstructs and saves M0
+Y in the existing twelve-cycle post-positioning slot, and removes the extra
+pre-kernel delay. `examples/06_object_motion_test` gives all five TIA objects
+separate documented vertical bands and independently phased horizontal motion.
+`vcs_standard_motion.test` locks twenty frames of X/Y state and seven complete
+object rasters at exact frame-relative scanlines. A controlled Stella capture of
+the repaired static cartridge is pixel-identical to the pre-task-20q2 image.
 
 Task 20q is complete. The normalized profile contains no `DCP` instruction; the
 remaining unofficial forms belong to tasks 20r and 20s.

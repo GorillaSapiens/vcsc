@@ -103,6 +103,13 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
+`vcs_standard_motion.test` builds `examples/06_object_motion_test` and runs it
+for twenty frames in the 6502 harness. It locks every object's persistent Y
+coordinate, the independently phased P0/P1/M0/M1/BL X sequence, and seven
+complete object rasters at exact frame-relative scanlines. This catches corrupt
+packed masks, state lost through horizontal-position scratch reuse, and any
+whole-frame vertical displacement that instruction-level cycle tests miss.
+
 `assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented
 out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both

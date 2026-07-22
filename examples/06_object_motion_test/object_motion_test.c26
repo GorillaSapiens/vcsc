@@ -1,0 +1,130 @@
+// Moving-object diagnostic for the normalized unbanked 4K NTSC standard
+// kernel. Every TIA object has a separate fixed vertical band while its
+// horizontal position advances and bounces independently.
+
+include "vcs.c26"
+
+page const uint8_t vcs_standard_playfield[48] := {
+   0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+   0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+   0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+   0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
+};
+
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
+
+page const uint8_t player0_graphics[8] := {
+   VCS_STANDARD_SPRITE_GLYPH(
+      0bXXXXXXXX,
+      0bX......X,
+      0bX.XXXX.X,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bX......X,
+      0bXXXXXXXX,
+      0bXXXXXXXX
+   )
+};
+
+page const uint8_t player1_graphics[8] := {
+   VCS_STANDARD_SPRITE_GLYPH(
+      0bX.X.X.X.,
+      0b.X.X.X.X,
+      0bX.X.X.X.,
+      0b.X.X.X.X,
+      0bX.X.X.X.,
+      0b.X.X.X.X,
+      0bX.X.X.X.,
+      0b.X.X.X.X
+   )
+};
+
+alias DIRECTION_PLAYER0 0x01
+alias DIRECTION_PLAYER1 0x02
+alias DIRECTION_MISSILE0 0x04
+alias DIRECTION_MISSILE1 0x08
+alias DIRECTION_BALL    0x10
+
+uint8_t motion_frame := 0;
+uint8_t motion_directions := 0x15;
+
+void move_object(uint8_t object, uint8_t direction) {
+   if (motion_directions & direction) {
+      vcs_standard_object_x[object]++;
+      if (vcs_standard_object_x[object] == 148) {
+         motion_directions ^= direction;
+      }
+   }
+   else {
+      vcs_standard_object_x[object]--;
+      if (vcs_standard_object_x[object] == 8) {
+         motion_directions ^= direction;
+      }
+   }
+}
+
+void update_motion(void) {
+   motion_frame++;
+
+   // Different rates and phases make coincidental lockstep obvious.
+   move_object(VCS_STANDARD_OBJECT_PLAYER0, DIRECTION_PLAYER0);
+   if ((motion_frame & 1) == 0) {
+      move_object(VCS_STANDARD_OBJECT_PLAYER1, DIRECTION_PLAYER1);
+   }
+   if ((motion_frame & 3) == 0) {
+      move_object(VCS_STANDARD_OBJECT_MISSILE0, DIRECTION_MISSILE0);
+   }
+   if ((motion_frame & 3) == 2) {
+      move_object(VCS_STANDARD_OBJECT_MISSILE1, DIRECTION_MISSILE1);
+   }
+   if ((motion_frame & 7) == 3) {
+      move_object(VCS_STANDARD_OBJECT_BALL, DIRECTION_BALL);
+   }
+}
+
+void initialize_motion_scene(void) {
+   COLUBK := 0x84;
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+
+   VCS_STANDARD_PLAYER0_X := 20;
+   VCS_STANDARD_PLAYER1_X := 140;
+   VCS_STANDARD_MISSILE0_X := 48;
+   VCS_STANDARD_MISSILE1_X := 112;
+   VCS_STANDARD_BALL_X := 80;
+
+   // Fixed, non-overlapping vertical bands. Values are the retained standard
+   // kernel's counter coordinates, not arbitrary screenshot pixel estimates.
+   vcs_standard_player0_y := 18;
+   vcs_standard_missile0_y := 34;
+   vcs_standard_ball_y := 48;
+   vcs_standard_missile1_y := 62;
+   vcs_standard_player1_y := 78;
+
+   vcs_standard_player0_graphics := player0_graphics;
+   vcs_standard_player1_graphics := player1_graphics;
+   vcs_standard_player0_height := 7;
+   vcs_standard_player1_height := 7;
+   vcs_standard_missile0_height := 5;
+   vcs_standard_missile1_height := 7;
+   vcs_standard_ball_height := 3;
+
+   vcs_standard_score := 123456;
+   vcs_standard_score_color := 0x0e;
+   vcs_standard_playfield_position := 8;
+
+   VBLANK := 2;
+   TIM64T := 0;
+}
+
+void main(void) {
+   initialize_motion_scene();
+   while (1) {
+      vcs_standard_kernel_drawscreen();
+      update_motion();
+   }
+}

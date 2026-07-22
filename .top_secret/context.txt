@@ -3240,3 +3240,34 @@ Before returning another modified archive:
   staged installation. Rename three test files; `.top_secret/remove.txt` now
   records 898 cumulative paths. Stop before task 20r.
 
+
+2026-07-22 14:58:12 PDT, repair task-20q object raster regressions
+------------------------------------------------------------------------
+* Compare all 22 supplied historical trees and their screenshots before
+  changing the newest source. Rebuild representative commits with one toolchain
+  and trace TIA register writes in the 6502 harness. Treat the older images as
+  evidence rather than declaring one visually plausible frame authoritative.
+* Repair three task-20q regressions in the normalized standard kernel. Keep zero
+  in Y while X advances through the packed-mask clear loop, instead of storing
+  the changing record offset into later masks. Preserve M0's application Y only
+  after the horizontal-position loop has finished reusing pointer workspace
+  +10, reconstructing it in the existing twelve-cycle setup slot. Remove the
+  retained 37-cycle pre-kernel setup delay that had shifted the complete object
+  field by one scanline.
+* Add `examples/06_object_motion_test`. Give P0, P1, M0, M1, and BL distinct
+  fixed vertical bands and independently phased horizontal motion between X=8
+  and X=148. Document the exact frame-relative TIA write scanlines rather than
+  relying on window-scaled screenshot coordinates.
+* Add `vcs_standard_motion.test`. Execute the diagnostic cartridge for twenty
+  frames, lock all five persistent Y values, verify the exact asynchronous X
+  sequence, and require seven complete object rasters at their documented
+  scanlines. This directly catches all three repaired failures. Retarget the
+  legal-mask schedule's 46-line window to the restored pre-regression raster
+  phase and regenerate timing/unofficial-opcode inventories; explicit padding
+  is now 34 sites.
+* Verify a fresh controlled Stella capture of the repaired newest static
+  cartridge is byte-for-byte identical to the corresponding pre-task-20q2
+  capture. Pass 288/288 compile-only tests, 152/152 end-to-end/generic tests,
+  all focused kernel regressions, and staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
+  next; do not resume it until this raster repair is reviewed.

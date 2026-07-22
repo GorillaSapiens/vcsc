@@ -26,7 +26,7 @@ score table.  These addresses are observations, not new ABI guarantees.
 Inventory summary
 -----------------
 
-The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 35 explicit
+The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 34 explicit
 padding sites, four alignment directives,
 and 3 source-level unofficial-opcode sites. The unofficial sites are:
 

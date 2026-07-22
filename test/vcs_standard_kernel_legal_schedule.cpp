@@ -162,12 +162,12 @@ int main(int argc, char **argv) {
    std::map<uint64_t, std::vector<MaskEvent>> by_line;
    for (const MaskEvent &event : mask_events) by_line[event.line].push_back(event);
 
-   for (uint64_t line = 55; line <= 100; ++line) {
-      if ((line & 1) != 0) {
+   for (uint64_t line = 54; line <= 99; ++line) {
+      if ((line & 1) == 0) {
          expect_line(by_line, line, {{2, missile1_mask}, {68, missile0_mask}});
       }
       else {
-         const bool alternate = (line % 16 == 6);
+         const bool alternate = (line % 16 == 5);
          expect_line(by_line, line, {{alternate ? 39u : 45u,
                                       static_cast<uint8_t>(alternate ? ball_mask - 4 : ball_mask)}});
       }

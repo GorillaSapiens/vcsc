@@ -288,8 +288,6 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      inx
      stx vcs_standard_object_masks + 3
 
-     ; Preserve the 37-cycle player-state helper call moved into VBLANK.
-     jsr vcs_standard_kernel_setup_delay
      lda vcs_standard_player0_y
      ldx #0
      sta WSYNC
@@ -307,8 +305,14 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 
      dec vcs_standard_player0_y
 
-     ; Preserve the twelve setup cycles formerly used to save missile Y.
-     SLEEP 12
+     ; The horizontal-position loop has just reused pointer workspace +10.
+     ; Reconstruct and preserve M0's application Y from its final-row bias
+     ; without changing this twelve-cycle setup slot.
+     lda vcs_standard_missile0_y
+     clc
+     adc #89
+     sta vcs_standard_pointer_workspace + 10
+     nop
 
      lda vcs_standard_playfield_position
      sta vcs_standard_pointer_workspace + 6
@@ -802,22 +806,17 @@ vcs_standard_score_table:
    .byte %00000000
 
 .segment "CODE"
-.proc vcs_standard_kernel_setup_delay
-     SLEEP 25
-     rts
-.endproc
-
 .proc vcs_standard_prepare_object_masks
 .export vcs_standard_prepare_object_masks
 
 ; The fourth byte in each four-byte mask record is prep/private scratch.
 
-     lda #0
+     ldy #0
      ldx #0
 @clear:
-     sta vcs_standard_object_masks,x
-     sta vcs_standard_object_masks + 1,x
-     sta vcs_standard_object_masks + 2,x
+     sty vcs_standard_object_masks,x
+     sty vcs_standard_object_masks + 1,x
+     sty vcs_standard_object_masks + 2,x
      txa
      clc
      adc #4

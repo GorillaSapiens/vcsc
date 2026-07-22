@@ -1,0 +1,258 @@
+//! @file vcs_standard_motion.cpp
+//! @brief Lock the standard kernel's object rows and asynchronous X motion.
+
+#include <array>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <map>
+#include <vector>
+
+#include "mos6502.h"
+
+namespace {
+constexpr uint16_t kRomBase = 0xF000;
+constexpr size_t kRomSize = 4096;
+constexpr uint64_t kCyclesPerScanline = 76;
+constexpr uint16_t kVsync = 0x0000;
+constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kGrp0 = 0x001B;
+constexpr uint16_t kGrp1 = 0x001C;
+constexpr uint16_t kEnam0 = 0x001D;
+constexpr uint16_t kEnam1 = 0x001E;
+constexpr uint16_t kEnabl = 0x001F;
+constexpr uint16_t kIntim = 0x0284;
+constexpr uint16_t kTim1t = 0x0294;
+constexpr uint16_t kTim8t = 0x0295;
+constexpr uint16_t kTim64t = 0x0296;
+constexpr uint16_t kT1024t = 0x0297;
+constexpr int kFramesToCheck = 20;
+constexpr int kFirstRasterFrame = 2;
+constexpr int kLastRasterFrame = 8;
+
+enum Object : size_t { P0, P1, M0, M1, BL, ObjectCount };
+
+struct WriteEvent { uint16_t address; uint8_t value; };
+struct ObjectLines {
+   std::array<std::vector<uint64_t>, ObjectCount> lines;
+};
+
+uint8_t memory_image[65536];
+uint64_t virtual_cycles = 0;
+uint64_t cpu_cycles = 0;
+std::vector<WriteEvent> writes;
+bool vsync_asserted = false;
+int frame = -1;
+uint64_t frame_start = 0;
+bool timer_active = false;
+uint64_t timer_start = 0;
+uint16_t timer_divisor = 1;
+uint8_t timer_loaded = 0;
+std::map<int, ObjectLines> active_lines;
+
+uint8_t object_x_zp = 0;
+std::array<uint8_t, ObjectCount> y_zp{};
+uint8_t motion_frame_zp = 0;
+std::array<uint8_t, ObjectCount> expected_x{{20, 140, 48, 112, 80}};
+uint8_t expected_motion_frame = 0;
+uint8_t expected_directions = 0x15;
+
+[[noreturn]] void fail(const char *message) {
+   std::fprintf(stderr, "vcs_standard_motion: %s\n", message);
+   std::exit(1);
+}
+
+uint8_t timer_value() {
+   if (!timer_active) return memory_image[kIntim];
+   const uint64_t ticks = (virtual_cycles - timer_start) / timer_divisor;
+   if (ticks <= timer_loaded) return static_cast<uint8_t>(timer_loaded - ticks);
+   return static_cast<uint8_t>(255 - ((ticks - timer_loaded - 1) & 255));
+}
+
+uint8_t read_bus(uint16_t address) {
+   return address == kIntim ? timer_value() : memory_image[address];
+}
+
+void write_bus(uint16_t address, uint8_t value) {
+   if (address < kRomBase) memory_image[address] = value;
+   writes.push_back({address, value});
+}
+
+void clock_cycle(mos6502 *) {}
+
+uint8_t parse_zp(const char *text) {
+   char *end = nullptr;
+   const unsigned long value = std::strtoul(text, &end, 0);
+   if (!text[0] || !end || *end || value > 0xFF) fail("bad zero-page argument");
+   return static_cast<uint8_t>(value);
+}
+
+void move_expected(Object object, uint8_t direction) {
+   uint8_t &x = expected_x[object];
+   if ((expected_directions & direction) != 0) {
+      ++x;
+      if (x == 148) expected_directions ^= direction;
+   }
+   else {
+      --x;
+      if (x == 8) expected_directions ^= direction;
+   }
+}
+
+void advance_expected_motion() {
+   ++expected_motion_frame;
+   move_expected(P0, 0x01);
+   if ((expected_motion_frame & 1) == 0) move_expected(P1, 0x02);
+   if ((expected_motion_frame & 3) == 0) move_expected(M0, 0x04);
+   if ((expected_motion_frame & 3) == 2) move_expected(M1, 0x08);
+   if ((expected_motion_frame & 7) == 3) move_expected(BL, 0x10);
+}
+
+void verify_frame_state() {
+   if (frame < 0 || frame >= kFramesToCheck) return;
+   static constexpr std::array<uint8_t, ObjectCount> expected_y{{18, 78, 34, 62, 48}};
+   for (size_t i = 0; i < ObjectCount; ++i) {
+      const uint8_t actual_x = memory_image[static_cast<uint8_t>(object_x_zp + i)];
+      if (actual_x != expected_x[i]) {
+         std::fprintf(stderr,
+            "vcs_standard_motion: frame %d object %zu X is %u; expected %u\n",
+            frame, i, actual_x, expected_x[i]);
+         std::exit(1);
+      }
+      const uint8_t actual_y = memory_image[y_zp[i]];
+      if (actual_y != expected_y[i]) {
+         std::fprintf(stderr,
+            "vcs_standard_motion: frame %d object %zu Y is %u; expected %u\n",
+            frame, i, actual_y, expected_y[i]);
+         std::exit(1);
+      }
+   }
+   const uint8_t actual_motion_frame = memory_image[motion_frame_zp];
+   if (actual_motion_frame != expected_motion_frame) {
+      std::fprintf(stderr,
+         "vcs_standard_motion: frame %d motion counter is %u; expected %u\n",
+         frame, actual_motion_frame, expected_motion_frame);
+      std::exit(1);
+   }
+   advance_expected_motion();
+}
+
+void record_active_write(uint16_t address, uint8_t value) {
+   if (frame < kFirstRasterFrame || frame > kLastRasterFrame) return;
+   const uint64_t relative = virtual_cycles - frame_start;
+   const uint64_t line = relative / kCyclesPerScanline;
+   if (line >= 210) return; // Ignore the score display below the object field.
+
+   Object object;
+   bool active;
+   if (address == kGrp0) { object = P0; active = value != 0; }
+   else if (address == kGrp1) { object = P1; active = value != 0; }
+   else if (address == kEnam0) { object = M0; active = (value & 2) != 0; }
+   else if (address == kEnam1) { object = M1; active = (value & 2) != 0; }
+   else if (address == kEnabl) { object = BL; active = (value & 2) != 0; }
+   else return;
+   if (active) active_lines[frame].lines[object].push_back(line);
+}
+
+void apply_writes() {
+   for (const WriteEvent &event : writes) {
+      if (event.address == kWsync) {
+         const uint64_t within = virtual_cycles % kCyclesPerScanline;
+         virtual_cycles += within ? kCyclesPerScanline - within : kCyclesPerScanline;
+      }
+      else if (event.address == kVsync) {
+         const bool next = (event.value & 2) != 0;
+         if (next && !vsync_asserted) {
+            ++frame;
+            frame_start = virtual_cycles;
+            verify_frame_state();
+         }
+         vsync_asserted = next;
+      }
+      else if (event.address >= kTim1t && event.address <= kT1024t) {
+         timer_active = true;
+         timer_start = virtual_cycles;
+         timer_loaded = event.value;
+         timer_divisor = event.address == kTim1t ? 1 :
+                         event.address == kTim8t ? 8 :
+                         event.address == kTim64t ? 64 : 1024;
+      }
+      else {
+         record_active_write(event.address, event.value);
+      }
+   }
+   writes.clear();
+}
+
+void expect_lines(int raster_frame,
+                  Object object,
+                  const std::vector<uint64_t> &expected) {
+   const auto found = active_lines.find(raster_frame);
+   if (found == active_lines.end()) fail("missing raster frame");
+   const std::vector<uint64_t> &actual = found->second.lines[object];
+   if (actual != expected) {
+      std::fprintf(stderr,
+         "vcs_standard_motion: frame %d object %zu active lines:",
+         raster_frame, static_cast<size_t>(object));
+      for (uint64_t line : actual) std::fprintf(stderr, " %llu", static_cast<unsigned long long>(line));
+      std::fprintf(stderr, "; expected:");
+      for (uint64_t line : expected) std::fprintf(stderr, " %llu", static_cast<unsigned long long>(line));
+      std::fputc('\n', stderr);
+      std::exit(1);
+   }
+}
+} // namespace
+
+int main(int argc, char **argv) {
+   if (argc != 9) {
+      std::fprintf(stderr,
+         "usage: %s ROM object_x p0_y p1_y m0_y m1_y ball_y motion_frame\n",
+         argv[0]);
+      return 2;
+   }
+   object_x_zp = parse_zp(argv[2]);
+   y_zp = {{parse_zp(argv[3]), parse_zp(argv[4]), parse_zp(argv[5]),
+            parse_zp(argv[6]), parse_zp(argv[7])}};
+   motion_frame_zp = parse_zp(argv[8]);
+
+   std::memset(memory_image, 0, sizeof(memory_image));
+   std::ifstream rom(argv[1], std::ios::binary);
+   if (!rom) fail("could not open ROM");
+   rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);
+   if (rom.gcount() != static_cast<std::streamsize>(kRomSize)) {
+      fail("ROM is not exactly 4096 bytes");
+   }
+
+   mos6502 cpu(read_bus, write_bus, clock_cycle);
+   cpu.Reset();
+   constexpr uint64_t kInstructionLimit = 200000000;
+   for (uint64_t instructions = 0;
+        instructions < kInstructionLimit && frame < kFramesToCheck;
+        ++instructions) {
+      writes.clear();
+      const uint64_t before = cpu_cycles;
+      cpu.Run(1, cpu_cycles, mos6502::INST_COUNT);
+      virtual_cycles += cpu_cycles - before;
+      apply_writes();
+   }
+   if (frame < kFramesToCheck) fail("instruction limit reached before motion check completed");
+
+   const std::vector<uint64_t> p0{56, 58, 60, 62, 64, 66, 68, 70};
+   const std::vector<uint64_t> p1{178, 180, 182, 184, 186, 188, 190, 192};
+   const std::vector<uint64_t> m0{95, 97, 99, 101, 103, 105};
+   const std::vector<uint64_t> m1{146, 148, 150, 152, 154, 156, 158, 160};
+   const std::vector<uint64_t> bl{127, 129, 131, 133};
+   for (int checked = kFirstRasterFrame; checked <= kLastRasterFrame; ++checked) {
+      expect_lines(checked, P0, p0);
+      expect_lines(checked, P1, p1);
+      expect_lines(checked, M0, m0);
+      expect_lines(checked, M1, m1);
+      expect_lines(checked, BL, bl);
+   }
+
+   std::printf(
+      "vcs_standard_motion ok: 20 X/Y states and seven exact object rasters locked\n");
+   return 0;
+}

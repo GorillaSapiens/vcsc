@@ -176,6 +176,13 @@ return with decimal mode clear. The first cartridge, `examples/05_static_kernel_
 status overlay is used as the final timing authority rather than treating
 comments in the retained source as proof.
 
+`examples/06_object_motion_test` is the visual and emulator-backed object
+placement diagnostic. P0, P1, M0, M1, and BL occupy distinct fixed vertical
+bands and move horizontally with separate rates and phases. Its README records
+the exact frame-relative TIA write scanlines; `vcs_standard_motion.test` locks
+those rows and twenty frames of persistent X/Y state rather than relying on a
+screenshot that merely looks plausible.
+
 ## State ownership and RAM cost
 
 The contract distinguishes kernel-private workspace, application-visible state,

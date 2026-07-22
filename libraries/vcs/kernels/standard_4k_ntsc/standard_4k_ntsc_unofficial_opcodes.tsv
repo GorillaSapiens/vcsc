@@ -1,4 +1,4 @@
 file	line	mnemonic	mode	opcode	bytes	base_cycles	page_penalty	classification	purpose
 standard_4k_ntsc_macros.inc	23	NOP.z	zp	$04	2	3	none	stable/common	provide an exact three-cycle zero-page delay for odd SLEEP durations
 standard_4k_ntsc_kernel.s	260	ASR	imm	$4B	2	2	none	stable/common	mask and shift the upper score nibble
-standard_4k_ntsc_kernel.s	409	SBX	imm	$CB	2	2	none	stable/common	advance the zero-based playfield byte offset by four
+standard_4k_ntsc_kernel.s	413	SBX	imm	$CB	2	2	none	stable/common	advance the zero-based playfield byte offset by four
