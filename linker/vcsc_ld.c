@@ -1098,6 +1098,55 @@ static memory_cursor_t *ensure_cursor(layout_t *layout, const linker_config_t *c
 
 static int range_fits_one_page(uint32_t addr, uint16_t size);
 
+//! @brief Count taken relative branches in one layout that cross a page at a candidate base.
+static size_t layout_branch_crossings_at(const object_file_t *obj,
+                                         const object_layout_t *lay,
+                                         uint16_t candidate)
+{
+   size_t i;
+   size_t crossings = 0;
+   uint32_t packed_end;
+
+   if (!obj || !lay || lay->size == 0)
+      return 0;
+   packed_end = (uint32_t)lay->packed_base + lay->size;
+   for (i = 0; i < obj->branch_count; ++i) {
+      const branch_t *branch = &obj->branches[i];
+      uint32_t source;
+      uint32_t target;
+
+      if (branch->segid != lay->segid ||
+          branch->source < lay->packed_base || branch->source >= packed_end ||
+          branch->target < lay->packed_base || branch->target >= packed_end)
+         continue;
+      source = (uint32_t)candidate + branch->source - lay->packed_base;
+      target = (uint32_t)candidate + branch->target - lay->packed_base;
+      if ((((source + 2u) ^ target) & 0xff00u) != 0)
+         crossings++;
+   }
+   return crossings;
+}
+
+//! @brief Return whether one layout contains any retained relative branch metadata.
+static int layout_has_branches(const object_file_t *obj,
+                               const object_layout_t *lay)
+{
+   size_t i;
+   uint32_t packed_end;
+
+   if (!obj || !lay || lay->size == 0)
+      return 0;
+   packed_end = (uint32_t)lay->packed_base + lay->size;
+   for (i = 0; i < obj->branch_count; ++i) {
+      const branch_t *branch = &obj->branches[i];
+      if (branch->segid == lay->segid &&
+          branch->source >= lay->packed_base && branch->source < packed_end &&
+          branch->target >= lay->packed_base && branch->target < packed_end)
+         return 1;
+   }
+   return 0;
+}
+
 //! @brief Remember an unused address interval created by alignment or a hard placement constraint.
 static void cursor_add_hole(memory_cursor_t *cursor, uint32_t start, uint32_t end)
 {
@@ -1169,6 +1218,28 @@ static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t ali
    return 0;
 }
 
+//! @brief Consume an already selected subrange from one cursor hole.
+static void cursor_consume_hole_range(memory_cursor_t *cursor, size_t hole_index,
+                                      uint32_t addr, uint16_t size)
+{
+   memory_hole_t hole = cursor->holes[hole_index];
+   uint32_t before_end = addr;
+   uint32_t after_start = addr + size;
+
+   if (before_end > hole.start && after_start < hole.end) {
+      cursor->holes[hole_index].end = before_end;
+      cursor_add_hole(cursor, after_start, hole.end);
+   } else if (before_end > hole.start) {
+      cursor->holes[hole_index].end = before_end;
+   } else if (after_start < hole.end) {
+      cursor->holes[hole_index].start = after_start;
+   } else {
+      memmove(&cursor->holes[hole_index], &cursor->holes[hole_index + 1],
+              (cursor->hole_count - hole_index - 1) * sizeof(*cursor->holes));
+      cursor->hole_count--;
+   }
+}
+
 //! @brief Return whether a complete object range remains within one 256-byte page.
 static int range_fits_one_page(uint32_t addr, uint16_t size)
 {
@@ -1212,6 +1283,107 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
    }
    cursor->cur = (uint16_t)end;
    return (uint16_t)addr;
+}
+
+//! @brief Place one code layout by bounded exhaustive low-byte branch scoring.
+static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t *cfg,
+   const char *mem_name, const object_file_t *obj, const object_layout_t *lay,
+   uint16_t alignment, int hard_page, const char *what, const char *origin)
+{
+   memory_cursor_t *cursor;
+   uint32_t limit;
+   uint32_t addr;
+   uint32_t tail_last;
+   uint32_t step = alignment > 1 ? alignment : 1;
+   size_t i;
+   int found = 0;
+   int best_from_hole = 0;
+   size_t best_hole = 0;
+   uint32_t best_addr = 0;
+   uint32_t best_growth = 0;
+   size_t best_crossings = 0;
+   int best_page_penalty = 0;
+
+   if (!layout_has_branches(obj, lay))
+      return alloc_from_region_policy(layout, cfg, mem_name, lay->size,
+         alignment, hard_page, what, origin);
+
+   cursor = ensure_cursor(layout, cfg, mem_name);
+   if (lay->size == 0)
+      return cursor->cur;
+   if (hard_page && lay->size > 0x0100u) {
+      fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
+              what, origin, lay->size);
+      exit(1);
+   }
+   limit = cursor->end;
+   if (str_ieq(mem_name, "ROM") && limit > 0xFFFAu)
+      limit = 0xFFFAu;
+
+#define CONSIDER_BRANCH_CANDIDATE(candidate_, growth_, from_hole_, hole_) do { \
+      uint32_t candidate_value__ = (candidate_); \
+      size_t crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
+      int page_penalty__ = range_fits_one_page(candidate_value__, lay->size) ? 0 : 1; \
+      uint32_t growth_value__ = (growth_); \
+      if (!found || crossings__ < best_crossings || \
+          (crossings__ == best_crossings && growth_value__ < best_growth) || \
+          (crossings__ == best_crossings && growth_value__ == best_growth && \
+           page_penalty__ < best_page_penalty) || \
+          (crossings__ == best_crossings && growth_value__ == best_growth && \
+           page_penalty__ == best_page_penalty && candidate_value__ < best_addr)) { \
+         found = 1; \
+         best_crossings = crossings__; \
+         best_growth = growth_value__; \
+         best_page_penalty = page_penalty__; \
+         best_addr = candidate_value__; \
+         best_from_hole = (from_hole_); \
+         best_hole = (hole_); \
+      } \
+   } while (0)
+
+   /* Existing holes are zero-growth local moves. Exhaustively score their
+      aligned starts; VCS cartridge regions are tiny, so this remains bounded. */
+   for (i = 0; i < cursor->hole_count; ++i) {
+      const memory_hole_t hole = cursor->holes[i];
+      addr = align_up_u32(hole.start, alignment);
+      while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
+         if (!hard_page || range_fits_one_page(addr, lay->size))
+            CONSIDER_BRANCH_CANDIDATE(addr, 0, 1, i);
+         if (addr > 0xffffu - step)
+            break;
+         addr += step;
+      }
+   }
+
+   /* At the high-water mark, one 256-byte sweep covers every useful low-byte
+      placement. A farther candidate repeats an already tested branch phase
+      while growing the image by at least one unnecessary page. */
+   addr = align_up_u32(cursor->cur, alignment);
+   tail_last = (uint32_t)cursor->cur + 0xffu;
+   if (tail_last > 0xffffu)
+      tail_last = 0xffffu;
+   while (addr <= tail_last && addr + lay->size <= limit) {
+      if (!hard_page || range_fits_one_page(addr, lay->size))
+         CONSIDER_BRANCH_CANDIDATE(addr, addr + lay->size - cursor->cur, 0, 0);
+      if (addr > 0xffffu - step)
+         break;
+      addr += step;
+   }
+
+#undef CONSIDER_BRANCH_CANDIDATE
+
+   if (!found) {
+      fprintf(stderr, "vcsc-ld: %s overflow while branch-placing %s from %s in %s\n",
+              mem_name, what, origin, mem_name);
+      exit(1);
+   }
+   if (best_from_hole) {
+      cursor_consume_hole_range(cursor, best_hole, best_addr, lay->size);
+   } else {
+      cursor_add_hole(cursor, cursor->cur, best_addr);
+      cursor->cur = (uint16_t)(best_addr + lay->size);
+   }
+   return (uint16_t)best_addr;
 }
 
 //! @brief Add copy record to linker layout and image writer state, growing storage or preserving uniqueness as needed.
@@ -1555,7 +1727,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             continue;
          rule = find_layout_segment_rule(cfg, lay->name, code);
          load_name = (rule && rule->load_name[0]) ? rule->load_name : code_load_name;
-         lay->load_addr = alloc_from_region_policy(layout, cfg, load_name, lay->size,
+         lay->load_addr = alloc_code_branch_aware(layout, cfg, load_name, obj, lay,
             rule ? rule->align : 1,
             (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
             lay->name, obj->origin);

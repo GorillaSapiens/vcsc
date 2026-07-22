@@ -1009,7 +1009,7 @@ The first unfinished item is the default next action.
                   taken branches that cross a page; make no placement changes in
                   this slice.
 
-        [ ] 20l. Add branch-aware code placement for functions/segments. For each
+        [x] 20l. Add branch-aware code placement for functions/segments. For each
                   small timing-sensitive unit, try all useful low-byte placements;
                   for ordinary code, use deterministic greedy placement plus
                   bounded local swaps/moves. Minimize taken branch page crossings
@@ -1054,12 +1054,24 @@ The first unfinished item is the default next action.
                   bytes in the profile while leaving explicit illegal-opcode probe
                   examples opt-in and unaffected.
 
-        [ ] 20t. Connect one stack-safe void VCSC overscan/vblank hook and expose
+        [ ] 20t. Rename assembler source files from `*.s` to `*.s26` throughout
+                  maintained source, examples, tests, build rules, installation,
+                  and documentation. Keep any compatibility handling explicit and
+                  temporary; do not silently continue advertising the generic
+                  `.s` suffix after the migration.
+
+        [ ] 20u. Make the linker report cartridge-space use after a successful
+                  link: bytes used, bytes free, and percent used/free for each
+                  cartridge ROM MEMORY region. Define used space from actual
+                  occupied output extent rather than source totals, and cover
+                  holes, vectors, exact-full images, and overflow diagnostics.
+
+        [ ] 20v. Connect one stack-safe void VCSC overscan/vblank hook and expose
                   kernel state through module-owned declarations. Add options one
                   at a time only after the placement and legal-opcode cleanup is
                   stable.
 
-        [ ] 20u. Port the multisprite integration only after the standard kernel
+        [ ] 20w. Port the multisprite integration only after the standard kernel
                   works; give it its own contract and defer Superchip and 8K+
                   bankswitching to separate linker/runtime milestones.
 
@@ -1105,17 +1117,21 @@ Tasks 20e through 20s replace that source-level placement workaround with
 linker-understood page constraints, branch-aware placement, NMOS wrap-hazard
 checks, and a legal-opcode standard kernel. Stella verifies stable 262-line NTSC
 output, correct score rows, an upright target, visible paddle/projectiles, and a
-centered untorn playfield. The gameplay hook is deferred to task 20t.
+centered untorn playfield. Source-suffix cleanup and cartridge-usage reporting
+follow as tasks 20t and 20u; the gameplay hook is deferred to task 20v.
 
 Open implementation questions
 -----------------------------
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20i are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20k through 20s are deliberately small function-placement,
-page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20k is next: preserve relative-branch source/target metadata through assembly and report taken branches that cross a page without changing placement. The stack-safe VCSC overscan/vblank hook is deferred to task 20t.
+Tasks 20a through 20l are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20m through 20u are deliberately small placement,
+page-timing, silicon-hazard, unofficial-opcode, source-suffix, and reporting
+slices that must be completed before gameplay integration. Task 20m is next:
+preserve indexed-access ranges and enforce page-stable effective-address
+windows for timing-sensitive table reads. The stack-safe VCSC overscan/vblank
+hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2960,3 +2976,27 @@ Before returning another modified archive:
   installation passes. No files are removed; `.top_secret/remove.txt` remains
   at 895 cumulative paths. Stop before task 20l.
 
+
+2026-07-22 05:37:00 PDT, add bounded branch-aware code placement
+------------------------------------------------------------------------
+* Complete task 20l. Use the relative-branch metadata preserved by task 20k to
+  score each branch-bearing text layout at candidate final addresses. Compare a
+  taken branch's target page against the PC after its two-byte instruction.
+* Exhaustively test every aligned start in existing holes plus one bounded
+  256-byte low-address sweep at the MEMORY-region high-water mark. Minimize
+  taken branch page crossings first, then occupied-image growth, then whole-
+  object page status and final address. Existing-hole choices are zero-growth
+  local moves; starts beyond one low-byte cycle cannot improve branch phase and
+  are deliberately excluded.
+* Keep placement greedy in stable input order and leave branch instruction bytes
+  and displacements unchanged. A focused 261-byte fixture now moves from `$20F8`
+  to `$20F9`, eliminating its only taken page crossing with the smallest possible
+  one-byte image growth while preserving both encoded branch displacements.
+* Update assembler/linker documentation and the branch-metadata regression for
+  the new placement role. Pass 288/288 compile tests and 147/147 end-to-end and
+  generic tests.
+* Add future tasks 20t and 20u for the maintained `*.s` to `*.s26` source-suffix
+  migration and linker cartridge-space used/free byte and percentage reporting.
+  Renumber the gameplay hook and multisprite work to 20v and 20w. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Task 20m
+  is next and was not started.

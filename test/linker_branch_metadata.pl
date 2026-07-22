@@ -62,18 +62,19 @@ CFG
 require_ok('assemble',$as,'-o',$obj,$src);
 require_ok('link',$ld,'-T',$cfg,'-Map',$map,'-o',$bin,$obj);
 my $m=slurp($map);
-$m =~ /\Q$obj\E\n\s+\$20FD -> \$2102 BNE opcode=\$D0 taken-page=crossing\n\s+\$2108 -> \$210C BNE opcode=\$D0 taken-page=same/s
-  or die "map did not preserve local branch metadata or classify page timing correctly\n$m";
+$m =~ /\Q$obj\E\n\s+\$20FE -> \$2103 BNE opcode=\$D0 taken-page=same\n\s+\$2109 -> \$210D BNE opcode=\$D0 taken-page=same/s
+  or die "map did not preserve local branch metadata or branch-aware placement\n$m";
 
-# Branch metadata is diagnostic only in task 20k: the bytes and placement remain
-# the exact compact layout implied by the source and linker script.
-$m =~ /CODE\s+load=\$20F8\s+size=\$0105\s+page=crossing/
-  or die "branch metadata unexpectedly changed placement\n$m";
+# Task 20l searches one bounded low-byte cycle. Moving this 261-byte unit by
+# one byte eliminates the only taken page crossing; farther equivalent phases
+# would grow the image unnecessarily.
+$m =~ /CODE\s+load=\$20F9\s+size=\$0105\s+page=crossing/
+  or die "branch-aware placement did not choose the smallest zero-crossing move\n$m";
 my $bytes=slurp($bin);
 length($bytes)>0x12 or die "linked image was unexpectedly short\n";
 ord(substr($bytes,5,1))==0xD0 && ord(substr($bytes,6,1))==0x03
-  or die "cross-page branch bytes changed\n";
+  or die "first branch bytes changed\n";
 ord(substr($bytes,16,1))==0xD0 && ord(substr($bytes,17,1))==0x02
   or die "same-page branch bytes changed\n";
 
-print "linker preserves local relative-branch metadata and reports taken page crossings\n";
+print "linker uses local branch metadata for bounded page-aware code placement\n";

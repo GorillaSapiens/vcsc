@@ -700,6 +700,7 @@ older layout records.
 After the layout table, current o26 objects also carry a compact relative-branch
 table.  Each record preserves the coarse segment, packed source and target
 offsets, and actual branch opcode.  Local-label branches are included even
-though their displacement was fully resolved by the assembler.  The linker uses
-the records for final-address timing diagnostics; they are not relocations and
-do not currently influence placement.
+though their displacement was fully resolved by the assembler. The records are
+not relocations and never change branch bytes or displacements, but the linker
+uses them both for final-address timing diagnostics and for its bounded
+low-byte code-placement search.
