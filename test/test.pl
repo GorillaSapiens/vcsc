@@ -873,7 +873,7 @@ for my $case (@cases) {
       printf("$pre%s [%*d/%d] [%s] %s :: %s\n", $progress, length($total), $index, $total, $FAIL, $case->{name}, $first);
    }
    if (-t STDOUT) {
-      sleep 0.1;
+      sleep 0.05;
    }
 }
 
