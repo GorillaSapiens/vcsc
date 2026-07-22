@@ -32,7 +32,7 @@ constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
 constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
-constexpr int kFramesToCheck = 20;
+constexpr int kFramesToCheck = 320;
 constexpr int kFirstRasterFrame = 2;
 constexpr int kLastRasterFrame = 8;
 
@@ -69,7 +69,10 @@ std::map<int, std::array<uint8_t, ObjectCount>> frame_x;
 uint8_t object_x_zp = 0;
 std::array<uint8_t, ObjectCount> y_zp{};
 uint8_t motion_frame_zp = 0;
-std::array<uint8_t, ObjectCount> expected_x{{20, 140, 48, 112, 80}};
+std::array<uint8_t, ObjectCount> expected_x{{0, 159, 37, 121, 80}};
+constexpr std::array<uint8_t, ObjectCount> expected_speed{{1, 2, 3, 4, 5}};
+std::array<bool, ObjectCount> saw_low{};
+std::array<bool, ObjectCount> saw_high{};
 uint8_t expected_motion_frame = 0;
 uint8_t expected_directions = 0x15;
 
@@ -103,25 +106,36 @@ uint8_t parse_zp(const char *text) {
    return static_cast<uint8_t>(value);
 }
 
-void move_expected(Object object, uint8_t direction, uint8_t low, uint8_t high) {
+void move_expected(Object object, uint8_t direction) {
    uint8_t &x = expected_x[object];
+   const uint8_t speed = expected_speed[object];
    if ((expected_directions & direction) != 0) {
-      ++x;
-      if (x == high) expected_directions ^= direction;
+      if (x >= static_cast<uint8_t>(159 - speed)) {
+         x = 159;
+         expected_directions ^= direction;
+      }
+      else {
+         x = static_cast<uint8_t>(x + speed);
+      }
    }
    else {
-      --x;
-      if (x == low) expected_directions ^= direction;
+      if (x <= speed) {
+         x = 0;
+         expected_directions ^= direction;
+      }
+      else {
+         x = static_cast<uint8_t>(x - speed);
+      }
    }
 }
 
 void advance_expected_motion() {
    ++expected_motion_frame;
-   move_expected(P0, 0x01, 12, 144);
-   move_expected(P1, 0x02, 20, 148);
-   move_expected(M0, 0x04, 24, 136);
-   move_expected(M1, 0x08, 8, 128);
-   move_expected(BL, 0x10, 32, 120);
+   move_expected(P0, 0x01);
+   move_expected(P1, 0x02);
+   move_expected(M0, 0x04);
+   move_expected(M1, 0x08);
+   move_expected(BL, 0x10);
 }
 
 void verify_frame_state() {
@@ -135,6 +149,8 @@ void verify_frame_state() {
             frame, i, actual_x, expected_x[i]);
          std::exit(1);
       }
+      if (actual_x == 0) saw_low[i] = true;
+      if (actual_x == 159) saw_high[i] = true;
       const uint8_t actual_y = memory_image[y_zp[i]];
       if (actual_y != expected_y[i]) {
          std::fprintf(stderr,
@@ -313,6 +329,15 @@ int main(int argc, char **argv) {
    if (frame < kFramesToCheck) fail("instruction limit reached before motion check completed");
 
    verify_horizontal_positioning();
+   for (size_t object = 0; object < ObjectCount; ++object) {
+      if (!saw_low[object] || !saw_high[object]) {
+         std::fprintf(stderr,
+            "vcs_standard_motion: object %zu did not reach both X endpoints"
+            " (low=%d high=%d)\n",
+            object, saw_low[object] ? 1 : 0, saw_high[object] ? 1 : 0);
+         return 1;
+      }
+   }
 
    const std::vector<uint64_t> p0{56, 58, 60, 62, 64, 66, 68, 70};
    const std::vector<uint64_t> p1{178, 180, 182, 184, 186, 188, 190, 192};
@@ -328,6 +353,6 @@ int main(int argc, char **argv) {
    }
 
    std::printf(
-      "vcs_standard_motion ok: 20 smooth X/HMOVE states and seven exact object rasters locked\n");
+      "vcs_standard_motion ok: 320 full-range X/HMOVE states and seven exact object rasters locked\n");
    return 0;
 }

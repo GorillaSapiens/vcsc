@@ -1,6 +1,6 @@
 // Visible horizontal/vertical reference cartridge for the normalized unbanked
-// 4K NTSC standard kernel. Every object moves exactly one source coordinate per
-// frame inside its own range, against a fixed ruler-like playfield.
+// 4K NTSC standard kernel. Every object traverses the complete public horizontal
+// range from X=0 through X=159 at its own integer speed, against a fixed ruler.
 
 include "vcs.c26"
 
@@ -38,14 +38,14 @@ page const uint8_t player0_graphics[8] := {
 
 page const uint8_t player1_graphics[8] := {
    VCS_STANDARD_SPRITE_GLYPH(
-      0b...XX...,
-      0b..XXX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b..XXXX..
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXX.XX.XX,
+      0bXX.XX.XX,
+      0bXX....XX,
+      0bXX....XX,
+      0b.XXXXXX.
    )
 };
 
@@ -55,20 +55,37 @@ alias DIRECTION_MISSILE0 0x04
 alias DIRECTION_MISSILE1 0x08
 alias DIRECTION_BALL    0x10
 
+alias MOTION_MIN_X 0
+alias MOTION_MAX_X 159
+
+alias SPEED_PLAYER0 1
+alias SPEED_PLAYER1 2
+alias SPEED_MISSILE0 3
+alias SPEED_MISSILE1 4
+alias SPEED_BALL 5
+
 uint8_t motion_frame := 0;
 uint8_t motion_directions := 0x15;
 
-void move_object(uint8_t object, uint8_t direction, uint8_t low, uint8_t high) {
+// Clamp at each endpoint before reversing. This makes X=0 and X=159 visible
+// even when an object's speed does not divide the 159-coordinate span.
+void move_object(uint8_t object, uint8_t direction, uint8_t speed) {
    if (motion_directions & direction) {
-      vcs_standard_object_x[object]++;
-      if (vcs_standard_object_x[object] == high) {
+      if (vcs_standard_object_x[object] >= MOTION_MAX_X - speed) {
+         vcs_standard_object_x[object] := MOTION_MAX_X;
          motion_directions ^= direction;
+      }
+      else {
+         vcs_standard_object_x[object] += speed;
       }
    }
    else {
-      vcs_standard_object_x[object]--;
-      if (vcs_standard_object_x[object] == low) {
+      if (vcs_standard_object_x[object] <= MOTION_MIN_X + speed) {
+         vcs_standard_object_x[object] := MOTION_MIN_X;
          motion_directions ^= direction;
+      }
+      else {
+         vcs_standard_object_x[object] -= speed;
       }
    }
 }
@@ -76,23 +93,23 @@ void move_object(uint8_t object, uint8_t direction, uint8_t low, uint8_t high) {
 void update_motion(void) {
    motion_frame++;
 
-   // Every object advances one source coordinate every frame. Distinct ranges,
-   // phases, and initial directions make the reversals independent without the
-   // deliberate frame-skipping that made the old diagnostic look broken.
-   move_object(VCS_STANDARD_OBJECT_PLAYER0, DIRECTION_PLAYER0, 12, 144);
-   move_object(VCS_STANDARD_OBJECT_PLAYER1, DIRECTION_PLAYER1, 20, 148);
-   move_object(VCS_STANDARD_OBJECT_MISSILE0, DIRECTION_MISSILE0, 24, 136);
-   move_object(VCS_STANDARD_OBJECT_MISSILE1, DIRECTION_MISSILE1, 8, 128);
-   move_object(VCS_STANDARD_OBJECT_BALL, DIRECTION_BALL, 32, 120);
+   // All five objects traverse the same complete X=0..159 range. Different
+   // starting phases, directions, and integer speeds keep their motion
+   // asynchronous without inventing object-specific travel limits.
+   move_object(VCS_STANDARD_OBJECT_PLAYER0, DIRECTION_PLAYER0, SPEED_PLAYER0);
+   move_object(VCS_STANDARD_OBJECT_PLAYER1, DIRECTION_PLAYER1, SPEED_PLAYER1);
+   move_object(VCS_STANDARD_OBJECT_MISSILE0, DIRECTION_MISSILE0, SPEED_MISSILE0);
+   move_object(VCS_STANDARD_OBJECT_MISSILE1, DIRECTION_MISSILE1, SPEED_MISSILE1);
+   move_object(VCS_STANDARD_OBJECT_BALL, DIRECTION_BALL, SPEED_BALL);
 }
 
 void initialize_motion_scene(void) {
    COLUBK := 0x84;
 
-   VCS_STANDARD_PLAYER0_X := 20;
-   VCS_STANDARD_PLAYER1_X := 140;
-   VCS_STANDARD_MISSILE0_X := 48;
-   VCS_STANDARD_MISSILE1_X := 112;
+   VCS_STANDARD_PLAYER0_X := 0;
+   VCS_STANDARD_PLAYER1_X := 159;
+   VCS_STANDARD_MISSILE0_X := 37;
+   VCS_STANDARD_MISSILE1_X := 121;
    VCS_STANDARD_BALL_X := 80;
 
    // Fixed non-overlapping vertical bands in the kernel's public Y convention.

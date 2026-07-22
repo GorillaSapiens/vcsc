@@ -9,20 +9,22 @@
 
 This cartridge is deliberately easy to judge by eye. A gold border and four
 fixed vertical rulers remain visible while P0, P1, M0, M1, and BL move in five
-separate vertical bands. Every object advances **one source X coordinate on
-every frame**. The old diagnostic intentionally skipped frames at different
-rates, which made correct movement look jerky and was a poor test.
+separate vertical bands. All five traverse the complete public horizontal
+coordinate range, **X=0 through X=159**, while using different integer speeds,
+starting phases, and initial directions. Their motion is asynchronous without
+giving different object classes different artificial travel limits.
 
-The objects use distinct ranges and starting directions, so their reversals do
-not occur in lockstep:
+| Object | Initial X | Range | Speed | Initial direction |
+|---|---:|---:|---:|---|
+| P0 | 0 | 0..159 | 1 | right |
+| P1 | 159 | 0..159 | 2 | left |
+| M0 | 37 | 0..159 | 3 | right |
+| M1 | 121 | 0..159 | 4 | left |
+| BL | 80 | 0..159 | 5 | right |
 
-| Object | Initial X | Range | Initial direction |
-|---|---:|---:|---|
-| P0 | 20 | 12..144 | right |
-| P1 | 140 | 20..148 | left |
-| M0 | 48 | 24..136 | right |
-| M1 | 112 | 8..128 | left |
-| BL | 80 | 32..120 | right |
+When a step would cross an endpoint, the example clamps to that endpoint for a
+frame and then reverses. Thus every object visibly reaches both X=0 and X=159,
+even when its speed does not divide the 159-coordinate span.
 
 ## Horizontal contract
 
@@ -35,8 +37,10 @@ M0/M1/BL left edge = source X - 2 active pixels
 ```
 
 A one-unit source change must therefore move the rendered object exactly one
-active pixel. Raw `ss1x` PNGs are 320 pixels wide, so each active-pixel change
-is two PNG columns. Calibration points after linking are:
+active pixel. An object moving at speed N must move N active pixels per ordinary
+frame, except for the deliberate endpoint-clamp frame. Raw `ss1x` PNGs are 320
+pixels wide, so each active-pixel change is two PNG columns. Calibration points
+after linking are:
 
 | Source X | player left edge | missile/ball left edge |
 |---:|---:|---:|
@@ -49,9 +53,10 @@ is two PNG columns. Calibration points after linking are:
 | 140 | 139 | 138 |
 
 `vcs_standard_motion.test` does not merely inspect the RAM X variables. For
-20 consecutive frames it locks each object's RESP write cycle and HMxx fine-
-motion nibble against the independent divide-by-15/reposition model. That is
-the regression which catches 15-pixel quantization or a dead fine-motion table.
+320 consecutive frames it locks each object's RESP write cycle and HMxx fine-
+motion nibble against the independent divide-by-15/reposition model. It also
+requires every object to reach both X=0 and X=159. That catches 15-pixel
+quantization, a dead fine-motion table, or a shortened object-specific range.
 
 ## Vertical contract
 

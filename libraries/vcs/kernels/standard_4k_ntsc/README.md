@@ -179,10 +179,11 @@ comments in the retained source as proof.
 `examples/05_static_kernel_test` now carries a checked Stella 7.0 PNG plus exact
 object/playfield bounding boxes. `examples/06_object_motion_test` is the moving
 position diagnostic: a visible ruler playfield remains fixed while all five
-objects move one source coordinate every frame in distinct ranges and phases.
-Its regression locks the frame-relative object rows **and** each RESP cycle and
-HMxx fine-motion value for twenty frames. Merely confirming that the RAM X
-variables changed is explicitly not considered a horizontal-rendering test.
+objects traverse the complete public X=0..159 range at different integer
+speeds and starting phases. Its regression locks the frame-relative object rows
+**and** each RESP cycle and HMxx fine-motion value for 320 frames, and requires
+every object to reach both endpoints. Merely confirming that the RAM X variables
+changed is explicitly not considered a horizontal-rendering test.
 
 ## State ownership and RAM cost
 

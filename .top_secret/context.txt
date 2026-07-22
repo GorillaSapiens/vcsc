@@ -3314,3 +3314,21 @@ Before returning another modified archive:
   relocation/kernel regressions, and staged installation. No files are removed;
   `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
   next and is not started.
+
+2026-07-22 16:12:52 PDT, make object-motion diagnostic full-range
+------------------------------------------------------------------------
+* Correct `examples/06_object_motion_test` so all five TIA objects traverse the
+  same complete public horizontal coordinate range, X=0 through X=159. Remove
+  the arbitrary object-specific endpoints that made M1 appear capable of moving
+  farther left than M0.
+* Make the motion asynchronous through different starting phases, initial
+  directions, and integer speeds: P0=1, P1=2, M0=3, M1=4, and BL=5 source
+  coordinates per frame. Clamp at each endpoint before reversing so every
+  object visibly reaches both X=0 and X=159 even when its speed does not divide
+  the 159-coordinate span.
+* Extend `vcs_standard_motion.test` from 20 to 320 frames. Continue checking
+  every RESP cycle and HMxx value, and additionally require every object to
+  visit both endpoints. Keep the seven exact vertical-raster checks unchanged.
+* Update the example, kernel, legalization, and test documentation. No kernel,
+  compiler, assembler, linker, ABI, or roadmap implementation is changed; task
+  20r remains next.

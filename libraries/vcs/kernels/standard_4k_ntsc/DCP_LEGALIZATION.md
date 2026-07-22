@@ -93,9 +93,9 @@ all five HMxx reads came from unrelated bytes, quantizing movement into roughly
 15-pixel jumps.
 
 Version-2 o26 local relocations now preserve the exact defining layout. The
-motion regression checks every RESP cycle and HMxx nibble for twenty frames,
-and the example moves every object one coordinate per frame against a visible
-ruler playfield. The static example also reapplies volatile TIA geometry every
+motion regression checks every RESP cycle and HMxx nibble for 320 frames,
+and the example moves every object at a distinct integer speed across the full
+X=0..159 range against a visible ruler playfield. The static example also reapplies volatile TIA geometry every
 frame and carries a reviewed Stella 7.0 raster with exact bounding boxes.
 
 Task 20q is complete. The normalized profile contains no `DCP` instruction; the

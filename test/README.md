@@ -104,9 +104,10 @@ It also checks the five exact final-row bytes precomputed during VBLANK, coverin
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
 `vcs_standard_motion.test` builds `examples/06_object_motion_test` and runs it
-for twenty frames in the 6502 harness. It locks every object's persistent Y
-coordinate, the independently phased P0/P1/M0/M1/BL X sequence, and seven
-complete object rasters at exact frame-relative scanlines. This catches corrupt
+for 320 frames in the 6502 harness. It locks every object's persistent Y
+coordinate, the differently phased and paced P0/P1/M0/M1/BL X sequences, both
+X=0 and X=159 endpoints for every object, and seven complete object rasters at
+exact frame-relative scanlines. This catches corrupt
 packed masks, state lost through horizontal-position scratch reuse, and any
 whole-frame vertical displacement that instruction-level cycle tests miss.
 
