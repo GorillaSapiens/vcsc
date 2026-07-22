@@ -1,6 +1,7 @@
 // vcsc-cc1 -I .
 // expectasm: .segment "RODATA.__vcsc_object$page_table"
 // expectasm: .pagecontain
+// expectasm: .indexrange 0, 3
 // expectasm: page_table:
 // expectasm: .byte $01, $02, $03, $04
 // expectasm: .segment "RODATA"

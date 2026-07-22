@@ -687,15 +687,25 @@ Outermost operand parentheses are always 6502 addressing syntax.  For example, `
 For ordinary mnemonics, suffixes force the final addressing family where the mnemonic supports it, and impossible mnemonic/mode combinations are rejected.  For example, `LDA.a $12` forces absolute encoding, while `JMP.ix ($20,X)` is rejected because `JMP` has no indexed-indirect encoding.
 
 
-The o26 writer now emits a per-layout flags byte after each layout's image-base
-field. Bit 0 is reserved for the linker's hard page-containment contract. The
-ordinary assembler does not yet expose source syntax for setting that bit; that
-is a separate interface step. The linker remains backward-compatible with the
-older layout records.
+The current o26 writer emits a per-layout flags byte followed by an indexed-
+range start and maximum index. Bit 0 is the hard whole-layout page-containment
+contract; bit 1 says that the indexed effective-address window is present. The
+linker remains backward-compatible with all older layout records.
 
 ### `.pagecontain`
 
 `.pagecontain` marks the current named segment as a hard page-contained o26 layout. It takes no arguments; keep one constrained object in that segment. The linker places the complete final-sized layout anywhere it fits within one 256-byte page.
+
+### `.indexrange`
+
+`.indexrange MAX_INDEX` requires offsets zero through `MAX_INDEX` from the
+layout base to remain in one page. `.indexrange START_OFFSET, MAX_INDEX` applies
+the same rule to a pointer beginning at `layout + START_OFFSET`. `MAX_INDEX`
+must fit an 8-bit X/Y index and the complete declared range must lie within the
+layout. The containing object may itself cross pages; only the timing-sensitive
+effective-address window is hard. Use this for pointer-based or deliberately
+partial table accesses whose legal index range cannot be inferred from the
+object declaration.
 
 After the layout table, current o26 objects also carry a compact relative-branch
 table.  Each record preserves the coarse segment, packed source and target

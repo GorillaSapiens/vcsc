@@ -230,7 +230,29 @@ static int parse_layouts_with_mode(const uint8_t *data, size_t size, size_t star
             return 0;
          }
          items[i].flags = data[pos++];
-         if (items[i].flags & ~O26_LAYOUT_PAGE_CONTAINED) {
+         if (items[i].flags & ~(O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE)) {
+            free_partial_layouts(items, count);
+            return 0;
+         }
+      }
+      if (version >= 4) {
+         uint32_t range_end;
+         if (pos + 4 > size) {
+            free_partial_layouts(items, count);
+            return 0;
+         }
+         items[i].index_range_start = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+         pos += 2;
+         items[i].index_range_max = (uint16_t)(data[pos] | (data[pos + 1] << 8));
+         pos += 2;
+         range_end = (uint32_t)items[i].index_range_start + items[i].index_range_max;
+         if ((items[i].flags & O26_LAYOUT_INDEX_RANGE) &&
+             (items[i].index_range_max > 255 || range_end >= items[i].size)) {
+            free_partial_layouts(items, count);
+            return 0;
+         }
+         if (!(items[i].flags & O26_LAYOUT_INDEX_RANGE) &&
+             (items[i].index_range_start != 0 || items[i].index_range_max != 0)) {
             free_partial_layouts(items, count);
             return 0;
          }
@@ -294,7 +316,7 @@ static int parse_layouts_any(reader_t *r, object_layout_t **out, size_t *count_o
 {
    int version;
 
-   for (version = 3; version >= 1; --version) {
+   for (version = 4; version >= 1; --version) {
       size_t layout_end = 0;
       size_t metadata_end = 0;
       object_layout_t *layouts = NULL;

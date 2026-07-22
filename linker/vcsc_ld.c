@@ -1167,9 +1167,27 @@ static uint32_t align_up_u32(uint32_t value, uint16_t alignment)
    return (value + alignment - 1u) & ~((uint32_t)alignment - 1u);
 }
 
-//! @brief Consume the earliest hole satisfying alignment and optional page containment.
+//! @brief Return whether all hard page constraints for one object hold at an address.
+static int object_page_constraints_hold(const object_layout_t *lay, uint32_t addr)
+{
+   if (!lay)
+      return 1;
+   if ((lay->flags & O26_LAYOUT_PAGE_CONTAINED) &&
+       !range_fits_one_page(addr, lay->size))
+      return 0;
+   if (lay->flags & O26_LAYOUT_INDEX_RANGE) {
+      uint32_t range_addr = addr + lay->index_range_start;
+      uint16_t range_size = (uint16_t)(lay->index_range_max + 1u);
+      if (!range_fits_one_page(range_addr, range_size))
+         return 0;
+   }
+   return 1;
+}
+
+//! @brief Consume the earliest hole satisfying alignment and page constraints.
 static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t alignment,
-                            int require_page, uint16_t *addr_out)
+                            int prefer_whole_page, const object_layout_t *constraints,
+                            uint16_t *addr_out)
 {
    size_t i;
    size_t best_i = 0;
@@ -1183,9 +1201,10 @@ static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t ali
       uint32_t addr = align_up_u32(hole.start, alignment);
 
       while (addr + size <= hole.end && addr <= 0xffffu) {
-         if (!require_page || range_fits_one_page(addr, size))
+         if (object_page_constraints_hold(constraints, addr) &&
+             (!prefer_whole_page || range_fits_one_page(addr, size)))
             break;
-         addr = align_up_u32((addr + 0x100u) & ~0xffu, alignment);
+         addr = align_up_u32(addr + 1u, alignment);
       }
       if (addr + size > hole.end || addr > 0xffffu)
          continue;
@@ -1250,14 +1269,18 @@ static int range_fits_one_page(uint32_t addr, uint16_t size)
 
 //! @brief Place one object with required alignment and hard or soft page policy.
 static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t *cfg,
-   const char *mem_name, uint16_t size, uint16_t alignment, int hard_page,
-   const char *what, const char *origin)
+   const char *mem_name, uint16_t size, uint16_t alignment,
+   const object_layout_t *constraints, const char *what, const char *origin)
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
    uint16_t hole_addr;
    uint32_t addr;
    uint32_t end;
    int wants_page = size > 0 && size <= 0x0100u;
+   int hard_page = constraints &&
+      (constraints->flags & O26_LAYOUT_PAGE_CONTAINED);
+   int has_hard_constraint = constraints &&
+      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE));
 
    if (size == 0)
       return cursor->cur;
@@ -1266,14 +1289,13 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
               what, origin, size);
       exit(1);
    }
-   if (wants_page && cursor_take_hole(cursor, size, alignment, 1, &hole_addr))
+   if ((wants_page || has_hard_constraint) &&
+       cursor_take_hole(cursor, size, alignment, wants_page, constraints, &hole_addr))
       return hole_addr;
 
    addr = align_up_u32(cursor->cur, alignment);
-   if (hard_page) {
-      while (!range_fits_one_page(addr, size))
-         addr = align_up_u32((addr + 0x100u) & ~0xffu, alignment);
-   }
+   while (!object_page_constraints_hold(constraints, addr))
+      addr = align_up_u32(addr + 1u, alignment);
    cursor_add_hole(cursor, cursor->cur, addr);
    end = addr + size;
    if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
@@ -1288,7 +1310,7 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
 //! @brief Place one code layout by bounded exhaustive low-byte branch scoring.
 static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t *cfg,
    const char *mem_name, const object_file_t *obj, const object_layout_t *lay,
-   uint16_t alignment, int hard_page, const char *what, const char *origin)
+   uint16_t alignment, const char *what, const char *origin)
 {
    memory_cursor_t *cursor;
    uint32_t limit;
@@ -1306,12 +1328,12 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
 
    if (!layout_has_branches(obj, lay))
       return alloc_from_region_policy(layout, cfg, mem_name, lay->size,
-         alignment, hard_page, what, origin);
+         alignment, lay, what, origin);
 
    cursor = ensure_cursor(layout, cfg, mem_name);
    if (lay->size == 0)
       return cursor->cur;
-   if (hard_page && lay->size > 0x0100u) {
+   if ((lay->flags & O26_LAYOUT_PAGE_CONTAINED) && lay->size > 0x0100u) {
       fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
               what, origin, lay->size);
       exit(1);
@@ -1347,7 +1369,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
       const memory_hole_t hole = cursor->holes[i];
       addr = align_up_u32(hole.start, alignment);
       while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
-         if (!hard_page || range_fits_one_page(addr, lay->size))
+         if (object_page_constraints_hold(lay, addr))
             CONSIDER_BRANCH_CANDIDATE(addr, 0, 1, i);
          if (addr > 0xffffu - step)
             break;
@@ -1363,7 +1385,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
    if (tail_last > 0xffffu)
       tail_last = 0xffffu;
    while (addr <= tail_last && addr + lay->size <= limit) {
-      if (!hard_page || range_fits_one_page(addr, lay->size))
+      if (object_page_constraints_hold(lay, addr))
          CONSIDER_BRANCH_CANDIDATE(addr, addr + lay->size - cursor->cur, 0, 0);
       if (addr > 0xffffu - step)
          break;
@@ -1639,7 +1661,7 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
          exit(1);
       }
       block_start = alloc_from_region_policy(layout, cfg, regions[i], (uint16_t)extent,
-                                      1, 0, "activation overlay", "<call graph>");
+                                      1, NULL, "activation overlay", "<call graph>");
 
       for (j = 0; j < piece_count; ++j) {
          activation_piece_t *piece = &pieces[j];
@@ -1728,9 +1750,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          rule = find_layout_segment_rule(cfg, lay->name, code);
          load_name = (rule && rule->load_name[0]) ? rule->load_name : code_load_name;
          lay->load_addr = alloc_code_branch_aware(layout, cfg, load_name, obj, lay,
-            rule ? rule->align : 1,
-            (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
-            lay->name, obj->origin);
+            rule ? rule->align : 1, lay->name, obj->origin);
          lay->run_addr = lay->load_addr;
       }
 
@@ -1748,7 +1768,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          rule = find_layout_segment_rule(cfg, lay->name, data);
          load_name = (rule && rule->load_name[0]) ? rule->load_name : data_load_name;
          lay->load_addr = alloc_from_region_policy(layout, cfg, load_name, lay->size,
-            rule ? rule->align : 1, 0, lay->name, obj->origin);
+            rule ? rule->align : 1, NULL, lay->name, obj->origin);
       }
 
       for (j = 0; j < obj->layout_count; ++j) {
@@ -1772,8 +1792,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             case O26_SEG_DATA: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
-                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
-                  lay->name, obj->origin);
+                  lay, lay->name, obj->origin);
                add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                break;
             }
@@ -1781,8 +1800,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             case O26_SEG_BSS: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
-                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
-                  lay->name, obj->origin);
+                  lay, lay->name, obj->origin);
                add_zero_record(layout, lay->name, lay->run_addr, lay->size);
                break;
             }
@@ -1790,8 +1808,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             case O26_SEG_ZP: {
                const char *run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") || segment_name_matches_prefix(lay->name, "ZP") || segment_name_matches_prefix(lay->name, "ZERO"))) ? suffix : zp_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
-                  (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0,
-                  lay->name, obj->origin);
+                  lay, lay->name, obj->origin);
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
                else if (strstr(lay->name, ".__vcsc_object$") != NULL)
@@ -1805,15 +1822,15 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    layout_activation_segments(cfg, in, layout, bss_run_name, zp_run_name);
 
    layout->copy_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-      (uint16_t)((layout->copy_record_count + 1) * 6), 1, 0,
+      (uint16_t)((layout->copy_record_count + 1) * 6), 1, NULL,
       "__copy_table", "<linker>");
    layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-      (uint16_t)((layout->zero_record_count + 1) * 4), 1, 0,
+      (uint16_t)((layout->zero_record_count + 1) * 4), 1, NULL,
       "__zero_table", "<linker>");
    {
       size_t init_count = count_init_functions_in_input(in);
       layout->init_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-         (uint16_t)((init_count + 1) * 2), 1, 0,
+         (uint16_t)((init_count + 1) * 2), 1, NULL,
          "__init_table", "<linker>");
       layout->init_table_size = (uint16_t)((init_count + 1) * 2);
    }
@@ -2271,6 +2288,32 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          fprintf(fp, "     $%04X -> $%04X %-3s opcode=$%02X taken-page=%s\n",
                  source, target, branch_opcode_name(branch->opcode), branch->opcode,
                  taken_branch_crosses_page(source, target) ? "crossing" : "same");
+      }
+   }
+
+   fprintf(fp, "\nINDEXED RANGES\n");
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *o = &in->objects[i];
+      size_t j;
+      int wrote_origin = 0;
+      for (j = 0; j < o->layout_count; ++j) {
+         const object_layout_t *lay = &o->layouts[j];
+         uint16_t base;
+         uint32_t effective_start;
+         uint32_t effective_end;
+         if (!(lay->flags & O26_LAYOUT_INDEX_RANGE))
+            continue;
+         if (!wrote_origin) {
+            fprintf(fp, "  %s\n", o->origin);
+            wrote_origin = 1;
+         }
+         base = lay->segid == O26_SEG_TEXT ? lay->load_addr : lay->run_addr;
+         effective_start = (uint32_t)base + lay->index_range_start;
+         effective_end = effective_start + lay->index_range_max;
+         fprintf(fp, "     %-16s base=$%04X offset=$%04X max=$%02X effective=$%04X-$%04X page=%s\n",
+                 lay->name, base, lay->index_range_start, lay->index_range_max,
+                 (unsigned)effective_start, (unsigned)effective_end,
+                 ((effective_start & 0xff00u) == (effective_end & 0xff00u)) ? "same" : "crossing");
       }
    }
 

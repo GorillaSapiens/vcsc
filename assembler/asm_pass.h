@@ -39,6 +39,9 @@ typedef struct asm_segment {
    int defined;
    int overflow_warned;
    int page_contained;
+   int index_range_set;
+   long index_range_start;
+   long index_range_max;
    struct asm_segment *next;
 } asm_segment_t;
 

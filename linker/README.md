@@ -250,12 +250,14 @@ This matches the assembler's `.weak foo` directive, which exports a weak definit
 
 ### Page-aware object placement
 
-The current o26 layout tail carries a flags byte for each named layout. Bit 0
-(`O26_LAYOUT_PAGE_CONTAINED`) is a hard placement constraint: the complete
-layout must reside within one 256-byte page. The linker derives the legal
-low-byte range from the final layout size and rejects impossible constraints
-with deterministic diagnostics. Older o26 layout tails without the flags byte
-remain readable.
+The current o26 layout tail carries a flags byte plus an indexed-range start
+and maximum index for each named layout. Bit 0 (`O26_LAYOUT_PAGE_CONTAINED`) is
+a hard placement constraint: the complete layout must reside within one
+256-byte page. Bit 1 (`O26_LAYOUT_INDEX_RANGE`) requires the effective range
+`layout + start` through `layout + start + max_index` to stay within one page.
+The latter may constrain only part of an object, so an object larger than 256
+bytes can remain legal. The linker derives legal low-byte placements and rejects
+malformed ranges deterministically. Older o26 layout tails remain readable.
 
 Every named ROM or RAM layout also receives a soft page-containment preference.
 Alignment and hard-placement gaps are retained as per-MEMORY-region holes. An
@@ -271,6 +273,11 @@ The map reports `page=hard`, `page=preferred`, or `page=crossing`. Initialized
 RAM objects report both `load-page=` and `run-page=`. A `crossing` report means
 the object could not be kept within one page without increasing the occupied
 region extent; it is not a link error unless the hard flag is present.
+
+The `INDEXED RANGES` map section reports each hard effective-address window,
+its final base, start offset, maximum index, final address interval, and page
+status. A whole object may report `page=crossing` while its required indexed
+window correctly reports `page=same`.
 
 Compiler and assembler procedures in the ordinary `CODE` segment are represented
 as independent `CODE.__vcsc_function$NAME` layouts. Their map entries therefore

@@ -27,6 +27,7 @@
 #define O26_RTYPE_AUX  0x10
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
+#define O26_LAYOUT_INDEX_RANGE    0x02
 
 #define O26_BRANCH_MAGIC "B26\1"
 #define O26_BRANCH_MAGIC_SIZE 4
@@ -89,6 +90,8 @@ typedef struct {
    uint16_t image_base;
    uint16_t size;
    uint8_t flags;
+   uint16_t index_range_start;
+   uint16_t index_range_max;
    uint16_t load_addr;
    uint16_t run_addr;
 } object_layout_t;

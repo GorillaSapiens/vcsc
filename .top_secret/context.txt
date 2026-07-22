@@ -1016,7 +1016,7 @@ The first unfinished item is the default next action.
                   first, then padding/image growth. Keep the search deliberately
                   bounded for short, reliable sessions.
 
-        [ ] 20m. Add indexed-access range metadata for timing-sensitive table
+        [x] 20m. Add indexed-access range metadata for timing-sensitive table
                   reads. Allow a declaration or kernel contract to state the
                   largest legal index and require every effective address in that
                   range to remain on one page. Infer the full declared object range
@@ -1125,13 +1125,12 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20l are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20m through 20u are deliberately small placement,
+Tasks 20a through 20m are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20n through 20u are deliberately small placement,
 page-timing, silicon-hazard, unofficial-opcode, source-suffix, and reporting
-slices that must be completed before gameplay integration. Task 20m is next:
-preserve indexed-access ranges and enforce page-stable effective-address
-windows for timing-sensitive table reads. The stack-safe VCSC overscan/vblank
-hook is deferred to task 20v.
+slices that must be completed before gameplay integration. Task 20n is next:
+add hard NMOS 6502/6507 page-wrap hazard checks. The stack-safe VCSC
+overscan/vblank hook is deferred to task 20v.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3000,3 +2999,30 @@ Before returning another modified archive:
   Renumber the gameplay hook and multisprite work to 20v and 20w. No files are
   removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Task 20m
   is next and was not started.
+
+2026-07-22 06:00:00 PDT, preserve indexed-access page windows
+------------------------------------------------------------------------
+* Complete task 20m. Add assembler `.indexrange MAX_INDEX` and
+  `.indexrange START_OFFSET, MAX_INDEX` contracts for timing-sensitive table
+  accesses. The maximum index is limited to the 6502 X/Y range, and the
+  declared effective-address window must lie within the named layout.
+* Extend current o26 layout records with an indexed-range flag, start offset,
+  and maximum index while retaining compatibility with all older layout-tail
+  encodings. File-scope VCSC `page` data declarations of at most 256 bytes now
+  emit the inferred full-object range as `.indexrange 0, size-1`; pointer-based
+  and deliberately partial ranges remain explicit assembly/kernel contracts.
+* Make the linker treat the effective-address window as a hard placement
+  constraint independently of whole-object containment. A layout may exceed or
+  cross a page provided every address from `base + start` through
+  `base + start + max_index` stays in one page. Add an `INDEXED RANGES` map
+  section showing the final interval and page status.
+* Add a focused regression whose 300-byte table moves from `$20F0` to `$20F8`
+  so its partial range becomes `$2100..$210F`, while the complete table still
+  crosses pages. Reject ranges extending beyond their layout with a stable
+  diagnostic. Update assembler, linker, compiler, and object-format
+  documentation plus page-object compiler coverage.
+* Pass 288/288 compile tests, 148/148 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20n under the requested short-session
+  budget.
+

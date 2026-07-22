@@ -38,7 +38,7 @@ sub mark_page_contained {
       my $name=skip_cstr(\$data,\$p); $p++; get_u16(\$data,\$p); get_u16(\$data,\$p); $p++; get_u16(\$data,\$p);
       $p < length($data) or die "o26 lacks layout flags\n";
       if ($name eq $want) { substr($data,$p,1)=chr(ord(substr($data,$p,1))|1); $found++; }
-      $p++;
+      $p += 5; # flags plus indexed-range start/max in current layout records
    }
    if ($p<length($data)) {
       substr($data,$p,4) eq "B26\1" or die "unexpected o26 layout tail\n";

@@ -660,8 +660,9 @@ padding. The ordinary placement is a soft preference only.
 
 At file scope, `page` requests hard 256-byte page containment, for example
 `page const uint8_t table[80] := { ... };`. The same private segment is marked
-with `.pagecontain`, and the linker must find a legal address or reject the
-link. A non-inline function definition is likewise emitted as its own `CODE` layout,
+with `.pagecontain`, and for objects of at most 256 bytes the compiler also
+emits `.indexrange 0, size-1` as explicit full-declaration access metadata. The
+linker must find a legal address or reject the link. A non-inline function definition is likewise emitted as its own `CODE` layout,
 so the linker knows its exact boundary and size. Ordinary functions receive the
 same soft containment preference. `page` on a function definition upgrades that
 function to hard containment; declarations without a body reject `page` because

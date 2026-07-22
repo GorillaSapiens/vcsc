@@ -33,6 +33,7 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_VERSION     1
 
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
+#define O26_LAYOUT_INDEX_RANGE    0x02
 
 #define O26_BRANCH_MAGIC "B26\1"
 #define O26_BRANCH_MAGIC_SIZE 4
@@ -79,6 +80,8 @@ typedef struct o26_segment_layout {
     unsigned short image_base;
    unsigned short used_size;
    unsigned char flags;
+   unsigned short index_range_start;
+   unsigned short index_range_max;
    struct o26_segment_layout *next;
 } o26_segment_layout_t;
 
@@ -395,6 +398,21 @@ static int register_layout(o26_writer_t *wr, const char *name)
    layout->image_base = (unsigned short)((layout->image_segid == O26_SEG_DATA && segid == O26_SEG_ZP) ? wr->seg_lengths[O26_SEG_DATA] : layout->packed_base);
    layout->used_size = (unsigned short)((seg->used_size < 0) ? 0 : seg->used_size);
    layout->flags = seg->page_contained ? O26_LAYOUT_PAGE_CONTAINED : 0;
+   if (seg->index_range_set) {
+      unsigned long range_end = (unsigned long)seg->index_range_start +
+                                (unsigned long)seg->index_range_max;
+      if (seg->index_range_start < 0 || seg->index_range_max < 0 ||
+          seg->index_range_max > 255 || range_end >= layout->used_size) {
+         fprintf(stderr, "indexed range for segment '%s' is outside its $%04X-byte layout\n",
+                 want, layout->used_size);
+         free(layout->name);
+         free(layout);
+         return 0;
+      }
+      layout->flags |= O26_LAYOUT_INDEX_RANGE;
+      layout->index_range_start = (unsigned short)seg->index_range_start;
+      layout->index_range_max = (unsigned short)seg->index_range_max;
+   }
    layout->next = NULL;
 
    if (!wr->layouts)
@@ -1168,6 +1186,9 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             return 1;
          }
 
+         if (!strcmp(stmt->u.dir->name, ".indexrange"))
+            return 1;
+
          if (!strcmp(stmt->u.dir->name, ".align")) {
             const expr_list_node_t *args = stmt->u.dir->exprs;
             long boundary;
@@ -1435,7 +1456,8 @@ static int write_layouts(FILE *fp, const o26_segment_layout_t *layout)
    for (; layout; layout = layout->next) {
       if (!write_cstr(fp, layout->name) || !write_u8(fp, layout->segid) || !write_u16(fp, layout->packed_base) ||
           !write_u16(fp, layout->used_size) || !write_u8(fp, layout->image_segid) || !write_u16(fp, layout->image_base) ||
-          !write_u8(fp, layout->flags))
+          !write_u8(fp, layout->flags) || !write_u16(fp, layout->index_range_start) ||
+          !write_u16(fp, layout->index_range_max))
          return 0;
    }
 

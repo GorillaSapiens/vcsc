@@ -1323,6 +1323,44 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                break;
             }
 
+            if (!strcmp(stmt->u.dir->name, ".indexrange")) {
+               const expr_list_node_t *args = stmt->u.dir->exprs;
+               long range_start = 0;
+               long range_max = 0;
+
+               if (!args || (args->next && args->next->next)) {
+                  asm_error(ctx, stmt, ".indexrange expects MAX_INDEX or START_OFFSET, MAX_INDEX");
+                  break;
+               }
+               if (args->next) {
+                  if (eval_or_report(ctx, args->expr, &ctx->symbols, stmt->scope,
+                                     stmt->file, pc_logical, &range_start, stmt) ||
+                      eval_or_report(ctx, args->next->expr, &ctx->symbols, stmt->scope,
+                                     stmt->file, pc_logical, &range_max, stmt))
+                     break;
+               } else {
+                  if (eval_or_report(ctx, args->expr, &ctx->symbols, stmt->scope,
+                                     stmt->file, pc_logical, &range_max, stmt))
+                     break;
+               }
+               if (range_start < 0 || range_start > 0xffff ||
+                   range_max < 0 || range_max > 255 ||
+                   range_start + range_max > 0xffff) {
+                  asm_error(ctx, stmt, ".indexrange requires a 16-bit nonnegative start and an 8-bit maximum index");
+                  break;
+               }
+               if (seg->index_range_set &&
+                   (seg->index_range_start != range_start || seg->index_range_max != range_max)) {
+                  asm_error(ctx, stmt, "conflicting .indexrange for segment '%s'",
+                            stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+                  break;
+               }
+               seg->index_range_set = 1;
+               seg->index_range_start = range_start;
+               seg->index_range_max = range_max;
+               break;
+            }
+
             if (!strcmp(stmt->u.dir->name, ".segment") ||
                 !strcmp(stmt->u.dir->name, ".segmentdef") ||
                 !strcmp(stmt->u.dir->name, ".global") ||
@@ -1742,6 +1780,7 @@ static int directive_emit_pass2(asm_context_t *ctx,
        !strcmp(dir->name, ".segment") ||
        !strcmp(dir->name, ".segmentdef") ||
        !strcmp(dir->name, ".pagecontain") ||
+       !strcmp(dir->name, ".indexrange") ||
        !strcmp(dir->name, ".global") ||
        !strcmp(dir->name, ".export") ||
        !strcmp(dir->name, ".import") ||

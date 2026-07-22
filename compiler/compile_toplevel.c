@@ -556,10 +556,13 @@ void compile_union_decl_stmt(ASTNode *node) {
 
 //! @brief Select a unique compiler-owned segment for one file-scope data object.
 static void emit_data_object_segment(EmitSink *sink, const char *base_segment,
-                                     const char *symname, bool hard_page) {
+                                     const char *symname, bool hard_page, int size) {
    emit(sink, ".segment \"%s.__vcsc_object$%s\"\n", base_segment, symname);
-   if (hard_page)
+   if (hard_page) {
       emit(sink, ".pagecontain\n");
+      if (size > 0 && size <= 256)
+         emit(sink, ".indexrange 0, %d\n", size - 1);
+   }
 }
 
 //! @brief Restore the ordinary compiler segment after one private data object.
@@ -690,7 +693,7 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-         emit_data_object_segment(&es_zp, segbuf, symname, is_page);
+         emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
          restore_object_segment(&es_zp, segbuf);
@@ -698,7 +701,7 @@ void compile_global_decl_item(ASTNode *node) {
       else {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
-         emit_data_object_segment(&es_bss, segbuf, symname, is_page);
+         emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
@@ -716,7 +719,7 @@ void compile_global_decl_item(ASTNode *node) {
          if (is_zeropage) {
             char segbuf[256];
             build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-            emit_data_object_segment(&es_zpdata, segbuf, symname, is_page);
+            emit_data_object_segment(&es_zpdata, segbuf, symname, is_page, size);
             emit(&es_zpdata, "%s:\n", symname);
             emit_sink_append(&es_zpdata, &init_es);
             restore_object_segment(&es_zpdata, segbuf);
@@ -724,7 +727,7 @@ void compile_global_decl_item(ASTNode *node) {
          else if (modifiers_imply_mem_storage(modifiers)) {
             char segbuf[256];
             build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "DATA");
-            emit_data_object_segment(&es_data, segbuf, symname, is_page);
+            emit_data_object_segment(&es_data, segbuf, symname, is_page, size);
             emit(&es_data, "%s:\n", symname);
             emit_sink_append(&es_data, &init_es);
             restore_object_segment(&es_data, segbuf);
@@ -732,7 +735,7 @@ void compile_global_decl_item(ASTNode *node) {
          else {
             EmitSink *es = is_const ? &es_rodata : &es_data;
             const char *base = is_const ? "RODATA" : "DATA";
-            emit_data_object_segment(es, base, symname, is_page);
+            emit_data_object_segment(es, base, symname, is_page, size);
             emit(es, "%s:\n", symname);
             emit_sink_append(es, &init_es);
             restore_object_segment(es, base);
@@ -743,7 +746,7 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
-         emit_data_object_segment(&es_zp, segbuf, symname, is_page);
+         emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
          restore_object_segment(&es_zp, segbuf);
@@ -751,7 +754,7 @@ void compile_global_decl_item(ASTNode *node) {
       else {
          char segbuf[256];
          build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
-         emit_data_object_segment(&es_bss, segbuf, symname, is_page);
+         emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
