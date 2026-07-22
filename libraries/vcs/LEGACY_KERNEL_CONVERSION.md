@@ -140,7 +140,7 @@ contractual:
 - five horizontal positions in one array;
 - the six score-pointer bytes immediately followed by six transient bytes;
 - one contiguous application-provided 48-byte playfield with a timing-safe
-  symbol low byte in `$54..$D0`;
+  48-byte object wholly within one page (`$00..$D0` low byte);
 - player graphics and the score table kept within individual 256-byte pages;
 - the source's two page-alignment guards retained for cycle-critical code.
 

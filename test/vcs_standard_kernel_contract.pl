@@ -44,8 +44,8 @@ sub symbol_addr {
 sub timing_safe_playfield {
    my ($addr,$which)=@_;
    my $low=$addr & 0xff;
-   $low >= 0x54 && $low <= 0xd0
-      or die sprintf("%s playfield at \$%04X has unsafe low byte \$%02X; expected \$54..\$D0\n",
+   $low <= 0xd0
+      or die sprintf("%s playfield at \$%04X crosses a page; low byte \$%02X exceeds \$D0\n",
                      $which,$addr,$low);
 }
 sub build_smoke {
@@ -115,7 +115,7 @@ my @required_readme=(
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
    'callstack_extra = $0002', 'Mandatory module-declared RAM', '38',
    'fixed ROM playfield', 'mutable RAM playfield', '32 independently controlled bits',
-   '16 scanlines', '$54..$D0', 'runtime playfield',
+   '16 scanlines', '$00..$D0', 'runtime playfield',
    '88-byte default score table'
 );
 for my $phrase (@required_readme) {
@@ -134,8 +134,8 @@ require_re($ram_src_text,qr/^uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;
 require_re($rom_src_text,qr/^extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[\s*48\s*\]\s*;/m,
    'ROM smoke does not import a constant 48-byte playfield');
 my $rom_playfield_text=read_file($rom_playfield);
-require_re($rom_playfield_text,qr/^\s*\.align\s+256\s*,\s*\$54\s*$/m,
-   'ROM smoke playfield does not use offset alignment');
+require_re($rom_playfield_text,qr/^\s*\.align\s+256\s*$/m,
+   'ROM smoke playfield is not temporarily page-aligned');
 $rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned\n";
 
 my $ram_map=build_smoke(

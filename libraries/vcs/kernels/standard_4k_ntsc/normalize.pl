@@ -556,6 +556,55 @@ ASM
       or die "normalized score-pointer setup no longer matches the selected retained source\n";
    $result =~ s/\Q$old_score_setup\E/$new_score_setup/;
 
+   # The retained kernel biases X by $54 so its sign bit doubles as the row-loop
+   # terminator, then subtracts $54 from every playfield operand.  Normalize this
+   # profile to an ordinary zero-based byte offset.  Keep the retained two-cycle
+   # SBX increment for now, add an explicit compare at offset 44, and consume the
+   # two added compare cycles from existing padding on both exit paths.
+   my $biased_index_count = ($result =~ s/ldx #128-44\+\{4-4\}\*12/ldx #0/g);
+   $biased_index_count == 1
+      or die "normalized biased playfield-index initialization count changed: $biased_index_count\n";
+
+   my %playfield_operand = (
+      'vcs_standard_playfield-48+4*12+44-128,x'   => 'vcs_standard_playfield,x',
+      'vcs_standard_playfield-48+4*12+45-128-0,x' => 'vcs_standard_playfield+1,x',
+      'vcs_standard_playfield-48+4*12+47-128,x'   => 'vcs_standard_playfield+3,x',
+      'vcs_standard_playfield-48+4*12+46-128-0,x' => 'vcs_standard_playfield+2,x',
+   );
+   for my $old (sort keys %playfield_operand) {
+      my $new = $playfield_operand{$old};
+      my $count = ($result =~ s/\Q$old\E/$new/g);
+      $count == 2
+         or die "normalized biased playfield operand '$old' count changed: $count\n";
+   }
+
+   my $old_row_advance = <<'ASM';
+     txa
+         sbx #256-4
+
+     bmi @lastkernelline
+ASM
+   my $new_row_advance = <<'ASM';
+     txa
+         sbx #256-4
+     cpx #44
+
+     bcs @lastkernelline
+ASM
+   index($result, $old_row_advance) >= 0
+      or die "normalized biased playfield row advance no longer matches retained source\n";
+   $result =~ s/\Q$old_row_advance\E/$new_row_advance/;
+
+   my $nonlast_pad_count = ($result =~ s/SLEEP 10\n                             lda #8/SLEEP 8\n                             lda #8/);
+   $nonlast_pad_count == 1
+      or die "normalized non-last playfield padding count changed: $nonlast_pad_count\n";
+
+   # The direct branch to the last-line path also arrives two cycles later after
+   # CPX.  Reduce only the first SLEEP immediately under @lastkernelline.
+   my $last_pad_count = ($result =~ s/(\@lastkernelline:\n)             SLEEP 10/$1             SLEEP 8/);
+   $last_pad_count == 1
+      or die "normalized last-line playfield padding count changed: $last_pad_count\n";
+
    # The retained skip paths are cycle-balanced at ten cycles, but their
    # original placement before the hot loop can put the BCC targets on the
    # previous page after linking. A taken cross-page branch adds one cycle and
@@ -594,7 +643,7 @@ ASM
      jmp @goback
 
 ; Local cycle-balanced player skip paths. The unconditional jump above and
-; direct BMI to @lastkernelline keep these stubs off every fall-through path.
+; direct BCS to @lastkernelline keep these stubs off every fall-through path.
 @skipDrawP0:
      lda #0
      tay

@@ -300,7 +300,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      sta vcs_standard_pointer_workspace + 7,x
 
      ;store these so they can be retrieved later
-         ldx #128-44+{4-4}*12
+         ldx #0
 
      dec vcs_standard_player0_y
 
@@ -326,13 +326,13 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
 @continuekernel2:
      lda vcs_standard_ball_height
 
-         ldy vcs_standard_playfield-48+4*12+44-128,x
+         ldy vcs_standard_playfield,x
          sty PF1 ;3
-         ldy vcs_standard_playfield-48+4*12+45-128-0,x ;4
+         ldy vcs_standard_playfield+1,x ;4
          sty PF2 ;3
-         ldy vcs_standard_playfield-48+4*12+47-128,x ;4
+         ldy vcs_standard_playfield+3,x ;4
          sty PF1 ; 3 too early?
-         ldy vcs_standard_playfield-48+4*12+46-128-0,x;4
+         ldy vcs_standard_playfield+2,x;4
          sty PF2 ;3
 
      ; should be playfield+$38 for width=2
@@ -361,13 +361,13 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
          rol;2
          sta ENAM1 ;3
 
-         lda vcs_standard_playfield-48+4*12+44-128,x ;4
+         lda vcs_standard_playfield,x ;4
          sta PF1 ;3
-         lda vcs_standard_playfield-48+4*12+45-128-0,x ;4
+         lda vcs_standard_playfield+1,x ;4
          sta PF2 ;3
-         lda vcs_standard_playfield-48+4*12+47-128,x ;4
+         lda vcs_standard_playfield+3,x ;4
          sta PF1 ; 3 too early?
-         lda vcs_standard_playfield-48+4*12+46-128-0,x;4
+         lda vcs_standard_playfield+2,x;4
          sta PF2 ;3
      ; sleep 3
 
@@ -402,8 +402,9 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ; clc
      txa
          sbx #256-4
+     cpx #44
 
-     bmi @lastkernelline
+     bcs @lastkernelline
 
                      ; read paddle 0
                      ; lo-res paddle read
@@ -411,7 +412,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
                      ; bmi paddleskipread
                      ; inc paddle0
                      ;donepaddleskip
-                     SLEEP 10
+                     SLEEP 8
                              lda #8
                      sta vcs_standard_pointer_workspace + 6
 
@@ -424,7 +425,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      jmp @goback
 
 ; Local cycle-balanced player skip paths. The unconditional jump above and
-; direct BMI to @lastkernelline keep these stubs off every fall-through path.
+; direct BCS to @lastkernelline keep these stubs off every fall-through path.
 @skipDrawP0:
      lda #0
      tay
@@ -436,7 +437,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      jmp @continueP1
 
 @lastkernelline:
-             SLEEP 10
+             SLEEP 8
 
              ldx vcs_standard_playfield_position
              ;sleep 3

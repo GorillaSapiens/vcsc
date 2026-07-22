@@ -1,6 +1,6 @@
 ; Immutable 32x12 asymmetric playfield for the static kernel test.
 .segment "PLAYFIELD_RODATA"
-.align 256, $54
+.align 256
 .export vcs_standard_playfield
 vcs_standard_playfield:
    .byte $FF,$FF,$FF,$FF

@@ -1,6 +1,6 @@
 ; Timing-safe immutable playfield for the ROM contract smoke test.
 .segment "PLAYFIELD_RODATA"
-.align 256, $54
+.align 256
 .export vcs_standard_playfield
 vcs_standard_playfield:
    .byte $FF,$FF,$FF,$FF

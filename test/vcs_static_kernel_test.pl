@@ -85,8 +85,8 @@ map_symbol($map,'vcs_standard_kernel_drawscreen')==0xf300
 map_symbol($map,'vcs_standard_score_table')==0xf600
    or die "score table moved from F600\n";
 my $playfield=map_symbol($map,'vcs_standard_playfield');
-($playfield & 0xff)==0x54
-   or die sprintf("ROM playfield landed at low byte %02X instead of aligned offset 54\n",$playfield & 0xff);
+($playfield & 0xff)==0x00
+   or die sprintf("ROM playfield landed at low byte %02X instead of temporary page alignment\n",$playfield & 0xff);
 $playfield>=0xf000 && $playfield+47<=0xfff9
    or die "ROM playfield lies outside cartridge data space\n";
 my $paddle=map_symbol($map,'paddle_graphics');
@@ -102,8 +102,8 @@ require_re($src,qr/extern\s+const\s+uint8_t\s+vcs_standard_playfield\s*\[48\]/,
 my $playfield_text=read_file($playfield_source);
 require_re($playfield_text,qr/^\s*\.segment\s+"PLAYFIELD_RODATA"/m,
    'playfield companion lost its dedicated linker segment');
-require_re($playfield_text,qr/^\s*\.align\s+256\s*,\s*\$54\s*$/m,
-   'playfield companion no longer uses real offset alignment');
+require_re($playfield_text,qr/^\s*\.align\s+256\s*$/m,
+   'playfield companion is not temporarily page-aligned');
 $src !~ /alignment_pad|\[97\]/
    or die "dummy source padding array returned\n";
 require_re($src,qr/vcs_standard_score\s*:=\s*123456\s*;/,

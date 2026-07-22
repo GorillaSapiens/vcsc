@@ -968,7 +968,7 @@ The first unfinished item is the default next action.
                   consumable report so later placement/legalization work can
                   prove it changed only the intended timing paths.
 
-        [ ] 20f. Remove the inherited `$54`-biased playfield index. Start X at a
+        [x] 20f. Remove the inherited `$54`-biased playfield index. Start X at a
                   normal zero-based row offset, address `vcs_standard_playfield`
                   directly, replace the sign-bit loop termination trick, and
                   retime only from existing padding. Eliminate the special
@@ -1112,12 +1112,12 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20e are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20f through 20s are deliberately small placement,
+Tasks 20a through 20f are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20g through 20s are deliberately small placement,
 page-timing, silicon-hazard, and unofficial-opcode cleanup slices that must be
-completed before gameplay integration. Task 20f is next: remove the inherited
-`$54`-biased playfield index without changing visible-kernel timing. The stack-
-safe VCSC overscan/vblank hook is deferred to task 20t.
+completed before gameplay integration. Task 20g is next: add the object/linker
+hard page-containment constraint without reordering unrelated objects. The
+stack-safe VCSC overscan/vblank hook is deferred to task 20t.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -2807,3 +2807,27 @@ Before returning another modified archive:
   inventory drift.
 * Stop before task 20f under the requested short-session budget. Task 20f is
   next: remove the inherited `$54`-biased playfield index. No files are removed.
+
+2026-07-21 21:45:00 PDT, remove the biased playfield index
+------------------------------------------------------------------------
+* Complete task 20f. Normalize the selected standard kernel to start X at zero
+  and read each playfield row directly as `vcs_standard_playfield+0..3,x`.
+  Remove the inherited `$54` operand bias and sign-bit termination trick.
+* Keep the retained two-cycle `SBX #252` row increment temporarily, but terminate
+  explicitly with `CPX #44` and `BCS`. Consume the two additional compare cycles
+  from the existing non-last and last-line `SLEEP 10` pads, reducing each to
+  `SLEEP 8`; the visible PF1/PF2 write phases remain unchanged.
+* Replace the special `$54..$D0` placement contract with the ordinary requirement
+  that the complete 48-byte playfield fit within one page, allowing low bytes
+  `$00..$D0`. Until task 20g/20h provide linker metadata, ROM fixtures use
+  temporary plain `.align 256` rather than `.align 256, $54`.
+* Update the deterministic normalizer, generated kernel, timing inventory,
+  profile/example documentation, and contract/normalization/static-kernel
+  regressions. Preserve the retained legacy BASIC source tree unchanged.
+* Pass 285/285 compile tests and all 143/143 end-to-end/generic tests (the long
+  continuous e2e invocation reached 134/143 before timeout; the remaining nine
+  fixtures then passed explicitly). Focused normalization, source-contract,
+  timing-inventory, PF-phase, and object-emission checks pass. No files are
+  removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Stop before
+  task 20g under the requested short-session budget.
+

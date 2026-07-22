@@ -113,6 +113,19 @@ require_re($active,qr/jmp\s+\@goback\s+.*?\@skipDrawP0:.*?jmp\s+\@continueP0.*?\
    'cycle-balanced player skip stubs are not local and off the fall-through path');
 require_re($active,qr/\@continuekernel:\s+SLEEP 2\s+\@continuekernel2:/s,
    'retained two-cycle playfield phase was removed');
+require_re($active,qr/^\s*ldx\s+#0\s*$/m,
+   'playfield row index is not zero-based');
+$active !~ /vcs_standard_playfield[^\n]*-128/
+   or die "biased playfield operands remain in normalized source\n";
+for my $operand ('vcs_standard_playfield,x','vcs_standard_playfield+1,x',
+                 'vcs_standard_playfield+2,x','vcs_standard_playfield+3,x') {
+   my $count=()=$active =~ /\Q$operand\E/g;
+   $count == 2 or die "$operand appears $count times, expected two direct row reads\n";
+}
+require_re($active,qr/txa\s+sbx\s+#256-4\s+cpx\s+#44\s+bcs\s+\@lastkernelline/s,
+   'zero-based playfield loop does not use explicit offset-44 termination');
+require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 8.*?\@lastkernelline:\s+SLEEP 8/s,
+   'zero-based loop compare was not retimed from existing padding');
 my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
 $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";

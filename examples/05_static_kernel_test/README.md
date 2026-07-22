@@ -36,8 +36,8 @@ The linked cartridge deliberately fixes the timing-sensitive regions:
 
 - normalized kernel code: `$F300..$F5FF`;
 - 88-byte decimal score table: `$F600..$F657`;
-- immutable playfield base: `$F154`, inside the required `$54..$D0` low-byte
-  window;
+- immutable playfield base: page-aligned temporarily so all 48 direct indexed
+  reads remain within one page;
 - hidden assembly stack allowance: two bytes beyond the ordinary call graph;
 - repeated visible playfield writes at CPU cycles `24, 31, 38, 45` on each
   complete kernel scanline.
@@ -52,9 +52,10 @@ this retained kernel profile; the line count and refresh rate are stable.
 
 ## Placement and object coverage
 
-`static_kernel_playfield.s` uses `.align 256, $54` to place the immutable
-48-byte playfield at the retained kernel's timing-safe low-byte offset. There
-is no source-level padding array. The scene deliberately makes every supported
+`static_kernel_playfield.s` temporarily uses `.align 256` to keep the immutable
+48-byte playfield within one page until linker page-containment metadata lands.
+The kernel now uses ordinary zero-based indexing; there is no `$54` placement
+rule and no source-level padding array. The scene deliberately makes every supported
 display object visible: a double-width white paddle (P0), an upright white
 alien (P1), separate white missiles M0 and M1, and a gold ball.
 `VCS_STANDARD_SPRITE_GLYPH` accepts player art top-to-bottom and reverses

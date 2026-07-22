@@ -33,8 +33,8 @@ and 19 source-level unofficial-opcode sites.  The unofficial sites are:
   one five-cycle read-modify-write instruction;
 * 5 `LAX`: three score-byte pointer-setup loads and two visible score-glyph
   loads into A and X;
-* 1 `SBX`: add four to the inherited biased playfield index and obtain loop
-  termination from the sign flag;
+* 1 `SBX`: add four to the zero-based playfield byte offset in two cycles;
+  explicit `CPX`/`BCS` now performs loop termination;
 * 1 `ASR`: mask/shift a score nibble during pointer setup;
 * 1 `NOP.z`: the three-cycle zero-page delay selected by odd `SLEEP` durations.
 

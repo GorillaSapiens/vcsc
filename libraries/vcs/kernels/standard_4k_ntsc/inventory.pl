@@ -51,7 +51,7 @@ for my $path (@ARGV) {
          if ($unofficial{$op}) {
             my $purpose =
                $op eq 'DCP' ? 'decrement vertical object counter and compare in one five-cycle instruction' :
-               $op eq 'SBX' ? 'advance biased playfield index by four and use the sign flag for loop termination' :
+               $op eq 'SBX' ? 'advance the zero-based playfield byte offset by four in two cycles' :
                $op eq 'ASR' ? 'shift/mask score nibble while preserving the retained pointer-setup timing' :
                $operand =~ /^\(/ ? 'load score glyph byte into A and X in one indexed instruction' :
                'load score byte into A and X for glyph-pointer setup';

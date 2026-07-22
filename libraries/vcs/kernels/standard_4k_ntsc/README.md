@@ -213,10 +213,11 @@ Most state has no fixed address. Only these constraints are contractual:
   block.
 - The application-provided `vcs_standard_playfield[48]` is contiguous and is
   addressed directly, not through a pointer.
-- For the default `pfwidth=4`, `pfadjust=0` path, the playfield symbol's low byte
-  must be in the inclusive range `$54..$D0`. The retained biased-X accesses then
-  reach all 48 bytes without an absolute-indexed page crossing. This condition
-  applies equally to RAM and ROM playfields.
+- For the default `pfwidth=4`, `pfadjust=0` path, the 48-byte playfield must not
+  cross a 256-byte page, so its low byte may be anywhere in `$00..$D0`. The
+  normalized kernel uses an ordinary zero-based X offset and direct
+  `vcs_standard_playfield+column,x` accesses; the inherited `$54` bias is gone.
+  This condition applies equally to RAM and ROM playfields.
 - Each active P0/P1 sprite table must stay within one 256-byte page for every
   row the kernel may read; a page-crossing indirect load changes scanline timing.
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
@@ -227,11 +228,9 @@ Most state has no fixed address. Only these constraints are contractual:
   enforces page alignment for both `KERNEL_CODE` and `KERNEL_RODATA` objects.
 
 The source-contract regression builds both a RAM and a ROM playfield and rejects
-either linked address if its low byte falls outside `$54..$D0`. The complete
-cartridge must retain the same linked-address check when the real kernel replaces
-the no-op smoke body.
-There is no fixed `$80`-based variable map; only the timing-safe low-byte window
-is part of the contract.
+either linked address if its 48 bytes cross a page. Until the page-containment
+linker constraint is implemented, ROM fixtures use temporary `.align 256`.
+There is no fixed `$80`-based variable map and no special `$54` lower bound.
 
 ## Register, flag, and hardware-register clobbers
 
