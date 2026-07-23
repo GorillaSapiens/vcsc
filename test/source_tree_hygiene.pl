@@ -3,13 +3,52 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 use Digest::SHA qw(sha256_hex);
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use File::Find;
 use File::Spec;
 
 my $repo=abs_path($ARGV[0] // File::Spec->catdir(File::Spec->curdir(),'..'));
 my $test=File::Spec->catdir($repo,'test');
 my $fixtures=File::Spec->catdir($repo,'assembler','tests');
+
+# Core README placement and relative-link sanity.  These checks catch accidental
+# file swaps such as copying test/README.md over the repository front page.
+my %readme_heading=(
+   'README.md' => '# VCSC Toolchain',
+   'test/README.md' => '# Test harness notes',
+   '.top_secret/README.md' => '# For Developer Eyes Only',
+);
+for my $rel (sort keys %readme_heading) {
+   my $path=File::Spec->catfile($repo,split('/', $rel));
+   my $body=slurp($path);
+   index($body,$readme_heading{$rel})>=0
+      or die "$rel has the wrong primary heading; expected $readme_heading{$rel}\n";
+}
+index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `instruction.txt`')>=0
+   or die ".top_secret/README.md does not document instruction.txt\n";
+
+my @markdown;
+find(sub {
+   return unless -f $_ && /\.md\z/;
+   push @markdown,$File::Find::name;
+},$repo);
+my @broken_links;
+for my $path (sort @markdown) {
+   my $body=slurp($path);
+   while ($body =~ /!?\[[^\]]*\]\(([^)]+)\)/g) {
+      my $target=$1;
+      $target =~ s/^<|>$//g;
+      $target =~ s/\s+["'][^"']*["']\s*\z//;
+      next if $target =~ m{^[A-Za-z][A-Za-z0-9+.-]*:};
+      next if $target =~ /^#/;
+      $target =~ s/#.*\z//;
+      next if $target eq '';
+      my $resolved=File::Spec->rel2abs($target,dirname($path));
+      push @broken_links,File::Spec->abs2rel($path,$repo)." -> $target"
+         unless -e $resolved;
+   }
+}
+@broken_links and die "broken relative Markdown links:\n".join("\n",@broken_links)."\n";
 
 sub slurp {
    my($path)=@_;

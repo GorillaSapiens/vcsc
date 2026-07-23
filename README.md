@@ -5,169 +5,219 @@
    \_/  \___||___/ \___|
 ```
 
-# Test harness notes
+# VCSC Toolchain
 
-`test/test.pl` is the single test runner for this tree.
+`vcsc` is a brutally pared-down C-like compiler and toolchain for the Atari
+2600/VCS. It targets the 6507, the TIA/RIOT memory model, and tiny cartridge
+programs rather than general-purpose 6502 systems.
 
-It runs two kinds of files:
+VCSC began as an Atari-focused specialization of the broader
+[N project](https://github.com/GorillaSapiens/n), but this repository is a
+standalone toolchain. It does not preserve the parent project's source,
+object, runtime, or ABI compatibility.
 
-- `.c26` source tests ... compiler-only checks by default, or full end-to-end `vcsc-cc1 -> vcsc-as -> vcsc-ld -> vcsc-sim` when the header requests link/sim behavior
-- `.test` script-style tests ... generic command wrappers driven entirely by header comments
+The public command is `vcsc`. It drives the compiler front end (`vcsc-cc1`),
+assembler (`vcsc-as`), linker (`vcsc-ld`), archiver (`vcsc-ar`), and stock
+runtime. `vcsc-sim` is the matching 6502 simulator used by the test suite.
 
-## Common usage
+Canonical file suffixes are:
 
-Run the whole suite from `test/`:
+- `.c26` — VCSC source
+- `.s26` — VCSC assembler source
+- `.o26` — relocatable object
+- `.l26` — object library/archive
+
+The object and archive formats are VCSC-specific. Renamed artifacts from the
+parent toolchain are rejected rather than accepted by accident.
+
+## Building
+
+Build the tools without running the complete suite:
 
 ```sh
-./test.pl
+make tools
 ```
 
-Run only compile-side checks:
+Run the normal complete build and test pass:
 
 ```sh
-./test.pl --compile-only
+make
 ```
 
-Run only end-to-end and generic runtime tests:
+Useful top-level targets include:
 
 ```sh
-./test.pl --e2e-only
+make test          # complete unified test suite
+make unit          # compile-only tests
+make e2e           # linked/simulated and generic tests
+make sieve         # quick driver smoke build
+make installcheck  # staged installed-toolchain validation
+make docs           # Doxygen output under doxygen/
+make clean
 ```
 
-Run one test, a few tests, or a whole subdirectory:
+## Quick start
+
+Build the first cartridge through the high-level driver:
 
 ```sh
+./driver/vcsc -I libraries/vcs \
+  examples/01_solid_color/solid_color.c26 \
+  -o solid_color.bin
+```
+
+The result is a 4096-byte unbanked VCS cartridge image. Load it in Stella or
+another compatible emulator.
+
+The same build performed one stage at a time is:
+
+```sh
+./compiler/vcsc-cc1 -quiet -I libraries/vcs \
+  examples/01_solid_color/solid_color.c26 \
+  -o solid_color.s26 \
+  -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
+
+./assembler/vcsc-as -I libraries/runtime \
+  -o solid_color.o26 solid_color.s26
+
+./linker/vcsc-ld -T libraries/vcs/vcs_4k.cfg \
+  -o solid_color.bin \
+  solid_color.o26 libraries/runtime/libvcsc.l26
+```
+
+The linker prints final cartridge-ROM usage after a successful link and can
+also write a detailed map with `-Map`.
+
+## Tool overview
+
+The command-line tools follow GCC/binutils conventions where practical:
+
+- `vcsc` drives compile, assemble, and link stages; supports `-c`, `-S`, `-I`,
+  `-L`, `-l`, `-T`, `-Map`, and stage-specific `-Wc`, `-Wa`, and `-Wl` options.
+- `vcsc-cc1` compiles one `.c26` input and normally writes `.s26` assembly.
+- `vcsc-as` assembles `.s26` or retained/imported `.asm` source. Official NMOS
+  6502/6507 opcodes are the default; `--illegals` deliberately enables named
+  unofficial opcodes for silicon experiments such as the fingerprint example.
+- `vcsc-ld` requires a linker script when used directly, performs whole-program
+  activation and hardware-stack sizing, places page-sensitive objects, and
+  writes Intel HEX or flat `.bin` output.
+- `vcsc-ar` creates and updates `.l26` archives using GNU-`ar`-style operation
+  strings such as `rcs`.
+- `vcsc-sim` executes linked test programs and provides tracing and host-dispatch
+  calls for regression tests.
+
+See each component README for the complete command line and format contracts.
+
+## Language and runtime model
+
+The language is intentionally smaller and more explicit than C:
+
+- fixed-width signed, unsigned, and packed-BCD integer types up to 32 bits;
+- static, non-reentrant function activations;
+- no direct or mutual recursion;
+- directly named call targets rather than function pointers;
+- memory-backed parameters and return objects;
+- VCS-specific memory regions, hardware bindings, and inline assembly;
+- link-time activation overlay and call-graph-based hardware-stack sizing.
+
+Cycle-counted display kernels remain separately assembled code. VCSC source is
+best used for setup, VBLANK/overscan game logic, state updates, score handling,
+and other work outside the visible scanline schedule.
+
+## VCS support and examples
+
+[`libraries/vcs/`](libraries/vcs/) contains TIA/RIOT bindings, the stock 4K
+linker layout, audio aliases, score fonts, the shared six-glyph display, and two
+maintained NTSC kernel profiles:
+
+- `standard_4k_ntsc` — P0, P1, M0, M1, and Ball with solid TIA color groups;
+- `standard_4k_ntsc_playercolors` — P0, P1, and Ball with independent per-row
+  player colors and no missiles.
+
+The user-facing examples are deliberately editable:
+
+- [`01_solid_color`](examples/01_solid_color/) — minimal complete cartridge
+- [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
+- [`03_six_digit_score`](examples/03_six_digit_score/) — centered six-glyph BCD score
+- [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
+- [`05_static_kernel_test`](examples/05_static_kernel_test/) — static all-five-object kernel scene
+- [`06_object_motion_test`](examples/06_object_motion_test/) — moving all-five-object diagnostic
+- [`07_playercolor_static_test`](examples/07_playercolor_static_test/) — static per-row player colors
+- [`08_playercolor_motion_test`](examples/08_playercolor_motion_test/) — moving per-row player colors
+
+Exact golden raster, timing, palette, score, music, and motion assertions use
+private copies under `test/fixtures/vcs_examples/`; changing an example should
+not require editing a golden harness.
+
+Example 04 intentionally needs unofficial-opcode mode:
+
+```sh
+./driver/vcsc -I libraries/vcs -Wa,--illegals \
+  examples/04_fingerprint/fingerprint.c26 \
+  -o fingerprint.bin
+```
+
+## Installing and packaging
+
+The default prefix is `/opt/vcsc`:
+
+```sh
+make install
+make install DESTDIR=/tmp/vcsc-pkg
+make uninstall
+make package
+```
+
+The installed layout contains:
+
+- `$(PREFIX)/bin/` — all six command-line tools;
+- `$(PREFIX)/lib/` — `libvcsc.l26`;
+- `$(PREFIX)/include/` — `vcsc-runtime.inc`;
+- `$(PREFIX)/share/cfg/` — assembler opcode tables;
+- `$(PREFIX)/share/vcs/` — VCS bindings, fonts, kernels, linker configuration,
+  and retained legacy-kernel conversion references.
+
+The driver first recognizes the built source-tree layout. When installed, it
+finds sibling tools and data relative to the common prefix. It uses the bundled
+4K VCS linker script and runtime archive by default unless overridden with `-T`
+or `-nostdlib`.
+
+## Testing
+
+`make test` runs the unified [`test/test.pl`](test/test.pl) harness. It covers
+compiler-only `.c26` tests and linked/simulated or generic `.test` regressions,
+continues after failures, and prints a consolidated summary.
+
+Run selected tests directly from `test/`, for example:
+
+```sh
+cd test
 ./test.pl inline_function_codegen_test.c26
-./test.pl default_parameter_direct_cycle_error_test.c26 e2e_call_argument_order_verify.c26
-./test.pl .
+./test.pl --compile-only default_parameter_direct_cycle_error_test.c26
+./test.pl --e2e-only vcs_standard_playercolors.test
 ```
 
-The runner does not stop at the first failure. It prints per-test progress and summarizes all failures at the end.
+See [`test/README.md`](test/README.md) for test headers, placeholders, fixture
+rules, and runner behavior.
 
-## Header-driven behavior
+## Documentation
 
-The harness reads leading comment lines from each test file.
+Documentation is organized by responsibility:
 
-### `.c26` tests
+- [`compiler/README.md`](compiler/README.md) — language and generated-code model
+- [`driver/README.md`](driver/README.md) — high-level build driver
+- [`assembler/README.md`](assembler/README.md) — syntax, opcodes, directives, and objects
+- [`linker/README.md`](linker/README.md) — scripts, placement, stack sizing, and outputs
+- [`archiver/README.md`](archiver/README.md) — `.l26` archive operations and format
+- [`simulator/README.md`](simulator/README.md) — execution, tracing, and host calls
+- [`libraries/runtime/README.md`](libraries/runtime/README.md) — runtime archive construction and ABI
+- [`libraries/vcs/README.md`](libraries/vcs/README.md) — target bindings, kernels, fonts, and examples
+- [`test/README.md`](test/README.md) — unified test harness
 
-Most `.c26` tests use the first header line to describe the compile command, for example:
+## Licensing
 
-```vcsc
-// vcsc-cc1 -I .
-```
-
-Useful expectations include:
-
-- `expectasm:` / `expectasmordered:` / `forbidasm:` ... search the emitted assembly
-- `expecterr:` / `forbiderr:` ... search compiler stderr
-- `expectfail` ... compilation should fail
-- `expectexit:` ... run the full e2e pipeline and require a simulator exit code
-- `archive:` / `archivegroup:` / `object:` ... extra link inputs for e2e cases
-- `linkcfg:` / `simcfg:` / `simargs:` ... linker and simulator extras
-- `phase: compile|e2e|any` ... force how the runner classifies the test
-
-A plain `.c26` file with only compile-side expectations is treated as a compile-only test. A `.c26` file with link/sim expectations is treated as an e2e test.
-
-E2E tests without a `linkcfg:` directive use `test/generic_6502.cfg`, an
-explicit test-only layout matching the retained generic simulator fixtures.
-Production `vcsc-ld` has no implicit layout, and production `vcsc` defaults to
-the bundled VCS 4K script instead.
-
-`unicode_identifier_mangle.test` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
-
-`visual_binary_literal_codegen_test.c26` and
-`e2e_visual_binary_literal_verify.c26` cover `.`/`X` binary-picture notation,
-mixed visual/conventional digits, underscores, wider values, preprocessor use,
-and runtime values. Companion rejection tests cover bad digits, malformed
-underscores, and width overflow after normalization.
-
-`vcs_standard_kernel_contract.test` enforces the source contract for
-the first minimal unbanked 4K NTSC standard-kernel module. It checks the
-80-byte mandatory state span, the required ROM playfield, the documented
-frame/clobber/page contract, the six-byte hidden assembly-stack reserve, the
-linker map and generated symbols, rejection of `callstack_extra` without
-call-graph sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM
-smoke cartridge.
-
-`vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
-normalization. It regenerates the selected source beside the checked-in outputs
-and requires byte identity, checks all five deliberate macro ports and the
-selected DASM transformations, requires the legal `AND`/`LSR`,
-`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting kernel to a
-current `.o26` object without unofficial-opcode mode, verifies its segment map
-and score table, and assembles a smoke source that invokes every retained macro.
-
-`vcs_standard_kernel_legal_bytes.test` builds the complete static standard
-profile without `--illegals`, decodes every linked executable segment while
-excluding the two documented lookup-table ranges, and rejects any unofficial
-NMOS opcode at an instruction boundary. Its negative control injects raw
-`op4B`, proving that the gate catches the assembler's exact-byte escape hatch
-rather than relying only on mnemonic rejection.
-
-`assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
-aliases remain active while the broader historical catalog remains commented
-out. It covers every DOP/TOP encoding, the unstable `$AB` spellings, both
-incompatible XAS dialects, memory-addressed AXS/SAX aliases, and their required
-conflict and silicon-warning comments.
-
-`assembler_opcode_override.test` locks down opcode-config replacement semantics.
-It proves that a repeated mnemonic/addressing-mode key is silently last-definition-
-wins both within one file and across repeated `--opcode-cfg` options, verifies
-that reversing config order reverses the winner, confirms that exact `opXX`
-spellings still reach both bytes, and rejects attempts to assign a byte to an
-incompatible addressing mode.
-
-`vcsc_branding.test` also enforces the developer-record quarantine: only
-`.top_secret/context.txt`, `.top_secret/remove.txt`, and their explanatory
-README may occupy that internal role, while the obsolete top-level notes and
-software-stack snapshot must remain absent.
-
-`runtime_workspace_split.test` verifies that the runtime include imports no
-storage unconditionally, that only the five eight-byte-baseline workspace
-members remain, and that multiplication, division, and remainder do not select
-additional RIOT RAM.
-
-`fixed_scalar_runtime.test` verifies that the inherited arbitrary-width copy,
-fill, extension, comparison, bitwise, shift, multiplication, division, and
-remainder members are gone; that the fixed-width shift/multiply/divide members
-are present; that scalar lowering is inline where appropriate; and that objects
-wider than four bytes retain a separate aggregate zeroing path.
-
-### `.test` files
-
-Generic tests use an explicit runner command:
-
-```text
-# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s26
-# expectstdout: wrote
-# expectexit: 0
-```
-
-Useful placeholders in `runner:` and related directives:
-
-- `@REPO@` ... repository root
-- `@TEST_ROOT@` ... `test/` directory
-- `@FILE@` ... current test file
-- `@FILEDIR@` ... directory containing the current test file
-- `@TMP@` ... per-test temporary work directory
-- `@RUNTIME@` ... default `libraries/runtime/libvcsc.l26`
-- `@RUNTIME_INC@` ... default `libraries/runtime/` include directory
-- `@GENERIC_LINK_CFG@` ... explicit test-only generic 6502 linker layout
-
-Useful generic expectations include:
-
-- `expectstdout:` / `expectstdoutordered:` / `forbidstdout:`
-- `expectstderr:` / `expectstderrordered:` / `forbidstderr:`
-- `expectstdoutexact:` / `expectstderrexact:`
-- `expectfile:` / `forbidfile:`
-- `expectexit:`
-
-## Assembler fixture sources
-
-`assembler/tests/` contains assembler source fixtures that exercise `vcsc-as`
-directly rather than passing through `vcsc-cc1`. They are part of the normal
-harness through `test/assembler_fixture_suite.test`. Some fixtures are
-intentionally invalid and verify assembler diagnostics.
-
-- `driver_version_format.test` verifies that `vcsc -V` aligns tool-name colons and prints the resolved executable path for each tool.
-- `driver_temp_cleanup.test` forces a post-compilation linker failure and verifies that the driver removes its private `vcsc.*` directory and intermediates on the failing exit path.
+Unless a subdirectory says otherwise, the toolchain sources and top-level
+build/test glue are licensed under GPL-3.0-or-later. The runtime library under
+`libraries/runtime/` is BSD-2-Clause so linking it does not impose the
+toolchain's GPL terms on cartridge programs. Exact license texts are in the
+repository root and relevant library directories.

@@ -217,11 +217,13 @@ ordinary allocation; the normalized assembly refers to that module symbol.
 
 ### Phase 1 — source-integration contract (complete)
 
-The maintained `kernels/standard_4k_ntsc/` contract now selects one exact
-configuration, declares 38 mandatory module bytes plus the application-provided
-RAM-or-ROM playfield, documents frame and register ownership, records real
-adjacency/page constraints, and supplies a matching linker configuration with a
-two-byte hidden-stack allowance.
+The maintained `kernels/standard_4k_ntsc/` contract selects one exact
+configuration, declares 80 mandatory RIOT-RAM bytes, requires the 48-byte
+playfield in cartridge ROM, documents frame and register ownership, records
+real adjacency/page constraints, exports the assembly-to-overscan-hook call
+edge, and supplies a matching linker configuration with four supplementary
+hardware-stack bytes. The stock weak-hook cartridge reserves ten physical stack
+bytes in total after call-graph sizing.
 
 ### Phase 2 — reproducible source normalization (complete)
 
@@ -247,7 +249,7 @@ o26/map, and checks the five macros separately. A complete linked-profile gate
 then rejects any unofficial instruction byte. The retained source tree itself
 remains untouched.
 
-### Phase 3 — minimal standard-kernel cartridge
+### Phase 3 — minimal standard-kernel cartridge (complete)
 
 1. Build the no-bankswitch, no-Superchip profile with fixed test state.
 2. Drive a static background/playfield, players, missiles, ball, and score.
@@ -256,13 +258,13 @@ remains untouched.
 4. Run Stella timing regression and confirm stable 262-line NTSC frames.
 5. Record exact linked ROM costs instead of guessing from source lines.
 
-### Phase 4 — connect VCSC logic
+### Phase 4 — connect VCSC logic (complete)
 
 1. Add one stack-safe void VCSC vblank/overscan hook.
 2. Update module state from VCSC source.
 3. Prove that stack metadata and `callstack_extra` cover the complete boundary.
 
-### Phase 5 — grow standard-kernel coverage
+### Phase 5 — grow standard-kernel coverage (in progress)
 
 Add one option at a time with a contract revision and measured RAM, ROM, stack,
 and timing deltas. Vertical reflection and status-bar variants are separate
@@ -287,8 +289,9 @@ Both have deterministic normalizers, official-opcode assembly, static and motion
 
 ## Conclusion
 
-The conversion is worth attempting. The assembler syntax gap is manageable and
-mostly mechanical. The real work is preserving each selected kernel's source-
-level state relationships, stack behavior, frame ownership, and timing without
-inventing a universal ABI. The first contract now makes those boundaries
-explicit; the next step is changing dialect without changing behavior.
+The conversion has proved practical for two maintained unbanked profiles. The
+assembler syntax gap was mostly mechanical; the difficult work was preserving
+each profile's state relationships, stack behavior, frame ownership, page
+constraints, and exact TIA timing without inventing a universal ABI. Further
+profiles should continue to be added as separately measured contracts rather
+than as undocumented switches on one supposedly universal kernel.

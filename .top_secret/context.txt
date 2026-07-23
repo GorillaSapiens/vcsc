@@ -3706,3 +3706,30 @@ Before returning another modified archive:
   deliberate palette-edit proof, and staged installation. The submitted
   `examples/` tree and `.top_secret/instruction.txt` remain byte-for-byte
   unchanged. No roadmap item is advanced; task 22 remains next.
+
+2026-07-23 01:02:36 PDT, repair displaced and stale Markdown documentation
+----------------------------------------------------------------------------
+* Audit all 31 Markdown files in the current tree against their path, primary
+  heading, local links, current source/build contracts, and the older archive.
+  Confirm that the repository-root README had been overwritten by an older
+  copy of `test/README.md`; no other Markdown file was displaced into the wrong
+  directory.
+* Restore the top-level `README.md` as the VCSC toolchain overview, using the
+  older correct front page as a base and updating it for `.s26`, the current
+  driver/linker behavior, both maintained kernel profiles, all eight editable
+  examples, private golden fixtures, installation layout, and current component
+  documentation.
+* Correct `.top_secret/README.md` to describe the intentionally retained
+  `instruction.txt` workflow instead of claiming it was deleted. Update
+  `test/README.md` to include that file in the developer-record quarantine and
+  to describe all seven linked executable segments in the official-opcode gate.
+* Refresh `libraries/vcs/LEGACY_KERNEL_CONVERSION.md`: the all-five profile now
+  declares 80 mandatory RIOT bytes, requires a ROM playfield, exports the
+  overscan-hook edge, and uses four supplementary stack bytes; phases 3 and 4
+  are complete, phase 5 is in progress, and the conclusion now reflects two
+  working maintained profiles rather than a proposed first conversion.
+* Extend `source_tree_hygiene.test` to lock the primary headings of the root,
+  test, and developer-record READMEs, require documentation of
+  `instruction.txt`, and reject broken relative Markdown links anywhere in the
+  tree. Pass 289/289 compile-only tests and 160/160 end-to-end/generic tests.
+  No roadmap item is advanced; task 22 remains next.

@@ -15,12 +15,15 @@ This directory is **for developer eyes only**. Its contents are project-maintena
 
 The durable project handoff, design-decision record, immediate TODO list, and chronological development log. Read it before continuing queued work, and update it after meaningful implementation or design changes.
 
+### `instruction.txt`
+
+The intentionally retained default workflow for bounded roadmap work: finish only complete steps, reserve time for testing and cleanup, package a clean tree, and place the download link first. It is durable project guidance, not accidental conversational residue.
+
 ### `remove.txt`
 
 The cumulative one-path-per-line deletion and rename ledger. It is used when reconciling or pruning older source snapshots and must remain synchronized with intentional removals and moved paths.
 
-## Obsolete internal files removed during this audit
+## Obsolete internal files removed during the hygiene audit
 
 - The former top-level `NOTES.md` duplicated maintained documentation and contained stale claims, including that source-level inline functions were unsupported.
 - The former `software_stack_inventory.txt` was a frozen historical snapshot. The executable regression `test/software_stack_inventory.pl` is now the authoritative check for removed software-stack emitters and runtime symbols.
-- The accidental `instruction.txt` was copied conversational task text, not durable project state. A hygiene regression now restricts this directory to this README, `context.txt`, and `remove.txt`.

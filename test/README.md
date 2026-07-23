@@ -107,7 +107,7 @@ without unofficial-opcode mode, verifies its segment map and score table, and
 assembles a smoke source that invokes every retained macro.
 
 `vcs_standard_kernel_legal_bytes.test` builds the complete static profile
-without `--illegals`, decodes all six linked executable segments against the
+without `--illegals`, decodes all seven linked executable segments against the
 151 official NMOS 6502 opcodes, and skips only the profile's two explicitly
 located lookup-table ranges. A second build injects raw `op4B #$F0`; assembly
 and linking still succeed, but the linked-byte gate must reject the unofficial
@@ -162,12 +162,13 @@ incompatible addressing mode.
 
 `source_tree_hygiene.test` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
-duplicate deletion-ledger entries, and any deleted path that reappears.
+duplicate deletion-ledger entries, any deleted path that reappears, displaced
+core README files, and broken relative Markdown links.
 
-`vcsc_branding.test` also enforces the developer-record quarantine: only
-`.top_secret/context.txt`, `.top_secret/remove.txt`, and their explanatory
-README may occupy that internal role, while the obsolete top-level notes and
-software-stack snapshot must remain absent.
+`vcsc_branding.test` also enforces the developer-record quarantine:
+`.top_secret/context.txt`, `.top_secret/instruction.txt`, `.top_secret/remove.txt`,
+and their explanatory README occupy that internal role, while the obsolete
+top-level notes and software-stack snapshot must remain absent.
 
 `runtime_workspace_split.test` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace
