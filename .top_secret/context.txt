@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260722_223017.tar.gz
+    vcsc.20260722_231112.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1089,7 +1089,7 @@ The first unfinished item is the default next action.
                   at a time only after the placement and legal-opcode cleanup is
                   stable.
 
-[ ] 21. Add a faithful legacy per-row player-color standard-kernel variant as a
+[x] 21. Add a faithful legacy per-row player-color standard-kernel variant as a
         separate profile from the current 2P+2M+B kernel. Restore the retained
         legacy player-color-table behavior and its timing/RAM tradeoff: keep P0,
         P1, and BL, but deliberately omit M0 and M1. Give the variant its own
@@ -1153,6 +1153,17 @@ The first unfinished item is the default next action.
         interaction, map reporting, and tests; only then add corresponding
         Superchip or banked multisprite profiles.
 
+[ ] 30. Add fixed-point whole-program inlining for reachable internal functions
+        with exactly one direct call site when the resulting linked code is
+        smaller. Inline through the compiler IR/control-flow representation, not
+        textual substitution; fold arguments/returns and simplify newly exposed
+        code, then recompute the call graph, activation overlay, and hardware-
+        stack depth. Exclude exported or address-taken functions, assembly ABI
+        entry points, weak/required hooks, and timing-sensitive boundaries.
+        Cover multi-return control flow, nested one-call chains, exact ROM-size
+        wins/losses, and stack-depth reduction; retain the separate function when
+        measurement shows that inlining grows the image.
+
 Inline assembly absolute-ref rules
 ----------------------------------
 Inline assembly remains single-line and mostly opaque, but source-level
@@ -1208,28 +1219,39 @@ active reproducible regression artifact. Three previously stranded `.c26`
 tests are now executed, generated `coverage_map.h` is no longer stored as
 source, and `test/source_tree_hygiene.test` guards against recurrence.
 
+
+Task 21 now supplies a second maintained standard-kernel profile under
+`kernels/standard_4k_ntsc_playercolors/`. It retains P0, P1, BL, the ROM
+playfield, and the six-glyph score, restores distinct P0/P1 colors per logical
+sprite row, and deliberately omits M0/M1. Static and 320-frame motion examples
+lock exact color writes, object rasters, horizontal positioning, frame period,
+RAM/ROM/stack costs, normalization, and installed-toolchain use. The user's
+`.top_secret/instruction.txt` is intentional durable workflow guidance and must
+be preserved.
+
 Open implementation questions
 -----------------------------
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20v are complete. Runtime-workspace side-quest items a
-through d are complete. Task 20q removed all eleven `DCP` sites, task 20r
-replaced the final source-level `ASR`, `SBX`, and unofficial delay-NOP sites with
-legal schedules, task 20s enforced official linked bytes, task 20t made `.s26`
-the canonical maintained assembler-source suffix, task 20u added final-output
-cartridge-ROM usage reporting, and task 20v added the first stack-safe gameplay
-integration boundary. Task 21 is next: a separate faithful legacy per-row
-player-color profile without missiles.
+Tasks 20a through 20v and task 21 are complete. Runtime-workspace side-quest
+items a through d are complete. Task 20q removed all eleven `DCP` sites, task
+20r replaced the final source-level `ASR`, `SBX`, and unofficial delay-NOP sites
+with legal schedules, task 20s enforced official linked bytes, task 20t made
+`.s26` the canonical maintained assembler-source suffix, task 20u added final-
+output cartridge-ROM usage reporting, and task 20v added the first stack-safe
+gameplay integration boundary. Task 21 added the separate P0+P1+BL per-logical-
+row player-color profile with no missiles. Task 22 is next and is explicitly
+optional if retaining all five objects plus player color tables proves
+unreasonable.
 
-After task 20, tasks 21 and 22 add separate player-color standard-kernel
-profiles, with task 22 explicitly optional if retaining all five objects proves
-unreasonable. Tasks 23 and 24 add widely spaced and left/right dual-score
-six-glyph display variants. Task 25 records the resulting kernel- and
-score-display-authoring process as a HOWTO. The former task 20w multisprite
-placeholder has been removed from task 20 and expanded into tasks 26 through 29:
-multisprite contract and normalization, minimal unbanked integration, general
-8K+ bankswitching, and Superchip support.
+Tasks 23 and 24 add widely spaced and left/right dual-score six-glyph display
+variants. Task 25 records the resulting kernel- and score-display-authoring
+process as a HOWTO. The former task 20w multisprite placeholder has been removed
+from task 20 and expanded into tasks 26 through 29: multisprite contract and
+normalization, minimal unbanked integration, general 8K+ bankswitching, and
+Superchip support. Task 30 adds measured fixed-point inlining of single-call-site
+internal functions.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3616,3 +3638,43 @@ Before returning another modified archive:
 * Pass 289/289 compile-only tests, 158/158 end-to-end/generic tests, the new hygiene
   regression, and staged installation. No roadmap item is advanced; task 21 remains
   next.
+
+2026-07-22 23:56:46 PDT, complete task 21 per-row player-color kernel profile
+-----------------------------------------------------------------------------
+* Preserve the user-restored `.top_secret/instruction.txt` as intentional
+  durable workflow guidance. It is not deletion residue and is not listed in
+  `.top_secret/remove.txt`.
+* Add roadmap task 30 for fixed-point whole-program inlining of reachable
+  internal functions with exactly one direct call site when measurement shows a
+  ROM win. Require IR/control-flow inlining, argument/return simplification,
+  call-graph/activation/stack recomputation, explicit ABI/timing exclusions,
+  and exact size/stack regressions.
+* Add the separate `standard_4k_ntsc_playercolors` profile. Derive it
+  deterministically from the maintained legal all-five standard profile while
+  guarding the retained legacy `playercolors` and `player1colors` branches.
+  Keep P0, P1, BL, the asymmetric ROM playfield, and the six-glyph score;
+  deliberately omit M0 and M1 without changing the existing all-five profile.
+* Bind two exact page-contained eight-byte ROM color tables directly as
+  `vcs_standard_color_player0_colors` and
+  `vcs_standard_color_player1_colors`. Balance active and skipped player paths,
+  reuse the former missile timing slots for `COLUP0`/`COLUP1`, precompute final-
+  row graphics/colors during VBLANK, clear both missile enables, and force the
+  two private legacy horizontal-position slots to zero.
+* Increase the profile's initial VBLANK timer from `37+128` to `38+128` because
+  ball-only mask preparation is shorter than the all-five preparation path.
+  This restores the same 20,140-cycle emulator frame-period baseline without
+  moving the cycle-counted player/playfield/color schedule.
+* Add `examples/07_playercolor_static_test` and
+  `examples/08_playercolor_motion_test`. Both players use eight distinct colors
+  in visible top-to-bottom logical-row order. The static cartridge separates
+  P0/P1/BL for inspection; the motion cartridge moves P0/P1/BL asynchronously
+  through X=0..159 at speeds 1, 5, and 7 while preserving row colors.
+* Add `vcs_standard_playercolors.test`. Verify deterministic normalization,
+  assembly through the official opcode table, page placement, 77 module bytes
+  (17 public plus 60 private), stack contracts, exact frame period, exact P0/P1
+  row-color and P0/P1/BL raster writes, absence of missile enables, and 320
+  full-range frames of RESP/HMxx positioning. Add profile documentation,
+  example documentation, conversion notes, and staged installation coverage.
+* Measured example ROM use is 1,827 bytes for the static cartridge and 2,759
+  bytes for the motion cartridge, leaving 2,263 and 1,331 bytes respectively in
+  the ordinary 4K ROM region. Task 22 is next and remains explicitly optional.

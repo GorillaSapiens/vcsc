@@ -1,0 +1,70 @@
+// Unbanked 4K NTSC standard-kernel variant with per-row player colors.
+//
+// Include vcs.c26 before this module. The application must define exactly one
+// contiguous 48-byte ROM object named vcs_standard_color_playfield. This
+// profile faithfully restores the retained playercolors/player1colors timing
+// tradeoff: P0 and P1 each have a color table, BL remains available, and M0/M1
+// are deliberately absent.
+
+alias VCS_STANDARD_COLOR_OBJECT_PLAYER0 0
+alias VCS_STANDARD_COLOR_OBJECT_PLAYER1 1
+alias VCS_STANDARD_COLOR_OBJECT_BALL 4
+
+alias VCS_STANDARD_COLOR_PLAYFIELD_BYTES 48
+alias VCS_STANDARD_COLOR_PLAYFIELD_ROW_BYTES 4
+alias VCS_STANDARD_COLOR_PLAYFIELD_ROWS 12
+alias VCS_STANDARD_COLOR_PLAYFIELD_COLUMNS 32
+alias VCS_STANDARD_COLOR_DEFAULT_ROW_SCANLINES 16
+alias VCS_STANDARD_COLOR_POINTER_WORKSPACE_BYTES 12
+alias VCS_STANDARD_COLOR_APPLICATION_DISPLAY_RAM_BYTES 17
+alias VCS_STANDARD_COLOR_PRIVATE_RAM_BYTES 60
+alias VCS_STANDARD_COLOR_MODULE_RAM_BYTES 77
+alias VCS_STANDARD_COLOR_HIDDEN_STACK_BYTES 4
+alias VCS_STANDARD_COLOR_SCORE_FONT_BYTES 88
+
+// Graphics and colors use the same highest-index-to-zero storage order.
+alias VCS_STANDARD_COLOR_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias VCS_STANDARD_COLOR_SPRITE_ROWS(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+
+alias VCS_STANDARD_COLOR_PLAYFIELD vcs_standard_color_playfield
+
+alias VCS_STANDARD_COLOR_PLAYER0_X vcs_standard_color_object_x[VCS_STANDARD_COLOR_OBJECT_PLAYER0]
+alias VCS_STANDARD_COLOR_PLAYER1_X vcs_standard_color_object_x[VCS_STANDARD_COLOR_OBJECT_PLAYER1]
+alias VCS_STANDARD_COLOR_BALL_X vcs_standard_color_object_x[VCS_STANDARD_COLOR_OBJECT_BALL]
+
+// The horizontal-position routine retains the legacy five-slot RESP/HMxx
+// schedule. Slots 2 and 3 are private ghost-missile coordinates held at zero;
+// no missile enable writes occur in the visible field.
+uint8_t vcs_standard_color_object_x[5];
+
+uint8_t vcs_standard_color_player0_y;
+uint8_t vcs_standard_color_player1_y;
+uint8_t vcs_standard_color_ball_y;
+
+// Graphics targets must stay within one 256-byte page. The application also
+// supplies exact page-contained ROM objects named vcs_standard_color_player0_colors
+// and vcs_standard_color_player1_colors. Their active entries are indices
+// 0..height and use the same storage order as the graphics.
+uint8_t *vcs_standard_color_player0_graphics;
+uint8_t *vcs_standard_color_player1_graphics;
+
+alias VCS_STANDARD_COLOR_PLAYER0_COLORS vcs_standard_color_player0_colors
+alias VCS_STANDARD_COLOR_PLAYER1_COLORS vcs_standard_color_player1_colors
+
+uint8_t vcs_standard_color_player0_height;
+uint8_t vcs_standard_color_player1_height;
+uint8_t vcs_standard_color_ball_height;
+
+bcd24_t vcs_standard_color_score;
+uint8_t vcs_standard_color_score_color;
+
+// Kernel-private workspace. The twelve-byte score/pointer block and sparse
+// forty-four-byte ball mask retain the legal all-five profile's exact schedule.
+// The former M0/M1 mask slots hold final-row player colors instead.
+uint8_t vcs_standard_color_pointer_workspace[VCS_STANDARD_COLOR_POINTER_WORKSPACE_BYTES];
+uint8_t vcs_standard_color_playfield_position;
+uint8_t vcs_standard_color_object_masks[44];
+uint8_t vcs_standard_color_player0_latch;
+
+extern void vcs_standard_color_overscan_hook(void);
+extern void vcs_standard_color_kernel_drawscreen(void);

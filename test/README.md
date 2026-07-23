@@ -122,6 +122,13 @@ exact frame-relative scanlines. This catches corrupt
 packed masks, state lost through horizontal-position scratch reuse, and any
 whole-frame vertical displacement that instruction-level cycle tests miss.
 
+`vcs_standard_playercolors.test` builds the separate no-missile P0+P1+BL
+profile and its static and motion examples. It checks deterministic normalization,
+official-opcode assembly, page and stack contracts, the exact standard frame
+period, absence of missile enables, eight distinct logical-row colors for each
+player, exact P0/P1/BL raster rows, and 320 frames of full-range P0/P1/BL
+RESP/HMxx motion.
+
 `vcs_standard_pairwise.test` jumps directly into the linked standard kernel's
 actual horizontal-position routine and exhausts all `5 choose 2` object pairs
 at every `160 * 160` coordinate combination: 256,000 cases. The remaining

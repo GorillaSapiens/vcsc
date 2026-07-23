@@ -1,0 +1,103 @@
+// Static diagnostic for the P0+P1+BL per-row player-color kernel variant.
+
+include "vcs.c26"
+
+page const uint8_t vcs_standard_color_playfield[48] := {
+   0xff, 0xff, 0xff, 0xff,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0xff, 0xff, 0xff, 0xff,
+   0x00, 0x00, 0x00, 0x00
+};
+
+include "kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"
+
+page const uint8_t player0_graphics[8] := {
+   VCS_STANDARD_COLOR_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX.X..XX,
+      0bXX..X.XX,
+      0bXX...XXX,
+      0bXX....XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+page const uint8_t player1_graphics[8] := {
+   VCS_STANDARD_COLOR_SPRITE_GLYPH(
+      0bXXXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXXXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXX....XX,
+      0bXXXXXXX.
+   )
+};
+
+// Every logical sprite row has a distinct color. The helper accepts colors in
+// visible top-to-bottom order and reverses them to match the kernel's row index.
+page const uint8_t vcs_standard_color_player0_colors[8] := {
+   VCS_STANDARD_COLOR_SPRITE_ROWS(
+      0x3e, 0x4e, 0x5e, 0x6e, 0x7e, 0x8e, 0x9e, 0xae
+   )
+};
+
+page const uint8_t vcs_standard_color_player1_colors[8] := {
+   VCS_STANDARD_COLOR_SPRITE_ROWS(
+      0xce, 0xbe, 0xae, 0x9e, 0x8e, 0x7e, 0x6e, 0x5e
+   )
+};
+
+
+void initialize_scene(void) {
+   COLUBK := 0x82;
+   COLUPF := 0x2e;
+   CTRLPF := 0x21;
+
+   VCS_STANDARD_COLOR_PLAYER0_X := 44;
+   VCS_STANDARD_COLOR_PLAYER1_X := 108;
+   VCS_STANDARD_COLOR_BALL_X := 78;
+
+   vcs_standard_color_player0_y := 78;
+   vcs_standard_color_player1_y := 42;
+   vcs_standard_color_ball_y := 45;
+
+   vcs_standard_color_player0_graphics := player0_graphics;
+   vcs_standard_color_player1_graphics := player1_graphics;
+   vcs_standard_color_player0_height := 7;
+   vcs_standard_color_player1_height := 7;
+   vcs_standard_color_ball_height := 3;
+
+   vcs_standard_color_score := 210721;
+   vcs_standard_color_score_color := 0x0e;
+   vcs_standard_color_playfield_position := 8;
+
+   VBLANK := 2;
+   TIM64T := 0;
+}
+
+void configure_frame(void) {
+   COLUPF := 0x2e;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+}
+
+void main(void) {
+   initialize_scene();
+   while (1) {
+      configure_frame();
+      vcs_standard_color_kernel_drawscreen();
+   }
+}

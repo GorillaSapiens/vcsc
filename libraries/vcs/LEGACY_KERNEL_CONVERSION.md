@@ -130,13 +130,17 @@ module does not need to preserve those absolute addresses. It declares the
 state used by its selected conditional configuration and lets the ordinary
 compiler/linker allocator place it.
 
-The first contract is now maintained under
-`kernels/standard_4k_ntsc/`. It declares 38 mandatory RIOT bytes: 23 bytes of
-application-visible object/score state and 15 bytes of private workspace. The
-application separately supplies one contiguous 48-byte playfield in mutable RAM
-or constant ROM under the direct-linked symbol `vcs_standard_playfield`. Only
-layout relationships used by indexed or cycle-sensitive assembly remain
-contractual:
+The maintained all-five contract lives under `kernels/standard_4k_ntsc/`.
+Its legal ball/missile schedule now declares 80 mandatory RIOT bytes: 23 bytes
+of application-visible object/score state and 57 private bytes. The application
+supplies one contiguous page-contained 48-byte ROM playfield under the
+direct-linked symbol `vcs_standard_playfield`.
+
+A separate `kernels/standard_4k_ntsc_playercolors/` contract restores the
+retained `playercolors`/`player1colors` tradeoff. It declares 77 module bytes,
+retains P0, P1, and BL, deliberately omits M0/M1, and binds two page-contained
+eight-byte player-color tables directly in ROM. Only layout relationships used
+by indexed or cycle-sensitive assembly remain contractual:
 
 - five horizontal positions in one array;
 - the six score-pointer bytes immediately followed by six transient bytes;
@@ -152,10 +156,7 @@ contracts because their live state and constraints differ.
 ### 2. Hidden hardware-stack use
 
 The source call graph accounts for ordinary VCSC calls, but the minimal retained
-overscan routine also calls `scorepointerset` internally. The selected linker
-configuration uses `callstack_extra = $0002` to reserve that one hidden JSR
-level at the top of RIOT RAM in addition to the normal call-graph and startup
-allowances.
+overscan routine also calls `scorepointerset` internally. Both selected linker configurations use `callstack_extra = $0004` for the deeper internal mask-preparation chain in addition to the exported source/assembly call graph.
 
 The score row pipeline temporarily copies and restores S without pushing,
 pulling, calling, or returning while S is repurposed. That behavior needs no
@@ -178,10 +179,7 @@ caller-clobbered while the module is active.
 
 ### 4. Application hooks
 
-The minimal contract enables no application-supplied hook. This keeps the first
-static cartridge's call graph and timing closed. A later slice may add one void
-vblank/overscan hook through a documented stack-safe wrapper after the kernel is
-byte- and timing-stable.
+Both maintained standard profiles expose one optional stack-accounted void overscan hook. The kernel provides a weak no-op fallback; a strong application definition runs after persistent object state and S are restored with `VBLANK` asserted and the overscan timer active.
 
 ### 5. Linker/cartridge model
 
@@ -198,8 +196,7 @@ The initial target is therefore exactly:
 - no Superchip, DPC+, or PXE;
 - the non-reflected standard kernel;
 - default asymmetric playfield and default decimal score;
-- no optional color/height tables, status bar, paddle path, debug path,
-  mini-kernel, or application hook.
+- no optional playfield-color/height tables, status bar, paddle path, debug path, or mini-kernel. Player-row colors exist only in the separate no-missile profile.
 
 ## Language-level fit
 
@@ -278,6 +275,15 @@ pointer tricks and nearly complete RAM ownership deserve a separate contract.
 Add 8K+ bankswitching and Superchip support only after both unbanked profiles are
 working; DPC+/PXE remains distinct because the retained snapshot intentionally
 lacks the required ARM blobs.
+
+## Completed standard profiles
+
+Two unbanked 4K NTSC profiles are now maintained and regression-locked:
+
+1. `standard_4k_ntsc`: P0, P1, M0, M1, and BL with solid TIA color groups.
+2. `standard_4k_ntsc_playercolors`: P0, P1, and BL, with a distinct color on each logical P0/P1 bitmap row and no missiles.
+
+Both have deterministic normalizers, official-opcode assembly, static and motion diagnostics, exact frame/TIA-write tests, page-placement contracts, measured ROM/RAM/stack costs, and staged installation coverage. The retained vendored source remains unchanged.
 
 ## Conclusion
 

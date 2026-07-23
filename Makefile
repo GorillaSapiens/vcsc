@@ -77,6 +77,13 @@ install-data:
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
 	  libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors
+	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc_playercolors/README.md \
+	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26 \
+	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26 \
+	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc \
+	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/
 	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
 	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
 	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels
@@ -111,6 +118,12 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors 2>/dev/null || true
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.c26
@@ -151,6 +164,11 @@ installcheck: tools
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/README.md"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg"; \
 	"$$stage_bin/vcsc-as" \
 	  -I "$$stage_vcs/kernels/standard_4k_ntsc" \
 	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.map" \
@@ -186,7 +204,24 @@ installcheck: tools
 	  "$(CURDIR)/examples/06_object_motion_test/object_motion_test.c26" \
 	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/object_motion_test.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/object_motion_test.bin"` -eq 4096
+	test `wc -c < "$(INSTALLCHECK_STAGING)/object_motion_test.bin"` -eq 4096; \
+	"$$stage_bin/vcsc-as" \
+	  -I "$$stage_vcs/kernels/standard_4k_ntsc_playercolors" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_playercolors_kernel.o26" \
+	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_playercolors_kernel.o26"` -gt 0; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg" \
+	  "$(CURDIR)/examples/07_playercolor_static_test/playercolor_static_test.c26" \
+	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg" \
+	  "$(CURDIR)/examples/08_playercolor_motion_test/playercolor_motion_test.c26" \
+	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"` -eq 4096
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz
