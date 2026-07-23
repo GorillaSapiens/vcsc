@@ -162,7 +162,7 @@ my @score_rows=($kernel_text =~ /^\s*\.byte\s+%[01]{8}\s*$/mg);
 my $object=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.o26');
 my $map=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.map');
 my ($as_exit,$as_sig,$as_out,$as_err)=run_capture(
-   $assembler,'--illegals','-I',$profile,'--map='.$map,'-o',$object,$kernel);
+   $assembler,'-I',$profile,'--map='.$map,'-o',$object,$kernel);
 $as_exit == 0 && !$as_sig
    or die "normalized kernel assembly exited $as_exit signal $as_sig\nstdout:\n$as_out\nstderr:\n$as_err";
 $as_out eq '' or die "normalized kernel assembly wrote stdout:\n$as_out";
@@ -177,16 +177,6 @@ require_re($map_text,qr/^KERNEL_RODATA\s+\$[0-9A-F]{8}\s+\$00000058\b/m,
    'normalized KERNEL_RODATA score table is not 88 bytes');
 require_re($map_text,qr/\bvcs_standard_kernel_drawscreen\b/,
    'normalized object map is missing the exported kernel entry');
-
-my $plain_object=File::Spec->catfile($tmp,'without_illegals.o26');
-my ($plain_exit,$plain_sig,$plain_out,$plain_err)=run_capture(
-   $assembler,'-I',$profile,'-o',$plain_object,$kernel);
-$plain_exit == 0 && !$plain_sig
-   or die "legalized kernel failed without --illegals\nstdout:\n$plain_out\nstderr:\n$plain_err";
-$plain_out eq '' or die "plain legal assembly wrote stdout:\n$plain_out";
-$plain_err eq '' or die "plain legal assembly wrote stderr:\n$plain_err";
-read_file($plain_object) eq $object_text
-   or die "--illegals changes the legalized kernel object\n";
 
 my $macro_smoke=File::Spec->catfile($tmp,'standard_4k_ntsc_macros_smoke.s');
 write_file($macro_smoke,<<'ASM');

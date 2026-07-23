@@ -1067,7 +1067,7 @@ The first unfinished item is the default next action.
                   work. Verify bus side effects, flags, and cycle counts rather
                   than treating equal instruction length as sufficient.
 
-        [ ] 20s. Make the normalized standard-kernel profile assemble without
+        [x] 20s. Make the normalized standard-kernel profile assemble without
                   `--illegals`. Add a regression that rejects unofficial opcode
                   bytes in the profile while leaving explicit illegal-opcode probe
                   examples opt-in and unaffected.
@@ -1188,16 +1188,16 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20r are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20s through 20u are deliberately small
-unofficial-opcode enforcement, source-suffix, and reporting slices that must be
-completed before gameplay integration. Task 20q removed all eleven `DCP` sites,
-including the alternate and final-row schedules. Task 20r replaced the final
-source-level `ASR`, `SBX`, and unofficial delay-NOP sites with legal
-`AND`/`LSR`, `TXA`/`ADC`/`TAX`, and `BIT` schedules while preserving their
-visible-kernel timing contracts. Task 20s is next: remove the standard profile's
-remaining `--illegals` build plumbing and reject unofficial opcode bytes in the
-linked profile. The stack-safe VCSC overscan/vblank hook remains task 20v.
+Tasks 20a through 20s are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20t and 20u are deliberately small source-suffix
+and cartridge-reporting slices that must be completed before gameplay
+integration. Task 20q removed all eleven `DCP` sites, and task 20r replaced the
+final source-level `ASR`, `SBX`, and unofficial delay-NOP sites with legal
+schedules while preserving their visible-kernel timing contracts. Task 20s
+removed unofficial-opcode mode from every standard-profile build path and added
+a final linked-code gate that rejects raw unofficial instruction bytes. Task
+20t is next: rename maintained assembler sources from `*.s` to `*.s26`. The
+stack-safe VCSC overscan/vblank hook remains task 20v.
 
 After task 20, tasks 21 and 22 add separate player-color standard-kernel
 profiles, with task 22 explicitly optional if retaining all five objects proves
@@ -3453,3 +3453,29 @@ Before returning another modified archive:
   static-raster, legal-schedule, motion, source-contract, and 256,000-case
   pairwise regressions, plus staged installation. No files are removed;
   `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20s is next.
+
+2026-07-22 18:26:05 PDT, complete task 20s official-opcode profile enforcement
+------------------------------------------------------------------------
+* Remove `-Wa,--illegals` and direct `vcsc-as --illegals` use from every
+  standard-profile example, regression, and staged-install recipe. Keep the
+  fingerprint cartridge and assembler silicon probes explicitly opt-in and
+  unchanged.
+* Simplify the normalization regression so the generated kernel is assembled
+  only through the official opcode table. Retain the separate historical
+  mnemonic/byte/cycle probe in `vcs_standard_kernel_unofficial_opcodes.test`.
+* Add `vcs_standard_kernel_legal_bytes.test`. It builds the complete static
+  profile without unofficial-opcode mode, derives the 151 official NMOS 6502
+  opcodes from `assembler/default.cfg`, and decodes all six linked executable
+  segments while skipping only the two documented in-code lookup-table ranges.
+* Add a negative control that replaces the legal score `AND #$F0` with raw
+  `op4B #$F0`. Raw exact-byte assembly and linking deliberately succeed without
+  `--illegals`; the final linked-code gate must then reject opcode `$4B`. This
+  proves the profile is protected against the raw-opcode escape hatch rather
+  than only against friendly unofficial mnemonics.
+* Update the project, test, conversion, profile, and unofficial-opcode
+  documentation to describe the now-official build contract and linked gate.
+* Pass 288/288 compile-only tests, 155/155 end-to-end/generic tests, all focused
+  standard-kernel and fingerprint regressions, and staged installation. No
+  files are removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
+  Task 20t is next.
+

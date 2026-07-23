@@ -41,8 +41,10 @@ Task-20r legal replacements
 The automated regression keeps the historical illegal byte/cycle probe opt-in
 so assembler support for explicit silicon experiments does not disappear. It
 also assembles the legal replacement byte matrix (`AND #$F0`, `LSR`, `TXA`,
-`ADC #4`, `TAX`, `BIT VSYNC`) without `--illegals`. Task 20s removes the now
-redundant profile build flags and adds a final linked-byte rejection gate.
+`ADC #4`, `TAX`, `BIT VSYNC`) without `--illegals`. All standard-profile build
+recipes now omit unofficial-opcode mode. The linked-code gate decodes every
+executable profile segment and rejects unofficial instruction bytes, including
+a negative control introduced through raw `op4B`.
 
 Regenerate the empty source inventory from this directory with:
 

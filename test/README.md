@@ -93,10 +93,16 @@ smoke cartridge.
 normalization. It regenerates the selected source beside the checked-in outputs
 and requires byte identity, checks all five deliberate macro ports and the
 selected DASM transformations, requires the legal `AND`/`LSR`,
-`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting kernel both
-with and without `--illegals` and requires identical `.o26` output, verifies its
-segment map and score table, and assembles a smoke source that invokes every
-retained macro without unofficial-opcode mode.
+`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting kernel
+without unofficial-opcode mode, verifies its segment map and score table, and
+assembles a smoke source that invokes every retained macro.
+
+`vcs_standard_kernel_legal_bytes.test` builds the complete static profile
+without `--illegals`, decodes all six linked executable segments against the
+151 official NMOS 6502 opcodes, and skips only the profile's two explicitly
+located lookup-table ranges. A second build injects raw `op4B #$F0`; assembly
+and linking still succeed, but the linked-byte gate must reject the unofficial
+instruction byte.
 
 `vcs_standard_kernel_legal_schedule.test` executes the complete static-kernel
 cartridge and locks the legal packed-mask schedule across 46 steady-state

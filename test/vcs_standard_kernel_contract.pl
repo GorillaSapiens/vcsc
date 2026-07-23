@@ -53,7 +53,7 @@ sub build_smoke {
    my @sources=ref($src) eq 'ARRAY' ? @$src : ($src);
    my $label=join(',',@sources);
    my ($exit,$sig,$out,$err)=run_capture(
-      $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,@sources,'-o',$bin);
+      $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,@sources,'-o',$bin);
    die "contract smoke build $label exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
       if $exit || $sig;
    die "contract smoke build $label wrote stdout:\n$out" if $out ne '';
@@ -135,7 +135,7 @@ require_re($rom_src_text,qr/^page\s+const\s+uint8_t\s+vcs_standard_playfield\s*\
 $rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned\n";
 
 my ($ram_exit,$ram_sig,$ram_out,$ram_err)=run_capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,
+   $driver,'-I',$vcs,'-T',$cfg,
    $ram_src,'-o',File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'));
 $ram_exit != 0 && !$ram_sig or die "mutable-playfield smoke unexpectedly linked\n";
 $ram_out eq '' or die "mutable-playfield smoke wrote stdout:\n$ram_out";

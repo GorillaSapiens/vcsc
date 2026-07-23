@@ -38,7 +38,7 @@ my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'object_pairwise.bin');
 my $mapfile=File::Spec->catfile($tmp,'object_pairwise.map');
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
+   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
    $source,$kernel,'-o',$bin);
 $rc==0 && !$sig or die "pairwise diagnostic build failed\n$out$err";
 $out eq '' && $err eq '' or die "pairwise diagnostic build wrote output\n$out$err";

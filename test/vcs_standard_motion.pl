@@ -38,7 +38,7 @@ my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'object_motion_test.bin');
 my $mapfile=File::Spec->catfile($tmp,'object_motion_test.map');
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
+   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
    $source,$kernel,'-o',$bin);
 $rc==0 && !$sig or die "motion diagnostic build failed\n$out$err";
 $out eq '' && $err eq '' or die "motion diagnostic build wrote output\n$out$err";

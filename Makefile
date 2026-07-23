@@ -151,14 +151,14 @@ installcheck: tools
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
-	"$$stage_bin/vcsc-as" --illegals \
+	"$$stage_bin/vcsc-as" \
 	  -I "$$stage_vcs/kernels/standard_4k_ntsc" \
 	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.map" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" \
 	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26"` -gt 0; \
 	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
-	if "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	if "$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin" \
@@ -168,12 +168,12 @@ installcheck: tools
 	fi; \
 	test ! -s "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stdout"; \
 	grep -q "RAM overflow" "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stderr"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/05_static_kernel_test/static_kernel_test.c26" \
 	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s" \

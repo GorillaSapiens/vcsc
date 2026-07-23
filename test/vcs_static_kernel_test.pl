@@ -59,7 +59,7 @@ my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
 my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$mapfile,
+   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
    $source,$kernel,'-o',$bin);
 $exit == 0 && !$sig
    or die "static-kernel build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";

@@ -90,12 +90,19 @@ call-graph sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM
 smoke cartridge.
 
 `vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
-normalization. It regenerates the selected source beside the checked-in outputs and requires byte identity,
-checks all five deliberate macro ports and the selected DASM transformations,
-requires the retained `ASR` and `SBX` spellings to survive normalization,
-assembles the resulting kernel to current `.o26` with `--illegals`, verifies its
-segment map and score table, rejects assembly without unofficial mnemonics, and
-assembles a smoke source that invokes every retained macro.
+normalization. It regenerates the selected source beside the checked-in outputs
+and requires byte identity, checks all five deliberate macro ports and the
+selected DASM transformations, requires the legal `AND`/`LSR`,
+`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting kernel to a
+current `.o26` object without unofficial-opcode mode, verifies its segment map
+and score table, and assembles a smoke source that invokes every retained macro.
+
+`vcs_standard_kernel_legal_bytes.test` builds the complete static standard
+profile without `--illegals`, decodes every linked executable segment while
+excluding the two documented lookup-table ranges, and rejects any unofficial
+NMOS opcode at an instruction boundary. Its negative control injects raw
+`op4B`, proving that the gate catches the assembler's exact-byte escape hatch
+rather than relying only on mnemonic rejection.
 
 `assembler_illegal_alias_catalog.test` checks that the retained `ASR` and `SBX`
 aliases remain active while the broader historical catalog remains commented
