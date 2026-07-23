@@ -8,6 +8,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub slurp {
    my ($path)=@_;
    open(my $fh,'<:raw',$path) or die "could not read $path: $!\n";
@@ -35,7 +41,7 @@ sub require_ok {
    my ($exit,$sig,$out,$err)=run_capture(@cmd);
    $exit == 0 && !$sig
       or die "$label failed: exit=$exit signal=$sig\n@cmd\nstdout:\n$out\nstderr:\n$err";
-   $out eq '' or die "$label wrote stdout:\n$out";
+   without_cartridge_usage($out) eq '' or die "$label wrote stdout:\n$out";
    $err eq '' or die "$label wrote stderr:\n$err";
 }
 sub map_symbol {

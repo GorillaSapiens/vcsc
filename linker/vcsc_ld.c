@@ -2280,8 +2280,74 @@ static int taken_branch_crosses_page(uint16_t source, uint16_t target)
    return (next_pc & 0xff00u) != (target & 0xff00u);
 }
 
+//! @brief Return whether a MEMORY region holds cartridge output bytes.
+static int memory_region_is_cartridge_rom(const linker_config_t *cfg,
+                                           const memory_region_t *mem)
+{
+   size_t i;
+
+   if (cfg == NULL || mem == NULL)
+      return 0;
+   if (str_ieq(mem->type, "ro"))
+      return 1;
+   for (i = 0; i < cfg->seg_count; ++i) {
+      const segment_rule_t *seg = &cfg->seg[i];
+      if (!str_ieq(seg->load_name, mem->name))
+         continue;
+      if (str_ieq(seg->type, "ro") || str_ieq(seg->type, "data"))
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Count occupied output bytes inside one MEMORY region.
+static uint32_t memory_region_used_bytes(const memory_region_t *mem, const uint8_t *used)
+{
+   uint32_t count = 0;
+   uint32_t start;
+   uint32_t end;
+   uint32_t addr;
+
+   if (mem == NULL || used == NULL)
+      return 0;
+   start = mem->start;
+   end = start + mem->size;
+   if (end > 0x10000u)
+      end = 0x10000u;
+   for (addr = start; addr < end; ++addr) {
+      if (used[addr])
+         count++;
+   }
+   return count;
+}
+
+//! @brief Write cartridge-ROM usage lines to the selected stream.
+static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
+                                      const uint8_t *used, const char *indent)
+{
+   size_t i;
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      uint32_t used_bytes;
+      uint32_t free_bytes;
+      double used_percent;
+      double free_percent;
+
+      if (!memory_region_is_cartridge_rom(cfg, mem))
+         continue;
+      used_bytes = memory_region_used_bytes(mem, used);
+      free_bytes = (uint32_t)mem->size - used_bytes;
+      used_percent = mem->size ? (100.0 * (double)used_bytes / (double)mem->size) : 0.0;
+      free_percent = mem->size ? (100.0 - used_percent) : 0.0;
+      fprintf(fp, "%s%-10s used=%" PRIu32 " bytes (%.2f%%) free=%" PRIu32 " bytes (%.2f%%)\n",
+              indent, mem->name, used_bytes, used_percent, free_bytes, free_percent);
+   }
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
-static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in, const layout_t *layout)
+static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in,
+                           const layout_t *layout, const uint8_t *used)
 {
    FILE *fp;
    size_t i;
@@ -2298,6 +2364,9 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s\n",
          cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
    }
+
+   fprintf(fp, "\nCARTRIDGE ROM USAGE\n");
+   write_cartridge_rom_usage(fp, cfg, used, "  ");
 
    fprintf(fp, "\nOBJECTS\n");
    for (i = 0; i < in->object_count; ++i) {
@@ -2576,7 +2645,9 @@ int main(int argc, char **argv)
       write_flat_binary(hex_path, image, used);
    else
       write_intel_hex(hex_path, image, used);
-   write_map_file(map_path, &cfg, &inputs, &layout);
+   write_map_file(map_path, &cfg, &inputs, &layout, used);
+   puts("CARTRIDGE ROM USAGE");
+   write_cartridge_rom_usage(stdout, &cfg, used, "  ");
 
    free(image);
    free(used);

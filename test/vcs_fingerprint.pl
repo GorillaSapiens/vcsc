@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO_ROOT TMP_DIR\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub run_capture {
@@ -76,7 +82,7 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-Wa,--illegals','-Map',$map,$src,'-o',$bin);
 die "fingerprint build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
-die "fingerprint build wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
+die "fingerprint build wrote output\nstdout:\n$out\nstderr:\n$err" if without_cartridge_usage($out) ne '' || $err ne '';
 
 ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-S',$src,'-o',$asm);
 die "fingerprint compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;

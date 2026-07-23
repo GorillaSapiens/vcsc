@@ -7,10 +7,16 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub write_file { my ($p,$d)=@_; open(my $f,'>:raw',$p) or die "write $p: $!\n"; print {$f} $d; close($f) or die "close $p: $!\n"; }
 sub slurp { my ($p)=@_; open(my $f,'<:raw',$p) or die "read $p: $!\n"; local $/; my $d=<$f>; close($f); return defined($d)?$d:''; }
 sub run_capture { my (@c)=@_; my $e=gensym; my $pid=open3(my $in,my $out,$e,@c); close($in); local $/; my $o=<$out>//''; my $x=<$e>//''; waitpid($pid,0); return ($?>>8,$?&127,$o,$x); }
-sub require_ok { my ($n,@c)=@_; my ($x,$s,$o,$e)=run_capture(@c); $x==0&&!$s or die "$n failed\n@c\n$o$e"; $o eq '' or die "$n stdout: $o"; $e eq '' or die "$n stderr: $e"; }
+sub require_ok { my ($n,@c)=@_; my ($x,$s,$o,$e)=run_capture(@c); $x==0&&!$s or die "$n failed\n@c\n$o$e"; without_cartridge_usage($o) eq '' or die "$n stdout: $o"; $e eq '' or die "$n stderr: $e"; }
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO TMP\n");
 my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n"; @ARGV and die "usage: $0 REPO TMP\n";

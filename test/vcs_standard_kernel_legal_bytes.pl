@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO TMP\n"; }
 sub read_file {
    my ($path)=@_;
@@ -131,7 +137,7 @@ sub build_profile {
       $driver,'-I',$vcs,'-I',$profile,'-T',$cfg,'-Map',$map,
       $source,$kernel,'-o',$bin);
    $rc==0 && !$sig or die "profile build failed\nstdout:\n$out\nstderr:\n$err";
-   $out eq '' or die "profile build wrote stdout:\n$out";
+   without_cartridge_usage($out) eq '' or die "profile build wrote stdout:\n$out";
    $err eq '' or die "profile build wrote stderr:\n$err";
 }
 
@@ -156,7 +162,7 @@ my $object_map=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.map');
 my ($rc,$sig,$out,$err)=capture(
    $assembler,'-I',$profile,"--map=$object_map",'-o',$object,$kernel);
 $rc==0 && !$sig or die "plain kernel assembly failed\nstdout:\n$out\nstderr:\n$err";
-$out eq '' or die "plain kernel assembly wrote stdout:\n$out";
+without_cartridge_usage($out) eq '' or die "plain kernel assembly wrote stdout:\n$out";
 $err eq '' or die "plain kernel assembly wrote stderr:\n$err";
 my $omap=read_file($object_map);
 my %layout=(

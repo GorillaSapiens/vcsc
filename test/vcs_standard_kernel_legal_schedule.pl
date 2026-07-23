@@ -6,6 +6,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO TMP\n"; }
 sub slurp_fh { my($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub capture {
@@ -41,7 +47,7 @@ my($rc,$sig,$out,$err)=capture(
    $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
    $source,$kernel,'-o',$bin);
 $rc==0 && !$sig or die "static-kernel build failed\n$out$err";
-$out eq '' && $err eq '' or die "static-kernel build wrote output\n$out$err";
+without_cartridge_usage($out) eq '' && $err eq '' or die "static-kernel build wrote output\n$out$err";
 my $map=read_file($mapfile);
 my @zp=map { map_symbol($map,$_) } qw(
    vcs_standard_object_masks
@@ -56,7 +62,7 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 ($rc,$sig,$out,$err)=capture(
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
 $rc==0 && !$sig or die "mask schedule harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "mask schedule build wrote output\n$out$err";
+without_cartridge_usage($out) eq '' && $err eq '' or die "mask schedule build wrote output\n$out$err";
 my $base=$zp[0];
 my @args=(sprintf('0x%02x',$base));
 ($rc,$sig,$out,$err)=capture($exe,$bin,@args);

@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO_ROOT TMP_DIR\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub run_capture {
@@ -79,7 +85,7 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 my ($exit,$sig,$out,$err)=run_capture(
    $driver,'-I',$vcs,'-I',$ex,'-Map',$map,$src,'-o',$bin);
 die "score build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
-die "score build wrote stdout:\n$out" if $out ne '';
+die "score build wrote stdout:\n$out" if without_cartridge_usage($out) ne '';
 die "score build wrote stderr:\n$err" if $err ne '';
 
 ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-I',$ex,'-S',$src,'-o',$asm);
@@ -236,7 +242,7 @@ my $cxx=$ENV{CXX} || 'c++';
 );
 die "timing harness build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
    if $exit || $sig;
-die "timing harness build wrote unexpected stdout:\n$out" if $out ne '';
+die "timing harness build wrote unexpected stdout:\n$out" if without_cartridge_usage($out) ne '';
 
 ($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','263');
 die "timing verification exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"

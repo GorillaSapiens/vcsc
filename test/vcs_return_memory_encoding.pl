@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO_ROOT TMP_DIR\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub read_file {
@@ -35,7 +41,7 @@ sub require_ok {
    my ($what,$exit,$signal,$stdout,$stderr)=@_;
    die "$what exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
       if $exit != 0 || $signal != 0;
-   die "$what wrote unexpected stdout:\n$stdout" if $stdout ne '';
+   die "$what wrote unexpected stdout:\n$stdout" if without_cartridge_usage($stdout) ne '';
    die "$what wrote unexpected stderr:\n$stderr" if $stderr ne '';
 }
 sub asm_symbol {

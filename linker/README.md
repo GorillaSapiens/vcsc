@@ -186,9 +186,18 @@ For the current object format subset, `vcsc-ld` maps o26 segments like this:
 
 `DATA` bytes are stored in ROM in the output image, but symbols and relocations referring to `DATA` use the RAM run address.
 
-## Map file
+## Cartridge ROM usage and map file
 
-When you request a map file, `vcsc-ld` writes:
+After every successful link, `vcsc-ld` prints a `CARTRIDGE ROM USAGE` summary.
+Every MEMORY region used as the load target of a read-only or initialized-data
+segment is reported separately with occupied bytes, free bytes, and percentages.
+The counts come from the final output occupancy bitmap after relocation and
+linker-generated tables are written: alignment holes remain free, while actual
+initializer tables and vector bytes count as used. A failed link emits no success
+summary.
+
+When you request a map file, `vcsc-ld` writes the same cartridge-ROM usage
+section plus:
 - effective memory regions after any call-graph stack reservation
 - object placement
 - the selected call-stack region, graph depth, byte reserve, and physical range

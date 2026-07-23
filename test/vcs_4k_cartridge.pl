@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage {
    die "usage: $0 REPO_ROOT TMP_DIR\n";
 }
@@ -62,7 +68,7 @@ my ($exit, $signal, $stdout, $stderr) = run_capture(
 );
 die "cartridge build exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
    if $exit != 0 || $signal != 0;
-die "cartridge build wrote unexpected stdout:\n$stdout" if $stdout ne '';
+die "cartridge build wrote unexpected stdout:\n$stdout" if without_cartridge_usage($stdout) ne '';
 die "cartridge build wrote unexpected stderr:\n$stderr" if $stderr ne '';
 
 my $rom = read_file($binary);

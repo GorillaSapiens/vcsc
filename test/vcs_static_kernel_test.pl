@@ -8,6 +8,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO TMP\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub run_capture {
@@ -63,7 +69,7 @@ my ($exit,$sig,$out,$err)=run_capture(
    $source,$kernel,'-o',$bin);
 $exit == 0 && !$sig
    or die "static-kernel build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
-$out eq '' or die "static-kernel build wrote stdout:\n$out";
+without_cartridge_usage($out) eq '' or die "static-kernel build wrote stdout:\n$out";
 $err eq '' or die "static-kernel build wrote stderr:\n$err";
 
 my $rom=read_file($bin);
@@ -183,7 +189,7 @@ my $cxx=$ENV{CXX} || 'c++';
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos_dir,$phase_source,$mos_source,'-o',$phase_exe);
 $exit == 0 && !$sig
    or die "playfield-phase harness build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
-$out eq '' or die "playfield-phase harness build wrote stdout:\n$out";
+without_cartridge_usage($out) eq '' or die "playfield-phase harness build wrote stdout:\n$out";
 ($exit,$sig,$out,$err)=run_capture($phase_exe,$bin);
 $exit == 0 && !$sig
    or die "playfield-phase verification failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
@@ -195,7 +201,7 @@ $err eq '' or die "playfield-phase verifier wrote stderr:\n$err";
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos_dir,$objects_source,$mos_source,'-o',$objects_exe);
 $exit == 0 && !$sig
    or die "object harness build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
-$out eq '' or die "object harness build wrote stdout:\n$out";
+without_cartridge_usage($out) eq '' or die "object harness build wrote stdout:\n$out";
 ($exit,$sig,$out,$err)=run_capture($objects_exe,$bin);
 $exit == 0 && !$sig
    or die "object verification failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";

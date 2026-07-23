@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO_ROOT TMP_DIR\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub run_capture {
@@ -102,7 +108,7 @@ for my $family (@families) {
       my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$src,'-o',$bin);
       die "$module build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
          if $exit || $sig;
-      die "$module build wrote stdout:\n$out" if $out ne '';
+      die "$module build wrote stdout:\n$out" if without_cartridge_usage($out) ne '';
       die "$module build wrote stderr:\n$err" if $err ne '';
       -s $bin == 4096 or die "$module cartridge is not 4096 bytes\n";
    }

@@ -7,6 +7,12 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub without_cartridge_usage {
+   my ($out) = @_;
+   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//;
+   return $out;
+}
+
 sub usage { die "usage: $0 REPO_ROOT TMP_DIR\n"; }
 sub slurp_fh { my ($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub run_capture {
@@ -56,7 +62,7 @@ sub build_smoke {
       $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,@sources,'-o',$bin);
    die "contract smoke build $label exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
       if $exit || $sig;
-   die "contract smoke build $label wrote stdout:\n$out" if $out ne '';
+   die "contract smoke build $label wrote stdout:\n$out" if without_cartridge_usage($out) ne '';
    die "contract smoke build $label wrote stderr:\n$err" if $err ne '';
    -s $bin == 4096 or die "contract smoke cartridge $label is not 4096 bytes\n";
    return read_file($map);
@@ -138,7 +144,7 @@ my ($ram_exit,$ram_sig,$ram_out,$ram_err)=run_capture(
    $driver,'-I',$vcs,'-T',$cfg,
    $ram_src,'-o',File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'));
 $ram_exit != 0 && !$ram_sig or die "mutable-playfield smoke unexpectedly linked\n";
-$ram_out eq '' or die "mutable-playfield smoke wrote stdout:\n$ram_out";
+without_cartridge_usage($ram_out) eq '' or die "mutable-playfield smoke wrote stdout:\n$ram_out";
 $ram_err =~ /does not fit|overflow|out of memory|RAM/i
    or die "mutable-playfield failure did not report RIOT RAM exhaustion:\n$ram_err";
 
@@ -178,7 +184,7 @@ write_file($bad_cfg,$bad_text);
 my ($bad_exit,$bad_sig,$bad_out,$bad_err)=run_capture(
    $driver,'-I',$vcs,'-T',$bad_cfg,$ram_src,'-o',File::Spec->catfile($tmp,'bad.bin'));
 $bad_exit != 0 && !$bad_sig or die "callstack_extra without callgraph unexpectedly linked\n";
-$bad_out eq '' or die "bad profile wrote unexpected stdout:\n$bad_out";
+without_cartridge_usage($bad_out) eq '' or die "bad profile wrote unexpected stdout:\n$bad_out";
 $bad_err =~ /sets callstack_extra but does not request callstack=callgraph/
    or die "bad profile did not report the callstack_extra contract error:\n$bad_err";
 
