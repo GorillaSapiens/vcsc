@@ -3,7 +3,7 @@
 // expectlinkfail
 // expectlinkerr: mem region 'banana' declared by
 // expectlinkerr: is not present in linker cfg MEMORY
-// expectlinkerr: Add a MEMORY entry named 'banana' or change the n source mem declaration
+// expectlinkerr: Add a MEMORY entry named 'banana' or change the VCSC source mem declaration
 include "machine_6502.c26"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 

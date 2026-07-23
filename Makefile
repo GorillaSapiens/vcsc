@@ -64,6 +64,7 @@ install-data:
 	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	install -m 0644 libraries/vcs/six_glyph_display.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.c26
+	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
@@ -71,7 +72,6 @@ install-data:
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26 \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26 \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
@@ -99,13 +99,13 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_display.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc
@@ -143,10 +143,10 @@ installcheck: tools
 	  "$(CURDIR)/examples/04_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
+	test -f "$$stage_vcs/sound_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \

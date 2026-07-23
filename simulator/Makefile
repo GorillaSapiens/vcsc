@@ -1,5 +1,3 @@
-LEX = flex
-YACC = bison
 CC = g++
 CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
 
@@ -19,7 +17,6 @@ DESTDIR ?=
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen
-INSTALL_DATA ?= $(INSTALL) -m 0644
 
 SRCSRC = \
    mos6502/mos6502.cpp \
@@ -32,7 +29,7 @@ DEP = $(OBJ:.o=.d)
 all:
 	@make --no-print-directory $(TARGET)
 
-$(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
+$(TARGET): version.h $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
 .PHONY: version FORCE

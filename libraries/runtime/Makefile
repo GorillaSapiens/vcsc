@@ -18,7 +18,7 @@ ZP_SOURCES = \
 	vcsc-zp-ptr0.s26 vcsc-zp-ptr1.s26 vcsc-zp-ptr2.s26
 
 all: $(ASM) $(VCSC_AR)
-	rm -rf wrk libvcsc.a libvcsc.l26
+	rm -rf wrk libvcsc.l26
 	mkdir wrk
 	./unbundle.pl
 	cp *.s26 wrk
@@ -54,6 +54,7 @@ uninstall:
 	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE
 
 clean:
-	rm -f *.o *.bin tests libvcsc.a libvcsc.l26 wrk/*
+	rm -f libvcsc.l26
+	rm -rf wrk
 
 .PHONY: docs

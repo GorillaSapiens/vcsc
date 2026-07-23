@@ -315,7 +315,7 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          if (!mem) {
             fprintf(stderr,
                   "vcsc-ld: mem region '%s' declared by %s is not present in linker cfg MEMORY. "
-                  "Add a MEMORY entry named '%s' or change the n source mem declaration so they match.\n",
+                  "Add a MEMORY entry named '%s' or change the VCSC source mem declaration so they match.\n",
                   region, obj->origin, region);
             exit(1);
          }
@@ -323,21 +323,21 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          if (mem->start != declared_start) {
             fprintf(stderr,
                   "vcsc-ld: mem region '%s' start mismatch in %s: compiler mem declaration says $%04X "
-                  "but linker cfg MEMORY %s starts at $%04X. Update the n source mem declaration or the linker cfg so they match.\n",
+                  "but linker cfg MEMORY %s starts at $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
                   region, obj->origin, declared_start, mem->name, mem->start);
             exit(1);
          }
          if (mem->size != declared_size) {
             fprintf(stderr,
                   "vcsc-ld: mem region '%s' size mismatch in %s: compiler mem declaration says $%04X "
-                  "but linker cfg MEMORY %s has size $%04X. Update the n source mem declaration or the linker cfg so they match.\n",
+                  "but linker cfg MEMORY %s has size $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
                   region, obj->origin, declared_size, mem->name, mem->size);
             exit(1);
          }
          if (!str_ieq(mem->type, type)) {
             fprintf(stderr,
                   "vcsc-ld: mem region '%s' type mismatch in %s: compiler mem declaration says %s "
-                  "but linker cfg MEMORY %s has type %s. Update the n source mem declaration or the linker cfg so they match.\n",
+                  "but linker cfg MEMORY %s has type %s. Update the VCSC source mem declaration or the linker cfg so they match.\n",
                   region, obj->origin, type, mem->name, mem->type);
             exit(1);
          }

@@ -30,8 +30,8 @@ The current source contains 28 relative branches, 35 indexed reads, 11 indexed i
 and no source-level unofficial-opcode sites.
 
 Task 20o originally classified the retained forms and locked their bytes and
-cycles. The generated `standard_4k_ntsc_unofficial_opcodes.tsv` is now empty
-apart from its header.
+cycles. After task 20r removed the final source sites and task 20s added the
+linked-byte gate, the empty unofficial-opcode TSV inventory was retired.
 
 * task 20p removed all 5 `LAX` sites;
 * task 20q removed all 11 `DCP` sites; and

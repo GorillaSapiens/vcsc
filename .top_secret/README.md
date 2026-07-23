@@ -23,3 +23,4 @@ The cumulative one-path-per-line deletion and rename ledger. It is used when rec
 
 - The former top-level `NOTES.md` duplicated maintained documentation and contained stale claims, including that source-level inline functions were unsupported.
 - The former `software_stack_inventory.txt` was a frozen historical snapshot. The executable regression `test/software_stack_inventory.pl` is now the authoritative check for removed software-stack emitters and runtime symbols.
+- The accidental `instruction.txt` was copied conversational task text, not durable project state. A hygiene regression now restricts this directory to this README, `context.txt`, and `remove.txt`.

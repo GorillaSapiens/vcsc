@@ -23,7 +23,7 @@ INSTALL_DATA ?= $(INSTALL) -m 0644
 TEST   = test
 
 GENSRC = parser.tab.c lex.yy.c
-GENHDR = parser.tab.h delexer.h
+GENHDR = parser.tab.h delexer.h coverage_map.h
 
 SRCSRC = \
    abi_meta.c \
@@ -105,7 +105,7 @@ part:
 test:
 	(cd ../test; ./test.pl --compile-only)
 
-$(TARGET): version.h coverage_map.h $(GENHDR) $(GENSRC) $(OBJ)
+$(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
 vcsc_cc1.o: version.h

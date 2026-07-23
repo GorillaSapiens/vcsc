@@ -1,4 +1,4 @@
-# runner: stdbuf -o0 vcsc-sim -T @TEST_ROOT@/simulator_smoke.cfg @TEST_ROOT@/simulator_smoke_ro_write.hex
+# runner: stdbuf -o0 vcsc-sim -T @REPO@/linker/cfg/sim.cfg @TEST_ROOT@/simulator_smoke_ro_write.hex
 # phase: e2e
 # timeout: 2
 # expectexit: 1

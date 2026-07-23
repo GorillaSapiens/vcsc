@@ -1,7 +1,6 @@
 *.o
 *.d
 vcsc-as
-nid
 parser.output
 lex.yy.c
 parser.tab.c

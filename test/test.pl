@@ -432,7 +432,7 @@ sub require_file_expectations_result {
    return undef;
 }
 
-sub compile_n_to_object {
+sub compile_source_to_object {
    my ($src_name, $runner_args, $tmp, $test_name) = @_;
    my ($stem) = $src_name =~ /^(.*)\.c26$/;
    my $src_path = File::Spec->catfile($test_root, $src_name);
@@ -497,7 +497,7 @@ sub run_compile_case {
    return pass_result();
 }
 
-sub run_e2e_case {
+sub ruvcsc_e2e_case {
    my ($case) = @_;
    my $file = $case->{name};
    my $runner_args = $case->{runner_args};
@@ -506,7 +506,7 @@ sub run_e2e_case {
       return fail_result("missing required file: $tool") if !-e $tool;
    }
 
-   my $tmp = tempdir("n_e2e_${file}_XXXX", TMPDIR => 1, CLEANUP => 1);
+   my $tmp = tempdir("vcsc_e2e_${file}_XXXX", TMPDIR => 1, CLEANUP => 1);
    my $ctx = {
       '@REPO@' => $repo_root,
       '@TEST_ROOT@' => $test_root,
@@ -553,14 +553,14 @@ sub run_e2e_case {
    push @compiled_objects, $main_o26;
 
    for my $obj_src_name (@{$meta->{object}}) {
-      my ($obj, $obj_err) = compile_n_to_object($obj_src_name, $runner_args, $tmp, $file);
+      my ($obj, $obj_err) = compile_source_to_object($obj_src_name, $runner_args, $tmp, $file);
       return fail_result($obj_err) if defined $obj_err;
       push @compiled_objects, $obj;
    }
 
    for my $arc_src_name (@{$meta->{archive}}) {
       my ($stem2) = $arc_src_name =~ /^(.*)\.c26$/;
-      my ($o_path, $obj_err) = compile_n_to_object($arc_src_name, $runner_args, $tmp, $file);
+      my ($o_path, $obj_err) = compile_source_to_object($arc_src_name, $runner_args, $tmp, $file);
       return fail_result($obj_err) if defined $obj_err;
       my $a_path = File::Spec->catfile($tmp, "$stem2.l26");
       my @ncmd = ($vcsc_ar, 'rcs', $a_path, $o_path);
@@ -580,7 +580,7 @@ sub run_e2e_case {
       for my $group (sort keys %groups) {
          my @group_objects;
          for my $src_name (@{$groups{$group}}) {
-            my ($obj, $obj_err) = compile_n_to_object($src_name, $runner_args, $tmp, $file);
+            my ($obj, $obj_err) = compile_source_to_object($src_name, $runner_args, $tmp, $file);
             return fail_result($obj_err) if defined $obj_err;
             push @group_objects, $obj;
          }
@@ -654,10 +654,10 @@ sub run_e2e_case {
    return pass_result();
 }
 
-sub run_generic_case {
+sub ruvcsc_generic_case {
    my ($case) = @_;
    my $meta = $case->{meta};
-   my $tmp = tempdir("n_generic_XXXX", TMPDIR => 1, CLEANUP => 1);
+   my $tmp = tempdir("vcsc_generic_XXXX", TMPDIR => 1, CLEANUP => 1);
    my $ctx = {
       '@REPO@' => $repo_root,
       '@TEST_ROOT@' => $test_root,
@@ -854,10 +854,10 @@ for my $case (@cases) {
       $result = run_compile_case($case);
    }
    elsif ($case->{kind} eq 'vcsc-e2e') {
-      $result = run_e2e_case($case);
+      $result = ruvcsc_e2e_case($case);
    }
    else {
-      $result = run_generic_case($case);
+      $result = ruvcsc_generic_case($case);
    }
 
    my $progress = progress($index, $total);

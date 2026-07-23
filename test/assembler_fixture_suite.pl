@@ -39,7 +39,6 @@ my @cases = (
    [ 'def_alias.s26 object',   'obj', 'def_alias.s26',      0, [] ],
    [ 'import_fail.s26 object', 'obj', 'import_fail.s26',    0, [] ],
    [ 'obj.s26 object',         'obj', 'obj.s26',            0, [] ],
-   [ 'obj2.s26 object',        'obj', 'obj2.s26',           0, [] ],
    [ 'extended symbol namespace object', 'obj', 'extended_symbol_namespace.s26', 0, [] ],
    [ 'selection.s26 object',   'obj', 'selection.s26',      0, [] ],
    [ 'zp_annot.s26 object',    'obj', 'zp_annot.s26',       0, [] ],

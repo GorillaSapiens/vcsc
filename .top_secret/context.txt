@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260721_210248.tar.gz
+    vcsc.20260722_223017.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1199,6 +1199,14 @@ centered untorn playfield. Tasks 20t and 20u completed source-suffix cleanup and
 reporting. Task 20v now supplies one optional stack-safe end-of-frame hook after
 persistent state restoration and VBLANK assertion; hook changes affect the next
 frame.
+
+A full source-tree hygiene audit removed dead one-off scripts, exact duplicate
+fixtures/tests, obsolete simulator-config copies, an empty superseded
+unofficial-opcode inventory, and accidental internal residue. The runtime
+`unbundle.pl` remains required, and the standard-kernel timing TSV remains an
+active reproducible regression artifact. Three previously stranded `.c26`
+tests are now executed, generated `coverage_map.h` is no longer stored as
+source, and `test/source_tree_hygiene.test` guards against recurrence.
 
 Open implementation questions
 -----------------------------
@@ -3573,3 +3581,38 @@ Before returning another modified archive:
   regressions, plus staged installation. No files are removed;
   `.top_secret/remove.txt` remains at 935 cumulative paths. Task 21 is next.
 
+2026-07-22 22:53:02 PDT, source-tree hygiene and dead-file audit
+----------------------------------------------------------------
+* Audit every source-tree file against build rules, installation manifests, tests,
+  documentation, and direct references. Retain `libraries/runtime/unbundle.pl`: the
+  runtime Makefile actively uses it to split bundled assembly procedures before
+  creating `libvcsc.l26`. Retain
+  `standard_4k_ntsc_timing_inventory.tsv`: it is a generated-but-maintained timing
+  contract checked by the normalization/timing regressions.
+* Remove eleven obsolete or duplicate files: accidental
+  `.top_secret/instruction.txt`; unused `compiler/parserparser.pl` and
+  `test/unimpl_audit.pl`; checked-in generated `compiler/coverage_map.h`; duplicate
+  assembler fixture `assembler/tests/obj2.s26`; duplicate compile tests
+  `e2e_static_parameter_cycle_fail.c26` and
+  `switch_range_compact_codegen_test.c26`; empty superseded unofficial-opcode TSV and
+  its one-off generator; and two redundant simulator configuration copies. Record
+  all removed paths in `.top_secret/remove.txt`, now 946 unique cumulative paths.
+* Generate and clean `coverage_map.h` through the compiler Makefile instead of
+  carrying it as source. Remove stale or hazardous cleanup names from assembler,
+  runtime, and simulator Makefiles and matching `.gitignore` entries. Consolidate
+  simulator tests on `linker/cfg/sim.cfg`.
+* Activate three intended tests that the runner had silently ignored because they
+  lacked command headers: absolute-reference member code generation and both
+  variadic-declaration rejection tests. Remove their obsolete syntax assumptions.
+  The compile-only suite therefore changes from 288 to 289 tests after deleting two
+  duplicates and activating three real tests.
+* Retire the empty unofficial-opcode TSV pipeline. The maintained-source scan and
+  final linked-byte gate remain authoritative. Add `source_tree_hygiene.test` to
+  reject unreferenced test/support files, duplicate fixtures/tests, duplicate remove
+  ledger entries, and resurrected deleted paths.
+* Fix the install manifest to include the live documented `sound_ntsc.c26` helper.
+  Clean stale pre-rename wording from linker diagnostics and temporary test-file
+  prefixes.
+* Pass 289/289 compile-only tests, 158/158 end-to-end/generic tests, the new hygiene
+  regression, and staged installation. No roadmap item is advanced; task 21 remains
+  next.

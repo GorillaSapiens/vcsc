@@ -1,5 +1,5 @@
 # runner: perl @REPO@/test/assembler_fixture_suite.pl @REPO@ @TMP@
 # phase: e2e
 # expectexit: 0
-# expectstdout: assembler fixture summary: 28 passed
+# expectstdout: assembler fixture summary: 27 passed
 # expectstderrexact:

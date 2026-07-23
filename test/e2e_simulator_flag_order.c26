@@ -1,5 +1,5 @@
 // vcsc-cc1 -I .
-// simcfg: e2e_simulator_rom_protect__sim.cfg
+// simcfg: ../linker/cfg/sim.cfg
 // simargs: --trace 0x20
 // expectsim: dispatch ff 0000
 // expectsim: OK

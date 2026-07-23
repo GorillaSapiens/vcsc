@@ -92,7 +92,7 @@ lex.yy.c: lexer.l
 	$(LEX) lexer.l
 
 tidy:
-	rm -f $(TARGET) nid $(OBJ) $(DEP) *.o *.d *.gz
+	rm -f $(TARGET) $(OBJ) $(DEP) *.o *.d
 	
 docs:
 	$(MAKE) --no-print-directory -C .. docs

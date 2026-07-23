@@ -1,7 +1,8 @@
+// vcsc-cc1 -I .
 // phase: compile
 // expectfail
 // expecterr: variadic declarations are not supported
 
-type int16_t $size:2 $signed;
+include "machine_6502.c26"
 
 int16_t (*fn)(int16_t first, ...);

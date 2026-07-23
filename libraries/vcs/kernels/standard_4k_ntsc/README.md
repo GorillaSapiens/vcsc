@@ -78,10 +78,11 @@ slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
 Retained comments are copied without symbol rewriting.
 
 The historical unofficial forms and their task-20r legal replacements are
-recorded in [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md). The generated
-source inventory is empty, every checked-in profile recipe assembles without
-`--illegals`, and the linked-profile regression rejects unofficial instruction
-bytes even when they are introduced with a raw `opXX` spelling.
+recorded in [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md). A direct source scan finds no unofficial mnemonics, every checked-in profile
+recipe assembles without `--illegals`, and the linked-profile regression rejects
+unofficial instruction bytes even when they are introduced with a raw `opXX`
+spelling. The former empty TSV inventory was retired after the linked-byte gate
+made it redundant.
 
 The normalized source itself now assembles without unofficial mnemonics:
 

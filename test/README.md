@@ -144,6 +144,10 @@ that reversing config order reverses the winner, confirms that exact `opXX`
 spellings still reach both bytes, and rejects attempts to assign a byte to an
 incompatible addressing mode.
 
+`source_tree_hygiene.test` rejects stranded test/support files, assembler
+fixtures absent from the fixture suite, byte-identical duplicate test assets,
+duplicate deletion-ledger entries, and any deleted path that reappears.
+
 `vcsc_branding.test` also enforces the developer-record quarantine: only
 `.top_secret/context.txt`, `.top_secret/remove.txt`, and their explanatory
 README may occupy that internal role, while the obsolete top-level notes and

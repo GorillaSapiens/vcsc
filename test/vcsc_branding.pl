@@ -90,10 +90,19 @@ for my $parts (
    !-e $path or die "obsolete branded path remains: $path\n";
 }
 
+my $top_secret = File::Spec->catdir($repo, '.top_secret');
+opendir(my $top_secret_dh, $top_secret) or die "could not open $top_secret: $!\n";
+my @top_secret_extra = sort grep {
+   $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
+} readdir($top_secret_dh);
+closedir($top_secret_dh);
+@top_secret_extra and die "unexpected developer-only files remain: @top_secret_extra\n";
+
 for my $parts (
    [qw(.top_secret README.md)],
    [qw(.top_secret context.txt)],
    [qw(.top_secret remove.txt)],
+   [qw(.top_secret instruction.txt)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required developer-only record is missing: $path\n";
@@ -104,6 +113,13 @@ for my $parts (
    [qw(context.txt)],
    [qw(remove.txt)],
    [qw(software_stack_inventory.txt)],
+   [qw(compiler parserparser.pl)],
+   [qw(test unimpl_audit.pl)],
+   [qw(test e2e_static_parameter_cycle_fail.c26)],
+   [qw(test switch_range_compact_codegen_test.c26)],
+   [qw(assembler tests obj2.s26)],
+   [qw(libraries vcs kernels standard_4k_ntsc unofficial_opcodes.pl)],
+   [qw(libraries vcs kernels standard_4k_ntsc standard_4k_ntsc_unofficial_opcodes.tsv)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    !-e $path or die "developer-only or obsolete root file remains: $path\n";

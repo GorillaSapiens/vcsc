@@ -31,12 +31,18 @@ sub ihex_data {
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
 $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($tmp);
 my $dir=File::Spec->catdir($repo,qw(libraries vcs kernels standard_4k_ntsc));
-my $gen=File::Spec->catfile($dir,'unofficial_opcodes.pl');
-my $tsv=File::Spec->catfile($dir,'standard_4k_ntsc_unofficial_opcodes.tsv');
-my $fresh=`cd '$dir' && ./unofficial_opcodes.pl`; $?==0 or die "generator failed\n";
-$fresh eq read_file($tsv) or die "unofficial-opcode inventory is stale\n";
-my @rows=grep {length} split(/\n/,$fresh); shift @rows eq join("\t",qw(file line mnemonic mode opcode bytes base_cycles page_penalty classification purpose)) or die "bad header\n";
-@rows==0 or die "expected no retained unofficial sites, got ".scalar(@rows)."\n";
+for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s26') {
+   my $path=File::Spec->catfile($dir,$name);
+   my $line=0;
+   for my $raw (split(/\n/,read_file($path))) {
+      ++$line;
+      $raw =~ s/;.*$//;
+      $raw =~ s/^\s+|\s+$//g;
+      next if $raw eq '';
+      $raw !~ /^(?:ASR|DCP|LAX|SBX|NOP\.z)\b/i
+         or die "$name:$line retains unofficial source mnemonic: $raw\n";
+   }
+}
 my $asm=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $legal_src=File::Spec->catfile($tmp,'legal_replacement_probe.s26');
 my $legal_hex=File::Spec->catfile($tmp,'legal_replacement_probe.hex');

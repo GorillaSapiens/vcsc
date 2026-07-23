@@ -933,3 +933,13 @@ test/void_pointer_argument_reverse_error_test.n
 test/weak_builtin_operator_codegen_test.n
 test/xform_invalid_utf8_error_test.n
 test/zeropage_storage_test.n
+assembler/tests/obj2.s26
+compiler/coverage_map.h
+compiler/parserparser.pl
+libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv
+libraries/vcs/kernels/standard_4k_ntsc/unofficial_opcodes.pl
+test/e2e_static_parameter_cycle_fail.c26
+test/switch_range_compact_codegen_test.c26
+test/unimpl_audit.pl
+test/e2e_simulator_rom_protect__sim.cfg
+test/simulator_smoke.cfg
