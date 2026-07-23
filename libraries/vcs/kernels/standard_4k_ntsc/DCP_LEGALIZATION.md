@@ -99,4 +99,4 @@ X=0..159 range against a visible ruler playfield. The static example also reappl
 frame and carries a reviewed Stella 7.0 raster with exact bounding boxes.
 
 Task 20q is complete. The normalized profile contains no `DCP` instruction; the
-remaining unofficial forms belong to tasks 20r and 20s.
+task 20r removed the remaining unofficial forms; task 20s removes redundant opt-in plumbing and adds a linked-byte gate.

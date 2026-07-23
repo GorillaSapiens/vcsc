@@ -108,7 +108,7 @@ int expected_resp_cycle(uint8_t x) {
 uint16_t find_horizontal_position_start() {
    const std::array<uint8_t, 20> pattern{{
       0xA2, 0x04,             // LDX #4
-      0x04, 0x00,             // three-cycle SLEEP
+      0x24, 0x00,             // legal three-cycle BIT delay
       0xB5, object_x_zp,      // LDA vcs_standard_object_x,X
       0x38,                   // SEC
       0xE9, 0x0F,             // SBC #15

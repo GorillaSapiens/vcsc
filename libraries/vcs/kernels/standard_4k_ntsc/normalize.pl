@@ -97,19 +97,15 @@ sub generated_header {
 
 sub macro_output {
    return generated_header('Deliberate vcsc-as ports of the five retained DASM macros.') . <<'ASM';
-; SLEEP duration -- exact cycle delay, duration > 1.
-; With --illegals, an odd delay begins with the exact three-cycle $04,$00
-; zero-page NOP.  NO_ILLEGAL_OPCODES selects the retained BIT VSYNC fallback.
+; SLEEP duration -- exact legal-instruction cycle delay, duration > 1.
+; Odd delays begin with three-cycle BIT VSYNC.  This performs one read from TIA
+; read address $00 and changes N/V/Z; every selected-profile use has dead flags.
 MACRO SLEEP duration
    .if duration < 2
       .error "MACRO ERROR: 'SLEEP': Duration must be > 1"
    .endif
    .if duration & 1
-      .ifndef NO_ILLEGAL_OPCODES
-         NOP.z $00
-      .else
-         BIT VSYNC
-      .endif
+      BIT VSYNC
       .repeat {duration - 3} / 2
          NOP
       .endrepeat
@@ -361,8 +357,8 @@ sub translate_line {
       $code =~ s/\b\Q$macro\E\b/$macro/ig;
    }
 
-   # Preserve the retained SBX and ASR spellings.  vcsc-as names both aliases
-   # directly in illegals.cfg, so normalization need not rewrite mnemonics.
+   # The selected retained source still contains unofficial spellings.  Later
+   # controlled transforms replace every active site with legal instructions.
 
    # Rename every retained internal label into the procedure-local namespace.
    for my $old (sort { length($b) <=> length($a) } keys %$labels) {
@@ -559,6 +555,27 @@ ASM
       or die "normalized score-pointer setup no longer matches the selected retained source\n";
    $result =~ s/\Q$old_score_setup\E/$new_score_setup/;
 
+   # Replace ASR #$F0 with its exact legal AND/LSR semantics.  LSR clears carry
+   # because the masked low nibble is zero, preserving the following ADC input.
+   # This blanking-only helper grows from two to four cycles; the fixed VBLANK
+   # timer still owns the visible-kernel start.
+   my $old_score_asr = <<'ASM';
+     txa
+     ; and #$F0
+     ; lsr
+     asr #$F0
+     adc #<vcs_standard_score_table
+ASM
+   my $new_score_asr = <<'ASM';
+     txa
+     and #$F0
+     lsr
+     adc #<vcs_standard_score_table
+ASM
+   index($result, $old_score_asr) >= 0
+      or die "normalized score ASR path no longer matches retained source\n";
+   $result =~ s/\Q$old_score_asr\E/$new_score_asr/;
+
    # Legalize the two visible score-glyph LAX loads.  LDA (zp),Y has the same
    # five-cycle read timing; TAX adds two cycles at each site.  The following
    # retained nine cycles of explicit padding are reduced to five so the first
@@ -586,9 +603,10 @@ ASM
 
    # The retained kernel biases X by $54 so its sign bit doubles as the row-loop
    # terminator, then subtracts $54 from every playfield operand.  Normalize this
-   # profile to an ordinary zero-based byte offset.  Keep the retained two-cycle
-   # SBX increment for now, add an explicit compare at offset 44, and consume the
-   # two added compare cycles from existing padding on both exit paths.
+   # profile to an ordinary zero-based byte offset.  Advance it legally with
+   # TXA/ADC/TAX: carry is known clear from the preceding LDA #1 / ADC #0 enable
+   # conversion, and CPX overwrites the arithmetic N/Z/C flags.  Consume the two
+   # added cycles from row-transition padding on both exit paths.
    my $biased_index_count = ($result =~ s/ldx #128-44\+\{4-4\}\*12/ldx #0/g);
    $biased_index_count == 1
       or die "normalized biased playfield-index initialization count changed: $biased_index_count\n";
@@ -614,7 +632,8 @@ ASM
 ASM
    my $new_row_advance = <<'ASM';
      txa
-         sbx #256-4
+     adc #4
+     tax
      cpx #44
 
      bcs @lastkernelline
@@ -627,9 +646,10 @@ ASM
    $nonlast_pad_count == 1
       or die "normalized non-last playfield padding count changed: $nonlast_pad_count\n";
 
-   # The direct branch to the last-line path also arrives two cycles later after
-   # CPX.  Reduce only the first SLEEP immediately under @lastkernelline.
-   my $last_pad_count = ($result =~ s/(\@lastkernelline:\n)             SLEEP 10/$1             SLEEP 8/);
+   # The direct branch to the last-line path also arrives four cycles later:
+   # two for CPX and two for the legal ADC/TAX replacement. Reduce only the
+   # first SLEEP immediately under @lastkernelline.
+   my $last_pad_count = ($result =~ s/(\@lastkernelline:\n)             SLEEP 10/$1             SLEEP 6/);
    $last_pad_count == 1
       or die "normalized last-line playfield padding count changed: $last_pad_count\n";
 
@@ -795,7 +815,7 @@ ASM
       or die "normalized steady player-0 path no longer matches retained source\n";
    $result =~ s/\Q$old_player0\E/$new_player0/;
 
-   my $row_transition_pad_count = ($result =~ s/SLEEP 8\n                             lda #8/SLEEP 5\n                             lda #8/);
+   my $row_transition_pad_count = ($result =~ s/SLEEP 8\n                             lda #8/SLEEP 3\n                             lda #8/);
    $row_transition_pad_count == 1
       or die "normalized player row-transition padding count changed: $row_transition_pad_count\n";
 

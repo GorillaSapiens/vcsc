@@ -255,9 +255,8 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      adc #<vcs_standard_score_table
      tay
      txa
-     ; and #$F0
-     ; lsr
-     asr #$F0
+     and #$F0
+     lsr
      adc #<vcs_standard_score_table
      tax
      rts
@@ -410,7 +409,8 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      ; lax temp4
      ; clc
      txa
-         sbx #256-4
+     adc #4
+     tax
      cpx #44
 
      bcs @lastkernelline
@@ -421,7 +421,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
                      ; bmi paddleskipread
                      ; inc paddle0
                      ;donepaddleskip
-                     SLEEP 5
+                     SLEEP 3
                              lda #8
                      sta vcs_standard_pointer_workspace + 6
 
@@ -434,7 +434,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
      jmp @goback
 
 @lastkernelline:
-             SLEEP 8
+             SLEEP 6
 
              ldx vcs_standard_playfield_position
              ;sleep 3

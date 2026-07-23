@@ -11,19 +11,15 @@
 ;   089094a8ca34aa13a68f4453a3cb61955bf545b33f34c0096680ef00ca57caa8  legacy-basic-kernels/standard/std_overscan.asm
 ;   6608a6b3dcb80e79d58142bf25a484950957b697d97d6184eb09f4b50f970c2c  legacy-basic-kernels/standard/std_kernel.asm
 ;   96345e1a4bbe2a80f52d8b1962eaceaac3902206c9d2ebbf102c76bcc24ac734  legacy-basic-kernels/common/score_graphics.asm
-; SLEEP duration -- exact cycle delay, duration > 1.
-; With --illegals, an odd delay begins with the exact three-cycle $04,$00
-; zero-page NOP.  NO_ILLEGAL_OPCODES selects the retained BIT VSYNC fallback.
+; SLEEP duration -- exact legal-instruction cycle delay, duration > 1.
+; Odd delays begin with three-cycle BIT VSYNC.  This performs one read from TIA
+; read address $00 and changes N/V/Z; every selected-profile use has dead flags.
 MACRO SLEEP duration
    .if duration < 2
       .error "MACRO ERROR: 'SLEEP': Duration must be > 1"
    .endif
    .if duration & 1
-      .ifndef NO_ILLEGAL_OPCODES
-         NOP.z $00
-      .else
-         BIT VSYNC
-      .endif
+      BIT VSYNC
       .repeat {duration - 3} / 2
          NOP
       .endrepeat

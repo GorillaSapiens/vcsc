@@ -68,23 +68,23 @@ installed.
 The conversion is intentionally not a general DASM-compatibility mode. It
 selects only this profile's active conditional branches, changes bare DASM
 labels to procedure-local `@label:` definitions, binds retained fixed-map names
-to the module symbols, preserves the retained `SBX`/`ASR` spellings now accepted
-by `illegals.cfg`, converts forced `.w` addressing to `.a`/`.ax`/`.ay`, preserves the two
-retained code-page guards, and adds an explicit page boundary before the score
-table. DASM's address-dependent page-tail `REPEAT` cannot use
+to the module symbols, converts forced `.w` addressing to `.a`/`.ax`/`.ay`,
+replaces the selected profile's final `ASR`, `SBX`, and odd-delay `NOP.z` sites
+with scheduled legal instructions, preserves the two retained code-page guards,
+and adds an explicit page boundary before the score table. DASM's address-dependent page-tail `REPEAT` cannot use
 `vcsc-as`'s pre-layout `.repeat`; the normalizer emits sixteen conditional NOP
 slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
 Retained comments are copied without symbol rewriting.
 
-The remaining unofficial forms are classified site-by-site in
-[`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md).  The current profile uses
-only the stable/common NMOS subset, but keeps all friendly unofficial
-mnemonics explicitly opt-in while tasks 20r through 20s remove the remaining forms.
+The historical unofficial forms and their task-20r legal replacements are
+recorded in [`UNOFFICIAL_OPCODES.md`](UNOFFICIAL_OPCODES.md). The generated
+source inventory is now empty. Task 20s still has to remove redundant
+`--illegals` plumbing from all profile build recipes and add a linked-byte gate.
 
-The selected source must be assembled with unofficial mnemonics enabled:
+The normalized source itself now assembles without unofficial mnemonics:
 
 ```sh
-vcsc-as --illegals \
+vcsc-as \
   -I libraries/vcs/kernels/standard_4k_ntsc \
   -o standard_4k_ntsc_kernel.o26 \
   libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
@@ -92,8 +92,8 @@ vcsc-as --illegals \
 
 That produces an unresolved relocatable kernel object by design.
 `examples/05_static_kernel_test` is the first complete integration: it links the
-object to module state, enforces final page placement, checks exact unofficial
-opcode bytes, and has been verified by Stella 7.0 at a stable 262 lines and
+object to module state, enforces final page placement, checks the legalized
+cycle schedule, and has been verified by Stella 7.0 at a stable 262 lines and
 60.0 Hz.
 
 ## Source-level inclusion
@@ -120,10 +120,12 @@ pointer: doing so would cost two RIOT bytes, add at least one cycle to every
 playfield read, risk an additional page-cross cycle, and interfere with Y usage
 inside the asymmetric visible kernel.
 
-Build with the matching linker configuration and illegal-opcode table:
+Build with the matching linker configuration. The redundant `-Wa,--illegals`
+flag remains in some checked-in recipes until task 20s, but is no longer needed
+by the kernel source:
 
 ```sh
-vcsc -I libraries/vcs -Wa,--illegals \
+vcsc -I libraries/vcs \
   -T libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
   game.c26 \
   libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s \

@@ -1062,7 +1062,7 @@ The first unfinished item is the default next action.
                             temporary DCP schedule regression with legal-opcode
                             timing coverage before marking 20q complete.
 
-        [ ] 20r. Replace unofficial delay NOPs and any remaining unofficial
+        [x] 20r. Replace unofficial delay NOPs and any remaining unofficial
                   one-off instructions with legal `NOP`, `BIT`, or reordered legal
                   work. Verify bus side effects, flags, and cycle counts rather
                   than treating equal instruction length as sufficient.
@@ -1188,13 +1188,16 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20q are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20r through 20u are deliberately small
-unofficial-opcode, source-suffix, and reporting slices that must be completed
-before gameplay integration. Task 20q removed all eleven `DCP` sites, including
-the alternate and final-row schedules. Task 20r is next: replace the remaining
-unofficial delay and one-off instructions with legal equivalents. The
-stack-safe VCSC overscan/vblank hook remains task 20v.
+Tasks 20a through 20r are complete. Runtime-workspace side-quest items a
+through d are complete. Tasks 20s through 20u are deliberately small
+unofficial-opcode enforcement, source-suffix, and reporting slices that must be
+completed before gameplay integration. Task 20q removed all eleven `DCP` sites,
+including the alternate and final-row schedules. Task 20r replaced the final
+source-level `ASR`, `SBX`, and unofficial delay-NOP sites with legal
+`AND`/`LSR`, `TXA`/`ADC`/`TAX`, and `BIT` schedules while preserving their
+visible-kernel timing contracts. Task 20s is next: remove the standard profile's
+remaining `--illegals` build plumbing and reject unofficial opcode bytes in the
+linked profile. The stack-safe VCSC overscan/vblank hook remains task 20v.
 
 After task 20, tasks 21 and 22 add separate player-color standard-kernel
 profiles, with task 22 explicitly optional if retaining all five objects proves
@@ -3422,3 +3425,31 @@ Before returning another modified archive:
   minimal unbanked non-Superchip integration, general 8K+ bankswitching, and
   Superchip cartridge RAM support followed by corresponding kernel profiles.
 
+
+2026-07-22 17:43:08 PDT, complete task 20r legal one-off opcode replacement
+------------------------------------------------------------------------
+* Replace the score-conversion `ASR #$F0` with legal `AND #$F0` / `LSR`. The
+  legal sequence costs two additional cycles per conversion, all inside the
+  fixed VBLANK timer window, and preserves the accumulator and status bits used
+  by the following code.
+* Replace the row-advance `TXA` / `SBX #252` sequence with legal `TXA` /
+  `ADC #4` / `TAX`, relying on the already-established clear carry and clear
+  decimal/overflow contract. Reduce the corresponding non-final and final
+  transition delays from five and eight cycles to three and six cycles so every
+  PF and object-update phase remains at its established color clock.
+* Replace each three-cycle unofficial zero-page delay NOP with legal `BIT
+  VSYNC`. Document and test the resulting single TIA read, absence of writes,
+  and N/V/Z effects; all affected flags are dead at the five delay sites.
+* Regenerate the normalized kernel, timing inventory, and unofficial-opcode
+  inventory. The maintained standard-kernel source inventory now has no
+  unofficial-opcode sites. Keep explicit historical illegal-opcode probes
+  opt-in; removal of redundant standard-profile `--illegals` plumbing and
+  linked-byte rejection remain task 20s.
+* Add exhaustive emulator-backed equivalence checks for the legal arithmetic
+  replacements, cycle counts, status flags, and bus activity. Update byte
+  signatures and the static, motion, pairwise, normalization, timing, and
+  source-contract regressions for the legal schedule.
+* Pass 288/288 compile-only tests, 154/154 end-to-end/generic tests, the focused
+  static-raster, legal-schedule, motion, source-contract, and 256,000-case
+  pairwise regressions, plus staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20s is next.

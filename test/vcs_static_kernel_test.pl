@@ -159,8 +159,10 @@ for my $pattern (
    index($kernel_bytes,$pattern)>=0
       or die sprintf("kernel is missing score-pointer opcode bytes %s\n",unpack('H*',$pattern));
 }
-index($kernel_bytes,"\x4B")>=0 or die "kernel lost retained ASR opcode\n";
-index($kernel_bytes,"\xCB")>=0 or die "kernel lost retained SBX opcode\n";
+index($kernel_bytes,"\x29\xF0\x4A")>=0
+   or die "kernel lost legal AND/LSR score-nibble sequence\n";
+index($kernel_bytes,"\x8A\x69\x04\xAA\xE0\x2C")>=0
+   or die "kernel lost legal TXA/ADC/TAX/CPX row advance\n";
 
 my $kernel_text=read_file($kernel);
 $kernel_text !~ /^\s*lax\b/im or die "normalized kernel still contains LAX\n";

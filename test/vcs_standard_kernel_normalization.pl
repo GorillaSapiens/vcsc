@@ -78,8 +78,10 @@ join(',',@macro_defs) eq 'SLEEP,VERTICAL_SYNC,CLEAN_START,SET_POINTER,RETURN'
    or die "normalized macro set/order is wrong: @macro_defs\n";
 require_re($macro_text,qr/^MACRO SET_POINTER pointer,address$/m,
    'SET_POINTER does not use two named macro parameters');
-require_re($macro_text,qr/NOP\.z\s+\$00/,
-   'SLEEP does not retain the exact odd-cycle unofficial NOP');
+require_re($macro_text,qr/BIT\s+VSYNC/,
+   'SLEEP does not use the legal three-cycle BIT delay');
+$macro_text !~ /NOP\.z|NO_ILLEGAL_OPCODES/
+   or die "SLEEP still contains unofficial-opcode selection\n";
 require_re($macro_text,qr/standard_4k_ntsc RETURN does not support bankswitch/,
    'RETURN does not reject the excluded bankswitch profile');
 
@@ -93,10 +95,8 @@ $active !~ /\b(?:player0x|scorepointers|temp[1-6]|playfieldbase|stack[12])\b/
    or die "active normalized source still uses old fixed-map state names\n";
 require_re($active,qr/^\s*\.include\s+"standard_4k_ntsc_macros\.inc"/m,
    'normalized kernel does not include the normalized macro file');
-require_re($active,qr/\bSBX\b/i,'selected source did not preserve SBX');
-require_re($active,qr/\bASR\b/i,'selected source did not preserve ASR');
-$active !~ /\b(?:AXS|ALR)\b/i
-   or die "selected source unexpectedly rewrote SBX/ASR to AXS/ALR\n";
+$active !~ /^\s*(?:ASR|ALR|SBX|AXS|NOP\.z)\b/im
+   or die "normalized standard kernel still contains a task-20r unofficial form\n";
 require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;
@@ -136,10 +136,10 @@ for my $operand ('vcs_standard_playfield,x','vcs_standard_playfield+1,x',
    my $count=()=$active =~ /\Q$operand\E/g;
    $count == 2 or die "$operand appears $count times, expected two direct row reads\n";
 }
-require_re($active,qr/txa\s+sbx\s+#256-4\s+cpx\s+#44\s+bcs\s+\@lastkernelline/s,
-   'zero-based playfield loop does not use explicit offset-44 termination');
-require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 5.*?\@lastkernelline:\s+SLEEP 8/s,
-   'zero-based loop/player row transition padding changed');
+require_re($active,qr/txa\s+adc\s+#4\s+tax\s+cpx\s+#44\s+bcs\s+\@lastkernelline/s,
+   'zero-based playfield loop does not use the legal carry-clear ADC/TAX advance');
+require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 3.*?\@lastkernelline:\s+SLEEP 6/s,
+   'legal row-advance transition padding changed');
 my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
 $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";
@@ -147,6 +147,8 @@ require_re($active,qr/^\.import\s+vcs_standard_playfield$/m,
    'application-provided playfield is not imported directly');
 require_re($active,qr/vcs_standard_pointer_workspace\s*\+\s*11/,
    'normalized source does not address the complete pointer workspace');
+require_re($active,qr/\@scorepointerset:.*?txa\s+and\s+#\$F0\s+lsr\s+adc\s+#<vcs_standard_score_table/s,
+   'score-pointer setup does not use the legal AND/LSR replacement');
 require_re($active,
    qr/lda vcs_standard_score\+2\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\s+sty vcs_standard_pointer_workspace\+3\s+lda vcs_standard_score\+1\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+1\s+sty vcs_standard_pointer_workspace\+4\s+lda vcs_standard_score\s+tax\s+jsr \@scorepointerset\s+stx vcs_standard_pointer_workspace\+2\s+sty vcs_standard_pointer_workspace\+5/s,
    'normalized legal score setup no longer maps little-endian BCD to display slots 0,4,3,2,1,5');
@@ -176,13 +178,15 @@ require_re($map_text,qr/^KERNEL_RODATA\s+\$[0-9A-F]{8}\s+\$00000058\b/m,
 require_re($map_text,qr/\bvcs_standard_kernel_drawscreen\b/,
    'normalized object map is missing the exported kernel entry');
 
+my $plain_object=File::Spec->catfile($tmp,'without_illegals.o26');
 my ($plain_exit,$plain_sig,$plain_out,$plain_err)=run_capture(
-   $assembler,'-I',$profile,'-o',File::Spec->catfile($tmp,'without_illegals.o26'),$kernel);
-$plain_exit != 0 && !$plain_sig
-   or die "normalized kernel unexpectedly assembled without --illegals\n";
-$plain_out eq '' or die "non-illegals rejection wrote stdout:\n$plain_out";
-$plain_err =~ /parse error|unknown opcode|invalid opcode/i
-   or die "non-illegals rejection did not identify an opcode parse failure:\n$plain_err";
+   $assembler,'-I',$profile,'-o',$plain_object,$kernel);
+$plain_exit == 0 && !$plain_sig
+   or die "legalized kernel failed without --illegals\nstdout:\n$plain_out\nstderr:\n$plain_err";
+$plain_out eq '' or die "plain legal assembly wrote stdout:\n$plain_out";
+$plain_err eq '' or die "plain legal assembly wrote stderr:\n$plain_err";
+read_file($plain_object) eq $object_text
+   or die "--illegals changes the legalized kernel object\n";
 
 my $macro_smoke=File::Spec->catfile($tmp,'standard_4k_ntsc_macros_smoke.s');
 write_file($macro_smoke,<<'ASM');
@@ -202,13 +206,13 @@ target:
 ASM
 my $macro_object=File::Spec->catfile($tmp,'standard_4k_ntsc_macros_smoke.o26');
 my ($macro_exit,$macro_sig,$macro_out,$macro_err)=run_capture(
-   $assembler,'--illegals','-I',$profile,'-o',$macro_object,$macro_smoke);
+   $assembler,'-I',$profile,'-o',$macro_object,$macro_smoke);
 $macro_exit == 0 && !$macro_sig
    or die "normalized macro smoke exited $macro_exit signal $macro_sig\nstdout:\n$macro_out\nstderr:\n$macro_err";
 $macro_out eq '' or die "normalized macro smoke wrote stdout:\n$macro_out";
 $macro_err eq '' or die "normalized macro smoke wrote stderr:\n$macro_err";
 my $macro_object_text=read_file($macro_object);
-index($macro_object_text,"\x04\x00\xA9\x02") >= 0
-   or die "SLEEP 3 did not emit the expected \$04,\$00 odd-cycle NOP before VERTICAL_SYNC\n";
+index($macro_object_text,"\x24\x00\xA9\x02") >= 0
+   or die "SLEEP 3 did not emit legal BIT \$00 before VERTICAL_SYNC\n";
 
 print "vcs_standard_kernel_normalization ok\n";

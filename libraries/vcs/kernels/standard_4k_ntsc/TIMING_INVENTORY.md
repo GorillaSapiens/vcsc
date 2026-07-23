@@ -26,23 +26,19 @@ score table.  These addresses are observations, not new ABI guarantees.
 Inventory summary
 -----------------
 
-The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 34 explicit
-padding sites, four alignment directives,
-and 3 source-level unofficial-opcode sites. The unofficial sites are:
+The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 34 explicit padding sites, four alignment directives,
+and no source-level unofficial-opcode sites.
 
-Task 20o classifies those sites and locks their exact bytes and cycles in
-`UNOFFICIAL_OPCODES.md` and `standard_4k_ntsc_unofficial_opcodes.tsv`.
+Task 20o originally classified the retained forms and locked their bytes and
+cycles. The generated `standard_4k_ntsc_unofficial_opcodes.tsv` is now empty
+apart from its header.
 
-* task 20q removed all 11 `DCP` sites. Steady BL/M1/M0 updates consume packed
-  legal `LSR` masks, and the five final-row results are precomputed legally in
-  VBLANK and loaded through cycle-equivalent `BIT`/`NOP` schedules;
-* task 20p removed all 5 `LAX` sites. Pointer setup now uses legal `LDA`/`TAX`;
-  the visible score path exchanges four cycles of explicit padding for the two
-  added `TAX` instructions and retains its original 21-cycle interval;
-* 1 `SBX`: add four to the zero-based playfield byte offset in two cycles;
-  explicit `CPX`/`BCS` now performs loop termination;
-* 1 `ASR`: mask/shift a score nibble during pointer setup;
-* 1 `NOP.z`: the three-cycle zero-page delay selected by odd `SLEEP` durations.
+* task 20p removed all 5 `LAX` sites;
+* task 20q removed all 11 `DCP` sites; and
+* task 20r replaced the final `SBX`, `ASR`, and `NOP.z` sites. The legal row
+  advance consumes two cycles from each transition pad, the score-nibble helper
+  adds two blanking cycles per call under the fixed VBLANK timer, and odd
+  `SLEEP` durations use three-cycle `BIT VSYNC` with dead flags.
 
 Page-sensitive classes
 ----------------------
