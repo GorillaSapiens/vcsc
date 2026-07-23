@@ -110,7 +110,7 @@ sub scan_profile {
    my ($rom,$map,$official,$layout)=@_;
    my $rom_base=0x10000-length($rom);
    my @segments=executable_segments($map);
-   @segments==6 or return (0,"linked profile has ".scalar(@segments)." executable segments, expected 6");
+   @segments==7 or return (0,"linked profile has ".scalar(@segments)." executable segments, expected 7");
    my %seen;
    my $instructions=0;
    for my $segment (@segments) {
@@ -126,7 +126,8 @@ sub scan_profile {
       return ($instructions+$count,$error) if defined($error);
       $instructions += $count;
    }
-   for my $required ('CODE','KERNEL_CODE','CODE.__vcsc_function$vcs_standard_prepare_object_masks') {
+   for my $required ('CODE','KERNEL_CODE','CODE.__vcsc_function$vcs_standard_prepare_object_masks',
+      'CODE.__vcsc_function$__weak_vcs_standard_overscan_hook') {
       $seen{$required} or return ($instructions,"linked profile is missing executable segment $required");
    }
    return ($instructions,undef);

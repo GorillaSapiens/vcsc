@@ -32,6 +32,13 @@ sub map_symbol {
    return $value;
 }
 
+sub map_any_symbol {
+   my($map,$name)=@_;
+   $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m
+      or die "map is missing $name\n";
+   return hex($1);
+}
+
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
 $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
@@ -49,6 +56,11 @@ my($rc,$sig,$out,$err)=capture(
 $rc==0 && !$sig or die "motion diagnostic build failed\n$out$err";
 without_cartridge_usage($out) eq '' && $err eq '' or die "motion diagnostic build wrote output\n$out$err";
 my $map=read_file($mapfile);
+my $strong_hook=map_any_symbol($map,'vcs_standard_overscan_hook');
+my $weak_hook=map_any_symbol($map,'__weak_vcs_standard_overscan_hook');
+$strong_hook != $weak_hook or die "strong overscan hook did not override weak fallback\n";
+$map =~ /region=RAM\s+depth=5\s+bytes=\$000E\s+physical=\$00F2-\$00FF\s+extra=\$0004/
+   or die "motion cartridge stack map does not include main -> drawscreen -> hook -> update -> move\n";
 my @zp=map { map_symbol($map,$_) } qw(
    vcs_standard_object_x
    vcs_standard_player0_y

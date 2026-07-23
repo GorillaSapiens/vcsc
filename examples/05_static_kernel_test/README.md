@@ -15,9 +15,9 @@ ball, and the six-digit score without changing application state.
 The application supplies the immutable 48-byte playfield in cartridge ROM and
 includes the source-level standard-kernel state contract. `CTRLPF` is set to
 reflected-playfield mode, as required by this asymmetric standard-kernel write
-schedule. The cycle-counted normalized kernel remains a companion assembly
-input. This makes placement, opcode, and scanline checks deterministic before
-task 20e adds a VCSC overscan/vblank gameplay hook.
+schedule. The cycle-counted normalized kernel remains a companion assembly input. This
+makes placement, opcode, hook, and scanline checks deterministic. The example
+defines no hook, so the kernel object's weak no-op is selected.
 
 Build after building the toolchain:
 

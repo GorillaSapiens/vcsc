@@ -2,9 +2,8 @@ file	line	kind	opcode	operand	purpose
 standard_4k_ntsc_macros.inc	24	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_macros.inc	28	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_macros.inc	56	relative_branch	BNE	@clear_stack	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	94	segment	.segment	KERNEL_CODE	linker placement range
-standard_4k_ntsc_kernel.s26	104	relative_branch	BMI	@overscanloop	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	127	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	97	segment	.segment	KERNEL_CODE	linker placement range
+standard_4k_ntsc_kernel.s26	107	relative_branch	BMI	@overscanloop	taken branch gains one cycle if source and target pages differ
 standard_4k_ntsc_kernel.s26	130	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_kernel.s26	133	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_kernel.s26	136	padding	NOP		explicit legal one-byte two-cycle padding
@@ -20,97 +19,99 @@ standard_4k_ntsc_kernel.s26	163	padding	NOP		explicit legal one-byte two-cycle p
 standard_4k_ntsc_kernel.s26	166	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_kernel.s26	169	padding	NOP		explicit legal one-byte two-cycle padding
 standard_4k_ntsc_kernel.s26	172	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	177	padding	SLEEP	3	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	179	indexed_read	LDA	vcs_standard_object_x + 0,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	183	relative_branch	BCS	@DivideLoop	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	188	relative_branch	BPL	@HorPosLoop	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	192	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	193	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	197	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	198	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	202	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	203	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	207	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	208	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	212	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	213	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	242	relative_branch	BMI	@vblk2	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	298	padding	SLEEP	3	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	314	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	325	alignment	.align	256	page or offset anchor affecting timing placement
-standard_4k_ntsc_kernel.s26	332	indexed_read	LDY	vcs_standard_playfield,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	334	indexed_read	LDY	vcs_standard_playfield+1,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	336	indexed_read	LDY	vcs_standard_playfield+3,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	338	indexed_read	LDY	vcs_standard_playfield+2,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	354	relative_branch	BCC	@drawP1	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	358	indexed_read	LDA	(vcs_standard_player1_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	358	indirect_pointer	LDA	(vcs_standard_player1_graphics),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	365	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	368	indexed_read	LDA	vcs_standard_playfield,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	370	indexed_read	LDA	vcs_standard_playfield+1,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	372	indexed_read	LDA	vcs_standard_playfield+3,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	374	indexed_read	LDA	vcs_standard_playfield+2,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	382	relative_branch	BCC	@drawP0	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	386	indexed_read	LDA	(vcs_standard_player0_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	386	indirect_pointer	LDA	(vcs_standard_player0_graphics),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	395	relative_branch	BNE	@continuekernel	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	416	relative_branch	BCS	@lastkernelline	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	424	padding	SLEEP	3	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	437	padding	SLEEP	6	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	441	padding	SLEEP	2	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	447	alignment	.align	256	page or offset anchor affecting timing placement
-standard_4k_ntsc_kernel.s26	453	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	468	padding	SLEEP	6	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	473	padding	SLEEP	12	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	478	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	482	relative_branch	BEQ	@endkernel	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	494	padding	SLEEP	4	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	500	padding	SLEEP	10	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	507	padding	NOP		explicit legal one-byte two-cycle padding
-standard_4k_ntsc_kernel.s26	626	indexed_read	LDA	(vcs_standard_pointer_workspace),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	626	indirect_pointer	LDA	(vcs_standard_pointer_workspace),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	633	alignment	.align	256	page or offset anchor affecting timing placement
-standard_4k_ntsc_kernel.s26	637	indexed_read	LDA	(vcs_standard_pointer_workspace),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	637	indirect_pointer	LDA	(vcs_standard_pointer_workspace),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	639	padding	SLEEP	7	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	642	indexed_read	LDA	(vcs_standard_pointer_workspace+$8),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	642	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$8),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	644	indexed_read	LDA	(vcs_standard_pointer_workspace+$6),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	644	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$6),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	646	indexed_read	LDA	(vcs_standard_pointer_workspace+$2),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	646	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$2),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	649	indexed_read	LDA	(vcs_standard_pointer_workspace+$4),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	649	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$4),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	651	padding	SLEEP	5	explicit cycle padding available for retiming
-standard_4k_ntsc_kernel.s26	653	indexed_read	LDA	(vcs_standard_pointer_workspace+$A),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	653	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$A),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	660	relative_branch	BPL	@loop2	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	693	alignment	.align	256	page or offset anchor affecting timing placement
-standard_4k_ntsc_kernel.s26	695	segment	.segment	KERNEL_RODATA	linker placement range
-standard_4k_ntsc_kernel.s26	808	segment	.segment	CODE	linker placement range
-standard_4k_ntsc_kernel.s26	825	relative_branch	BCC	@clear	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	890	relative_branch	BCS	@final_player1_zero	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	891	indexed_read	LDA	(vcs_standard_player1_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	891	indirect_pointer	LDA	(vcs_standard_player1_graphics),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	910	relative_branch	BCS	@final_player0_zero	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	911	indexed_read	LDA	(vcs_standard_player0_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	911	indirect_pointer	LDA	(vcs_standard_player0_graphics),y	zero-page pointer and indexed target range are page-sensitive
-standard_4k_ntsc_kernel.s26	935	relative_branch	BCC	@no_wrap	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	936	relative_branch	BEQ	@no_wrap	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	939	relative_branch	BEQ	@wrapped_high	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	941	relative_branch	BCC	@wrapped_low_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	942	relative_branch	BEQ	@wrapped_low_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	953	relative_branch	BCC	@wrapped_high_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	954	relative_branch	BEQ	@wrapped_high_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	965	relative_branch	BNE	@no_wrap_first_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	971	relative_branch	BCC	@no_wrap_last_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	972	relative_branch	BEQ	@no_wrap_last_ready	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	978	relative_branch	BCC	@set_range	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	979	relative_branch	BEQ	@set_range	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	989	indexed_read	LDA	@start_bits,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	1003	indexed_read	LDA	@end_bits,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	1019	relative_branch	BNE	@range_many	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	1022	indexed_read	ORA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	1027	indexed_read	LDA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
-standard_4k_ntsc_kernel.s26	1034	relative_branch	BCS	@range_last	taken branch gains one cycle if source and target pages differ
-standard_4k_ntsc_kernel.s26	1048	indexed_read	LDA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	175	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	180	padding	SLEEP	3	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	182	indexed_read	LDA	vcs_standard_object_x + 0,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	186	relative_branch	BCS	@DivideLoop	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	191	relative_branch	BPL	@HorPosLoop	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	195	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	196	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	200	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	201	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	205	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	206	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	210	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	211	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	215	indexed_read	LDY	vcs_standard_pointer_workspace + 6,X	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	216	indexed_read	LDA	@repostable-256,Y	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	245	relative_branch	BMI	@vblk2	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	301	padding	SLEEP	3	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	317	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	328	alignment	.align	256	page or offset anchor affecting timing placement
+standard_4k_ntsc_kernel.s26	335	indexed_read	LDY	vcs_standard_playfield,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	337	indexed_read	LDY	vcs_standard_playfield+1,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	339	indexed_read	LDY	vcs_standard_playfield+3,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	341	indexed_read	LDY	vcs_standard_playfield+2,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	357	relative_branch	BCC	@drawP1	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	361	indexed_read	LDA	(vcs_standard_player1_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	361	indirect_pointer	LDA	(vcs_standard_player1_graphics),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	368	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	371	indexed_read	LDA	vcs_standard_playfield,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	373	indexed_read	LDA	vcs_standard_playfield+1,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	375	indexed_read	LDA	vcs_standard_playfield+3,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	377	indexed_read	LDA	vcs_standard_playfield+2,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	385	relative_branch	BCC	@drawP0	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	389	indexed_read	LDA	(vcs_standard_player0_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	389	indirect_pointer	LDA	(vcs_standard_player0_graphics),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	398	relative_branch	BNE	@continuekernel	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	419	relative_branch	BCS	@lastkernelline	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	427	padding	SLEEP	3	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	440	padding	SLEEP	6	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	444	padding	SLEEP	2	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	450	alignment	.align	256	page or offset anchor affecting timing placement
+standard_4k_ntsc_kernel.s26	456	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	471	padding	SLEEP	6	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	476	padding	SLEEP	12	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	481	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	485	relative_branch	BEQ	@endkernel	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	497	padding	SLEEP	4	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	503	padding	SLEEP	10	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	510	padding	NOP		explicit legal one-byte two-cycle padding
+standard_4k_ntsc_kernel.s26	629	indexed_read	LDA	(vcs_standard_pointer_workspace),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	629	indirect_pointer	LDA	(vcs_standard_pointer_workspace),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	636	alignment	.align	256	page or offset anchor affecting timing placement
+standard_4k_ntsc_kernel.s26	640	indexed_read	LDA	(vcs_standard_pointer_workspace),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	640	indirect_pointer	LDA	(vcs_standard_pointer_workspace),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	642	padding	SLEEP	7	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	645	indexed_read	LDA	(vcs_standard_pointer_workspace+$8),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	645	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$8),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	647	indexed_read	LDA	(vcs_standard_pointer_workspace+$6),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	647	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$6),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	649	indexed_read	LDA	(vcs_standard_pointer_workspace+$2),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	649	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$2),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	652	indexed_read	LDA	(vcs_standard_pointer_workspace+$4),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	652	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$4),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	654	padding	SLEEP	5	explicit cycle padding available for retiming
+standard_4k_ntsc_kernel.s26	656	indexed_read	LDA	(vcs_standard_pointer_workspace+$A),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	656	indirect_pointer	LDA	(vcs_standard_pointer_workspace+$A),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	663	relative_branch	BPL	@loop2	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	697	alignment	.align	256	page or offset anchor affecting timing placement
+standard_4k_ntsc_kernel.s26	699	segment	.segment	KERNEL_RODATA	linker placement range
+standard_4k_ntsc_kernel.s26	812	segment	.segment	CODE	linker placement range
+standard_4k_ntsc_kernel.s26	829	relative_branch	BCC	@clear	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	894	relative_branch	BCS	@final_player1_zero	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	895	indexed_read	LDA	(vcs_standard_player1_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	895	indirect_pointer	LDA	(vcs_standard_player1_graphics),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	914	relative_branch	BCS	@final_player0_zero	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	915	indexed_read	LDA	(vcs_standard_player0_graphics),y	indexed indirect read gains one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	915	indirect_pointer	LDA	(vcs_standard_player0_graphics),y	zero-page pointer and indexed target range are page-sensitive
+standard_4k_ntsc_kernel.s26	939	relative_branch	BCC	@no_wrap	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	940	relative_branch	BEQ	@no_wrap	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	943	relative_branch	BEQ	@wrapped_high	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	945	relative_branch	BCC	@wrapped_low_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	946	relative_branch	BEQ	@wrapped_low_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	957	relative_branch	BCC	@wrapped_high_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	958	relative_branch	BEQ	@wrapped_high_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	969	relative_branch	BNE	@no_wrap_first_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	975	relative_branch	BCC	@no_wrap_last_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	976	relative_branch	BEQ	@no_wrap_last_ready	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	982	relative_branch	BCC	@set_range	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	983	relative_branch	BEQ	@set_range	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	993	indexed_read	LDA	@start_bits,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	1007	indexed_read	LDA	@end_bits,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	1023	relative_branch	BNE	@range_many	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	1026	indexed_read	ORA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	1031	indexed_read	LDA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	1038	relative_branch	BCS	@range_last	taken branch gains one cycle if source and target pages differ
+standard_4k_ntsc_kernel.s26	1052	indexed_read	LDA	vcs_standard_object_masks,x	indexed read may gain one cycle when effective address crosses a page
+standard_4k_ntsc_kernel.s26	1063	segment	.segment	CODE	linker placement range

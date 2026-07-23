@@ -27,7 +27,7 @@ alias VCS_STANDARD_POINTER_WORKSPACE_BYTES 12
 alias VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES 23
 alias VCS_STANDARD_PRIVATE_RAM_BYTES 57
 alias VCS_STANDARD_MODULE_RAM_BYTES 80
-alias VCS_STANDARD_HIDDEN_STACK_BYTES 6
+alias VCS_STANDARD_HIDDEN_STACK_BYTES 4
 alias VCS_STANDARD_SCORE_FONT_BYTES 88
 
 // The retained kernel reads active sprite rows from highest index to zero.
@@ -89,6 +89,12 @@ uint8_t vcs_standard_playfield_position;
 // that indexed mask updates never touch.
 uint8_t vcs_standard_object_masks[44];
 
-// Implemented by the converted kernel source in later task slices. The call
-// begins during application-owned overscan and returns with VBLANK asserted.
+// Optional end-of-frame gameplay hook. The normalized kernel supplies a weak
+// no-op fallback, so applications define this exact void(void) symbol only when
+// they need it. It runs once after persistent display state has been restored
+// and VBLANK has been asserted; changes therefore apply to the next frame.
+extern void vcs_standard_overscan_hook(void);
+
+// The draw call begins during application-owned overscan and returns after the
+// hook, with VBLANK asserted and the overscan timer still running.
 extern void vcs_standard_kernel_drawscreen(void);

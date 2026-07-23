@@ -84,10 +84,11 @@ underscores, and width overflow after normalization.
 `vcs_standard_kernel_contract.test` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-kernel module. It checks the
 80-byte mandatory state span, the required ROM playfield, the documented
-frame/clobber/page contract, the six-byte hidden assembly-stack reserve, the
-linker map and generated symbols, rejection of `callstack_extra` without
-call-graph sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM
-smoke cartridge.
+frame/clobber/page contract, the weak end-of-frame overscan hook, its exported
+call-graph edge, the four-byte supplementary assembly-stack reserve, the linker
+map and generated symbols, rejection of `callstack_extra` without call-graph
+sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM smoke
+cartridge.
 
 `vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
 normalization. It regenerates the selected source beside the checked-in outputs
@@ -111,7 +112,10 @@ It also checks the five exact final-row bytes precomputed during VBLANK, coverin
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
 `vcs_standard_motion.test` builds `examples/06_object_motion_test` and runs it
-for 320 frames in the 6502 harness. It locks every object's persistent Y
+for 320 frames in the 6502 harness. The motion update runs only through a
+strong `vcs_standard_overscan_hook`; the test proves that it overrides the weak
+fallback, that the assembly edge extends stack/activation planning, and that the
+fixed frame period is unchanged. It locks every object's persistent Y
 coordinate, the differently phased and paced P0/P1/M0/M1/BL X sequences, both
 X=0 and X=159 endpoints for every object, and seven complete object rasters at
 exact frame-relative scanlines. This catches corrupt

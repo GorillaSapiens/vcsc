@@ -146,12 +146,17 @@ void configure_motion_frame(void) {
    NUSIZ1 := 0x20;
 }
 
+// Called by the kernel once VBLANK is asserted and all persistent object state
+// has been restored. These changes become the next frame's positions and score.
+void vcs_standard_overscan_hook(void) {
+   update_motion();
+   vcs_standard_score++;
+}
+
 void main(void) {
    initialize_motion_scene();
    while (1) {
       configure_motion_frame();
       vcs_standard_kernel_drawscreen();
-      update_motion();
-      vcs_standard_score++;
    }
 }

@@ -36,9 +36,10 @@ The following retained options are absent and are outside this contract:
 - player-color tables, playfield-color/height tables, paddle reading, screen
   shake, score fading, playfield-in-score, debug displays, and alternate fonts.
 
-No optional application hook is enabled in the minimal profile. A later profile
-may add one stack-safe void vblank/overscan hook after the static cartridge is
-stable.
+The profile exposes one optional end-of-frame application boundary:
+`vcs_standard_overscan_hook()`. The kernel object supplies a weak no-op fallback,
+so an application pays no source-code cost unless it defines the exact
+`void(void)` hook. No other optional kernel feature is enabled.
 
 ## Reproducible normalized source
 
@@ -132,16 +133,19 @@ vcsc -I libraries/vcs \
   -o game.bin
 ```
 
-The module exports one entry point:
+The module declares the draw entry and the optional hook:
 
 ```vcsc
+extern void vcs_standard_overscan_hook(void);
 extern void vcs_standard_kernel_drawscreen(void);
 ```
 
-It accepts no parameters and returns no value. The application communicates
-through the application-visible display state and the application-provided
-playfield object. No separately maintained fixed RIOT address map is part of
-this interface.
+Both signatures are exactly `void(void)`. The application calls only
+`vcs_standard_kernel_drawscreen()`. A strong application definition of
+`vcs_standard_overscan_hook()` overrides the kernel object's weak no-op. The
+application communicates through the module-owned display declarations and the
+application-provided playfield object; no separately maintained fixed RIOT
+address map is part of this interface.
 
 ## What the 48-byte playfield represents
 
@@ -169,11 +173,21 @@ module. The module:
 1. completes the current overscan interval;
 2. generates the three-line NTSC vertical-sync sequence;
 3. performs horizontal positioning and score-pointer setup;
-4. owns all cycle-counted visible scanlines, including the six-digit score; and
-5. asserts `VBLANK` before returning to application overscan.
+4. owns all cycle-counted visible scanlines, including the six-digit score;
+5. restores every persistent object Y value and the hardware stack pointer;
+6. asserts `VBLANK`, calls `vcs_standard_overscan_hook()`, and then returns.
 
-The call must begin with decimal mode clear. The converted wrapper must also
-return with decimal mode clear. The first cartridge, `examples/05_static_kernel_test`, produces a stable
+The hook therefore sees ordinary persistent module state, not the biased or
+decremented counters used inside the visible kernel. Changes made by the hook
+apply to the **next** frame. The overscan timer is already running, so the hook
+must finish within the available overscan budget and must not write `VSYNC`,
+`VBLANK`, `WSYNC`, `TIM64T`, or `INTIM`, recursively call drawscreen, or leave
+decimal mode set. It may update module-owned display values, read inputs, and
+write application-owned audio/state. Ordinary VCSC calls made by the hook are
+covered by the exported call-graph edge.
+
+The draw call and hook must enter and return with decimal mode clear. The first
+cartridge, `examples/05_static_kernel_test`, produces a stable
 262-scanline non-interlaced NTSC frame at 60.0 Hz in Stella 7.0. The developer
 status overlay is used as the final timing authority rather than treating
 comments in the retained source as proof.
@@ -200,9 +214,10 @@ RAM.”
 | Playfield | 48 | Supplied by the application; constant ROM in this timing profile |
 | **Mandatory module-declared RAM** | **80** | 23 application-visible + 57 private |
 
-The reduced stock VCSC runtime uses eight RIOT bytes. With the ordinary
-`main -> drawscreen` source call depth, the matching linker configuration
-reserves four call-graph bytes plus six hidden-kernel bytes. Therefore:
+The reduced stock VCSC runtime uses eight RIOT bytes. The kernel object exports
+the assembly call edge `drawscreen -> overscan_hook`, so the no-op profile's
+`main -> drawscreen -> hook` depth reserves six call-graph bytes. Four
+supplementary bytes cover the deeper internal mask-preparation chain. Therefore:
 
 ```text
 fixed ROM playfield: 128 - 80 - 8 - 10 = 30 bytes left
@@ -259,19 +274,22 @@ values while drawing but restores the persistent values before return.
 ## Hidden hardware-stack use
 
 A normal VCSC call to `vcs_standard_kernel_drawscreen()` is visible to the
-source call graph. Assembly-internal setup now reaches three nested JSR levels
-while the packed object-mask builder calls its range helper; that hidden maximum
-needs six more hardware-stack bytes. The one-level score-pointer and setup-delay
-calls fit inside the same allowance.
+source call graph. The normalized object additionally exports a symbol-backed
+`drawscreen -> vcs_standard_overscan_hook` edge. That edge makes both hardware-
+stack sizing and function-activation overlay aware of the assembly-initiated
+VCSC call, including any ordinary helpers called by a strong hook definition.
 
-`vcs_standard_4k_ntsc.cfg` therefore sets `callstack_extra = $0006`. The linker
-adds that amount to its normal call-graph and initializer reserves and exposes
-it as `__call_stack_extra`. The score row pipeline temporarily copies and
-restores S but performs no push, pull, call, or return while S is repurposed, so
-that trick requires no additional physical stack bytes in this profile.
+The packed object-mask builder still reaches an internal prepare/range chain
+that is deeper than the longest source-visible path. With the hook edge already
+adding one call-graph level, `vcs_standard_4k_ntsc.cfg` sets
+`callstack_extra = $0004`; the no-op cartridge still reserves ten physical
+stack bytes in total. The linker exposes the supplement as
+`__call_stack_extra`. The score row pipeline temporarily copies and restores S
+but performs no push, pull, call, or return while S is repurposed, and the hook
+is called only after S has been restored.
 
-Adding any assembly call, push, pull, hook, or stack-pointer manipulation must
-update this contract and its regression before it is accepted.
+Adding any other assembly call, push, pull, hook, or stack-pointer manipulation
+must update this contract and its regression before it is accepted.
 
 ## ROM and feature-cost ledger
 
@@ -281,11 +299,13 @@ and an 88-byte `KERNEL_RODATA` score table. In the first complete cartridge they
 are fixed at `$F300..$F5FF` and `$F600..$F657`; the application playfield is ROM
 backed at `$F154`. These are measured map values for the selected profile.
 
-All listed optional features are rejected by this profile, so no speculative
-RAM or ROM deltas are contractual. A feature may be added only as a later
-profile revision with measured linked ROM bytes, module-declared RAM changes,
-stack changes, and a timing regression. This prevents “free” conditional
-features from silently consuming the last few RIOT bytes.
+The overscan hook adds no module RAM. Its no-op fallback is one `RTS`; the call
+site occupies three bytes inside the already page-padded kernel region. A strong
+hook contributes its own linked code and activation storage. All other listed
+optional features remain rejected, so no speculative RAM or ROM deltas are
+contractual. A feature may be added only as a later profile revision with
+measured linked ROM bytes, module-declared RAM changes, stack changes, and a
+timing regression.
 
 ## Retained-source boundary used by the normalizer
 

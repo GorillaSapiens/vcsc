@@ -919,7 +919,7 @@ The first unfinished item is the default next action.
           expression scratch, function parameters, locals, and callee-owned
           return objects after the runtime-helper cleanup is stable.
 
-[ ] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
+[x] 20. Build the first non-vendored legacy-kernel-derived standard-kernel integration
         as controlled vertical slices. Preserve retained source semantics and
         the exact licensing overview while keeping adapted code separate.
 
@@ -1084,7 +1084,7 @@ The first unfinished item is the default next action.
                   occupied output extent rather than source totals, and cover
                   holes, vectors, exact-full images, and overflow diagnostics.
 
-        [ ] 20v. Connect one stack-safe void VCSC overscan/vblank hook and expose
+        [x] 20v. Connect one stack-safe void VCSC overscan/vblank hook and expose
                   kernel state through module-owned declarations. Add options one
                   at a time only after the placement and legal-opcode cleanup is
                   stable.
@@ -1195,22 +1195,24 @@ Tasks 20e through 20s replace that source-level placement workaround with
 linker-understood page constraints, branch-aware placement, NMOS wrap-hazard
 checks, and a legal-opcode standard kernel. Stella verifies stable 262-line NTSC
 output, correct score rows, an upright target, visible paddle/projectiles, and a
-centered untorn playfield. Tasks 20t and 20u completed source-suffix cleanup and cartridge-
-usage reporting; the gameplay hook remains deferred to task 20v.
+centered untorn playfield. Tasks 20t and 20u completed source-suffix cleanup and cartridge-usage
+reporting. Task 20v now supplies one optional stack-safe end-of-frame hook after
+persistent state restoration and VBLANK assertion; hook changes affect the next
+frame.
 
 Open implementation questions
 -----------------------------
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20u are complete. Runtime-workspace side-quest items a
-through d are complete. Task 20v is the next deliberately small slice and adds
-the first stack-safe gameplay integration boundary. Task 20q removed all eleven `DCP`
-sites, task 20r replaced the final source-level `ASR`, `SBX`, and unofficial
-delay-NOP sites with legal schedules, task 20s enforced official linked bytes,
-task 20t made `.s26` the canonical maintained assembler-source suffix, and task
-20u added final-output cartridge-ROM usage reporting. The stack-safe VCSC
-overscan/vblank hook remains task 20v.
+Tasks 20a through 20v are complete. Runtime-workspace side-quest items a
+through d are complete. Task 20q removed all eleven `DCP` sites, task 20r
+replaced the final source-level `ASR`, `SBX`, and unofficial delay-NOP sites with
+legal schedules, task 20s enforced official linked bytes, task 20t made `.s26`
+the canonical maintained assembler-source suffix, task 20u added final-output
+cartridge-ROM usage reporting, and task 20v added the first stack-safe gameplay
+integration boundary. Task 21 is next: a separate faithful legacy per-row
+player-color profile without missiles.
 
 After task 20, tasks 21 and 22 add separate player-color standard-kernel
 profiles, with task 22 explicitly optional if retaining all five objects proves
@@ -3544,4 +3546,30 @@ Before returning another modified archive:
   157/157 end-to-end/generic tests, the focused cartridge-usage regression, and
   staged installation. No files are removed; `.top_secret/remove.txt` remains at
   935 cumulative paths. Stop before task 20v.
+
+2026-07-22 22:20:27 PDT, complete task 20v stack-safe overscan hook
+------------------------------------------------------------------------
+* Add the exact optional `void vcs_standard_overscan_hook(void)` application
+  boundary to the standard profile. The normalized kernel calls it once after
+  restoring persistent object state and the hardware stack pointer, asserting
+  VBLANK, and starting the fixed overscan timer; hook changes therefore affect
+  the next frame. A weak one-byte RTS fallback preserves existing applications.
+* Export the hidden assembly-to-hook call-graph edge so activation-storage
+  overlay and hardware-stack sizing include strong application hooks. Reduce
+  `callstack_extra` from six to four bytes because the edge is now
+  represented explicitly; the stock weak-hook cartridge retains the same
+  ten-byte total stack reservation, while deeper strong hooks receive their
+  measured graph depth.
+* Expose the hook beside the existing module-owned display-state declarations,
+  document its exact phase, clobber/timing restrictions, weak override, and
+  next-frame semantics, and move example 06 motion/score updates into a strong
+  hook without changing its visible sequence.
+* Extend source-contract, normalization, linked-official-byte, motion/frame
+  period, map/stack, and staged-install coverage. The official-byte gate now
+  includes the seventh executable segment containing the weak fallback.
+* Pass 288/288 compile-only tests, 157/157 end-to-end/generic tests, the
+  focused contract, normalization, timing-inventory, legal-schedule,
+  linked-byte, motion/frame-period, static-raster, and 256,000-case pairwise
+  regressions, plus staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 935 cumulative paths. Task 21 is next.
 

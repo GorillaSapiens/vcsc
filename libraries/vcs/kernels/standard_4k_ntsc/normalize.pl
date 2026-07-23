@@ -84,7 +84,7 @@ sub generated_header {
       ';',
       "; $purpose",
       '; Selected profile: NTSC, unbanked 4K, non-reflected standard kernel,',
-      '; default asymmetric playfield, default decimal score, no optional hooks.',
+      '; default asymmetric playfield, default decimal score, one overscan hook.',
       ';',
       '; Retained input SHA-256:',
    );
@@ -462,6 +462,7 @@ sub kernel_output {
       push @out, ".importzp $name";
    }
    push @out, '.import vcs_standard_playfield';
+   push @out, '.import vcs_standard_overscan_hook';
    push @out, '';
    push @out, '; Canonical TIA and RIOT addresses used by the selected source.';
    my %hw = (
@@ -489,6 +490,8 @@ sub kernel_output {
    push @out, '__abimeta$V1$function$definition$vcs_standard_kernel_drawscreen$return$modeQ3Dreturn_voidQ3BvoidQ28szQ3D0Q29$return_voidQ20voidQ28sizeQ3D0Q29 = 0';
    push @out, '.export __sbpmeta$F$vcs_standard_kernel_drawscreen';
    push @out, '__sbpmeta$F$vcs_standard_kernel_drawscreen = 0';
+   push @out, '.export __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook';
+   push @out, '__sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0';
    push @out, '';
    push @out, '.segment "KERNEL_CODE"';
    push @out, '.proc vcs_standard_kernel_drawscreen';
@@ -1178,6 +1181,25 @@ ASM
       or die "normalized q4 final player-0 skip block changed\n";
    $result =~ s/\Q$q4_skip_p0_old\E//;
 
+   my $hook_tail_old = <<'ASM';
+ sta WSYNC
+ sta VBLANK
+ RETURN
+
+.endproc
+ASM
+   my $hook_tail_new = <<'ASM';
+ sta WSYNC
+ sta VBLANK
+ jsr vcs_standard_overscan_hook
+ RETURN
+
+.endproc
+ASM
+   index($result, $hook_tail_old) >= 0
+      or die "normalized overscan-hook insertion point changed\n";
+   $result =~ s/\Q$hook_tail_old\E/$hook_tail_new/;
+
    my $q3_helper = <<'ASM';
 .segment "CODE"
 .proc vcs_standard_prepare_object_masks
@@ -1431,6 +1453,16 @@ ASM
 .endproc
 ASM
    $result .= "\n" . $q3_helper;
+
+   my $hook_fallback = <<'ASM';
+
+.segment "CODE"
+.proc __weak_vcs_standard_overscan_hook
+.export __weak_vcs_standard_overscan_hook
+     rts
+.endproc
+ASM
+   $result .= $hook_fallback;
 
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;

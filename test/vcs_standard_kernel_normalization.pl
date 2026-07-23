@@ -145,6 +145,17 @@ $page_tail_tests == 16
    or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";
 require_re($active,qr/^\.import\s+vcs_standard_playfield$/m,
    'application-provided playfield is not imported directly');
+require_re($active,qr/^\.import\s+vcs_standard_overscan_hook$/m,
+   'overscan hook is not an externally relocatable import');
+require_re($active,
+   qr/sta WSYNC\s+sta VBLANK\s+jsr vcs_standard_overscan_hook\s+RETURN/s,
+   'overscan hook is not called after final blanking and before return');
+require_re($active,
+   qr/^\.export __sbpmeta\$E\$vcs_standard_kernel_drawscreen\$vcs_standard_overscan_hook$/m,
+   'drawscreen-to-hook call-graph edge metadata is missing');
+require_re($active,
+   qr/\.proc __weak_vcs_standard_overscan_hook\s+\.export __weak_vcs_standard_overscan_hook\s+rts\s+\.endproc/s,
+   'weak no-op overscan-hook fallback is missing');
 require_re($active,qr/vcs_standard_pointer_workspace\s*\+\s*11/,
    'normalized source does not address the complete pointer workspace');
 require_re($active,qr/\@scorepointerset:.*?txa\s+and\s+#\$F0\s+lsr\s+adc\s+#<vcs_standard_score_table/s,

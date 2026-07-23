@@ -35,6 +35,7 @@ constexpr uint16_t kT1024t = 0x0297;
 constexpr int kFramesToCheck = 320;
 constexpr int kFirstRasterFrame = 2;
 constexpr int kLastRasterFrame = 8;
+constexpr uint64_t kExpectedFrameCycles = 20140; // fixed harness baseline; hook work must fit the timer
 
 enum Object : size_t { P0, P1, M0, M1, BL, ObjectCount };
 
@@ -65,6 +66,7 @@ uint8_t timer_loaded = 0;
 std::map<int, ObjectLines> active_lines;
 std::map<int, PositionWrites> position_writes;
 std::map<int, std::array<uint8_t, ObjectCount>> frame_x;
+std::vector<uint64_t> frame_periods;
 
 uint8_t object_x_zp = 0;
 std::array<uint8_t, ObjectCount> y_zp{};
@@ -230,6 +232,7 @@ void apply_writes() {
       else if (event.address == kVsync) {
          const bool next = (event.value & 2) != 0;
          if (next && !vsync_asserted) {
+            if (frame >= 0) frame_periods.push_back(virtual_cycles - frame_start);
             ++frame;
             frame_start = virtual_cycles;
             verify_frame_state();
@@ -327,6 +330,18 @@ int main(int argc, char **argv) {
       apply_writes();
    }
    if (frame < kFramesToCheck) fail("instruction limit reached before motion check completed");
+
+   if (frame_periods.size() < static_cast<size_t>(kFramesToCheck))
+      fail("missing frame-period samples");
+   for (uint64_t period : frame_periods) {
+      if (period != kExpectedFrameCycles) {
+         std::fprintf(stderr,
+            "vcs_standard_motion: frame period is %llu cycles; expected %llu\n",
+            static_cast<unsigned long long>(period),
+            static_cast<unsigned long long>(kExpectedFrameCycles));
+         return 1;
+      }
+   }
 
    verify_horizontal_positioning();
    for (size_t object = 0; object < ObjectCount; ++object) {

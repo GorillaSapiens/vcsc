@@ -85,6 +85,15 @@ the visible playfield makes accidental whole-field shifts obvious.
 The kernel borrows player colors for the score and clears `NUSIZ0/1`, so the
 example reapplies all volatile color and geometry registers before every draw.
 
+## Overscan hook
+
+The motion update and score increment live in the strong
+`vcs_standard_overscan_hook()` definition. The kernel invokes it after the
+visible field, after restoring persistent Y state and S, and immediately after
+asserting `VBLANK`. The update therefore becomes the next frame's state. The
+motion regression proving 320 successive positions also proves that the strong
+hook overrides the weak no-op and runs exactly once per completed frame.
+
 Build after building the toolchain:
 
 ```sh

@@ -18,11 +18,6 @@ const uint8_t player_shape[8] := {
    0bX......X
 };
 
-// Task 20b defines only the source contract. Task 20c/20d will replace this
-// no-op definition with the normalized retained assembly implementation.
-void vcs_standard_kernel_drawscreen(void) {
-}
-
 int16_t main(void) {
    VCS_STANDARD_PLAYER0_X := 40;
    VCS_STANDARD_PLAYER1_X := 96;

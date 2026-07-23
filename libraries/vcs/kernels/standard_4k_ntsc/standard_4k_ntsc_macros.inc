@@ -3,7 +3,7 @@
 ;
 ; Deliberate vcsc-as ports of the five retained DASM macros.
 ; Selected profile: NTSC, unbanked 4K, non-reflected standard kernel,
-; default asymmetric playfield, default decimal score, no optional hooks.
+; default asymmetric playfield, default decimal score, one overscan hook.
 ;
 ; Retained input SHA-256:
 ;   ba1270e04db26dffe52242bea6022a8f150c1b8d9c5af706f04aff79a364d4e7  legacy-basic-kernels/common/macro.h

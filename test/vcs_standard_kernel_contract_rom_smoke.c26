@@ -30,9 +30,6 @@ const uint8_t player_shape[8] := {
    0bX......X
 };
 
-void vcs_standard_kernel_drawscreen(void) {
-}
-
 int16_t main(void) {
    VCS_STANDARD_PLAYER0_X := 40;
    VCS_STANDARD_PLAYER1_X := 96;

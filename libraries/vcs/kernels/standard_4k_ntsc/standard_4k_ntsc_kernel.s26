@@ -3,7 +3,7 @@
 ;
 ; Mechanically normalized source for the selected standard kernel.
 ; Selected profile: NTSC, unbanked 4K, non-reflected standard kernel,
-; default asymmetric playfield, default decimal score, no optional hooks.
+; default asymmetric playfield, default decimal score, one overscan hook.
 ;
 ; Retained input SHA-256:
 ;   ba1270e04db26dffe52242bea6022a8f150c1b8d9c5af706f04aff79a364d4e7  legacy-basic-kernels/common/macro.h
@@ -33,6 +33,7 @@
 .importzp vcs_standard_playfield_position
 .importzp vcs_standard_object_masks
 .import vcs_standard_playfield
+.import vcs_standard_overscan_hook
 
 ; Canonical TIA and RIOT addresses used by the selected source.
 VSYNC   = $0000
@@ -90,6 +91,8 @@ __abimeta$V1$function$definition$vcs_standard_kernel_drawscreen$summary$paramsQ3
 __abimeta$V1$function$definition$vcs_standard_kernel_drawscreen$return$modeQ3Dreturn_voidQ3BvoidQ28szQ3D0Q29$return_voidQ20voidQ28sizeQ3D0Q29 = 0
 .export __sbpmeta$F$vcs_standard_kernel_drawscreen
 __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
+.export __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook
+__sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 
 .segment "KERNEL_CODE"
 .proc vcs_standard_kernel_drawscreen
@@ -687,6 +690,7 @@ __sbpmeta$F$vcs_standard_kernel_drawscreen = 0
             lda #2
  sta WSYNC
  sta VBLANK
+ jsr vcs_standard_overscan_hook
  RETURN
 
 .endproc
@@ -1054,5 +1058,11 @@ vcs_standard_score_table:
      .byte $ff,$fe,$fc,$f8,$f0,$e0,$c0,$80
 @end_bits:
      .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff
+.endproc
+
+.segment "CODE"
+.proc __weak_vcs_standard_overscan_hook
+.export __weak_vcs_standard_overscan_hook
+     rts
 .endproc
 

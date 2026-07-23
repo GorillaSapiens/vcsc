@@ -78,6 +78,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $module=File::Spec->catfile($profile,'standard_4k_ntsc.c26');
+my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s26');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $readme=File::Spec->catfile($profile,'README.md');
 my $module_text=read_file($module);
@@ -98,8 +99,8 @@ require_re($module_text,qr/alias\s+VCS_STANDARD_PLAYFIELD_ROWS\s+12\b/,
    '12-row playfield geometry is missing');
 require_re($module_text,qr/alias\s+VCS_STANDARD_DEFAULT_ROW_SCANLINES\s+16\b/,
    'default 16-scanline row height is missing');
-require_re($module_text,qr/alias\s+VCS_STANDARD_HIDDEN_STACK_BYTES\s+6\b/,
-   'module hidden-stack contract is not six bytes');
+require_re($module_text,qr/alias\s+VCS_STANDARD_HIDDEN_STACK_BYTES\s+4\b/,
+   'module supplementary hidden-stack contract is not four bytes');
 require_re($module_text,qr/uint8_t\s+vcs_standard_object_x\s*\[\s*VCS_STANDARD_OBJECT_COUNT\s*\]\s*;/,
    'five-object horizontal-position adjacency group is missing');
 require_re($module_text,qr/uint8_t\s+vcs_standard_pointer_workspace\s*\[\s*VCS_STANDARD_POINTER_WORKSPACE_BYTES\s*\]\s*;/,
@@ -108,6 +109,8 @@ $module_text !~ /(?:const\s+)?uint8_t\s+vcs_standard_playfield\s*\[/
    or die "kernel module still allocates the application playfield\n";
 $module_text !~ /\*\s*vcs_standard_playfield|vcs_standard_playfield\s*\*/
    or die "kernel module introduced a runtime playfield pointer\n";
+require_re($module_text,qr/extern\s+void\s+vcs_standard_overscan_hook\s*\(\s*void\s*\)\s*;/,
+   'void overscan-hook declaration is missing');
 require_re($module_text,qr/extern\s+void\s+vcs_standard_kernel_drawscreen\s*\(\s*void\s*\)\s*;/,
    'drawscreen entry declaration is missing');
 $module_text !~ /\b(?:absolute\s+)?ref\b[^;]*(?:0x|\$)[0-9A-Fa-f]+/
@@ -119,7 +122,8 @@ my @required_readme=(
    'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
    'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
-   'callstack_extra = $0006', 'Mandatory module-declared RAM', '80',
+   'callstack_extra = $0004', 'Mandatory module-declared RAM', '80',
+   'vcs_standard_overscan_hook', 'weak no-op', '**next** frame',
    'fixed ROM playfield', 'mutable playfield', '32 independently controlled bits',
    '16 scanlines', '$00..$D0', 'runtime playfield',
    '88-byte default score table'
@@ -127,8 +131,8 @@ my @required_readme=(
 for my $phrase (@required_readme) {
    index($readme_text,$phrase) >= 0 or die "contract README is missing '$phrase'\n";
 }
-require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\$0006/s,
-   'profile cfg does not reserve the exact hidden six-byte stack allowance');
+require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\$0004/s,
+   'profile cfg does not reserve the exact four-byte supplementary stack allowance');
 
 my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_smoke.c26');
 my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_kernel_contract_rom_smoke.c26');
@@ -142,23 +146,27 @@ $rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned
 
 my ($ram_exit,$ram_sig,$ram_out,$ram_err)=run_capture(
    $driver,'-I',$vcs,'-T',$cfg,
-   $ram_src,'-o',File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'));
+   $ram_src,$kernel,'-o',File::Spec->catfile($tmp,'standard_kernel_contract_ram.bin'));
 $ram_exit != 0 && !$ram_sig or die "mutable-playfield smoke unexpectedly linked\n";
 without_cartridge_usage($ram_out) eq '' or die "mutable-playfield smoke wrote stdout:\n$ram_out";
 $ram_err =~ /does not fit|overflow|out of memory|RAM/i
    or die "mutable-playfield failure did not report RIOT RAM exhaustion:\n$ram_err";
 
 my $rom_map=build_smoke(
-   $driver,$vcs,$cfg,$rom_src,
+   $driver,$vcs,$cfg,[$rom_src,$kernel],
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_kernel_contract_rom.map'));
 
 require_re($rom_map,qr/RAM\s+start=\$0080\s+size=\$0076\s+type=rw/,
-   'profile did not reserve four call-graph bytes plus six hidden bytes');
-require_re($rom_map,qr/region=RAM\s+depth=2\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0006/,
-   'map does not report the six-byte hidden-stack allowance');
-symbol_addr($rom_map,'__call_stack_extra') == 6
-   or die "__call_stack_extra is not six\n";
+   'profile did not reserve six call-graph bytes plus four supplementary bytes');
+require_re($rom_map,qr/region=RAM\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+   'map does not report the hook-aware four-byte supplementary allowance');
+symbol_addr($rom_map,'__call_stack_depth') == 3
+   or die "__call_stack_depth does not include drawscreen -> overscan hook\n";
+symbol_addr($rom_map,'__call_stack_extra') == 4
+   or die "__call_stack_extra is not four\n";
+symbol_addr($rom_map,'__weak_vcs_standard_overscan_hook') >= 0xf000
+   or die "default weak overscan hook did not link in cartridge ROM\n";
 
 my $object_x=symbol_addr($rom_map,'vcs_standard_object_x');
 my $player0_y=symbol_addr($rom_map,'vcs_standard_player0_y');
@@ -182,7 +190,7 @@ my $bad_cfg=File::Spec->catfile($tmp,'bad_callstack_extra.cfg');
 (my $bad_text=$cfg_text) =~ s/callstack\s*=\s*callgraph/callstack = no/;
 write_file($bad_cfg,$bad_text);
 my ($bad_exit,$bad_sig,$bad_out,$bad_err)=run_capture(
-   $driver,'-I',$vcs,'-T',$bad_cfg,$ram_src,'-o',File::Spec->catfile($tmp,'bad.bin'));
+   $driver,'-I',$vcs,'-T',$bad_cfg,$ram_src,$kernel,'-o',File::Spec->catfile($tmp,'bad.bin'));
 $bad_exit != 0 && !$bad_sig or die "callstack_extra without callgraph unexpectedly linked\n";
 without_cartridge_usage($bad_out) eq '' or die "bad profile wrote unexpected stdout:\n$bad_out";
 $bad_err =~ /sets callstack_extra but does not request callstack=callgraph/
