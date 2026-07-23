@@ -32,6 +32,17 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
 
+.PHONY: exam
+
+exam:
+	@for each in examples/*; do \
+		if [ -d "$$each" ]; then \
+			$(MAKE) -C "$$each" clean && \
+			$(MAKE) -C "$$each" && \
+			stella "$$each"/*.bin; \
+		fi; \
+	done
+
 clean:
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
