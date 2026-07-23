@@ -52,7 +52,7 @@ $tmp = abs_path($tmp) // die "could not resolve temporary directory: $tmp\n";
 
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $vcs_dir = File::Spec->catfile($repo, 'libraries', 'vcs');
-my $source = File::Spec->catfile($repo, 'examples', '01_solid_color', 'solid_color.c26');
+my $source = File::Spec->catfile($repo, 'test', 'fixtures', 'vcs_examples', '01_solid_color', 'golden.c26');
 my $binary = File::Spec->catfile($tmp, 'solid_color.bin');
 my $map = File::Spec->catfile($tmp, 'solid_color.map');
 

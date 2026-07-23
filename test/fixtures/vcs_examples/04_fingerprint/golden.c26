@@ -1,0 +1,251 @@
+// 6507 silicon fingerprint display.
+//
+// Four unstable ARR-immediate probes produce accumulator and masked NVZC
+// results. VCSC feeds those eight bytes through CRC-24/OPENPGP and displays
+// the resulting 24-bit fingerprint as six hexadecimal digits.
+
+include "vcs.c26"
+include "fonts/default_hex.c26"
+
+alias BACKGROUND_COLOR 0x84
+
+uint8_t probe_accumulator;
+uint8_t probe_flags;
+uint24_t fingerprint;
+include "six_glyph_display.c26"
+
+// ARR is an unstable unofficial NMOS 6502/6507 opcode. The example enables
+// named unofficial mnemonics explicitly with -Wa,--illegals; each annotated
+// line also records the exact opcode and operand bytes emitted. Each probe
+// stores A' and then captures NVZC from P' before any flag-changing cleanup.
+void probe1(void) {
+   asm cld;
+   asm sec;
+   asm lda #$e5;
+   asm ARR #$b8; // Unstable unofficial ARR; emits bytes $6B,$B8.
+   asm sta probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta probe_flags;
+   asm cld;
+}
+
+void probe2(void) {
+   asm cld;
+   asm sec;
+   asm lda #$36;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta probe_flags;
+   asm cld;
+}
+
+void probe3(void) {
+   asm sed;
+   asm clc;
+   asm lda #$f6;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta probe_flags;
+   asm cld;
+}
+
+void probe4(void) {
+   asm cld;
+   asm clc;
+   asm lda #$06;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta probe_flags;
+   asm cld;
+}
+
+// CRC-24/OPENPGP: poly 0x864cfb, init 0xb704ce, no reflection, xorout 0.
+void crc24_feed(uint8_t value) {
+   uint8_t bits := 8;
+
+   fingerprint ^= (uint24_t)value << 16;
+   while (bits) {
+      if (fingerprint & 0x800000) {
+         fingerprint <<= 1;
+         fingerprint ^= 0x864cfb;
+      }
+      else {
+         fingerprint <<= 1;
+      }
+      bits--;
+   }
+}
+
+void compute_fingerprint(void) {
+   fingerprint := 0xb704ce;
+
+   probe1();
+   crc24_feed(probe_accumulator);
+   crc24_feed(probe_flags);
+
+   probe2();
+   crc24_feed(probe_accumulator);
+   crc24_feed(probe_flags);
+
+   probe3();
+   crc24_feed(probe_accumulator);
+   crc24_feed(probe_flags);
+
+   probe4();
+   crc24_feed(probe_accumulator);
+   crc24_feed(probe_flags);
+}
+
+void prepare_six_glyph_pointers(void) {
+   // fingerprint is little-endian: +2 supplies digits 1/2, +1 digits 3/4,
+   // and +0 digits 5/6. Each nibble selects one eight-byte font glyph.
+   asm lda fingerprint+2;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+1;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers+2;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+3;
+
+   asm lda fingerprint+1;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers+4;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+5;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers+6;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+7;
+
+   asm lda fingerprint;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers+8;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+9;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta six_glyph_pointers+10;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta six_glyph_pointers+11;
+}
+
+void wait_scanlines(uint8_t lines) {
+   while (lines) {
+      WSYNC := 0;
+      lines--;
+   }
+}
+
+
+#ifdef FINGERPRINT_SELFTEST
+void main(void) {
+   // Standard CRC-24/OPENPGP check vector: ASCII "123456789" -> 0x21cf02.
+   fingerprint := 0xb704ce;
+   crc24_feed(0x31);
+   crc24_feed(0x32);
+   crc24_feed(0x33);
+   crc24_feed(0x34);
+   crc24_feed(0x35);
+   crc24_feed(0x36);
+   crc24_feed(0x37);
+   crc24_feed(0x38);
+   crc24_feed(0x39);
+   if (fingerprint != 0x21cf02) {
+      asm lda #$ff;
+      asm ldx #1;
+      asm ldy #0;
+      asm jsr $ffff;
+   }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+#else
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := BACKGROUND_COLOR;
+   VBLANK := 2;
+
+   compute_fingerprint();
+   prepare_six_glyph_pointers();
+   six_glyph_setup();
+
+   // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
+   while (1) {
+      VSYNC := 2;
+      wait_scanlines(3);
+      VSYNC := 0;
+
+      VBLANK := 2;
+      wait_scanlines(37);
+      VBLANK := 0;
+
+      wait_scanlines(89);
+      six_glyph_draw();
+      wait_scanlines(89);
+
+      VBLANK := 2;
+      TIM64T := 35;
+      while (INTIM) {
+      }
+      WSYNC := 0;
+      WSYNC := 0;
+   }
+}
+#endif

@@ -25,6 +25,17 @@ my @test_files=sort map { File::Spec->catfile($test,$_) }
 closedir($tdh);
 my %text=map { $_ => slurp($_) } @test_files;
 
+# User-facing examples are smoke-tested separately. Exact regression drivers
+# must consume private fixtures so changing a color, sprite, score, tune, or
+# motion constant in examples/ cannot invalidate a golden harness.
+my @example_coupling;
+for my $path (@test_files) {
+   next unless basename($path) =~ /\.(?:pl|cpp)\z/;
+   next if basename($path) eq 'vcs_examples_build.pl';
+   push @example_coupling,basename($path) if $text{$path} =~ /(?:^|[\\\/])examples[\\\/][^\n'"]+\.c26\b/;
+}
+@example_coupling and die "exact regression code references editable examples: @example_coupling\n";
+
 sub referenced_elsewhere {
    my($path)=@_;
    my $name=basename($path);

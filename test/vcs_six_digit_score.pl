@@ -68,8 +68,8 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $ex=File::Spec->catdir($repo,'examples','03_six_digit_score');
-my $src=File::Spec->catfile($ex,'six_digit_score.c26');
+my $ex=File::Spec->catdir($repo,'test','fixtures','vcs_examples','03_six_digit_score');
+my $src=File::Spec->catfile($ex,'golden.c26');
 my $font=File::Spec->catfile($vcs,'fonts','default_decimal.c26');
 my $shared=File::Spec->catfile($vcs,'six_glyph_display.c26');
 my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');

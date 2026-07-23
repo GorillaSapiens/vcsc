@@ -175,7 +175,12 @@ The visible loop replaces the two missile-update slots with balanced legal
 loads and `COLUP0`/`COLUP1` writes. The final row is precomputed during VBLANK.
 Both ENAM registers are cleared before the visible field and never enabled.
 
-`test/vcs_standard_playercolors.test` verifies:
+`test/vcs_standard_playercolors.test` verifies the kernel against private
+golden cartridges under `test/fixtures/vcs_examples/`; the examples below are
+smoke-built but their literal palettes, positions, and motion constants are not
+part of the regression contract.
+
+It verifies:
 
 - deterministic normalization;
 - assembly without unofficial opcodes;

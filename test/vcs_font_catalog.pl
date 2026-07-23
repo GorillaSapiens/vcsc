@@ -66,7 +66,7 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $fonts=File::Spec->catdir($vcs,'fonts');
-my $example=File::Spec->catfile($repo,'examples','03_six_digit_score','six_digit_score.c26');
+my $example=File::Spec->catfile($repo,'test','fixtures','vcs_examples','03_six_digit_score','golden.c26');
 my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny);
 my $example_text=read_file($example);
 

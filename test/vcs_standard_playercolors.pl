@@ -50,8 +50,8 @@ my $contract=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors.c26');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors_kernel.s26');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc_playercolors.cfg');
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
-my $static_source=File::Spec->catfile($repo,qw(examples 07_playercolor_static_test playercolor_static_test.c26));
-my $motion_source=File::Spec->catfile($repo,qw(examples 08_playercolor_motion_test playercolor_motion_test.c26));
+my $static_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 07_playercolor_static golden.c26));
+my $motion_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 08_playercolor_motion golden.c26));
 my $static_bin=File::Spec->catfile($tmp,'playercolor_static_test.bin');
 my $static_map=File::Spec->catfile($tmp,'playercolor_static_test.map');
 my $motion_bin=File::Spec->catfile($tmp,'playercolor_motion_test.bin');
@@ -120,7 +120,7 @@ require_re($kernel_text,qr/lda\.ay\s+vcs_standard_color_player0_colors,y.*sta\s+
 require_re($kernel_text,qr/lda\.ay\s+vcs_standard_color_player1_colors,y.*sta\s+COLUP1/s,
    'P1 row-color write is missing');
 
-# Compile one reusable CPU/TIA-write harness, then lock both examples.
+# Compile one reusable CPU/TIA-write harness, then lock both private fixtures.
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $harness_source=File::Spec->catfile($repo,'test','vcs_standard_playercolors.cpp');

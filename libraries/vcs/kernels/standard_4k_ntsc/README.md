@@ -94,6 +94,10 @@ vcsc-as \
 ```
 
 That produces an unresolved relocatable kernel object by design.
+The exact standard-kernel regression cartridges live under
+`test/fixtures/vcs_examples/`; user-facing examples are only smoke-built and
+may be edited without changing test harness constants.
+
 `examples/05_static_kernel_test` is the first complete integration: it links the
 object to module state, enforces final page placement, checks the legalized
 cycle schedule, and has been verified by Stella 7.0 at a stable 262 lines and

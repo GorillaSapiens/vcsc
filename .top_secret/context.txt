@@ -3678,3 +3678,31 @@ Before returning another modified archive:
 * Measured example ROM use is 1,827 bytes for the static cartridge and 2,759
   bytes for the motion cartridge, leaving 2,263 and 1,331 bytes respectively in
   the ordinary 4K ROM region. Task 22 is next and remains explicitly optional.
+
+2026-07-23 00:40:05 PDT, decouple editable examples from golden regressions
+-----------------------------------------------------------------------------
+* Treat every source under `examples/` as user-facing and editable. Exact ROM,
+  map, code-size, stack, timing, raster, palette, graphics, score, music, and
+  motion assertions must no longer consume those files directly.
+* Snapshot the eight current example cartridges as private golden sources under
+  `test/fixtures/vcs_examples/`, including the reviewed Stella reference image
+  used by the standard static-kernel raster contract. Point the existing solid-
+  color, Ode to Joy, six-glyph/font, fingerprint, standard static/motion,
+  pairwise-position, legal-schedule/byte, and player-color regressions at those
+  fixtures instead of the examples.
+* Add `vcs_examples_build.test` as the only content-agnostic source smoke test for
+  all eight user-facing examples. It requires each current example to compile
+  and link into a valid 4096-byte cartridge with ROM vectors, but does not copy
+  literal colors, positions, sprite bytes, scores, music, or motion constants
+  into a test harness.
+* Extend `source_tree_hygiene.test` to reject any exact Perl/C++ regression that
+  points at an example `.c26` source. Document the example/fixture boundary in
+  the test and kernel documentation.
+* Prove the original reported edit explicitly: temporarily change example 07's
+  complete P0 palette from the `xE` values to `x8`; the example smoke test,
+  player-color golden regression, and source-tree hygiene test all still pass,
+  then restore the submitted example source unchanged.
+* Pass 289/289 compile-only tests, 160/160 end-to-end/generic tests, the
+  deliberate palette-edit proof, and staged installation. The submitted
+  `examples/` tree and `.top_secret/instruction.txt` remain byte-for-byte
+  unchanged. No roadmap item is advanced; task 22 remains next.

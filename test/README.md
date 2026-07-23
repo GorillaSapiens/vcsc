@@ -14,6 +14,14 @@ It runs two kinds of files:
 - `.c26` source tests ... compiler-only checks by default, or full end-to-end `vcsc-cc1 -> vcsc-as -> vcsc-ld -> vcsc-sim` when the header requests link/sim behavior
 - `.test` script-style tests ... generic command wrappers driven entirely by header comments
 
+## Editable examples versus golden fixtures
+
+Everything under `examples/` is user-facing and deliberately editable. The
+suite smoke-builds all examples through `vcs_examples_build.test`, but exact
+ROM, map, timing, raster, palette, music, score, and motion assertions use
+private cartridges under `test/fixtures/vcs_examples/`. Do not point a golden
+harness back at an example; `source_tree_hygiene.test` rejects that coupling.
+
 ## Common usage
 
 Run the whole suite from `test/`:
@@ -111,8 +119,9 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
-`vcs_standard_motion.test` builds `examples/06_object_motion_test` and runs it
-for 320 frames in the 6502 harness. The motion update runs only through a
+`vcs_standard_motion.test` builds a private copy of the object-motion cartridge
+under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
+harness. The motion update runs only through a
 strong `vcs_standard_overscan_hook`; the test proves that it overrides the weak
 fallback, that the assembly edge extends stack/activation planning, and that the
 fixed frame period is unchanged. It locks every object's persistent Y
@@ -123,7 +132,7 @@ packed masks, state lost through horizontal-position scratch reuse, and any
 whole-frame vertical displacement that instruction-level cycle tests miss.
 
 `vcs_standard_playercolors.test` builds the separate no-missile P0+P1+BL
-profile and its static and motion examples. It checks deterministic normalization,
+profile and private static/motion fixtures. It checks deterministic normalization,
 official-opcode assembly, page and stack contracts, the exact standard frame
 period, absence of missile enables, eight distinct logical-row colors for each
 player, exact P0/P1/BL raster rows, and 320 frames of full-range P0/P1/BL

@@ -156,7 +156,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s26');
-my $source=File::Spec->catfile($repo,'examples','05_static_kernel_test','static_kernel_test.c26');
+my $source=File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_static_kernel','golden.c26');
 my $object=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.o26');
 my $object_map=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.map');
 

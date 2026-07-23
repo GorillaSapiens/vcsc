@@ -1,0 +1,162 @@
+// Visible horizontal/vertical reference cartridge for the normalized unbanked
+// 4K NTSC standard kernel. Every object traverses the complete public horizontal
+// range from X=0 through X=159 at its own integer speed, against a fixed ruler.
+
+include "vcs.c26"
+
+// Border plus four fixed vertical rulers. This is intentionally visible: a
+// motion regression that draws on an empty field is lousy diagnostic equipment.
+page const uint8_t vcs_standard_playfield[48] := {
+   0xff, 0xff, 0xff, 0xff,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0xff, 0xff, 0xff, 0xff,
+   0x00, 0x00, 0x00, 0x00
+};
+
+include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
+
+page const uint8_t player0_graphics[8] := {
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX...XXX,
+      0bXX..X.XX,
+      0bXX.X..XX,
+      0bXXX...XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+page const uint8_t player1_graphics[8] := {
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXX.XX.XX,
+      0bXX.XX.XX,
+      0bXX....XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+alias DIRECTION_PLAYER0 0x01
+alias DIRECTION_PLAYER1 0x02
+alias DIRECTION_MISSILE0 0x04
+alias DIRECTION_MISSILE1 0x08
+alias DIRECTION_BALL    0x10
+
+alias MOTION_MIN_X 0
+alias MOTION_MAX_X 159
+
+alias SPEED_PLAYER0 1
+alias SPEED_PLAYER1 2
+alias SPEED_MISSILE0 3
+alias SPEED_MISSILE1 4
+alias SPEED_BALL 5
+
+uint8_t motion_frame := 0;
+uint8_t motion_directions := 0x15;
+
+// Clamp at each endpoint before reversing. This makes X=0 and X=159 visible
+// even when an object's speed does not divide the 159-coordinate span.
+void move_object(uint8_t object, uint8_t direction, uint8_t speed) {
+   if (motion_directions & direction) {
+      if (vcs_standard_object_x[object] >= MOTION_MAX_X - speed) {
+         vcs_standard_object_x[object] := MOTION_MAX_X;
+         motion_directions ^= direction;
+      }
+      else {
+         vcs_standard_object_x[object] += speed;
+      }
+   }
+   else {
+      if (vcs_standard_object_x[object] <= MOTION_MIN_X + speed) {
+         vcs_standard_object_x[object] := MOTION_MIN_X;
+         motion_directions ^= direction;
+      }
+      else {
+         vcs_standard_object_x[object] -= speed;
+      }
+   }
+}
+
+void update_motion(void) {
+   motion_frame++;
+
+   // All five objects traverse the same complete X=0..159 range. Different
+   // starting phases, directions, and integer speeds keep their motion
+   // asynchronous without inventing object-specific travel limits.
+   move_object(VCS_STANDARD_OBJECT_PLAYER0, DIRECTION_PLAYER0, SPEED_PLAYER0);
+   move_object(VCS_STANDARD_OBJECT_PLAYER1, DIRECTION_PLAYER1, SPEED_PLAYER1);
+   move_object(VCS_STANDARD_OBJECT_MISSILE0, DIRECTION_MISSILE0, SPEED_MISSILE0);
+   move_object(VCS_STANDARD_OBJECT_MISSILE1, DIRECTION_MISSILE1, SPEED_MISSILE1);
+   move_object(VCS_STANDARD_OBJECT_BALL, DIRECTION_BALL, SPEED_BALL);
+}
+
+void initialize_motion_scene(void) {
+   COLUBK := 0x84;
+
+   VCS_STANDARD_PLAYER0_X := 0;
+   VCS_STANDARD_PLAYER1_X := 159;
+   VCS_STANDARD_MISSILE0_X := 37;
+   VCS_STANDARD_MISSILE1_X := 121;
+   VCS_STANDARD_BALL_X := 80;
+
+   // Fixed non-overlapping vertical bands in the kernel's public Y convention.
+   vcs_standard_player0_y := 18;
+   vcs_standard_missile0_y := 34;
+   vcs_standard_ball_y := 48;
+   vcs_standard_missile1_y := 62;
+   vcs_standard_player1_y := 78;
+
+   vcs_standard_player0_graphics := player0_graphics;
+   vcs_standard_player1_graphics := player1_graphics;
+   vcs_standard_player0_height := 7;
+   vcs_standard_player1_height := 7;
+   vcs_standard_missile0_height := 5;
+   vcs_standard_missile1_height := 7;
+   vcs_standard_ball_height := 3;
+
+   vcs_standard_score := 123456;
+   vcs_standard_score_color := 0x0e;
+   vcs_standard_playfield_position := 8;
+
+   VBLANK := 2;
+   TIM64T := 0;
+}
+
+// The kernel borrows the player colors for the score and clears NUSIZ0/1.
+// Reapply all geometry/color registers whose persistence is not in the ABI.
+void configure_motion_frame(void) {
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+}
+
+// Called by the kernel once VBLANK is asserted and all persistent object state
+// has been restored. These changes become the next frame's positions and score.
+void vcs_standard_overscan_hook(void) {
+   update_motion();
+   vcs_standard_score++;
+}
+
+void main(void) {
+   initialize_motion_scene();
+   while (1) {
+      configure_motion_frame();
+      vcs_standard_kernel_drawscreen();
+   }
+}
