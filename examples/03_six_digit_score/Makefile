@@ -9,6 +9,6 @@ six_digit_score.bin: six_digit_score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(
 	@test `wc -c < $@` -eq 4096
 
 clean:
-	rm -f six_digit_score.bin six_digit_score.hex six_digit_score.map six_digit_score.s
+	rm -f six_digit_score.bin six_digit_score.hex six_digit_score.map six_digit_score.s26
 
 .PHONY: all clean

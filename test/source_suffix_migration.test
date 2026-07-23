@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/source_suffix_migration.pl @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: assembler source suffix migration passed
+# expectstderrexact:

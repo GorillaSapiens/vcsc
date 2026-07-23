@@ -436,7 +436,7 @@ sub compile_n_to_object {
    my ($src_name, $runner_args, $tmp, $test_name) = @_;
    my ($stem) = $src_name =~ /^(.*)\.c26$/;
    my $src_path = File::Spec->catfile($test_root, $src_name);
-   my $s_path   = File::Spec->catfile($tmp, "$stem.s");
+   my $s_path   = File::Spec->catfile($tmp, "$stem.s26");
    my $o_path   = File::Spec->catfile($tmp, "$stem.o26");
    my $out_path = File::Spec->catfile($tmp, "$stem.compile.out");
    my $err_path = File::Spec->catfile($tmp, "$stem.compile.err");
@@ -521,7 +521,7 @@ sub run_e2e_case {
    my @archives;
 
    my ($stem) = $file =~ /^(.*)\.c26$/;
-   my $main_s   = File::Spec->catfile($tmp, "$stem.s");
+   my $main_s   = File::Spec->catfile($tmp, "$stem.s26");
    my $main_o26 = File::Spec->catfile($tmp, "$stem.o26");
    my $hex_path = File::Spec->catfile($tmp, 'out.hex');
    my $map_path = File::Spec->catfile($tmp, 'out.map');

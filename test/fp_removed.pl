@@ -23,8 +23,8 @@ my $fp2ptr = File::Spec->catfile($runtime, 'asm', 'fp2ptr.asm');
 
 for my $path (
    File::Spec->catfile($runtime, 'vcsc-runtime.inc'),
-   File::Spec->catfile($runtime, 'vcsc-rt0.s'),
-   glob(File::Spec->catfile($runtime, 'vcsc-zp-*.s')),
+   File::Spec->catfile($runtime, 'vcsc-rt0.s26'),
+   glob(File::Spec->catfile($runtime, 'vcsc-zp-*.s26')),
 ) {
    my $text = slurp($path);
    $text =~ /_vcsc_fp|\.def\s+fp\b|\bfp2ptr\b/
@@ -40,7 +40,7 @@ $linker !~ /bytes\s*=\s*\(uint32_t\)depth\s*\*\s*4u/
    or die "linker still includes the old frame-pointer preservation allowance\n";
 
 my $source = File::Spec->catfile($tmp, 'fp_name.c26');
-my $asm = File::Spec->catfile($tmp, 'fp_name.s');
+my $asm = File::Spec->catfile($tmp, 'fp_name.s26');
 open(my $src, '>', $source) or die "could not create $source: $!\n";
 print {$src} <<'SRC';
 include "machine_6502.c26"

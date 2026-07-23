@@ -75,7 +75,7 @@ sub parse_ihex {
 }
 
 my $compile_src = File::Spec->catfile($tmp, 'compile_define.c26');
-my $compile_out = File::Spec->catfile($tmp, 'compile_define.s');
+my $compile_out = File::Spec->catfile($tmp, 'compile_define.s26');
 write_file($compile_src, <<'N');
 include "machine_6502.c26"
 
@@ -104,11 +104,11 @@ include "machine_6502.c26"
 alias FOO 2
 void main(void) {}
 N
-($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc_cc1, '-I', $test_inc, '-DFOO', $dup_n, '-o', File::Spec->catfile($tmp, 'compile_dup.s'));
+($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc_cc1, '-I', $test_inc, '-DFOO', $dup_n, '-o', File::Spec->catfile($tmp, 'compile_dup.s26'));
 die "compiler duplicate -D unexpectedly succeeded\n$cmd\n$stdout$stderr" if $exit == 0 && $sig == 0;
 die "compiler duplicate -D had wrong diagnostic\n$stderr" if $stderr !~ /multiple definitions for alias 'FOO'/;
 
-my $asm_src = File::Spec->catfile($tmp, 'asm_define.s');
+my $asm_src = File::Spec->catfile($tmp, 'asm_define.s26');
 my $asm_hex = File::Spec->catfile($tmp, 'asm_define.hex');
 write_file($asm_src, <<'ASM');
 .ifdef FOO
@@ -127,14 +127,14 @@ my $bytes = parse_ihex($asm_hex);
 die "assembler -D byte count mismatch\n" if @$bytes != 2;
 die "assembler -D bytes mismatch\n" if $bytes->[0] != 5 || $bytes->[1] != 7;
 
-my $dup_s = File::Spec->catfile($tmp, 'asm_dup.s');
+my $dup_s = File::Spec->catfile($tmp, 'asm_dup.s26');
 write_file($dup_s, "FOO = 2\n.byte FOO\n");
 ($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc_as, '-DFOO=5', '--hex=' . File::Spec->catfile($tmp, 'asm_dup.hex'), $dup_s);
 die "assembler duplicate -D unexpectedly succeeded\n$cmd\n$stdout$stderr" if $exit == 0 && $sig == 0;
 die "assembler duplicate -D had wrong diagnostic\n$stderr" if $stderr !~ /duplicate symbol 'FOO'/ || $stderr !~ /<command-line>:1: first defined here/;
 
 my $driver_n = File::Spec->catfile($tmp, 'driver_define.c26');
-my $driver_s = File::Spec->catfile($tmp, 'driver_define.s');
+my $driver_s = File::Spec->catfile($tmp, 'driver_define.s26');
 my $driver_o = File::Spec->catfile($tmp, 'driver_define.o26');
 write_file($driver_n, "include \"machine_6502.c26\"\nvoid main(void) {}\n");
 write_file($driver_s, ".byte 1\n");
@@ -151,8 +151,8 @@ die "driver did not pass -D to compiler for -S\n$stdout" if $stdout !~ /vcsc-cc1
 die "driver ran assembler for -S\n$stdout" if $stdout =~ /vcsc-as/;
 
 ($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc, '-###', '-c', '-DFOO', $driver_s);
-die "driver dry-run .s failed\n$cmd\n$stdout$stderr" if $exit != 0 || $sig != 0;
-die "driver did not pass -D to assembler for .s\n$stdout" if $stdout !~ /vcsc-as .* -D FOO /s;
+die "driver dry-run .s26 failed\n$cmd\n$stdout$stderr" if $exit != 0 || $sig != 0;
+die "driver did not pass -D to assembler for .s26\n$stdout" if $stdout !~ /vcsc-as .* -D FOO /s;
 
 ($exit, $sig, $stdout, $stderr, $cmd) = run_capture($vcsc, '-###', '-DFOO', $driver_o);
 die "driver accepted unused -D for object-only link\n$cmd\n$stdout$stderr" if $exit == 0 && $sig == 0;

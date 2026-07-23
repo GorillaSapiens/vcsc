@@ -1,4 +1,4 @@
-; vcsc-zp-arg1.s
+; vcsc-zp-arg1.s26
 
 .exportzp _vcsc_arg1
 

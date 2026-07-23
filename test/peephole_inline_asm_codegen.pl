@@ -20,7 +20,7 @@ void main(void) {
 N_EOF
 close $fh;
 
-my $asm = File::Spec->catfile($tmp, 'inline_asm.s');
+my $asm = File::Spec->catfile($tmp, 'inline_asm.s26');
 my @cmd = ($vcsc_cc1, '-quiet', '-I', $test_root, $src, '-o', $asm);
 system(@cmd) == 0 or die "compile failed: @cmd\n";
 

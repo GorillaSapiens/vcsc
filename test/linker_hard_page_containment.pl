@@ -74,7 +74,7 @@ SEGMENTS {
  BSS: load=RAM,type=bss;
 }
 CFG
-my $src=File::Spec->catfile($tmp,'fit.s');
+my $src=File::Spec->catfile($tmp,'fit.s26');
 write_file($src,<<'ASM');
 .segment "CODE"
 .export main
@@ -97,7 +97,7 @@ my $m=slurp($map); $m =~ /^\s*\$([0-9A-Fa-f]{4})\s+hot\b/m or die "map lacks hot
 my $hot=hex($1); (($hot&255)+16)<=256 or die sprintf("HOT crosses page at %04X\n",$hot);
 ($hot&255)==0 or die sprintf("earliest deterministic fit was not selected: %04X\n",$hot);
 
-my $badsrc=File::Spec->catfile($tmp,'bad.s');
+my $badsrc=File::Spec->catfile($tmp,'bad.s26');
 write_file($badsrc,<<'ASM');
 .segment "CODE"
 .export main

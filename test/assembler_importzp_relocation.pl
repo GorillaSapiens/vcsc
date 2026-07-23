@@ -55,8 +55,8 @@ my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
 my $runtime=File::Spec->catfile($repo,'libraries','runtime','libvcsc.l26');
 my $cfg=File::Spec->catfile($repo,'test','generic_6502.cfg');
-my $def=File::Spec->catfile($tmp,'importzp_def.s');
-my $use=File::Spec->catfile($tmp,'importzp_use.s');
+my $def=File::Spec->catfile($tmp,'importzp_def.s26');
+my $use=File::Spec->catfile($tmp,'importzp_use.s26');
 my $defobj=File::Spec->catfile($tmp,'importzp_def.o26');
 my $useobj=File::Spec->catfile($tmp,'importzp_use.o26');
 my $bin=File::Spec->catfile($tmp,'importzp.bin');
@@ -120,7 +120,7 @@ for my $i (0..$#want) {
       or die sprintf("linked byte %d got %02X expected %02X\n",$i,$got[$i],$want[$i]);
 }
 
-my $bad=File::Spec->catfile($tmp,'importzp_nonaffine.s');
+my $bad=File::Spec->catfile($tmp,'importzp_nonaffine.s26');
 write_file($bad,<<'ASM');
 .zpimport zpbase
 .segment "CODE"

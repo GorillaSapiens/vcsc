@@ -19,16 +19,16 @@ my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
 my $rt=File::Spec->catfile($repo,'libraries','runtime','libvcsc.l26');
 
-my $literal=File::Spec->catfile($tmp,'literal.s');
+my $literal=File::Spec->catfile($tmp,'literal.s26');
 write_file($literal, ".segment \"CODE\"\nJMP (\$12FF)\n");
 require_fail('literal indirect JMP wrap', qr/indirect JMP vector at \$12FF .*page-wrap bug/,
              $as,'-o',File::Spec->catfile($tmp,'literal.o26'),$literal);
-my $flat_literal=File::Spec->catfile($tmp,'flat-literal.s');
+my $flat_literal=File::Spec->catfile($tmp,'flat-literal.s26');
 write_file($flat_literal, ".org \$2000\nJMP (\$12FF)\n");
 require_fail('flat literal indirect JMP wrap', qr/indirect JMP vector at \$12FF .*page-wrap bug/,
              $as,'--hex='.File::Spec->catfile($tmp,'flat-literal.hex'),$flat_literal);
 
-my $src=File::Spec->catfile($tmp,'reloc.s');
+my $src=File::Spec->catfile($tmp,'reloc.s26');
 write_file($src,<<'ASM');
 .segment "CODE"
 .export main
@@ -71,7 +71,7 @@ require_ok('safe indirect JMP link',$ld,'-T',$safe_cfg,'-o',File::Spec->catfile(
 
 # The assembler-relative address may itself end in $FF; object mode must defer
 # the decision because final placement can move that symbol to a safe address.
-my $packed_src=File::Spec->catfile($tmp,'packed-ff.s');
+my $packed_src=File::Spec->catfile($tmp,'packed-ff.s26');
 write_file($packed_src,<<'ASM');
 .segment "CODE"
 .export main
@@ -113,7 +113,7 @@ write_file($bad_cfg,cfg_text(0x20FF));
 require_fail('relocated indirect JMP wrap', qr/indirect JMP vector at \$20FF .*page-wrap bug/,
              $ld,'-T',$bad_cfg,'-o',File::Spec->catfile($tmp,'bad.bin'),$obj,$rt);
 
-my $zp_src=File::Spec->catfile($tmp,'zp.s');
+my $zp_src=File::Spec->catfile($tmp,'zp.s26');
 write_file($zp_src,<<'ASM');
 .segment "CODE"
 .export main

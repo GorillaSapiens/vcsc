@@ -1,4 +1,4 @@
-; vcsc-rt0.s
+; vcsc-rt0.s26
 
 .weak __nmi
 .weak __irqbrk

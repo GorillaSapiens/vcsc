@@ -65,13 +65,13 @@ Input assembly source file.
 Write relocatable o26 object output to `<file>`.
 
 ```sh
-vcsc-as -o program.o26 program.s
+vcsc-as -o program.o26 program.s26
 ```
 
 If neither `-o` nor `--hex` is given, `vcsc-as` writes relocatable output using the canonical default name `a.o26`.
 
 ```sh
-vcsc-as program.s
+vcsc-as program.s26
 ```
 
 #### `-I <dir>`, `--include <dir>`
@@ -79,7 +79,7 @@ vcsc-as program.s
 Add a directory to the include search path. May be repeated.
 
 ```sh
-vcsc-as -I common -I board -o program.o26 program.s
+vcsc-as -I common -I board -o program.o26 program.s26
 ```
 
 ### Auxiliary outputs
@@ -91,8 +91,8 @@ These outputs are optional and keep the existing VCSC-specific spelling.
 Write Intel HEX output. If no filename is supplied, the name is derived from the input path with a `.hex` extension.
 
 ```sh
-vcsc-as --hex program.s
-vcsc-as --hex=program.hex program.s
+vcsc-as --hex program.s26
+vcsc-as --hex=program.hex program.s26
 ```
 
 #### `--lst[=file]`
@@ -100,8 +100,8 @@ vcsc-as --hex=program.hex program.s
 Write a listing file. If no filename is supplied, the name is derived from the input path with a `.lst` extension.
 
 ```sh
-vcsc-as --lst program.s
-vcsc-as --lst=program.lst program.s
+vcsc-as --lst program.s26
+vcsc-as --lst=program.lst program.s26
 ```
 
 #### `--map[=file]`
@@ -109,8 +109,8 @@ vcsc-as --lst=program.lst program.s
 Write a map file. If no filename is supplied, the name is derived from the input path with a `.map` extension.
 
 ```sh
-vcsc-as --map program.s
-vcsc-as --map=program.map program.s
+vcsc-as --map program.s26
+vcsc-as --map=program.map program.s26
 ```
 
 ### Opcode-table options
@@ -131,7 +131,7 @@ After loading those lines in that order, `XXX #$56` emits `$82,$56`; the `$80` m
 Arbitrary examples such as `XXX imm $12` may instead be rejected because every opcode byte already has operand-shape metadata: `$12` is an implied-mode byte and therefore cannot be reassigned as immediate.
 
 ```sh
-vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s
+vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s26
 ```
 
 #### `--illegals`
@@ -139,7 +139,7 @@ vcsc-as --opcode-cfg cpu65c02.cfg -o program.o26 program.s
 Load the bundled `illegals.cfg` in addition to the always-loaded `default.cfg`. This enables named unofficial or illegal opcodes such as `LAX`, `SAX`, `DCP`, `ISC`, `SLO`, `RLA`, `SRE`, `RRA`, the retained-source aliases `ASR`/`ALR` and `SBX`/`AXS`, representative unofficial `NOP` forms, and representative halt names `KIL`, `JAM`, and `HLT`. Raw `opXX` byte validation does not require this flag, because `default.cfg` already contains operand-shape metadata for all 256 opcode bytes.
 
 ```sh
-vcsc-as --illegals --hex=program.hex program.s
+vcsc-as --illegals --hex=program.hex program.s26
 ```
 
 ### Input/output aliases
@@ -151,19 +151,19 @@ These forms are accepted in addition to the primary command-line shape.
 Alias for the positional input file.
 
 ```sh
-vcsc-as --input program.s --lst
+vcsc-as --input program.s26 --lst
 ```
 
 #### `--o26[=file]`
 
 Alias for object output.
 
-- `vcsc-as --o26 program.s` writes `program.o26`
-- `vcsc-as --o26=custom.o26 program.s` writes `custom.o26`
+- `vcsc-as --o26 program.s26` writes `program.o26`
+- `vcsc-as --o26=custom.o26 program.s26` writes `custom.o26`
 
 ```sh
-vcsc-as --o26 program.s
-vcsc-as --o26=program.o26 program.s
+vcsc-as --o26 program.s26
+vcsc-as --o26=program.o26 program.s26
 ```
 
 ### Help
@@ -181,25 +181,25 @@ vcsc-as --help
 Generate a default object file named `a.o26`:
 
 ```sh
-vcsc-as program.s
+vcsc-as program.s26
 ```
 
 Generate a named object file:
 
 ```sh
-vcsc-as -o program.o26 program.s
+vcsc-as -o program.o26 program.s26
 ```
 
 Generate Intel HEX plus listing and map files using derived names:
 
 ```sh
-vcsc-as --hex --lst --map program.s
+vcsc-as --hex --lst --map program.s26
 ```
 
 Generate every output explicitly:
 
 ```sh
-vcsc-as -o out.o26 --hex=out.hex --lst=out.lst --map=out.map test.s
+vcsc-as -o out.o26 --hex=out.hex --lst=out.lst --map=out.map test.s26
 ```
 
 ## Behavior Notes
@@ -209,13 +209,13 @@ vcsc-as -o out.o26 --hex=out.hex --lst=out.lst --map=out.map test.s
 For `--hex`, `--lst`, `--map`, and `--o26`, use the `=` form when supplying an optional filename:
 
 ```sh
-vcsc-as --hex=program.hex --lst=program.lst --map=program.map --o26=program.o26 program.s
+vcsc-as --hex=program.hex --lst=program.lst --map=program.map --o26=program.o26 program.s26
 ```
 
 Avoid relying on a space-separated optional value such as:
 
 ```sh
-vcsc-as --hex program.hex program.s
+vcsc-as --hex program.hex program.s26
 ```
 
 With `getopt_long()`, that extra token may be treated as a positional operand instead of an option value.
@@ -244,7 +244,7 @@ The assembler preprocesses the root source before lexing/parsing:
 By default `vcsc-as` stays quiet on success. If you want to trace the relaxation work, enable the assembler xray:
 
 ```text
-vcsc-as -X passes --hex=program.hex program.s
+vcsc-as -X passes --hex=program.hex program.s26
 ```
 
 That prints a pass-oriented trace: the first pass shows the full component sizes one item per line, later passes show only the fields that changed, and the stable pass prints the final sizes again. For example:

@@ -47,7 +47,7 @@ my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $profile=File::Spec->catdir($repo,'libraries','vcs','kernels','standard_4k_ntsc');
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $macros=File::Spec->catfile($profile,'standard_4k_ntsc_macros.inc');
-my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
+my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s26');
 my $config=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $generated=File::Spec->catdir($tmp,'normalized');
 make_path($generated);
@@ -64,7 +64,7 @@ my ($gen_exit,$gen_sig,$gen_out,$gen_err)=run_capture(
 $gen_exit == 0 && !$gen_sig
    or die "normalization generation exited $gen_exit signal $gen_sig\nstdout:\n$gen_out\nstderr:\n$gen_err";
 $gen_err eq '' or die "normalization generation wrote stderr:\n$gen_err";
-for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s') {
+for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s26') {
    my $checked=read_file(File::Spec->catfile($profile,$name));
    my $fresh=read_file(File::Spec->catfile($generated,$name));
    $fresh eq $checked or die "$name is not reproducibly generated\n";
@@ -178,7 +178,7 @@ require_re($map_text,qr/^KERNEL_RODATA\s+\$[0-9A-F]{8}\s+\$00000058\b/m,
 require_re($map_text,qr/\bvcs_standard_kernel_drawscreen\b/,
    'normalized object map is missing the exported kernel entry');
 
-my $macro_smoke=File::Spec->catfile($tmp,'standard_4k_ntsc_macros_smoke.s');
+my $macro_smoke=File::Spec->catfile($tmp,'standard_4k_ntsc_macros_smoke.s26');
 write_file($macro_smoke,<<'ASM');
 .include "standard_4k_ntsc_macros.inc"
 VSYNC = $00

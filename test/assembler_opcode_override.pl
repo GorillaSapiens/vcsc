@@ -34,7 +34,7 @@ sub slurp {
 
 sub run_asm {
    my ($name, $body, $cfgs) = @_;
-   my $src = File::Spec->catfile($tmp, "$name.s");
+   my $src = File::Spec->catfile($tmp, "$name.s26");
    my $hex = File::Spec->catfile($tmp, "$name.hex");
    my $out = File::Spec->catfile($tmp, "$name.out");
    my $err = File::Spec->catfile($tmp, "$name.err");

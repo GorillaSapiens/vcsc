@@ -138,7 +138,7 @@ wider than four bytes retain a separate aggregate zeroing path.
 Generic tests use an explicit runner command:
 
 ```text
-# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s
+# runner: vcsc-as --illegals --hex=@TMP@/rich.hex @TEST_ROOT@/assembler_rich_opcode_smoke.s26
 # expectstdout: wrote
 # expectexit: 0
 ```

@@ -23,10 +23,10 @@ sub slurp {
 -d $nint and die "obsolete interrupt library remains: $nint\n";
 -f File::Spec->catfile($runtime, 'asm', 'handler.asm')
    and die "obsolete default interrupt handlers remain\n";
--f File::Spec->catfile($runtime, 'vcsc-rt0-noint.s')
+-f File::Spec->catfile($runtime, 'vcsc-rt0-noint.s26')
    and die "obsolete separate vector-stub source remains\n";
 
-my $startup = slurp(File::Spec->catfile($runtime, 'vcsc-rt0.s'));
+my $startup = slurp(File::Spec->catfile($runtime, 'vcsc-rt0.s26'));
 $startup =~ /^\.weak __nmi$/m or die "stock startup lacks weak __nmi vector filler\n";
 $startup =~ /^\.weak __irqbrk$/m or die "stock startup lacks weak __irqbrk vector filler\n";
 $startup =~ /__nmi:\s*\n__irqbrk:\s*\n\s*rti\b/s

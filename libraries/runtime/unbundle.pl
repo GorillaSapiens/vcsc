@@ -72,8 +72,8 @@ for my $file (sort glob('asm/*.asm')) {
          $name =~ s/^\.proc//;
          $name =~ s/\s//g;
 
-         print "--- $name.s\n";
-         open(my $out, '>', "wrk/$name.s") or die "cannot create wrk/$name.s: $!\n";
+         print "--- $name.s26\n";
+         open(my $out, '>', "wrk/$name.s26") or die "cannot create wrk/$name.s26: $!\n";
          print {$out} ";;; $name wrk from $file\n";
          print {$out} @head;
          print {$out} ".export $name\n\n";
@@ -90,7 +90,7 @@ for my $file (sort glob('asm/*.asm')) {
          print {$out} @constants;
          print {$out} "\n";
          print {$out} @func;
-         close($out) or die "cannot close wrk/$name.s: $!\n";
+         close($out) or die "cannot close wrk/$name.s26: $!\n";
       }
       else {
          if ($line =~ /jsr/ || $line =~ /jmp/ || $line =~ /lda\s+#[<>]/) {

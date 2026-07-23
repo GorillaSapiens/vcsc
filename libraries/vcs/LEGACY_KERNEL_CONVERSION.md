@@ -232,7 +232,7 @@ two-byte hidden-stack allowance.
 inputs and deterministically generates:
 
 - `standard_4k_ntsc_macros.inc`, containing deliberate ports of all five macros;
-- `standard_4k_ntsc_kernel.s`, containing the active overscan/visible kernel and
+- `standard_4k_ntsc_kernel.s26`, containing the active overscan/visible kernel and
   exact 88-byte default score table.
 
 Both generated files embed SHA-256 provenance for every retained input. The

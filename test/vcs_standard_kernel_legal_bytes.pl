@@ -148,7 +148,7 @@ my $default_cfg=File::Spec->catfile($repo,'assembler','default.cfg');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
-my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s');
+my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s26');
 my $source=File::Spec->catfile($repo,'examples','05_static_kernel_test','static_kernel_test.c26');
 my $object=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.o26');
 my $object_map=File::Spec->catfile($tmp,'standard_4k_ntsc_kernel.map');
@@ -184,7 +184,7 @@ $count>800 or die "linked opcode gate decoded only $count instructions\n";
 # Raw opXX spellings intentionally remain available without --illegals. Prove
 # that the linked-byte gate catches that escape hatch rather than relying only
 # on mnemonic rejection in the assembler.
-my $bad_kernel=File::Spec->catfile($tmp,'standard_4k_ntsc_illegal_probe.s');
+my $bad_kernel=File::Spec->catfile($tmp,'standard_4k_ntsc_illegal_probe.s26');
 my $bad_text=read_file($kernel);
 my $replaced=($bad_text =~ s/^\s*and\s+#\$F0\s*$/     op4B #\$F0/m);
 $replaced==1 or die "could not inject the raw-opcode linked-byte probe\n";

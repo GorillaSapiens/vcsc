@@ -54,9 +54,14 @@ So the same binary works both from the source tree and from an installed prefix 
 `vcsc` classifies inputs by suffix:
 
 - `.c26` ... compile with `vcsc-cc1`
-- `.s` or `.asm` ... assemble with `vcsc-as`
+- `.s26` ... assemble with `vcsc-as`
+- `.asm` ... assemble retained or imported assembly with `vcsc-as`
 - `.o26` ... pass directly to `vcsc-ld`
 - `.l26` ... pass directly to `vcsc-ld`
+
+The old generic `.s` suffix remains a temporary driver compatibility input and
+emits a warning. Maintained VCSC assembler sources and generated compiler output
+use `.s26`; new code should not use `.s`.
 
 ## Examples
 
@@ -98,7 +103,7 @@ Show aligned driver/subtool versions and the exact tool paths being used:
 
 The `-V` output prints one line per tool, aligns the first colon after the tool name, and includes the resolved executable path before that tool's version string.
 
-Intermediate `.s` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
+Intermediate `.s26` and `.o26` files live in a private `vcsc.XXXXXX` directory under `$TMPDIR`, or `/tmp` when `TMPDIR` is unset. The driver removes that directory on both successful completion and normal failing exits from any pipeline stage.
 
 ## Intentional non-goals
 

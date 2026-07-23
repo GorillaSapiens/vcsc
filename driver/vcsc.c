@@ -303,8 +303,13 @@ static input_kind_t classify_input(const char *path)
 {
    if (ends_with(path, ".c26"))
       return INPUT_VCSC;
-   if (ends_with(path, ".s") || ends_with(path, ".asm"))
+   if (ends_with(path, ".s26") || ends_with(path, ".asm"))
       return INPUT_ASM;
+   /* Temporary source-suffix compatibility: .s is accepted but no longer canonical. */
+   if (ends_with(path, ".s")) {
+      fprintf(stderr, "%s: warning: legacy assembler suffix '.s'; rename '%s' to use '.s26'\n", arg0, path);
+      return INPUT_ASM;
+   }
    if (ends_with(path, ".o26"))
       return INPUT_OBJ;
    if (ends_with(path, ".l26"))
@@ -1100,7 +1105,7 @@ int main(int argc, char **argv)
       if (opt.asm_only) {
          if (in->kind != INPUT_VCSC)
             die("-S only accepts .c26 inputs, got '%s'", in->path);
-         asm_path = derive_output_path(in, ".s", opt.output, derived, sizeof(derived));
+         asm_path = derive_output_path(in, ".s26", opt.output, derived, sizeof(derived));
          run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
          continue;
       }
@@ -1114,7 +1119,7 @@ int main(int argc, char **argv)
                obj_path = derived;
             }
             path_stem(in->path, stem, sizeof(stem));
-            asm_path = temp_store_make_file(&temps, stem, ".s");
+            asm_path = temp_store_make_file(&temps, stem, ".s26");
             run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
             run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
             continue;
@@ -1130,7 +1135,7 @@ int main(int argc, char **argv)
       switch (in->kind) {
          case INPUT_VCSC:
             path_stem(in->path, stem, sizeof(stem));
-            asm_path = temp_store_make_file(&temps, stem, ".s");
+            asm_path = temp_store_make_file(&temps, stem, ".s26");
             obj_path = temp_store_make_file(&temps, stem, ".o26");
             run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
             run_as(as_path, &opt, runtime_inc, asm_path, obj_path);

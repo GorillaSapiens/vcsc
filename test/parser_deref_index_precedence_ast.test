@@ -1,4 +1,4 @@
-# runner: @REPO@/compiler/vcsc-cc1 -X dumpast -quiet -I @TEST_ROOT@ @TEST_ROOT@/fixtures/deref_index_precedence_input.c26 -o @TMP@/out.s
+# runner: @REPO@/compiler/vcsc-cc1 -X dumpast -quiet -I @TEST_ROOT@ @TEST_ROOT@/fixtures/deref_index_precedence_input.c26 -o @TMP@/out.s26
 # expectexit: 255
 # expectstdoutordered: identifier :=
 # expectstdoutordered: ├── *

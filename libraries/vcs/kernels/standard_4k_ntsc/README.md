@@ -47,7 +47,7 @@ The normalization artifacts are:
 - `normalize.pl` — the deliberately narrow deterministic translator;
 - `standard_4k_ntsc_macros.inc` — explicit `vcsc-as` ports of `SLEEP`,
   `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN`; and
-- `standard_4k_ntsc_kernel.s` — the selected overscan, visible kernel, and
+- `standard_4k_ntsc_kernel.s26` — the selected overscan, visible kernel, and
   88-byte default score table normalized into current assembler syntax.
 
 Regenerate and verify them from the repository root with:
@@ -62,7 +62,7 @@ SHA-256 of every input in both outputs, and fails if the selected source
 relationships no longer match. A fresh generation is byte-compared with the
 checked-in files by the test suite. `normalize.pl` is a source-checkout
 development tool and is not installed, because the installed support bundle does
-not carry all retained generator inputs; the generated `.s` and `.inc` files are
+not carry all retained generator inputs; the generated `.s26` and `.inc` files are
 installed.
 
 The conversion is intentionally not a general DASM-compatibility mode. It
@@ -88,7 +88,7 @@ The normalized source itself now assembles without unofficial mnemonics:
 vcsc-as \
   -I libraries/vcs/kernels/standard_4k_ntsc \
   -o standard_4k_ntsc_kernel.o26 \
-  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
+  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26
 ```
 
 That produces an unresolved relocatable kernel object by design.
@@ -128,7 +128,7 @@ not enable the assembler's unofficial-opcode table:
 vcsc -I libraries/vcs \
   -T libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
   game.c26 \
-  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s \
+  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26 \
   -o game.bin
 ```
 

@@ -15,7 +15,7 @@ workspace expected by generated code.
 
 ### Startup/runtime pieces
 
-- `vcsc-rt0.s`
+- `vcsc-rt0.s26`
   - exports `__reset`
   - initializes the 6502 hardware stack
   - copies `DATA` from ROM to RAM using `__copy_table`
@@ -23,7 +23,7 @@ workspace expected by generated code.
   - walks the linker-generated `__init_table`
   - calls `main`
   - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
-- `vcsc-zp-*.s`
+- `vcsc-zp-*.s26`
   - each file exports one independently selectable zero-page cell
   - `_vcsc_arg0` and `_vcsc_arg1` are one byte each
   - `_vcsc_ptr0` through `_vcsc_ptr2` are two bytes each
@@ -86,7 +86,7 @@ Machine assumptions:
 
 - 6502-family target
 - hardware stack at page `$01xx`
-- zero page is available for the selected `vcsc-zp-*.s` workspace members
+- zero page is available for the selected `vcsc-zp-*.s26` workspace members
 
 The linker selects the startup archive member through `__reset`, `__nmi`, and
 `__irqbrk`.

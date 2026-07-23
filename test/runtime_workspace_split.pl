@@ -41,7 +41,7 @@ for my $cell (@workspace) {
 for my $cell (@removed) {
    $members !~ /^vcsc-zp-\Q$cell\E\.o26$/m
       or die "obsolete runtime workspace member remains: $cell\n";
-   !-e File::Spec->catfile($runtime, "vcsc-zp-$cell.s")
+   !-e File::Spec->catfile($runtime, "vcsc-zp-$cell.s26")
       or die "obsolete runtime workspace source remains: $cell\n";
 }
 
@@ -102,7 +102,7 @@ void main(void) { result := a % b; }
 SRC
 
 my $empty_src = File::Spec->catfile($tmp, 'workspace_empty.c26');
-my $empty_asm = File::Spec->catfile($tmp, 'workspace_empty.s');
+my $empty_asm = File::Spec->catfile($tmp, 'workspace_empty.s26');
 write_file($empty_src, "include \"machine_6502.c26\"\nvoid main(void) {}\n");
 system($cc1, '-quiet', '-I', $test_inc, $empty_src, '-o', $empty_asm) == 0
    or die "empty compiler probe failed\n";

@@ -22,40 +22,40 @@ my $include = $fixtures;
 -x $asm or die "missing executable assembler: $asm\n";
 
 my @cases = (
-   [ '0.s hex',              'hex', '0.s',              0, [] ],
-   [ 'good.s hex',           'hex', 'good.s',           0, [] ],
-   [ 'include.s hex',        'hex', 'include.s',        0, [] ],
-   [ 'local1.s hex',         'hex', 'local1.s',         0, [] ],
-   [ 'macro.s hex',          'hex', 'macro.s',          0, [] ],
-   [ 'opxx.s hex',           'hex', 'opxx.s',           0, [] ],
-   [ 'peep.s hex',           'hex', 'peep.s',           0, [] ],
-   [ 'res.s hex',            'hex', 'res.s',            0, [] ],
-   [ 'segment.s hex',        'hex', 'segment.s',        0, [] ],
-   [ 'short.s hex',          'hex', 'short.s',          0, [] ],
-   [ 'symbols.s hex',        'hex', 'symbols.s',        0, [] ],
-   [ 'test_linker.s hex',    'hex', 'test_linker.s',    0, [] ],
-   [ 'vectors.s hex',        'hex', 'vectors.s',        0, [] ],
+   [ '0.s26 hex',              'hex', '0.s26',              0, [] ],
+   [ 'good.s26 hex',           'hex', 'good.s26',           0, [] ],
+   [ 'include.s26 hex',        'hex', 'include.s26',        0, [] ],
+   [ 'local1.s26 hex',         'hex', 'local1.s26',         0, [] ],
+   [ 'macro.s26 hex',          'hex', 'macro.s26',          0, [] ],
+   [ 'opxx.s26 hex',           'hex', 'opxx.s26',           0, [] ],
+   [ 'peep.s26 hex',           'hex', 'peep.s26',           0, [] ],
+   [ 'res.s26 hex',            'hex', 'res.s26',            0, [] ],
+   [ 'segment.s26 hex',        'hex', 'segment.s26',        0, [] ],
+   [ 'short.s26 hex',          'hex', 'short.s26',          0, [] ],
+   [ 'symbols.s26 hex',        'hex', 'symbols.s26',        0, [] ],
+   [ 'test_linker.s26 hex',    'hex', 'test_linker.s26',    0, [] ],
+   [ 'vectors.s26 hex',        'hex', 'vectors.s26',        0, [] ],
 
-   [ 'def_alias.s object',   'obj', 'def_alias.s',      0, [] ],
-   [ 'import_fail.s object', 'obj', 'import_fail.s',    0, [] ],
-   [ 'obj.s object',         'obj', 'obj.s',            0, [] ],
-   [ 'obj2.s object',        'obj', 'obj2.s',           0, [] ],
-   [ 'extended symbol namespace object', 'obj', 'extended_symbol_namespace.s', 0, [] ],
-   [ 'selection.s object',   'obj', 'selection.s',      0, [] ],
-   [ 'zp_annot.s object',    'obj', 'zp_annot.s',       0, [] ],
+   [ 'def_alias.s26 object',   'obj', 'def_alias.s26',      0, [] ],
+   [ 'import_fail.s26 object', 'obj', 'import_fail.s26',    0, [] ],
+   [ 'obj.s26 object',         'obj', 'obj.s26',            0, [] ],
+   [ 'obj2.s26 object',        'obj', 'obj2.s26',           0, [] ],
+   [ 'extended symbol namespace object', 'obj', 'extended_symbol_namespace.s26', 0, [] ],
+   [ 'selection.s26 object',   'obj', 'selection.s26',      0, [] ],
+   [ 'zp_annot.s26 object',    'obj', 'zp_annot.s26',       0, [] ],
 
-   [ 'amspec.s rejects bad forced modes', 'hex', 'amspec.s', 1,
+   [ 'amspec.s26 rejects bad forced modes', 'hex', 'amspec.s26', 1,
       [ 'LDA.z requires a zero-page operand', 'illegal addressing mode for JSR.z' ] ],
-   [ 'bad.s rejects illegal syntax',      'hex', 'bad.s',          1, [ 'parse error' ] ],
-   [ 'bad2.s rejects illegal syntax',     'hex', 'bad2.s',         1, [ 'parse error' ] ],
-   [ 'dup_symbols.s rejects duplicates',  'hex', 'dup_symbols.s',  1,
+   [ 'bad.s26 rejects illegal syntax',      'hex', 'bad.s26',          1, [ 'parse error' ] ],
+   [ 'bad2.s26 rejects illegal syntax',     'hex', 'bad2.s26',         1, [ 'parse error' ] ],
+   [ 'dup_symbols.s26 rejects duplicates',  'hex', 'dup_symbols.s26',  1,
       [ "duplicate symbol 'foo'", "duplicate symbol 'start'", "duplicate symbol 'bar'", "duplicate symbol 'baz'" ] ],
-   [ 'import_fail.s rejects unresolved final hex', 'hex', 'import_fail.s', 1,
+   [ 'import_fail.s26 rejects unresolved final hex', 'hex', 'import_fail.s26', 1,
       [ "imported symbol 'puts' was not resolved" ] ],
-   [ 'selection.s rejects final STX abs,Y', 'hex', 'selection.s', 1,
+   [ 'selection.s26 rejects final STX abs,Y', 'hex', 'selection.s26', 1,
       [ 'STX requires a zero-page operand' ] ],
-   [ 'test.s rejects unresolved expression', 'hex', 'test.s',     1, [ 'unresolved expression' ] ],
-   [ 'tiny.s rejects illegal modes',      'hex', 'tiny.s',        1,
+   [ 'test.s26 rejects unresolved expression', 'hex', 'test.s26',     1, [ 'unresolved expression' ] ],
+   [ 'tiny.s26 rejects illegal modes',      'hex', 'tiny.s26',        1,
       [ 'unsupported addressing mode', 'illegal addressing mode for STA' ] ],
 );
 
@@ -73,7 +73,7 @@ sub run_case {
    my ($name, $mode, $source, $want_exit, $needles) = @$case;
    my $src = File::Spec->catfile($fixtures, $source);
    my $stem = $source;
-   $stem =~ s/\.s\z//;
+   $stem =~ s/\.s26\z//;
    my $out = File::Spec->catfile($tmp, sprintf('asm_fixture_%02d.out', $index));
    my $err = File::Spec->catfile($tmp, sprintf('asm_fixture_%02d.err', $index));
    my $product = File::Spec->catfile($tmp, sprintf('%s_%02d.%s', $stem, $index, ($mode eq 'hex') ? 'hex' : 'o26'));

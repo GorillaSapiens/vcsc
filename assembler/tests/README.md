@@ -16,6 +16,6 @@ Some files are intentionally invalid.  Those fixtures verify diagnostics for
 bad addressing modes, duplicate symbols, unresolved final-output imports, and
 parser errors.
 
-`extended_symbol_namespace.s` specifically verifies that linker-visible `?@...`
+`extended_symbol_namespace.s26` specifically verifies that linker-visible `?@...`
 symbols are linker-visible, while ordinary `@local` labels remain
 local/scoped assembler labels.

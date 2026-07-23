@@ -1439,7 +1439,7 @@ ASM
 
 my %generated = (
    'standard_4k_ntsc_macros.inc' => macro_output(),
-   'standard_4k_ntsc_kernel.s'   => kernel_output(),
+   'standard_4k_ntsc_kernel.s26'   => kernel_output(),
 );
 
 for my $name (sort keys %generated) {

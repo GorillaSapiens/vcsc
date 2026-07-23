@@ -62,7 +62,7 @@ SEGMENTS {
 }
 CFG
 
-my $src=File::Spec->catfile($tmp,'aligned.s');
+my $src=File::Spec->catfile($tmp,'aligned.s26');
 write_file($src,<<'ASM');
 .segment "KERNEL_CODE"
 .export main
@@ -93,7 +93,7 @@ $bad_exit != 0 && !$bad_sig or die "non-power-of-two segment alignment unexpecte
 $bad_err =~ /bad segment alignment '3'/
    or die "bad alignment rejection was unclear:\n$bad_err";
 
-my $mis_src=File::Spec->catfile($tmp,'misaligned.s');
+my $mis_src=File::Spec->catfile($tmp,'misaligned.s26');
 write_file($mis_src,<<'ASM');
 .segment "CODE"
 .byte $ea

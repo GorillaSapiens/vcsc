@@ -38,7 +38,7 @@ $fresh eq read_file($tsv) or die "unofficial-opcode inventory is stale\n";
 my @rows=grep {length} split(/\n/,$fresh); shift @rows eq join("\t",qw(file line mnemonic mode opcode bytes base_cycles page_penalty classification purpose)) or die "bad header\n";
 @rows==0 or die "expected no retained unofficial sites, got ".scalar(@rows)."\n";
 my $asm=File::Spec->catfile($repo,'assembler','vcsc-as');
-my $legal_src=File::Spec->catfile($tmp,'legal_replacement_probe.s');
+my $legal_src=File::Spec->catfile($tmp,'legal_replacement_probe.s26');
 my $legal_hex=File::Spec->catfile($tmp,'legal_replacement_probe.hex');
 write_file($legal_src,<<'ASM');
 .segmentdef "CODE", $8000, $0100
@@ -56,7 +56,7 @@ my $legal_bytes=ihex_data(read_file($legal_hex),9);
 unpack('H*',$legal_bytes) eq '29f04a8a6904aa2400'
    or die "legal replacement byte matrix changed: ".unpack('H*',$legal_bytes)."\n";
 
-my $src=File::Spec->catfile($tmp,'unofficial_probe.s');
+my $src=File::Spec->catfile($tmp,'unofficial_probe.s26');
 my $hex=File::Spec->catfile($tmp,'unofficial_probe.hex');
 write_file($src,<<'ASM');
 .segmentdef "CODE", $8000, $0100

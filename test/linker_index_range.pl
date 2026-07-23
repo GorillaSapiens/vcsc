@@ -17,7 +17,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n"; @ARGV and die "usage: $0 REPO
 make_path($tmp); $tmp=abs_path($tmp);
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
-my $src=File::Spec->catfile($tmp,'range.s');
+my $src=File::Spec->catfile($tmp,'range.s26');
 my $obj=File::Spec->catfile($tmp,'range.o26');
 my $cfg=File::Spec->catfile($tmp,'range.cfg');
 my $map=File::Spec->catfile($tmp,'range.map');
@@ -62,7 +62,7 @@ $m =~ /TABLE\s+load=\$20F8\s+size=\$012C\s+page=crossing/
 $m =~ /TABLE\s+base=\$20F8\s+offset=\$0008\s+max=\$0F\s+effective=\$2100-\$210F\s+page=same/
   or die "indexed-range map diagnostic missing or wrong\n$m";
 
-my $bad=File::Spec->catfile($tmp,'bad.s');
+my $bad=File::Spec->catfile($tmp,'bad.s26');
 write_file($bad, <<'ASM');
 .segment "TABLE"
 .indexrange 290, 15

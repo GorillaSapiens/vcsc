@@ -1,4 +1,4 @@
-# runner: vcsc-as -X passes --hex=@TMP@/good.hex @REPO@/assembler/tests/good.s
+# runner: vcsc-as -X passes --hex=@TMP@/good.hex @REPO@/assembler/tests/good.s26
 # phase: e2e
 # expectexit: 0
 # expectstdout: pass 001: begin

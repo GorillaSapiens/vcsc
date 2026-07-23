@@ -35,7 +35,7 @@ usage() if @ARGV;
 $repo=abs_path($repo) // die "could not resolve repo root\n";
 $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 my $source=File::Spec->catfile($tmp,'scratch_pool_layout.c26');
-my $asm=File::Spec->catfile($tmp,'scratch_pool_layout.s');
+my $asm=File::Spec->catfile($tmp,'scratch_pool_layout.s26');
 my $vcsc_cc1=File::Spec->catfile($repo,'compiler','vcsc-cc1');
 my $inc=File::Spec->catdir($repo,'test');
 

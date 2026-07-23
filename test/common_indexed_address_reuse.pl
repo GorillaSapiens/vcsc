@@ -19,7 +19,7 @@ sub run_capture {
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
 $repo=abs_path($repo) // die "bad repo\n"; $tmp=abs_path($tmp) // die "bad tmp\n";
 my $src=File::Spec->catfile($tmp,'common_indexed_address_reuse.c26');
-my $asm=File::Spec->catfile($tmp,'common_indexed_address_reuse.s');
+my $asm=File::Spec->catfile($tmp,'common_indexed_address_reuse.s26');
 write_file($src, <<'SRC');
 include "machine_6502.c26"
 struct Pair { uint16_t a; uint16_t b; };

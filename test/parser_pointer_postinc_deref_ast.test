@@ -1,4 +1,4 @@
-# runner: @REPO@/compiler/vcsc-cc1 -X dumpast -quiet -I @TEST_ROOT@ @TEST_ROOT@/fixtures/pointer_postinc_deref_input.c26 -o @TMP@/out.s
+# runner: @REPO@/compiler/vcsc-cc1 -X dumpast -quiet -I @TEST_ROOT@ @TEST_ROOT@/fixtures/pointer_postinc_deref_input.c26 -o @TMP@/out.s26
 # expectexit: 0
 # expectstdoutordered: assign_expr
 # expectstdoutordered: identifier :=

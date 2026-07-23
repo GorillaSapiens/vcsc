@@ -1072,7 +1072,7 @@ The first unfinished item is the default next action.
                   bytes in the profile while leaving explicit illegal-opcode probe
                   examples opt-in and unaffected.
 
-        [ ] 20t. Rename assembler source files from `*.s` to `*.s26` throughout
+        [x] 20t. Rename assembler source files from `*.s` to `*.s26` throughout
                   maintained source, examples, tests, build rules, installation,
                   and documentation. Keep any compatibility handling explicit and
                   temporary; do not silently continue advertising the generic
@@ -1106,33 +1106,48 @@ The first unfinished item is the default next action.
         proves unreasonable; record the evidence instead of shipping a fragile
         compromise.
 
-[ ] 23. Write a maintained kernel-authoring HOWTO describing how to create and
-        integrate new VCSC kernels. Cover source contracts, application-visible
-        state versus private workspace, frame-phase ownership, hooks, clobbers,
-        hidden hardware-stack use, RAM/ROM budgets, object/linker placement and
-        page constraints, source normalization, cycle and TIA-write schedules,
-        emulator/raster oracles, regression design, examples, installation, and
-        how a new kernel profile remains separate from existing profiles.
+[ ] 23. Add a widely spaced six-glyph score-display variant. Reuse the shared
+        font catalog and packed-BCD conventions, but spread the six glyphs across
+        a substantially wider horizontal span than the centered display. Give it
+        an explicit glyph-origin contract, cycle/TIA-write schedule, example,
+        visible raster oracle, ROM/RAM accounting, and installation coverage.
+        Preserve the existing centered six-glyph display unchanged.
 
-[ ] 24. Inventory and define the source-integration contract for one minimal
+[ ] 24. Add a left/right dual-score variant of the six-glyph display. Divide the
+        six visible glyph slots into independent three-glyph left and right score
+        fields, define their numeric order and ownership explicitly, and verify
+        both fields simultaneously through boundary values, carry transitions,
+        raster timing, an example cartridge, and installed-toolchain coverage.
+        Preserve the centered and widely spaced variants as separate profiles.
+
+[ ] 25. Write a maintained kernel-authoring HOWTO describing how to create and
+        integrate new VCSC kernels and score-display variants. Cover source
+        contracts, application-visible state versus private workspace,
+        frame-phase ownership, hooks, clobbers, hidden hardware-stack use,
+        RAM/ROM budgets, object/linker placement and page constraints, source
+        normalization, cycle and TIA-write schedules, emulator/raster oracles,
+        regression design, examples, installation, and how a new profile remains
+        separate from existing profiles.
+
+[ ] 26. Inventory and define the source-integration contract for one minimal
         multisprite kernel profile. Keep it separate from every standard-kernel
         profile, make its near-complete RIOT RAM ownership and hardware-stack
         tricks explicit, normalize only the required retained source, and defer
         bankswitching and Superchip RAM to their own later milestones.
 
-[ ] 25. Port and verify the minimal unbanked, non-Superchip multisprite profile.
+[ ] 27. Port and verify the minimal unbanked, non-Superchip multisprite profile.
         Build a fixed diagnostic cartridge first, then connect one stack-safe
         VCSC game-logic boundary. Lock object multiplexing, playfield and score
         timing, RAM ownership, hidden stack depth, exact frame length, visible
         raster behavior, and measured ROM cost before adding cartridge variants.
 
-[ ] 26. Add general 8K-and-larger Atari cartridge bankswitching as a separate
+[ ] 28. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Define bank-aware placement, logical origins,
         hotspots, vectors, cross-bank calls/returns, archive selection, map and
         usage reporting, diagnostics, and emulator-backed tests before using it
         for any banked kernel profile.
 
-[ ] 27. Add Superchip cartridge RAM support as a separate linker/runtime
+[ ] 29. Add Superchip cartridge RAM support as a separate linker/runtime
         milestone after banked cartridge support is stable. Define its RAM
         windows, read/write aliases, startup and persistence contract, allocator
         interaction, map reporting, and tests; only then add corresponding
@@ -1188,23 +1203,22 @@ Open implementation questions
 The legacy BASIC tree is intentionally retained for later conversion work.
 Functional reduction task 16 and the hard VCSC rename in task 17 are complete.
 Tasks 18a through 18f and the task-19 legacy inventory are complete.
-Tasks 20a through 20s are complete. Runtime-workspace side-quest items a
-through d are complete. Tasks 20t and 20u are deliberately small source-suffix
-and cartridge-reporting slices that must be completed before gameplay
-integration. Task 20q removed all eleven `DCP` sites, and task 20r replaced the
-final source-level `ASR`, `SBX`, and unofficial delay-NOP sites with legal
-schedules while preserving their visible-kernel timing contracts. Task 20s
-removed unofficial-opcode mode from every standard-profile build path and added
-a final linked-code gate that rejects raw unofficial instruction bytes. Task
-20t is next: rename maintained assembler sources from `*.s` to `*.s26`. The
+Tasks 20a through 20t are complete. Runtime-workspace side-quest items a
+through d are complete. Task 20u is the next deliberately small slice and must
+be completed before gameplay integration. Task 20q removed all eleven `DCP`
+sites, task 20r replaced the final source-level `ASR`, `SBX`, and unofficial
+delay-NOP sites with legal schedules, task 20s enforced official linked bytes,
+and task 20t made `.s26` the canonical maintained assembler-source suffix. The
 stack-safe VCSC overscan/vblank hook remains task 20v.
 
 After task 20, tasks 21 and 22 add separate player-color standard-kernel
 profiles, with task 22 explicitly optional if retaining all five objects proves
-unreasonable. Task 23 records the resulting kernel-authoring process as a HOWTO.
-The former task 20w multisprite placeholder has been removed from task 20 and
-expanded into tasks 24 through 27: multisprite contract and normalization,
-minimal unbanked integration, general 8K+ bankswitching, and Superchip support.
+unreasonable. Tasks 23 and 24 add widely spaced and left/right dual-score
+six-glyph display variants. Task 25 records the resulting kernel- and
+score-display-authoring process as a HOWTO. The former task 20w multisprite
+placeholder has been removed from task 20 and expanded into tasks 26 through 29:
+multisprite contract and normalization, minimal unbanked integration, general
+8K+ bankswitching, and Superchip support.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3479,3 +3493,30 @@ Before returning another modified archive:
   files are removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
   Task 20t is next.
 
+
+2026-07-22 20:35:26 PDT, complete task 20t assembler-source suffix migration
+------------------------------------------------------------------------
+* Rename all 37 maintained assembler source files from `*.s` to `*.s26`,
+  including runtime startup/workspace members, the normalized standard kernel,
+  assembler fixtures, and standalone test inputs. Update includes, generated
+  helper names, examples, tests, build rules, installation/uninstallation,
+  documentation, and source comments to use the canonical suffix.
+* Make compiler and driver-generated assembly intermediates use `.s26`, and
+  update compiler help text accordingly. Keep `.asm` for retained/imported
+  assembly. Retain generic `.s` only as an explicit temporary driver input that
+  emits a warning directing users to `.s26`; do not list it as a normal input
+  kind.
+* Add `source_suffix_migration.test` to reject maintained `.s` source paths,
+  require `vcsc -S` to produce `.s26`, exercise direct `.s26` assembly without a
+  compatibility warning, and lock the warned legacy `.s` path until that
+  temporary compatibility is deliberately removed.
+* Record the 37 renamed old paths in `.top_secret/remove.txt`, now 935 unique
+  cumulative paths. Preserve the retained legacy BASIC subtree and its original
+  `.asm` names unchanged.
+* Add roadmap tasks for a widely spaced six-glyph score display and a six-glyph
+  left/right dual score split into independent three-glyph fields. Place both
+  before the kernel-authoring HOWTO, renumber that HOWTO to task 25, and move the
+  multisprite/bankswitching/Superchip sequence to tasks 26 through 29.
+* Pass 288/288 compile-only tests, 156/156 end-to-end/generic tests, the focused
+  suffix migration regression, and staged installation. Stop before task 20u;
+  cartridge-space usage reporting is next.

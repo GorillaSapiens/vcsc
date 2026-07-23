@@ -77,11 +77,11 @@ static void usage(const char *argv0)
       "   use --o26 without a filename to derive the output name with suffix .o26\n"
       "\n"
       "examples:\n"
-      "   %s prog.s\n"
-      "   %s -o prog.o26 prog.s\n"
-      "   %s --illegals --hex=prog.hex prog.s\n"
-      "   %s --opcode-cfg cpu65c02.cfg -I include prog.s\n"
-      "   %s -X passes --hex=prog.hex prog.s\n",
+      "   %s prog.s26\n"
+      "   %s -o prog.o26 prog.s26\n"
+      "   %s --illegals --hex=prog.hex prog.s26\n"
+      "   %s --opcode-cfg cpu65c02.cfg -I include prog.s26\n"
+      "   %s -X passes --hex=prog.hex prog.s26\n",
       argv0, argv0, argv0, argv0, argv0, argv0);
 }
 //! @brief Create output path for main. The returned storage is owned by the caller or the object that immediately records it.

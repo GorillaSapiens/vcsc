@@ -1,4 +1,4 @@
-# runner: vcsc-as --illegals --hex=@TMP@/rich_bad.hex @TEST_ROOT@/assembler_rich_opcode_illegal_mode_smoke.s
+# runner: vcsc-as --illegals --hex=@TMP@/rich_bad.hex @TEST_ROOT@/assembler_rich_opcode_illegal_mode_smoke.s26
 # phase: e2e
 # expectexit: 1
 # expectstderr: illegal addressing mode for LAX

@@ -73,7 +73,7 @@ install-data:
 	  libraries/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26 \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s \
+	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26 \
 	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
 	  libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/
@@ -107,7 +107,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc 2>/dev/null || true
@@ -148,14 +148,14 @@ installcheck: tools
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
+	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
 	"$$stage_bin/vcsc-as" \
 	  -I "$$stage_vcs/kernels/standard_4k_ntsc" \
 	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.map" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s"; \
+	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26"` -gt 0; \
 	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
 	if "$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -176,7 +176,7 @@ installcheck: tools
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/05_static_kernel_test/static_kernel_test.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s" \
+	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"` -eq 4096
 

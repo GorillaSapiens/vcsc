@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-@ARGV=('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s') if !@ARGV;
+@ARGV=('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s26') if !@ARGV;
 
 my %forms=(
    'ASR:imm' => [ '$4B', 2, 2, 'none',          'stable/common' ],

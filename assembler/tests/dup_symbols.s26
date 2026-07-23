@@ -1,4 +1,4 @@
-; dup_symbols.s
+; dup_symbols.s26
 
 start:
    NOP

@@ -103,7 +103,7 @@ static struct option_def options[] = {
    { 'X', "XRAY", "name", "enable named XRAY option for compiler debugging ('list' will list them)", opt_xray },
    { 'I', "include", "path", "add path to include search list", opt_include },
    { 'D', "define", "name[=value]", "predefine object-like alias (default value is 1)", opt_define },
-   { 'o', "output", "file.s", "write assembly output to file instead of stdout", opt_output },
+   { 'o', "output", "file.s26", "write assembly output to file instead of stdout", opt_output },
    { 0, "quiet", NULL, "accept GCC cc1's -quiet flag and ignore it", opt_ignore },
    { 0, "dumpbase", "name", "accept GCC cc1's -dumpbase flag and ignore it", opt_ignore },
    { 0, "dumpbase-ext", "ext", "accept GCC cc1's -dumpbase-ext flag and ignore it", opt_ignore },

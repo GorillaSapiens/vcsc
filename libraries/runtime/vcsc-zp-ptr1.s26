@@ -1,4 +1,4 @@
-; vcsc-zp-ptr1.s
+; vcsc-zp-ptr1.s26
 
 .exportzp _vcsc_ptr1
 

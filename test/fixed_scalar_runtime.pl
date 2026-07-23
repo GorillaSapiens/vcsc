@@ -76,7 +76,7 @@ for my $name (@removed_members) {
 }
 
 my $scalar_src = File::Spec->catfile($tmp, 'fixed_scalar_runtime.c26');
-my $scalar_asm = File::Spec->catfile($tmp, 'fixed_scalar_runtime.s');
+my $scalar_asm = File::Spec->catfile($tmp, 'fixed_scalar_runtime.s26');
 my $scalar_bin = File::Spec->catfile($tmp, 'fixed_scalar_runtime.bin');
 my $scalar_map = File::Spec->catfile($tmp, 'fixed_scalar_runtime.map');
 write_file($scalar_src, <<'SRC');
@@ -131,7 +131,7 @@ $got_cells eq $want_cells
    or die "fixed scalar program linked workspace {$got_cells}, expected {$want_cells}\n";
 
 my $aggregate_src = File::Spec->catfile($tmp, 'aggregate_zero.c26');
-my $aggregate_asm = File::Spec->catfile($tmp, 'aggregate_zero.s');
+my $aggregate_asm = File::Spec->catfile($tmp, 'aggregate_zero.s26');
 write_file($aggregate_src, <<'SRC');
 include "machine_6502.c26"
 struct Blob { uint8_t bytes[6]; };

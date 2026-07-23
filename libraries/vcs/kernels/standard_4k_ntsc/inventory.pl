@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-@ARGV=('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s') if !@ARGV;
+@ARGV=('standard_4k_ntsc_macros.inc','standard_4k_ntsc_kernel.s26') if !@ARGV;
 my %unofficial=map { $_=>1 } qw(ASR DCP LAX SBX);
 my %branch=map { $_=>1 } qw(BCC BCS BEQ BMI BNE BPL BVC BVS);
 my %read=map { $_=>1 } qw(ADC AND BIT CMP CPX CPY EOR LDA LAX LDX LDY ORA SBC);
