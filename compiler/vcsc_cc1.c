@@ -25,6 +25,8 @@ static char *arg0;
 static void opt_help(char *);
 static void opt_version(char *);
 static void opt_define(char *);
+static void opt_peephole(char *);
+static void opt_no_peephole(char *);
 
 //! @brief Handle opt xray logic for main.
 static void opt_xray(char *n) {
@@ -49,6 +51,18 @@ static void opt_output(char *n) {
 //! @brief Handle opt define logic for main.
 static void opt_define(char *n) {
    lexer_define_alias_from_command_line(n);
+}
+
+//! @brief Enable compiler assembly peephole optimization.
+static void opt_peephole(char *unused) {
+   (void) unused;
+   set_peephole_enabled(true);
+}
+
+//! @brief Disable compiler assembly peephole optimization.
+static void opt_no_peephole(char *unused) {
+   (void) unused;
+   set_peephole_enabled(false);
 }
 
 //! @brief Handle opt ignore logic for main.
@@ -104,6 +118,8 @@ static struct option_def options[] = {
    { 'I', "include", "path", "add path to include search list", opt_include },
    { 'D', "define", "name[=value]", "predefine object-like alias (default value is 1)", opt_define },
    { 'o', "output", "file.s26", "write assembly output to file instead of stdout", opt_output },
+   { 0, "fpeephole", NULL, "enable compiler assembly peephole optimization (default)", opt_peephole },
+   { 0, "fno-peephole", NULL, "disable all compiler assembly peephole rewrites", opt_no_peephole },
    { 0, "quiet", NULL, "accept GCC cc1's -quiet flag and ignore it", opt_ignore },
    { 0, "dumpbase", "name", "accept GCC cc1's -dumpbase flag and ignore it", opt_ignore },
    { 0, "dumpbase-ext", "ext", "accept GCC cc1's -dumpbase-ext flag and ignore it", opt_ignore },

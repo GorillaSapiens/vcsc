@@ -30,6 +30,13 @@ typedef struct {
    int size;
 } PeepholeLine;
 
+//! Canonical catalog of every peephole rewrite kind. Pattern-level tests must exercise every entry.
+static const char *const peephole_rewrite_kind_names[] = {
+   "branch_next", "const_alu", "dead_load", "dup_lda", "dup_ldx", "dup_ldy",
+   "dup_sta", "dup_status", "dup_stx", "dup_sty", "dup_tax", "dup_tay",
+   "dup_txa", "dup_tya", "jump_next", "never_branch", NULL
+};
+
 typedef struct {
    int total_before;
    int total_saved;
@@ -406,6 +413,10 @@ static void reset_peephole_state(char **a, char **x, char **y, char **flags, cha
 
 //! @brief Handle log rewrite logic for compiler assembly emitter.
 static void log_rewrite(const char *kind, int index, const PeepholeLine *line, int saved) {
+   if (!string_in_list(kind, peephole_rewrite_kind_names)) {
+      fprintf(stderr, "internal error: unregistered peephole rewrite kind '%s'\n", kind ? kind : "<null>");
+      abort();
+   }
    if (get_xray(XRAY_DEBUG)) {
       debug("peephole:%s line=%d saved=%d :: %s", kind, index + 1, saved, line->trim ? line->trim : "");
    }
@@ -1177,7 +1188,7 @@ static void print_peephole_stats(int pass_index, const char *phase, PeepholeLine
 }
 
 //! @brief Emit peephole optimize for compiler assembly emitter diagnostics or output files.
-void emit_peephole_optimize(EmitSink *es) {
+void emit_peephole_optimize(EmitSink *es, bool enabled) {
    char *joined;
    char **raw_lines = NULL;
    PeepholeLine *lines;
@@ -1207,11 +1218,13 @@ void emit_peephole_optimize(EmitSink *es) {
    memset(&stats, 0, sizeof(stats));
    stats.total_before = count_instruction_bytes(lines, count);
 
-   do {
-      pass_index++;
-      changed = run_peephole_pass(lines, count, &stats);
-      print_peephole_stats(pass_index, changed ? "peephole" : "stable", lines, count, &stats);
-   } while (changed && pass_index < 20);
+   if (enabled) {
+      do {
+         pass_index++;
+         changed = run_peephole_pass(lines, count, &stats);
+         print_peephole_stats(pass_index, changed ? "peephole" : "stable", lines, count, &stats);
+      } while (changed && pass_index < 20);
+   }
 
    for (int i = 0; i < count; i++) {
       if (!lines[i].keep)

@@ -6,6 +6,10 @@
 #define _INCLUDE_COMPILE_H_
 
 #include <stdio.h>
+#include <stdbool.h>
+
+// enable or disable the compiler assembly peephole pass
+void set_peephole_enabled(bool enabled);
 
 // perform compilation step
 void do_compile(FILE *out);

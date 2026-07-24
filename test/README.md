@@ -22,6 +22,19 @@ ROM, map, timing, raster, palette, music, score, and motion assertions use
 private cartridges under `test/fixtures/vcs_examples/`. Do not point a golden
 harness back at an example; `source_tree_hygiene.test` rejects that coupling.
 
+## Peephole optimizer coverage
+
+`peephole_unit.test` feeds generated-assembly fragments directly to the optimizer,
+requires disabled mode to preserve the candidate patterns, and requires every
+canonical rewrite kind to fire in at least one positive regression.
+`peephole_source_toggle.test` compiles a private ordinary `.c26` fixture twice:
+`-fno-peephole` must expose every pattern the current compiler emits, while the
+default pass must remove those patterns and report their rewrite names. It also
+checks that the driver and direct compiler produce identical disabled output.
+`peephole_inline_asm_codegen.test` places optimization-shaped instruction
+sequences inside source `asm` statements and requires the exact sequence to
+survive unchanged with the pass both enabled and disabled.
+
 ## Common usage
 
 Run the whole suite from `test/`:

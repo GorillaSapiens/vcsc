@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/peephole_source_toggle.pl @REPO@ @TMP@
+# phase: compile
+# timeout: 30
+# expectexit: 0
+# expectstdout: peephole source toggle tests passed

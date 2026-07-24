@@ -20,6 +20,7 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `-I`, `-L`, and `-l` in the usual GCC style
 - `-T` and `-Map` passthrough for the linker
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
+- `-fno-peephole` to disable compiler assembly peephole rewrites, and `-fpeephole` to re-enable them
 - `-v` and `-###` to print the subordinate commands
 
 When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is

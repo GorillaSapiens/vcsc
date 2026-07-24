@@ -333,6 +333,8 @@ static void usage(FILE *fp)
       "  -o FILE              Write final output to FILE\n"
       "  -I DIR               Add DIR to compiler/assembler include search path\n"
       "  -DNAME[=VALUE]       Define NAME as VALUE, or 1 if VALUE is omitted\n"
+      "  -fpeephole           Enable compiler peephole optimization (default)\n"
+      "  -fno-peephole        Disable compiler peephole optimization\n"
       "  -L DIR               Add DIR to archive search path for -l\n"
       "  -lNAME               Link archive NAME (tries libNAME.l26 then NAME.l26)\n"
       "  -nostdlib            Do not link default runtime libraries automatically\n"
@@ -830,6 +832,10 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
       }
       if (strncmp(arg, "-Map=", 5) == 0) {
          opt->map_path = arg + 5;
+         continue;
+      }
+      if (strcmp(arg, "-fpeephole") == 0 || strcmp(arg, "-fno-peephole") == 0) {
+         strvec_push(&opt->cc_extra, arg);
          continue;
       }
       if (strncmp(arg, "-Wc,", 4) == 0) {

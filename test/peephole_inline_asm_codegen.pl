@@ -14,28 +14,67 @@ print $fh <<'N_EOF';
 include "machine_6502.c26"
 
 void main(void) {
-   asm   lda #$01
-   asm   lda #$01
+   asm   lda #$11
+   asm   lda #$22
+   asm   lda #$22
+   asm   tax
+   asm   tax
+   asm   sta arg0
+   asm   sta arg0
+   asm   clc
+   asm   clc
+   asm   and #$0f
+   asm   ldy #7
+   asm   ldy #7
 }
 N_EOF
 close $fh;
 
-my $asm = File::Spec->catfile($tmp, 'inline_asm.s26');
-my @cmd = ($vcsc_cc1, '-quiet', '-I', $test_root, $src, '-o', $asm);
-system(@cmd) == 0 or die "compile failed: @cmd\n";
+my @expected = (
+   '  lda #$11',
+   '  lda #$22',
+   '  lda #$22',
+   '  tax',
+   '  tax',
+   '  sta arg0',
+   '  sta arg0',
+   '  clc',
+   '  clc',
+   '  and #$0f',
+   '  ldy #7',
+   '  ldy #7',
+);
 
-open my $afh, '<', $asm or die "read $asm: $!";
-my @lines = <$afh>;
-close $afh;
-chomp @lines;
+sub compile_and_check {
+   my ($mode, @flags) = @_;
+   my $asm = File::Spec->catfile($tmp, "$mode.s26");
+   my @cmd = ($vcsc_cc1, '-quiet', '-I', $test_root, @flags, $src, '-o', $asm);
+   system(@cmd) == 0 or die "compile failed: @cmd\n";
 
-my $asm_text = join("\n", @lines) . "\n";
-my $count = 0;
-for my $line (@lines) {
-   $count++ if $line eq '  lda #$01';
+   open my $afh, '<', $asm or die "read $asm: $!";
+   my @lines = <$afh>;
+   close $afh;
+   chomp @lines;
+   my $asm_text = join("\n", @lines) . "\n";
+
+   my $start = -1;
+   for my $i (0 .. $#lines) {
+      if ($lines[$i] eq $expected[0]) {
+         $start = $i;
+         last;
+      }
+   }
+   $start >= 0 or die "$mode: inline asm sequence start not found\n--- assembly ---\n$asm_text";
+   for my $i (0 .. $#expected) {
+      my $got = $lines[$start + $i] // '<end of file>';
+      $got eq $expected[$i]
+         or die "$mode: inline asm changed at item $i: got '$got', expected '$expected[$i]'\n--- assembly ---\n$asm_text";
+   }
+   $asm_text !~ /vcsc-cc1:inline-asm/
+      or die "$mode: inline asm peephole markers leaked into assembly\n--- assembly ---\n$asm_text";
 }
 
-die "expected two protected indented inline asm loads, got $count\n--- assembly ---\n$asm_text" if $count != 2;
-die "inline asm peephole markers leaked into assembly\n--- assembly ---\n$asm_text" if $asm_text =~ /vcsc-cc1:inline-asm/;
+compile_and_check('optimized', '-fpeephole');
+compile_and_check('disabled', '-fno-peephole');
 
 print "peephole inline asm codegen tests passed\n";

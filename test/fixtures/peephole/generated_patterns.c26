@@ -1,0 +1,13 @@
+include "machine_6502.c26"
+
+struct Pair { int16_t a; int16_t b; };
+Pair pair;
+
+Pair *get_pair(void) {
+   return &pair;
+}
+
+void empty_if(int16_t value) {
+   if (value) {
+   }
+}

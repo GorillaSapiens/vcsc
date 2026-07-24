@@ -5,6 +5,8 @@
 #ifndef _INCLUDE_EMIT_H_
 #define _INCLUDE_EMIT_H_
 
+#include <stdbool.h>
+
 #include <stdio.h>
 
 #define EMIT_INLINE_ASM_BEGIN_MARKER "; vcsc-cc1:inline-asm-begin"
@@ -30,7 +32,7 @@ typedef struct EmitSink {
 void emit(EmitSink *es, const char *fmt, ...);
 
 // run peephole optimization over compiler-emitted assembly in an EmitSink
-void emit_peephole_optimize(EmitSink *es);
+void emit_peephole_optimize(EmitSink *es, bool enabled);
 
 // print the text stored in an EmitSink
 void emit_print(EmitSink *es, FILE *out);

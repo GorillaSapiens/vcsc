@@ -94,7 +94,9 @@ The command-line tools follow GCC/binutils conventions where practical:
 
 - `vcsc` drives compile, assemble, and link stages; supports `-c`, `-S`, `-I`,
   `-L`, `-l`, `-T`, `-Map`, and stage-specific `-Wc`, `-Wa`, and `-Wl` options.
-- `vcsc-cc1` compiles one `.c26` input and normally writes `.s26` assembly.
+- `vcsc-cc1` compiles one `.c26` input and normally writes `.s26` assembly;
+  `-fno-peephole` emits the unpeepholed compiler assembly for inspection, while
+  inline assembly remains opaque in either mode.
 - `vcsc-as` assembles `.s26` or retained/imported `.asm` source. Official NMOS
   6502/6507 opcodes are the default; `--illegals` deliberately enables named
   unofficial opcodes for silicon experiments such as the fingerprint example.

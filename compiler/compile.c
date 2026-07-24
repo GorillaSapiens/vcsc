@@ -254,6 +254,13 @@ static void compile(ASTNode *program) {
    }
 }
 
+static bool peephole_enabled = true;
+
+//! @brief Enable or disable the compiler assembly peephole pass.
+void set_peephole_enabled(bool enabled) {
+   peephole_enabled = enabled;
+}
+
 //! @brief Run the compile stage of the compiler tool pipeline.
 void do_compile(FILE *out) {
 
@@ -277,7 +284,7 @@ void do_compile(FILE *out) {
    emit_symbol_backed_call_graph_metadata();
    emit_runtime_global_init_function();
    compiler_scratch_emit_bss();
-   emit_peephole_optimize(&es_code);
+   emit_peephole_optimize(&es_code, peephole_enabled);
    emit_runtime_workspace_imports();
 
    emit_print(&es_header, out);

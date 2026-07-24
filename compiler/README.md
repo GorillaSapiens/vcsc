@@ -597,9 +597,22 @@ A, X, Y, and P are caller-clobbered across ordinary calls. No register carries
 a language return value. Generated code expects decimal mode clear except
 inside its own tightly scoped packed-BCD arithmetic.
 
-The compiler applies a conservative peephole pass to generated assembly. It
-removes only operations whose register, flag, and tracked compiler-scratch
-effects are proven redundant. Inline assembly is a barrier and is not rewritten.
+The compiler applies a conservative peephole pass to generated assembly by
+default. `-fno-peephole` disables every peephole rewrite for inspection and
+regression work; `-fpeephole` explicitly re-enables the default. These switches
+do not disable source-expression optimization.
+
+Every recognized rewrite kind has a pattern-level optimizer regression. A
+separate source-level regression compiles ordinary VCSC twice, first with
+`-fno-peephole` to prove the compiler actually emits the candidate pattern and
+then with the default enabled to prove the rewrite occurs. The currently emitted
+source patterns cover duplicate `LDA`/`LDY` loads and branches or jumps to their
+immediately following labels.
+
+Inline assembly is opaque. The pass neither rewrites instructions inside an
+`asm` block nor carries register, flag, or scratch-value facts across it. The
+inline-assembly delimiters are removed from final `.s26` output even when
+`-fno-peephole` is selected.
 
 Source identifiers may contain valid UTF-8. Non-ASCII scalars are escaped into
 assembler-safe `?uXXXX?` or `?uXXXXXXXX?` forms and converted back in user-facing

@@ -1229,6 +1229,14 @@ RAM/ROM/stack costs, normalization, and installed-toolchain use. The user's
 `.top_secret/instruction.txt` is intentional durable workflow guidance and must
 be preserved.
 
+The compiler assembly peephole pass is enabled by default and can now be
+disabled globally with `-fno-peephole` (`-fpeephole` re-enables it). Disabling
+the pass preserves candidate generated-assembly patterns while still stripping
+internal inline-assembly delimiters. A canonical rewrite-kind catalog is covered
+at the optimizer-fragment level, current source-emitted patterns are verified in
+both disabled and enabled compiler output, and source inline assembly is opaque
+and a state barrier in both modes.
+
 Open implementation questions
 -----------------------------
 The legacy BASIC tree is intentionally retained for later conversion work.
@@ -3733,3 +3741,29 @@ Before returning another modified archive:
   `instruction.txt`, and reject broken relative Markdown links anywhere in the
   tree. Pass 289/289 compile-only tests and 160/160 end-to-end/generic tests.
   No roadmap item is advanced; task 22 remains next.
+
+2026-07-24 09:08:44 PDT, audit and control compiler peephole optimization
+----------------------------------------------------------------------------
+* Confirm the peephole pass is part of `vcsc-cc1` and runs only over the emitted
+  CODE sink after source compilation. Add `-fno-peephole` and `-fpeephole` to
+  both `vcsc-cc1` and the `vcsc` driver; disabled mode performs no rewrite but
+  still removes internal inline-assembly boundary markers.
+* Add a canonical catalog of all sixteen low-level rewrite kinds and make the
+  optimizer reject unregistered rewrite names. Expand the direct pattern suite
+  so every catalog entry fires at least once, including all load/store register
+  forms, transfers, simple status writes, constant ALU folds, dead loads,
+  provably-never branches, and branch/jump-to-next-label removal. Require the
+  disabled mode to preserve a composite catalog of candidate patterns.
+* Add a private ordinary-source fixture and a two-mode integration regression.
+  With peepholes disabled it must contain every pattern the current compiler
+  actually emits (`dup_lda`, `dup_ldy`, `jump_next`, and `branch_next`); with
+  peepholes enabled each pattern must disappear and its named rewrite must be
+  logged. Verify driver and direct-compiler disabled output are identical.
+* Strengthen inline-assembly coverage with optimization-shaped loads, stores,
+  transfers, flag writes, and immediate ALU instructions. Require the exact
+  sequence to survive unchanged with peepholes both enabled and disabled, and
+  require no internal marker leakage.
+* Document the switches, two-layer regression policy, and strict opacity of
+  source inline assembly. Pass 290/290 compile-only tests, 160/160 end-to-end/
+  generic tests, and staged installation. No roadmap item is advanced; task 22
+  remains next.

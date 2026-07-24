@@ -20,17 +20,36 @@ print $fh <<'C_EOF';
 #include <stdlib.h>
 #include <string.h>
 
+static char seen_rewrite_kinds[32][32];
+static int seen_rewrite_kind_count;
+
 void message(const char *fmt, ...) { (void) fmt; }
-void debug(const char *fmt, ...) { (void) fmt; }
-int get_xray(int n) { (void) n; return 0; }
+void debug(const char *fmt, ...) {
+   va_list ap;
+   if (strcmp(fmt, "peephole:%s line=%d saved=%d :: %s"))
+      return;
+   va_start(ap, fmt);
+   const char *kind = va_arg(ap, const char *);
+   va_end(ap);
+   for (int i = 0; i < seen_rewrite_kind_count; i++) {
+      if (!strcmp(seen_rewrite_kinds[i], kind))
+         return;
+   }
+   snprintf(seen_rewrite_kinds[seen_rewrite_kind_count++], sizeof(seen_rewrite_kinds[0]), "%s", kind);
+}
+int get_xray(int n) { return n == 1; }
 
 #include "REPO/compiler/emit.c"
 
-static char *run_pass(const char *input) {
+static char *run_pass_mode(const char *input, int enabled) {
    EmitSink es = EMIT_INIT;
    emit(&es, "%s", input);
-   emit_peephole_optimize(&es);
+   emit_peephole_optimize(&es, enabled != 0);
    return es.head ? (char *) es.head->txt : strdup("");
+}
+
+static char *run_pass(const char *input) {
+   return run_pass_mode(input, 1);
 }
 
 static int contains(const char *haystack, const char *needle) {
@@ -64,9 +83,34 @@ int main(void) {
    require_true(instruction_size_for("jmp", "(ptr0)") == 3, "jmp indirect must count as 3 bytes", NULL);
    require_true(instruction_size_for("lda", "arg0,x") == 2, "compiler zp indexed loads must count as 2 bytes", NULL);
 
-   out = run_pass("    bcc @l\n@l:\n    bcs @m\n@m:\n    bmi @n\n@n:\n    bpl @o\n@o:\n    bvc @p\n@p:\n    bvs @q\n@q:\n");
-   require_true(!contains(out, "bcc @l") && !contains(out, "bcs @m") && !contains(out, "bmi @n") &&
-                !contains(out, "bpl @o") && !contains(out, "bvc @p") && !contains(out, "bvs @q"),
+   {
+      const char *catalog =
+         "    lda #$01\n    lda #$02\n"
+         "    ldx #$03\n    ldx #$04\n"
+         "    ldy #$05\n    ldy #$06\n"
+         "    lda #$07\n    sta arg0\n    sta arg0\n"
+         "    ldx #$08\n    stx arg1\n    stx arg1\n"
+         "    ldy #$09\n    sty ptr0\n    sty ptr0\n"
+         "    lda #$0a\n    tax\n    ldx #$0a\n    tay\n    ldy #$0a\n    txa\n    tya\n"
+         "    clc\n    clc\n    sec\n    sec\n    cld\n    cld\n    sed\n    sed\n"
+         "    cli\n    cli\n    sei\n    sei\n    clv\n    clv\n"
+         "    lda #$f0\n    and #$0f\n    lda #$55\n    eor #$ff\n    lda #1\n    ora #2\n"
+         "    lda #$00\n    bne @never\n@never:\n"
+         "    jmp @next\n@next:\n"
+         "    beq @branch_next\n@branch_next:\n";
+      char *disabled = run_pass_mode(catalog, 0);
+      size_t catalog_len = strlen(catalog);
+      int preserved = !strncmp(disabled, catalog, catalog_len);
+      for (const char *p = disabled + catalog_len; preserved && *p; p++) {
+         if (*p != '\n')
+            preserved = 0;
+      }
+      require_true(preserved, "disabled peephole mode must preserve every recognized generated-assembly pattern (apart from harmless final blank lines)", disabled);
+   }
+
+   out = run_pass("    bcc @l\n@l:\n    bcs @m\n@m:\n    beq @z\n@z:\n    bne @nz\n@nz:\n    bmi @n\n@n:\n    bpl @o\n@o:\n    bvc @p\n@p:\n    bvs @q\n@q:\n");
+   require_true(!contains(out, "bcc @l") && !contains(out, "bcs @m") && !contains(out, "beq @z") && !contains(out, "bne @nz") &&
+                !contains(out, "bmi @n") && !contains(out, "bpl @o") && !contains(out, "bvc @p") && !contains(out, "bvs @q"),
                 "all branch-to-next-label opcodes must be removed", out);
 
    out = run_pass("    bne @second\n@first:\n@second:\n    lda #$01\n");
@@ -160,6 +204,15 @@ int main(void) {
    out = run_pass("    ldx #$03\n    lda #$03\n    tax\n");
    require_true(!contains(out, "tax"), "tax should be removed when X and N/Z already match A", out);
 
+   out = run_pass("    ldy #$04\n    lda #$04\n    tay\n");
+   require_true(!contains(out, "tay"), "redundant tay should be removed", out);
+
+   out = run_pass("    lda #$05\n    ldx #$05\n    txa\n");
+   require_true(!contains(out, "txa"), "redundant txa should be removed", out);
+
+   out = run_pass("    lda #$06\n    ldy #$06\n    tya\n");
+   require_true(!contains(out, "tya"), "redundant tya should be removed", out);
+
    out = run_pass("    ldx #$03\n    lda #$03\n    cmp #$04\n    tax\n    lda #$00\n");
    require_true(!contains(out, "tax"), "tax should be removed when only its dead N/Z flags differ", out);
 
@@ -168,6 +221,10 @@ int main(void) {
 
    out = run_pass("    lda #$05\n    sta arg0\n    sta arg0\n    ldx #$06\n");
    require_true(count_of(out, "sta arg0") == 1, "duplicate sta to compiler scratch with unchanged A should be removed", out);
+
+
+   out = run_pass("    ldx #$05\n    stx arg0\n    stx arg0\n    ldy #$06\n    sty arg1\n    sty arg1\n");
+   require_true(count_of(out, "stx arg0") == 1 && count_of(out, "sty arg1") == 1, "duplicate stx/sty to compiler scratch should be removed", out);
 
    out = run_pass("    lda #$07\n    sta arg0\n    lda #$08\n    sta arg0\n");
    require_true(count_of(out, "sta arg0") == 2, "store to compiler scratch must stay when the stored value changed", out);
@@ -193,6 +250,12 @@ int main(void) {
    out = run_pass("    sec\n    sec\n    php\n");
    require_true(count_of(out, "sec") == 1 && contains(out, "php"), "duplicate sec should be removed while preserving the flag value observed by php", out);
 
+
+   out = run_pass("    clc\n    clc\n    cld\n    cld\n    sed\n    sed\n    cli\n    cli\n    sei\n    sei\n    clv\n    clv\n");
+   require_true(count_of(out, "clc") == 1 && count_of(out, "cld") == 1 && count_of(out, "sed") == 1 &&
+                count_of(out, "cli") == 1 && count_of(out, "sei") == 1 && count_of(out, "clv") == 1,
+                "all duplicate simple status writes should be removed", out);
+
    out = run_pass("    clc\n    rol a\n    clc\n");
    require_true(count_of(out, "clc") == 2, "carry-writing instructions must invalidate redundant clc/sec tracking", out);
 
@@ -216,6 +279,17 @@ int main(void) {
 
    out = run_pass("    lda #$01\n    cmp #$02\n    lda #$01\n" EMIT_INLINE_ASM_BEGIN_MARKER "\n    nop\n" EMIT_INLINE_ASM_END_MARKER "\n    lda #$00\n");
    require_true(count_of(out, "lda #$01") == 2, "inline asm must be an N/Z liveness barrier even when the raw line looks harmless", out);
+
+   for (int i = 0; peephole_rewrite_kind_names[i]; i++) {
+      int seen = 0;
+      for (int j = 0; j < seen_rewrite_kind_count; j++) {
+         if (!strcmp(peephole_rewrite_kind_names[i], seen_rewrite_kinds[j])) {
+            seen = 1;
+            break;
+         }
+      }
+      require_true(seen, "canonical peephole rewrite kind lacks a pattern-level regression", peephole_rewrite_kind_names[i]);
+   }
 
    puts("peephole unit tests passed");
    return 0;
