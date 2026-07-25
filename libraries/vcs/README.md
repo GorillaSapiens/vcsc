@@ -17,14 +17,15 @@ Files:
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_display.c26` ... legacy single-instance centered 48-pixel/six-glyph positioning and timed row kernel
+- `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display
+- `six_glyph_display.c26` ... legacy single-instance display retained temporarily for the fingerprint migration
 - `six_glyph_component.c26` ... repeatable lifecycle-template form of the centered six-glyph display
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
 - `../../examples/01_solid_color/solid_color.c26` ... first complete 4K cartridge example
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
-- `../../examples/03_six_digit_score/six_digit_score.c26` ... centered legacy-kernel-derived six-digit `bcd24_t` score display using the shared VCS font catalog
+- `../../examples/03_six_digit_score/six_digit_score.c26` ... centered lifecycle-component `bcd24_t` score display using `frame_ntsc.c26` and the shared VCS font catalog
 - `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
 - `../../examples/05_static_kernel_test/static_kernel_test.c26` ... deterministic 4K bring-up cartridge for the all-five standard kernel
 - `../../examples/06_object_motion_test/object_motion_test.c26` ... full-range all-five-object motion diagnostic

@@ -1272,12 +1272,24 @@ The first unfinished item is the default next action.
                                         each six-glyph lifecycle call with the
                                         corresponding component-specific
                                         `require` error.
-                             [ ] 22h2b. Migrate the maintained one-score cartridge
-                                        and its private golden fixture to the
-                                        component, prove raster/timing output
-                                        matches the predecessor, migrate remaining
-                                        users, then retire the single-instance
-                                        module.
+                             [ ] 22h2b. Migrate the maintained users and retire
+                                        the single-instance module.
+
+                                        [x] 22h2b1. Migrate example 03 and its
+                                                   private golden fixture to
+                                                   `six_glyph_component.c26` and
+                                                   `frame_ntsc.c26`. Preserve a
+                                                   pre-template private fixture
+                                                   and prove exact visible TIA-
+                                                   write equivalence by address,
+                                                   value, scanline, and cycle,
+                                                   plus stable 262-line timing.
+                                        [ ] 22h2b2. Migrate the fingerprint
+                                                   cartridge and its golden/self-
+                                                   test coverage, then remove the
+                                                   legacy `six_glyph_display.c26`
+                                                   module and all install/docs/
+                                                   test references to it.
         [ ] 22i. Convert the remaining maintained display kernels into
                   composable lifecycle components and remove their embedded
                   `six_glyph_score` ownership. Start with the all-five standard
@@ -4387,3 +4399,21 @@ Before returning another modified archive:
 * Leave 22h2b next for migrating the maintained one-score cartridge and golden
   fixture, proving predecessor raster/timing equivalence, migrating remaining
   users, and only then deleting `six_glyph_display.c26`.
+
+2026-07-25 01:53:00 PDT, migrate the maintained one-score cartridge
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h2b1. Migrate editable example 03 and its private
+  golden fixture from the legacy single-instance display to an instantiated
+  `six_glyph_component.c26` under the scheduler-owned `frame_ntsc.c26` loop.
+  Keep the 20-frame packed-BCD update cadence and explicitly account for the
+  192-line visible region as 91 blank lines, the component's eleven lines, and
+  90 trailing blank lines.
+* Preserve the previous golden source as the private
+  `pre_template_one_score.c26` comparison fixture. Add a MOS 6502/TIA trace
+  comparator and prove all 68 visible writes have identical addresses, values,
+  frame-relative scanlines, and cycles. Also lock stable displayed 262-line
+  timing for both predecessor and migrated cartridges.
+* Update the example Makefile and documentation plus the VCS library catalog.
+  Leave 22h2b2 next for migrating the fingerprint cartridge, its unofficial-
+  opcode and CRC self-test coverage, and only then deleting the legacy module.
+* Pass 308/308 compile-only tests and 171/171 end-to-end/generic tests.
