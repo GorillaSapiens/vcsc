@@ -261,3 +261,21 @@ for P0, P1, and Ball over 320 frames. Composed maps retain separate 65-byte
 gameplay and 17-byte score allocations; a gameplay-only map contains no score
 state or font.
 
+
+## Official player-color 192-line scoreless profile
+
+`kernels/player_color_192/player_color_192.c26` is the distinct full-height
+P0/P1/Ball per-row-color component. It consumes exactly 192 visible lines and
+cannot be combined with the independent eleven-line score inside the standard
+visible field. The application supplies a twelve-row/48-byte playfield plus the
+same page-contained graphics and eight-byte color tables as the 181-line
+profile.
+
+The full-height component retains the predecessor's genuine twelfth-row path,
+including precomputed final-row P0/P1 graphics and colors and final Ball state.
+It then holds that gameplay state through the eleven lines reserved by the
+score-composable profile. Its measured RAM contract is 13 public plus 53 private
+bytes, 66 total. Missiles remain unavailable; score/font and scheduler-owned
+frame/timer state remain absent. The maintained regression locks stable raw
+262-line frames, exact row colors, Ball output, official opcodes, hard-page ROM
+objects, map sizes, and all four lifecycle contracts.

@@ -1405,7 +1405,7 @@ The first unfinished item is the default next action.
                               [x] 22i3b. Compose the 181-line component with the
                                          independent score above and below gameplay;
                                          prove static and asynchronous motion behavior.
-                              [ ] 22i3c. Add the distinct official-opcode 192-line
+                              [x] 22i3c. Add the distinct official-opcode 192-line
                                          scoreless player-color component.
                               [ ] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
@@ -4712,3 +4712,21 @@ Before returning another modified archive:
   a gameplay-only link contains no score state or font. Extend staged
   installation to build all four composition fixtures. Leave 22i3c next for the
   distinct official-opcode 192-line scoreless player-color component.
+
+
+2026-07-25 13:56:00 PDT, add official player-color 192-line scoreless component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3c. Add and install the distinct repeatable official-
+  opcode `kernels/player_color_192/player_color_192.c26` lifecycle component.
+  Retain the predecessor's genuine twelfth-row playfield, P0/P1 graphics and
+  per-row color path, and final Ball state, then hold gameplay through the
+  eleven lines reserved for the independent score by the 181-line profile.
+* Publish the exact twelve-row/48-byte playfield and 192-line scoreless contract.
+  Measure 13 public plus 53 private RAM bytes (66 total), with complete 44-byte
+  final-row workspace, no missiles, and no score/font or scheduler-owned frame/
+  timer state.
+* Add `vcs_player_color_192.test` with stable 262-line timing, exact P0/P1 row
+  colors, Ball raster, disabled missiles, official-opcode, hard-page ROM, RAM/map,
+  lifecycle omission, source-tree, and staged-installed-toolchain evidence.
+* Leave 22i3d next for the matched 181-line unofficial-opcode experiment and
+  exact linked-byte comparison.

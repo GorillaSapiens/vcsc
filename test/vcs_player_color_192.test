@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_player_color_192.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 3
+# expectstdout: vcs_player_color_192 ok
+# expectexit: 0
