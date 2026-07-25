@@ -1,0 +1,77 @@
+// Interrupted hexadecimal font.
+//
+// The original legacy glyph data was released under CC0-1.0. See
+// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
+// Glyph rows are written top-to-bottom for visual readability; the
+// VCS_FONT_GLYPH alias reverses each glyph for the score kernel.
+
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+
+page const uint8_t logo_font[42] := {
+   // 0
+   VCS_FONT_GLYPH(
+      0b......XX,
+      0b......XX,
+      0b......XX,
+      0b.......X,
+      0b.......X,
+      0b........,
+      0b........
+   ),
+
+   // 1
+   VCS_FONT_GLYPH(
+      0bX..XXX..,
+      0bX..XXX.X,
+      0bX..XXX.X,
+      0bXXXXX..X,
+      0bXXXXX..X,
+      0bXXXX...X,
+      0b.XX.....
+   ),
+
+   // 2
+   VCS_FONT_GLYPH(
+      0bXXXXXX..,
+      0bXXXXXXX.,
+      0bXX..XXX.,
+      0bXX......,
+      0bXX..XXX.,
+      0bXXXXXXX.,
+      0bXXXXXX..
+   ),
+
+   // 3
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXX....,
+      0b.XXXXXX.,
+      0b....XXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // 4
+   VCS_FONT_GLYPH(
+      0b..XXXXXX,
+      0b.XXXXXXX,
+      0b.XXX..XX,
+      0b.XXX....,
+      0b.XXX..XX,
+      0b.XXXXXXX,
+      0b..XXXXXX
+   ),
+
+   // 5
+   VCS_FONT_GLYPH(
+      0b........,
+      0bX.......,
+      0bX.......,
+      0b........,
+      0bX.......,
+      0bX.......,
+      0b........
+   ),
+
+};
