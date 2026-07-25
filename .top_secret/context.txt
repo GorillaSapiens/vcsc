@@ -1136,23 +1136,89 @@ The first unfinished item is the default next action.
                   `TEMPLATE_VISIBLE_SCANLINES`, `TEMPLATE_VBLANK_MAX_CYCLES`, and
                   `TEMPLATE_OVERSCAN_MAX_CYCLES` constants. Keep component-
                   specific setters/helpers outside the universal lifecycle.
-        [ ] 22g. Define and test each component's exact scanline, entry/exit
+        [ ] 22g. Add the shared NTSC frame-scheduling mechanism and use it to
+                  define and test each component's exact scanline, entry/exit
                   cycle, TIA state, register/flag clobber, stack, RAM/ROM, page,
-                  alignment, and blanking-budget contract. The application
-                  scheduler must assert VBLANK and start the shared VBLANK
+                  alignment, and blanking-budget contract. Put the reusable
+                  scheduler primitives in `libraries/vcs/frame_ntsc.c26`, beside
+                  `vcs.c26` and `sound_ntsc.c26`; keep `vcs.c26` limited to the
+                  machine definition and hardware bindings, and do not introduce
+                  a policy-heavy generic `core.c26` or `framework.c26` yet.
+
+                  `frame_ntsc.c26` should publish the standard NTSC phase sizes
+                  and small inline operations equivalent to
+                  `vcs_ntsc_vsync()`, `vcs_ntsc_begin_vblank()`,
+                  `vcs_ntsc_end_vblank()`, `vcs_ntsc_begin_overscan()`,
+                  `vcs_ntsc_end_overscan()`, and a scanline-wait helper. The
+                  application `main()` remains the composition scheduler and
+                  chooses component order, blank lines, and which callbacks run.
+                  Low-level helpers such as `wait_for_vblank_timer()` should stay
+                  private implementation details rather than becoming an API
+                  that lets callers omit the required transition sequence.
+
+                  The scheduler must assert VBLANK and start the shared VBLANK
                   deadline before invoking any `TEMPLATE_vblank()` function;
                   callbacks share the remaining budget and must not own VBLANK,
-                  WSYNC, or the RIOT timer. After all callbacks, the scheduler
-                  must detect overrun, wait only for the unused remainder, issue
-                  the final WSYNC, and clear VBLANK at cycle zero. Apply the same
-                  scheduler-owned deadline model to overscan. Initially enforce
-                  what can be proven with compiler/linker metadata and lock the
-                  remaining timing/resource promises with emulator regressions.
+                  WSYNC, TIM1T/TIM8T/TIM64T/T1024T, INTIM, or TIMINT. The public
+                  end-VBLANK operation must detect overrun, wait only for the
+                  unused remainder, issue the final WSYNC, and clear VBLANK at
+                  cycle zero. Apply the same scheduler-owned deadline model to
+                  overscan. Define deterministic overrun behavior and diagnostics
+                  rather than relying on a wrapped INTIM value after expiry.
+
+                  Cover exact 3/37/192/30-line NTSC phase accounting, a stable
+                  262-line frame, timer ownership, callbacks that consume part of
+                  the shared budget, exact-boundary completion, deliberate
+                  VBLANK and overscan overruns, and cycle-zero transitions in
+                  emulator regressions. Initially enforce what can be proven with
+                  compiler/linker metadata and lock the remaining timing/resource
+                  promises with emulator regressions.
         [ ] 22h. Convert the centered six-glyph display into the first reusable
                   component. Prove one instance matches its predecessor, two
                   instances retain independent state, either draw order works,
                   omitted required lifecycle calls diagnose at link time, and
                   source-tree plus installed-toolchain builds agree.
+        [ ] 22i. Convert the remaining maintained display kernels into
+                  composable lifecycle components and remove their embedded
+                  `six_glyph_score` ownership. Start with the all-five standard
+                  profile and the P0+P1+BL player-color profile. Their component
+                  draw entry points must render only their own gameplay region,
+                  publish exact `VISIBLE_SCANLINES` and blanking-work budgets,
+                  enter and leave at the documented cycle-zero boundaries, clean
+                  up any TIA state they enable, and leave VSYNC, VBLANK, WSYNC,
+                  and the RIOT timer under `frame_ntsc.c26`/application control.
+
+                  Keep the currently working monolithic profiles available until
+                  each componentized replacement has byte/timing/raster evidence
+                  sufficient to prove that the refactor did not silently change
+                  object positioning, colors, playfield phases, collision state,
+                  stack use, RAM ownership, frame length, or legal-opcode status.
+                  Remove the old private score tables, score state, score update
+                  path, font imports, and hidden scanline assumptions only after
+                  the separately instantiated six-glyph component supplies them.
+                  The linker/map output must show that a gameplay component which
+                  does not instantiate a score pays no score RAM or ROM cost.
+
+                  Add editable application examples which compose the same score
+                  and gameplay components in both visible orders: score above the
+                  gameplay kernel and score below it. Use machine-readable
+                  scanline constants to account for the complete 192-line visible
+                  region, with any remainder emitted as explicit blank lines by
+                  the application rather than hidden inside a component. Include
+                  at least one static scene and one motion scene so ordering is
+                  proved without weakening horizontal-position, per-row-color,
+                  or next-frame update behavior.
+
+                  Put exact expected cartridges under `test/fixtures/`, not under
+                  `examples/`. Emulator regressions must verify both draw orders,
+                  exact component boundary cycles, total frame length, TIA-write
+                  schedules, independent score/game state, absence of embedded
+                  `six_glyph_score` symbols in the converted gameplay components,
+                  RAM/ROM/stack accounting, source-tree builds, and installed-
+                  toolchain builds. Document any component pair that cannot be
+                  safely reordered because of an explicit resource contract
+                  instead of relying on accidental state left by the previous
+                  component.
 
 [ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
@@ -3892,3 +3958,23 @@ Before returning another modified archive:
 * Documentation and roadmap only; no implementation, build, test, kernel, or
   example behavior changes. Task 22 remains next.
 
+
+2026-07-24 19:08:16 PDT, expand template scheduler and kernel-conversion roadmap
+-------------------------------------------------------------------------------
+* Flesh out task 22i into a staged conversion of both maintained gameplay
+  kernels from monolithic score-owning profiles into composable lifecycle
+  components. Require exact cycle/TIA/state/RAM/ROM/stack equivalence evidence,
+  removal of embedded six-glyph storage and code, zero score cost when no score
+  component is instantiated, editable above/below-score examples, private exact
+  fixtures, and source-tree plus installed-toolchain regressions.
+* Expand task 22g to assign shared NTSC scheduling primitives to the proposed
+  `libraries/vcs/frame_ntsc.c26`. Keep `vcs.c26` as hardware definition only,
+  keep `main()` responsible for composition policy, and defer any full
+  `framework.c26` abstraction until repeated applications establish a stable
+  policy worth extracting.
+* Specify the public phase API, private timer-wait details, scheduler ownership
+  of VSYNC/VBLANK/WSYNC and RIOT timing registers, deterministic overrun
+  handling, exact 3/37/192/30 scanline accounting, stable 262-line frames, and
+  emulator coverage for partial-budget, exact-boundary, and overrun cases.
+* Roadmap/documentation update only; no compiler, linker, assembler, runtime,
+  kernel, example, build, or test implementation changes.
