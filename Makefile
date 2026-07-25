@@ -80,6 +80,9 @@ install-data:
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels
+	install -m 0644 libraries/vcs/kernels/COMPONENT_CONVERSION.md \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md \
@@ -123,6 +126,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
@@ -181,6 +185,7 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
+	test -f "$$stage_vcs/kernels/COMPONENT_CONVERSION.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \

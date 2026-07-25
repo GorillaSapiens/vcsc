@@ -1332,6 +1332,28 @@ The first unfinished item is the default next action.
                   instead of relying on accidental state left by the previous
                   component.
 
+                  [x] 22i1. Freeze and install a machine-checked conversion
+                              baseline for both monolithic predecessors. Record
+                              exact public/private RAM and score-ROM costs, mixed
+                              workspace that cannot yet be claimed as savings,
+                              forbidden embedded-score symbols, frame-register
+                              ownership that must move to the scheduler, the
+                              existing 192-line gameplay field, and the evidence
+                              required before either predecessor may be retired.
+                  [ ] 22i2. Extract the all-five gameplay-only lifecycle
+                              component while preserving the monolithic profile
+                              and its current regression oracles.
+                  [ ] 22i3. Compose the all-five component with an independent
+                              six-glyph component above and below gameplay, then
+                              prove static/motion behavior and zero score cost in
+                              a gameplay-only link.
+                  [ ] 22i4. Extract and prove the P0+P1+BL player-color lifecycle
+                              component, including exact per-row colors and both
+                              score orders.
+                  [ ] 22i5. Retire the two monolithic profiles only after source,
+                              installed-toolchain, map, timing, raster, stack,
+                              collision, and legal-opcode evidence is complete.
+
 [ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
         color tables. Treat this as a fresh cycle-scheduled profile rather than
@@ -4457,3 +4479,24 @@ Before returning another modified archive:
   documentation and example dependencies; record the deletion in remove.txt
   and assert staged installations do not contain the retired module. Leave 22i
   next for componentizing maintained gameplay kernels.
+
+
+2026-07-25 15:55:00 PDT, freeze gameplay-component conversion baseline
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i1. Add and install
+  `libraries/vcs/kernels/COMPONENT_CONVERSION.md`, a measured retirement gate
+  for the all-five and P0+P1+BL player-color monoliths before their assembly is
+  split into lifecycle components.
+* Record the existing 23/57/80-byte and 17/60/77-byte public/private/total RAM
+  contracts, each profile's 88-byte embedded score table, the mechanically safe
+  four-byte public-state floor from removing packed score plus color, and the
+  twelve-byte pointer workspace's mixed score/gameplay use. Explicitly forbid
+  claiming that mixed workspace as savings until a replacement map proves it.
+* Document that the inherited gameplay field already consumes 12 x 16 = 192
+  scanlines, so a reusable eleven-line score cannot simply be appended inside a
+  192-line scheduler region. Require an explicit, raster-tested composition
+  profile rather than silently hiding or dropping scanlines.
+* Add `vcs_kernel_component_baseline.test` to lock both predecessor contracts,
+  embedded score imports/exports, frame-register ownership, forbidden symbols,
+  and documentation. Split the remaining 22i work into extraction/composition/
+  retirement slices while leaving both working monoliths unchanged for oracles.
