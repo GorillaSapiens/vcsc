@@ -1203,7 +1203,7 @@ The first unfinished item is the default next action.
                              helpers inline without `JSR`/`RTS`, compile from the
                              installed support tree, and document that `main()`
                              still owns composition policy.
-                  [ ] 22g2. Add scheduler-owned VBLANK and overscan deadline
+                  [x] 22g2. Add scheduler-owned VBLANK and overscan deadline
                              begin/end operations. Distinguish an unexpired
                              timer from RIOT underflow/wrap, return or record a
                              deterministic overrun result, wait only for the
@@ -4276,3 +4276,22 @@ Before returning another modified archive:
   RIOT-deadline ownership, underflow-safe overrun handling, and cycle-zero
   VBLANK/overscan transitions; do not ship uncalibrated timer preloads in this
   foundational slice.
+
+2026-07-24 23:58:00 PDT, add scheduler-owned NTSC blanking deadlines
+-------------------------------------------------------------------------------
+* Complete roadmap task 22g2. Extend `libraries/vcs/frame_ntsc.c26` with
+  scheduler-owned `vcs_ntsc_begin_vblank()`, `vcs_ntsc_end_vblank()`,
+  `vcs_ntsc_begin_overscan()`, and `vcs_ntsc_end_overscan()` operations plus
+  the standard TIM64T preload and phase-status constants.
+* Keep the low-level deadline wait private. Sample TIMINT before INTIM and also
+  reject a high-bit INTIM value so an underflow racing between the two reads is
+  still detected even though reading INTIM clears the RIOT timer flag. Return
+  `VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`, wait only for unused phase
+  time, issue the final WSYNC, clear VBLANK only at the end of VBLANK, and leave
+  it asserted across overscan into VSYNC.
+* Add compile coverage proving both preloads, both timer/status reads, final TIA
+  writes, and full inlining without JSR calls. Extend the installed-header smoke
+  source and update `libraries/vcs/README.md` and `TEMPLATE.md` to use the real
+  API instead of scheduler pseudocode.
+* Leave task 22g3 next for emulator-backed exact-boundary, partial-budget,
+  deliberate-overrun, timer-abstinence, and full-frame timing/resource tests.

@@ -508,14 +508,14 @@ void main(void) {
     while (1) {
         vcs_ntsc_vsync();
 
-        VBLANK := 2;
-        start_vblank_deadline(37);   /* Scheduler-owned pseudocode helper. */
+        vcs_ntsc_begin_vblank();
 
         score1_vblank();
         score2_vblank();
 
-        finish_vblank_deadline();    /* Detect overrun, wait remainder, WSYNC. */
-        VBLANK := 0;                 /* Cycle zero of first visible line. */
+        if (vcs_ntsc_end_vblank() == VCS_NTSC_PHASE_OVERRUN) {
+            /* Application-selected deterministic overrun handling. */
+        }
 
         vcs_ntsc_wait_scanlines(81);
         score1_draw();
@@ -527,27 +527,31 @@ void main(void) {
             - score2_VISIBLE_SCANLINES
         );
 
-        VBLANK := 2;
-        start_overscan_deadline();   /* Scheduler owns the overscan timer. */
+        vcs_ntsc_begin_overscan();
 
         score1_overscan();
         score2_overscan();
 
-        finish_overscan_deadline();  /* Detect overrun and finish the phase. */
+        if (vcs_ntsc_end_overscan() == VCS_NTSC_PHASE_OVERRUN) {
+            /* Application-selected deterministic overrun handling. */
+        }
     }
 }
 ```
 
-The deadline-helper names above are scheduler pseudocode, not additional
-component lifecycle functions. A real helper must distinguish an unexpired timer
-from an underflowed/wrapped timer, report an overrun, wait only for the unused
-remainder, and use the final WSYNC needed to put the next phase at cycle zero.
-A bare `while (INTIM)` loop is not sufficient after arbitrary component work
-because an already-underflowed timer can wrap and appear nonzero again.
+The four deadline operations above are supplied by `frame_ntsc.c26`, not by a
+component template. Their low-level timer-wait helper remains private so callers
+cannot accidentally omit the required final WSYNC or VBLANK transition. The end
+operations distinguish an unexpired timer from RIOT underflow/wrap, return
+`VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`, wait only for unused time, and
+perform the phase-ending alignment. A bare `while (INTIM)` loop is not sufficient
+after arbitrary component work because an already-underflowed timer can wrap and
+appear nonzero again.
 
-The exact timer preload and phase budgets remain application and component
-contract decisions. The feature allows composition; it does not excuse the
-program from meeting the 6507/TIA timing schedule.
+The scheduler uses the standard NTSC 37-line VBLANK and 30-line overscan
+preloads. Component contracts still determine whether their combined worst-case
+work fits those budgets, and the application chooses its deterministic response
+to an overrun.
 
 ## Required regression strategy
 

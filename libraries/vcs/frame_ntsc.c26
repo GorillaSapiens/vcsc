@@ -31,3 +31,73 @@ inline void vcs_ntsc_vsync(void) {
    vcs_ntsc_wait_scanlines(VCS_NTSC_VSYNC_SCANLINES`uint8_t);
    VSYNC := 0;
 }
+
+// TIM64T preload values chosen so the scheduler can spend most of each blank
+// phase in component callbacks, then wait for the unused remainder and use one
+// final WSYNC to enter the next phase on a scanline boundary.  Exact cycle
+// calibration and deliberate-overrun coverage live in the frame-scheduler
+// emulator regressions.
+enum vcs_ntsc_deadline_timing {
+   VCS_NTSC_VBLANK_TIM64T := 43,
+   VCS_NTSC_OVERSCAN_TIM64T := 35,
+   VCS_NTSC_PHASE_OK := 0,
+   VCS_NTSC_PHASE_OVERRUN := 1
+};
+
+// Wait for a scheduler-owned TIM64T deadline.  This is intentionally private:
+// callers must use the phase end operations so they cannot omit the final
+// WSYNC/VBLANK transition.  Reading INTIM clears the RIOT timer flag, so each
+// iteration samples TIMINT first.  A timer underflow racing between those two
+// reads is still detected because every valid preload is below $80 whereas the
+// post-underflow INTIM value begins at $ff and therefore has bit 7 set.
+static inline uint8_t vcs_ntsc_finish_deadline(void) {
+   uint8_t interrupt_status;
+   uint8_t timer_value;
+
+   while (1) {
+      interrupt_status := TIMINT;
+      if (interrupt_status & 0x80) {
+         return VCS_NTSC_PHASE_OVERRUN`uint8_t;
+      }
+
+      timer_value := INTIM;
+      if (timer_value & 0x80) {
+         return VCS_NTSC_PHASE_OVERRUN`uint8_t;
+      }
+      if (!timer_value) {
+         return VCS_NTSC_PHASE_OK`uint8_t;
+      }
+   }
+}
+
+// Begin the shared 37-scanline VBLANK budget.  Component vblank callbacks run
+// after this operation and must not touch VBLANK, WSYNC, or RIOT timer state.
+inline void vcs_ntsc_begin_vblank(void) {
+   VBLANK := 2;
+   TIM64T := VCS_NTSC_VBLANK_TIM64T`uint8_t;
+}
+
+// Wait only for the unused VBLANK budget, align the visible phase, and clear
+// VBLANK.  Return VCS_NTSC_PHASE_OVERRUN if callbacks missed the deadline.
+inline uint8_t vcs_ntsc_end_vblank(void) {
+   uint8_t result := vcs_ntsc_finish_deadline();
+   WSYNC := 0;
+   VBLANK := 0;
+   return result;
+}
+
+// Begin the shared 30-scanline overscan budget.  Component overscan callbacks
+// run after this operation and must not touch VBLANK, WSYNC, or RIOT timer
+// state.
+inline void vcs_ntsc_begin_overscan(void) {
+   VBLANK := 2;
+   TIM64T := VCS_NTSC_OVERSCAN_TIM64T`uint8_t;
+}
+
+// Wait only for the unused overscan budget and align the following VSYNC phase.
+// VBLANK remains asserted across overscan and VSYNC.
+inline uint8_t vcs_ntsc_end_overscan(void) {
+   uint8_t result := vcs_ntsc_finish_deadline();
+   WSYNC := 0;
+   return result;
+}

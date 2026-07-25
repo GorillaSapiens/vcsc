@@ -15,7 +15,7 @@ Files:
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, and VSYNC scheduling primitives
+- `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_display.c26` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
@@ -39,12 +39,30 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 
 int16_t main(void) {
+   uint8_t overrun := 0;
+
    vcs_ntsc_vsync();
-   VBLANK := 0x02;
-   COLUBK := 0x00;
-   return 0;
+   vcs_ntsc_begin_vblank();
+   /* Run component vblank callbacks here. */
+   overrun |= vcs_ntsc_end_vblank();
+
+   /* Draw exactly VCS_NTSC_VISIBLE_SCANLINES here. */
+
+   vcs_ntsc_begin_overscan();
+   /* Run component overscan callbacks here. */
+   overrun |= vcs_ntsc_end_overscan();
+   return overrun;
 }
 ```
+
+
+`vcs_ntsc_begin_vblank()` and `vcs_ntsc_begin_overscan()` assert VBLANK and
+start scheduler-owned TIM64T deadlines. Their matching end operations wait only
+for the unused part of the phase, detect RIOT timer underflow without mistaking
+a wrapped `INTIM` value for remaining time, issue the final `WSYNC`, and return
+`VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`. `vcs_ntsc_end_vblank()` also
+clears VBLANK; `vcs_ntsc_end_overscan()` leaves it asserted for VSYNC. Component
+callbacks must not touch VBLANK, WSYNC, INTIM, TIMINT, or a timer-start register.
 
 ## Target type definitions
 
