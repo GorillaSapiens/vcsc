@@ -160,8 +160,28 @@ That motion evidence exposed and fixed an extraction error: M0 had only an
 DEC was removed. Reconstruction now adds 88 rather than 89, restoring the exact
 application M0 Y coordinate at the lifecycle boundary.
 
-The predecessor monolith remains installed. The separate 192-line scoreless and
-matched unofficial profiles remain open before retirement.
+## Completed official all-five 192-line scoreless profile
+
+`kernels/all_five_192/all_five_192.c26` is the distinct official-opcode,
+full-height P0/P1/M0/M1/BL lifecycle component. It owns the complete 192-line
+visible gameplay field, takes a page-contained 48-byte/twelve-row playfield,
+and cannot be combined with the eleven-line score inside the standard visible
+region. The predecessor's twelfth-row path is retained, and the final gameplay
+state is held through the lines that the 181-line profile assigns to the score.
+
+Its exact map contract is 19 public bytes plus 51 private bytes: six gameplay
+workspace bytes, one playfield-position byte, and the complete 44-byte object
+mask array, for 70 bytes total. It links no score state, score pointers, or font.
+`draw()` clears visible TIA state at its final boundary; `overscan()` restores
+application-visible Y coordinates after the application asserts VBLANK.
+
+Regression evidence locks stable 262-line frames, 48-byte hard-page playfield
+placement, official mnemonics only, the inherited cycle-24/31/38/45 playfield
+phases, visible all-five output, exact lifecycle diagnostics, and source plus
+staged-installed builds. The matched unofficial 181-line profile remains open.
+
+The predecessor monolith remains installed. The matched unofficial profile
+remains open before retirement.
 
 ## Evidence required before retiring a monolith
 

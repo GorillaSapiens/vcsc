@@ -20,6 +20,7 @@ Files:
 - `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display
 - `kernels/COMPONENT_CONVERSION.md` ... measured predecessor baseline plus the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `kernels/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component for composition with an independent eleven-line score
+- `kernels/all_five_192/` ... distinct official-opcode 192-line scoreless P0/P1/M0/M1/BL lifecycle component
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants

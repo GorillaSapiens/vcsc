@@ -1384,7 +1384,7 @@ The first unfinished item is the default next action.
                                          and motion behavior, exact 181+11=192
                                          accounting, and zero score cost in a
                                          gameplay-only link.
-                              [ ] 22i2d. Derive and prove the official-opcode 192-
+                              [x] 22i2d. Derive and prove the official-opcode 192-
                                          line scoreless all-five component as a
                                          distinct explicit profile rather than a
                                          hidden configuration switch.
@@ -4625,3 +4625,19 @@ Before returning another modified archive:
 * Pass all 308 compile-only tests and all 174 end-to-end/generic tests across
   the complete run and final two-test continuation, plus staged installation and
   source-tree hygiene.
+
+2026-07-25 12:08:00 PDT, add official all-five 192-line scoreless component
+
+* Complete roadmap task 22i2d. Add and install the distinct repeatable
+  `kernels/all_five_192/all_five_192.c26` official-opcode lifecycle component.
+  Retain the predecessor's full-height twelfth-row path, use the complete
+  48-byte playfield and 44-byte object-mask storage, and hold the final gameplay
+  state through the visible lines assigned to the independent score by the
+  181-line profile. Publish an exact 192-line scoreless contract.
+* Keep score/font and scheduler-owned frame/timer state absent. Measure 19 public
+  plus 51 private RAM bytes (70 total), defer Y-coordinate restoration to the
+  blanked overscan callback, and clear gameplay TIA state at the draw boundary.
+* Add `vcs_all_five_192.test` with stable 262-line timing, hard-page playfield,
+  official-opcode source gate, playfield-phase, object-output, RAM/map, lifecycle
+  omission, source-tree, and staged-installation evidence. Leave 22i2e next for
+  the matched 181-line unofficial-opcode experiment and linked-byte comparison.
