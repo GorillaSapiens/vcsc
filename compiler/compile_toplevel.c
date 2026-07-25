@@ -145,13 +145,13 @@ void compile_function_decl(ASTNode *node) {
 
    validate_function_return_type(node);
    remember_function(node, name);
-   if (function_is_inline(node)) {
-      return;
-   }
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
-
+   emit_function_contract_metadata(node, sym);
+   if (function_is_inline(node)) {
+      return;
+   }
    has_return_object = function_has_return_object(node);
    if (has_return_object &&
        !function_return_symbol_name(node, return_sym, sizeof(return_sym))) {
@@ -735,6 +735,7 @@ void compile_global_decl_item(ASTNode *node) {
       return;
    }
    emit_mem_region_metadata_for_modifiers(node, modifiers);
+   emit_global_contract_metadata(node, symname, is_zeropage);
 
    if (is_absolute_ref) {
       if (!address_spec_has_read(addrspec) && !address_spec_has_write(addrspec)) {
@@ -909,14 +910,15 @@ static void compile_function_signature(ASTNode *node) {
    validate_function_return_type(node);
    remember_function(node, name);
 
+   if (!function_symbol_name(node, name, sym, sizeof(sym))) {
+      error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
+   }
+   emit_function_contract_metadata(node, sym);
    if (function_is_inline(node)) {
       return;
    }
 
    if (!has_modifier(modifiers, "static")) {
-      if (!function_symbol_name(node, name, sym, sizeof(sym))) {
-         error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
-      }
       emit_function_abi_metadata(node, sym, false);
    }
 

@@ -36,6 +36,7 @@
 
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
 #define ABI_META_PREFIX "__abimeta$V1$"
+#define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 
 #define MAX_NAME 128

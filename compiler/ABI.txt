@@ -169,3 +169,15 @@ Variadic functions
 Variadic functions and callable types are not part of the VCSC language.
 The lexer rejects `...` with a direct diagnostic. There is no variadic call
 frame, hidden metadata, `va_list`, `va_start`, `va_arg`, or `va_end` ABI.
+
+Declaration-use contract metadata
+---------------------------------
+Contracted file-scope objects and functions emit reserved absolute-export
+records beginning with `__contractmeta$V1$`.  Each record preserves the merged
+`require`/`recommend` strength, logical assembler symbol, translation-unit owner,
+declaration source file/line/column, template invocation location (`none` until
+source instantiation is implemented), and a canonical type or function-signature
+fingerprint.  True inline functions emit these records even though they have no
+ordinary callable object symbol.  The assembler retains the records in `.o26`
+exports; the linker treats the prefix as metadata rather than a program global.
+Semantic call/read/write/address/ref use records are the next roadmap slice.

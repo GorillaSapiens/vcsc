@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260722_231112.tar.gz
+    vcsc.20260724_200752.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1118,11 +1118,24 @@ The first unfinished item is the default next action.
                             declarations while retaining the strongest contract
                             and its diagnostic source location. Preserve ordinary
                             duplicate-definition and incompatible-signature errors.
-        [ ] 22b. Preserve declaration contracts, canonical types/signatures,
-                  owner identity, source locations, and template invocation
-                  locations in o26 metadata. Add semantic use records for calls,
-                  reads, writes, address-taking, and `ref`, including true inline
-                  calls and other uses that leave no ordinary relocation.
+        [ ] 22b. Preserve declaration contracts and semantic uses in o26
+                  metadata, including operations that leave no ordinary
+                  relocation.
+
+                  [x] 22b1. Emit reserved `__contractmeta$V1$` records for every
+                            contracted file-scope object or function. Preserve the
+                            merged strength, logical symbol, translation-unit
+                            owner, declaration file/line/column, a placeholder
+                            template-invocation location, and a canonical object
+                            type or complete function signature. Emit records for
+                            true inline functions and prove the assembler retains
+                            them in `.o26` exports. Keep the linker from exposing
+                            these metadata exports as program globals.
+                  [ ] 22b2. Add semantic use records for direct and true-inline
+                            calls and for object reads, writes, address-taking, and
+                            `ref` uses. Preserve the using owner and source
+                            location even when optimization removes every ordinary
+                            relocation.
         [ ] 22c. After archive selection and whole-program reachability, make the
                   linker reject an externally unused `require` contract and warn
                   for an externally unused `recommend` contract. Internal use by
@@ -4048,3 +4061,19 @@ Before returning another modified archive:
   before 22b because o26 contract/type/location metadata and semantic use records
   form the next larger atomic slice.
 
+
+2026-07-24 20:16:25 PDT, preserve declaration contracts in o26 metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b1. Emit reserved `__contractmeta$V1$` absolute-export
+  records for contracted objects and functions, including true inline functions
+  that have no ordinary callable symbol. Each record carries the merged contract
+  strength, logical assembler symbol, translation-unit owner, strongest-contract
+  source file/line/column, explicit no-template-invocation placeholder, and a
+  canonical object type or complete function signature.
+* Retain the records through ordinary `.s26` to `.o26` assembly and reserve the
+  prefix in the linker so metadata symbols do not appear as program globals or
+  consume layout. Document the record contract in `compiler/ABI.txt`.
+* Add an end-to-end metadata regression proving strongest-declaration source
+  retention, object and function fingerprints, true-inline metadata, and raw o26
+  preservation. Leave 22b open at 22b2 for semantic call/read/write/address/ref
+  use records; do not begin linker enforcement in 22c yet.

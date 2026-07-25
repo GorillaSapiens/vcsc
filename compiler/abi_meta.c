@@ -17,6 +17,7 @@
 #include "compile_type.h"
 #include "emit.h"
 #include "messages.h"
+#include "lextern.h"
 #include "set.h"
 #include "typename.h"
 
@@ -557,4 +558,167 @@ void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_
       : node->children[2];
    mode = global_storage_mode(node, is_zeropage);
    emit_type_record("global", state, symname, "object", mode, type, declarator);
+}
+
+
+//! @brief Append one complete canonical function signature for use-contract metadata.
+static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
+                                                 const ASTNode *fn) {
+   const ASTNode *decl = function_declarator_node(fn);
+   const ASTNode *params = declarator_parameter_list(decl);
+   const ASTNode *ret_type = function_return_type(fn);
+   const ASTNode *ret_decl = function_return_declarator_from_callable(decl);
+   FingerprintCtx ctx;
+   int fixed_count = function_fixed_param_count(fn);
+   int out_index = 0;
+
+   memset(&ctx, 0, sizeof(ctx));
+   sb_appendf(fp, "function(params=%d;return=", fixed_count);
+   sb_appendf(detail, "function(parameters=%d, return=", fixed_count);
+   append_storage_mode(fp, detail,
+      return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_memory");
+   append_type_fingerprint(fp, detail, ret_type, ret_decl, &ctx);
+
+   if (params && !is_empty(params)) {
+      for (int i = 0; i < params->count; i++) {
+         const ASTNode *parameter = params->children[i];
+         const ASTNode *ptype;
+         const ASTNode *pdecl;
+
+         if (!parameter || parameter_is_void(parameter))
+            continue;
+         ptype = parameter_type(parameter);
+         pdecl = call_adjusted_parameter_declarator(parameter_declarator(parameter),
+                                                    parameter_is_ref(parameter));
+         sb_appendf(fp, ";param%d=", out_index);
+         sb_appendf(detail, ", param%d=", out_index);
+         append_storage_mode(fp, detail, function_parameter_storage_mode(parameter));
+         append_type_fingerprint(fp, detail, ptype, pdecl, &ctx);
+         out_index++;
+      }
+   }
+   sb_append(fp, ")");
+   sb_append(detail, ")");
+   free(ctx.names);
+   free(ctx.ids);
+   free(ctx.active);
+}
+
+//! @brief Emit one linker-visible declaration-use contract record.
+static void emit_contract_metadata_symbol(const char *kind,
+                                          DeclarationUseContract strength,
+                                          const char *symbol,
+                                          const ASTNode *origin,
+                                          const char *fingerprint,
+                                          const char *detail) {
+   const char *strength_name = strength == DECL_USE_CONTRACT_REQUIRE
+      ? "require" : "recommend";
+   const char *owner = root_filename && *root_filename ? root_filename
+      : (origin && origin->file ? origin->file : "?");
+   const char *file = origin && origin->file ? origin->file : owner;
+   int line = origin ? origin->line : 0;
+   int column = origin ? origin->column : 0;
+   char *enc_symbol = meta_encode(symbol ? symbol : "");
+   char *enc_owner = meta_encode(owner);
+   char *enc_file = meta_encode(file);
+   char *enc_fp = meta_encode(fingerprint ? fingerprint : "");
+   char *enc_detail = meta_encode(detail ? detail : "");
+   StrBuf name;
+
+   sb_init(&name);
+   sb_append(&name, CONTRACT_META_PREFIX);
+   sb_append(&name, kind ? kind : "unknown");
+   sb_append_ch(&name, '$');
+   sb_append(&name, strength_name);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_symbol);
+   sb_append(&name, "$owner$");
+   sb_append(&name, enc_owner);
+   sb_append(&name, "$decl$");
+   sb_append(&name, enc_file);
+   sb_appendf(&name, "$L%d$C%d$invoke$none$type$", line, column);
+   sb_append(&name, enc_fp);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_detail);
+
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+      emit(&es_export, "%s = 0\n", name.buf);
+   }
+
+   free(enc_symbol);
+   free(enc_owner);
+   free(enc_file);
+   free(enc_fp);
+   free(enc_detail);
+   free(name.buf);
+}
+
+//! @brief Emit merged function use-contract metadata, including true inline definitions.
+void emit_function_contract_metadata(const ASTNode *fn, const char *sym) {
+   const ASTNode *origin = NULL;
+   const ASTNode *decl = function_declarator_node(fn);
+   const char *name = decl ? declarator_name(decl) : NULL;
+   DeclarationUseContract strength;
+   StrBuf fp;
+   StrBuf detail;
+
+   if (!fn || !sym || !*sym || !name)
+      return;
+   strength = declaration_symbol_use_contract(DECL_CONTRACT_FUNCTION, name, &origin);
+   if (strength == DECL_USE_CONTRACT_NONE)
+      return;
+   if (!origin)
+      origin = fn;
+
+   sb_init(&fp);
+   sb_init(&detail);
+   append_function_contract_fingerprint(&fp, &detail, fn);
+   emit_contract_metadata_symbol("function", strength, sym, origin,
+                                 fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
+   free(fp.buf);
+   free(detail.buf);
+}
+
+//! @brief Emit merged object use-contract metadata with its canonical object type.
+void emit_global_contract_metadata(const ASTNode *node, const char *symname,
+                                   bool is_zeropage) {
+   const ASTNode *origin = NULL;
+   const ASTNode *type;
+   const ASTNode *declarator;
+   const char *name;
+   DeclarationUseContract strength;
+   FingerprintCtx ctx;
+   StrBuf fp;
+   StrBuf detail;
+
+   if (!node || node->count < 3 || !symname || !*symname)
+      return;
+   type = node->children[1];
+   declarator = node->children[2] && !strcmp(node->children[2]->name, "decl_subitem")
+      ? node->children[2]->children[0] : node->children[2];
+   name = declarator_name(declarator);
+   if (!name)
+      return;
+   strength = declaration_symbol_use_contract(DECL_CONTRACT_OBJECT, name, &origin);
+   if (strength == DECL_USE_CONTRACT_NONE)
+      return;
+   if (!origin)
+      origin = node;
+
+   memset(&ctx, 0, sizeof(ctx));
+   sb_init(&fp);
+   sb_init(&detail);
+   append_storage_mode(&fp, &detail, global_storage_mode(node, is_zeropage));
+   append_type_fingerprint(&fp, &detail, type, declarator, &ctx);
+   emit_contract_metadata_symbol("object", strength, symname, origin,
+                                 fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
+   free(ctx.names);
+   free(ctx.ids);
+   free(ctx.active);
+   free(fp.buf);
+   free(detail.buf);
 }

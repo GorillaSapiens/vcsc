@@ -86,10 +86,17 @@ static int mem_region_metadata_has_prefix(const char *name)
    return name && strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0;
 }
 
+//! @brief Return whether declaration-contract metadata has its reserved prefix.
+static int contract_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, CONTRACT_META_PREFIX, sizeof(CONTRACT_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether reserved metadata has prefix in linker layout and image writer.
 static int reserved_metadata_has_prefix(const char *name)
 {
-   return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) || mem_region_metadata_has_prefix(name);
+   return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
+          mem_region_metadata_has_prefix(name) || contract_metadata_has_prefix(name);
 }
 
 //! @brief Handle symbol backed metadata parse function logic for linker layout and image writer.

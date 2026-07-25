@@ -1,0 +1,1 @@
+# runner: perl @TEST_ROOT@/declaration_contract_metadata.pl @REPO@ @TMP@
