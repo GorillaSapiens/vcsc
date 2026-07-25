@@ -37,3 +37,31 @@ Resource contract:
 - total component RAM: 65 bytes
 - application playfield ROM: 44 bytes
 - application color ROM: 8 bytes per player
+
+
+## Score composition
+
+A scored application draws exactly one complete visible field in either order:
+
+```c
+score_draw();
+configure_game_frame();
+game_draw();
+```
+
+or:
+
+```c
+configure_game_frame();
+game_draw();
+score_draw();
+```
+
+The score-first order must restore gameplay-owned TIA geometry before
+`game_draw()`, because the six-glyph component owns P0/P1 display state while it
+runs. Maintained static and 320-frame asynchronous-motion fixtures prove both
+orders, exact per-row colors, P0/P1/Ball full-range motion, stable 262-line
+frames, and disjoint 11-line score plus 181-line gameplay regions.
+
+A composed link measures 65 bytes of gameplay RAM plus 17 bytes for the
+independent score. A gameplay-only link contains no score state or font.

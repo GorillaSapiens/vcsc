@@ -1402,7 +1402,7 @@ The first unfinished item is the default next action.
                                          P0/P1 row colors, BL output, no missiles,
                                          no score/frame ownership, and measured
                                          13/52/65-byte RAM accounting.
-                              [ ] 22i3b. Compose the 181-line component with the
+                              [x] 22i3b. Compose the 181-line component with the
                                          independent score above and below gameplay;
                                          prove static and asynchronous motion behavior.
                               [ ] 22i3c. Add the distinct official-opcode 192-line
@@ -4692,3 +4692,23 @@ Before returning another modified archive:
 * Pass all 308 compile-only tests and all 177 end-to-end/generic tests across
   the complete run and final two-test continuation, plus staged installation,
   branding, and source-tree hygiene.
+
+
+2026-07-25 13:20:00 PDT, prove player-color score composition
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3b. Add static and asynchronous-motion fixtures for
+  both explicit visible orders: eleven-line score above 181-line P0/P1/Ball
+  gameplay and gameplay above the score. Keep scheduling and lifecycle order in
+  `main()`, and reapply gameplay geometry after a score-first draw.
+* Extend the player-color MOS 6502 harness and add
+  `vcs_player_color_composition.test`. Lock stable 262-line frames, exact
+  181+11 visible accounting, disjoint score/gameplay regions, all eight P0/P1
+  row colors, Ball output, disabled missiles, and score activity without
+  playfield/Ball leakage.
+* Run both motion orders for 320 frames. Require P0, P1, and Ball to traverse the
+  complete X=0..159 range at independent speeds, preserve application Y state,
+  and retain exact horizontal positioning at every checked frame.
+* Lock separate 65-byte gameplay and 17-byte score RAM costs, and re-prove that
+  a gameplay-only link contains no score state or font. Extend staged
+  installation to build all four composition fixtures. Leave 22i3c next for the
+  distinct official-opcode 192-line scoreless player-color component.

@@ -19,7 +19,11 @@ constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint64_t kExpectedFrameCycles = 20140;
 constexpr uint16_t kVsync = 0x0000;
+constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kPf0 = 0x000D;
+constexpr uint16_t kPf1 = 0x000E;
+constexpr uint16_t kPf2 = 0x000F;
 constexpr uint16_t kColup0 = 0x0006;
 constexpr uint16_t kColup1 = 0x0007;
 constexpr uint16_t kResp0 = 0x0010;
@@ -46,6 +50,16 @@ struct TimedWrite {
    uint16_t address;
    uint8_t value;
 };
+struct CompositionStats {
+   int visible_start = -1;
+   int overscan_line = -1;
+   unsigned game_pf = 0;
+   unsigned game_grp = 0;
+   unsigned game_ball = 0;
+   unsigned score_pf = 0;
+   unsigned score_grp = 0;
+   unsigned score_objects = 0;
+};
 struct PositionWrites {
    std::array<int, ObjectCount> resp_cycle;
    std::array<int, ObjectCount> hmp_value;
@@ -67,7 +81,10 @@ std::vector<uint64_t> frame_periods;
 std::map<int, std::vector<TimedWrite>> timed_writes;
 std::map<int, PositionWrites> position_writes;
 std::map<int, std::array<uint8_t, ObjectCount>> frame_x;
+std::map<int, CompositionStats> composition_stats;
 
+enum class ScoreOrder { None, Above, Below };
+ScoreOrder score_order = ScoreOrder::None;
 bool motion_mode = false;
 int frames_to_check = 4;
 uint8_t object_x_zp = 0;
@@ -171,8 +188,40 @@ void verify_frame_state() {
    advance_expected_motion();
 }
 
+void classify_composition_write(const WriteEvent &event) {
+   if (score_order == ScoreOrder::None || frame < 0 || frame >= frames_to_check) return;
+   const uint64_t relative = virtual_cycles - frame_start;
+   const unsigned line = static_cast<unsigned>(relative / kCyclesPerScanline);
+   CompositionStats &stats = composition_stats[frame];
+   if (event.address == kVblank) {
+      if (event.value == 0) stats.visible_start = static_cast<int>(line);
+      else if ((event.value & 2) != 0) stats.overscan_line = static_cast<int>(line);
+      return;
+   }
+   const unsigned score_first = score_order == ScoreOrder::Above ? 40 : 221;
+   const unsigned game_first = score_order == ScoreOrder::Above ? 51 : 40;
+   const bool in_score = line >= score_first && line < score_first + 11;
+   const bool in_game = line >= game_first && line < game_first + 181;
+   if (!in_score && !in_game) return;
+   const bool pf = event.address >= kPf0 && event.address <= kPf2 && event.value != 0;
+   const bool grp = (event.address == kGrp0 || event.address == kGrp1) && event.value != 0;
+   const bool object = (event.address == kEnam0 || event.address == kEnam1 || event.address == kEnabl) &&
+                       (event.value & 2) != 0;
+   if (in_score) {
+      if (pf) ++stats.score_pf;
+      if (grp) ++stats.score_grp;
+      if (object) ++stats.score_objects;
+   }
+   else {
+      if (pf) ++stats.game_pf;
+      if (grp) ++stats.game_grp;
+      if (event.address == kEnabl && (event.value & 2) != 0) ++stats.game_ball;
+   }
+}
+
 void apply_writes() {
    for (const WriteEvent &event : writes) {
+      classify_composition_write(event);
       if (event.address == kWsync) {
          const uint64_t within = virtual_cycles % kCyclesPerScanline;
          virtual_cycles += within ? kCyclesPerScanline - within : kCyclesPerScanline;
@@ -215,7 +264,7 @@ void apply_writes() {
                               event.address == kColup1)) {
                const uint64_t relative = virtual_cycles - frame_start;
                const uint64_t line = relative / kCyclesPerScanline;
-               if (line < 215) {
+               if (line < 232) {
                   timed_writes[frame].push_back(
                      {line, relative % kCyclesPerScanline, event.address, event.value});
                }
@@ -266,6 +315,10 @@ std::vector<uint64_t> active_lines(int raster_frame, uint16_t address) {
    const auto found = timed_writes.find(raster_frame);
    if (found == timed_writes.end()) return out;
    for (const TimedWrite &write : found->second) {
+      if (score_order != ScoreOrder::None) {
+         const uint64_t game_first = score_order == ScoreOrder::Above ? 51 : 40;
+         if (write.line < game_first || write.line >= game_first + 181) continue;
+      }
       const bool active = address == kEnabl ? (write.value & 2) != 0 : write.value != 0;
       if (write.address == address && active) out.push_back(write.line);
    }
@@ -282,6 +335,14 @@ void expect_lines(int raster_frame, uint16_t address, const std::vector<uint64_t
    for (uint64_t line : expected) std::fprintf(stderr, " %llu", static_cast<unsigned long long>(line));
    std::fputc('\n', stderr);
    std::exit(1);
+}
+
+
+std::vector<uint64_t> shifted(std::initializer_list<uint64_t> lines, uint64_t offset) {
+   std::vector<uint64_t> out;
+   out.reserve(lines.size());
+   for (uint64_t line : lines) out.push_back(line + offset);
+   return out;
 }
 
 void expect_colors(int raster_frame, uint16_t address, uint64_t first_line,
@@ -310,39 +371,68 @@ void expect_colors(int raster_frame, uint16_t address, uint64_t first_line,
 }
 
 void verify_raster() {
+   const uint64_t offset = score_order == ScoreOrder::Above ? 11 : 0;
    const std::array<uint8_t, 8> p0_colors{{0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e,0xae}};
    const std::array<uint8_t, 8> p1_colors{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
    const int first = 2;
    const int last = motion_mode ? 8 : 2;
    for (int checked = first; checked <= last; ++checked) {
       if (motion_mode) {
-         expect_lines(checked, kGrp0, {57,59,61,63,65,67,69,71}, "motion P0");
-         expect_lines(checked, kGrp1, {179,181,183,185,187,189,191,193}, "motion P1");
-         expect_lines(checked, kEnabl, {128,130,132,134}, "motion BL");
-         expect_colors(checked, kColup0, 59, 17, p0_colors, "motion P0 colors");
-         expect_colors(checked, kColup1, 179, 11, p1_colors, "motion P1 colors");
+         expect_lines(checked, kGrp0, shifted({61,63,65,67,69,71,73,75}, offset), "motion P0");
+         expect_lines(checked, kGrp1, shifted({183,185,187,189,191,193,195,197}, offset), "motion P1");
+         expect_lines(checked, kEnabl, shifted({132,134,136,138}, offset), "motion BL");
+         expect_colors(checked, kColup0, 63 + offset, 17, p0_colors, "motion P0 colors");
+         expect_colors(checked, kColup1, 183 + offset, 11, p1_colors, "motion P1 colors");
       }
       else {
-         expect_lines(checked, kGrp0, {165,167,169,171,173,175,177,179}, "static P0");
-         expect_lines(checked, kGrp1, {111,113,115,117,119,121,123,125}, "static P1");
-         expect_lines(checked, kEnabl, {126,128,130,132}, "static BL");
-         expect_colors(checked, kColup0, 167, 17, p0_colors, "static P0 colors");
-         expect_colors(checked, kColup1, 111, 11, p1_colors, "static P1 colors");
+         expect_lines(checked, kGrp0, shifted({165,167,169,171,173,175,177,179}, offset), "static P0");
+         expect_lines(checked, kGrp1, shifted({111,113,115,117,119,121,123,125}, offset), "static P1");
+         expect_lines(checked, kEnabl, shifted({126,128,130,132}, offset), "static BL");
+         expect_colors(checked, kColup0, 167 + offset, 17, p0_colors, "static P0 colors");
+         expect_colors(checked, kColup1, 111 + offset, 11, p1_colors, "static P1 colors");
       }
+   }
+}
+
+void verify_composition() {
+   if (score_order == ScoreOrder::None) return;
+   const int last = motion_mode ? 8 : 3;
+   for (int checked = 2; checked <= last; ++checked) {
+      const auto found = composition_stats.find(checked);
+      if (found == composition_stats.end()) fail("missing composition frame statistics");
+      const CompositionStats &stats = found->second;
+      if (stats.visible_start != 39) fail("VBLANK clear is not immediately before visible line 40");
+      if (stats.overscan_line != 231) {
+         std::fprintf(stderr, "vcs_player_color_181: frame %d overscan line %d\n", checked, stats.overscan_line);
+         fail("181+11 composition does not end immediately before line 232");
+      }
+      if (stats.game_pf < 100) fail("game region did not emit the playfield");
+      if (stats.game_grp < 8 || stats.game_ball < 2)
+         fail("game region did not emit P0/P1/BL activity");
+      if (stats.score_grp < 16) fail("score region did not emit six-glyph activity");
+      if (stats.score_pf != 0 || stats.score_objects != 0)
+         fail("score region leaked playfield, missile, or ball activity");
    }
 }
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 7 && argc != 8) {
+   if (argc < 7 || argc > 9) {
       std::fprintf(stderr,
-         "usage: %s static|motion ROM object_x p0_y p1_y ball_y [directions]\n", argv[0]);
+         "usage: %s static|motion ROM object_x p0_y p1_y ball_y [directions] [above|below]\n", argv[0]);
       return 2;
    }
    const std::string mode = argv[1];
    motion_mode = mode == "motion";
    if (!motion_mode && mode != "static") fail("mode must be static or motion");
-   if ((motion_mode && argc != 8) || (!motion_mode && argc != 7)) fail("wrong mode argument count");
+   const int base_argc = motion_mode ? 8 : 7;
+   if (argc != base_argc && argc != base_argc + 1) fail("wrong mode argument count");
+   if (argc == base_argc + 1) {
+      const std::string order = argv[base_argc];
+      if (order == "above") score_order = ScoreOrder::Above;
+      else if (order == "below") score_order = ScoreOrder::Below;
+      else fail("score order must be above or below");
+   }
    frames_to_check = motion_mode ? 320 : 4;
    object_x_zp = parse_zp(argv[3]);
    y_zp = {{parse_zp(argv[4]), parse_zp(argv[5]), parse_zp(argv[6])}};
@@ -382,14 +472,23 @@ int main(int argc, char **argv) {
    if (missile0_enabled || missile1_enabled) fail("missile enable became active");
    verify_positioning();
    verify_raster();
+   verify_composition();
    if (motion_mode) {
       for (size_t i = 0; i < 3; ++i) {
          if (!saw_low[i] || !saw_high[i]) fail("a supported object did not reach both X endpoints");
       }
-      std::printf("vcs_player_color_181 motion ok: 320 frames, full-range P0/P1/BL motion, exact row colors\n");
+      if (score_order == ScoreOrder::None)
+         std::printf("vcs_player_color_181 motion ok: 320 frames, full-range P0/P1/BL motion, exact row colors\n");
+      else
+         std::printf("vcs_player_color_181 composition motion %s ok\n",
+                     score_order == ScoreOrder::Above ? "above" : "below");
    }
    else {
-      std::printf("vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n");
+      if (score_order == ScoreOrder::None)
+         std::printf("vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n");
+      else
+         std::printf("vcs_player_color_181 composition static %s ok\n",
+                     score_order == ScoreOrder::Above ? "above" : "below");
    }
    return 0;
 }

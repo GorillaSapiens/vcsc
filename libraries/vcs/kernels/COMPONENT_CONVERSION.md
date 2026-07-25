@@ -253,3 +253,11 @@ holds stable 262-line scheduler frames and proves all eight P0 and P1 rows use
 the exact requested colors while Ball remains active and both missiles remain
 disabled.
 
+Static and asynchronous-motion composition fixtures now cover both explicit
+orders: score above gameplay and score below gameplay. The emulator evidence
+locks 181+11=192 visible lines, stable 262-line frames, disjoint score/gameplay
+activity, exact P0/P1 color rows, disabled missiles, and full X=0..159 traversal
+for P0, P1, and Ball over 320 frames. Composed maps retain separate 65-byte
+gameplay and 17-byte score allocations; a gameplay-only map contains no score
+state or font.
+

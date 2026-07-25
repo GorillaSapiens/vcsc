@@ -249,6 +249,13 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181.bin"` -eq 4096; \
+	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
+	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
+	    -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	    "$(CURDIR)/test/fixtures/player_color_181/$$fixture.c26" \
+	    -o "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"; \
+	  test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"` -eq 4096; \
+	done; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
