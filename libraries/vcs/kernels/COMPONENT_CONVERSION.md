@@ -7,10 +7,10 @@
 
 # Maintained gameplay-kernel component conversion baseline
 
-This file freezes the starting point for roadmap task 22i.  It is a conversion
-contract, not a description of a completed component API.  The working
-monolithic profiles remain installed until their replacements have emulator and
-map evidence strong enough to retire them.
+This file freezes the starting point and retirement gates for roadmap task 22i.
+It also records completed lifecycle profiles as they satisfy those gates. The
+working monolithic profiles remain installed until every required replacement
+has emulator and map evidence strong enough to retire them.
 
 ## Profiles in scope
 
@@ -114,12 +114,50 @@ reduced gameplay schedule. The extraction regression must lock that internal
 choice; neither this contract nor an application may disguise the missing
 11 lines as scheduler padding.
 
+## Completed official all-five 181-line profile
+
+`kernels/all_five_181/all_five_181.c26` is the official-opcode, score-composable
+P0/P1/M0/M1/BL lifecycle component. It publishes an exact 181-line visible
+contract and requires a page-contained 44-byte, eleven-row playfield supplied by
+the application. Its measured implementation retains eleven 16-line gameplay
+rows and accounts for the remaining setup and cleanup scanlines inside the
+component; the application does not provide hidden padding.
+
+The extracted component owns no score, font, score pointers, VSYNC, VBLANK, or
+RIOT timer state. Its exact map contract is:
+
+| Resource | Bytes |
+| --- | ---: |
+| public gameplay state | 19 |
+| private workspace and masks | 50 |
+| total component RAM | 69 |
+| application playfield ROM | 44 |
+
+The six former score-pointer workspace bytes are gone, and removing the unused
+final-row scratch entry reduces the object-mask array from 44 to 43 bytes. The
+remaining six-byte workspace is gameplay-only. The standard linker profile's
+four-byte hidden call-stack allowance covers the inline VBLANK preparation
+subroutine.
+
+Emulator regressions lock a stable 262-line scheduler frame when the application
+reserves the independent score's eleven visible lines, 161 measured steady
+playfield scanlines with PF writes at cycles 24, 31, 38, and 45, and visible
+object counts P0=7, P1=7, M0=6, M1=8, BL=4. Source inspection rejects score/font
+imports, frame/timer ownership, and unofficial opcodes, while map inspection
+locks RAM, page placement, and stack depth. All four lifecycle requirements have
+component-specific omission diagnostics.
+
+The predecessor monolith remains installed. Composition with the independent
+six-glyph score above and below gameplay is the next retirement gate; the
+separate 192-line scoreless and matched unofficial profiles also remain open.
+
 ## Evidence required before retiring a monolith
 
 For each profile, the replacement must provide all of the following:
 
-1. A gameplay-only lifecycle component and assembly object with no embedded
-   score state, font, pointer setup, drawing code, or update path.
+1. A gameplay-only lifecycle implementation, whether inline template assembly
+   or a separate assembly object, with no embedded score state, font, pointer
+   setup, drawing code, or update path.
 2. Exact map evidence for public/private RAM, ROM sections, call-stack depth,
    page placement, and the absence of every forbidden score symbol above.
 3. Emulator evidence for object positions, playfield phases, colors, collision

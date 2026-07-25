@@ -83,6 +83,10 @@ install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels
 	install -m 0644 libraries/vcs/kernels/COMPONENT_CONVERSION.md \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181
+	install -m 0644 libraries/vcs/kernels/all_five_181/README.md \
+	  libraries/vcs/kernels/all_five_181/all_five_181.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md \
@@ -127,6 +131,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/all_five_181.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
@@ -186,6 +193,13 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/COMPONENT_CONVERSION.md"; \
+	test -f "$$stage_vcs/kernels/all_five_181/README.md"; \
+	test -f "$$stage_vcs/kernels/all_five_181/all_five_181.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/fixtures/all_five_181/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_181.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
