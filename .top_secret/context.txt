@@ -1132,13 +1132,20 @@ The first unfinished item is the default next action.
                   `TEMPLATE_` prefix and collide or share state.
         [ ] 22f. Standardize the reusable display-component lifecycle as required
                   inline `TEMPLATE_init`, `TEMPLATE_vblank`, `TEMPLATE_draw`, and
-                  `TEMPLATE_overscan` functions, plus a machine-readable
-                  `TEMPLATE_VISIBLE_SCANLINES` compile-time constant. Keep
-                  component-specific setters/helpers outside the universal
-                  lifecycle.
+                  `TEMPLATE_overscan` functions, plus machine-readable
+                  `TEMPLATE_VISIBLE_SCANLINES`, `TEMPLATE_VBLANK_MAX_CYCLES`, and
+                  `TEMPLATE_OVERSCAN_MAX_CYCLES` constants. Keep component-
+                  specific setters/helpers outside the universal lifecycle.
         [ ] 22g. Define and test each component's exact scanline, entry/exit
                   cycle, TIA state, register/flag clobber, stack, RAM/ROM, page,
-                  alignment, and blanking-budget contract. Initially enforce
+                  alignment, and blanking-budget contract. The application
+                  scheduler must assert VBLANK and start the shared VBLANK
+                  deadline before invoking any `TEMPLATE_vblank()` function;
+                  callbacks share the remaining budget and must not own VBLANK,
+                  WSYNC, or the RIOT timer. After all callbacks, the scheduler
+                  must detect overrun, wait only for the unused remainder, issue
+                  the final WSYNC, and clear VBLANK at cycle zero. Apply the same
+                  scheduler-owned deadline model to overscan. Initially enforce
                   what can be proven with compiler/linker metadata and lock the
                   remaining timing/resource promises with emulator regressions.
         [ ] 22h. Convert the centered six-glyph display into the first reusable
@@ -3867,4 +3874,21 @@ Before returning another modified archive:
 * Insert this work as new roadmap task 22 with sub-items 22a through 22h. Renumber
   the former tasks 22 through 30 to 23 through 31 without changing their scope.
   The new task 22 is now the first unfinished item.
+
+
+2026-07-24 18:57:30 PDT, correct template blanking-phase scheduling contract
+----------------------------------------------------------------------------
+* Update `TEMPLATE.md` so the application scheduler asserts VBLANK and starts
+  the shared 37-scanline deadline before invoking any component `vblank()`
+  function. All component callbacks consume the remaining shared budget; they
+  do not own VBLANK, WSYNC, or the RIOT timer.
+* Require the scheduler to detect deadline overrun, wait only for unused time,
+  issue the final WSYNC, and clear VBLANK at cycle zero. Replace the misleading
+  wait-37-lines-before-callbacks example with deadline-helper pseudocode and
+  apply the same scheduler-owned model to overscan.
+* Add conservative `VBLANK_MAX_CYCLES` and `OVERSCAN_MAX_CYCLES` component
+  metadata to the design and roadmap, plus emulator regressions for callback
+  budget, overrun detection, timer ownership, and cycle-zero phase transitions.
+* Documentation and roadmap only; no implementation, build, test, kernel, or
+  example behavior changes. Task 22 remains next.
 

@@ -344,15 +344,25 @@ Expected contract:
 
 ### `TEMPLATE_vblank()`
 
-Called once per frame during vertical blank and before visible drawing.
+Called once per frame after the application scheduler asserts VBLANK and starts
+the shared vertical-blank deadline, but before visible drawing.
 
 Expected contract:
 
 - prepares data used by the current visible frame;
 - VBLANK is asserted;
-- the caller owns the blanking timer and total budget;
+- the caller owns and has already started the blanking timer;
+- all component `vblank()` calls share the remaining 37-scanline budget;
+- the function returns before the shared deadline expires;
+- the function does not write VBLANK, WSYNC, a RIOT timer-start register,
+  INTIM, or TIMINT, and does not wait on the scheduler's timer;
 - returns with the hardware stack balanced;
 - returns with decimal mode clear.
+
+The scheduler must start the deadline before invoking the first component. It
+must not spend all 37 blank scanlines first and then call `vblank()`: that would
+run component preparation outside the nominal vertical-blank interval and could
+clear VBLANK in the middle of a scanline.
 
 ### `TEMPLATE_draw()`
 
@@ -405,9 +415,16 @@ should export a compile-time constant such as:
 
 ```c
 enum TEMPLATE_contract {
-    TEMPLATE_VISIBLE_SCANLINES := 12
+    TEMPLATE_VISIBLE_SCANLINES := 12,
+    TEMPLATE_VBLANK_MAX_CYCLES := 300,
+    TEMPLATE_OVERSCAN_MAX_CYCLES := 300
 };
 ```
+
+`TEMPLATE_VBLANK_MAX_CYCLES` and `TEMPLATE_OVERSCAN_MAX_CYCLES` are
+conservative worst-case work bounds, not private timers. The application
+scheduler owns both phase deadlines and may eventually use the declared maxima
+to reject or warn about a composition whose combined work cannot fit.
 
 Two instances then provide independent names:
 
@@ -444,7 +461,8 @@ can be freely reordered. Every component must document and test:
 - instance RAM and shared RAM requirements;
 - ROM cost;
 - page containment, alignment, adjacency, and indexed-range requirements;
-- maximum VBLANK and overscan work;
+- conservative maximum VBLANK and overscan cycle counts;
+- ownership of VBLANK, WSYNC, and the RIOT timer/status registers;
 - collision-latch assumptions;
 - whether another component must clear or preserve particular graphics.
 
@@ -473,10 +491,13 @@ void main(void) {
         VSYNC := 0;
 
         VBLANK := 2;
-        wait_scanlines(37);
+        start_vblank_deadline(37);   /* Scheduler-owned pseudocode helper. */
+
         score1_vblank();
         score2_vblank();
-        VBLANK := 0;
+
+        finish_vblank_deadline();    /* Detect overrun, wait remainder, WSYNC. */
+        VBLANK := 0;                 /* Cycle zero of first visible line. */
 
         wait_scanlines(81);
         score1_draw();
@@ -489,20 +510,24 @@ void main(void) {
         );
 
         VBLANK := 2;
-        TIM64T := 35;
+        start_overscan_deadline();   /* Scheduler owns the overscan timer. */
 
         score1_overscan();
         score2_overscan();
 
-        while (INTIM) {
-        }
-        WSYNC := 0;
-        WSYNC := 0;
+        finish_overscan_deadline();  /* Detect overrun and finish the phase. */
     }
 }
 ```
 
-The exact wait placement and phase budgets remain application and component
+The deadline-helper names above are scheduler pseudocode, not additional
+component lifecycle functions. A real helper must distinguish an unexpired timer
+from an underflowed/wrapped timer, report an overrun, wait only for the unused
+remainder, and use the final WSYNC needed to put the next phase at cycle zero.
+A bare `while (INTIM)` loop is not sufficient after arbitrary component work
+because an already-underflowed timer can wrap and appear nonzero again.
+
+The exact timer preload and phase budgets remain application and component
 contract decisions. The feature allows composition; it does not excuse the
 program from meeting the 6507/TIA timing schedule.
 
@@ -549,6 +574,10 @@ The first real component conversion should prove:
 - both instances coexist within measured RAM, ROM, and stack budgets;
 - the application may draw instance 1 above instance 2 or reverse the order;
 - exact scanline counts, entry/exit cycles, glyph order, colors, and TIA writes;
+- the VBLANK deadline starts before the first `vblank()` call, all component
+  callbacks fit within the shared budget, overrun is detected, and VBLANK clears
+  at cycle zero only after the scheduler's final WSYNC;
+- component callbacks do not take ownership of VBLANK, WSYNC, or the RIOT timer;
 - lifecycle calls are all externally visible to `require` checking;
 - omitting `score1_init()` produces the intended link error;
 - omitting a recommended score-state use produces only a warning;
@@ -572,8 +601,10 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
    hygiene diagnostics.
 7. Extend rewriting to identifier operands in inline assembly without exposing
    the block to compiler peephole optimization.
-8. Standardize `init`, `vblank`, `draw`, `overscan`, and
-   `VISIBLE_SCANLINES`; document the complete resource/timing contract.
+8. Standardize `init`, `vblank`, `draw`, `overscan`,
+   `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata;
+   define scheduler-owned phase deadlines, overrun detection, remaining-time
+   waits, and cycle-zero phase transitions.
 9. Convert the existing six-glyph display into the first reusable component and
    prove two independent instances in both draw orders.
 10. Update the kernel-authoring documentation after the implementation has
