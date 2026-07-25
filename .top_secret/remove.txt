@@ -15,6 +15,7 @@ assembler/tests/local1.s
 assembler/tests/macro.s
 assembler/tests/obj.s
 assembler/tests/obj2.s
+assembler/tests/obj2.s26
 assembler/tests/op_namespace.s
 assembler/tests/opxx.s
 assembler/tests/peep.s
@@ -35,6 +36,7 @@ compiler/float.h
 compiler/float_bignat.c
 compiler/float_bignat.h
 compiler/n65c.c
+compiler/parserparser.pl
 context.txt
 driver/n65cc.c
 examples/01_solid_color/solid_color.n
@@ -257,7 +259,10 @@ libraries/runtime/vcsc-zp-tmp3.s
 libraries/runtime/vcsc-zp-tmp4.s
 libraries/runtime/vcsc-zp-tmp5.s
 libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s
+libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv
+libraries/vcs/kernels/standard_4k_ntsc/unofficial_opcodes.pl
 libraries/vcs/riot.n
+libraries/vcs/six_glyph_display.c26
 libraries/vcs/sound_ntsc.n
 libraries/vcs/tia.n
 libraries/vcs/vcs.n
@@ -527,11 +532,13 @@ test/e2e_signed_builtin_compare_verify.n
 test/e2e_simple_matches_ieee754_verify.n
 test/e2e_simulator_dump_mem_hex.n
 test/e2e_simulator_flag_order.n
+test/e2e_simulator_rom_protect__sim.cfg
 test/e2e_simulator_rom_write_protected.n
 test/e2e_sprintf_integer_verify.n
 test/e2e_static_parameter_cycle_cross_tu_fail.n
 test/e2e_static_parameter_cycle_cross_tu_fail__a.n
 test/e2e_static_parameter_cycle_cross_tu_fail__b.n
+test/e2e_static_parameter_cycle_fail.c26
 test/e2e_static_parameter_cycle_fail.n
 test/e2e_stdarg_mixed_width_verify.n
 test/e2e_stdarg_zero_variadic_args_verify.n
@@ -856,6 +863,7 @@ test/shortcut_endian_cast_literal_error_test.n
 test/sieve.n
 test/sign_extend_named_label_codegen_test.n
 test/simple.n
+test/simulator_smoke.cfg
 test/sizeof_codegen_test.n
 test/sizeof_unknown_identifier_error_test.n
 test/sizeof_void_error_test.n
@@ -876,6 +884,7 @@ test/subscript_nonpointer_error_test.n
 test/switch_case_expr_parse_test.n
 test/switch_case_variable_error_test.n
 test/switch_range_codegen_test.n
+test/switch_range_compact_codegen_test.c26
 test/switch_range_compact_codegen_test.n
 test/switch_range_expr_swapped_warning_test.n
 test/switch_range_swapped_warning_test.n
@@ -892,6 +901,7 @@ test/test_operator.n
 test/truth_fixed_scratch_codegen_test.n
 test/typedef_alias_codegen_test.n
 test/undefstruct.n
+test/unimpl_audit.pl
 test/unknown_identifier_address_error_test.n
 test/unknown_identifier_assignment_error_test.n
 test/unknown_identifier_condition_error_test.n
@@ -933,13 +943,3 @@ test/void_pointer_argument_reverse_error_test.n
 test/weak_builtin_operator_codegen_test.n
 test/xform_invalid_utf8_error_test.n
 test/zeropage_storage_test.n
-assembler/tests/obj2.s26
-compiler/coverage_map.h
-compiler/parserparser.pl
-libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_unofficial_opcodes.tsv
-libraries/vcs/kernels/standard_4k_ntsc/unofficial_opcodes.pl
-test/e2e_static_parameter_cycle_fail.c26
-test/switch_range_compact_codegen_test.c26
-test/unimpl_audit.pl
-test/e2e_simulator_rom_protect__sim.cfg
-test/simulator_smoke.cfg

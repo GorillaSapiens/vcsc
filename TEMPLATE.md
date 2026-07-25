@@ -102,13 +102,13 @@ After the linker has selected archive members and computed reachable code:
 Examples:
 
 ```text
-six_glyph_display.c26:18.1:
+six_glyph_component.c26:18.1:
 required variable 'bcd24_t score1_score' is not used
   instantiated as 'score1' at main.c26:3.1
 ```
 
 ```text
-six_glyph_display.c26:21.1:
+six_glyph_component.c26:21.1:
 recommended function 'void score2_overscan(void)' is not used
   instantiated as 'score2' at main.c26:4.1
 ```
@@ -204,8 +204,8 @@ represent these records without losing source locations or inline calls.
 ### Syntax
 
 ```c
-template "six_glyph_display.c26" as score1
-template "six_glyph_display.c26" as score2
+template "six_glyph_component.c26" as score1
+template "six_glyph_component.c26" as score2
 ```
 
 The instance argument after `as` is one ordinary VCSC identifier. UTF-8
@@ -226,8 +226,8 @@ invocation processes the requested source again, even when the same bytes or
 same path were instantiated earlier:
 
 ```c
-template "six_glyph_display.c26" as score1
-template "six_glyph_display.c26" as score2
+template "six_glyph_component.c26" as score1
+template "six_glyph_component.c26" as score2
 ```
 
 Ordinary `include` directives encountered inside a template retain ordinary
@@ -495,8 +495,8 @@ resource conflicts machine-checkable.
 A two-instance score application should be expressible approximately as:
 
 ```c
-template "six_glyph_display.c26" as score1
-template "six_glyph_display.c26" as score2
+template "six_glyph_component.c26" as score1
+template "six_glyph_component.c26" as score2
 
 void main(void) {
     score1_init();

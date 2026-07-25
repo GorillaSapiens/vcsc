@@ -15,10 +15,12 @@ digits.
 The fingerprint is computed once at startup. The processor-sensitive probes are
 small inline-assembly blocks using the readable unofficial `ARR` mnemonic. The
 Makefile passes `-Wa,--illegals` deliberately, and each `ARR` source line
-documents the exact two emitted bytes. Everything else is VCSC: CRC-24, 24-bit
-state, frame structure, glyph-pointer preparation, colors, and display control.
-The display includes the same shared `six_glyph_display.c26` positioning and
-row kernel as example 03, so their RESP/GRP timing cannot diverge.
+documents the exact two emitted bytes. Everything else is VCSC: CRC-24, 24-bit state, frame composition, colors, and
+display control. The application instantiates `six_glyph_component.c26` with the
+shared hexadecimal font and runs it inside `frame_ntsc.c26`; example 03 uses the
+same component, so their RESP/GRP timing cannot diverge. The fingerprint bytes
+are copied verbatim into the component's three-byte score storage so all six
+hexadecimal nibbles, including A through F, retain their raw values.
 
 The display uses the shared hexadecimal font module:
 

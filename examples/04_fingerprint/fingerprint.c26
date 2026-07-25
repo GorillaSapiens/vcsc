@@ -5,6 +5,7 @@
 // the resulting 24-bit fingerprint as six hexadecimal digits.
 
 include "vcs.c26"
+include "frame_ntsc.c26"
 include "fonts/default_hex.c26"
 
 alias BACKGROUND_COLOR 0x84
@@ -12,7 +13,10 @@ alias BACKGROUND_COLOR 0x84
 uint8_t probe_accumulator;
 uint8_t probe_flags;
 uint24_t fingerprint;
-include "six_glyph_display.c26"
+
+#ifndef FINGERPRINT_SELFTEST
+template "six_glyph_component.c26" as display
+#endif
 
 // ARR is an unstable unofficial NMOS 6502/6507 opcode. The example enables
 // named unofficial mnemonics explicitly with -Wa,--illegals; each annotated
@@ -107,82 +111,21 @@ void compute_fingerprint(void) {
    crc24_feed(probe_flags);
 }
 
-void prepare_six_glyph_pointers(void) {
-   // fingerprint is little-endian: +2 supplies digits 1/2, +1 digits 3/4,
-   // and +0 digits 5/6. Each nibble selects one eight-byte font glyph.
-   asm lda fingerprint+2;
-   asm tax;
-   asm and #$f0;
-   asm lsr;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+1;
-   asm txa;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers+2;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+3;
-
-   asm lda fingerprint+1;
-   asm tax;
-   asm and #$f0;
-   asm lsr;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers+4;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+5;
-   asm txa;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers+6;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+7;
-
+#ifndef FINGERPRINT_SELFTEST
+// The display component stores packed BCD for decimal-score users.  This
+// hexadecimal application deliberately copies the fingerprint bytes verbatim:
+// the component pointer builder interprets the same six nibbles as hex glyphs.
+inline void load_display_fingerprint(void) {
+   // Satisfy the component score contract before replacing its bytes raw.
+   display_score := 0;
    asm lda fingerprint;
-   asm tax;
-   asm and #$f0;
-   asm lsr;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers+8;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+9;
-   asm txa;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc #<score_font;
-   asm sta six_glyph_pointers+10;
-   asm lda #>score_font;
-   asm adc #0;
-   asm sta six_glyph_pointers+11;
+   asm sta display_score;
+   asm lda fingerprint+1;
+   asm sta display_score+1;
+   asm lda fingerprint+2;
+   asm sta display_score+2;
 }
-
-void wait_scanlines(uint8_t lines) {
-   while (lines) {
-      WSYNC := 0;
-      lines--;
-   }
-}
+#endif
 
 
 #ifdef FINGERPRINT_SELFTEST
@@ -223,29 +166,25 @@ void main(void) {
    VBLANK := 2;
 
    compute_fingerprint();
-   prepare_six_glyph_pointers();
-   six_glyph_setup();
+   load_display_fingerprint();
+   display_init();
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    while (1) {
-      VSYNC := 2;
-      wait_scanlines(3);
-      VSYNC := 0;
+      vcs_ntsc_vsync();
 
-      VBLANK := 2;
-      wait_scanlines(37);
-      VBLANK := 0;
+      vcs_ntsc_begin_vblank();
+      display_vblank();
+      vcs_ntsc_end_vblank();
 
-      wait_scanlines(89);
-      six_glyph_draw();
-      wait_scanlines(89);
+      // Preserve the predecessor display's absolute visible-line placement.
+      vcs_ntsc_wait_scanlines(91);
+      display_draw();
+      vcs_ntsc_wait_scanlines(90);
 
-      VBLANK := 2;
-      TIM64T := 35;
-      while (INTIM) {
-      }
-      WSYNC := 0;
-      WSYNC := 0;
+      vcs_ntsc_begin_overscan();
+      display_overscan();
+      vcs_ntsc_end_overscan();
    }
 }
 #endif

@@ -62,6 +62,7 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $src=File::Spec->catfile($repo,qw(test fixtures vcs_examples 03_six_digit_score golden.c26));
 my $oldsrc=File::Spec->catfile($repo,qw(test fixtures six_glyph_component pre_template_one_score.c26));
+my $oldinclude=File::Spec->catdir($repo,qw(test fixtures six_glyph_component));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,qw(fonts default_decimal.c26));
@@ -77,7 +78,7 @@ die "score build wrote output\n$out$err" if without_cartridge_usage($out) ne '' 
 ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-S',$src,'-o',$asm);
 die "score compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "score compile wrote output\n$out$err" if $out ne '' || $err ne '';
-($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$oldsrc,'-o',$oldbin);
+($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-I',$oldinclude,$oldsrc,'-o',$oldbin);
 die "pre-template score build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "pre-template score build wrote output\n$out$err" if without_cartridge_usage($out) ne '' || $err ne '';
 

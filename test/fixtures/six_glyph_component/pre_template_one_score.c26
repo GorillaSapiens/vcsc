@@ -11,7 +11,7 @@ alias SCORE_PERIOD     20
 
 bcd24_t score := 123456;
 uint8_t frame_counter := 0;
-include "six_glyph_display.c26"
+include "pre_template_display.c26"
 
 void prepare_six_glyph_pointers(void) {
    // Build six complete 16-bit pointers in human digit order. Packed BCD is

@@ -1247,7 +1247,7 @@ The first unfinished item is the default next action.
                   emulator regressions. Initially enforce what can be proven with
                   compiler/linker metadata and lock the remaining timing/resource
                   promises with emulator regressions.
-        [ ] 22h. Convert the centered six-glyph display into the first reusable
+        [x] 22h. Convert the centered six-glyph display into the first reusable
                   component. Prove one instance matches its predecessor, two
                   instances retain independent state, either draw order works,
                   omitted required lifecycle calls diagnose at link time, and
@@ -1262,7 +1262,7 @@ The first unfinished item is the default next action.
                              assembly labels, and prove two instances build with
                              independent RAM and a stable scheduler-driven
                              262-line frame from both source and installed trees.
-                  [ ] 22h2. Finish migration and retire the single-instance
+                  [x] 22h2. Finish migration and retire the single-instance
                              module.
 
                              [x] 22h2a. Prove both two-instance draw orders build
@@ -1272,7 +1272,7 @@ The first unfinished item is the default next action.
                                         each six-glyph lifecycle call with the
                                         corresponding component-specific
                                         `require` error.
-                             [ ] 22h2b. Migrate the maintained users and retire
+                             [x] 22h2b. Migrate the maintained users and retire
                                         the single-instance module.
 
                                         [x] 22h2b1. Migrate example 03 and its
@@ -1284,7 +1284,7 @@ The first unfinished item is the default next action.
                                                    write equivalence by address,
                                                    value, scanline, and cycle,
                                                    plus stable 262-line timing.
-                                        [ ] 22h2b2. Migrate the fingerprint
+                                        [x] 22h2b2. Migrate the fingerprint
                                                    cartridge and its golden/self-
                                                    test coverage, then remove the
                                                    legacy `six_glyph_display.c26`
@@ -4436,3 +4436,24 @@ Before returning another modified archive:
 * Test-only performance/correctness fix; no compiler, linker, assembler,
   runtime, library, kernel, component, example, cartridge, or roadmap behavior
   changes. Task 22h2b2 remains next.
+
+2026-07-25 08:29:00 PDT, migrate fingerprint and retire legacy six-glyph module
+-------------------------------------------------------------------------------
+* Complete roadmap task 22h2b2 and therefore tasks 22h2b and 22h. Migrate the
+  editable fingerprint example and its private golden fixture to
+  `frame_ntsc.c26` plus an instantiated `six_glyph_component.c26` lifecycle.
+  Copy the computed `uint24_t` fingerprint bytes verbatim into the component's
+  three-byte score storage so hexadecimal nibbles A through F are preserved,
+  then retain the predecessor's absolute visible-line placement with explicit
+  91/11/90 scanline accounting and stable raw 262-line scheduler timing.
+* Preserve all four unstable ARR probe byte/flag checks, CRC-24/OPENPGP selftest,
+  default hexadecimal font verification, exact official-opcode display row
+  pipeline, source-tree example build, and staged installed-toolchain build.
+  Update the regression to inspect instantiated `display_*` state and inline
+  lifecycle assembly, and reuse the built MOS 6502 object for a fast timing run.
+* Move the old display implementation into a private predecessor fixture used
+  only by the example-03 visible-raster oracle. Remove the installed
+  `libraries/vcs/six_glyph_display.c26` source, install/uninstall entries, live
+  documentation and example dependencies; record the deletion in remove.txt
+  and assert staged installations do not contain the retired module. Leave 22i
+  next for componentizing maintained gameplay kernels.
