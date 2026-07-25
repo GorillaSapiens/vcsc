@@ -186,6 +186,22 @@ For the current object format subset, `vcsc-ld` maps o26 segments like this:
 
 `DATA` bytes are stored in ROM in the output image, but symbols and relocations referring to `DATA` use the RAM run address.
 
+## Declaration-use contracts
+
+Compiler-emitted `__contractmeta$V1$` and `__usemeta$V1$` exports remain
+reserved linker metadata and never become program globals or consume memory.
+After archive-member selection and ordinary symbol resolution, `vcsc-ld` builds
+whole-program reachability from `main` and runtime initializer roots using the
+compiler call graph plus any hidden assembly edges. A `require` or `recommend`
+contract is satisfied only by a reachable semantic use from a different
+translation-unit/template-instance owner. Same-owner uses and dead-code
+references do not count. Unselected archive members are silent.
+
+An unused `require` is a fatal, source-located link error. An unused `recommend`
+is a source-located warning and the link continues. This metadata path also
+handles true-inline calls and optimized-away object accesses that leave no
+ordinary relocation.
+
 ## Cartridge ROM usage and map file
 
 After every successful link, `vcsc-ld` prints a `CARTRIDGE ROM USAGE` summary.

@@ -1143,7 +1143,7 @@ The first unfinished item is the default next action.
                             [x] 22b2b. Emit corresponding object `read`, `write`,
                                       `address`, and `ref` records with the same
                                       owner/function/location information.
-        [ ] 22c. After archive selection and whole-program reachability, make the
+        [x] 22c. After archive selection and whole-program reachability, make the
                   linker reject an externally unused `require` contract and warn
                   for an externally unused `recommend` contract. Internal use by
                   the declaring template instance, unreachable code, and
@@ -4121,3 +4121,25 @@ Before returning another modified archive:
   be implemented and tested as one coherent slice.
 * Pass 300/300 compile-only tests, 161/161 end-to-end/generic tests, the staged
   installation check, and source-tree hygiene.
+
+2026-07-24 21:18:00 PDT, enforce declaration-use contracts at link time
+-------------------------------------------------------------------------------
+* Complete roadmap task 22c. Decode selected `__contractmeta$V1$` and
+  `__usemeta$V1$` exports after ordinary symbol resolution, merge repeated
+  contracts by symbol/owner/invocation with `require` dominating `recommend`,
+  and keep all metadata out of program globals and layout.
+* Build whole-program reachability from `main` and runtime initializer roots
+  using the existing compiler and hidden-assembly call-graph edges. Count only
+  reachable semantic uses from a different translation-unit/template-instance
+  owner; same-owner uses and references in unreachable functions do not satisfy
+  a contract.
+* Diagnose an unused `require` as a fatal source-located linker error and an
+  unused `recommend` as a source-located warning while allowing the link to
+  continue. Preserve ordinary undefined-symbol precedence by enforcing
+  contracts only after relocation resolution.
+* Add end-to-end linker coverage for required functions and objects,
+  recommended warnings, reachable external uses, same-owner uses, dead-code
+  uses, selected archive members, and silent unselected archive members. Leave
+  task 22d next: repeatable `template "file.c26" as instance` source
+  instantiation and controlled identifier-prefix rewriting.
+

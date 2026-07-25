@@ -907,6 +907,440 @@ cleanup:
    return (uint16_t)max_depth;
 }
 
+
+typedef struct {
+   char *kind;
+   char *strength;
+   char *symbol;
+   char *owner;
+   char *file;
+   char *invoke;
+   char *detail;
+   int line;
+   int column;
+   const object_file_t *obj;
+} declaration_contract_record_t;
+
+typedef struct {
+   char *kind;
+   char *symbol;
+   char *owner;
+   char *function;
+   char *file;
+   char *invoke;
+   int line;
+   int column;
+   const object_file_t *obj;
+} semantic_use_record_t;
+
+//! @brief Decode one compiler metadata field encoded with QHH byte escapes.
+static char *contract_meta_decode(const char *encoded)
+{
+   size_t n = strlen(encoded);
+   char *decoded = (char *)xmalloc(n + 1);
+   size_t i = 0;
+   size_t o = 0;
+
+   while (i < n) {
+      if (encoded[i] != 'Q') {
+         decoded[o++] = encoded[i++];
+         continue;
+      }
+      if (i + 2 >= n || !isxdigit((unsigned char)encoded[i + 1]) ||
+          !isxdigit((unsigned char)encoded[i + 2])) {
+         free(decoded);
+         return NULL;
+      }
+      {
+         char hex[3];
+         hex[0] = encoded[i + 1];
+         hex[1] = encoded[i + 2];
+         hex[2] = '\0';
+         decoded[o++] = (char)strtoul(hex, NULL, 16);
+      }
+      i += 3;
+   }
+   decoded[o] = '\0';
+   return decoded;
+}
+
+//! @brief Remove and decode the next dollar-delimited metadata field.
+static char *contract_meta_next_field(const char **cursor)
+{
+   const char *end;
+   char *encoded;
+   char *decoded;
+   size_t n;
+
+   if (!cursor || !*cursor)
+      return NULL;
+   end = strchr(*cursor, '$');
+   if (!end)
+      return NULL;
+   n = (size_t)(end - *cursor);
+   encoded = (char *)xmalloc(n + 1);
+   memcpy(encoded, *cursor, n);
+   encoded[n] = '\0';
+   *cursor = end + 1;
+   decoded = contract_meta_decode(encoded);
+   free(encoded);
+   return decoded;
+}
+
+//! @brief Decode the final undelimited metadata field.
+static char *contract_meta_last_field(const char **cursor)
+{
+   char *decoded;
+   if (!cursor || !*cursor)
+      return NULL;
+   decoded = contract_meta_decode(*cursor);
+   *cursor += strlen(*cursor);
+   return decoded;
+}
+
+//! @brief Parse a field such as L12 or C7.
+static int contract_meta_parse_location(const char *field, char prefix, int *out)
+{
+   char *end = NULL;
+   long value;
+   if (!field || field[0] != prefix || !isdigit((unsigned char)field[1]))
+      return 0;
+   value = strtol(field + 1, &end, 10);
+   if (!end || *end || value < 0 || value > 0x7fffffffL)
+      return 0;
+   *out = (int)value;
+   return 1;
+}
+
+//! @brief Release one parsed declaration contract record.
+static void declaration_contract_record_free(declaration_contract_record_t *r)
+{
+   if (!r)
+      return;
+   free(r->kind);
+   free(r->strength);
+   free(r->symbol);
+   free(r->owner);
+   free(r->file);
+   free(r->invoke);
+   free(r->detail);
+   memset(r, 0, sizeof(*r));
+}
+
+//! @brief Release one parsed semantic-use record.
+static void semantic_use_record_free(semantic_use_record_t *r)
+{
+   if (!r)
+      return;
+   free(r->kind);
+   free(r->symbol);
+   free(r->owner);
+   free(r->function);
+   free(r->file);
+   free(r->invoke);
+   memset(r, 0, sizeof(*r));
+}
+
+//! @brief Parse one declaration-contract metadata export.
+static int declaration_contract_record_parse(const char *name,
+                                              const object_file_t *obj,
+                                              declaration_contract_record_t *out)
+{
+   const char *p;
+   char *label_owner = NULL;
+   char *label_decl = NULL;
+   char *line = NULL;
+   char *column = NULL;
+   char *label_invoke = NULL;
+   char *label_type = NULL;
+   char *fingerprint = NULL;
+   int ok = 0;
+
+   memset(out, 0, sizeof(*out));
+   if (!contract_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(CONTRACT_META_PREFIX) - 1;
+   out->kind = contract_meta_next_field(&p);
+   out->strength = contract_meta_next_field(&p);
+   out->symbol = contract_meta_next_field(&p);
+   label_owner = contract_meta_next_field(&p);
+   out->owner = contract_meta_next_field(&p);
+   label_decl = contract_meta_next_field(&p);
+   out->file = contract_meta_next_field(&p);
+   line = contract_meta_next_field(&p);
+   column = contract_meta_next_field(&p);
+   label_invoke = contract_meta_next_field(&p);
+   out->invoke = contract_meta_next_field(&p);
+   label_type = contract_meta_next_field(&p);
+   fingerprint = contract_meta_next_field(&p);
+   out->detail = contract_meta_last_field(&p);
+   out->obj = obj;
+
+   ok = out->kind && out->strength && out->symbol && out->owner && out->file &&
+        out->invoke && out->detail && label_owner && !strcmp(label_owner, "owner") &&
+        label_decl && !strcmp(label_decl, "decl") && label_invoke &&
+        !strcmp(label_invoke, "invoke") && label_type && !strcmp(label_type, "type") &&
+        fingerprint && line && column &&
+        contract_meta_parse_location(line, 'L', &out->line) &&
+        contract_meta_parse_location(column, 'C', &out->column) &&
+        (!strcmp(out->kind, "object") || !strcmp(out->kind, "function")) &&
+        (!strcmp(out->strength, "require") || !strcmp(out->strength, "recommend"));
+
+   free(label_owner);
+   free(label_decl);
+   free(line);
+   free(column);
+   free(label_invoke);
+   free(label_type);
+   free(fingerprint);
+   if (!ok)
+      declaration_contract_record_free(out);
+   return ok;
+}
+
+//! @brief Parse one semantic-use metadata export.
+static int semantic_use_record_parse(const char *name,
+                                     const object_file_t *obj,
+                                     semantic_use_record_t *out)
+{
+   const char *p;
+   char *label_owner = NULL;
+   char *label_function = NULL;
+   char *label_use = NULL;
+   char *line = NULL;
+   char *column = NULL;
+   char *label_invoke = NULL;
+   int ok = 0;
+
+   memset(out, 0, sizeof(*out));
+   if (!semantic_use_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(SEMANTIC_USE_META_PREFIX) - 1;
+   out->kind = contract_meta_next_field(&p);
+   out->symbol = contract_meta_next_field(&p);
+   label_owner = contract_meta_next_field(&p);
+   out->owner = contract_meta_next_field(&p);
+   label_function = contract_meta_next_field(&p);
+   out->function = contract_meta_next_field(&p);
+   label_use = contract_meta_next_field(&p);
+   out->file = contract_meta_next_field(&p);
+   line = contract_meta_next_field(&p);
+   column = contract_meta_next_field(&p);
+   label_invoke = contract_meta_next_field(&p);
+   out->invoke = contract_meta_last_field(&p);
+   out->obj = obj;
+
+   ok = out->kind && out->symbol && out->owner && out->function && out->file &&
+        out->invoke && label_owner && !strcmp(label_owner, "owner") &&
+        label_function && !strcmp(label_function, "function") && label_use &&
+        !strcmp(label_use, "use") && label_invoke && !strcmp(label_invoke, "invoke") &&
+        line && column && contract_meta_parse_location(line, 'L', &out->line) &&
+        contract_meta_parse_location(column, 'C', &out->column) &&
+        (!strcmp(out->kind, "call") || !strcmp(out->kind, "read") ||
+         !strcmp(out->kind, "write") || !strcmp(out->kind, "address") ||
+         !strcmp(out->kind, "ref"));
+
+   free(label_owner);
+   free(label_function);
+   free(label_use);
+   free(line);
+   free(column);
+   free(label_invoke);
+   if (!ok)
+      semantic_use_record_free(out);
+   return ok;
+}
+
+//! @brief Find one exact call-graph node name.
+static int contract_call_graph_find_node(const call_graph_node_t *nodes,
+                                         size_t count, const char *name)
+{
+   size_t i;
+   for (i = 0; i < count; ++i) {
+      if (!strcmp(nodes[i].name, name))
+         return (int)i;
+   }
+   return -1;
+}
+
+//! @brief Mark functions reachable from main and runtime initializer roots.
+static unsigned char *contract_call_graph_reachability(const input_set_t *in,
+                                                        call_graph_node_t **nodes_out,
+                                                        size_t *node_count_out)
+{
+   call_graph_node_t *nodes = NULL;
+   call_graph_edge_t *edges = NULL;
+   size_t node_count = 0;
+   size_t edge_count = 0;
+   unsigned char *reachable;
+   int changed;
+   size_t i;
+
+   for (i = 0; i < in->object_count; ++i)
+      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count,
+                                     &edges, &edge_count);
+   reachable = (unsigned char *)xcalloc(node_count ? node_count : 1,
+                                       sizeof(*reachable));
+   for (i = 0; i < node_count; ++i) {
+      const char *display = display_function_symbol(nodes[i].name);
+      if (!strcmp(display, "main") || symbol_is_init_function(display))
+         reachable[i] = 1;
+   }
+   do {
+      changed = 0;
+      for (i = 0; i < edge_count; ++i) {
+         if (reachable[edges[i].from] && !reachable[edges[i].to]) {
+            reachable[edges[i].to] = 1;
+            changed = 1;
+         }
+      }
+   } while (changed);
+
+   free(edges);
+   *nodes_out = nodes;
+   *node_count_out = node_count;
+   return reachable;
+}
+
+//! @brief Return whether one semantic use occurs in reachable code.
+static int semantic_use_is_reachable(const semantic_use_record_t *use,
+                                     const call_graph_node_t *nodes,
+                                     size_t node_count,
+                                     const unsigned char *reachable)
+{
+   char *qualified;
+   int node;
+
+   if (!use || !strcmp(use->function, "none"))
+      return 0;
+   qualified = call_graph_object_function_name(use->obj, use->function);
+   node = contract_call_graph_find_node(nodes, node_count, qualified);
+   free(qualified);
+   return node >= 0 && reachable[node];
+}
+
+//! @brief Return whether a reachable use comes from outside the contract owner.
+static int semantic_use_is_external(const declaration_contract_record_t *contract,
+                                    const semantic_use_record_t *use)
+{
+   return strcmp(contract->owner, use->owner) != 0 ||
+          strcmp(contract->invoke, use->invoke) != 0;
+}
+
+//! @brief Merge a parsed contract into the selected-program contract table.
+static void declaration_contract_merge(declaration_contract_record_t **records,
+                                       size_t *count,
+                                       declaration_contract_record_t *incoming)
+{
+   size_t i;
+   for (i = 0; i < *count; ++i) {
+      declaration_contract_record_t *old = &(*records)[i];
+      if (strcmp(old->kind, incoming->kind) || strcmp(old->symbol, incoming->symbol) ||
+          strcmp(old->owner, incoming->owner) || strcmp(old->invoke, incoming->invoke))
+         continue;
+      if (!strcmp(incoming->strength, "require") && strcmp(old->strength, "require")) {
+         declaration_contract_record_free(old);
+         *old = *incoming;
+         memset(incoming, 0, sizeof(*incoming));
+      }
+      return;
+   }
+   *records = (declaration_contract_record_t *)xrealloc(*records,
+      (*count + 1) * sizeof(**records));
+   (*records)[*count] = *incoming;
+   memset(incoming, 0, sizeof(*incoming));
+   (*count)++;
+}
+
+//! @brief Enforce selected-program declaration-use contracts after reachability.
+static void enforce_declaration_use_contracts(const input_set_t *in)
+{
+   declaration_contract_record_t *contracts = NULL;
+   semantic_use_record_t *uses = NULL;
+   size_t contract_count = 0;
+   size_t use_count = 0;
+   call_graph_node_t *nodes = NULL;
+   size_t node_count = 0;
+   unsigned char *reachable;
+   size_t i, j;
+   int errors = 0;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->export_count; ++j) {
+         const char *name = obj->exports[j].name;
+         if (contract_metadata_has_prefix(name)) {
+            declaration_contract_record_t parsed;
+            if (!declaration_contract_record_parse(name, obj, &parsed)) {
+               fprintf(stderr, "vcsc-ld: malformed declaration-contract metadata '%s' in %s\n",
+                       name, obj->origin);
+               exit(1);
+            }
+            declaration_contract_merge(&contracts, &contract_count, &parsed);
+         }
+         else if (semantic_use_metadata_has_prefix(name)) {
+            semantic_use_record_t parsed;
+            if (!semantic_use_record_parse(name, obj, &parsed)) {
+               fprintf(stderr, "vcsc-ld: malformed semantic-use metadata '%s' in %s\n",
+                       name, obj->origin);
+               exit(1);
+            }
+            uses = (semantic_use_record_t *)xrealloc(uses,
+               (use_count + 1) * sizeof(*uses));
+            uses[use_count++] = parsed;
+         }
+      }
+   }
+
+   reachable = contract_call_graph_reachability(in, &nodes, &node_count);
+   for (i = 0; i < contract_count; ++i) {
+      declaration_contract_record_t *contract = &contracts[i];
+      int satisfied = 0;
+      for (j = 0; j < use_count; ++j) {
+         semantic_use_record_t *use = &uses[j];
+         if (strcmp(contract->symbol, use->symbol))
+            continue;
+         if (!strcmp(contract->kind, "function") && strcmp(use->kind, "call"))
+            continue;
+         if (!strcmp(contract->kind, "object") && !strcmp(use->kind, "call"))
+            continue;
+         if (!semantic_use_is_external(contract, use) ||
+             !semantic_use_is_reachable(use, nodes, node_count, reachable))
+            continue;
+         satisfied = 1;
+         break;
+      }
+      if (!satisfied) {
+         const char *level = contract->strength;
+         const char *noun = !strcmp(contract->kind, "object") ? "variable" : "function";
+         fprintf(stderr, "%s:%d:%d: vcsc-ld: %s%s %s '%s' not used\n",
+                 contract->file, contract->line, contract->column,
+                 !strcmp(level, "recommend") ? "warning: " : "",
+                 !strcmp(level, "require") ? "required" : "recommended",
+                 noun, contract->symbol);
+         if (contract->detail && *contract->detail)
+            fprintf(stderr, "  declared type: %s\n", contract->detail);
+         if (strcmp(contract->invoke, "none"))
+            fprintf(stderr, "  template invocation: %s\n", contract->invoke);
+         if (!strcmp(level, "require"))
+            errors++;
+      }
+   }
+
+   for (i = 0; i < node_count; ++i)
+      free(nodes[i].name);
+   free(nodes);
+   free(reachable);
+   for (i = 0; i < contract_count; ++i)
+      declaration_contract_record_free(&contracts[i]);
+   free(contracts);
+   for (i = 0; i < use_count; ++i)
+      semantic_use_record_free(&uses[i]);
+   free(uses);
+   if (errors)
+      exit(1);
+}
+
 //! @brief Shrink the configured RAM arena by the stack requirement derived from the call graph.
 static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t depth, size_t init_count)
 {
@@ -2651,6 +3085,7 @@ int main(int argc, char **argv)
    layout_objects(&cfg, &inputs, &layout);
    add_generated_symbols(&layout);
    resolve_all(&inputs, &layout);
+   enforce_declaration_use_contracts(&inputs);
 
    image = (uint8_t *)xmalloc(65536);
    used = (uint8_t *)xmalloc(65536);

@@ -188,5 +188,10 @@ and `ref` arguments emit corresponding
 the referenced logical symbol, referencing translation-unit owner, containing
 function, and source file/line/column. The records are emitted before peephole
 optimization and survive even when code generation leaves no ordinary
-relocation. Link-time required/recommended-use enforcement remains separate
-roadmap work.
+relocation. After archive selection and ordinary relocation resolution, the
+linker computes reachability from `main` and runtime initializer roots using the
+same compiler and hidden-assembly call-graph edges used for activation planning.
+A contract is satisfied only by a reachable semantic use from a different
+translation-unit/template-instance owner. Unused `require` records are fatal;
+unused `recommend` records produce warnings. Metadata in unselected archive
+members remains silent.

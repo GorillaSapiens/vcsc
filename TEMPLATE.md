@@ -9,8 +9,11 @@
 
 ## Status
 
-This document specifies a proposed VCSC feature. None of the syntax or object-
-file metadata described here is implemented yet.
+This document specifies a VCSC feature under staged implementation.
+`require`/`recommend` declarations, declaration and semantic-use metadata, and
+link-time reachable external-use enforcement are implemented. Repeatable
+`template ... as ...` source instantiation and the component lifecycle/frame
+scheduler work remain roadmap items.
 
 The feature is deliberately smaller than C++ templates or a general module
 system. Its purpose is to let one source component be instantiated repeatedly

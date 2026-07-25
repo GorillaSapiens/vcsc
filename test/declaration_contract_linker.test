@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/declaration_contract_linker.pl @REPO@ @TMP@
+# expectstdout: linker enforces reachable external declaration-use contracts
+# expectexit: 0
+# phase: e2e
