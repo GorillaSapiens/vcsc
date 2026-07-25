@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260724_225400.tar.gz
+    vcsc.20260724_231337.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1177,12 +1177,16 @@ The first unfinished item is the default next action.
                             shared declarations supplied by ordinary included
                             support files, and add focused diagnostics for each
                             rejected definition class.
-        [ ] 22f. Standardize the reusable display-component lifecycle as required
+        [x] 22f. Standardize the reusable display-component lifecycle as required
                   inline `TEMPLATE_init`, `TEMPLATE_vblank`, `TEMPLATE_draw`, and
                   `TEMPLATE_overscan` functions, plus machine-readable
                   `TEMPLATE_VISIBLE_SCANLINES`, `TEMPLATE_VBLANK_MAX_CYCLES`, and
                   `TEMPLATE_OVERSCAN_MAX_CYCLES` constants. Keep component-
                   specific setters/helpers outside the universal lifecycle.
+                  Maintain a canonical two-instance fixture that proves all four
+                  required calls, independent instance state, usable timing
+                  constants, one-at-a-time omission diagnostics, and that an
+                  unused component-specific setter remains optional.
         [ ] 22g. Add the shared NTSC frame-scheduling mechanism and use it to
                   define and test each component's exact scanline, entry/exit
                   cycle, TIA state, register/flag clobber, stack, RAM/ROM, page,
@@ -4221,4 +4225,20 @@ Before returning another modified archive:
   prefixed names, local names, local assembler labels, and shared included
   declarations coexist. Leave task 22f next; do not begin lifecycle
   standardization in this timebox.
+
+2026-07-24 23:18:00 PDT, standardize reusable component lifecycle contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22f. Add a canonical lifecycle component fixture with
+  required inline `init`, `vblank`, `draw`, and `overscan` entry points plus
+  machine-readable `VISIBLE_SCANLINES`, `VBLANK_MAX_CYCLES`, and
+  `OVERSCAN_MAX_CYCLES` constants.
+* Add a two-instance end-to-end regression proving all four lifecycle calls,
+  independent instance state, and use of each timing constant. Leave a
+  component-specific setter unused to prove helpers outside the universal
+  lifecycle remain optional.
+* Add four focused negative link regressions, each omitting exactly one lifecycle
+  call and requiring the corresponding source-level `require` diagnostic.
+* Document the maintained conformance fixture in `TEMPLATE.md`. Leave task 22g
+  next for the shared `frame_ntsc.c26` scheduler, timer ownership, overrun
+  handling, and cycle-zero phase transitions.
 

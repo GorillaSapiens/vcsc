@@ -1,0 +1,29 @@
+/* Canonical reusable display-component lifecycle fixture. */
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 12,
+   TEMPLATE_VBLANK_MAX_CYCLES := 300,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 200
+};
+
+uint8_t TEMPLATE_state;
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_state := 1;
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_state += 2;
+}
+
+require inline void TEMPLATE_draw(void) {
+   TEMPLATE_state += 4;
+}
+
+require inline void TEMPLATE_overscan(void) {
+   TEMPLATE_state += 8;
+}
+
+/* Component-specific helpers are deliberately outside the universal lifecycle. */
+inline void TEMPLATE_set_state(uint8_t value) {
+   TEMPLATE_state := value;
+}

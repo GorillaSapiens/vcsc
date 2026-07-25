@@ -418,6 +418,14 @@ inline void TEMPLATE_set_score(bcd24_t value);
 
 Such helpers are not part of the universal four-phase lifecycle.
 
+The maintained conformance fixture is
+`test/fixtures/templates/lifecycle_component.c26`. Its positive regression
+instantiates two independent components, calls all four phases, and consumes all
+three timing constants. Four negative link regressions omit one lifecycle call
+at a time and require the corresponding source-level `require` diagnostic. The
+fixture also leaves a component-specific setter unused, proving that helpers
+outside the universal lifecycle do not accidentally become mandatory.
+
 ## Machine-readable scanline count
 
 The exact visible line count must not live only in prose. A display component
@@ -614,9 +622,11 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
    the block to compiler peephole optimization, and enforce hygiene on
    source-visible nonlocal assembler labels. **Complete.**
 8. Standardize `init`, `vblank`, `draw`, `overscan`,
-   `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata;
-   define scheduler-owned phase deadlines, overrun detection, remaining-time
-   waits, and cycle-zero phase transitions.
+   `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata.
+   **Lifecycle names, required-call contracts, timing constants, and focused
+   conformance regressions are complete.** Scheduler-owned phase deadlines,
+   overrun detection, remaining-time waits, and cycle-zero phase transitions
+   remain task 22g.
 9. Convert the existing six-glyph display into the first reusable component and
    prove two independent instances in both draw orders.
 10. Update the kernel-authoring documentation after the implementation has

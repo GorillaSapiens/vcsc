@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectlinkfail
+// expectlinkerr: required function 'one_init' not used
+
+include "machine_6502.c26"
+template "fixtures/templates/lifecycle_component.c26" as one
+
+void main(void) {
+   one_vblank();
+   one_draw();
+   one_overscan();
+}
