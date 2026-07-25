@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_six_glyph_component.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 30
+# expectstdout: vcs_six_glyph_component ok
+# expectexit: 0

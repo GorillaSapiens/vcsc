@@ -17,7 +17,8 @@ Files:
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_display.c26` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
+- `six_glyph_display.c26` ... legacy single-instance centered 48-pixel/six-glyph positioning and timed row kernel
+- `six_glyph_component.c26` ... repeatable lifecycle-template form of the centered six-glyph display
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants

@@ -1,0 +1,42 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+template "six_glyph_component.c26" as upper
+template "six_glyph_component.c26" as lower
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := 0x84;
+   VBLANK := 2;
+
+   upper_score := 123456;
+   lower_score := 654321;
+   upper_init();
+   lower_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      upper_vblank();
+      lower_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_scanlines(85);
+      upper_draw();
+      lower_draw();
+      vcs_ntsc_wait_scanlines(85);
+
+      vcs_ntsc_begin_overscan();
+      upper_overscan();
+      lower_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260724_231337.tar.gz
+    vcsc.20260725_003123.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1252,6 +1252,22 @@ The first unfinished item is the default next action.
                   instances retain independent state, either draw order works,
                   omitted required lifecycle calls diagnose at link time, and
                   source-tree plus installed-toolchain builds agree.
+
+                  [x] 22h1. Add and install `six_glyph_component.c26` as a real
+                             lifecycle template with instance-owned score,
+                             pointer table, row counter, and delayed glyph byte.
+                             Preserve the canonical six-glyph row pipeline,
+                             publish an exact eleven-scanline visible contract
+                             and blanking budgets, use instance-private inline-
+                             assembly labels, and prove two instances build with
+                             independent RAM and a stable scheduler-driven
+                             262-line frame from both source and installed trees.
+                  [ ] 22h2. Migrate the maintained one-score cartridge and its
+                             private golden fixture to the component, prove its
+                             raster/timing output matches the predecessor, add
+                             both two-instance draw orders, and add component-
+                             specific omitted-lifecycle diagnostics before
+                             retiring the single-instance module.
         [ ] 22i. Convert the remaining maintained display kernels into
                   composable lifecycle components and remove their embedded
                   `six_glyph_score` ownership. Start with the all-five standard
@@ -4323,3 +4339,25 @@ Before returning another modified archive:
   frames, 263-line single-phase overruns, and sticky flags 0/1/2. Leave task 22h
   next for converting the centered six-glyph display into the first real
   reusable component.
+
+
+2026-07-25 00:40:00 PDT, add first real six-glyph template component
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h1. Add and install
+  `libraries/vcs/six_glyph_component.c26`, a repeatable centered six-glyph
+  lifecycle template with recommended instance-owned `bcd24_t` score storage,
+  twelve pointer bytes, row/delayed scratch, and required inline `init`,
+  `vblank`, `draw`, and `overscan` operations.
+* Preserve the existing official-opcode 48-pixel row pipeline and horizontal
+  setup while giving each instantiation private assembler-local draw labels.
+  Publish `VISIBLE_SCANLINES = 11`, a conservative 260-cycle VBLANK budget, and
+  zero overscan work. The component does not touch VSYNC, VBLANK, collision
+  latches, or RIOT timer state.
+* Add a private two-instance cartridge using the scheduler and shared Default
+  decimal font. Prove distinct score/pointer/row/delayed storage, inlined
+  lifecycle calls, distinct inline-assembly labels, a 4096-byte cartridge, and
+  stable 262-line frames. Install the component and build the same two-instance
+  fixture through the staged installed toolchain.
+* Keep the legacy single-instance `six_glyph_display.c26` and example 03
+  unchanged until 22h2 proves one-instance raster/timing equivalence and both
+  draw orders. Do not begin that migration in this timebox.
