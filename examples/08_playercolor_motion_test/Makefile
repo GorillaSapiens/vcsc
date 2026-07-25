@@ -1,20 +1,17 @@
-VCSC ?= ../../driver/vcsc
-VCS_DIR ?= ../../libraries/vcs
-PROFILE := $(VCS_DIR)/kernels/standard_4k_ntsc_playercolors
+ROOT ?= ../..
+VCSC ?= $(ROOT)/driver/vcsc
+VCS_DIR ?= $(ROOT)/libraries/vcs
 
-all: playercolor_motion_test.bin
+TARGET := playercolor_motion_test.bin
+SOURCE := playercolor_motion_test.c26
 
-playercolor_motion_test.bin: playercolor_motion_test.c26 $(PROFILE)/standard_4k_ntsc_playercolors.c26 \
-               $(PROFILE)/standard_4k_ntsc_playercolors_kernel.s26 \
-               $(PROFILE)/standard_4k_ntsc_playercolors_macros.inc \
-               $(PROFILE)/vcs_standard_4k_ntsc_playercolors.cfg
-	$(VCSC) -I $(VCS_DIR) -T $(PROFILE)/vcs_standard_4k_ntsc_playercolors.cfg \
-	  playercolor_motion_test.c26 $(PROFILE)/standard_4k_ntsc_playercolors_kernel.s26 -o $@
+all: $(TARGET)
 
-test: playercolor_motion_test.bin
-	test `wc -c < playercolor_motion_test.bin` -eq 4096
+$(TARGET): $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
+	@test `wc -c < $@` -eq 4096
 
 clean:
-	rm -f playercolor_motion_test.bin *.o26 *.map
+	rm -f $(TARGET) $(TARGET:.bin=.hex) $(TARGET:.bin=.map) $(TARGET:.bin=.s26) *.o26
 
-.PHONY: all test clean
+.PHONY: all clean

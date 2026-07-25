@@ -31,26 +31,16 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $standard=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc');
-my $colors=File::Spec->catdir($vcs,'kernels','standard_4k_ntsc_playercolors');
-
 my @examples=(
    ['01_solid_color','solid_color.c26',[]],
    ['02_ode_to_joy','ode_to_joy.c26',[]],
    ['03_six_digit_score','six_digit_score.c26',[]],
    ['04_fingerprint','fingerprint.c26',['-Wa,--illegals']],
-   ['05_static_kernel_test','static_kernel_test.c26',[
-      '-T',File::Spec->catfile($standard,'vcs_standard_4k_ntsc.cfg'),
-      File::Spec->catfile($standard,'standard_4k_ntsc_kernel.s26')]],
-   ['06_object_motion_test','object_motion_test.c26',[
-      '-T',File::Spec->catfile($standard,'vcs_standard_4k_ntsc.cfg'),
-      File::Spec->catfile($standard,'standard_4k_ntsc_kernel.s26')]],
-   ['07_playercolor_static_test','playercolor_static_test.c26',[
-      '-T',File::Spec->catfile($colors,'vcs_standard_4k_ntsc_playercolors.cfg'),
-      File::Spec->catfile($colors,'standard_4k_ntsc_playercolors_kernel.s26')]],
-   ['08_playercolor_motion_test','playercolor_motion_test.c26',[
-      '-T',File::Spec->catfile($colors,'vcs_standard_4k_ntsc_playercolors.cfg'),
-      File::Spec->catfile($colors,'standard_4k_ntsc_playercolors_kernel.s26')]],
+   ['05_static_kernel_test','static_kernel_test.c26',[]],
+   ['06_object_motion_test','object_motion_test.c26',[]],
+   ['07_playercolor_static_test','playercolor_static_test.c26',[]],
+   ['08_playercolor_motion_test','playercolor_motion_test.c26',[]],
+   ['09_xy_motion','xy_motion.c26',[]],
 );
 
 for my $entry (@examples) {
@@ -77,4 +67,4 @@ for my $entry (@examples) {
    }
 }
 
-print "vcs_examples_build ok: all eight editable examples compile and link\n";
+print "vcs_examples_build ok: all nine editable examples compile and link\n";

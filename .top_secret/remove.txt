@@ -47,6 +47,8 @@ examples/03_six_digit_score/fonts/clean.c26
 examples/03_six_digit_score/fonts/clean.inc
 examples/03_six_digit_score/fonts/default.inc
 examples/03_six_digit_score/score_font.s
+examples/05_static_kernel_test/REFERENCE.md
+examples/05_static_kernel_test/reference_stella_7.0.png
 examples/05_static_kernel_test/static_kernel_playfield.s
 libraries/float/.gitignore
 libraries/float/Makefile

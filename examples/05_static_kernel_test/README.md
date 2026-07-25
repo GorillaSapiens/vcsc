@@ -5,61 +5,16 @@
    \_/  \___||___/ \___|
 ```
 
-# Static standard-kernel test
+# Static all-five component, score above
 
-`05_static_kernel_test` is the fixed visual oracle for the normalized
-no-bankswitch, no-Superchip standard kernel. A Breakout-style inspection scene
-exercises the asymmetric 32x12 playfield, both players, both missiles, the
-ball, and the six-digit score without changing application state.
+This example composes the official `all_five_181` gameplay component with the
+independent eleven-line six-glyph score above it:
 
-The application supplies the immutable 48-byte playfield in cartridge ROM and
-includes the source-level standard-kernel state contract. `CTRLPF` is set to
-reflected-playfield mode, as required by this asymmetric standard-kernel write
-schedule. The cycle-counted normalized kernel remains a companion assembly input. This
-makes placement, opcode, hook, and scanline checks deterministic. The example
-defines no hook, so the kernel object's weak no-op is selected.
-
-Build after building the toolchain:
-
-```sh
-make
+```text
+11 score lines + 181 gameplay lines = 192 visible NTSC lines
 ```
 
-The result is `static_kernel_test.bin`, an exact 4096-byte unbanked NTSC
-cartridge, plus `static_kernel_test.map`.
-
-
-## Verified profile
-
-The linked cartridge deliberately fixes the timing-sensitive regions:
-
-- normalized kernel code: `$F300..$F5FF`;
-- 88-byte decimal score table: `$F600..$F657`;
-- immutable playfield base: page-aligned temporarily so all 48 direct indexed
-  reads remain within one page;
-- hidden assembly stack allowance: two bytes beyond the ordinary call graph;
-- repeated visible playfield writes at CPU cycles `24, 31, 38, 45` on each
-  complete kernel scanline.
-
-Stella 7.0's developer overlay reports `262 / 60.0Hz => NTSC*`, and the rendered
-frame shows the fixed `123456` score with a centered, untorn asymmetric
-playfield and object state. The normalized kernel preserves the retained
-cycle-balanced ten-cycle player draw/skip paths, aligns the hot loop, and keeps
-the skip stubs on the same page so taken branches cannot add a conditional
-page-cross cycle. The star is Stella's normal noncanonical-timing marker for
-this retained kernel profile; the line count and refresh rate are stable.
-
-`reference_stella_7.0.png` and `REFERENCE.md` define the reviewed raster by an
-exact SHA-256 and inclusive bounding boxes for every object, the score, and two
-playfield bars. The application reapplies volatile TIA color/geometry registers
-before every draw, so the reference is stable after the first frame rather than
-accidentally depending on power-up state.
-
-## Placement and object coverage
-
-The VCSC `page const` playfield declaration carries hard page containment into
-the object file; no companion assembly or manual offset is required. Every
-display object is visible: a double-width white paddle (P0), an upright white
-alien (P1), separate white missiles M0 and M1, and a gold ball.
-`VCS_STANDARD_SPRITE_GLYPH` accepts player art top-to-bottom and reverses
-storage for the kernel's descending row index.
+P0, P1, M0, M1, Ball, the asymmetric playfield, and a fixed `123456` score are
+all visible. `main()` owns the frame scheduler and invokes both complete
+lifecycle interfaces. Build with `make` and run `static_kernel_test.bin` in
+Stella.

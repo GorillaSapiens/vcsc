@@ -142,10 +142,11 @@ The user-facing examples are deliberately editable:
 - [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
 - [`03_six_digit_score`](examples/03_six_digit_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_static_kernel_test`](examples/05_static_kernel_test/) — static all-five-object kernel scene
-- [`06_object_motion_test`](examples/06_object_motion_test/) — moving all-five-object diagnostic
-- [`07_playercolor_static_test`](examples/07_playercolor_static_test/) — static per-row player colors
-- [`08_playercolor_motion_test`](examples/08_playercolor_motion_test/) — moving per-row player colors
+- [`05_static_kernel_test`](examples/05_static_kernel_test/) — all-five component with score above gameplay
+- [`06_object_motion_test`](examples/06_object_motion_test/) — moving all-five component with score below gameplay
+- [`07_playercolor_static_test`](examples/07_playercolor_static_test/) — player-color component with score above gameplay
+- [`08_playercolor_motion_test`](examples/08_playercolor_motion_test/) — moving player-color component with score below gameplay
+- [`09_xy_motion`](examples/09_xy_motion/) — full-height sprite motion in both X and Y
 
 Exact golden raster, timing, palette, score, music, and motion assertions use
 private copies under `test/fixtures/vcs_examples/`; changing an example should

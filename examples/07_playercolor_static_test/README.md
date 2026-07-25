@@ -5,14 +5,11 @@
    \_/  \___||___/ \___|
 ```
 
-# Per-row player-color static test
+# Static player-color component, score above
 
-This cartridge exercises the separate unbanked 4K NTSC P0+P1+BL standard
-kernel. Both eight-row player sprites are stationary and use a different TIA
-color on every logical bitmap row. Because this is a two-scanline kernel, each
-logical row normally occupies two physical scanlines. M0 and M1 are
-intentionally unavailable.
+This example composes the official `player_color_181` P0/P1/Ball component with
+the independent score above gameplay. Both players use eight distinct logical-
+row colors; missiles are intentionally unavailable. The visible field is
+exactly eleven score lines plus 181 gameplay lines.
 
-Build from this directory with `make`, then run `playercolor_static_test.bin` in
-Stella. The fixed ruler playfield, ball, score, and separated players make color
-and vertical-timing errors obvious.
+Build with `make` and run `playercolor_static_test.bin` in Stella.

@@ -1409,10 +1409,26 @@ The first unfinished item is the default next action.
                                          scoreless player-color component.
                               [x] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
-                  [ ] 22i4. Retire the two monolithic profiles only after source,
-                              installed-toolchain, map, timing, raster, stack,
-                              collision, official/unofficial opcode, and linked-
-                              byte evidence is complete.
+                  [ ] 22i4. Replace the maintained gameplay examples with the
+                              lifecycle components, add explicit score-above and
+                              score-below examples, add a final two-axis motion
+                              example, then retire the two monolithic profiles only
+                              after source, installed-toolchain, map, timing, raster,
+                              stack, collision, opcode, and linked-byte evidence is
+                              complete.
+                              [x] 22i4a. Migrate examples 05 through 08 from the
+                                         monoliths to the proven official 181-line
+                                         components: score above for the static
+                                         examples and score below for the motion
+                                         examples. Add example 09 using the official
+                                         192-line all-five component with simultaneous
+                                         P0 X/Y motion. Build all nine editable
+                                         examples from the source and staged installed
+                                         toolchains.
+                              [ ] 22i4b. Retire the two installed predecessor
+                                         monolithic profiles while preserving only
+                                         the private oracle material still required
+                                         by regression tests.
 
 [ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
@@ -4754,3 +4770,23 @@ Before returning another modified archive:
 * Pass all 308 compile-only tests and all 180 end-to-end/generic tests
   across the complete run and final three-test continuation, plus staged
   installation, branding, and source-tree hygiene.
+
+
+2026-07-25 15:28:00 PDT, migrate gameplay examples to lifecycle components
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4a. Replace editable examples 05 through 08 with the
+  already-proven official lifecycle-component fixtures. Examples 05 and 07 draw
+  the independent eleven-line score above 181-line gameplay; examples 06 and 08
+  draw the score below asynchronous gameplay. Remove their companion-assembly and
+  profile-specific linker arguments so each builds through the ordinary VCSC
+  driver and installed component catalog.
+* Add `examples/09_xy_motion`, a scoreless full-height `all_five_192` cartridge
+  in which P0 moves simultaneously across X=0..159 and Y=8..80 while the other
+  four TIA objects remain visible as references. Update motion after
+  `game_overscan()` restores application-visible coordinates.
+* Extend the editable-example build regression, staged installation, top-level
+  example catalog, VCS catalog, per-example Makefiles, and user-facing READMEs
+  for all nine examples. Remove the now-stale public example-05 reference note
+  and screenshot; the reviewed predecessor source/image remain only under the
+  private oracle fixture. Leave 22i4b next for predecessor-profile retirement;
+  private monolithic oracle fixtures and tests remain unchanged.

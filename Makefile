@@ -321,34 +321,25 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/05_static_kernel_test/static_kernel_test.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/06_object_motion_test/object_motion_test.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/object_motion_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/object_motion_test.bin"` -eq 4096; \
-	"$$stage_bin/vcsc-as" \
-	  -I "$$stage_vcs/kernels/standard_4k_ntsc_playercolors" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_playercolors_kernel.o26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_playercolors_kernel.o26"` -gt 0; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg" \
 	  "$(CURDIR)/examples/07_playercolor_static_test/playercolor_static_test.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg" \
 	  "$(CURDIR)/examples/08_playercolor_motion_test/playercolor_motion_test.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"` -eq 4096
+	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/examples/09_xy_motion/xy_motion.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/xy_motion.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/xy_motion.bin"` -eq 4096
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz

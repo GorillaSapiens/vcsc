@@ -32,10 +32,11 @@ Files:
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
 - `../../examples/03_six_digit_score/six_digit_score.c26` ... centered lifecycle-component `bcd24_t` score display using `frame_ntsc.c26` and the shared VCS font catalog
 - `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
-- `../../examples/05_static_kernel_test/static_kernel_test.c26` ... deterministic 4K bring-up cartridge for the all-five standard kernel
-- `../../examples/06_object_motion_test/object_motion_test.c26` ... full-range all-five-object motion diagnostic
-- `../../examples/07_playercolor_static_test/playercolor_static_test.c26` ... static P0+P1+BL per-row-color diagnostic
-- `../../examples/08_playercolor_motion_test/playercolor_motion_test.c26` ... moving P0+P1+BL per-row-color diagnostic
+- `../../examples/05_static_kernel_test/static_kernel_test.c26` ... all-five lifecycle component with the score above gameplay
+- `../../examples/06_object_motion_test/object_motion_test.c26` ... moving all-five component with the score below gameplay
+- `../../examples/07_playercolor_static_test/playercolor_static_test.c26` ... player-color component with the score above gameplay
+- `../../examples/08_playercolor_motion_test/playercolor_motion_test.c26` ... moving player-color component with the score below gameplay
+- `../../examples/09_xy_motion/xy_motion.c26` ... scoreless full-height P0 motion in both X and Y
 - `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
 - `LEGACY_KERNEL_CONVERSION.md` ... retained-kernel inventory, compatibility analysis, and staged conversion plan
 

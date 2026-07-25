@@ -5,13 +5,10 @@
    \_/  \___||___/ \___|
 ```
 
-# Per-row player-color motion test
+# Moving player-color component, score below
 
-This cartridge keeps eight distinct logical-row colors on both players while
-P0, P1, and BL move asynchronously through the full public X=`0..159` range at
-speeds 1, 5, and 7. Because this is a two-scanline kernel, each logical sprite
-row normally occupies two physical television scanlines. It is the moving
-companion to example 07 and deliberately contains no missiles.
+This example draws the official `player_color_181` gameplay component above the
+independent score. P0, P1, and Ball retain per-row player colors while moving
+asynchronously across X=`0..159`. Missiles are intentionally unavailable.
 
-Build from this directory with `make`, then run `playercolor_motion_test.bin` in
-Stella.
+Build with `make` and run `playercolor_motion_test.bin` in Stella.
