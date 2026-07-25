@@ -58,32 +58,61 @@ generate VSYNC, start RIOT timers, position objects during VBLANK, draw the
 playfield/object field, draw the embedded score, assert VBLANK, call an overscan
 hook, and return.
 
-A lifecycle replacement must not write `VSYNC`, `VBLANK`, or a RIOT timer.  Its
-visible `draw()` may use `WSYNC` internally because the kernel is inherently
+A lifecycle replacement must not write `VSYNC`, `VBLANK`, or a RIOT timer. Its
+visible `draw()` uses `WSYNC` internally because the kernel is inherently
 scanline scheduled, but it must enter and leave on documented cycle-zero
-boundaries and consume exactly its published visible-line count.  `init()`,
-`vblank()`, and `overscan()` must publish conservative cycle budgets and must not
-hide frame padding.
+boundaries and consume exactly its published visible-line count. Blanking
+callbacks may use WSYNC for bounded internal scheduling such as horizontal
+positioning; every stalled cycle is charged to the scheduler-owned deadline and
+included in the published maximum-cycle budget. Only the scheduler may wait on
+or read the timer, write VBLANK, or issue the final phase-transition WSYNC.
+`init()`, `vblank()`, and `overscan()` must not hide frame padding.
 
-## The 192-line composition constraint
+## Selected visible-profile matrix
 
-The inherited gameplay field is already:
+The conversion no longer leaves the shorter composition profile open-ended.
+Each maintained gameplay family has these explicit products:
+
+| Profile | Gameplay lines | Score ownership | Opcode policy |
+| --- | ---: | --- | --- |
+| score-composable | 181 | none; `main()` must compose the independent 11-line six-glyph component | official 6502/6507 only |
+| full-height scoreless | 192 | none; no score fits beside it inside the standard visible field | official 6502/6507 only |
+| score-composable unofficial twin | 181 | none; same application contract as the official 181-line component | reviewed stable/common NMOS unofficial forms allowed |
+
+The ordinary score-bearing application contract is exact:
 
 ```text
-12 playfield rows * 16 scanlines per row = 192 scanlines
+181 gameplay scanlines + 11 six-glyph scanlines = 192 visible scanlines
 ```
 
-The embedded score is drawn in addition to that field by the old whole-frame
-schedule.  Therefore the component conversion cannot preserve a 192-line
-gameplay field and merely append the eleven-line reusable score inside a new
-192-line scheduler region.  The replacement must choose and test an explicit
-composition profile—for example a shorter gameplay row schedule—or document
-that a particular full-height gameplay profile cannot be composed with a score
-inside 192 visible lines.  The application, not either component, emits every
-remaining blank line.
+The gameplay component therefore publishes `VISIBLE_SCANLINES := 181`; the
+existing six-glyph component publishes eleven. `main()` must call both draw
+operations and may place the score above or below gameplay. It must not add
+another hidden blank-line allowance or silently crop either component. The
+component implementation owns the complete internal accounting needed to enter
+and leave on its documented scanline boundaries.
 
-No row-height or cropping choice is made by this baseline step.  It must be
-selected with raster evidence during extraction rather than guessed here.
+The full-height component is a separate, explicitly named 192-line scoreless
+profile. It preserves the predecessor's full gameplay-height use case without
+pretending an eleven-line score can also fit inside the same 192-line field.
+This is not a compile-time switch hidden inside the 181-line source: maps,
+fixtures, timing contracts, and diagnostics must identify which profile was
+linked.
+
+The unofficial-opcode experiment is likewise a separate source/profile, not a
+hidden alias. Its public API, public and private RAM layout, visible TIA-write
+schedule, object positions, collision behavior, entry/exit cycles, and 181-line
+contract must match the official score-composable component. Only then may the
+linked executable-byte totals be compared. The report must state the official
+and unofficial linked ROM byte counts and their signed difference; a zero or
+negative saving is a valid result. Only reviewed stable/common NMOS 6502/6507
+forms are eligible. Silicon-sensitive or unstable forms remain forbidden.
+
+The inherited monolith's gameplay field is twelve 16-line rows, or 192 lines.
+Producing the new 181-line profile therefore requires an explicit retimed or
+reduced gameplay schedule. The extraction regression must lock that internal
+choice; neither this contract nor an application may disguise the missing
+11 lines as scheduler padding.
 
 ## Evidence required before retiring a monolith
 

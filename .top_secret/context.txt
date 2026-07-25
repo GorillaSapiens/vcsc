@@ -1296,9 +1296,11 @@ The first unfinished item is the default next action.
                   profile and the P0+P1+BL player-color profile. Their component
                   draw entry points must render only their own gameplay region,
                   publish exact `VISIBLE_SCANLINES` and blanking-work budgets,
-                  enter and leave at the documented cycle-zero boundaries, clean
-                  up any TIA state they enable, and leave VSYNC, VBLANK, WSYNC,
-                  and the RIOT timer under `frame_ntsc.c26`/application control.
+                  enter and leave at documented scanline boundaries, clean up
+                  any TIA state they enable, and leave VSYNC, VBLANK, and the
+                  RIOT timer under `frame_ntsc.c26`/application control. The
+                  visible `draw()` owns only the WSYNC operations inside its
+                  published gameplay region.
 
                   Keep the currently working monolithic profiles available until
                   each componentized replacement has byte/timing/raster evidence
@@ -1312,12 +1314,12 @@ The first unfinished item is the default next action.
                   does not instantiate a score pays no score RAM or ROM cost.
 
                   Add editable application examples which compose the same score
-                  and gameplay components in both visible orders: score above the
-                  gameplay kernel and score below it. Use machine-readable
-                  scanline constants to account for the complete 192-line visible
-                  region, with any remainder emitted as explicit blank lines by
-                  the application rather than hidden inside a component. Include
-                  at least one static scene and one motion scene so ordering is
+                  and 181-line gameplay components in both visible orders: score
+                  above gameplay and score below it. Use machine-readable 181 and
+                  11 scanline constants to account for the complete 192-line
+                  visible region with no hidden remainder. Keep the distinct 192-
+                  line gameplay profile scoreless. Include at least one static
+                  scene and one motion scene so ordering is
                   proved without weakening horizontal-position, per-row-color,
                   or next-frame update behavior.
 
@@ -1340,19 +1342,65 @@ The first unfinished item is the default next action.
                               ownership that must move to the scheduler, the
                               existing 192-line gameplay field, and the evidence
                               required before either predecessor may be retired.
-                  [ ] 22i2. Extract the all-five gameplay-only lifecycle
-                              component while preserving the monolithic profile
-                              and its current regression oracles.
-                  [ ] 22i3. Compose the all-five component with an independent
-                              six-glyph component above and below gameplay, then
-                              prove static/motion behavior and zero score cost in
-                              a gameplay-only link.
-                  [ ] 22i4. Extract and prove the P0+P1+BL player-color lifecycle
-                              component, including exact per-row colors and both
-                              score orders.
-                  [ ] 22i5. Retire the two monolithic profiles only after source,
+                  [ ] 22i2. Convert and prove the all-five gameplay profile
+                              family while preserving the monolithic predecessor
+                              and all current regression oracles.
+
+                              [x] 22i2a. Lock the exact profile matrix. The normal
+                                         score-composable component draws exactly
+                                         181 gameplay scanlines and assumes that
+                                         `main()` supplies the independent eleven-
+                                         scanline six-glyph component, above or
+                                         below it, for an exact 192-line visible
+                                         field. A separate official-opcode full-
+                                         height component draws exactly 192
+                                         gameplay scanlines and owns no score.
+                                         A separately named unofficial-opcode
+                                         twin of the 181-line component must have
+                                         the same API, RAM layout, raster, cycle
+                                         boundaries, and application fixtures so
+                                         linked ROM bytes can be compared fairly.
+                              [ ] 22i2b. Extract the official-opcode 181-line all-
+                                         five lifecycle component with no score
+                                         state, font, pointer setup, draw path, or
+                                         frame-register/timer ownership.
+
+                                         [x] 22i2b0. Clarify blank-phase resource
+                                                    ownership so bounded component
+                                                    `vblank()`/`overscan()` work may
+                                                    use WSYNC internally while every
+                                                    stalled cycle counts against the
+                                                    scheduler-owned deadline. Only
+                                                    the scheduler may write VBLANK,
+                                                    start/read the RIOT timer, wait
+                                                    for expiry, or issue the final
+                                                    phase-transition WSYNC.
+                                         [ ] 22i2b1. Extract and prove the 181-line
+                                                    all-five implementation under
+                                                    that lifecycle/resource contract.
+                              [ ] 22i2c. Compose the 181-line all-five component
+                                         with an independent six-glyph component
+                                         above and below gameplay; prove static
+                                         and motion behavior, exact 181+11=192
+                                         accounting, and zero score cost in a
+                                         gameplay-only link.
+                              [ ] 22i2d. Derive and prove the official-opcode 192-
+                                         line scoreless all-five component as a
+                                         distinct explicit profile rather than a
+                                         hidden configuration switch.
+                              [ ] 22i2e. Derive the matched 181-line unofficial-
+                                         opcode all-five component, permit only
+                                         reviewed stable/common NMOS forms, prove
+                                         exact behavior against the official twin,
+                                         and report measured linked ROM savings.
+                  [ ] 22i3. Repeat the explicit 181-line score-composable, 192-
+                              line scoreless, and matched 181-line unofficial-
+                              opcode profile family for P0+P1+BL player colors,
+                              including exact per-row colors and both score orders.
+                  [ ] 22i4. Retire the two monolithic profiles only after source,
                               installed-toolchain, map, timing, raster, stack,
-                              collision, and legal-opcode evidence is complete.
+                              collision, official/unofficial opcode, and linked-
+                              byte evidence is complete.
 
 [ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
@@ -4500,3 +4548,31 @@ Before returning another modified archive:
   embedded score imports/exports, frame-register ownership, forbidden symbols,
   and documentation. Split the remaining 22i work into extraction/composition/
   retirement slices while leaving both working monoliths unchanged for oracles.
+
+2026-07-25 09:29:31 PDT, lock gameplay profile matrix and blank-phase WSYNC contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2a. Replace the open-ended shorter-gameplay choice
+  with an exact family contract for both maintained gameplay kernels: an
+  official-opcode 181-line score-composable component, a distinct official-
+  opcode 192-line scoreless component, and a separately named matched 181-line
+  unofficial-opcode experiment. Require `main()` to compose 181 gameplay lines
+  plus the independent eleven-line six-glyph component in either order for an
+  exact 192-line visible field.
+* Require the official and unofficial 181-line twins to have the same lifecycle
+  API, RAM layout, visible TIA-write raster, object positions, collision
+  behavior, boundary cycles, and fixtures before comparing linked executable
+  bytes. Permit only reviewed stable/common NMOS forms and explicitly accept a
+  zero-byte result, alignment growth, or a rejected timing candidate as a valid
+  outcome rather than presuming unofficial-opcode savings.
+* Complete roadmap prerequisite 22i2b0. Clarify that the scheduler owns VBLANK,
+  RIOT timer/status registers, timer expiry, and the final phase-transition
+  WSYNC, while bounded component vblank/overscan work may use WSYNC internally.
+  Every stalled cycle remains charged to the already-running shared deadline
+  and must be included in the component's published maximum-cycle budget.
+* Update the installed conversion baseline, `frame_ntsc.c26`, `TEMPLATE.md`, the
+  VCS library README, the unofficial-opcode history, and the normal scheduler
+  fixture. Extend the baseline regression to lock all three profiles, exact
+  181+11=192 accounting, non-presumed byte savings, and the blank-phase WSYNC
+  ownership distinction. Pass 308/308 compile-only tests, 172/172 end-to-end/
+  generic tests, staged installation, and source-tree hygiene. Leave 22i2b1
+  next for the actual cycle-counted 181-line all-five extraction.

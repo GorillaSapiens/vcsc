@@ -366,8 +366,12 @@ Expected contract:
 - the caller owns and has already started the blanking timer;
 - all component `vblank()` calls share the remaining 37-scanline budget;
 - the function returns before the shared deadline expires;
-- the function does not write VBLANK, WSYNC, a RIOT timer-start register,
-  INTIM, or TIMINT, and does not wait on the scheduler's timer;
+- the function does not write VBLANK, a RIOT timer-start register, INTIM, or
+  TIMINT, does not wait on the scheduler's timer, and does not perform the final
+  phase transition;
+- it may use WSYNC for bounded internal scheduling, but every stalled cycle
+  consumes the already-running shared VBLANK deadline and must be included in
+  `TEMPLATE_VBLANK_MAX_CYCLES`;
 - returns with the hardware stack balanced;
 - returns with decimal mode clear.
 
@@ -402,6 +406,10 @@ Expected contract:
 
 - the caller owns and has started the overscan timer;
 - performs work whose results normally affect the next frame;
+- does not write VBLANK, a RIOT timer-start register, INTIM, or TIMINT, wait on
+  the scheduler's timer, or perform the final phase transition;
+- may use WSYNC for bounded internal scheduling, with every stalled cycle
+  included in `TEMPLATE_OVERSCAN_MAX_CYCLES` and charged to the shared deadline;
 - returns with the hardware stack balanced;
 - returns with decimal mode clear.
 
@@ -482,7 +490,8 @@ can be freely reordered. Every component must document and test:
 - ROM cost;
 - page containment, alignment, adjacency, and indexed-range requirements;
 - conservative maximum VBLANK and overscan cycle counts;
-- ownership of VBLANK, WSYNC, and the RIOT timer/status registers;
+- ownership of VBLANK, phase-transition WSYNC, and the RIOT timer/status
+  registers, plus any bounded internal WSYNC use during blanking callbacks;
 - collision-latch assumptions;
 - whether another component must clear or preserve particular graphics.
 
@@ -605,7 +614,9 @@ The first real component conversion should prove:
   after the scheduler's final WSYNC;
 - deliberate overruns stop waiting on wrapped timer state, continue at the next
   scanline boundary, and set sticky phase bits only in diagnostic builds;
-- component callbacks do not take ownership of VBLANK, WSYNC, or the RIOT timer;
+- component callbacks do not take ownership of VBLANK, the final phase-
+  transition WSYNC, or the RIOT timer; bounded internal WSYNC use is charged to
+  the shared blanking deadline;
 - lifecycle calls are all externally visible to `require` checking;
 - omitting any one of `score1_init()`, `score1_vblank()`, `score1_draw()`,
   or `score1_overscan()` produces the corresponding component-specific link

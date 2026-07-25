@@ -48,3 +48,28 @@ a negative control introduced through raw `op4B`.
 
 The regression now scans the maintained source directly and separately verifies
 the final linked executable bytes.
+
+Future component byte comparison
+--------------------------------
+
+Roadmap task 22i deliberately brings back a separately named unofficial-opcode
+**181-line gameplay component** as an experiment. It is not a reversal of the
+official predecessor policy and it is not selected by a hidden build alias.
+The official and unofficial components must expose the same lifecycle API,
+consume the same RAM, draw the same 181 scanlines, produce the same visible TIA
+writes and object positions, and pass the same static/motion cartridges. Only
+reviewed stable/common NMOS forms may be used.
+
+The comparison reports linked executable bytes for otherwise identical
+cartridges:
+
+```text
+official linked ROM bytes
+unofficial linked ROM bytes
+signed byte difference
+```
+
+No saving is assumed. A zero-byte result, growth caused by padding/alignment, or
+rejection of a candidate whose timing cannot be matched is a successful and
+publishable outcome.
+

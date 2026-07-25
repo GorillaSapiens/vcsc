@@ -18,7 +18,7 @@ Files:
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display
-- `kernels/COMPONENT_CONVERSION.md` ... measured predecessor baseline and retirement gates for gameplay lifecycle conversion
+- `kernels/COMPONENT_CONVERSION.md` ... measured predecessor baseline plus the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
@@ -62,7 +62,9 @@ a wrapped `INTIM` value for remaining time, issue the final `WSYNC`, and return
 continues at the next scanline boundary and produces one long frame rather than
 waiting on wrapped timer state. `vcs_ntsc_end_vblank()` clears VBLANK;
 `vcs_ntsc_end_overscan()` leaves it asserted for VSYNC. Component callbacks must
-not touch VBLANK, WSYNC, INTIM, TIMINT, or a timer-start register.
+not touch VBLANK, INTIM, TIMINT, or a timer-start register, and must not
+perform the final phase transition. They may use WSYNC for bounded internal
+blanking work; those stalled cycles consume the already-running shared deadline.
 
 Define `alias VCS_NTSC_DIAGNOSTICS 1` before including `frame_ntsc.c26` to add a
 sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and

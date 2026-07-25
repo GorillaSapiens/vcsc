@@ -75,11 +75,33 @@ for my $p (@profiles) {
       "$p->{dir}: forbidden score-table symbol is undocumented");
 }
 
-require_re($doc,qr/12 playfield rows \* 16 scanlines per row = 192 scanlines/,
-   'component conversion document lost the 192-line composition constraint');
+require_re($doc,qr/181 gameplay scanlines \+ 11 six-glyph scanlines = 192 visible scanlines/,
+   'component conversion document lost the exact score-composable line contract');
+require_re($doc,qr/\| score-composable \| 181 \|/,
+   'component conversion document lost the official 181-line profile');
+require_re($doc,qr/\| full-height scoreless \| 192 \|/,
+   'component conversion document lost the official 192-line scoreless profile');
+require_re($doc,qr/\| score-composable unofficial twin \| 181 \|/,
+   'component conversion document lost the matched unofficial profile');
+require_re($doc,qr/a zero or\s+negative saving is a valid result/,
+   'component conversion document presumes unofficial-opcode savings');
+require_re($doc,qr/twelve 16-line rows, or 192 lines/,
+   'component conversion document lost the predecessor 192-line constraint');
 require_re($doc,qr/pointer_workspace.*mixed/is,
    'component conversion document incorrectly treats mixed pointer workspace as saved');
 require_re($doc,qr/must not write `VSYNC`, `VBLANK`, or a RIOT timer/,
    'component frame-register ownership rule is missing');
+require_re($doc,qr/Blanking\s+callbacks may use WSYNC for bounded internal scheduling/,
+   'component conversion document lost bounded blank-phase WSYNC use');
+require_re($doc,qr/callbacks may use WSYNC.*Only the scheduler.*phase-transition WSYNC/si,
+   'component conversion document does not distinguish scheduler ownership from internal WSYNC use');
+
+my $unofficial=read_file(File::Spec->catfile($root,'standard_4k_ntsc','UNOFFICIAL_OPCODES.md'));
+require_re($unofficial,qr/separately named unofficial-opcode\s+\*\*181-line gameplay component\*\*/s,
+   'unofficial-opcode document lost the distinct 181-line experiment');
+require_re($unofficial,qr/same lifecycle API.*same RAM.*same 181 scanlines/s,
+   'unofficial-opcode comparison is not constrained to an apples-to-apples profile');
+require_re($unofficial,qr/zero-byte result.*successful and\s+publishable outcome/si,
+   'unofficial-opcode comparison incorrectly assumes a saving');
 
 print "vcs_kernel_component_baseline ok\n";

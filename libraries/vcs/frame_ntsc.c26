@@ -3,8 +3,9 @@
 // Include vcs.c26 before this file.  The application remains responsible for
 // composing display components and for owning the complete frame loop.  This
 // file supplies only standard phase constants and small cycle-transparent
-// operations; component code must not take ownership of VSYNC, VBLANK, WSYNC,
-// or the RIOT interval timer.
+// operations; component code must not take ownership of VSYNC, VBLANK, or the
+// RIOT interval timer. Blanking callbacks may use WSYNC for bounded internal
+// scheduling; every stalled cycle remains part of the shared phase deadline.
 
 enum vcs_ntsc_frame_timing {
    VCS_NTSC_CYCLES_PER_SCANLINE := 76,
@@ -98,8 +99,10 @@ static void vcs_ntsc_finish_deadline(void) {
 }
 #endif
 
-// Begin the shared 37-scanline VBLANK budget.  Component vblank callbacks run
-// after this operation and must not touch VBLANK, WSYNC, or RIOT timer state.
+// Begin the shared 37-scanline VBLANK budget. Component vblank callbacks run
+// after this operation. They may use WSYNC internally, but must not write
+// VBLANK, start/read the RIOT timer, wait for expiry, or perform the final phase
+// transition; all their cycles and WSYNC stalls consume this shared deadline.
 inline void vcs_ntsc_begin_vblank(void) {
    VBLANK := 2;
    TIM64T := VCS_NTSC_VBLANK_TIM64T`uint8_t;
@@ -117,9 +120,10 @@ inline void vcs_ntsc_end_vblank(void) {
    VBLANK := 0;
 }
 
-// Begin the shared 30-scanline overscan budget.  Component overscan callbacks
-// run after this operation and must not touch VBLANK, WSYNC, or RIOT timer
-// state.
+// Begin the shared 30-scanline overscan budget. Component overscan callbacks
+// may use WSYNC internally, but must not write VBLANK, start/read the RIOT
+// timer, wait for expiry, or perform the final phase transition; all their
+// cycles and WSYNC stalls consume this shared deadline.
 inline void vcs_ntsc_begin_overscan(void) {
    VBLANK := 2;
    TIM64T := VCS_NTSC_OVERSCAN_TIM64T`uint8_t;
