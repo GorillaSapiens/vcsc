@@ -1313,15 +1313,29 @@ The first unfinished item is the default next action.
                   The linker/map output must show that a gameplay component which
                   does not instantiate a score pays no score RAM or ROM cost.
 
-                  Add editable application examples which compose the same score
-                  and 181-line gameplay components in both visible orders: score
-                  above gameplay and score below it. Use machine-readable 181 and
-                  11 scanline constants to account for the complete 192-line
-                  visible region with no hidden remainder. Keep the distinct 192-
-                  line gameplay profile scoreless. Include at least one static
-                  scene and one motion scene so ordering is
-                  proved without weakening horizontal-position, per-row-color,
-                  or next-frame update behavior.
+                  Add editable application examples which compose complete score
+                  and gameplay components in both visible orders: score above
+                  gameplay and score below it. The previously selected 181+11 split
+                  is provisional, not a sacred interface: the two components must
+                  consume exactly 192 visible scanlines in total, but a score kernel
+                  that needs 12, 13, or another measured count to establish its own
+                  TIA state correctly may take those lines from the scored gameplay
+                  profile. Keep the distinct 192-line gameplay profile scoreless.
+                  Include static and motion scenes so ordering is proved without
+                  weakening horizontal-position, per-row-color, or next-frame
+                  update behavior.
+
+                  IMPORTANT CORRECTNESS GATE (2026-07-25): the existing composition
+                  evidence is not sufficient to claim reusable visible kernels.
+                  The current centered score may be inheriting NUSIZ, reflection,
+                  vertical-delay, HMOVE, and P0/P1 position state from preceding
+                  gameplay, because positioning was established during init rather
+                  than on every draw. The gameplay kernels also visibly appear to
+                  render an incorrect first scanline on some playfield rows. Freeze
+                  new display-kernel work and do not retire the predecessor profiles
+                  until task 22i4b repairs and pixel-proves the components already
+                  present. Completed 181+11 tests remain useful historical evidence,
+                  but they are not the final composition contract.
 
                   Put exact expected cartridges under `test/fixtures/`, not under
                   `examples/`. Emulator regressions must verify both draw orders,
@@ -1409,26 +1423,152 @@ The first unfinished item is the default next action.
                                          scoreless player-color component.
                               [x] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
-                  [ ] 22i4. Replace the maintained gameplay examples with the
-                              lifecycle components, add explicit score-above and
-                              score-below examples, add a final two-axis motion
-                              example, then retire the two monolithic profiles only
-                              after source, installed-toolchain, map, timing, raster,
-                              stack, collision, opcode, and linked-byte evidence is
-                              complete.
+                  [ ] 22i4. Validate and repair the existing component family,
+                              replace the maintained gameplay examples with genuinely
+                              self-contained compositions, and only then retire the
+                              two monolithic predecessors. Source/install/map/frame
+                              checks alone are not enough: final evidence must include
+                              pixel-accurate raster, entry/exit-cycle, TIA-state,
+                              stack, collision, opcode, multiple-instance, and linked-
+                              byte contracts.
+
                               [x] 22i4a. Migrate examples 05 through 08 from the
-                                         monoliths to the proven official 181-line
-                                         components: score above for the static
-                                         examples and score below for the motion
-                                         examples. Add example 09 using the official
-                                         192-line all-five component with simultaneous
-                                         P0 X/Y motion. Build all nine editable
-                                         examples from the source and staged installed
-                                         toolchains.
-                              [ ] 22i4b. Retire the two installed predecessor
-                                         monolithic profiles while preserving only
-                                         the private oracle material still required
-                                         by regression tests.
+                                         monoliths to the nominal official 181-line
+                                         components and add example 09 using the
+                                         official 192-line all-five component with
+                                         simultaneous P0 X/Y motion. Treat examples
+                                         05 through 08 as provisional until 22i4b:
+                                         their moving score raster may currently be
+                                         accidental inheritance of gameplay NUSIZ
+                                         and P0/P1 position state, not a valid score-
+                                         component feature.
+
+                              [ ] 22i4b. STOP-SHIP correctness gate for every visible
+                                         component already present. This work is next.
+                                         Do not begin tasks 23 through 25 and do not
+                                         retire either predecessor until all 22i4b
+                                         substeps pass from both source and staged
+                                         installed toolchains.
+
+                                         [ ] 22i4b1. Add a pixel-accurate TIA raster
+                                                    oracle for playfield and player
+                                                    output, not merely register-write
+                                                    counts. Reproduce and fix the bad
+                                                    first scanline at gameplay-row
+                                                    transitions in every official 181-
+                                                    and 192-line all-five/player-color
+                                                    component, then propagate only
+                                                    cycle/raster-equivalent corrections
+                                                    to the unofficial twins. Lock every
+                                                    intended playfield pixel across all
+                                                    rows and especially each first row
+                                                    scanline.
+
+                                         [ ] 22i4b2. Define and publish a measured
+                                                    visible-component handoff contract.
+                                                    For each draw routine record its
+                                                    required entry cycle/range, exact
+                                                    exit cycle/range, complete and any
+                                                    partial scanlines consumed, whether
+                                                    it executes the terminal WSYNC,
+                                                    whether the following component may
+                                                    use the tail of the boundary line,
+                                                    whether it performs HMOVE, and every
+                                                    TIA register required, established,
+                                                    clobbered, or guaranteed on exit.
+                                                    Prefer simple whole-line ownership,
+                                                    but permit a shared boundary line or
+                                                    explicit transition routine when
+                                                    emulator measurements show it is
+                                                    necessary. Never force a terminal
+                                                    `sta WSYNC` merely by convention.
+
+                                         [ ] 22i4b3. Repair the centered six-glyph
+                                                    score so every draw is independent
+                                                    of arbitrary incoming TIA state.
+                                                    `init()` initializes instance RAM;
+                                                    it must not rely on persistent TIA
+                                                    positioning. Each draw must establish
+                                                    the NUSIZ, REFP, VDELP, COLUP, RESP,
+                                                    HMP/HMOVE, GRP, and other player
+                                                    state its raster requires. Test from
+                                                    deliberately hostile incoming state
+                                                    and after each gameplay family. If
+                                                    correct self-positioning consumes
+                                                    more than eleven scanlines, publish
+                                                    the measured score height and reduce
+                                                    the scored gameplay profile so the
+                                                    pair still totals exactly 192. A
+                                                    working raster outranks preservation
+                                                    of the historical eleven-line count.
+
+                                         [ ] 22i4b4. Prove repeatable-template
+                                                    composition rather than accidental
+                                                    global TIA state. A complete big
+                                                    gameplay kernel remains indivisible;
+                                                    do not add pause/resume or split-draw
+                                                    APIs. Prove the centered score above
+                                                    and below every score-composable big
+                                                    kernel, alone at arbitrary vertical
+                                                    positions surrounded by blank lines,
+                                                    twice or more in one cartridge, and
+                                                    in both instance orders with distinct
+                                                    values. Compare exact pixels and
+                                                    boundary cycles, and require identical
+                                                    score raster after hostile state,
+                                                    gameplay, or another score instance.
+
+                                         [ ] 22i4b5. Only after the existing centered
+                                                    score and big kernels pass 22i4b1-
+                                                    22i4b4, add the second required short
+                                                    score type: two digits on the left and
+                                                    two digits on the right. It must own
+                                                    instance-configurable values, colors,
+                                                    and horizontal positions and establish
+                                                    all required TIA state on every draw.
+                                                    Static examples keep the two fields at
+                                                    fixed top positions; motion examples
+                                                    move the bottom fields explicitly from
+                                                    score-instance position variables, not
+                                                    by inheriting gameplay positions.
+
+                                         [ ] 22i4b6. Build the complete initial
+                                                    composition matrix. For big gameplay
+                                                    compositions, N is the score-composable
+                                                    big-kernel families, M is the two score
+                                                    types (centered six-glyph and left/right
+                                                    two-plus-two), and O is the two legal
+                                                    full-frame orders (top and bottom).
+                                                    Add public examples and automated pixel-
+                                                    accurate fixtures for every N*M*O pair,
+                                                    including static and motion coverage.
+                                                    Separately prove arbitrary vertical
+                                                    placement and two-or-more same/mixed
+                                                    score instances in score-only or other
+                                                    shorter application layouts. Do not
+                                                    split a big gameplay kernel to insert a
+                                                    score in its middle.
+
+                              [ ] 22i4c. Re-evaluate and repair examples 03 through
+                                         09 against the completed contracts. Examples
+                                         03 and 04 retain centered six-glyph displays;
+                                         examples 05 and 07 show fixed left/right two-
+                                         plus-two scores at the top; examples 06 and
+                                         08 show explicit moving left/right two-plus-
+                                         two scores at the bottom; example 09 remains
+                                         the scoreless full-height X/Y-motion example.
+                                         Add additional canonical examples needed to
+                                         expose every remaining N*M*O combination.
+
+                              [ ] 22i4d. Retire the two installed predecessor
+                                         monolithic profiles only after the entire
+                                         22i4b/22i4c gate passes, while preserving
+                                         private oracle material still required by
+                                         regression tests.
+
+# BLOCKED: tasks 23 through 25 must not begin until the 22i4b correctness gate
+# and 22i4c example matrix are complete. Existing visible kernels and handoff
+# contracts take priority over creating additional display variants.
 
 [ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
@@ -4811,3 +4951,34 @@ Before returning another modified archive:
 * Updated the editable example, private golden fixture, README, and source-level
   regression. Focused Ode, fingerprint, six-glyph, all-five timing, and source
   hygiene tests pass.
+
+2026-07-25 16:40:00 PDT, freeze new kernels for visible-component correctness gate
+-------------------------------------------------------------------------------
+* Capture the corrected composition model. Big gameplay kernels remain complete,
+  indivisible draw components; arbitrary vertical placement means arranging short
+  score components among blank lines or other complete components, not pausing and
+  resuming a gameplay kernel. Repeatable templates must support two or more score
+  instances with independent state and both same-type and mixed-type composition.
+* Reopen the existing score/gameplay evidence as provisional. The centered six-
+  glyph component may inherit NUSIZ, reflection, vertical-delay, HMOVE, and P0/P1
+  positions because its persistent TIA setup occurs in init rather than every draw.
+  Examples with moving digits therefore do not yet prove a moving score kernel.
+* Make pixel-accurate row-boundary repair the first implementation task. Reproduce
+  and fix the visibly wrong first scanline on some playfield rows across all current
+  official gameplay components, propagate only proven equivalent corrections to
+  unofficial twins, and test rendered pixels rather than only register-write counts.
+* Require a measured component handoff contract: entry/exit cycle, complete/partial
+  line consumption, terminal-WSYNC ownership, possible shared boundary-line setup,
+  HMOVE use, and all TIA requirements/clobbers. Eleven score lines and 181 gameplay
+  lines are provisional; if a correct self-positioning score needs a different
+  height, shrink the scored gameplay profile so the pair still totals 192.
+* Require the centered six-glyph score to establish all of its own TIA state on
+  every draw from deliberately hostile incoming state. Prove top/bottom gameplay
+  composition, arbitrary score-only placement, and two-or-more independent score
+  instances before adding the requested left/right two-plus-two score kernel.
+* After the existing components work correctly, add the two-digits-left plus two-
+  digits-right score and the complete N*M*O public/example regression matrix. Big-
+  kernel O is top or bottom; arbitrary vertical placement and multiple score
+  instances are proved separately without splitting gameplay. Freeze tasks 23-25
+  and predecessor retirement until this stop-ship gate and corrected examples pass.
+
