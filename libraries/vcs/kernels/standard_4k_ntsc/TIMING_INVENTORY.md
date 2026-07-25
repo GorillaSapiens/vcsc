@@ -26,8 +26,10 @@ score table.  These addresses are observations, not new ABI guarantees.
 Inventory summary
 -----------------
 
-The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 34 explicit padding sites, four alignment directives,
-and no source-level unofficial-opcode sites.
+The current source contains 28 relative branches, 35 indexed reads, 11 indexed indirect pointer reads, 18 explicit padding sites, five alignment directives,
+and no source-level unofficial-opcode sites. The page-tail positioning pad is now one
+fill-byte `.align` directive instead of sixteen conditional `NOP` source sites;
+the emitted bytes and positioning timing are unchanged.
 
 Task 20o originally classified the retained forms and locked their bytes and
 cycles. After task 20r removed the final source sites and task 20s added the

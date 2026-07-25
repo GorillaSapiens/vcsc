@@ -55,6 +55,21 @@ sub run_asm {
    return ($? >> 8, slurp($out), slurp($err), $hex, join(' ', @cmd));
 }
 
+
+sub run_tool {
+   my ($out, $err, @cmd) = @_;
+   my $pid = fork();
+   die "fork failed: $!\n" if !defined($pid);
+   if ($pid == 0) {
+      open(STDOUT, '>', $out) or die "open stdout failed: $!\n";
+      open(STDERR, '>', $err) or die "open stderr failed: $!\n";
+      exec @cmd;
+      die "exec failed: $!\n";
+   }
+   waitpid($pid, 0);
+   return ($? >> 8, $? & 127, slurp($out), slurp($err));
+}
+
 sub parse_ihex {
    my ($path) = @_;
    my %mem;
@@ -88,7 +103,7 @@ middle:
 .word middle
 .align 1
 .byte $CC
-.align 16, 5
+.align 16, 5, $EA
 offset_label:
 .byte $DD
 .word offset_label
@@ -108,11 +123,11 @@ my @expect = (
    [ 0x8005, 0x04 ],
    [ 0x8006, 0x80 ],
    [ 0x8007, 0xCC ],
-   [ 0x8008, 0x00 ], [ 0x8009, 0x00 ], [ 0x800A, 0x00 ],
-   [ 0x800B, 0x00 ], [ 0x800C, 0x00 ], [ 0x800D, 0x00 ],
-   [ 0x800E, 0x00 ], [ 0x800F, 0x00 ], [ 0x8010, 0x00 ],
-   [ 0x8011, 0x00 ], [ 0x8012, 0x00 ], [ 0x8013, 0x00 ],
-   [ 0x8014, 0x00 ],
+   [ 0x8008, 0xEA ], [ 0x8009, 0xEA ], [ 0x800A, 0xEA ],
+   [ 0x800B, 0xEA ], [ 0x800C, 0xEA ], [ 0x800D, 0xEA ],
+   [ 0x800E, 0xEA ], [ 0x800F, 0xEA ], [ 0x8010, 0xEA ],
+   [ 0x8011, 0xEA ], [ 0x8012, 0xEA ], [ 0x8013, 0xEA ],
+   [ 0x8014, 0xEA ],
    [ 0x8015, 0xDD ], [ 0x8016, 0x15 ], [ 0x8017, 0x80 ],
 );
 
@@ -123,11 +138,45 @@ for my $pair (@expect) {
    die sprintf("address %04X got %02X expected %02X\n", $addr, $got, $want) if $got != $want;
 }
 
+# Exercise the separate relocatable-object writer as well as direct image output.
+my $ld = File::Spec->catfile($repo, 'linker', 'vcsc-ld');
+my $cfg = File::Spec->catfile($repo, 'test', 'generic_6502.cfg');
+my $obj_src = File::Spec->catfile($tmp, 'align_fill_o26.s26');
+my $obj = File::Spec->catfile($tmp, 'align_fill_o26.o26');
+my $bin = File::Spec->catfile($tmp, 'align_fill_o26.bin');
+my $obj_out = File::Spec->catfile($tmp, 'align_fill_o26.out');
+my $obj_err = File::Spec->catfile($tmp, 'align_fill_o26.err');
+my $link_out = File::Spec->catfile($tmp, 'align_fill_link.out');
+my $link_err = File::Spec->catfile($tmp, 'align_fill_link.err');
+write_file($obj_src, <<'ASM');
+.segment "CODE"
+.export __reset
+.export __nmi
+.export __irq
+.export __irqbrk
+__nmi:
+__irq:
+__irqbrk:
+__reset:
+.byte $11
+.align 16, 5, $EA
+.byte $22
+ASM
+my ($obj_exit, $obj_sig, undef, $obj_stderr) = run_tool($obj_out, $obj_err, $asm, '-o', $obj, $obj_src);
+$obj_exit == 0 && !$obj_sig or die "fill-byte o26 assembly failed\n$obj_stderr";
+my ($link_exit, $link_sig, undef, $link_stderr) = run_tool($link_out, $link_err, $ld, '-T', $cfg, '-o', $bin, $obj);
+$link_exit == 0 && !$link_sig or die "fill-byte o26 link failed\n$link_stderr";
+my $linked = slurp($bin);
+substr($linked, 0, 6) eq pack('C*', 0x11, 0xEA, 0xEA, 0xEA, 0xEA, 0x22)
+   or die "o26 fill-byte alignment did not survive linking\n";
+
 my @bad = (
    [ align_zero => ".align 0\n", '.align requires a positive boundary' ],
-   [ align_extra_arg => ".align 4, 0, 1\n", '.align expects one or two expressions' ],
+   [ align_extra_arg => ".align 4, 0, 1, 2\n", '.align expects one, two, or three expressions' ],
    [ align_negative_offset => ".align 4, -1\n", '.align offset must be from zero through boundary minus one' ],
    [ align_large_offset => ".align 4, 4\n", '.align offset must be from zero through boundary minus one' ],
+   [ align_negative_fill => ".align 4, 0, -1\n", '.align fill byte must be from zero through 255' ],
+   [ align_large_fill => ".align 4, 0, 256\n", '.align fill byte must be from zero through 255' ],
 );
 
 for my $case (@bad) {

@@ -1237,11 +1237,12 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             const expr_list_node_t *args = stmt->u.dir->exprs;
             long boundary;
             long offset = 0;
+            long fill = 0;
             long count;
             const o26_segment_layout_t *layout;
 
-            if (!args || (args->next && args->next->next)) {
-               writer_error(wr->ctx, stmt, ".align expects one or two expressions");
+            if (!args || (args->next && args->next->next && args->next->next->next)) {
+               writer_error(wr->ctx, stmt, ".align expects one, two, or three expressions");
                return 0;
             }
             if (expr_eval(args->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &boundary) != EXPR_EVAL_OK || boundary <= 0) {
@@ -1252,8 +1253,17 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                writer_error(wr->ctx, stmt, "invalid .align offset in o26 output");
                return 0;
             }
+            if (args->next && args->next->next &&
+                expr_eval(args->next->next->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &fill) != EXPR_EVAL_OK) {
+               writer_error(wr->ctx, stmt, "invalid .align fill byte in o26 output");
+               return 0;
+            }
             if (offset < 0 || offset >= boundary) {
                writer_error(wr->ctx, stmt, ".align offset must be from zero through boundary minus one");
+               return 0;
+            }
+            if (fill < 0 || fill > 0xff) {
+               writer_error(wr->ctx, stmt, ".align fill byte must be from zero through 255");
                return 0;
             }
             count = align_padding_for_address(stmt->address, boundary, offset);
@@ -1261,7 +1271,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             if (segid == O26_SEG_ZP && (!layout || layout->image_segid != O26_SEG_DATA))
                return 1;
             while (count-- > 0) {
-               if (!buf_write_byte(buf, off++, 0)) {
+               if (!buf_write_byte(buf, off++, (unsigned char)fill)) {
                   writer_error(wr->ctx, stmt, "failed to write .align padding");
                   return 0;
                }

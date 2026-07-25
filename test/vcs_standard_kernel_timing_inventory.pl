@@ -37,7 +37,7 @@ for my $row (@rows) {
    length($f[5]) or die "inventory row has no purpose: $row\n";
 }
 my %want_kind=(relative_branch=>28,indexed_read=>35,indirect_pointer=>11,
-               padding=>34,alignment=>4,segment=>4,unofficial_opcode=>0);
+               padding=>18,alignment=>5,segment=>4,unofficial_opcode=>0);
 for my $name (sort keys %want_kind) {
    ($kind{$name}//0)==$want_kind{$name}
       or die "$name inventory count changed: got ".($kind{$name}//0).", expected $want_kind{$name}\n";

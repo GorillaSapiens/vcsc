@@ -394,16 +394,10 @@ sub translate_source_set {
          $end =~ /^\s*repend\s*$/i
             or die "retained source:$end_no: expected REPEND after page-tail repeat\n";
 
-         # vcsc-as expands .repeat before layout, so a repeat count based on the
-         # current address cannot resolve there.  The retained range can require
-         # at most 16 one-byte NOPs ($EA..$F9 -> $FA); spell those candidates out
-         # as layout-time conditions without changing the resulting bytes.
-         push @translated, '   ; Explicit layout-time equivalent of REPEAT ($fa-(<*)).';
-         for (1 .. 16) {
-            push @translated, '   .if {<*} < $fa';
-            push @translated, '      NOP';
-            push @translated, '   .endif';
-         }
+         # Keep the retained guard, but express its page-tail NOP fill directly.
+         # The setup following this directive is six bytes, so its loop begins at
+         # the next page boundary without sixteen hand-expanded conditional slots.
+         push @translated, '   .align 256, $fa, $ea';
          $i += 2;
          next;
       }

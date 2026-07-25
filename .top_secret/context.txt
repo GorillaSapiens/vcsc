@@ -3767,3 +3767,29 @@ Before returning another modified archive:
   source inline assembly. Pass 290/290 compile-only tests, 160/160 end-to-end/
   generic tests, and staged installation. No roadmap item is advanced; task 22
   remains next.
+
+2026-07-24 17:53:28 PDT, add fill-byte alignment and retire page-tail padding sludge
+-----------------------------------------------------------------------------------
+* Extend `vcsc-as` `.align` from one/two operands to
+  `.align boundary, offset, fill`. The optional fill expression defaults to
+  zero and must fit one byte. Apply the selected fill in both direct image
+  emission and relocatable o26 object output; keep the existing boundary and
+  offset semantics unchanged.
+* Expand `assembler_align_directive.test` to prove default-zero padding,
+  nonzero `$EA` padding, invalid fill rejection, and preservation of the fill
+  bytes through o26 assembly and linking. Document the third operand and its
+  page-tail NOP use in `assembler/README.md`.
+* Replace the standard and player-color kernels' sixteen hand-expanded
+  conditional `NOP` slots with the retained outer layout guard plus one
+  `.align 256, $FA, $EA`. Update the standard normalizer so regenerated
+  profiles cannot restore the sludge, and strengthen normalization coverage to
+  require the new form and reject the old form.
+* Regenerate the timing inventory: the source-level count changes from 34
+  padding sites/four alignments to 18 padding sites/five alignments, while the
+  emitted horizontal-positioning bytes and timing remain covered by the static,
+  motion, pairwise, legal-schedule, and player-color regressions. Independently
+  rebuild the standard static and player-color static fixtures with the old
+  hand-expanded kernels and the new fill-aligned kernels; each old/new 4K ROM
+  pair is byte-for-byte identical. Pass 290/290 compile-only tests, 160/160
+  end-to-end/generic tests, and staged installation. No roadmap item is
+  advanced; task 22 remains next.

@@ -1418,8 +1418,8 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                long offset = 0;
                long count;
 
-               if (!args || (args->next && args->next->next)) {
-                  asm_error(ctx, stmt, ".align expects one or two expressions");
+               if (!args || (args->next && args->next->next && args->next->next->next)) {
+                  asm_error(ctx, stmt, ".align expects one, two, or three expressions");
                   break;
                }
 
@@ -1803,17 +1803,21 @@ static int directive_emit_pass2(asm_context_t *ctx,
       const expr_list_node_t *args = dir->exprs;
       long boundary;
       long offset = 0;
+      long fill = 0;
       long count;
       long i;
 
-      if (!args || (args->next && args->next->next)) {
-         asm_error(ctx, stmt, ".align expects one or two expressions");
+      if (!args || (args->next && args->next->next && args->next->next->next)) {
+         asm_error(ctx, stmt, ".align expects one, two, or three expressions");
          return -1;
       }
 
       if (eval_or_report(ctx, args->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &boundary, stmt))
          return -1;
       if (args->next && eval_or_report(ctx, args->next->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &offset, stmt))
+         return -1;
+      if (args->next && args->next->next &&
+          eval_or_report(ctx, args->next->next->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &fill, stmt))
          return -1;
 
       if (boundary <= 0) {
@@ -1824,13 +1828,17 @@ static int directive_emit_pass2(asm_context_t *ctx,
          asm_error(ctx, stmt, ".align offset must be from zero through boundary minus one");
          return -1;
       }
+      if (fill < 0 || fill > 0xff) {
+         asm_error(ctx, stmt, ".align fill byte must be from zero through 255");
+         return -1;
+      }
 
       count = align_padding_for_address(logical_pc, boundary, offset);
       for (i = 0; i < count; i++) {
-         if (!emit_byte(ctx, pc, 0x00, stmt))
+         if (!emit_byte(ctx, pc, (unsigned char)fill, stmt))
             return -1;
          if (rec_count < (int)sizeof(rec))
-            rec[rec_count++] = 0x00;
+            rec[rec_count++] = (unsigned char)fill;
          pc++;
          logical_pc++;
       }

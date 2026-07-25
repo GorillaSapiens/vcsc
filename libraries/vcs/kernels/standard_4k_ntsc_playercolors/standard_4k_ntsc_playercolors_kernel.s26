@@ -125,55 +125,7 @@ __sbpmeta$E$vcs_standard_color_kernel_drawscreen$vcs_standard_color_overscan_hoo
 
 
    .if {<*} > $e9 && {<*} < $fa
-   ; Explicit layout-time equivalent of REPEAT ($fa-(<*)).
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
-   .if {<*} < $fa
-      NOP
-   .endif
+   .align 256, $fa, $ea
    .endif
      sta WSYNC
      ldx #4

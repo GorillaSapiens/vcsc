@@ -561,7 +561,7 @@ The conditional directive family is:
 
 ### Alignment directive
 
-`.align boundary` advances the current segment address to the next multiple of `boundary` and emits zero padding for the skipped bytes. `.align boundary, offset` instead advances until `address % boundary == offset`; `offset` must be from zero through `boundary - 1`. The boundary must be positive, and `.align 1` is accepted as a no-op.
+`.align boundary` advances the current segment address to the next multiple of `boundary` and emits zero padding for the skipped bytes. `.align boundary, offset` instead advances until `address % boundary == offset`; `offset` must be from zero through `boundary - 1`. An optional third expression, `.align boundary, offset, fill`, selects the byte emitted for padding instead of zero; `fill` must be from 0 through 255. The boundary must be positive, and `.align 1` is accepted as a no-op.
 
 ```asm
 .segmentdef "CODE", $8000, $0200
@@ -575,6 +575,11 @@ next:
 .align 256, $54
 timing_table:
 .byte $CC        ; timing_table is $8054
+
+; Place setup six bytes before a page boundary and make the skipped bytes NOPs.
+.align 256, $FA, $EA
+position_setup:
+sta WSYNC        ; if the setup is six bytes, the following loop begins at xx00
 ```
 
 In o26 object output, `.align` pads within the current packed segment. Final absolute alignment depends on where the linker places that segment; use linker segment alignment too when the segment base itself has an absolute alignment contract.

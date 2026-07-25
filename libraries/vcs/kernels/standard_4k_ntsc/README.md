@@ -73,8 +73,9 @@ to the module symbols, converts forced `.w` addressing to `.a`/`.ax`/`.ay`,
 replaces the selected profile's final `ASR`, `SBX`, and odd-delay `NOP.z` sites
 with scheduled legal instructions, preserves the two retained code-page guards,
 and adds an explicit page boundary before the score table. DASM's address-dependent page-tail `REPEAT` cannot use
-`vcsc-as`'s pre-layout `.repeat`; the normalizer emits sixteen conditional NOP
-slots that produce the same zero-to-sixteen byte pad to low byte `$FA`.
+`vcsc-as`'s pre-layout `.repeat`; the normalizer emits a guarded
+`.align 256, $FA, $EA`, which produces the same zero-to-sixteen bytes of NOP
+padding to low byte `$FA` without hand-expanded conditional slots.
 Retained comments are copied without symbol rewriting.
 
 The historical unofficial forms and their task-20r legal replacements are

@@ -100,7 +100,7 @@ $active !~ /^\s*(?:ASR|ALR|SBX|AXS|NOP\.z)\b/im
 require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;
-$aligns == 4 or die "selected source has $aligns page alignments, expected four\n";
+$aligns == 5 or die "selected source has $aligns page alignments, expected five\n";
 require_re($config_text,qr/^\s*KERNEL_CODE:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
    'kernel code segment is not page-aligned by the linker profile');
 require_re($config_text,qr/^\s*KERNEL_RODATA:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
@@ -140,9 +140,10 @@ require_re($active,qr/txa\s+adc\s+#4\s+tax\s+cpx\s+#44\s+bcs\s+\@lastkernelline/
    'zero-based playfield loop does not use the legal carry-clear ADC/TAX advance');
 require_re($active,qr/bcs\s+\@lastkernelline.*?SLEEP 3.*?\@lastkernelline:\s+SLEEP 6/s,
    'legal row-advance transition padding changed');
-my $page_tail_tests=()=$active =~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/mg;
-$page_tail_tests == 16
-   or die "page-tail normalization has $page_tail_tests conditional NOP slots, expected 16\n";
+require_re($active,qr/^\s*\.if\s+\{<\*\}\s*>\s*\$e9\s*&&\s*\{<\*\}\s*<\s*\$fa\s*\n\s*\.align\s+256\s*,\s*\$fa\s*,\s*\$ea\s*\n\s*\.endif/m,
+   'page-tail NOP fill is not expressed by the guarded fill-byte alignment');
+$active !~ /^\s*\.if\s+\{<\*\}\s*<\s*\$fa\s*$/m
+   or die "old hand-expanded page-tail conditional NOP sludge remains\n";
 require_re($active,qr/^\.import\s+vcs_standard_playfield$/m,
    'application-provided playfield is not imported directly');
 require_re($active,qr/^\.import\s+vcs_standard_overscan_hook$/m,
