@@ -53,6 +53,14 @@ bool has_flag(const char *type, const char *flag);
 bool has_flag_prefix(const char *type, const char *prefix);
 const char *enum_backing_type_name(const char *type);
 bool has_modifier(ASTNode *node, const char *modifier);
+typedef enum DeclarationUseContract {
+   DECL_USE_CONTRACT_NONE = 0,
+   DECL_USE_CONTRACT_RECOMMEND = 1,
+   DECL_USE_CONTRACT_REQUIRE = 2
+} DeclarationUseContract;
+
+DeclarationUseContract declaration_use_contract(const ASTNode *modifiers);
+bool declaration_has_use_contract(const ASTNode *modifiers);
 bool declaration_const_applies_to_object(const ASTNode *modifiers, const ASTNode *declarator);
 int get_size(const char *type);
 int type_size_from_node(const ASTNode *type);

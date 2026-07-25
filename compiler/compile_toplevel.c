@@ -539,9 +539,27 @@ void compile_enum_decl_stmt(ASTNode *node) {
    }
 }
 
+//! @brief Reject file-scope use contracts on aggregate members.
+static void validate_aggregate_member_use_contracts(const ASTNode *node) {
+   for (int i = 1; node && i < node->count; i++) {
+      const ASTNode *member = node->children[i];
+      const ASTNode *modifiers = (member && member->count > 0) ? member->children[0] : NULL;
+      const ASTNode *declarator = (member && member->count > 2) ? member->children[2] : NULL;
+      const char *name;
+      if (!declaration_has_use_contract(modifiers)) {
+         continue;
+      }
+      name = declarator ? declarator_name(declarator) : NULL;
+      error_user("[%s:%d.%d] aggregate member '%s' cannot use '%s'; use contracts apply only to file-scope objects and functions",
+                 member->file, member->line, member->column, name ? name : "?",
+                 declaration_use_contract(modifiers) == DECL_USE_CONTRACT_REQUIRE ? "require" : "recommend");
+   }
+}
+
 //! @brief Lower struct decl stmt from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_struct_decl_stmt(ASTNode *node) {
    const char *key = node->children[0]->strval;
+   validate_aggregate_member_use_contracts(node);
    attach_typename(key, node);
 
 }
@@ -549,6 +567,7 @@ void compile_struct_decl_stmt(ASTNode *node) {
 //! @brief Lower union decl stmt from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_union_decl_stmt(ASTNode *node) {
    const char *key = node->children[0]->strval;
+   validate_aggregate_member_use_contracts(node);
    attach_typename(key, node);
 
 }

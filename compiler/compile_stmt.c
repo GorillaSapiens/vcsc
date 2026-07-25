@@ -631,6 +631,11 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
    validate_nonreserved_implementation_name(name, node);
+   if (declaration_has_use_contract(modifiers)) {
+      error_user("[%s:%d.%d] local object '%s' cannot use '%s'; use contracts apply only to file-scope objects and functions",
+                 node->file, node->line, node->column, name,
+                 declaration_use_contract(modifiers) == DECL_USE_CONTRACT_REQUIRE ? "require" : "recommend");
+   }
    if (has_modifier(modifiers, "page")) {
       error_user("[%s:%d.%d] 'page' currently applies only to file-scope data-object definitions",
                  node->file, node->line, node->column);

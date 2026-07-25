@@ -1,0 +1,23 @@
+// vcsc-cc1 -I .
+
+include "machine_6502.c26"
+
+require uint8_t required_object;
+recommend uint8_t recommended_object;
+require recommend uint8_t require_dominates_object;
+
+recommend void merged_function(void);
+require void merged_function(void);
+void merged_function(void) {
+}
+
+require inline void required_inline(void) {
+}
+recommend inline void recommended_inline(void) {
+}
+
+void main(void) {
+   required_inline();
+   recommended_inline();
+   merged_function();
+}

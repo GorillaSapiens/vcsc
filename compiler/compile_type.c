@@ -919,6 +919,22 @@ bool has_modifier(ASTNode *node, const char *modifier) {
    return false;
 }
 
+//! @brief Return the strongest file-scope use contract attached to a declaration.
+DeclarationUseContract declaration_use_contract(const ASTNode *modifiers) {
+   if (has_modifier((ASTNode *)modifiers, "require")) {
+      return DECL_USE_CONTRACT_REQUIRE;
+   }
+   if (has_modifier((ASTNode *)modifiers, "recommend")) {
+      return DECL_USE_CONTRACT_RECOMMEND;
+   }
+   return DECL_USE_CONTRACT_NONE;
+}
+
+//! @brief Return whether a declaration carries either link-time use contract.
+bool declaration_has_use_contract(const ASTNode *modifiers) {
+   return declaration_use_contract(modifiers) != DECL_USE_CONTRACT_NONE;
+}
+
 //! @brief Handle declaration const applies to object logic for compiler type system.
 bool declaration_const_applies_to_object(const ASTNode *modifiers, const ASTNode *declarator) {
    if (!has_modifier((ASTNode *) modifiers, "const")) {

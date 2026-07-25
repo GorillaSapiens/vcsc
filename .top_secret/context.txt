@@ -1107,6 +1107,17 @@ The first unfinished item is the default next action.
                   for objects and functions. Define compatible declaration
                   merging, make `require` dominate `recommend`, and reject use on
                   locals, parameters, members, typedefs, enums, and labels.
+
+                  [x] 22a1. Reserve both keywords, parse them as declaration
+                            modifiers, accept them on file-scope objects and
+                            functions (including inline definitions), define one
+                            normalized strength query where `require` dominates
+                            `recommend`, and reject local objects, parameters,
+                            aggregate members, typedef/enum positions, and labels.
+                  [ ] 22a2. Merge compatible repeated object and function
+                            declarations while retaining the strongest contract
+                            and its diagnostic source location. Preserve ordinary
+                            duplicate-definition and incompatible-signature errors.
         [ ] 22b. Preserve declaration contracts, canonical types/signatures,
                   owner identity, source locations, and template invocation
                   locations in o26 metadata. Add semantic use records for calls,
@@ -1286,6 +1297,24 @@ The first unfinished item is the default next action.
         Cover multi-return control flow, nested one-call chains, exact ROM-size
         wins/losses, and stack-depth reduction; retain the separate function when
         measurement shows that inlining grows the image.
+
+[ ] 32. Add native PAL support as a separate video-standard family rather than
+        parameterizing NTSC code with scattered conditionals. Define PAL machine
+        bindings and color constants, a `frame_pal.c26` scheduler with measured
+        VSYNC/VBLANK/visible/overscan phase accounting, PAL-specific sound/timing
+        helpers where the hardware clock changes behavior, linker/profile naming,
+        examples, installed files, and emulator-backed frame/raster/audio tests.
+        Port reusable components only after their timing and palette contracts can
+        be stated independently of NTSC; keep NTSC output byte-for-byte stable.
+
+[ ] 33. Add native SECAM support after PAL scheduling is stable. Treat SECAM as
+        its own display profile with explicit legal color mapping and component
+        palette restrictions rather than pretending PAL color values are portable.
+        Provide `frame_secam.c26`, target bindings/constants, diagnostics for colors
+        or effects the profile cannot represent faithfully, representative examples,
+        installation coverage, and emulator-backed frame/raster tests. Document
+        which kernels/components are portable unchanged, require a SECAM palette,
+        or are intentionally unavailable.
 
 Inline assembly absolute-ref rules
 ----------------------------------
@@ -3978,3 +4007,23 @@ Before returning another modified archive:
   emulator coverage for partial-budget, exact-boundary, and overrun cases.
 * Roadmap/documentation update only; no compiler, linker, assembler, runtime,
   kernel, example, build, or test implementation changes.
+
+2026-07-24 19:19:28 PDT, begin use-contract syntax and add PAL/SECAM roadmap
+----------------------------------------------------------------------------
+* Append native PAL and SECAM support as roadmap tasks 32 and 33. Keep each as a
+  separate video-standard family with its own frame scheduler, target bindings,
+  palette/timing contracts, examples, installation coverage, and emulator-backed
+  verification; PAL must not disturb NTSC, and SECAM must expose its restricted
+  color model explicitly rather than treating PAL colors as portable.
+* Complete task 22a1 as a clean compiler slice. Reserve `require` and `recommend`,
+  accept them as file-scope object/function declaration modifiers, and add a
+  normalized contract-strength query where `require` dominates `recommend` when
+  both appear. No o26 metadata or linker enforcement is emitted yet.
+* Reject use contracts on local objects, parameters, aggregate members, typedef/
+  enum positions, and labels. Add positive coverage for ordinary and inline
+  functions, objects, combined modifiers, and compatible repeated function
+  declarations, plus focused negative regressions for every forbidden context.
+* Leave task 22a open at 22a2: compatible repeated object/function declarations
+  still need to retain the strongest contract and diagnostic location before o26
+  metadata work begins. Pass 297/297 compile-only tests and 160/160 end-to-end/
+  generic tests.

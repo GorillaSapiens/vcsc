@@ -97,7 +97,9 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token OR
 %token OR_ASSIGN
 %token PAGE
+%token RECOMMEND
 %token REF
+%token REQUIRE
 %token RETURN
 %token RSHIFT
 %token RSHIFT_ASSIGN
@@ -356,7 +358,9 @@ modifier:
   | EXTERN                                   { COVER; $$ = make_identifier_leaf("extern"); }
   | INLINE                                   { COVER; $$ = make_identifier_leaf("inline"); }
   | PAGE                                     { COVER; $$ = make_identifier_leaf("page"); }
+  | RECOMMEND                                { COVER; $$ = make_identifier_leaf("recommend"); }
   | REF                                      { COVER; $$ = make_identifier_leaf("ref"); }
+  | REQUIRE                                  { COVER; $$ = make_identifier_leaf("require"); }
   | STATIC                                   { COVER; $$ = make_identifier_leaf("static"); }
   | MEMNAME                                  { COVER; $$ = make_identifier_leaf($1); }
   ;

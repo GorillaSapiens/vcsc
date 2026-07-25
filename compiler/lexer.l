@@ -1803,7 +1803,9 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "include"       return INCLUDE;
 "mem"           return MEM;
 "page"          return PAGE;
+"recommend"     return RECOMMEND;
 "ref"           return REF;
+"require"       return REQUIRE;
 "return"        return RETURN;
 "sizeof"        return SIZEOF;
 "static"        return STATIC;

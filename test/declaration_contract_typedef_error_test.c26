@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: syntax error
+
+include "machine_6502.c26"
+require typedef uint8_t bad_type;
