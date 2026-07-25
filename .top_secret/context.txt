@@ -1393,7 +1393,7 @@ The first unfinished item is the default next action.
                                          reviewed stable/common NMOS forms, prove
                                          exact behavior against the official twin,
                                          and report measured linked ROM savings.
-                  [ ] 22i3. Repeat the explicit 181-line score-composable, 192-
+                  [x] 22i3. Repeat the explicit 181-line score-composable, 192-
                               line scoreless, and matched 181-line unofficial-
                               opcode profile family for P0+P1+BL player colors,
                               including exact per-row colors and both score orders.
@@ -1407,7 +1407,7 @@ The first unfinished item is the default next action.
                                          prove static and asynchronous motion behavior.
                               [x] 22i3c. Add the distinct official-opcode 192-line
                                          scoreless player-color component.
-                              [ ] 22i3d. Add the matched 181-line unofficial-opcode
+                              [x] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
                   [ ] 22i4. Retire the two monolithic profiles only after source,
                               installed-toolchain, map, timing, raster, stack,
@@ -4730,3 +4730,27 @@ Before returning another modified archive:
   lifecycle omission, source-tree, and staged-installed-toolchain evidence.
 * Leave 22i3d next for the matched 181-line unofficial-opcode experiment and
   exact linked-byte comparison.
+
+
+2026-07-25 14:40:00 PDT, complete matched player-color unofficial experiment
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3d and therefore 22i3. Add and install the separately
+  named `kernels/player_color_181_unofficial/player_color_181_unofficial.c26`
+  twin, assembled explicitly with `-Wa,--illegals`.
+* Retain only two reviewed stable/common `AXS #252` substitutions and four
+  stable/common zero-page NOP sites. Reject the other two tempting AXS sites
+  after emulator comparison showed their official flag results were live and
+  the substituted cartridges failed to complete frames.
+* Measure the maintained smoke link at 1422 ROM bytes for both official and
+  unofficial components: zero bytes saved. Lock identical RAM addresses and
+  inspect generated assembly for exactly the reviewed opcode set.
+* Add official/unofficial pairwise visible-TIA and 42-frame timing comparisons
+  for smoke, both static score orders, and both motion score orders. Reuse the
+  static and 320-frame player-color composition oracle for both unofficial
+  score orders, and extend source/staged installation coverage.
+* Leave 22i4 next for monolith retirement only after the complete source,
+  installed-toolchain, map, timing, raster, stack, collision, opcode, and linked-
+  byte evidence gate is satisfied.
+* Pass all 308 compile-only tests and all 180 end-to-end/generic tests
+  across the complete run and final three-test continuation, plus staged
+  installation, branding, and source-tree hygiene.

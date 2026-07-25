@@ -83,3 +83,19 @@ Compensating NOPs preserve every official cycle boundary. The maintained smoke
 cartridge measures 1421 linked ROM bytes for both components: **0 bytes saved**.
 Pairwise static/motion raster tests and the 360-frame motion oracle enforce the
 claimed equivalence.
+
+Completed player-color component byte comparison
+------------------------------------------------
+
+The matched `player_color_181_unofficial` component uses two reviewed
+stable/common `AXS #252` sites and four stable/common zero-page NOP (`$04`)
+sites. Two other candidate `AXS` substitutions were rejected by emulator
+comparison because the official sequences' flag results were live and the
+candidate cartridges failed to complete frames. Compensating NOPs preserve the
+accepted sites' exact cycle boundaries.
+
+The maintained smoke cartridge measures 1422 linked ROM bytes for both the
+official and unofficial components: **0 bytes saved**. Pairwise smoke, static,
+and motion raster/timing tests cover both score orders, and the existing
+320-frame player-color motion oracle enforces full-range P0/P1/Ball behavior,
+per-row colors, and application-state preservation.

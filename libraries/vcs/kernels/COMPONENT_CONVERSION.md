@@ -262,6 +262,23 @@ gameplay and 17-byte score allocations; a gameplay-only map contains no score
 state or font.
 
 
+## Matched unofficial player-color 181-line experiment
+
+`kernels/player_color_181_unofficial/player_color_181_unofficial.c26` is the
+separately named stable/common-NMOS twin of the official score-composable
+player-color component. It keeps the same lifecycle API, exact 13/52/65-byte
+RAM map, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
+score orders, and static/motion fixtures. It must be assembled with
+`-Wa,--illegals`.
+
+Only two `AXS #252` row-mask advance sites and four zero-page unofficial NOP
+sites survived equivalence testing. The other two tempting `AXS` substitutions
+were rejected because they changed live flag behavior and prevented complete
+frames. Compensating official NOPs retain every accepted site's cycle boundary.
+The maintained smoke cartridges measure 1422 linked ROM bytes for both official
+and unofficial components: **0 bytes saved**. Five pairwise raster/timing
+comparisons plus the existing 320-frame composition oracle enforce that result.
+
 ## Official player-color 192-line scoreless profile
 
 `kernels/player_color_192/player_color_192.c26` is the distinct full-height

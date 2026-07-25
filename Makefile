@@ -99,6 +99,10 @@ install-data:
 	install -m 0644 libraries/vcs/kernels/player_color_181/README.md \
 	  libraries/vcs/kernels/player_color_181/player_color_181.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial
+	install -m 0644 libraries/vcs/kernels/player_color_181_unofficial/README.md \
+	  libraries/vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192
 	install -m 0644 libraries/vcs/kernels/player_color_192/README.md \
 	  libraries/vcs/kernels/player_color_192/player_color_192.c26 \
@@ -159,6 +163,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/player_color_181.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/player_color_192.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192 2>/dev/null || true
@@ -256,6 +263,13 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181.bin"` -eq 4096; \
+	test -f "$$stage_vcs/kernels/player_color_181_unofficial/README.md"; \
+	test -f "$$stage_vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/fixtures/player_color_181_unofficial/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/player_color_192/README.md"; \
 	test -f "$$stage_vcs/kernels/player_color_192/player_color_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \

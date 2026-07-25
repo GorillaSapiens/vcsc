@@ -1,0 +1,79 @@
+// P0/P1/BL player-color gameplay with an independent score above gameplay.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+page const uint8_t game_playfield[44] := {
+   0xff,0xff,0xff,0xff,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0xff,0xff,0xff,0xff
+};
+page const uint8_t game_player0_colors[8] := {
+   0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e
+};
+page const uint8_t game_player1_colors[8] := {
+   0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
+};
+template "kernels/player_color_181_unofficial/player_color_181_unofficial.c26" as game
+template "six_glyph_component.c26" as score
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e)
+};
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe)
+};
+
+void configure_game_frame(void) {
+   COLUPF := 0x2e;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+}
+
+void initialize_scene(void) {
+   VBLANK := 2;
+   COLUBK := 0x84;
+   game_PLAYER0_X := 44;
+   game_PLAYER1_X := 108;
+   game_BALL_X := 78;
+   game_player0_y := 70;
+   game_player1_y := 42;
+   game_ball_y := 45;
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+   score_score := 123456;
+   game_init();
+   score_init();
+}
+
+
+void main(void) {
+   initialize_scene();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+      score_draw();
+      configure_game_frame();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
