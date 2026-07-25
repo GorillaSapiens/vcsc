@@ -1097,7 +1097,57 @@ The first unfinished item is the default next action.
         measured RAM/ROM/stack costs. Do not weaken or silently change the
         current all-five-object profile.
 
-[ ] 22. If possible, add another standard-kernel variant that retains all five
+[ ] 22. Add parameterized source instantiation and link-time use contracts
+        as specified in `TEMPLATE.md`. This is a deliberately small component
+        system, not C++-style templates: instantiate one `.c26` source repeatedly
+        under controlled symbol prefixes, and let components declare public
+        functions or objects that the linked application must or should use.
+
+        [ ] 22a. Add file-scope `require` and `recommend` declaration specifiers
+                  for objects and functions. Define compatible declaration
+                  merging, make `require` dominate `recommend`, and reject use on
+                  locals, parameters, members, typedefs, enums, and labels.
+        [ ] 22b. Preserve declaration contracts, canonical types/signatures,
+                  owner identity, source locations, and template invocation
+                  locations in o26 metadata. Add semantic use records for calls,
+                  reads, writes, address-taking, and `ref`, including true inline
+                  calls and other uses that leave no ordinary relocation.
+        [ ] 22c. After archive selection and whole-program reachability, make the
+                  linker reject an externally unused `require` contract and warn
+                  for an externally unused `recommend` contract. Internal use by
+                  the declaring template instance, unreachable code, and
+                  unselected archive members must not satisfy or trigger the
+                  contract.
+        [ ] 22d. Add `template "file.c26" as instance`. Reuse ordinary include
+                  path resolution but deliberately bypass include's MD5-seen
+                  suppression so one source can be instantiated repeatedly.
+                  Rewrite only the identifier `TEMPLATE` and the prefix
+                  `TEMPLATE_` before ordinary identifier classification and UTF-8
+                  symbol mangling; never rewrite comments, strings, or unrelated
+                  identifier substrings.
+        [ ] 22e. Rewrite instance-prefixed identifier operands inside inline
+                  assembly while preserving inline assembly as opaque to compiler
+                  peephole optimization. Enforce template hygiene so instance-
+                  owned file-scope names cannot accidentally omit the
+                  `TEMPLATE_` prefix and collide or share state.
+        [ ] 22f. Standardize the reusable display-component lifecycle as required
+                  inline `TEMPLATE_init`, `TEMPLATE_vblank`, `TEMPLATE_draw`, and
+                  `TEMPLATE_overscan` functions, plus a machine-readable
+                  `TEMPLATE_VISIBLE_SCANLINES` compile-time constant. Keep
+                  component-specific setters/helpers outside the universal
+                  lifecycle.
+        [ ] 22g. Define and test each component's exact scanline, entry/exit
+                  cycle, TIA state, register/flag clobber, stack, RAM/ROM, page,
+                  alignment, and blanking-budget contract. Initially enforce
+                  what can be proven with compiler/linker metadata and lock the
+                  remaining timing/resource promises with emulator regressions.
+        [ ] 22h. Convert the centered six-glyph display into the first reusable
+                  component. Prove one instance matches its predecessor, two
+                  instances retain independent state, either draw order works,
+                  omitted required lifecycle calls diagnose at link time, and
+                  source-tree plus installed-toolchain builds agree.
+
+[ ] 23. If possible, add another standard-kernel variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
         color tables. Treat this as a fresh cycle-scheduled profile rather than
         merely restoring legacy conditionals. Preserve the current profiles
@@ -1106,21 +1156,21 @@ The first unfinished item is the default next action.
         proves unreasonable; record the evidence instead of shipping a fragile
         compromise.
 
-[ ] 23. Add a widely spaced six-glyph score-display variant. Reuse the shared
+[ ] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across
         a substantially wider horizontal span than the centered display. Give it
         an explicit glyph-origin contract, cycle/TIA-write schedule, example,
         visible raster oracle, ROM/RAM accounting, and installation coverage.
         Preserve the existing centered six-glyph display unchanged.
 
-[ ] 24. Add a left/right dual-score variant of the six-glyph display. Divide the
+[ ] 25. Add a left/right dual-score variant of the six-glyph display. Divide the
         six visible glyph slots into independent three-glyph left and right score
         fields, define their numeric order and ownership explicitly, and verify
         both fields simultaneously through boundary values, carry transitions,
         raster timing, an example cartridge, and installed-toolchain coverage.
         Preserve the centered and widely spaced variants as separate profiles.
 
-[ ] 25. Write a maintained kernel-authoring HOWTO describing how to create and
+[ ] 26. Write a maintained kernel-authoring HOWTO describing how to create and
         integrate new VCSC kernels and score-display variants. Cover source
         contracts, application-visible state versus private workspace,
         frame-phase ownership, hooks, clobbers, hidden hardware-stack use,
@@ -1129,31 +1179,31 @@ The first unfinished item is the default next action.
         regression design, examples, installation, and how a new profile remains
         separate from existing profiles.
 
-[ ] 26. Inventory and define the source-integration contract for one minimal
+[ ] 27. Inventory and define the source-integration contract for one minimal
         multisprite kernel profile. Keep it separate from every standard-kernel
         profile, make its near-complete RIOT RAM ownership and hardware-stack
         tricks explicit, normalize only the required retained source, and defer
         bankswitching and Superchip RAM to their own later milestones.
 
-[ ] 27. Port and verify the minimal unbanked, non-Superchip multisprite profile.
+[ ] 28. Port and verify the minimal unbanked, non-Superchip multisprite profile.
         Build a fixed diagnostic cartridge first, then connect one stack-safe
         VCSC game-logic boundary. Lock object multiplexing, playfield and score
         timing, RAM ownership, hidden stack depth, exact frame length, visible
         raster behavior, and measured ROM cost before adding cartridge variants.
 
-[ ] 28. Add general 8K-and-larger Atari cartridge bankswitching as a separate
+[ ] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Define bank-aware placement, logical origins,
         hotspots, vectors, cross-bank calls/returns, archive selection, map and
         usage reporting, diagnostics, and emulator-backed tests before using it
         for any banked kernel profile.
 
-[ ] 29. Add Superchip cartridge RAM support as a separate linker/runtime
+[ ] 30. Add Superchip cartridge RAM support as a separate linker/runtime
         milestone after banked cartridge support is stable. Define its RAM
         windows, read/write aliases, startup and persistence contract, allocator
         interaction, map reporting, and tests; only then add corresponding
         Superchip or banked multisprite profiles.
 
-[ ] 30. Add fixed-point whole-program inlining for reachable internal functions
+[ ] 31. Add fixed-point whole-program inlining for reachable internal functions
         with exactly one direct call site when the resulting linked code is
         smaller. Inline through the compiler IR/control-flow representation, not
         textual substitution; fold arguments/returns and simplify newly exposed
@@ -1249,17 +1299,19 @@ with legal schedules, task 20s enforced official linked bytes, task 20t made
 `.s26` the canonical maintained assembler-source suffix, task 20u added final-
 output cartridge-ROM usage reporting, and task 20v added the first stack-safe
 gameplay integration boundary. Task 21 added the separate P0+P1+BL per-logical-
-row player-color profile with no missiles. Task 22 is next and is explicitly
-optional if retaining all five objects plus player color tables proves
-unreasonable.
+row player-color profile with no missiles.
 
-Tasks 23 and 24 add widely spaced and left/right dual-score six-glyph display
-variants. Task 25 records the resulting kernel- and score-display-authoring
-process as a HOWTO. The former task 20w multisprite placeholder has been removed
-from task 20 and expanded into tasks 26 through 29: multisprite contract and
-normalization, minimal unbanked integration, general 8K+ bankswitching, and
-Superchip support. Task 30 adds measured fixed-point inlining of single-call-site
-internal functions.
+Task 22 is next: add the `require`/`recommend` use-contract metadata and
+`template "file.c26" as instance` source-instantiation system specified in
+`TEMPLATE.md`, then prove the lifecycle contract with two independent six-glyph
+display instances. Task 23 is the explicitly optional all-five-object player-
+color profile. Tasks 24 and 25 add widely spaced and left/right dual-score six-
+glyph display variants. Task 26 records the resulting kernel- and score-display-
+authoring process as a HOWTO. The former task 20w multisprite placeholder has
+been removed from task 20 and expanded into tasks 27 through 30: multisprite
+contract and normalization, minimal unbanked integration, general 8K+
+bankswitching, and Superchip support. Task 31 adds measured fixed-point inlining
+of single-call-site internal functions.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -3793,3 +3845,26 @@ Before returning another modified archive:
   pair is byte-for-byte identical. Pass 290/290 compile-only tests, 160/160
   end-to-end/generic tests, and staged installation. No roadmap item is
   advanced; task 22 remains next.
+
+2026-07-24 18:31:48 PDT, specify template instantiation and use contracts
+----------------------------------------------------------------------------
+* Add top-level `TEMPLATE.md` as a design specification only; no lexer, parser,
+  compiler, assembler, object-format, linker, runtime, kernel, example, or test
+  behavior changes in this revision.
+* Specify file-scope `require` and `recommend` contracts, linker checking after
+  archive selection and reachability, semantic use metadata for true inline
+  functions and object operations, and external-use ownership so a template's
+  own references cannot satisfy its public contract.
+* Specify `template "file.c26" as instance` as repeatable include-path source
+  instantiation that bypasses MD5 include suppression and rewrites only exact
+  `TEMPLATE` and leading `TEMPLATE_` identifiers. Preserve comments, strings,
+  unrelated identifiers, UTF-8 mangling, and inline-assembly opacity; require
+  instance-owned file-scope names to follow template hygiene.
+* Standardize the proposed display-component lifecycle as `init`, `vblank`,
+  `draw`, and `overscan`, with a machine-readable `VISIBLE_SCANLINES` constant
+  and documented/tested scanline, cycle, TIA, clobber, stack, RAM/ROM, placement,
+  and blanking-budget contracts. Keep generic `update` outside the lifecycle.
+* Insert this work as new roadmap task 22 with sub-items 22a through 22h. Renumber
+  the former tasks 22 through 30 to 23 through 31 without changing their scope.
+  The new task 22 is now the first unfinished item.
+
