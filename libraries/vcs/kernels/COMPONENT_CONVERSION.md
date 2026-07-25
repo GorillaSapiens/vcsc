@@ -160,6 +160,37 @@ That motion evidence exposed and fixed an extraction error: M0 had only an
 DEC was removed. Reconstruction now adds 88 rather than 89, restoring the exact
 application M0 Y coordinate at the lifecycle boundary.
 
+## Completed unofficial all-five 181-line matched profile
+
+`kernels/all_five_181_unofficial/all_five_181_unofficial.c26` is the
+separately named experimental twin of the official 181-line component. It has
+the same lifecycle API, 19-byte public state, 50-byte private state, 69-byte
+total RAM layout, 44-byte playfield contract, and score-above/score-below
+application fixtures. It must be assembled with `-Wa,--illegals`.
+
+Only reviewed stable/common NMOS forms are present. Four `AXS #252` sites
+replace row-index `TXA`/`ADC`/`TAX` idioms, with one-byte NOP padding retaining
+the official sequences' exact byte and cycle counts. Four zero-page unofficial
+NOPs (`$04`) replace dead-flag `BIT $00` padding; both forms are two bytes and
+three cycles. No silicon-sensitive or unstable opcode is used.
+
+The maintained smoke links measure:
+
+```text
+official linked ROM bytes:   1421
+unofficial linked ROM bytes: 1421
+signed saving:                  0
+```
+
+This zero-byte result is intentional evidence, not a failed optimization.
+Removing the compensating NOPs would shrink code only by changing lifecycle or
+visible-kernel cycle boundaries. Pairwise emulator comparison locks every
+visible TIA write and 42 stable 262-line frames for the smoke, both static score
+orders, and both moving score orders. The existing 360-frame motion oracle also
+locks full-range asynchronous object movement and Y-coordinate preservation for
+both unofficial score orders. Map evidence requires every RAM symbol to retain
+the official address.
+
 ## Completed official all-five 192-line scoreless profile
 
 `kernels/all_five_192/all_five_192.c26` is the distinct official-opcode,
@@ -178,10 +209,10 @@ application-visible Y coordinates after the application asserts VBLANK.
 Regression evidence locks stable 262-line frames, 48-byte hard-page playfield
 placement, official mnemonics only, the inherited cycle-24/31/38/45 playfield
 phases, visible all-five output, exact lifecycle diagnostics, and source plus
-staged-installed builds. The matched unofficial 181-line profile remains open.
+staged-installed builds. The matched unofficial 181-line profile is complete with a measured zero-byte saving.
 
-The predecessor monolith remains installed. The matched unofficial profile
-remains open before retirement.
+The predecessor monolith remains installed until the player-color family and
+final retirement gates are complete.
 
 ## Evidence required before retiring a monolith
 

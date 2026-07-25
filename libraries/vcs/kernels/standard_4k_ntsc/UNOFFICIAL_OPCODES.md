@@ -49,11 +49,11 @@ a negative control introduced through raw `op4B`.
 The regression now scans the maintained source directly and separately verifies
 the final linked executable bytes.
 
-Future component byte comparison
---------------------------------
+Completed all-five component byte comparison
+--------------------------------------------
 
-Roadmap task 22i deliberately brings back a separately named unofficial-opcode
-**181-line gameplay component** as an experiment. It is not a reversal of the
+Roadmap task 22i brings back the separately named unofficial-opcode
+**181-line gameplay component** as a completed experiment. It is not a reversal of the
 official predecessor policy and it is not selected by a hidden build alias.
 The official and unofficial components must expose the same lifecycle API,
 consume the same RAM, draw the same 181 scanlines, produce the same visible TIA
@@ -73,3 +73,13 @@ No saving is assumed. A zero-byte result, growth caused by padding/alignment, or
 rejection of a candidate whose timing cannot be matched is a successful and
 publishable outcome.
 
+
+Measured result
+---------------
+
+The matched `all_five_181_unofficial` component uses four stable/common
+`AXS #252` sites and four stable/common zero-page NOP (`$04`) sites.
+Compensating NOPs preserve every official cycle boundary. The maintained smoke
+cartridge measures 1421 linked ROM bytes for both components: **0 bytes saved**.
+Pairwise static/motion raster tests and the 360-frame motion oracle enforce the
+claimed equivalence.

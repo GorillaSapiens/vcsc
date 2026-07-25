@@ -87,6 +87,10 @@ install-data:
 	install -m 0644 libraries/vcs/kernels/all_five_181/README.md \
 	  libraries/vcs/kernels/all_five_181/all_five_181.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial
+	install -m 0644 libraries/vcs/kernels/all_five_181_unofficial/README.md \
+	  libraries/vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192
 	install -m 0644 libraries/vcs/kernels/all_five_192/README.md \
 	  libraries/vcs/kernels/all_five_192/all_five_192.c26 \
@@ -138,6 +142,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/all_five_181.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192/all_five_192.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192 2>/dev/null || true
@@ -214,6 +221,13 @@ installcheck: tools
 	    -o "$(INSTALLCHECK_STAGING)/$$fixture.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$fixture.bin"` -eq 4096; \
 	done; \
+	test -f "$$stage_vcs/kernels/all_five_181_unofficial/README.md"; \
+	test -f "$$stage_vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/fixtures/all_five_181_unofficial/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/all_five_192/README.md"; \
 	test -f "$$stage_vcs/kernels/all_five_192/all_five_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \

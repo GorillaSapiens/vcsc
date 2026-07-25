@@ -1,0 +1,65 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+page const uint8_t game_playfield[44] := {
+   0xff,0xff,0xff,0xff,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0xff,0xff,0xff,0xff
+};
+template "kernels/all_five_181_unofficial/all_five_181_unofficial.c26" as game
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00)
+};
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00)
+};
+
+void main(void) {
+   VBLANK := 2;
+   COLUBK := 0x84;
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 80;
+   game_player0_y := 18;
+   game_player1_y := 78;
+   game_missile0_y := 34;
+   game_missile1_y := 62;
+   game_ball_y := 48;
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+   game_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_wait_scanlines(11);
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

@@ -1342,7 +1342,7 @@ The first unfinished item is the default next action.
                               ownership that must move to the scheduler, the
                               existing 192-line gameplay field, and the evidence
                               required before either predecessor may be retired.
-                  [ ] 22i2. Convert and prove the all-five gameplay profile
+                  [x] 22i2. Convert and prove the all-five gameplay profile
                               family while preserving the monolithic predecessor
                               and all current regression oracles.
 
@@ -1388,7 +1388,7 @@ The first unfinished item is the default next action.
                                          line scoreless all-five component as a
                                          distinct explicit profile rather than a
                                          hidden configuration switch.
-                              [ ] 22i2e. Derive the matched 181-line unofficial-
+                              [x] 22i2e. Derive the matched 181-line unofficial-
                                          opcode all-five component, permit only
                                          reviewed stable/common NMOS forms, prove
                                          exact behavior against the official twin,
@@ -4641,3 +4641,22 @@ Before returning another modified archive:
   official-opcode source gate, playfield-phase, object-output, RAM/map, lifecycle
   omission, source-tree, and staged-installation evidence. Leave 22i2e next for
   the matched 181-line unofficial-opcode experiment and linked-byte comparison.
+
+2026-07-25 12:16:54 PDT, complete matched all-five unofficial-opcode experiment
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2e and therefore 22i2. Add and install the separately
+  named `kernels/all_five_181_unofficial/all_five_181_unofficial.c26` twin.
+  Permit only four reviewed stable/common `AXS #252` sites and four reviewed
+  stable/common zero-page NOP sites, with compensating one-byte NOP padding so
+  API, RAM layout, lifecycle boundaries, visible timing, and 181-line accounting
+  remain identical to the official component.
+* Measure the maintained smoke link at 1421 ROM bytes for both official and
+  unofficial components: zero bytes saved. Document that removing the padding
+  would manufacture a smaller but cycle-incompatible kernel rather than a fair
+  result.
+* Add official/unofficial pairwise visible-TIA and 42-frame timing comparisons
+  for smoke, both static score orders, and both motion score orders. Reuse the
+  360-frame asynchronous-motion oracle for both unofficial score orders, lock
+  identical RAM addresses, inspect generated assembly for exactly the reviewed
+  opcode set, and extend source/staged installation coverage.
+* Leave 22i3 next for the P0+P1+BL per-row-player-color profile family.
