@@ -59,6 +59,8 @@ bool saw_audv0_zero = false;
 bool saw_audv0_nonzero = false;
 bool saw_initial_audv0_zero = false;
 bool saw_first_nonzero_audv0 = false;
+bool channel0_retuned_while_audible = false;
+uint8_t channel0_volume = 0;
 uint64_t first_nonzero_audv0_cycle = 0;
 std::vector<uint16_t> channel0_write_order;
 size_t first_nonzero_audv0_order = 0;
@@ -135,7 +137,12 @@ void apply_writes() {
       else if (event.address == kAudc0 || event.address == kAudf0 ||
                event.address == kAudv0) {
          channel0_write_order.push_back(event.address);
+         if ((event.address == kAudc0 || event.address == kAudf0) &&
+             channel0_volume != 0) {
+            channel0_retuned_while_audible = true;
+         }
          if (event.address == kAudv0) {
+            channel0_volume = event.value & 0x0f;
             ++audv0_writes;
             saw_audv0_zero |= event.value == 0;
             saw_audv0_nonzero |= event.value != 0;
@@ -163,13 +170,14 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--raw-lines N]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N]\n",
          argv[0]);
       return 2;
    }
 
    bool require_audio = true;
    bool require_audio_start_sync = false;
+   bool require_audio_retune_muted = false;
    uint64_t expected_raw_lines = kDefaultVsyncIntervalScanlines;
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
@@ -177,6 +185,9 @@ int main(int argc, char **argv) {
       }
       else if (std::strcmp(argv[i], "--audio-start-synced") == 0) {
          require_audio_start_sync = true;
+      }
+      else if (std::strcmp(argv[i], "--audio-retune-muted") == 0) {
+         require_audio_retune_muted = true;
       }
       else if (std::strcmp(argv[i], "--raw-lines") == 0) {
          if (++i >= argc) {
@@ -266,6 +277,9 @@ int main(int argc, char **argv) {
    if (require_audio &&
        (audv0_writes < 64 || !saw_audv0_zero || !saw_audv0_nonzero)) {
       fail("test run did not exercise repeated sounding and silent score steps");
+   }
+   if (require_audio_retune_muted && channel0_retuned_while_audible) {
+      fail("AUDC0/AUDF0 was changed while channel 0 volume was nonzero");
    }
    if (require_audio_start_sync) {
       if (!saw_initial_audv0_zero || !saw_first_nonzero_audv0) {

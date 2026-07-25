@@ -15,9 +15,10 @@ frequency, control, and timing. Two-frame silent score steps articulate
 repeated notes. `music_tick()` runs once per television frame, advances a frame
 counter, changes steps when the current timing expires, and wraps at the end.
 The cartridge starts both channels silent. The first note begins during the
-first synchronized overscan rather than during reset-time setup, and every note
-transition writes `AUDC0`, then `AUDF0`, then enables `AUDV0` last. This avoids
-playing a fragment of an old waveform or frequency during startup.
+first synchronized overscan rather than during reset-time setup. Every score
+transition first writes zero to `AUDV0`, then writes `AUDC0` and `AUDF0`, and
+finally writes the new `AUDV0`. This is required even for silent gap steps:
+retuning a still-audible preceding note creates a short wrong-pitch chirp.
 
 The score and player are both implemented in `ode_to_joy.c26`. The player uses
 the natural indexed form `music[music_index].field`. For an ordinary `uint8_t`

@@ -1540,7 +1540,9 @@ Stop-the-line timing/audio repair
 ----------------------------------
 Before task 20e, examples 02, 03, and 05 received dedicated emulator-backed
 regression passes. Example 02 now begins silent and starts its first note during
-the first synchronized overscan, writing control and frequency before volume.
+the first synchronized overscan. Every score transition first writes zero to
+AUDV0, then changes AUDC0/AUDF0, and enables the new volume last; retuning an
+active note was the source of the recurring transition chirps.
 
 The shared six-glyph display anchors setup to a fresh scanline and flushes both
 delayed player-graphics pipelines with `GRP0`, `GRP1`, `GRP0`. More importantly,
@@ -4790,3 +4792,22 @@ Before returning another modified archive:
   and screenshot; the reviewed predecessor source/image remain only under the
   private oracle fixture. Leave 22i4b next for predecessor-profile retirement;
   private monolithic oracle fixtures and tests remain unchanged.
+
+
+2026-07-25 15:34:16 PDT, Ode to Joy mute-before-retune audio repair
+------------------------------------------------------------
+* Reproduced the reported recurring Ode to Joy buzz from the earliest retained
+  implementation. The compiler emitted the requested table values and correct
+  TIA register addresses; the defect was in the player protocol itself.
+* Fixed music_apply_current() to write AUDV0=0 before changing AUDC0 or AUDF0,
+  then write the new step volume last. Previously every sounding-note-to-gap
+  transition changed AUDF0 to C4 while the old volume was still 8 for about 70
+  CPU cycles, producing a short wrong-pitch chirp despite the source comment
+  claiming that retuning occurred while silent.
+* Added the vcs_frame_timing --audio-retune-muted gate. It tracks effective
+  channel-0 volume and rejects any AUDC0/AUDF0 write while that volume is
+  nonzero. The predecessor ROM fails this gate; the repaired ROM passes 1497
+  complete 262-line frames.
+* Updated the editable example, private golden fixture, README, and source-level
+  regression. Focused Ode, fingerprint, six-glyph, all-five timing, and source
+  hygiene tests pass.

@@ -55,8 +55,10 @@ uint8_t music_index := 0;
 uint8_t music_counter := 0xff;
 
 void music_apply_current(void) {
-   // Change waveform and frequency while silent, then enable volume last.
-   // This prevents a startup chirp or fragment of the reset-time register state.
+   // Silence the old step before changing waveform or frequency, then enable
+   // the new step last.  Without this first write, note-to-gap transitions
+   // briefly retune an audible channel and produce a chirp/buzz.
+   AUDV0 := 0;
    AUDC0 := music[music_index].control;
    AUDF0 := music[music_index].frequency;
    AUDV0 := music[music_index].volume;
