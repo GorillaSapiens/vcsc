@@ -22,6 +22,7 @@ Files:
 - `kernels/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component for composition with an independent eleven-line score
 - `kernels/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line all-five component; measured zero-byte saving
 - `kernels/all_five_192/` ... distinct official-opcode 192-line scoreless P0/P1/M0/M1/BL lifecycle component
+- `kernels/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants

@@ -234,3 +234,22 @@ The existing monolithic tests remain predecessor oracles.  They must not be
 weakened or rewritten to accept the replacement; new component fixtures compare
 against them where the selected composition profile is intended to preserve
 behavior.
+
+## Official player-color 181-line extraction
+
+`kernels/player_color_181/player_color_181.c26` is the first extracted member
+of the P0/P1/Ball per-row-color family. It consumes exactly 181 visible lines
+and expects `main()` to compose the independent eleven-line score above or
+below it. It retains the predecessor's exact five-strobe horizontal-position
+schedule, with two private ghost-missile coordinates forced to zero, while M0
+and M1 remain unavailable.
+
+The application supplies an eleven-row/44-byte page-contained playfield plus
+page-contained eight-byte P0 and P1 color tables. Graphics and colors use the
+same highest-index-to-zero row order. The measured component contract is 13
+bytes of public gameplay state plus 52 private bytes, 65 total. No score/font,
+VSYNC, VBLANK, or RIOT timer state is linked. The maintained static fixture
+holds stable 262-line scheduler frames and proves all eight P0 and P1 rows use
+the exact requested colors while Ball remains active and both missiles remain
+disabled.
+

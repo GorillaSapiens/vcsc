@@ -1397,6 +1397,18 @@ The first unfinished item is the default next action.
                               line scoreless, and matched 181-line unofficial-
                               opcode profile family for P0+P1+BL player colors,
                               including exact per-row colors and both score orders.
+                              [x] 22i3a. Extract and prove the official-opcode
+                                         181-line gameplay component with exact
+                                         P0/P1 row colors, BL output, no missiles,
+                                         no score/frame ownership, and measured
+                                         13/52/65-byte RAM accounting.
+                              [ ] 22i3b. Compose the 181-line component with the
+                                         independent score above and below gameplay;
+                                         prove static and asynchronous motion behavior.
+                              [ ] 22i3c. Add the distinct official-opcode 192-line
+                                         scoreless player-color component.
+                              [ ] 22i3d. Add the matched 181-line unofficial-opcode
+                                         twin and report exact linked-byte savings.
                   [ ] 22i4. Retire the two monolithic profiles only after source,
                               installed-toolchain, map, timing, raster, stack,
                               collision, official/unofficial opcode, and linked-
@@ -4660,3 +4672,23 @@ Before returning another modified archive:
   identical RAM addresses, inspect generated assembly for exactly the reviewed
   opcode set, and extend source/staged installation coverage.
 * Leave 22i3 next for the P0+P1+BL per-row-player-color profile family.
+
+2026-07-25 12:47:27 PDT, extract official 181-line player-color component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3a. Add and install the repeatable official-opcode
+  `kernels/player_color_181/player_color_181.c26` lifecycle component for P0,
+  P1, and Ball with exact per-row P0/P1 color tables and no missile support.
+* Publish the exact 181-line score-composable contract, eleven-row/44-byte
+  playfield, page-contained eight-byte color tables, and measured 13-byte public,
+  52-byte private, 65-byte total RAM model. Retain the predecessor's exact
+  five-strobe horizontal-position schedule with two private zeroed ghost slots.
+* Add a scheduler-driven static fixture and `vcs_player_color_181.test`. Lock
+  stable 262-line frames, all eight requested colors for both players, Ball
+  raster output, disabled missiles, hard-page table placement, exact map sizes,
+  and absence of score/font, frame-register, and RIOT-timer ownership.
+* Extend install/uninstall/installcheck, the VCS catalog, and component conversion
+  evidence. Leave 22i3b next for score-above/score-below static and motion
+  composition.
+* Pass all 308 compile-only tests and all 177 end-to-end/generic tests across
+  the complete run and final two-test continuation, plus staged installation,
+  branding, and source-tree hygiene.
