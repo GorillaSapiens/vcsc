@@ -618,6 +618,83 @@ static char *template_rewrite_identifier_source(const char *source) {
    return out;
 }
 
+//! @brief Append bytes to a dynamically grown template-rewrite buffer.
+static void template_rewrite_append(char **buf, size_t *len, size_t *cap,
+                                    const char *text, size_t text_len) {
+   size_t needed = *len + text_len + 1;
+   if (needed > *cap) {
+      size_t grown_cap = *cap ? *cap : 128;
+      while (grown_cap < needed) grown_cap *= 2;
+      char *grown = realloc(*buf, grown_cap);
+      if (!grown) {
+         free(*buf);
+         error_unreachable("out of memory rewriting template text");
+      }
+      *buf = grown;
+      *cap = grown_cap;
+   }
+   memcpy(*buf + *len, text, text_len);
+   *len += text_len;
+   (*buf)[*len] = 0;
+}
+
+//! @brief Rewrite template-owned identifiers in inline assembly and mangle UTF-8 names.
+static char *template_rewrite_inline_asm_text(const char *text) {
+   const char *p = text;
+   char *out = NULL;
+   size_t out_len = 0;
+   size_t out_cap = 0;
+   char quote = 0;
+
+   if (!text || !current_template_instance)
+      return strdup(text ? text : "");
+
+   while (*p) {
+      if (quote) {
+         template_rewrite_append(&out, &out_len, &out_cap, p, 1);
+         if (*p == '\\' && p[1]) {
+            p++;
+            template_rewrite_append(&out, &out_len, &out_cap, p, 1);
+         }
+         else if (*p == quote) {
+            quote = 0;
+         }
+         p++;
+         continue;
+      }
+      if (*p == '\'' || *p == '"') {
+         quote = *p;
+         template_rewrite_append(&out, &out_len, &out_cap, p, 1);
+         p++;
+         continue;
+      }
+      if (pp_is_ident_start((unsigned char)*p)) {
+         const char *start = p++;
+         char *source;
+         char *rewritten;
+         char *mangled;
+         while (*p && pp_is_ident_char((unsigned char)*p)) p++;
+         source = strndup(start, (size_t)(p - start));
+         if (!strcmp(source, "TEMPLATE") || !strncmp(source, "TEMPLATE_", 9)) {
+            rewritten = template_rewrite_identifier_source(source);
+            mangled = mangle_identifier_utf8_or_die(rewritten);
+            template_rewrite_append(&out, &out_len, &out_cap, mangled, strlen(mangled));
+            free(mangled);
+            free(rewritten);
+         }
+         else {
+            template_rewrite_append(&out, &out_len, &out_cap, source, strlen(source));
+         }
+         free(source);
+         continue;
+      }
+      template_rewrite_append(&out, &out_len, &out_cap, p, 1);
+      p++;
+   }
+
+   return out ? out : strdup(text);
+}
+
 //! @brief Rewrite template identifiers in source text while preserving quoted text.
 static char *template_rewrite_identifier_text(const char *text) {
    size_t cap;
@@ -2171,7 +2248,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 }
 
 "asm "[^;\n]* {
-   yylval.str = strdup(yytext + 4);
+   yylval.str = template_rewrite_inline_asm_text(yytext + 4);
    return ASM;
 }
 

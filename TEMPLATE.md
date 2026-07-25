@@ -285,9 +285,11 @@ asm lda score1_score;
 asm jsr score1_helper;
 ```
 
-This rewriting must preserve the current rule that inline assembly is otherwise
-opaque to compiler peephole optimization. No unrestricted substring replacement
-may occur inside assembler comments or quoted data.
+This rewriting is implemented before ordinary inline-assembly source-name
+resolution and UTF-8 assembler-safe mangling. Inline assembly remains otherwise
+opaque to compiler peephole optimization: the pass cannot alter instructions in
+the block or carry machine-state facts across it. Quoted assembler data and
+unrelated identifier substrings remain unchanged.
 
 Assembler-local `@labels` remain governed by the existing inline-assembly and
 assembler hygiene rules.

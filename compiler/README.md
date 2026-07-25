@@ -67,8 +67,10 @@ mangling, so ordinary and UTF-8 instance names are both supported.
 Ordinary includes inside a template remain include-once. Nested templates are
 allowed, while recursive template inclusion is diagnosed. Alias names,
 parameters, and identifier tokens in alias replacement text participate in the
-same rewriting. Inline-assembly rewriting and template-hygiene enforcement are
-separate roadmap work.
+same rewriting. Exact `TEMPLATE` and leading `TEMPLATE_` identifier tokens in
+inline assembly are also rewritten and UTF-8-mangled on assembler-identifier
+boundaries; quoted assembler data and unrelated identifiers remain unchanged.
+File-scope template-hygiene enforcement remains roadmap work.
 
 ### Aliases
 
@@ -574,9 +576,11 @@ asm sta COLUBK
 asm @again:
 ```
 
-The compiler leaves general assembler text under programmer control, with two
+The compiler leaves general assembler text under programmer control, with three
 source-aware rewrites:
 
+- exact `TEMPLATE` and leading `TEMPLATE_` identifiers inside a template
+  instance receive the instance prefix and ordinary UTF-8 symbol mangling;
 - absolute `ref` operands select the legal read or write address from the
   instruction's access kind;
 - assembler-local `@labels` inside an inline-function expansion receive a
