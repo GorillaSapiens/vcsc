@@ -15,6 +15,7 @@ Files:
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
+- `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, and VSYNC scheduling primitives
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_display.c26` ... shared centered 48-pixel/six-glyph positioning and timed row kernel
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
@@ -35,8 +36,10 @@ Typical use:
 
 ```vcsc
 include "vcs.c26"
+include "frame_ntsc.c26"
 
 int16_t main(void) {
+   vcs_ntsc_vsync();
    VBLANK := 0x02;
    COLUBK := 0x00;
    return 0;

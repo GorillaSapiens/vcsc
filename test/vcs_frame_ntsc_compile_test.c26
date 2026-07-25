@@ -1,0 +1,22 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: sta  $02
+// expectasm: sta  $00
+// expectasm: lda #$02
+// expectasm: lda #$03
+// forbidasm: jsr vcs_ntsc_wait_scanlines
+// forbidasm: jsr vcs_ntsc_vsync
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+uint16_t timing_sum;
+
+void main(void) {
+   timing_sum := VCS_NTSC_CYCLES_PER_SCANLINE
+      + VCS_NTSC_VSYNC_SCANLINES
+      + VCS_NTSC_VBLANK_SCANLINES
+      + VCS_NTSC_VISIBLE_SCANLINES
+      + VCS_NTSC_OVERSCAN_SCANLINES
+      + VCS_NTSC_FRAME_SCANLINES;
+   vcs_ntsc_wait_scanlines(1);
+   vcs_ntsc_vsync();
+}

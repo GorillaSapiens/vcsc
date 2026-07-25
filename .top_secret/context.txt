@@ -1196,6 +1196,26 @@ The first unfinished item is the default next action.
                   machine definition and hardware bindings, and do not introduce
                   a policy-heavy generic `core.c26` or `framework.c26` yet.
 
+                  [x] 22g1. Add and install `frame_ntsc.c26` with the canonical
+                             76-cycle and 3/37/192/30/262-line constants, an
+                             inline zero-safe scanline wait, and a standard
+                             three-line `vcs_ntsc_vsync()` operation. Prove the
+                             helpers inline without `JSR`/`RTS`, compile from the
+                             installed support tree, and document that `main()`
+                             still owns composition policy.
+                  [ ] 22g2. Add scheduler-owned VBLANK and overscan deadline
+                             begin/end operations. Distinguish an unexpired
+                             timer from RIOT underflow/wrap, return or record a
+                             deterministic overrun result, wait only for the
+                             unused budget, and perform the final cycle-zero
+                             phase transition without exposing a low-level timer
+                             wait as public API.
+                  [ ] 22g3. Add emulator-backed timing/resource regressions for
+                             partial-budget callbacks, exact-boundary completion,
+                             deliberate VBLANK and overscan overruns, component
+                             timer-register abstinence, exact cycle-zero entry and
+                             exit, and stable 3/37/192/30-line NTSC frames.
+
                   `frame_ntsc.c26` should publish the standard NTSC phase sizes
                   and small inline operations equivalent to
                   `vcs_ntsc_vsync()`, `vcs_ntsc_begin_vblank()`,
@@ -4242,3 +4262,17 @@ Before returning another modified archive:
   next for the shared `frame_ntsc.c26` scheduler, timer ownership, overrun
   handling, and cycle-zero phase transitions.
 
+2026-07-24 23:49:00 PDT, add foundational NTSC frame scheduler support
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22g1. Add `libraries/vcs/frame_ntsc.c26` with the
+  canonical 76-cycle scanline and 3/37/192/30/262-line NTSC constants, a
+  zero-safe inline `vcs_ntsc_wait_scanlines()` helper, and an inline
+  `vcs_ntsc_vsync()` operation that emits the standard three WSYNC lines.
+* Install and uninstall the new support file, include it in staged-installation
+  checks, document it beside `vcs.c26` and `sound_ntsc.c26`, and extend the VCS
+  header smoke build so installed toolchains must consume it successfully.
+* Add compile-only coverage proving both helpers inline without source-level
+  `JSR` calls and that the phase constants remain usable. Leave 22g2 next for
+  RIOT-deadline ownership, underflow-safe overrun handling, and cycle-zero
+  VBLANK/overscan transitions; do not ship uncalibrated timer preloads in this
+  foundational slice.

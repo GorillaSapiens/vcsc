@@ -8,6 +8,7 @@
 // forbidasm: lda #<{$01 + 0}
 // forbidasm: lda #<{$0296 + 0}
 include "vcs.c26"
+include "frame_ntsc.c26"
 
 uint24_t frame_count := 0x123456;
 int24_t frame_delta := -1;
@@ -24,6 +25,7 @@ int16_t main(void) {
    frame_delta--;
    long_count += 1;
    long_delta--;
+   vcs_ntsc_wait_scanlines(0);
    VBLANK := x;
    TIM64T := 42;
    return INTIM + SWCHB;

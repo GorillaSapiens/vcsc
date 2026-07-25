@@ -129,8 +129,8 @@ and other work outside the visible scanline schedule.
 ## VCS support and examples
 
 [`libraries/vcs/`](libraries/vcs/) contains TIA/RIOT bindings, the stock 4K
-linker layout, audio aliases, score fonts, the shared six-glyph display, and two
-maintained NTSC kernel profiles:
+linker layout, shared NTSC frame primitives, audio aliases, score fonts, the
+shared six-glyph display, and two maintained NTSC kernel profiles:
 
 - `standard_4k_ntsc` — P0, P1, M0, M1, and Ball with solid TIA color groups;
 - `standard_4k_ntsc_playercolors` — P0, P1, and Ball with independent per-row

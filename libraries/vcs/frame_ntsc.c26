@@ -1,0 +1,33 @@
+// Shared NTSC frame-scheduling primitives for the Atari 2600 / VCS.
+//
+// Include vcs.c26 before this file.  The application remains responsible for
+// composing display components and for owning the complete frame loop.  This
+// file supplies only standard phase constants and small cycle-transparent
+// operations; component code must not take ownership of VSYNC, VBLANK, WSYNC,
+// or the RIOT interval timer.
+
+enum vcs_ntsc_frame_timing {
+   VCS_NTSC_CYCLES_PER_SCANLINE := 76,
+   VCS_NTSC_VSYNC_SCANLINES := 3,
+   VCS_NTSC_VBLANK_SCANLINES := 37,
+   VCS_NTSC_VISIBLE_SCANLINES := 192,
+   VCS_NTSC_OVERSCAN_SCANLINES := 30,
+   VCS_NTSC_FRAME_SCANLINES := 262
+};
+
+// Wait for exactly scanlines WSYNC boundaries.  A zero count is a no-op.
+inline void vcs_ntsc_wait_scanlines(uint8_t scanlines) {
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+}
+
+// Generate the standard three-scanline NTSC vertical-sync pulse.  The caller
+// enters at an arbitrary cycle and leaves immediately after clearing VSYNC;
+// the following phase helper will own alignment of the first VBLANK line.
+inline void vcs_ntsc_vsync(void) {
+   VSYNC := 2;
+   vcs_ntsc_wait_scanlines(VCS_NTSC_VSYNC_SCANLINES`uint8_t);
+   VSYNC := 0;
+}

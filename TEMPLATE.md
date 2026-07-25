@@ -11,10 +11,12 @@
 
 This document specifies a VCSC feature under staged implementation.
 `require`/`recommend` declarations, declaration and semantic-use metadata,
-link-time reachable external-use enforcement, and repeatable
-`template ... as ...` source instantiation with controlled identifier rewriting
-are implemented. Inline-assembly rewriting, template-hygiene enforcement, and
-the component lifecycle/frame scheduler work remain roadmap items.
+link-time reachable external-use enforcement, repeatable
+`template ... as ...` source instantiation, controlled identifier rewriting,
+inline-assembly integration, template hygiene, and the standard component
+lifecycle are implemented. The foundational NTSC frame support file now
+provides phase constants, scanline waiting, and VSYNC; scheduler-owned RIOT
+deadlines and emulator-backed phase enforcement remain roadmap work.
 
 The feature is deliberately smaller than C++ templates or a general module
 system. Its purpose is to let one source component be instantiated repeatedly
@@ -504,9 +506,7 @@ void main(void) {
     score2_score := 15;
 
     while (1) {
-        VSYNC := 2;
-        wait_scanlines(3);
-        VSYNC := 0;
+        vcs_ntsc_vsync();
 
         VBLANK := 2;
         start_vblank_deadline(37);   /* Scheduler-owned pseudocode helper. */
@@ -517,11 +517,11 @@ void main(void) {
         finish_vblank_deadline();    /* Detect overrun, wait remainder, WSYNC. */
         VBLANK := 0;                 /* Cycle zero of first visible line. */
 
-        wait_scanlines(81);
+        vcs_ntsc_wait_scanlines(81);
         score1_draw();
         score2_draw();
-        wait_scanlines(
-            192
+        vcs_ntsc_wait_scanlines(
+            VCS_NTSC_VISIBLE_SCANLINES
             - 81
             - score1_VISIBLE_SCANLINES
             - score2_VISIBLE_SCANLINES
