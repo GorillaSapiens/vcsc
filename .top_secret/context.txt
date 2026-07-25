@@ -1187,7 +1187,7 @@ The first unfinished item is the default next action.
                   required calls, independent instance state, usable timing
                   constants, one-at-a-time omission diagnostics, and that an
                   unused component-specific setter remains optional.
-        [ ] 22g. Add the shared NTSC frame-scheduling mechanism and use it to
+        [x] 22g. Add the shared NTSC frame-scheduling mechanism and use it to
                   define and test each component's exact scanline, entry/exit
                   cycle, TIA state, register/flag clobber, stack, RAM/ROM, page,
                   alignment, and blanking-budget contract. Put the reusable
@@ -1204,17 +1204,19 @@ The first unfinished item is the default next action.
                              installed support tree, and document that `main()`
                              still owns composition policy.
                   [x] 22g2. Add scheduler-owned VBLANK and overscan deadline
-                             begin/end operations. Distinguish an unexpired
-                             timer from RIOT underflow/wrap, return or record a
-                             deterministic overrun result, wait only for the
-                             unused budget, and perform the final cycle-zero
-                             phase transition without exposing a low-level timer
-                             wait as public API.
-                  [ ] 22g3. Add emulator-backed timing/resource regressions for
-                             partial-budget callbacks, exact-boundary completion,
-                             deliberate VBLANK and overscan overruns, component
-                             timer-register abstinence, exact cycle-zero entry and
-                             exit, and stable 3/37/192/30-line NTSC frames.
+                             begin/end operations. Distinguish an unexpired timer
+                             from RIOT underflow/wrap, wait only for the unused
+                             budget, and perform the final phase transition without
+                             exposing a low-level timer wait as public API. Make
+                             production end operations `void`: a missed deadline
+                             stops waiting and continues at the next WSYNC, while
+                             optional diagnostics add sticky per-phase flags and
+                             compile completely out of ordinary builds.
+                  [x] 22g3. Add emulator-backed timing/resource regressions for
+                             partial-budget callbacks, maximal non-overrun
+                             completion, one-scanline VBLANK and overscan overruns,
+                             component timer-register abstinence, exact phase-write
+                             cycles, and stable 3/37/192/30-line NTSC frames.
 
                   `frame_ntsc.c26` should publish the standard NTSC phase sizes
                   and small inline operations equivalent to
@@ -1231,11 +1233,12 @@ The first unfinished item is the default next action.
                   deadline before invoking any `TEMPLATE_vblank()` function;
                   callbacks share the remaining budget and must not own VBLANK,
                   WSYNC, TIM1T/TIM8T/TIM64T/T1024T, INTIM, or TIMINT. The public
-                  end-VBLANK operation must detect overrun, wait only for the
-                  unused remainder, issue the final WSYNC, and clear VBLANK at
-                  cycle zero. Apply the same scheduler-owned deadline model to
-                  overscan. Define deterministic overrun behavior and diagnostics
-                  rather than relying on a wrapped INTIM value after expiry.
+                  end-VBLANK operation must distinguish expiry from remaining
+                  time, wait only for the unused remainder, issue the final WSYNC,
+                  and clear VBLANK at the beginning of the visible scanline. Apply
+                  the same scheduler-owned deadline model to overscan. A production
+                  overrun continues with one long frame; optional diagnostics set
+                  sticky phase bits rather than returning mandatory status.
 
                   Cover exact 3/37/192/30-line NTSC phase accounting, a stable
                   262-line frame, timer ownership, callbacks that consume part of
@@ -4295,3 +4298,28 @@ Before returning another modified archive:
   API instead of scheduler pseudocode.
 * Leave task 22g3 next for emulator-backed exact-boundary, partial-budget,
   deliberate-overrun, timer-abstinence, and full-frame timing/resource tests.
+
+2026-07-25 00:24:00 PDT, compact deadline handling and complete NTSC scheduler tests
+-------------------------------------------------------------------------------
+* Revise roadmap task 22g2 so `vcs_ntsc_end_vblank()` and
+  `vcs_ntsc_end_overscan()` return `void`. A missed deadline cannot recover lost
+  scanlines, so production code now stops waiting on RIOT underflow/wrap, performs
+  the final WSYNC transition, and continues with one long frame instead of paying
+  ROM/RAM to construct a mandatory status result.
+* Replace the compiler-generated polling body with one shared 13-byte private
+  assembly subroutine. Production builds allocate no deadline workspace or
+  diagnostic state. Defining `alias VCS_NTSC_DIAGNOSTICS 1` before including
+  `frame_ntsc.c26` adds two static RAM bytes and sticky
+  `VCS_NTSC_VBLANK_OVERRUN`/`VCS_NTSC_OVERSCAN_OVERRUN` bits without changing the
+  public void API.
+* Calibrate the scheduler under the repository MOS 6502/RIOT harness. Correct the
+  TIM64T preloads from 43/35 to 42/34; the former values produced stable 264-line
+  frames, while the corrected values produce exact steady-state 3/37/192/30 =
+  262-line frames.
+* Complete task 22g3 with production partial-budget, diagnostic maximal-fit,
+  one-line VBLANK-overrun, and one-line overscan-overrun cartridges. The emulator
+  locks VSYNC and VBLANK write cycles, exact phase-line boundaries, one TIM64T
+  load per blank phase, no other timer-start writes, 262-line normal/boundary
+  frames, 263-line single-phase overruns, and sticky flags 0/1/2. Leave task 22h
+  next for converting the centered six-glyph display into the first real
+  reusable component.

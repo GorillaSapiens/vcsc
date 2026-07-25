@@ -1,25 +1,29 @@
 // vcsc-cc1 -I ../libraries/vcs
-// expectasm: lda #$2b
-// expectasm: lda #$23
+// expectasm: lda #$2a
+// expectasm: lda #$22
 // expectasm: sta  $0296
-// expectasm: lda  $0285
-// expectasm: lda  $0284
-// expectasm: lda #$80
+// expectasmordered: lda $0285
+// expectasmordered: bmi @done
+// expectasmordered: lda $0284
+// expectasmordered: bmi @done
+// expectasmordered: bne @wait
 // expectasm: sta  $02
 // expectasm: sta  $01
+// expectasm: jsr vcs_ntsc_finish_deadline
 // forbidasm: jsr vcs_ntsc_begin_vblank
 // forbidasm: jsr vcs_ntsc_end_vblank
 // forbidasm: jsr vcs_ntsc_begin_overscan
 // forbidasm: jsr vcs_ntsc_end_overscan
-// forbidasm: jsr vcs_ntsc_finish_deadline
+// forbidasm: vcs_ntsc_overrun_flags
+// forbidasm: vcs_ntsc_finish_deadline$interrupt_status
+// forbidasm: vcs_ntsc_finish_deadline$timer_value
+// forbidasm: VCS_NTSC_PHASE_
 include "vcs.c26"
 include "frame_ntsc.c26"
 
-uint8_t phase_result;
-
 void main(void) {
    vcs_ntsc_begin_vblank();
-   phase_result := vcs_ntsc_end_vblank();
+   vcs_ntsc_end_vblank();
    vcs_ntsc_begin_overscan();
-   phase_result |= vcs_ntsc_end_overscan();
+   vcs_ntsc_end_overscan();
 }

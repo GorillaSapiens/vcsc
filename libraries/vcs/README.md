@@ -38,20 +38,17 @@ Typical use:
 include "vcs.c26"
 include "frame_ntsc.c26"
 
-int16_t main(void) {
-   uint8_t overrun := 0;
-
+void main(void) {
    vcs_ntsc_vsync();
    vcs_ntsc_begin_vblank();
    /* Run component vblank callbacks here. */
-   overrun |= vcs_ntsc_end_vblank();
+   vcs_ntsc_end_vblank();
 
    /* Draw exactly VCS_NTSC_VISIBLE_SCANLINES here. */
 
    vcs_ntsc_begin_overscan();
    /* Run component overscan callbacks here. */
-   overrun |= vcs_ntsc_end_overscan();
-   return overrun;
+   vcs_ntsc_end_overscan();
 }
 ```
 
@@ -60,9 +57,16 @@ int16_t main(void) {
 start scheduler-owned TIM64T deadlines. Their matching end operations wait only
 for the unused part of the phase, detect RIOT timer underflow without mistaking
 a wrapped `INTIM` value for remaining time, issue the final `WSYNC`, and return
-`VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`. `vcs_ntsc_end_vblank()` also
-clears VBLANK; `vcs_ntsc_end_overscan()` leaves it asserted for VSYNC. Component
-callbacks must not touch VBLANK, WSYNC, INTIM, TIMINT, or a timer-start register.
+`void`. A missed deadline cannot be repaired generically, so the production path
+continues at the next scanline boundary and produces one long frame rather than
+waiting on wrapped timer state. `vcs_ntsc_end_vblank()` clears VBLANK;
+`vcs_ntsc_end_overscan()` leaves it asserted for VSYNC. Component callbacks must
+not touch VBLANK, WSYNC, INTIM, TIMINT, or a timer-start register.
+
+Define `alias VCS_NTSC_DIAGNOSTICS 1` before including `frame_ntsc.c26` to add a
+sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and
+`VCS_NTSC_OVERSCAN_OVERRUN` identify missed deadlines. Production builds omit
+that RAM byte and all flag-setting code.
 
 ## Target type definitions
 

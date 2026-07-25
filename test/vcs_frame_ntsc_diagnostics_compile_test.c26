@@ -1,0 +1,18 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: vcs_ntsc_overrun_flags
+// expectasm: lda #$01
+// expectasm: lda #$02
+// expectasm: jsr vcs_ntsc_finish_deadline
+// forbidasm: jsr vcs_ntsc_end_vblank
+// forbidasm: jsr vcs_ntsc_end_overscan
+alias VCS_NTSC_DIAGNOSTICS 1
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+void main(void) {
+   vcs_ntsc_overrun_flags := 0;
+   vcs_ntsc_begin_vblank();
+   vcs_ntsc_end_vblank();
+   vcs_ntsc_begin_overscan();
+   vcs_ntsc_end_overscan();
+}

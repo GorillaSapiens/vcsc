@@ -1,0 +1,19 @@
+alias VCS_NTSC_DIAGNOSTICS 1
+include "vcs.c26"
+include "frame_ntsc.c26"
+
+void main(void) {
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      vcs_ntsc_wait_scanlines(36);
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_scanlines(VCS_NTSC_VISIBLE_SCANLINES`uint8_t);
+
+      vcs_ntsc_begin_overscan();
+      vcs_ntsc_wait_scanlines(28);
+      vcs_ntsc_end_overscan();
+   }
+}

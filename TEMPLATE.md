@@ -513,9 +513,7 @@ void main(void) {
         score1_vblank();
         score2_vblank();
 
-        if (vcs_ntsc_end_vblank() == VCS_NTSC_PHASE_OVERRUN) {
-            /* Application-selected deterministic overrun handling. */
-        }
+        vcs_ntsc_end_vblank();
 
         vcs_ntsc_wait_scanlines(81);
         score1_draw();
@@ -532,9 +530,7 @@ void main(void) {
         score1_overscan();
         score2_overscan();
 
-        if (vcs_ntsc_end_overscan() == VCS_NTSC_PHASE_OVERRUN) {
-            /* Application-selected deterministic overrun handling. */
-        }
+        vcs_ntsc_end_overscan();
     }
 }
 ```
@@ -542,16 +538,22 @@ void main(void) {
 The four deadline operations above are supplied by `frame_ntsc.c26`, not by a
 component template. Their low-level timer-wait helper remains private so callers
 cannot accidentally omit the required final WSYNC or VBLANK transition. The end
-operations distinguish an unexpired timer from RIOT underflow/wrap, return
-`VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`, wait only for unused time, and
-perform the phase-ending alignment. A bare `while (INTIM)` loop is not sufficient
-after arbitrary component work because an already-underflowed timer can wrap and
-appear nonzero again.
+operations distinguish an unexpired timer from RIOT underflow/wrap, wait only for
+unused time, perform the phase-ending alignment, and return `void`. A bare
+`while (INTIM)` loop is not sufficient after arbitrary component work because an
+already-underflowed timer can wrap and appear nonzero again.
+
+A missed deadline cannot be repaired generically. The production scheduler stops
+waiting, aligns at the next WSYNC, and continues with one long frame. It does not
+spend ROM and RAM constructing a status most cartridges cannot use. Diagnostic
+builds may define `alias VCS_NTSC_DIAGNOSTICS 1` before including
+`frame_ntsc.c26`; that adds a sticky `vcs_ntsc_overrun_flags` byte with separate
+VBLANK and overscan bits. Production builds omit the byte and all flag-setting
+code.
 
 The scheduler uses the standard NTSC 37-line VBLANK and 30-line overscan
 preloads. Component contracts still determine whether their combined worst-case
-work fits those budgets, and the application chooses its deterministic response
-to an overrun.
+work fits those budgets.
 
 ## Required regression strategy
 
@@ -597,8 +599,10 @@ The first real component conversion should prove:
 - the application may draw instance 1 above instance 2 or reverse the order;
 - exact scanline counts, entry/exit cycles, glyph order, colors, and TIA writes;
 - the VBLANK deadline starts before the first `vblank()` call, all component
-  callbacks fit within the shared budget, overrun is detected, and VBLANK clears
-  at cycle zero only after the scheduler's final WSYNC;
+  callbacks fit within the shared budget, and VBLANK clears at cycle zero only
+  after the scheduler's final WSYNC;
+- deliberate overruns stop waiting on wrapped timer state, continue at the next
+  scanline boundary, and set sticky phase bits only in diagnostic builds;
 - component callbacks do not take ownership of VBLANK, WSYNC, or the RIOT timer;
 - lifecycle calls are all externally visible to `require` checking;
 - omitting `score1_init()` produces the intended link error;
@@ -627,10 +631,9 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
    source-visible nonlocal assembler labels. **Complete.**
 8. Standardize `init`, `vblank`, `draw`, `overscan`,
    `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata.
-   **Lifecycle names, required-call contracts, timing constants, and focused
-   conformance regressions are complete.** Scheduler-owned phase deadlines,
-   overrun detection, remaining-time waits, and cycle-zero phase transitions
-   remain task 22g.
+   **Complete.** Lifecycle names, required-call contracts, timing constants,
+   scheduler-owned deadlines, underflow-safe remaining-time waits, optional
+   overrun diagnostics, and exact NTSC phase regressions are maintained together.
 9. Convert the existing six-glyph display into the first reusable component and
    prove two independent instances in both draw orders.
 10. Update the kernel-authoring documentation after the implementation has

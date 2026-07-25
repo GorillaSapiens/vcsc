@@ -16,7 +16,6 @@ uint32_t long_count := 0x12345678;
 int32_t long_delta := -1;
 
 int16_t main(void) {
-   uint8_t phase_status := 0;
    int8_t x := INPT4;
    bcd8_t score := 42;
    bcd32_t total := 12345678;
@@ -28,10 +27,10 @@ int16_t main(void) {
    long_delta--;
    vcs_ntsc_wait_scanlines(0);
    vcs_ntsc_begin_vblank();
-   phase_status |= vcs_ntsc_end_vblank();
+   vcs_ntsc_end_vblank();
    vcs_ntsc_begin_overscan();
-   phase_status |= vcs_ntsc_end_overscan();
+   vcs_ntsc_end_overscan();
    VBLANK := x;
    TIM64T := 42;
-   return INTIM + SWCHB + phase_status;
+   return INTIM + SWCHB;
 }

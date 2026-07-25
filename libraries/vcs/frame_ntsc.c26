@@ -38,11 +38,22 @@ inline void vcs_ntsc_vsync(void) {
 // calibration and deliberate-overrun coverage live in the frame-scheduler
 // emulator regressions.
 enum vcs_ntsc_deadline_timing {
-   VCS_NTSC_VBLANK_TIM64T := 43,
-   VCS_NTSC_OVERSCAN_TIM64T := 35,
-   VCS_NTSC_PHASE_OK := 0,
-   VCS_NTSC_PHASE_OVERRUN := 1
+   VCS_NTSC_VBLANK_TIM64T := 42,
+   VCS_NTSC_OVERSCAN_TIM64T := 34
 };
+
+#ifdef VCS_NTSC_DIAGNOSTICS
+// Optional sticky diagnostics.  Define the object-like alias
+// VCS_NTSC_DIAGNOSTICS before including this file to pay for these flags.
+// Production builds omit both diagnostic RAM bytes and all flag-setting code.
+enum vcs_ntsc_overrun_flag_t {
+   VCS_NTSC_VBLANK_OVERRUN := 1,
+   VCS_NTSC_OVERSCAN_OVERRUN := 2
+};
+
+static uint8_t vcs_ntsc_overrun_flags := 0;
+static uint8_t vcs_ntsc_overrun_phase := 0;
+#endif
 
 // Wait for a scheduler-owned TIM64T deadline.  This is intentionally private:
 // callers must use the phase end operations so they cannot omit the final
@@ -50,25 +61,42 @@ enum vcs_ntsc_deadline_timing {
 // iteration samples TIMINT first.  A timer underflow racing between those two
 // reads is still detected because every valid preload is below $80 whereas the
 // post-underflow INTIM value begins at $ff and therefore has bit 7 set.
-static inline uint8_t vcs_ntsc_finish_deadline(void) {
-   uint8_t interrupt_status;
-   uint8_t timer_value;
-
-   while (1) {
-      interrupt_status := TIMINT;
-      if (interrupt_status & 0x80) {
-         return VCS_NTSC_PHASE_OVERRUN`uint8_t;
-      }
-
-      timer_value := INTIM;
-      if (timer_value & 0x80) {
-         return VCS_NTSC_PHASE_OVERRUN`uint8_t;
-      }
-      if (!timer_value) {
-         return VCS_NTSC_PHASE_OK`uint8_t;
-      }
-   }
+//
+// Missing a deadline cannot be repaired generically.  Production behavior is
+// therefore simply to stop waiting, align at the next WSYNC, and continue with
+// one long frame.  Optional diagnostics record which phase overran.
+#ifdef VCS_NTSC_DIAGNOSTICS
+// Diagnostic builds add one phase byte and a short sticky-flag tail.  The
+// polling path remains hand-written so enabling diagnostics does not turn the
+// deadline loop into compiler-generated workspace and status plumbing.
+static void vcs_ntsc_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @overrun
+   asm lda INTIM
+   asm bmi @overrun
+   asm beq @done
+   asm bne @wait
+   asm @overrun:
+   asm lda vcs_ntsc_overrun_flags
+   asm ora vcs_ntsc_overrun_phase
+   asm sta vcs_ntsc_overrun_flags
+   asm @done:
 }
+#else
+// Keep the mandatory production path compact: one shared 13-byte subroutine,
+// no result construction, and no RAM workspace.  Inline assembly is used here
+// only to express the RIOT polling loop exactly; it remains an optimizer barrier.
+static void vcs_ntsc_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @done
+   asm lda INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+}
+#endif
 
 // Begin the shared 37-scanline VBLANK budget.  Component vblank callbacks run
 // after this operation and must not touch VBLANK, WSYNC, or RIOT timer state.
@@ -78,12 +106,15 @@ inline void vcs_ntsc_begin_vblank(void) {
 }
 
 // Wait only for the unused VBLANK budget, align the visible phase, and clear
-// VBLANK.  Return VCS_NTSC_PHASE_OVERRUN if callbacks missed the deadline.
-inline uint8_t vcs_ntsc_end_vblank(void) {
-   uint8_t result := vcs_ntsc_finish_deadline();
+// VBLANK.  If callbacks missed the deadline, continue at the next scanline
+// boundary; optional diagnostics record the overrun.
+inline void vcs_ntsc_end_vblank(void) {
+#ifdef VCS_NTSC_DIAGNOSTICS
+   vcs_ntsc_overrun_phase := VCS_NTSC_VBLANK_OVERRUN`uint8_t;
+#endif
+   vcs_ntsc_finish_deadline();
    WSYNC := 0;
    VBLANK := 0;
-   return result;
 }
 
 // Begin the shared 30-scanline overscan budget.  Component overscan callbacks
@@ -95,9 +126,13 @@ inline void vcs_ntsc_begin_overscan(void) {
 }
 
 // Wait only for the unused overscan budget and align the following VSYNC phase.
-// VBLANK remains asserted across overscan and VSYNC.
-inline uint8_t vcs_ntsc_end_overscan(void) {
-   uint8_t result := vcs_ntsc_finish_deadline();
+// VBLANK remains asserted across overscan and VSYNC.  If callbacks missed the
+// deadline, continue at the next scanline boundary; optional diagnostics record
+// the overrun.
+inline void vcs_ntsc_end_overscan(void) {
+#ifdef VCS_NTSC_DIAGNOSTICS
+   vcs_ntsc_overrun_phase := VCS_NTSC_OVERSCAN_OVERRUN`uint8_t;
+#endif
+   vcs_ntsc_finish_deadline();
    WSYNC := 0;
-   return result;
 }
