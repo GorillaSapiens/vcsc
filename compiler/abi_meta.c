@@ -722,3 +722,59 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    free(fp.buf);
    free(detail.buf);
 }
+
+
+//! @brief Emit one semantic-use record that survives optimization and inlining.
+void emit_semantic_use_metadata(const char *kind, const char *symbol,
+                                const char *containing_function,
+                                const ASTNode *use_site) {
+   const char *owner = root_filename && *root_filename ? root_filename
+      : (use_site && use_site->file ? use_site->file : "?");
+   const char *file = use_site && use_site->file ? use_site->file : owner;
+   int line = use_site ? use_site->line : 0;
+   int column = use_site ? use_site->column : 0;
+   char *enc_kind;
+   char *enc_symbol;
+   char *enc_owner;
+   char *enc_function;
+   char *enc_file;
+   StrBuf name;
+
+   if (!kind || !*kind || !symbol || !*symbol)
+      return;
+
+   enc_kind = meta_encode(kind);
+   enc_symbol = meta_encode(symbol);
+   enc_owner = meta_encode(owner);
+   enc_function = meta_encode(containing_function && *containing_function
+      ? containing_function : "none");
+   enc_file = meta_encode(file);
+
+   sb_init(&name);
+   sb_append(&name, SEMANTIC_USE_META_PREFIX);
+   sb_append(&name, enc_kind);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_symbol);
+   sb_append(&name, "$owner$");
+   sb_append(&name, enc_owner);
+   sb_append(&name, "$function$");
+   sb_append(&name, enc_function);
+   sb_append(&name, "$use$");
+   sb_append(&name, enc_file);
+   sb_appendf(&name, "$L%d$C%d$invoke$none", line, column);
+
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+      emit(&es_export, "%s = 0\n", name.buf);
+   }
+
+   free(enc_kind);
+   free(enc_symbol);
+   free(enc_owner);
+   free(enc_function);
+   free(enc_file);
+   free(name.buf);
+}

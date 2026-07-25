@@ -71,6 +71,12 @@ require_match('canonical unsigned-byte object fingerprint', $assembly,
    qr/__contractmeta\$V1\$object\$require\$required_object\$.*scalarQ28szQ3D1Q3BkindQ3Dunsigned_intQ29/);
 require_match('canonical void function signature', $assembly,
    qr/__contractmeta\$V1\$function\$require\$required_inline\$.*functionQ28paramsQ3D0Q3BreturnQ3D/);
+require_match('true-inline call semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$call\$required_inline\$.*\$function\$main\$.*\$L20\$C21\$invoke\$none/);
+require_match('second true-inline call semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$call\$recommended_inline\$.*\$function\$main\$.*\$L21\$C24\$invoke\$none/);
+require_match('ordinary direct-call semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$call\$merged_function\$.*\$function\$main\$.*\$L22\$C21\$invoke\$none/);
 
 require_ok('assemble', $as, '-I', $runtime, '-o', $obj, $asm);
 my $bytes = slurp($obj);
@@ -79,9 +85,13 @@ for my $needle (
    '__contractmeta$V1$object$recommend$recommended_object$',
    '__contractmeta$V1$function$require$merged_function$',
    '__contractmeta$V1$function$require$required_inline$',
-   '$invoke$none$type$'
+   '$invoke$none$type$',
+   '__usemeta$V1$call$required_inline$',
+   '__usemeta$V1$call$recommended_inline$',
+   '__usemeta$V1$call$merged_function$',
+   '$function$main$use$'
 ) {
    index($bytes, $needle) >= 0 or die "o26 did not retain metadata fragment '$needle'\n";
 }
 
-print "declaration contract metadata survives compiler and o26 assembly\n";
+print "declaration contract and call-use metadata survive compiler and o26 assembly\n";

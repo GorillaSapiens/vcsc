@@ -92,11 +92,18 @@ static int contract_metadata_has_prefix(const char *name)
    return name && strncmp(name, CONTRACT_META_PREFIX, sizeof(CONTRACT_META_PREFIX) - 1) == 0;
 }
 
+//! @brief Return whether semantic-use metadata has its reserved prefix.
+static int semantic_use_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, SEMANTIC_USE_META_PREFIX, sizeof(SEMANTIC_USE_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether reserved metadata has prefix in linker layout and image writer.
 static int reserved_metadata_has_prefix(const char *name)
 {
    return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
-          mem_region_metadata_has_prefix(name) || contract_metadata_has_prefix(name);
+          mem_region_metadata_has_prefix(name) || contract_metadata_has_prefix(name) ||
+          semantic_use_metadata_has_prefix(name);
 }
 
 //! @brief Handle symbol backed metadata parse function logic for linker layout and image writer.

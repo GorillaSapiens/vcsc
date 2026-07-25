@@ -1131,11 +1131,18 @@ The first unfinished item is the default next action.
                             true inline functions and prove the assembler retains
                             them in `.o26` exports. Keep the linker from exposing
                             these metadata exports as program globals.
-                  [ ] 22b2. Add semantic use records for direct and true-inline
-                            calls and for object reads, writes, address-taking, and
-                            `ref` uses. Preserve the using owner and source
-                            location even when optimization removes every ordinary
-                            relocation.
+                  [ ] 22b2. Add semantic use records that survive optimization
+                            even when no ordinary relocation remains.
+
+                            [x] 22b2a. Emit reserved `__usemeta$V1$call$` records
+                                      for ordinary direct calls and true-inline
+                                      expansions. Preserve the callee, referencing
+                                      translation-unit owner, containing function,
+                                      and source file/line/column through `.o26`,
+                                      and hide the records from program globals.
+                            [ ] 22b2b. Emit corresponding object `read`, `write`,
+                                      `address`, and `ref` records with the same
+                                      owner/function/location information.
         [ ] 22c. After archive selection and whole-program reachability, make the
                   linker reject an externally unused `require` contract and warn
                   for an externally unused `recommend` contract. Internal use by
@@ -4077,3 +4084,20 @@ Before returning another modified archive:
   retention, object and function fingerprints, true-inline metadata, and raw o26
   preservation. Leave 22b open at 22b2 for semantic call/read/write/address/ref
   use records; do not begin linker enforcement in 22c yet.
+
+2026-07-24 20:41:00 PDT, preserve direct and inline call-use metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b2a. Emit reserved `__usemeta$V1$call$` absolute-
+  export records for every resolved direct source-level call, including true-
+  inline expansion sites that leave no `JSR`, relocation, or callable symbol in
+  generated code.
+* Preserve the callee symbol, referencing translation-unit owner, containing
+  function, and exact source file/line/column through `.s26` and `.o26` output.
+  Reserve the prefix in the linker so use records remain metadata rather than
+  ordinary program globals or layout-consuming symbols.
+* Extend the declaration-contract metadata regression to prove ordinary and
+  true-inline call records independently and verify raw o26 retention. Document
+  the call-use record in `compiler/ABI.txt`.
+* Leave task 22b open at 22b2b for object read/write/address/ref records; do not
+  begin link-time contract enforcement in 22c.
+

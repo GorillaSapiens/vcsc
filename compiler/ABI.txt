@@ -180,4 +180,9 @@ source instantiation is implemented), and a canonical type or function-signature
 fingerprint.  True inline functions emit these records even though they have no
 ordinary callable object symbol.  The assembler retains the records in `.o26`
 exports; the linker treats the prefix as metadata rather than a program global.
-Semantic call/read/write/address/ref use records are the next roadmap slice.
+
+Direct source-level calls, including true-inline expansions that leave no `JSR`
+or relocation, emit reserved `__usemeta$V1$call$...` records. Each record
+preserves the callee symbol, referencing translation-unit owner, containing
+function, and source file/line/column. Object read/write/address/ref records and
+link-time required/recommended-use enforcement remain separate roadmap work.

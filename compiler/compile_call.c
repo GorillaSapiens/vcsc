@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #include "ast.h"
+#include "abi_meta.h"
 #include "compile_call.h"
 #include "compile_expr.h"
 #include "compile_expr_info.h"
@@ -433,6 +434,13 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (ret_size < 0) {
       ret_size = 0;
+   }
+   {
+      char callee_sym[256];
+      if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym)))
+         return false;
+      emit_semantic_use_metadata("call", callee_sym,
+                                 ctx ? ctx->activation_owner : NULL, expr);
    }
    if (function_is_inline(fn)) {
       return compile_inline_symbol_call(ctx, dst, callee, args, fn, declarator,

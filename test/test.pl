@@ -478,6 +478,12 @@ sub run_compile_case {
 
    if (@{$meta->{expectasm}} || @{$meta->{expectasmordered}} || @{$meta->{forbidasm}}) {
       my $asm = slurp_file($outfile);
+      # Semantic-use metadata deliberately contains source paths and symbol names
+      # that are not executable/data code. Keep ordinary code-generation
+      # expectations from matching those reserved records; dedicated metadata
+      # regressions inspect them explicitly through compiler and o26 output.
+      $asm =~ s/^\.export __usemeta\$V1\$.*\n//mg;
+      $asm =~ s/^__usemeta\$V1\$.*\n//mg;
       my $err = require_substrings_result($asm, $meta->{expectasm}, 'assembly');
       return fail_result($err) if defined $err;
       $err = require_ordered_substrings_result($asm, $meta->{expectasmordered}, 'assembly');
