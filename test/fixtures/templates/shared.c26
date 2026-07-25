@@ -1,0 +1,2 @@
+/* Shared declarations belong in an ordinary include, not in each instance. */
+extern uint8_t MY_TEMPLATE_HELPER;

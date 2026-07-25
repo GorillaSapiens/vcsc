@@ -296,7 +296,7 @@ assembler hygiene rules.
 
 ### Template hygiene
 
-Every instance-owned file-scope definition in a template should use either
+Every instance-owned file-scope definition in a template must use either
 `TEMPLATE` or the `TEMPLATE_` prefix. This includes:
 
 - functions and objects;
@@ -305,14 +305,18 @@ Every instance-owned file-scope definition in a template should use either
 - tables;
 - source-visible assembler symbols.
 
-The compiler should reject an unqualified file-scope definition created directly
+The compiler rejects an unqualified file-scope definition created directly
 inside a template instance, because two instances would otherwise collide or
 silently share state. Shared declarations should come from an ordinary included
 support file rather than being redefined by each template instance.
 
-The initial implementation may need a narrow explicit escape for declarations
-that are proven to be shared, but silently accepting forgotten prefixes is not
-safe enough for cycle-sensitive kernel code.
+The direct-template/source provenance is retained separately from the active
+template instance. Consequently an ordinary included support file is exempt
+even when it is read while a template instance is active. Function locals,
+parameters, aggregate members, and assembler-local `@labels` are not
+file-scope instance names and remain unrestricted. Nonlocal assembler labels
+defined by inline assembly are source-visible and therefore require the same
+prefix discipline.
 
 ## Standard display-component contract
 
@@ -603,10 +607,12 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
    with exact error/warning diagnostics.
 5. Add `template "file" as instance` using the ordinary include path but
    bypassing the MD5-seen set. **Complete.**
-6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting. **Complete.**
-   Template-hygiene diagnostics remain part of the next slice.
+6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting and reject
+   unqualified instance-owned file-scope definitions while exempting ordinary
+   included support declarations. **Complete.**
 7. Extend rewriting to identifier operands in inline assembly without exposing
-   the block to compiler peephole optimization.
+   the block to compiler peephole optimization, and enforce hygiene on
+   source-visible nonlocal assembler labels. **Complete.**
 8. Standardize `init`, `vblank`, `draw`, `overscan`,
    `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata;
    define scheduler-owned phase deadlines, overrun detection, remaining-time

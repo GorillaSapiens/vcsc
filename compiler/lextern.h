@@ -5,6 +5,8 @@
 #ifndef _INCLUDE_LEXTERN_H_
 #define _INCLUDE_LEXTERN_H_
 
+#include <stdbool.h>
+
 // called when an "include" directive is found
 int push_file(const char *filename);
 
@@ -41,5 +43,8 @@ int lexer_lookup_token_location(const char *token, const char **filename, int *l
 
 // Return the final source spelling associated with one identifier token.
 const char *lexer_token_source_spelling(const char *token);
+// Return the spelling before template identifier rewriting.
+const char *lexer_token_original_spelling(const char *token);
+bool lexer_token_is_direct_template_source(const char *token);
 
 #endif

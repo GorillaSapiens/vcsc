@@ -70,7 +70,13 @@ parameters, and identifier tokens in alias replacement text participate in the
 same rewriting. Exact `TEMPLATE` and leading `TEMPLATE_` identifier tokens in
 inline assembly are also rewritten and UTF-8-mangled on assembler-identifier
 boundaries; quoted assembler data and unrelated identifiers remain unchanged.
-File-scope template-hygiene enforcement remains roadmap work.
+Definitions written directly in a template file must name every instance-owned
+file-scope function, object, typedef, tag, enum constant, table, and
+source-visible assembler label with exact `TEMPLATE` or the leading
+`TEMPLATE_` prefix. Ordinary included support files are exempt, so genuinely
+shared declarations can live in one include-once header instead of being
+redeclared by every instance. Assembler-local `@labels`, function locals,
+parameters, and aggregate members do not require the prefix.
 
 ### Aliases
 

@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/template_hygiene.pl @VCSC_CC1@ @TEST_ROOT@
+# phase: compile
+# timeout: 20
+# expectexit: 0
+# expectstdout: template hygiene tests passed

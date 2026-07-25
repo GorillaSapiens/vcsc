@@ -84,6 +84,7 @@ static int pp_error_column = 0;
 typedef struct LexerTokenLocation {
    const char *token;
    char *source_spelling;
+   char *original_spelling;
    char *filename;
    int line;
    int column;
@@ -91,13 +92,15 @@ typedef struct LexerTokenLocation {
    char *template_invoke_file;
    int template_invoke_line;
    int template_invoke_column;
+   bool direct_template_source;
 } LexerTokenLocation;
 
 static LexerTokenLocation *lexer_token_locations = NULL;
 static size_t lexer_token_location_count = 0;
 static size_t lexer_token_location_cap = 0;
 
-static void lexer_register_token_location(const char *token, const char *source_spelling) {
+static void lexer_register_token_location(const char *token, const char *source_spelling,
+                                          const char *original_spelling) {
    if (!token) {
       return;
    }
@@ -112,6 +115,9 @@ static void lexer_register_token_location(const char *token, const char *source_
    lexer_token_locations[lexer_token_location_count].token = token;
    lexer_token_locations[lexer_token_location_count].source_spelling =
       strdup(source_spelling ? source_spelling : token);
+   lexer_token_locations[lexer_token_location_count].original_spelling =
+      strdup(original_spelling ? original_spelling :
+             (source_spelling ? source_spelling : token));
    lexer_token_locations[lexer_token_location_count].filename = strdup(current_filename ? current_filename : "<stdin>");
    lexer_token_locations[lexer_token_location_count].line = yylloc.first_line;
    lexer_token_locations[lexer_token_location_count].column = yylloc.first_column;
@@ -121,6 +127,8 @@ static void lexer_register_token_location(const char *token, const char *source_
       current_template_invoke_file ? strdup(current_template_invoke_file) : NULL;
    lexer_token_locations[lexer_token_location_count].template_invoke_line = current_template_invoke_line;
    lexer_token_locations[lexer_token_location_count].template_invoke_column = current_template_invoke_column;
+   lexer_token_locations[lexer_token_location_count].direct_template_source =
+      file_stack_top >= 0 && file_stack[file_stack_top].is_template;
    lexer_token_location_count++;
 }
 
@@ -157,6 +165,28 @@ const char *lexer_token_source_spelling(const char *token) {
          return loc->source_spelling;
    }
    return NULL;
+}
+
+const char *lexer_token_original_spelling(const char *token) {
+   if (!token)
+      return NULL;
+   for (size_t i = lexer_token_location_count; i > 0; i--) {
+      LexerTokenLocation *loc = &lexer_token_locations[i - 1];
+      if (loc->token == token)
+         return loc->original_spelling;
+   }
+   return NULL;
+}
+
+bool lexer_token_is_direct_template_source(const char *token) {
+   if (!token)
+      return false;
+   for (size_t i = lexer_token_location_count; i > 0; i--) {
+      LexerTokenLocation *loc = &lexer_token_locations[i - 1];
+      if (loc->token == token)
+         return loc->direct_template_source;
+   }
+   return false;
 }
 
 static void lexer_set_error_location(const char *filename, int line, int column, const char *near) {
@@ -2206,7 +2236,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
       }
       else {
          yylval.str = ident;
-         lexer_register_token_location(ident, source);
+         lexer_register_token_location(ident, source, yytext);
          free(source);
          if (!strcmp(ident, "true") || !strcmp(ident, "false")) return INTEGER;
          if (xform_exists(ident)) return XFORMNAME;
@@ -2249,6 +2279,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 
 "asm "[^;\n]* {
    yylval.str = template_rewrite_inline_asm_text(yytext + 4);
+   lexer_register_token_location(yylval.str, yylval.str, yytext + 4);
    return ASM;
 }
 

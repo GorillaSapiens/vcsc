@@ -26,6 +26,8 @@ typedef struct ASTNode {
    const char *template_instance;
    const char *template_invoke_file;
    int template_invoke_line, template_invoke_column;
+   const char *source_spelling;
+   bool direct_template_source;
    bool handled;
    enum ASTKind kind;
 

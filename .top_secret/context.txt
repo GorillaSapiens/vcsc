@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260724_200752.tar.gz
+    vcsc.20260724_225400.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1160,7 +1160,7 @@ The first unfinished item is the default next action.
                   recursive-template diagnostics, identifier-aware alias
                   rewriting, and stable invocation identities in contract/use
                   metadata.
-        [ ] 22e. Complete inline-assembly integration and template hygiene.
+        [x] 22e. Complete inline-assembly integration and template hygiene.
 
                   [x] 22e1. Rewrite exact `TEMPLATE` and leading `TEMPLATE_`
                             identifier tokens inside inline assembly before
@@ -1169,7 +1169,7 @@ The first unfinished item is the default next action.
                             substrings, and inline assembly's optimizer opacity;
                             cover both ASCII and UTF-8 instances with the
                             peephole pass enabled and disabled.
-                  [ ] 22e2. Enforce template hygiene so instance-owned file-
+                  [x] 22e2. Enforce template hygiene so instance-owned file-
                             scope functions, objects, typedefs, tags, enum
                             constants, tables, and source-visible assembler
                             symbols cannot accidentally omit the `TEMPLATE_`
@@ -4202,3 +4202,23 @@ Before returning another modified archive:
   `-fno-peephole`.
 * Leave task 22e open at 22e2 for file-scope template-hygiene enforcement; do
   not begin that distinct AST/source-ownership slice in this timebox.
+
+2026-07-24 23:05:00 PDT, enforce direct-template file-scope hygiene
+-------------------------------------------------------------------------------
+* Complete roadmap task 22e2 and therefore task 22e. Preserve each token's
+  original pre-rewrite spelling and whether it came directly from the active
+  template file rather than an ordinary included support file. Use that
+  provenance to require exact `TEMPLATE` or leading `TEMPLATE_` spelling for
+  directly template-owned file-scope functions, objects/tables, typedefs, type
+  and memory names, struct/union/enum tags, and enum constants.
+* Apply the same rule to source-visible nonlocal labels defined by inline
+  assembly while retaining ordinary assembler-local `@labels`. Keep function
+  locals, parameters, aggregate members, references to shared names, and
+  declarations supplied by ordinary include-once support files unrestricted.
+* Move the template fixture's genuinely shared `MY_TEMPLATE_HELPER` declaration
+  into an ordinary included support file. Add focused negative coverage for
+  every required definition class plus a positive two-instance test proving
+  prefixed names, local names, local assembler labels, and shared included
+  declarations coexist. Leave task 22f next; do not begin lifecycle
+  standardization in this timebox.
+

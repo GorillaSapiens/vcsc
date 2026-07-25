@@ -158,6 +158,7 @@ static void compile(ASTNode *program) {
       // error calls exit()
    }
 
+   enforce_template_hygiene(program);
    reject_function_pointers(program);
 
    for (int i = 0; i < program->count; i++) {

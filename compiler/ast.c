@@ -27,6 +27,17 @@ static void ast_capture_template_context(ASTNode *node) {
    node->template_invoke_column = lexer_current_template_invoke_column();
 }
 
+//! @brief Preserve the original token spelling and whether it came directly from a template file.
+static void ast_capture_token_provenance(ASTNode *node, const char *token) {
+   const char *source;
+
+   if (!node || !token)
+      return;
+   source = lexer_token_original_spelling(token);
+   node->source_spelling = strdup(source ? source : token);
+   node->direct_template_source = lexer_token_is_direct_template_source(token);
+}
+
 static int ast_string_has_unicode_escape(const char *s) {
    if (!s) {
       return 0;
@@ -142,6 +153,7 @@ ASTNode *make_string_leaf(const char *strval) {
 ASTNode *make_asm_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
    ast_capture_template_context(ret);
+   ast_capture_token_provenance(ret, strval);
    ret->name = "asm";
    ret->file = strdup(current_filename);
    ret->line = yylineno;
@@ -156,6 +168,7 @@ ASTNode *make_asm_leaf(const char *strval) {
 ASTNode *make_identifier_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
    ast_capture_template_context(ret);
+   ast_capture_token_provenance(ret, strval);
    const char *tok_file = NULL;
    const char *tok_instance = NULL;
    const char *tok_invoke_file = NULL;
@@ -200,6 +213,7 @@ ASTNode *make_identifier_leaf(const char *strval) {
 ASTNode *make_typename_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
    ast_capture_template_context(ret);
+   ast_capture_token_provenance(ret, strval);
    const char *tok_file = NULL;
    const char *tok_instance = NULL;
    const char *tok_invoke_file = NULL;

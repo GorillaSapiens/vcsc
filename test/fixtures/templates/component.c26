@@ -1,4 +1,5 @@
 /* TEMPLATE_comment must remain ordinary comment text. */
+include "fixtures/templates/shared.c26"
 alias TEMPLATE_ONE 1
 alias TEMPLATE_ADD(TEMPLATE_x) TEMPLATE_x + TEMPLATE_ONE
 
@@ -7,7 +8,6 @@ enum TEMPLATE_enum {
    TEMPLATE_enum_value := 6
 };
 
-extern uint8_t MY_TEMPLATE_HELPER;
 recommend TEMPLATE_byte TEMPLATE_value;
 uint8_t *TEMPLATE_text := "TEMPLATE_value";
 
