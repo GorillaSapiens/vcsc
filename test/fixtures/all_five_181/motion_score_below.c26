@@ -1,0 +1,133 @@
+// All-five 181-line asynchronous motion with the independent score below gameplay.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+page const uint8_t game_playfield[44] := {
+   0xff,0xff,0xff,0xff,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0xff,0xff,0xff,0xff
+};
+template "kernels/all_five_181/all_five_181.c26" as game
+template "six_glyph_component.c26" as score
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00)
+};
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00)
+};
+
+void configure_game_frame(void) {
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+}
+
+void initialize_scene(void) {
+   VBLANK := 2;
+   COLUBK := 0x84;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 80;
+   game_player0_y := 18;
+   game_player1_y := 78;
+   game_missile0_y := 34;
+   game_missile1_y := 62;
+   game_ball_y := 48;
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+   score_score := 123456;
+   game_init();
+   score_init();
+}
+
+alias DIRECTION_PLAYER0 0x01
+alias DIRECTION_PLAYER1 0x02
+alias DIRECTION_MISSILE0 0x04
+alias DIRECTION_MISSILE1 0x08
+alias DIRECTION_BALL 0x10
+alias MOTION_MAX_X 159
+uint8_t motion_frame := 0;
+uint8_t motion_directions := 0x15;
+
+inline void update_motion(void) {
+   asm inc motion_frame;
+   asm ldx #4;
+   asm @motion_loop:;
+   asm lda motion_directions;
+   asm and.ax @motion_direction_bits,x;
+   asm beq @motion_left;
+   asm lda game_object_x,x;
+   asm clc;
+   asm adc.ax @motion_speeds,x;
+   asm cmp #160;
+   asm bcc @motion_store;
+   asm lda #159;
+   asm jmp @motion_reverse;
+   asm @motion_left:;
+   asm lda game_object_x,x;
+   asm cmp.ax @motion_speeds,x;
+   asm bcc @motion_zero;
+   asm beq @motion_zero;
+   asm sec;
+   asm sbc.ax @motion_speeds,x;
+   asm jmp @motion_store;
+   asm @motion_zero:;
+   asm lda #0;
+   asm @motion_reverse:;
+   asm tay;
+   asm lda motion_directions;
+   asm eor.ax @motion_direction_bits,x;
+   asm sta motion_directions;
+   asm tya;
+   asm @motion_store:;
+   asm sta game_object_x,x;
+   asm dex;
+   asm bpl @motion_loop;
+   asm jmp @motion_done;
+   asm @motion_direction_bits:;
+   asm .byte $01,$02,$04,$08,$10;
+   asm @motion_speeds:;
+   asm .byte $01,$02,$03,$04,$05;
+   asm @motion_done:;
+}
+
+
+void main(void) {
+   initialize_scene();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      update_motion();
+      game_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+      configure_game_frame();
+      game_draw();
+      score_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

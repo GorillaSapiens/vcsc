@@ -65,6 +65,36 @@ scanline. On return from `game_draw()`, all playfield, player, missile, ball,
 vertical-delay, and horizontal-motion graphics state is cleared and the
 application-visible Y positions are restored.
 
+## Proven score composition
+
+Maintained static and asynchronous-motion fixtures exercise both legal orders:
+
+```vcsc
+score_draw();
+configure_game_frame();
+game_draw();
+```
+
+and:
+
+```vcsc
+configure_game_frame();
+game_draw();
+score_draw();
+```
+
+The score component changes P0/P1 color, copy, delay, and positioning state, so
+an application drawing the score first must reapply the gameplay TIA state
+between the two draw calls. Both orders consume exactly 181 + 11 visible lines
+and enter overscan on line 232 of a stable 262-line frame.
+
+The motion regression runs 360 frames in each order. All five X coordinates
+move asynchronously over the complete 0..159 range, all Y coordinates survive
+component-internal counter biasing, and the score region contains no playfield,
+missile, or ball activity. A gameplay-only link still contains no score state or
+font; adding the independent score contributes its separately measured 17 bytes
+of RIOT RAM.
+
 The standard linker configuration
 `kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg` supplies four bytes of
 hidden call-stack allowance needed by the inline VBLANK preparation routine.

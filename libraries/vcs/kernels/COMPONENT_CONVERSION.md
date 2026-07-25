@@ -147,9 +147,21 @@ imports, frame/timer ownership, and unofficial opcodes, while map inspection
 locks RAM, page placement, and stack depth. All four lifecycle requirements have
 component-specific omission diagnostics.
 
-The predecessor monolith remains installed. Composition with the independent
-six-glyph score above and below gameplay is the next retirement gate; the
-separate 192-line scoreless and matched unofficial profiles also remain open.
+Static and asynchronous-motion fixtures now compose this component with the
+independent six-glyph score in both visible orders. Emulator evidence locks the
+exact line split (40..220 gameplay and 221..231 score, or 40..50 score and
+51..231 gameplay), stable 262-line frames, complete score/all-five activity,
+360-frame full-range X motion, and restored application Y state. Map evidence
+measures 69 gameplay bytes plus 17 independent score bytes and separately proves
+that a gameplay-only link contains no score state or font.
+
+That motion evidence exposed and fixed an extraction error: M0 had only an
+88-line VBLANK bias in the shortened profile because the predecessor's final-row
+DEC was removed. Reconstruction now adds 88 rather than 89, restoring the exact
+application M0 Y coordinate at the lifecycle boundary.
+
+The predecessor monolith remains installed. The separate 192-line scoreless and
+matched unofficial profiles remain open before retirement.
 
 ## Evidence required before retiring a monolith
 

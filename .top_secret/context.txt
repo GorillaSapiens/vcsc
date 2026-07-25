@@ -1378,7 +1378,7 @@ The first unfinished item is the default next action.
                                          [x] 22i2b1. Extract and prove the 181-line
                                                     all-five implementation under
                                                     that lifecycle/resource contract.
-                              [ ] 22i2c. Compose the 181-line all-five component
+                              [x] 22i2c. Compose the 181-line all-five component
                                          with an independent six-glyph component
                                          above and below gameplay; prove static
                                          and motion behavior, exact 181+11=192
@@ -4599,3 +4599,29 @@ Before returning another modified archive:
   VCS catalog, and extend install/uninstall/installcheck so the staged toolchain
   builds the same 4K fixture. Leave 22i2c next for score-above/score-below static
   and motion composition plus explicit gameplay-only score-cost evidence.
+
+
+2026-07-25 10:46:00 PDT, prove all-five score composition and fix M0 restoration
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2c. Add static and asynchronous-motion fixtures for
+  both explicit visible orders: eleven-line score above 181-line gameplay and
+  181-line gameplay above the eleven-line score. Keep all scheduling in main(),
+  call both complete lifecycle interfaces, and reapply gameplay-owned TIA color
+  and geometry state between components when the score is drawn first.
+* Add `vcs_all_five_composition.test` and its MOS 6502 harness. Lock exact
+  262-line frames, VBLANK clear at visible line 40, overscan assertion at line
+  232, disjoint score/gameplay activity windows, all-five object output, score
+  player output, exact 69-byte gameplay plus 17-byte score RAM accounting, and
+  a gameplay-only map with no score state or font. Run both motion orders for
+  360 frames, require every object to reach X=0 and X=159, verify asynchronous
+  speeds/directions, and verify all application Y coordinates survive drawing.
+* Fix a restoration defect exposed by the motion fixture: the extracted
+  181-line profile omitted the predecessor's final-row M0 DEC but still added
+  89 when reconstructing M0 Y. Restore the exact 88-line VBLANK bias instead,
+  preserving M0 Y at every lifecycle boundary without changing visible timing.
+* Extend staged installation to build all four composition fixtures with the
+  installed component/font/scheduler files. Leave 22i2d next for the separate
+  official-opcode 192-line scoreless all-five profile.
+* Pass all 308 compile-only tests and all 174 end-to-end/generic tests across
+  the complete run and final two-test continuation, plus staged installation and
+  source-tree hygiene.

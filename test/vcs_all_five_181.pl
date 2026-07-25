@@ -76,6 +76,8 @@ $absolute_pf_loads==8
    or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 8\n";
 require_re($module,qr/asm bit\.z CXM0P;/,
    'official three-cycle delay no longer has an explicit zero-page mode');
+require_re($module,qr/lda\.z TEMPLATE_missile0_y;\s*asm clc;\s*asm adc #88;/s,
+   'M0 application Y is no longer restored from the exact 88-line bias');
 
 my $code=$module;
 $code =~ s{//[^\n]*}{}g;

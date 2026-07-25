@@ -329,9 +329,11 @@ require inline void TEMPLATE_draw(void) {
       asm sta.z TEMPLATE_workspace + 1;
    asm ldx #0;
       asm dec.z TEMPLATE_player0_y;
-      asm lda.z TEMPLATE_missile0_y;
+      // The 181-line extraction omits the predecessor's separate final-row DEC,
+   // so undo only the 88-line vblank bias before preserving application state.
+   asm lda.z TEMPLATE_missile0_y;
    asm clc;
-   asm adc #89;
+   asm adc #88;
       asm sta.z TEMPLATE_workspace + 4;
    asm nop;
       asm lda.z TEMPLATE_playfield_position;
