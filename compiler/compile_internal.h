@@ -83,6 +83,7 @@ typedef struct LValueRef {
    int size;
    int ptr_adjust;
    bool is_bitfield;
+   const ASTNode *use_site;
    int bit_offset;
    int bit_width;
    int bit_storage_size;

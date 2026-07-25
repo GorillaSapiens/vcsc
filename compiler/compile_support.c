@@ -626,6 +626,7 @@ bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_off
    }
    if (absolute_ref_supports_direct_access(src)) {
       const char *read_expr = src->read_expr;
+      emit_lvalue_semantic_use(ctx, src, "read");
 
       if (!read_expr || !*read_expr) {
          return false;

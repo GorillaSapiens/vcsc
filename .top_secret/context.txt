@@ -1118,7 +1118,7 @@ The first unfinished item is the default next action.
                             declarations while retaining the strongest contract
                             and its diagnostic source location. Preserve ordinary
                             duplicate-definition and incompatible-signature errors.
-        [ ] 22b. Preserve declaration contracts and semantic uses in o26
+        [x] 22b. Preserve declaration contracts and semantic uses in o26
                   metadata, including operations that leave no ordinary
                   relocation.
 
@@ -1131,7 +1131,7 @@ The first unfinished item is the default next action.
                             true inline functions and prove the assembler retains
                             them in `.o26` exports. Keep the linker from exposing
                             these metadata exports as program globals.
-                  [ ] 22b2. Add semantic use records that survive optimization
+                  [x] 22b2. Add semantic use records that survive optimization
                             even when no ordinary relocation remains.
 
                             [x] 22b2a. Emit reserved `__usemeta$V1$call$` records
@@ -1140,7 +1140,7 @@ The first unfinished item is the default next action.
                                       translation-unit owner, containing function,
                                       and source file/line/column through `.o26`,
                                       and hide the records from program globals.
-                            [ ] 22b2b. Emit corresponding object `read`, `write`,
+                            [x] 22b2b. Emit corresponding object `read`, `write`,
                                       `address`, and `ref` records with the same
                                       owner/function/location information.
         [ ] 22c. After archive selection and whole-program reachability, make the
@@ -4101,3 +4101,23 @@ Before returning another modified archive:
 * Leave task 22b open at 22b2b for object read/write/address/ref records; do not
   begin link-time contract enforcement in 22c.
 
+2026-07-24 20:51:02 PDT, preserve object semantic-use metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b2b and therefore tasks 22b2 and 22b. Emit reserved
+  `__usemeta$V1$read$`, `$write$`, `$address$`, and `$ref$` absolute-export
+  records for contracted file-scope object uses, including direct fixed-symbol and absolute-
+  ref shortcuts that can leave no ordinary relocation after code generation.
+* Preserve the referenced base-object symbol, translation-unit owner, containing
+  function, and exact source file/line/column through `.s26` and `.o26`. Classify
+  compound assignment and increment/decrement as both read and write, array/address
+  formation as address, and arguments passed to `ref` parameters as ref. Access
+  through a named global pointer records a read of the pointer object rather than
+  inventing a statically named pointee.
+* Extend the declaration-contract fixture and raw-o26 regression to prove all four
+  object-use kinds independently alongside ordinary and true-inline call records.
+  Document the complete semantic-use record family in `compiler/ABI.txt`.
+* Leave task 22c next; do not begin whole-program linker enforcement in this
+  timebox because archive selection, reachability, and external-instance use must
+  be implemented and tested as one coherent slice.
+* Pass 300/300 compile-only tests, 161/161 end-to-end/generic tests, the staged
+  installation check, and source-tree hygiene.

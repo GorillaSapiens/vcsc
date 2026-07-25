@@ -182,7 +182,11 @@ ordinary callable object symbol.  The assembler retains the records in `.o26`
 exports; the linker treats the prefix as metadata rather than a program global.
 
 Direct source-level calls, including true-inline expansions that leave no `JSR`
-or relocation, emit reserved `__usemeta$V1$call$...` records. Each record
-preserves the callee symbol, referencing translation-unit owner, containing
-function, and source file/line/column. Object read/write/address/ref records and
-link-time required/recommended-use enforcement remain separate roadmap work.
+or relocation, emit reserved `__usemeta$V1$call$...` records. Contracted file-scope object reads, writes, address-taking operations,
+and `ref` arguments emit corresponding
+`read`, `write`, `address`, and `ref` records. Each semantic-use record preserves
+the referenced logical symbol, referencing translation-unit owner, containing
+function, and source file/line/column. The records are emitted before peephole
+optimization and survive even when code generation leaves no ordinary
+relocation. Link-time required/recommended-use enforcement remains separate
+roadmap work.

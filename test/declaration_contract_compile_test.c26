@@ -16,8 +16,23 @@ require inline void required_inline(void) {
 recommend inline void recommended_inline(void) {
 }
 
+require uint8_t read_object;
+require uint8_t write_object;
+require uint8_t address_object;
+require uint8_t ref_object;
+uint8_t read_sink;
+uint8_t *address_sink;
+
+inline void accept_ref(ref uint8_t value) {
+}
+
 void main(void) {
    required_inline();
    recommended_inline();
    merged_function();
+   read_sink := read_object;
+   write_object := 1;
+   write_object += 1;
+   address_sink := &address_object;
+   accept_ref(ref_object);
 }

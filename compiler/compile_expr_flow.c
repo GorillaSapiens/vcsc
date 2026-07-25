@@ -337,6 +337,7 @@ static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand 
    if (!op || !op->valid) {
       return false;
    }
+   emit_lvalue_semantic_use(ctx, &op->lv, "read");
    if (op->direct_memory) {
       if (op->symbol_mode != 0) {
          char expr_buf[256];
@@ -372,6 +373,7 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
    if (!op || !op->valid) {
       return false;
    }
+   emit_lvalue_semantic_use(ctx, &op->lv, "read");
    if (op->direct_memory) {
       formatted = assembler_address_expr(op->expr, asm_expr, sizeof(asm_expr));
       if (op->offset == 0) {
@@ -392,7 +394,6 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
       return true;
    }
    /* ptr0 must already have been prepared before loading A. */
-   (void) ctx;
    emit(&es_code, "    ldy #0\n");
    emit(&es_code, "    cmp (ptr0),y\n");
    return true;
@@ -817,6 +818,8 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    if (!resolve_lvalue(ctx, expr, &lv) || lv.size != 1 || lv.is_bitfield) {
       return false;
    }
+   emit_lvalue_semantic_use(ctx, &lv, "read");
+   emit_lvalue_semantic_use(ctx, &lv, "write");
    bcd = type_is_bcd_integer(lv.type);
 
    if (lv.is_absolute_ref) {
@@ -936,6 +939,14 @@ void compile_expr(ASTNode *node, Context *ctx) {
    }
    dst_store = (ContextEntry){ .name = lv.name, .type = lv.type, .declarator = lv.declarator, .is_static = lv.is_static, .is_zeropage = lv.is_zeropage, .is_global = lv.is_global, .is_ref = lv.is_ref, .is_absolute_ref = lv.is_absolute_ref, .read_expr = lv.read_expr, .write_expr = lv.write_expr, .target_typed = true, .offset = lv.offset, .size = lv.size };
    dst = &dst_store;
+
+   if (!op || !strcmp(op, ":=")) {
+      emit_lvalue_semantic_use(ctx, &lv, "write");
+   }
+   else {
+      emit_lvalue_semantic_use(ctx, &lv, "read");
+      emit_lvalue_semantic_use(ctx, &lv, "write");
+   }
 
    if (lv.is_absolute_ref && (!op || !strcmp(op, ":="))) {
       if (!entry_has_write_address(dst)) {

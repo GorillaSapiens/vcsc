@@ -444,7 +444,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       if (ident) {
          ContextEntry *entry = ctx_lookup(ctx, ident);
          if (entry && entry_is_absolute_ref(entry)) {
-            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = entry->offset, .size = entry->size };
+            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = entry->offset, .size = entry->size, .use_site = expr };
             if (!entry_has_read_address(entry)) {
                error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
             }
@@ -480,7 +480,8 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                .read_expr = entry->read_expr,
                .write_expr = entry->write_expr,
                .offset = entry->offset,
-               .size = value_size
+               .size = value_size,
+               .use_site = expr
             };
             if (dst->size == value_size && dst->type == entry->type) {
                return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, value_size);
@@ -505,6 +506,25 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          if (entry) {
             char sym[256];
             if (entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
+               LValueRef lv = {
+                  .name = entry->name ? entry->name : ident,
+                  .type = entry->type,
+                  .declarator = entry->declarator,
+                  .base_type = entry->type,
+                  .base_declarator = entry->declarator,
+                  .is_static = entry->is_static,
+                  .is_zeropage = entry->is_zeropage,
+                  .is_global = entry->is_global,
+                  .is_ref = entry->is_ref,
+                  .is_absolute_ref = entry->is_absolute_ref,
+                  .read_expr = entry->read_expr,
+                  .write_expr = entry->write_expr,
+                  .base_offset = entry->offset,
+                  .offset = entry->offset,
+                  .size = entry->size,
+                  .use_site = expr
+               };
+               emit_lvalue_semantic_use(ctx, &lv, "read");
                emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type, sym, entry->size, entry->type);
                return true;
             }
@@ -514,7 +534,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             if (g && g->count >= 3) {
                ContextEntry gentry;
                if (init_context_entry_from_global_decl(&gentry, ident, g) && entry_is_absolute_ref(&gentry)) {
-                  LValueRef lv = { .name = gentry.name, .type = gentry.type, .declarator = gentry.declarator, .base_type = gentry.type, .base_declarator = gentry.declarator, .is_static = gentry.is_static, .is_zeropage = gentry.is_zeropage, .is_global = gentry.is_global, .is_ref = gentry.is_ref, .is_absolute_ref = gentry.is_absolute_ref, .read_expr = gentry.read_expr, .write_expr = gentry.write_expr, .offset = gentry.offset, .size = gentry.size };
+                  LValueRef lv = { .name = gentry.name, .type = gentry.type, .declarator = gentry.declarator, .base_type = gentry.type, .base_declarator = gentry.declarator, .is_static = gentry.is_static, .is_zeropage = gentry.is_zeropage, .is_global = gentry.is_global, .is_ref = gentry.is_ref, .is_absolute_ref = gentry.is_absolute_ref, .read_expr = gentry.read_expr, .write_expr = gentry.write_expr, .offset = gentry.offset, .size = gentry.size, .use_site = expr };
                   if (!entry_has_read_address(&gentry)) {
                      error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
                   }
@@ -537,7 +557,20 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                else {
                   char sym[256];
                   int gsize = declarator_storage_size(g->children[1], decl_node_declarator(g));
+                  LValueRef lv = {
+                     .name = ident,
+                     .type = g->children[1],
+                     .declarator = decl_node_declarator(g),
+                     .base_type = g->children[1],
+                     .base_declarator = decl_node_declarator(g),
+                     .is_global = true,
+                     .base_offset = 0,
+                     .offset = 0,
+                     .size = gsize,
+                     .use_site = expr
+                  };
                   format_user_asm_symbol(ident, sym, sizeof(sym));
+                  emit_lvalue_semantic_use(ctx, &lv, "read");
                   emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type, sym, gsize, g->children[1]);
                   return true;
                }

@@ -16,6 +16,7 @@
 #include "compile_lvalue.h"
 #include "compile_function_registry.h"
 #include "compile_type.h"
+#include "abi_meta.h"
 #include "emit.h"
 #include "integer.h"
 #include "messages.h"
@@ -220,6 +221,7 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
    if (out) {
       memset(out, 0, sizeof(*out));
       out->name = entry->name ? entry->name : expr->strval;
+      out->use_site = expr;
       out->type = entry->type;
       out->declarator = entry->declarator;
       out->base_type = entry->type;
@@ -250,7 +252,7 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
    if (!resolve_ref_argument_lvalue(ctx, expr, &lv)) {
       error_user("[%s:%d.%d] ref argument must be an lvalue", expr->file, expr->line, expr->column);
    }
-   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
+   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_REF)) {
       return false;
    }
    emit_store_ptr_to_scratch(dst_offset, 0, dst_size);
@@ -654,6 +656,32 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
    return true;
 }
 
+//! @brief Emit semantic-use metadata for a contracted file-scope object lvalue.
+void emit_lvalue_semantic_use(Context *ctx, const LValueRef *lv, const char *kind) {
+   char symbol[256];
+   const char *effective_kind = kind;
+
+   if (!lv || !lv->is_global || !lv->name || !*lv->name || !lv->use_site ||
+       !kind || !*kind ||
+       declaration_symbol_use_contract(DECL_CONTRACT_OBJECT, lv->name, NULL) ==
+          DECL_USE_CONTRACT_NONE) {
+      return;
+   }
+
+   /* Accessing through a global pointer reads the pointer object itself; the
+      pointee is not a statically named VCSC object. */
+   if (lv->deref_depth > 0) {
+      effective_kind = "read";
+   }
+
+   if (!format_user_asm_symbol(lv->name, symbol, sizeof(symbol))) {
+      return;
+   }
+   emit_semantic_use_metadata(effective_kind, symbol,
+                              ctx ? ctx->activation_owner : NULL,
+                              lv->use_site);
+}
+
 //! @brief Emit prepare lvalue ptr for compiler lvalue lowering diagnostics or output files.
 bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode mode) {
    ContextEntry base_entry;
@@ -665,9 +693,14 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if (!lv) {
       return false;
    }
-   if (mode == LVALUE_ACCESS_ADDRESS && lv->is_bitfield) {
+   if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_REF) && lv->is_bitfield) {
       return false;
    }
+
+   emit_lvalue_semantic_use(ctx, lv,
+      mode == LVALUE_ACCESS_READ ? "read" :
+      mode == LVALUE_ACCESS_WRITE ? "write" :
+      mode == LVALUE_ACCESS_REF ? "ref" : "address");
 
    if (lv->is_absolute_ref) {
       switch (mode) {
@@ -678,6 +711,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
             abs_expr = lv->write_expr;
             break;
          case LVALUE_ACCESS_ADDRESS:
+         case LVALUE_ACCESS_REF:
             if (lv->read_expr && lv->write_expr) {
                if (strcmp(lv->read_expr, lv->write_expr)) {
                   return false;
@@ -1068,6 +1102,7 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
    }
    if (absolute_ref_supports_direct_access(src)) {
       const char *read_expr = src->read_expr;
+      emit_lvalue_semantic_use(ctx, src, "read");
 
       if (!read_expr || !*read_expr) {
          return false;
@@ -1124,6 +1159,7 @@ bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_off
    }
    if (absolute_ref_supports_direct_access(dst)) {
       const char *write_expr = dst->write_expr;
+      emit_lvalue_semantic_use(ctx, dst, "write");
 
       if (!write_expr || !*write_expr) {
          return false;
@@ -1381,6 +1417,7 @@ bool resolve_lvalue(Context *ctx, ASTNode *node, LValueRef *out) {
    }
 
    memset(out, 0, sizeof(*out));
+   out->use_site = node;
    out->suffixes = node->children[1];
    base = node->children[0];
    if (!base) {

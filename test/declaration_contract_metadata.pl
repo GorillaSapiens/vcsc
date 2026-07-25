@@ -72,11 +72,22 @@ require_match('canonical unsigned-byte object fingerprint', $assembly,
 require_match('canonical void function signature', $assembly,
    qr/__contractmeta\$V1\$function\$require\$required_inline\$.*functionQ28paramsQ3D0Q3BreturnQ3D/);
 require_match('true-inline call semantic record', $assembly,
-   qr/\.export __usemeta\$V1\$call\$required_inline\$.*\$function\$main\$.*\$L20\$C21\$invoke\$none/);
+   qr/\.export __usemeta\$V1\$call\$required_inline\$.*\$function\$main\$.*\$L30\$C21\$invoke\$none/);
 require_match('second true-inline call semantic record', $assembly,
-   qr/\.export __usemeta\$V1\$call\$recommended_inline\$.*\$function\$main\$.*\$L21\$C24\$invoke\$none/);
+   qr/\.export __usemeta\$V1\$call\$recommended_inline\$.*\$function\$main\$.*\$L31\$C24\$invoke\$none/);
 require_match('ordinary direct-call semantic record', $assembly,
-   qr/\.export __usemeta\$V1\$call\$merged_function\$.*\$function\$main\$.*\$L22\$C21\$invoke\$none/);
+   qr/\.export __usemeta\$V1\$call\$merged_function\$.*\$function\$main\$.*\$L32\$C21\$invoke\$none/);
+
+require_match('object read semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$read\$read_object\$.*\$function\$main\$.*\$L33\$C28\$invoke\$none/);
+require_match('object write semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$write\$write_object\$.*\$function\$main\$.*\$L34\$C19\$invoke\$none/);
+require_match('compound object read semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$read\$write_object\$.*\$function\$main\$.*\$L35\$C19\$invoke\$none/);
+require_match('object address semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$address\$address_object\$.*\$function\$main\$.*\$L36\$C35\$invoke\$none/);
+require_match('object ref semantic record', $assembly,
+   qr/\.export __usemeta\$V1\$ref\$ref_object\$.*\$function\$main\$.*\$L37\$C25\$invoke\$none/);
 
 require_ok('assemble', $as, '-I', $runtime, '-o', $obj, $asm);
 my $bytes = slurp($obj);
@@ -89,9 +100,13 @@ for my $needle (
    '__usemeta$V1$call$required_inline$',
    '__usemeta$V1$call$recommended_inline$',
    '__usemeta$V1$call$merged_function$',
+   '__usemeta$V1$read$read_object$',
+   '__usemeta$V1$write$write_object$',
+   '__usemeta$V1$address$address_object$',
+   '__usemeta$V1$ref$ref_object$',
    '$function$main$use$'
 ) {
    index($bytes, $needle) >= 0 or die "o26 did not retain metadata fragment '$needle'\n";
 }
 
-print "declaration contract and call-use metadata survive compiler and o26 assembly\n";
+print "declaration contract and semantic-use metadata survive compiler and o26 assembly\n";
