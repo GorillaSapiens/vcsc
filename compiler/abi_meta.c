@@ -604,11 +604,42 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
    free(ctx.active);
 }
 
+//! @brief Find template ownership attached to a node or one of its source-token descendants.
+static const ASTNode *template_context_node(const ASTNode *node) {
+   if (!node)
+      return NULL;
+   if (node->template_instance && *node->template_instance)
+      return node;
+   for (int i = 0; i < node->count; i++) {
+      const ASTNode *found = template_context_node(node->children[i]);
+      if (found)
+         return found;
+   }
+   return NULL;
+}
+
+//! @brief Build one stable template invocation identity for linker contract ownership.
+static char *template_invocation_identity(const ASTNode *node) {
+   const ASTNode *ctx = template_context_node(node);
+   StrBuf id;
+
+   if (!ctx)
+      return strdup("none");
+   sb_init(&id);
+   sb_append(&id, ctx->template_instance);
+   sb_append_ch(&id, '@');
+   sb_append(&id, ctx->template_invoke_file ? ctx->template_invoke_file : "?");
+   sb_appendf(&id, ":%d:%d", ctx->template_invoke_line,
+              ctx->template_invoke_column);
+   return sb_take(&id);
+}
+
 //! @brief Emit one linker-visible declaration-use contract record.
 static void emit_contract_metadata_symbol(const char *kind,
                                           DeclarationUseContract strength,
                                           const char *symbol,
                                           const ASTNode *origin,
+                                          const ASTNode *context_node,
                                           const char *fingerprint,
                                           const char *detail) {
    const char *strength_name = strength == DECL_USE_CONTRACT_REQUIRE
@@ -620,7 +651,9 @@ static void emit_contract_metadata_symbol(const char *kind,
    int column = origin ? origin->column : 0;
    char *enc_symbol = meta_encode(symbol ? symbol : "");
    char *enc_owner = meta_encode(owner);
+   char *invoke = template_invocation_identity(context_node);
    char *enc_file = meta_encode(file);
+   char *enc_invoke = meta_encode(invoke);
    char *enc_fp = meta_encode(fingerprint ? fingerprint : "");
    char *enc_detail = meta_encode(detail ? detail : "");
    StrBuf name;
@@ -636,7 +669,9 @@ static void emit_contract_metadata_symbol(const char *kind,
    sb_append(&name, enc_owner);
    sb_append(&name, "$decl$");
    sb_append(&name, enc_file);
-   sb_appendf(&name, "$L%d$C%d$invoke$none$type$", line, column);
+   sb_appendf(&name, "$L%d$C%d$invoke$", line, column);
+   sb_append(&name, enc_invoke);
+   sb_append(&name, "$type$");
    sb_append(&name, enc_fp);
    sb_append_ch(&name, '$');
    sb_append(&name, enc_detail);
@@ -652,6 +687,8 @@ static void emit_contract_metadata_symbol(const char *kind,
    free(enc_symbol);
    free(enc_owner);
    free(enc_file);
+   free(enc_invoke);
+   free(invoke);
    free(enc_fp);
    free(enc_detail);
    free(name.buf);
@@ -677,7 +714,7 @@ void emit_function_contract_metadata(const ASTNode *fn, const char *sym) {
    sb_init(&fp);
    sb_init(&detail);
    append_function_contract_fingerprint(&fp, &detail, fn);
-   emit_contract_metadata_symbol("function", strength, sym, origin,
+   emit_contract_metadata_symbol("function", strength, sym, origin, fn,
                                  fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
    free(fp.buf);
    free(detail.buf);
@@ -714,7 +751,7 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    sb_init(&detail);
    append_storage_mode(&fp, &detail, global_storage_mode(node, is_zeropage));
    append_type_fingerprint(&fp, &detail, type, declarator, &ctx);
-   emit_contract_metadata_symbol("object", strength, symname, origin,
+   emit_contract_metadata_symbol("object", strength, symname, origin, node,
                                  fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
    free(ctx.names);
    free(ctx.ids);
@@ -738,6 +775,8 @@ void emit_semantic_use_metadata(const char *kind, const char *symbol,
    char *enc_owner;
    char *enc_function;
    char *enc_file;
+   char *invoke;
+   char *enc_invoke;
    StrBuf name;
 
    if (!kind || !*kind || !symbol || !*symbol)
@@ -749,6 +788,8 @@ void emit_semantic_use_metadata(const char *kind, const char *symbol,
    enc_function = meta_encode(containing_function && *containing_function
       ? containing_function : "none");
    enc_file = meta_encode(file);
+   invoke = template_invocation_identity(use_site);
+   enc_invoke = meta_encode(invoke);
 
    sb_init(&name);
    sb_append(&name, SEMANTIC_USE_META_PREFIX);
@@ -761,7 +802,8 @@ void emit_semantic_use_metadata(const char *kind, const char *symbol,
    sb_append(&name, enc_function);
    sb_append(&name, "$use$");
    sb_append(&name, enc_file);
-   sb_appendf(&name, "$L%d$C%d$invoke$none", line, column);
+   sb_appendf(&name, "$L%d$C%d$invoke$", line, column);
+   sb_append(&name, enc_invoke);
 
    if (!abi_metadata_symbols)
       abi_metadata_symbols = new_set();
@@ -776,5 +818,7 @@ void emit_semantic_use_metadata(const char *kind, const char *symbol,
    free(enc_owner);
    free(enc_function);
    free(enc_file);
+   free(enc_invoke);
+   free(invoke);
    free(name.buf);
 }

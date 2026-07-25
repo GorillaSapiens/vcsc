@@ -10,10 +10,11 @@
 ## Status
 
 This document specifies a VCSC feature under staged implementation.
-`require`/`recommend` declarations, declaration and semantic-use metadata, and
-link-time reachable external-use enforcement are implemented. Repeatable
-`template ... as ...` source instantiation and the component lifecycle/frame
-scheduler work remain roadmap items.
+`require`/`recommend` declarations, declaration and semantic-use metadata,
+link-time reachable external-use enforcement, and repeatable
+`template ... as ...` source instantiation with controlled identifier rewriting
+are implemented. Inline-assembly rewriting, template-hygiene enforcement, and
+the component lifecycle/frame scheduler work remain roadmap items.
 
 The feature is deliberately smaller than C++ templates or a general module
 system. Its purpose is to let one source component be instantiated repeatedly
@@ -599,9 +600,9 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
 4. Add linker enforcement after archive selection and reachability analysis,
    with exact error/warning diagnostics.
 5. Add `template "file" as instance` using the ordinary include path but
-   bypassing the MD5-seen set.
-6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting and template
-   hygiene diagnostics.
+   bypassing the MD5-seen set. **Complete.**
+6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting. **Complete.**
+   Template-hygiene diagnostics remain part of the next slice.
 7. Extend rewriting to identifier operands in inline assembly without exposing
    the block to compiler peephole optimization.
 8. Standardize `init`, `vblank`, `draw`, `overscan`,

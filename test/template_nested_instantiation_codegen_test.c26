@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: .export outer_leaf_value
+// expectasm: ; begin inline expansion outer_set
+// expectasm: sta.a outer_leaf_value
+// forbidasm: TEMPLATE_leaf
+
+include "machine_6502.c26"
+template "fixtures/templates/nested_outer.c26" as outer
+
+void main(void) {
+   outer_set();
+}

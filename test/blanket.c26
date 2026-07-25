@@ -3,6 +3,7 @@
 // for code coverage, some is nonsensical
 
 include "machine_6502.c26"
+template "fixtures/templates/coverage_empty.c26" as coverage_template
 
 typedef int16_t coverage_int;
 

@@ -1,0 +1,24 @@
+/* TEMPLATE_comment must remain ordinary comment text. */
+alias TEMPLATE_ONE 1
+alias TEMPLATE_ADD(TEMPLATE_x) TEMPLATE_x + TEMPLATE_ONE
+
+typedef uint8_t TEMPLATE_byte;
+enum TEMPLATE_enum {
+   TEMPLATE_enum_value := 6
+};
+
+extern uint8_t MY_TEMPLATE_HELPER;
+recommend TEMPLATE_byte TEMPLATE_value;
+uint8_t *TEMPLATE_text := "TEMPLATE_value";
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_value := TEMPLATE_ADD(TEMPLATE_enum_value) + MY_TEMPLATE_HELPER;
+}
+
+inline TEMPLATE_byte TEMPLATE_get(void) {
+   return TEMPLATE_value;
+}
+
+require inline void TEMPLATE(void) {
+   TEMPLATE_value++;
+}

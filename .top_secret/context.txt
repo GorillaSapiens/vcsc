@@ -1149,13 +1149,17 @@ The first unfinished item is the default next action.
                   the declaring template instance, unreachable code, and
                   unselected archive members must not satisfy or trigger the
                   contract.
-        [ ] 22d. Add `template "file.c26" as instance`. Reuse ordinary include
+        [x] 22d. Add `template "file.c26" as instance`. Reuse ordinary include
                   path resolution but deliberately bypass include's MD5-seen
                   suppression so one source can be instantiated repeatedly.
                   Rewrite only the identifier `TEMPLATE` and the prefix
                   `TEMPLATE_` before ordinary identifier classification and UTF-8
                   symbol mangling; never rewrite comments, strings, or unrelated
-                  identifier substrings.
+                  identifier substrings. Support UTF-8 instance names, ordinary
+                  include-once behavior inside templates, nested instantiation,
+                  recursive-template diagnostics, identifier-aware alias
+                  rewriting, and stable invocation identities in contract/use
+                  metadata.
         [ ] 22e. Rewrite instance-prefixed identifier operands inside inline
                   assembly while preserving inline assembly as opaque to compiler
                   peephole optimization. Enforce template hygiene so instance-
@@ -4143,3 +4147,28 @@ Before returning another modified archive:
   task 22d next: repeatable `template "file.c26" as instance` source
   instantiation and controlled identifier-prefix rewriting.
 
+
+
+2026-07-24 21:42:00 PDT, add repeatable template source instantiation
+-------------------------------------------------------------------------------
+* Complete roadmap task 22d. Add `template "file.c26" as instance` using the
+  ordinary include search path while bypassing include's MD5-seen suppression,
+  so the same component source can be processed repeatedly under independent
+  instance names. Keep ordinary includes encountered inside a template on their
+  existing include-once path.
+* Rewrite the exact identifier `TEMPLATE` and the leading `TEMPLATE_` prefix
+  before identifier classification and UTF-8 assembler-name mangling. Preserve
+  comments, strings, and unrelated substrings. Apply the same identifier-aware
+  treatment to alias names, parameters, and unquoted identifier tokens in alias
+  replacement text. Support UTF-8 instance names and nested templates, and
+  reject recursive canonical-path instantiation.
+* Carry each template invocation's stable `instance@file:line:column` identity
+  through declaration-contract and semantic-use metadata, allowing application
+  uses in the same translation unit to remain external to the declaring
+  instance for link-time `require`/`recommend` enforcement.
+* Add compile and end-to-end coverage for repeated ASCII and UTF-8 instances,
+  exact/prefix/nonmatching rewriting, strings, aliases, nested templates, cycle
+  diagnostics, independent state, satisfied contracts, and unused-contract
+  diagnostics. Pass 303/303 compile-only tests, 164/164 end-to-end/generic
+  tests, the staged installation check, and source-tree hygiene. Leave task 22e
+  next for inline-assembly operand rewriting and template-hygiene enforcement.

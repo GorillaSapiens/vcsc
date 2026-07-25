@@ -62,6 +62,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token <str> ENUMNAME
 %token <str> XFORMNAME
 
+%token AS
 %token ADD_ASSIGN
 %token AND
 %token AND_ASSIGN
@@ -108,6 +109,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token SIZEOF
 %token SUB_ASSIGN
 %token SWITCH
+%token TEMPLATE
 %token TO
 %token TYPE
 %token TYPEDEF
@@ -180,6 +182,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> goto_stmt
 %type <node> if_stmt
 %type <node> include_stmt
+%type <node> template_stmt
 %type <node> initializer
 %type <node> label_stmt
 %type <node> logical_and_expr
@@ -239,6 +242,7 @@ program:
 
 program_item:
     include_stmt                             { COVER; $$ = $1; }
+  | template_stmt                            { COVER; $$ = $1; }
   | xform_decl_stmt                          { COVER; $$ = $1; register_xform($$->children[0]->strval, $$->children[1]); }
   | mem_decl_stmt                            { COVER; $$ = $1; }
   | type_decl_stmt                           { COVER; $$ = $1; }
@@ -255,6 +259,20 @@ include_stmt:
                                                 $$ = MAKE_NODE(make_string_leaf($2));
                                                 if (push_file($2) != 0) {
                                                    yyerror("failed to include file: %s", $2);
+                                                   YYABORT;
+                                                }
+                                             }
+  ;
+
+template_stmt:
+    TEMPLATE STRING AS IDENTIFIER            {
+                                                COVER;
+                                                $$ = MAKE_NODE(make_string_leaf($2), make_identifier_leaf($4));
+                                                const char *instance_source = lexer_token_source_spelling($4);
+                                                if (push_template_file($2, instance_source ? instance_source : $4,
+                                                                       current_filename,
+                                                                       @1.first_line, @1.first_column) != 0) {
+                                                   yyerror("failed to instantiate template file: %s", $2);
                                                    YYABORT;
                                                 }
                                              }

@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: recursive template instantiation
+
+include "machine_6502.c26"
+template "fixtures/templates/cycle.c26" as cycle
+void main(void) {
+}

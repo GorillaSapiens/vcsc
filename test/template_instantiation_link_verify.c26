@@ -1,0 +1,34 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+template "fixtures/templates/component.c26" as first
+template "fixtures/templates/component.c26" as second
+
+uint8_t MY_TEMPLATE_HELPER;
+
+void fail(void) {
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   MY_TEMPLATE_HELPER := 0;
+   first_init();
+   second_init();
+   first();
+   second();
+   if (first_get() != 8 || second_get() != 8) {
+      fail();
+   }
+   pass();
+}

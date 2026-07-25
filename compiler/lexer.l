@@ -33,12 +33,19 @@ int yycolumn = 1;
 typedef struct FileContext {
    FILE *file;
    char *filename;
+   char *canonical_filename;
    char *saved_filename;
    int lineno;
    int column;
    int start;
    int cond_depth;
    YY_BUFFER_STATE buffer;
+   int is_template;
+   int owns_template_context;
+   char *saved_template_instance;
+   char *saved_template_invoke_file;
+   int saved_template_invoke_line;
+   int saved_template_invoke_column;
 } FileContext;
 
 typedef struct AliasContext {
@@ -59,6 +66,10 @@ typedef struct AliasContext {
 
 static FileContext file_stack[MAX_INCLUDE_DEPTH];
 static int file_stack_top = -1;
+static char *current_template_instance = NULL;
+static char *current_template_invoke_file = NULL;
+static int current_template_invoke_line = 0;
+static int current_template_invoke_column = 0;
 static AliasContext alias_stack[MAX_ALIAS_DEPTH];
 static int alias_stack_top = -1;
 static int cond_stack_top = -1;
@@ -72,16 +83,21 @@ static int pp_error_column = 0;
 
 typedef struct LexerTokenLocation {
    const char *token;
+   char *source_spelling;
    char *filename;
    int line;
    int column;
+   char *template_instance;
+   char *template_invoke_file;
+   int template_invoke_line;
+   int template_invoke_column;
 } LexerTokenLocation;
 
 static LexerTokenLocation *lexer_token_locations = NULL;
 static size_t lexer_token_location_count = 0;
 static size_t lexer_token_location_cap = 0;
 
-static void lexer_register_token_location(const char *token) {
+static void lexer_register_token_location(const char *token, const char *source_spelling) {
    if (!token) {
       return;
    }
@@ -94,13 +110,25 @@ static void lexer_register_token_location(const char *token) {
       }
    }
    lexer_token_locations[lexer_token_location_count].token = token;
+   lexer_token_locations[lexer_token_location_count].source_spelling =
+      strdup(source_spelling ? source_spelling : token);
    lexer_token_locations[lexer_token_location_count].filename = strdup(current_filename ? current_filename : "<stdin>");
    lexer_token_locations[lexer_token_location_count].line = yylloc.first_line;
    lexer_token_locations[lexer_token_location_count].column = yylloc.first_column;
+   lexer_token_locations[lexer_token_location_count].template_instance =
+      current_template_instance ? strdup(current_template_instance) : NULL;
+   lexer_token_locations[lexer_token_location_count].template_invoke_file =
+      current_template_invoke_file ? strdup(current_template_invoke_file) : NULL;
+   lexer_token_locations[lexer_token_location_count].template_invoke_line = current_template_invoke_line;
+   lexer_token_locations[lexer_token_location_count].template_invoke_column = current_template_invoke_column;
    lexer_token_location_count++;
 }
 
-int lexer_lookup_token_location(const char *token, const char **filename, int *line, int *column) {
+int lexer_lookup_token_location(const char *token, const char **filename, int *line, int *column,
+                                const char **template_instance,
+                                const char **template_invoke_file,
+                                int *template_invoke_line,
+                                int *template_invoke_column) {
    if (!token) {
       return 0;
    }
@@ -110,10 +138,25 @@ int lexer_lookup_token_location(const char *token, const char **filename, int *l
          if (filename) *filename = loc->filename;
          if (line) *line = loc->line;
          if (column) *column = loc->column;
+         if (template_instance) *template_instance = loc->template_instance;
+         if (template_invoke_file) *template_invoke_file = loc->template_invoke_file;
+         if (template_invoke_line) *template_invoke_line = loc->template_invoke_line;
+         if (template_invoke_column) *template_invoke_column = loc->template_invoke_column;
          return 1;
       }
    }
    return 0;
+}
+
+const char *lexer_token_source_spelling(const char *token) {
+   if (!token)
+      return NULL;
+   for (size_t i = lexer_token_location_count; i > 0; i--) {
+      LexerTokenLocation *loc = &lexer_token_locations[i - 1];
+      if (loc->token == token)
+         return loc->source_spelling;
+   }
+   return NULL;
 }
 
 static void lexer_set_error_location(const char *filename, int line, int column, const char *near) {
@@ -166,35 +209,74 @@ static void pp_set_error_location(const char *p) {
    yycolumn += lexer_column_width(yytext, yyleng); \
    yylloc.last_column = yycolumn;
 
-int push_file(const char *filename) {
+static int push_file_internal(const char *filename,
+                              const char *template_instance,
+                              const char *invoke_file,
+                              int invoke_line,
+                              int invoke_column) {
+   int is_template = template_instance && *template_instance;
+
    if (file_stack_top + 1 >= MAX_INCLUDE_DEPTH) {
-      fprintf(stderr, "include nesting too deep\n");
+      lexer_set_error_location(current_filename, yylloc.first_line, yylloc.first_column, filename);
+      error_user("source nesting too deep");
       return -1;
    }
 
    filename = search_includes(filename);
+   char *canonical_filename = realpath(filename, NULL);
+   if (!canonical_filename)
+      canonical_filename = strdup(filename);
+
+   if (is_template) {
+      for (int i = 0; i <= file_stack_top; i++) {
+         if (file_stack[i].is_template &&
+             !strcmp(file_stack[i].canonical_filename, canonical_filename)) {
+            lexer_set_error_location(invoke_file ? invoke_file : current_filename,
+                                     invoke_line, invoke_column, filename);
+            free(canonical_filename);
+            error_user("recursive template instantiation of '%s'", filename);
+            return -1;
+         }
+      }
+   }
 
    FILE *f = fopen(filename, "r");
    if (!f) {
       lexer_set_error_location(current_filename, yylloc.first_line, yylloc.first_column, filename);
-      error_user("cannot open include file: %s", filename);
+      free(canonical_filename);
+      error_user("cannot open %s file: %s", is_template ? "template" : "include", filename);
       return -1;
    }
 
-   if (md5seen(filename, f)) {
+   if (!is_template && md5seen(filename, f)) {
       fclose(f);
+      free(canonical_filename);
       return 0;
    }
 
    file_stack_top++;
    file_stack[file_stack_top].file = f;
    file_stack[file_stack_top].filename = strdup(filename);
+   file_stack[file_stack_top].canonical_filename = canonical_filename;
    file_stack[file_stack_top].saved_filename = current_filename;
    file_stack[file_stack_top].lineno = yylineno;
    file_stack[file_stack_top].column = yycolumn;
    file_stack[file_stack_top].start = YY_START;
    file_stack[file_stack_top].cond_depth = cond_stack_top;
    file_stack[file_stack_top].buffer = YY_CURRENT_BUFFER;
+   file_stack[file_stack_top].is_template = is_template;
+   file_stack[file_stack_top].owns_template_context = is_template;
+   file_stack[file_stack_top].saved_template_instance = current_template_instance;
+   file_stack[file_stack_top].saved_template_invoke_file = current_template_invoke_file;
+   file_stack[file_stack_top].saved_template_invoke_line = current_template_invoke_line;
+   file_stack[file_stack_top].saved_template_invoke_column = current_template_invoke_column;
+
+   if (is_template) {
+      current_template_instance = strdup(template_instance);
+      current_template_invoke_file = strdup(invoke_file ? invoke_file : current_filename);
+      current_template_invoke_line = invoke_line;
+      current_template_invoke_column = invoke_column;
+   }
 
    YY_BUFFER_STATE new_buffer = yy_create_buffer(f, YY_BUF_SIZE);
    yy_switch_to_buffer(new_buffer);
@@ -206,18 +288,56 @@ int push_file(const char *filename) {
    return 0;
 }
 
+int push_file(const char *filename) {
+   return push_file_internal(filename, NULL, NULL, 0, 0);
+}
+
+int push_template_file(const char *filename, const char *instance,
+                       const char *invoke_file, int invoke_line, int invoke_column) {
+   return push_file_internal(filename, instance, invoke_file, invoke_line, invoke_column);
+}
+
+const char *lexer_current_template_instance(void) {
+   return current_template_instance;
+}
+
+const char *lexer_current_template_invoke_file(void) {
+   return current_template_invoke_file;
+}
+
+int lexer_current_template_invoke_line(void) {
+   return current_template_invoke_line;
+}
+
+int lexer_current_template_invoke_column(void) {
+   return current_template_invoke_column;
+}
+
 void pop_file() {
+   FileContext *ctx;
+
    if (file_stack_top < 0) return;
-   pp_require_balanced_at_eof(file_stack[file_stack_top].cond_depth,
+   ctx = &file_stack[file_stack_top];
+   pp_require_balanced_at_eof(ctx->cond_depth,
                               current_filename ? current_filename : "file");
-   fclose(file_stack[file_stack_top].file);
-   free(file_stack[file_stack_top].filename);
+   fclose(ctx->file);
+   free(ctx->filename);
+   free(ctx->canonical_filename);
    yy_delete_buffer(YY_CURRENT_BUFFER);
-   yy_switch_to_buffer(file_stack[file_stack_top].buffer);
-   yylineno = file_stack[file_stack_top].lineno;
-   yycolumn = file_stack[file_stack_top].column;
-   current_filename = file_stack[file_stack_top].saved_filename;
-   BEGIN(file_stack[file_stack_top].start);
+   yy_switch_to_buffer(ctx->buffer);
+   yylineno = ctx->lineno;
+   yycolumn = ctx->column;
+   current_filename = ctx->saved_filename;
+   BEGIN(ctx->start);
+
+   if (ctx->owns_template_context) {
+      free(current_template_instance);
+      free(current_template_invoke_file);
+   }
+   current_template_instance = ctx->saved_template_instance;
+   current_template_invoke_file = ctx->saved_template_invoke_file;
+   current_template_invoke_line = ctx->saved_template_invoke_line;
+   current_template_invoke_column = ctx->saved_template_invoke_column;
    file_stack_top--;
 }
 
@@ -471,6 +591,103 @@ static char *mangle_identifier_utf8_or_die(const char *text) {
    return out;
 }
 
+
+
+static int pp_is_ident_start(unsigned char c);
+static int pp_is_ident_char(unsigned char c);
+
+//! @brief Rewrite one complete source identifier under the active template instance.
+static char *template_rewrite_identifier_source(const char *source) {
+   size_t instance_len;
+   const char *suffix;
+   char *out;
+
+   if (!source)
+      return NULL;
+   if (!current_template_instance ||
+       (strcmp(source, "TEMPLATE") && strncmp(source, "TEMPLATE_", 9)))
+      return strdup(source);
+
+   suffix = !strcmp(source, "TEMPLATE") ? "" : source + strlen("TEMPLATE");
+   instance_len = strlen(current_template_instance);
+   out = (char *)malloc(instance_len + strlen(suffix) + 1);
+   if (!out)
+      error_unreachable("out of memory rewriting template identifier");
+   memcpy(out, current_template_instance, instance_len);
+   strcpy(out + instance_len, suffix);
+   return out;
+}
+
+//! @brief Rewrite template identifiers in source text while preserving quoted text.
+static char *template_rewrite_identifier_text(const char *text) {
+   size_t cap;
+   size_t out_len = 0;
+   size_t i = 0;
+   char *out;
+   char quote = 0;
+   int escaped = 0;
+
+   if (!text || !current_template_instance)
+      return strdup(text ? text : "");
+   cap = strlen(text) + strlen(current_template_instance) + 32;
+   out = (char *)malloc(cap);
+   if (!out)
+      error_unreachable("out of memory rewriting template text");
+
+   while (text[i]) {
+      unsigned char ch = (unsigned char)text[i];
+      if (quote) {
+         if (out_len + 2 >= cap) {
+            cap *= 2;
+            out = (char *)realloc(out, cap);
+            if (!out) error_unreachable("out of memory rewriting template text");
+         }
+         out[out_len++] = text[i++];
+         if (escaped) escaped = 0;
+         else if (ch == '\\') escaped = 1;
+         else if (ch == (unsigned char)quote) quote = 0;
+         continue;
+      }
+      if (ch == '\'' || ch == '"') {
+         quote = (char)ch;
+         if (out_len + 2 >= cap) {
+            cap *= 2;
+            out = (char *)realloc(out, cap);
+            if (!out) error_unreachable("out of memory rewriting template text");
+         }
+         out[out_len++] = text[i++];
+         continue;
+      }
+      if (pp_is_ident_start(ch)) {
+         size_t begin = i++;
+         char *source;
+         char *rewritten;
+         size_t n;
+         while (text[i] && pp_is_ident_char((unsigned char)text[i])) i++;
+         source = strndup(text + begin, i - begin);
+         rewritten = template_rewrite_identifier_source(source);
+         free(source);
+         n = strlen(rewritten);
+         while (out_len + n + 1 >= cap) {
+            cap *= 2;
+            out = (char *)realloc(out, cap);
+            if (!out) error_unreachable("out of memory rewriting template text");
+         }
+         memcpy(out + out_len, rewritten, n);
+         out_len += n;
+         free(rewritten);
+         continue;
+      }
+      if (out_len + 2 >= cap) {
+         cap *= 2;
+         out = (char *)realloc(out, cap);
+         if (!out) error_unreachable("out of memory rewriting template text");
+      }
+      out[out_len++] = text[i++];
+   }
+   out[out_len] = 0;
+   return out;
+}
 
 /////////////////////////////
 ///// conditional handling
@@ -1666,6 +1883,11 @@ static void alias_append_rhs(const char *rhs) {
    size_t old_len;
 
    clean_rhs = strip_trailing_comments_preserving_quotes(rhs);
+   {
+      char *rewritten = template_rewrite_identifier_text(clean_rhs);
+      free(clean_rhs);
+      clean_rhs = rewritten;
+   }
    clean_len = strlen(clean_rhs);
 
    while (clean_len > 0 &&
@@ -1753,7 +1975,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "alias"[[:space:]]+        { alias_reset(); BEGIN(ALIAS_NAME); }
 
 <ALIAS_NAME>[[:space:]]+   ;
-<ALIAS_NAME>{IDENT}        { char *ident = mangle_identifier_utf8_or_die(yytext); alias_set_name(ident); free(ident); BEGIN(ALIAS_AFTER_NAME); }
+<ALIAS_NAME>{IDENT}        { char *source = template_rewrite_identifier_source(yytext); char *ident = mangle_identifier_utf8_or_die(source); alias_set_name(ident); free(ident); free(source); BEGIN(ALIAS_AFTER_NAME); }
 <ALIAS_NAME>.|\n           { alias_error("expected alias name"); BEGIN(INITIAL); }
 
 <ALIAS_AFTER_NAME>"("     { alias_mark_function_like(); BEGIN(ALIAS_PARAMS); }
@@ -1762,7 +1984,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 
 <ALIAS_PARAMS>[ \t\r\f\v]+ ;
 <ALIAS_PARAMS>")"         { BEGIN(ALIAS_AFTER_PARAMS); }
-<ALIAS_PARAMS>{IDENT}      { char *ident = mangle_identifier_utf8_or_die(yytext); alias_add_param(ident); free(ident); BEGIN(ALIAS_PARAM_TAIL); }
+<ALIAS_PARAMS>{IDENT}      { char *source = template_rewrite_identifier_source(yytext); char *ident = mangle_identifier_utf8_or_die(source); alias_add_param(ident); free(ident); free(source); BEGIN(ALIAS_PARAM_TAIL); }
 <ALIAS_PARAMS>.|\n        { alias_error("expected alias parameter name or ')'"); BEGIN(INITIAL); }
 
 <ALIAS_PARAM_TAIL>[ \t\r\f\v]+ ;
@@ -1787,6 +2009,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
                           }
 <ALIAS_RHS>[^\n]+          { alias_append_rhs(yytext); }
 
+"as"            return AS;
 "break"         return BREAK;
 "case"          return CASE;
 "const"         return CONST;
@@ -1811,6 +2034,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "static"        return STATIC;
 "struct"        return STRUCT;
 "switch"        return SWITCH;
+"template"      return TEMPLATE;
 "to"            return TO;
 "type"          return TYPE;
 "typedef"       return TYPEDEF;
@@ -1888,21 +2112,25 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
    int owner_depth;
    int param_index;
    int i;
-   char *ident = mangle_identifier_utf8_or_die(yytext);
+   char *source = template_rewrite_identifier_source(yytext);
+   char *ident = mangle_identifier_utf8_or_die(source);
 
    if (alias_find_local(ident, &owner_depth, &param_index)) {
       free(ident);
+      free(source);
       alias_scan_local_binding(owner_depth, param_index);
    }
    else {
       i = alias_find(ident);
       if (i != -1) {
          free(ident);
+         free(source);
          alias_invoke(i);
       }
       else {
          yylval.str = ident;
-         lexer_register_token_location(ident);
+         lexer_register_token_location(ident, source);
+         free(source);
          if (!strcmp(ident, "true") || !strcmp(ident, "false")) return INTEGER;
          if (xform_exists(ident)) return XFORMNAME;
          if (memname_exists(ident)) return MEMNAME;

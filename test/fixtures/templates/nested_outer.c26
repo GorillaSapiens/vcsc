@@ -1,0 +1,4 @@
+template "fixtures/templates/nested_leaf.c26" as TEMPLATE_leaf
+inline void TEMPLATE_set(void) {
+   TEMPLATE_leaf_value := 9;
+}

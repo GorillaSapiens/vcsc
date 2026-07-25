@@ -13,6 +13,20 @@
 
 ASTNode *root = NULL;
 
+//! @brief Capture active source-template ownership on one AST node.
+static void ast_capture_template_context(ASTNode *node) {
+   const char *instance;
+   const char *invoke_file;
+
+   if (!node) return;
+   instance = lexer_current_template_instance();
+   invoke_file = lexer_current_template_invoke_file();
+   node->template_instance = instance ? strdup(instance) : NULL;
+   node->template_invoke_file = invoke_file ? strdup(invoke_file) : NULL;
+   node->template_invoke_line = lexer_current_template_invoke_line();
+   node->template_invoke_column = lexer_current_template_invoke_column();
+}
+
 static int ast_string_has_unicode_escape(const char *s) {
    if (!s) {
       return 0;
@@ -23,6 +37,7 @@ static int ast_string_has_unicode_escape(const char *s) {
 //! @brief Create node for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_node(const char *name, ...) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    ret->name = name;
    ret->file = strdup(current_filename);
    ret->line = yylineno;
@@ -81,6 +96,7 @@ ASTNode *prepend_children_from(ASTNode *parent, ASTNode *other) {
 //! @brief Create integer leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_integer_leaf(const char *intval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    ret->name = "integer_literal";
    ret->file = strdup(current_filename);
    ret->line = yylineno;
@@ -111,6 +127,7 @@ ASTNode *increment_integer_leaf(ASTNode *node) {
 //! @brief Create string leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_string_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    ret->name = "str";
    ret->file = strdup(current_filename);
    ret->line = yylineno;
@@ -124,6 +141,7 @@ ASTNode *make_string_leaf(const char *strval) {
 //! @brief Create asm leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_asm_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    ret->name = "asm";
    ret->file = strdup(current_filename);
    ret->line = yylineno;
@@ -137,15 +155,35 @@ ASTNode *make_asm_leaf(const char *strval) {
 //! @brief Create identifier leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_identifier_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    const char *tok_file = NULL;
+   const char *tok_instance = NULL;
+   const char *tok_invoke_file = NULL;
    int tok_line = 0;
    int tok_column = 0;
+   int tok_invoke_line = 0;
+   int tok_invoke_column = 0;
 
    ret->name = "identifier";
-   if (ast_string_has_unicode_escape(strval) && lexer_lookup_token_location(strval, &tok_file, &tok_line, &tok_column)) {
-      ret->file = strdup(tok_file ? tok_file : current_filename);
-      ret->line = tok_line;
-      ret->column = tok_column;
+   if (lexer_lookup_token_location(strval, &tok_file, &tok_line, &tok_column,
+                                   &tok_instance, &tok_invoke_file,
+                                   &tok_invoke_line, &tok_invoke_column)) {
+      free((void *)ret->template_instance);
+      free((void *)ret->template_invoke_file);
+      ret->template_instance = tok_instance ? strdup(tok_instance) : NULL;
+      ret->template_invoke_file = tok_invoke_file ? strdup(tok_invoke_file) : NULL;
+      ret->template_invoke_line = tok_invoke_line;
+      ret->template_invoke_column = tok_invoke_column;
+      if (ast_string_has_unicode_escape(strval)) {
+         ret->file = strdup(tok_file ? tok_file : current_filename);
+         ret->line = tok_line;
+         ret->column = tok_column;
+      }
+      else {
+         ret->file = strdup(current_filename);
+         ret->line = yylineno;
+         ret->column = yycolumn;
+      }
    }
    else {
       ret->file = strdup(current_filename);
@@ -161,15 +199,35 @@ ASTNode *make_identifier_leaf(const char *strval) {
 //! @brief Create typename leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_typename_leaf(const char *strval) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    const char *tok_file = NULL;
+   const char *tok_instance = NULL;
+   const char *tok_invoke_file = NULL;
    int tok_line = 0;
    int tok_column = 0;
+   int tok_invoke_line = 0;
+   int tok_invoke_column = 0;
 
    ret->name = "typename";
-   if (ast_string_has_unicode_escape(strval) && lexer_lookup_token_location(strval, &tok_file, &tok_line, &tok_column)) {
-      ret->file = strdup(tok_file ? tok_file : current_filename);
-      ret->line = tok_line;
-      ret->column = tok_column;
+   if (lexer_lookup_token_location(strval, &tok_file, &tok_line, &tok_column,
+                                   &tok_instance, &tok_invoke_file,
+                                   &tok_invoke_line, &tok_invoke_column)) {
+      free((void *)ret->template_instance);
+      free((void *)ret->template_invoke_file);
+      ret->template_instance = tok_instance ? strdup(tok_instance) : NULL;
+      ret->template_invoke_file = tok_invoke_file ? strdup(tok_invoke_file) : NULL;
+      ret->template_invoke_line = tok_invoke_line;
+      ret->template_invoke_column = tok_invoke_column;
+      if (ast_string_has_unicode_escape(strval)) {
+         ret->file = strdup(tok_file ? tok_file : current_filename);
+         ret->line = tok_line;
+         ret->column = tok_column;
+      }
+      else {
+         ret->file = strdup(current_filename);
+         ret->line = yylineno;
+         ret->column = yycolumn;
+      }
    }
    else {
       ret->file = strdup(current_filename);
@@ -185,6 +243,7 @@ ASTNode *make_typename_leaf(const char *strval) {
 //! @brief Create empty leaf for compiler AST builder. The returned storage is owned by the caller or the object that immediately records it.
 ASTNode *make_empty_leaf(void) {
    ASTNode *ret = calloc(1, sizeof(struct ASTNode));
+   ast_capture_template_context(ret);
    ret->name = "empty";
    ret->file = strdup(current_filename);
    ret->line = yylineno;

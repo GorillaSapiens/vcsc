@@ -1,0 +1,39 @@
+// vcsc-cc1 -I .
+// expectasm: .export MY_TEMPLATE_HELPER
+// expectasm: .export first_value
+// expectasm: .export second_value
+// expectasm: .export ?u03BB?_value
+// expectasm: .export first_text
+// expectasm: .export second_text
+// expectasm: .export ?u03BB?_text
+// expectasm: ; begin inline expansion first_init
+// expectasm: ; begin inline expansion second_init
+// expectasm: ; begin inline expansion ?u03BB?_init
+// expectasm: ; begin inline expansion first #
+// expectasm: ; begin inline expansion second #
+// expectasm: ; begin inline expansion ?u03BB? #
+// expectasm: .byte $54, $45, $4d, $50, $4c, $41, $54, $45, $5f, $76, $61, $6c, $75, $65, $00
+// forbidasm: TEMPLATE_value
+// forbidasm: TEMPLATE_init
+// forbidasm: MY_first_HELPER
+
+include "machine_6502.c26"
+template "fixtures/templates/component.c26" as first
+template "fixtures/templates/component.c26" as second
+template "fixtures/templates/component.c26" as λ
+
+uint8_t MY_TEMPLATE_HELPER;
+uint8_t result;
+
+void main(void) {
+   first_init();
+   second_init();
+   λ_init();
+   first();
+   second();
+   λ();
+   first_value := 2;
+   second_value := 3;
+   λ_value := 4;
+   result := first_get() + second_get() + λ_get();
+}

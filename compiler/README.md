@@ -49,6 +49,27 @@ An included file is processed once per translation unit. Identity is based on
 an MD5 digest of its contents, so including identical content through different
 paths still produces one inclusion.
 
+### Templates
+
+```vcsc
+template "component.c26" as first
+template "component.c26" as second
+```
+
+A template uses the ordinary include search path but is processed on every
+invocation rather than participating in include's MD5-based include-once set.
+Within the instantiated source, the exact identifier `TEMPLATE` becomes the
+instance identifier and an identifier beginning with `TEMPLATE_` receives the
+instance prefix. Comments, strings, and unrelated identifier substrings are not
+rewritten. Rewriting occurs before identifier classification and UTF-8 symbol
+mangling, so ordinary and UTF-8 instance names are both supported.
+
+Ordinary includes inside a template remain include-once. Nested templates are
+allowed, while recursive template inclusion is diagnosed. Alias names,
+parameters, and identifier tokens in alias replacement text participate in the
+same rewriting. Inline-assembly rewriting and template-hygiene enforcement are
+separate roadmap work.
+
 ### Aliases
 
 Aliases are newline-terminated lexical substitutions:

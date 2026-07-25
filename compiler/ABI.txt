@@ -175,9 +175,10 @@ Declaration-use contract metadata
 Contracted file-scope objects and functions emit reserved absolute-export
 records beginning with `__contractmeta$V1$`.  Each record preserves the merged
 `require`/`recommend` strength, logical assembler symbol, translation-unit owner,
-declaration source file/line/column, template invocation location (`none` until
-source instantiation is implemented), and a canonical type or function-signature
-fingerprint.  True inline functions emit these records even though they have no
+declaration source file/line/column, template invocation identity, and a
+canonical type or function-signature fingerprint. Non-template declarations use
+`none`; declarations produced by `template ... as instance` use the stable
+`instance@invocation-file:line:column` identity.  True inline functions emit these records even though they have no
 ordinary callable object symbol.  The assembler retains the records in `.o26`
 exports; the linker treats the prefix as metadata rather than a program global.
 
@@ -186,8 +187,8 @@ or relocation, emit reserved `__usemeta$V1$call$...` records. Contracted file-sc
 and `ref` arguments emit corresponding
 `read`, `write`, `address`, and `ref` records. Each semantic-use record preserves
 the referenced logical symbol, referencing translation-unit owner, containing
-function, and source file/line/column. The records are emitted before peephole
-optimization and survive even when code generation leaves no ordinary
+function, source file/line/column, and template invocation identity. The records
+are emitted before peephole optimization and survive even when code generation leaves no ordinary
 relocation. After archive selection and ordinary relocation resolution, the
 linker computes reachability from `main` and runtime initializer roots using the
 same compiler and hidden-assembly call-graph edges used for activation planning.
