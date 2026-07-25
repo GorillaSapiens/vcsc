@@ -167,28 +167,18 @@ join("\n",@actual) eq join("\n",@expected)
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
-my $mos_source=File::Spec->catfile($mos,'mos6502.cpp');
-my $timing_source=File::Spec->catfile($repo,qw(test vcs_frame_timing.cpp));
-my $timing_exe=File::Spec->catfile($tmp,'vcs_frame_timing_score');
-($exit,$sig,$out,$err)=run_capture($cxx,'-std=c++17','-O0','-I',$mos,$timing_source,$mos_source,'-o',$timing_exe);
-die "timing harness build failed\n$out$err" if $exit || $sig;
-for my $case ([$oldbin,263,'pre-template'],[$bin,262,'component']) {
-   my ($rom,$raw,$name)=@$case;
-   ($exit,$sig,$out,$err)=run_capture($timing_exe,$rom,'45','--no-audio','--raw-lines',$raw);
-   die "$name timing failed\n$out$err" if $exit || $sig;
-   require_re($out,qr/vcs_frame_timing ok: 42 frames at 262 lines/,
-              "$name cartridge lost stable 262-line timing");
-}
-
+my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
+my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 my $trace_source=File::Spec->catfile($repo,qw(test vcs_visible_trace_compare.cpp));
 my $trace_exe=File::Spec->catfile($tmp,'vcs_visible_trace_compare');
 ($exit,$sig,$out,$err)=run_capture(
    $cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
-   '-I',$mos,$trace_source,$mos_source,'-o',$trace_exe);
-die "visible trace harness build failed\n$out$err" if $exit || $sig;
-($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin);
-die "visible trace comparison failed\n$out$err" if $exit || $sig;
-require_re($out,qr/^vcs_visible_trace_compare ok: 68 events\n$/,
-           'pre-template and component visible TIA traces differ');
+   '-I',$mos,$trace_source,@mos_input,'-o',$trace_exe);
+die "visible trace/timing harness build failed\n$out$err" if $exit || $sig;
+($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin,'263','262');
+die "visible trace/timing comparison failed\n$out$err" if $exit || $sig;
+require_re($out,
+   qr/^vcs_visible_trace_compare ok: 68 events and 42 stable frames per ROM\n$/,
+   'pre-template and component visible TIA traces or frame timing differ');
 
 print "vcs_six_digit_score ok\n";

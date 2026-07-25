@@ -1,5 +1,5 @@
 //! @file vcs_visible_trace_compare.cpp
-//! @brief Compare visible-frame TIA writes from two 4K VCS cartridges.
+//! @brief Compare visible TIA writes and stable frame spacing from two 4K VCS cartridges.
 
 #include <cstdint>
 #include <cstdio>
@@ -36,6 +36,9 @@ struct Event {
    }
 };
 
+// One execution supplies both contracts. Keeping timing and raster comparison
+// in one harness avoids compiling two MOS 6502 test programs inside the generic
+// runner's normal two-second per-test deadline.
 class TraceMachine {
 public:
    explicit TraceMachine(const char *path) : cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
@@ -50,10 +53,12 @@ public:
       cpu_.Reset();
    }
 
-   std::vector<Event> run() {
+   std::vector<Event> run(uint64_t expected_raw_lines, const char *label) {
       constexpr uint64_t kInstructionLimit = 100000000;
+      constexpr size_t kRequestedAssertions = 45;
       for (uint64_t instructions = 0;
-           instructions < kInstructionLimit && frame_ < 5;
+           instructions < kInstructionLimit &&
+           vsync_assertions_.size() < kRequestedAssertions;
            ++instructions) {
          writes_.clear();
          const uint64_t before = cpu_cycles_;
@@ -61,7 +66,24 @@ public:
          virtual_cycles_ += cpu_cycles_ - before;
          apply_writes();
       }
-      if (frame_ < 5) fail("instruction limit reached before comparison frame");
+      if (vsync_assertions_.size() < kRequestedAssertions) {
+         fail("instruction limit reached before enough complete frames");
+      }
+      const uint64_t expected_cycles = expected_raw_lines * kCyclesPerScanline;
+      for (size_t i = 3; i < vsync_assertions_.size(); ++i) {
+         const uint64_t delta = vsync_assertions_[i] - vsync_assertions_[i - 1];
+         if (delta != expected_cycles) {
+            std::fprintf(stderr,
+               "vcs_visible_trace_compare: %s frame %zu has %llu cycles "
+               "(%llu raw lines), expected %llu cycles (%llu raw lines)\n",
+               label, i,
+               static_cast<unsigned long long>(delta),
+               static_cast<unsigned long long>(delta / kCyclesPerScanline),
+               static_cast<unsigned long long>(expected_cycles),
+               static_cast<unsigned long long>(expected_raw_lines));
+            std::exit(1);
+         }
+      }
       return events_;
    }
 
@@ -73,6 +95,7 @@ private:
    uint64_t virtual_cycles_ = 0;
    std::vector<Write> writes_;
    std::vector<Event> events_;
+   std::vector<uint64_t> vsync_assertions_;
    bool vsync_asserted_ = false;
    bool vblank_asserted_ = true;
    int frame_ = -1;
@@ -133,6 +156,7 @@ private:
             if (next && !vsync_asserted_) {
                ++frame_;
                frame_start_ = virtual_cycles_;
+               vsync_assertions_.push_back(virtual_cycles_);
             }
             vsync_asserted_ = next;
          }
@@ -157,15 +181,28 @@ private:
 TraceMachine *TraceMachine::active_ = nullptr;
 } // namespace
 
+uint64_t parse_raw_lines(const char *text) {
+   char *end = nullptr;
+   const unsigned long value = std::strtoul(text, &end, 10);
+   if (!end || *end != '\0' || value == 0) {
+      std::fprintf(stderr, "vcs_visible_trace_compare: bad raw-line count '%s'\n", text);
+      std::exit(2);
+   }
+   return static_cast<uint64_t>(value);
+}
+
 int main(int argc, char **argv) {
-   if (argc != 3) {
-      std::fprintf(stderr, "usage: %s OLD.bin NEW.bin\n", argv[0]);
+   if (argc != 5) {
+      std::fprintf(stderr,
+         "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n", argv[0]);
       return 2;
    }
    TraceMachine old_machine(argv[1]);
-   const std::vector<Event> old_events = old_machine.run();
+   const std::vector<Event> old_events =
+      old_machine.run(parse_raw_lines(argv[3]), "old");
    TraceMachine new_machine(argv[2]);
-   const std::vector<Event> new_events = new_machine.run();
+   const std::vector<Event> new_events =
+      new_machine.run(parse_raw_lines(argv[4]), "new");
    if (old_events.empty() || new_events.empty()) {
       std::fprintf(stderr, "vcs_visible_trace_compare: empty visible trace\n");
       return 1;
@@ -190,6 +227,8 @@ int main(int argc, char **argv) {
          return 1;
       }
    }
-   std::printf("vcs_visible_trace_compare ok: %zu events\n", old_events.size());
+   std::printf(
+      "vcs_visible_trace_compare ok: %zu events and 42 stable frames per ROM\n",
+      old_events.size());
    return 0;
 }

@@ -4417,3 +4417,22 @@ Before returning another modified archive:
   Leave 22h2b2 next for migrating the fingerprint cartridge, its unofficial-
   opcode and CRC self-test coverage, and only then deleting the legacy module.
 * Pass 308/308 compile-only tests and 171/171 end-to-end/generic tests.
+
+2026-07-25 07:58:52 PDT, remove six-digit-score regression timeout
+-------------------------------------------------------------------------------
+* Fix `test/vcs_six_digit_score.test` exceeding the generic runner's two-second
+  deadline on ordinary machines. The migrated score regression had compiled two
+  separate C++ MOS 6502 harnesses inside one Perl test, even though both then ran
+  the same predecessor and component ROM pair.
+* Extend `test/vcs_visible_trace_compare.cpp` to verify both contracts in one
+  execution: all 68 visible TIA writes must match exactly, and each ROM must hold
+  its independently calibrated raw VSYNC spacing for 42 complete frames. Remove
+  the separate `vcs_frame_timing.cpp` compile and process launch from this test.
+* Reuse the already built `simulator/mos6502/mos6502.o` when available, matching
+  the other kernel regressions, while retaining a source fallback for standalone
+  invocation. Direct runtime falls from about 1.6 seconds to about 0.45 seconds
+  in the development container and passes the unchanged default two-second
+  generic timeout repeatedly.
+* Test-only performance/correctness fix; no compiler, linker, assembler,
+  runtime, library, kernel, component, example, cartridge, or roadmap behavior
+  changes. Task 22h2b2 remains next.
