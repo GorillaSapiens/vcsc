@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: duplicate symbol 'duplicate_object'
+
+include "machine_6502.c26"
+
+recommend uint8_t duplicate_object;
+require uint8_t duplicate_object;

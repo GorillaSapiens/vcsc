@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// expectasm: .export merged_object
+// forbidasm: .import merged_object
+
+include "machine_6502.c26"
+
+extern recommend uint8_t merged_object;
+
+recommend void merged_function(void);
+require void merged_function(void);
+
+void use_before_object_definition(void) {
+   merged_object := 1;
+}
+
+extern require uint8_t merged_object;
+uint8_t merged_object;
+
+void merged_function(void) {
+}
+
+void main(void) {
+   use_before_object_definition();
+   merged_function();
+}

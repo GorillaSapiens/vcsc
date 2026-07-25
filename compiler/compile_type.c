@@ -18,6 +18,7 @@
 #include "memname.h"
 #include "messages.h"
 #include "pair.h"
+#include "set.h"
 #include "typename.h"
 #include "xray.h"
 #include "lextern.h"
@@ -933,6 +934,89 @@ DeclarationUseContract declaration_use_contract(const ASTNode *modifiers) {
 //! @brief Return whether a declaration carries either link-time use contract.
 bool declaration_has_use_contract(const ASTNode *modifiers) {
    return declaration_use_contract(modifiers) != DECL_USE_CONTRACT_NONE;
+}
+
+//! @brief Return the source token that introduced the declaration's strongest contract.
+const ASTNode *declaration_use_contract_origin(const ASTNode *modifiers) {
+   const char *wanted;
+
+   switch (declaration_use_contract(modifiers)) {
+      case DECL_USE_CONTRACT_REQUIRE: wanted = "require"; break;
+      case DECL_USE_CONTRACT_RECOMMEND: wanted = "recommend"; break;
+      default: return NULL;
+   }
+   for (int i = 0; modifiers && !is_empty(modifiers) && i < modifiers->count; i++) {
+      const ASTNode *item = modifiers->children[i];
+      if (item && item->strval && !strcmp(item->strval, wanted)) {
+         return item;
+      }
+   }
+   return modifiers;
+}
+
+typedef struct DeclarationContractRecord {
+   DeclarationUseContract strength;
+   const ASTNode *origin;
+} DeclarationContractRecord;
+
+static Set *declaration_contracts = NULL;
+
+//! @brief Build a namespace-safe key for one object or function use contract.
+static void declaration_contract_key(char *buf, size_t bufsize,
+                                     DeclarationContractSymbolKind kind,
+                                     const char *name) {
+   snprintf(buf, bufsize, "%c:%s",
+            kind == DECL_CONTRACT_FUNCTION ? 'F' : 'O',
+            name ? name : "");
+}
+
+//! @brief Merge one declaration into the translation-unit use-contract registry.
+void remember_declaration_use_contract(DeclarationContractSymbolKind kind,
+                                       const char *name,
+                                       const ASTNode *modifiers) {
+   DeclarationUseContract strength = declaration_use_contract(modifiers);
+   DeclarationContractRecord *record;
+   char key[512];
+
+   if (!name || strength == DECL_USE_CONTRACT_NONE) {
+      return;
+   }
+   if (!declaration_contracts) {
+      declaration_contracts = new_set();
+   }
+   declaration_contract_key(key, sizeof(key), kind, name);
+   record = (DeclarationContractRecord *)set_get(declaration_contracts, key);
+   if (!record) {
+      record = (DeclarationContractRecord *)calloc(1, sizeof(*record));
+      if (!record) {
+         error_unreachable("out of memory recording declaration contract");
+      }
+      record->strength = strength;
+      record->origin = declaration_use_contract_origin(modifiers);
+      set_add(declaration_contracts, strdup(key), record);
+      return;
+   }
+   if (strength > record->strength) {
+      record->strength = strength;
+      record->origin = declaration_use_contract_origin(modifiers);
+   }
+}
+
+//! @brief Return the strongest merged contract and its source location for one symbol.
+DeclarationUseContract declaration_symbol_use_contract(DeclarationContractSymbolKind kind,
+                                                        const char *name,
+                                                        const ASTNode **origin_out) {
+   DeclarationContractRecord *record = NULL;
+   char key[512];
+
+   if (declaration_contracts && name) {
+      declaration_contract_key(key, sizeof(key), kind, name);
+      record = (DeclarationContractRecord *)set_get(declaration_contracts, key);
+   }
+   if (origin_out) {
+      *origin_out = record ? record->origin : NULL;
+   }
+   return record ? record->strength : DECL_USE_CONTRACT_NONE;
 }
 
 //! @brief Handle declaration const applies to object logic for compiler type system.

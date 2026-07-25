@@ -589,6 +589,96 @@ static void restore_object_segment(EmitSink *sink, const char *base_segment) {
    emit(sink, ".segment \"%s\"\n", base_segment);
 }
 
+//! @brief Return whether one file-scope object declaration allocates or binds the object.
+static bool global_object_is_definition(const ASTNode *node) {
+   const ASTNode *modifiers = (node && node->count > 0) ? node->children[0] : NULL;
+   return !has_modifier((ASTNode *)modifiers, "extern");
+}
+
+//! @brief Return whether two object declarations have the same source-level storage ABI.
+static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
+   const ASTNode *amod = (a && a->count > 0) ? a->children[0] : NULL;
+   const ASTNode *bmod = (b && b->count > 0) ? b->children[0] : NULL;
+   const ASTNode *atype = (a && a->count > 1) ? a->children[1] : NULL;
+   const ASTNode *btype = (b && b->count > 1) ? b->children[1] : NULL;
+   const ASTNode *adecl = decl_node_declarator(a);
+   const ASTNode *bdecl = decl_node_declarator(b);
+   const char *aname = type_name_from_node(atype);
+   const char *bname = type_name_from_node(btype);
+   const char *amem = find_mem_modifier_name(amod);
+   const char *bmem = find_mem_modifier_name(bmod);
+
+   if (!aname || !bname || strcmp(aname, bname) ||
+       !declarator_signature_matches(adecl, bdecl)) {
+      return false;
+   }
+   if (has_modifier((ASTNode *)amod, "static") != has_modifier((ASTNode *)bmod, "static") ||
+       declaration_const_applies_to_object(amod, adecl) != declaration_const_applies_to_object(bmod, bdecl) ||
+       has_modifier((ASTNode *)amod, "ref") != has_modifier((ASTNode *)bmod, "ref") ||
+       modifiers_imply_zeropage(amod) != modifiers_imply_zeropage(bmod)) {
+      return false;
+   }
+   if ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem))) {
+      return false;
+   }
+   return true;
+}
+
+//! @brief Register all file-scope objects, selecting one declaration for lowering.
+void predeclare_top_level_objects(ASTNode *program) {
+   if (!globals) {
+      globals = new_set();
+   }
+
+   for (int i = 0; program && i < program->count; i++) {
+      ASTNode *stmt = program->children[i];
+      if (!stmt || strcmp(stmt->name, "defdecl_stmt") || stmt->count != 1 ||
+          strcmp(stmt->children[0]->name, "decl_list")) {
+         continue;
+      }
+      ASTNode *list = stmt->children[0];
+      for (int j = 0; j < list->count; j++) {
+         ASTNode *node = list->children[j];
+         const ASTNode *declarator = decl_node_declarator(node);
+         const ASTNode *modifiers;
+         const ASTNode *previous;
+         const char *name;
+
+         if (!declarator || declarator_is_function(declarator)) {
+            continue;
+         }
+         modifiers = node->children[0];
+         name = declarator_name(declarator);
+         validate_nonreserved_implementation_name(name, node);
+         if (!name) {
+            error_user("[%s:%d.%d] unnamed file-scope object declaration is not supported",
+                       node->file, node->line, node->column);
+         }
+         previous = (const ASTNode *)set_get(globals, name);
+         if (!previous) {
+            set_add(globals, strdup(name), node);
+            remember_declaration_use_contract(DECL_CONTRACT_OBJECT, name, modifiers);
+            continue;
+         }
+         if (!global_object_same_declaration(previous, node)) {
+            error_user("[%s:%d.%d] vs [%s:%d.%d] conflicting declarations for object '%s'",
+                       node->file, node->line, node->column,
+                       previous->file, previous->line, previous->column, name);
+         }
+         if (global_object_is_definition(previous) && global_object_is_definition(node)) {
+            error_user("[%s:%d.%d] duplicate symbol '%s' first defined at [%s:%d.%d]",
+                       node->file, node->line, node->column, name,
+                       previous->file, previous->line, previous->column);
+         }
+         remember_declaration_use_contract(DECL_CONTRACT_OBJECT, name, modifiers);
+         if (!global_object_is_definition(previous) && global_object_is_definition(node)) {
+            set_rm(globals, name);
+            set_add(globals, strdup(name), node);
+         }
+      }
+   }
+}
+
 //! @brief Lower global decl item from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_global_decl_item(ASTNode *node) {
    ASTNode *modifiers  = node->children[0];
@@ -606,18 +696,11 @@ void compile_global_decl_item(ASTNode *node) {
                  node->file, node->line, node->column);
    }
 
-   if (!globals) {
-      globals = new_set();
+   const ASTNode *selected = globals ? (const ASTNode *)set_get(globals, name) : NULL;
+   if (!selected) {
+      error_unreachable("[%s:%d.%d] file-scope object '%s' was not predeclared",
+                        node->file, node->line, node->column, name);
    }
-
-   const ASTNode *value = set_get(globals, name);
-   if (value != NULL) {
-      error_user("[%s:%d.%d] duplicate symbol '%s' first defined at [%s:%d.%d]",
-            node->file, node->line, node->column,
-            name,
-            value->file, value->line, value->column);
-   }
-   set_add(globals, strdup(name), node);
 
    bool is_extern = has_modifier(modifiers, "extern");
    bool is_const = declaration_const_applies_to_object(modifiers, declarator);
@@ -626,7 +709,6 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
    bool is_absolute_ref = is_ref && addrspec != NULL;
-   emit_mem_region_metadata_for_modifiers(node, modifiers);
    int size = declarator_storage_size(type, declarator);
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
@@ -648,6 +730,11 @@ void compile_global_decl_item(ASTNode *node) {
       error_user("[%s:%d.%d] 'ref' not allowed in global declaration without an absolute address binding",
             node->file, node->line, node->column);
    }
+
+   if (selected != node) {
+      return;
+   }
+   emit_mem_region_metadata_for_modifiers(node, modifiers);
 
    if (is_absolute_ref) {
       if (!address_spec_has_read(addrspec) && !address_spec_has_write(addrspec)) {

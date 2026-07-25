@@ -417,6 +417,7 @@ void remember_function(const ASTNode *node, const char *name) {
    }
    previous = (const ASTNode *)set_get(functions, name);
    if (!previous) {
+      remember_declaration_use_contract(DECL_CONTRACT_FUNCTION, name, modifiers);
       set_add(functions, strdup(name), (void *)node);
       return;
    }
@@ -435,6 +436,7 @@ void remember_function(const ASTNode *node, const char *name) {
                  previous->file, previous->line, previous->column,
                  name);
    }
+   remember_declaration_use_contract(DECL_CONTRACT_FUNCTION, name, modifiers);
    if (!function_has_body(previous) && function_has_body(node)) {
       set_rm(functions, name);
       set_add(functions, strdup(name), (void *)node);

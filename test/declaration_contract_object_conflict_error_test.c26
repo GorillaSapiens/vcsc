@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for object 'conflicted_object'
+
+include "machine_6502.c26"
+
+extern recommend uint8_t conflicted_object;
+extern require uint16_t conflicted_object;

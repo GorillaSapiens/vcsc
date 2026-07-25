@@ -14,6 +14,7 @@ void compile_enum_decl_stmt(ASTNode *node);
 void compile_struct_decl_stmt(ASTNode *node);
 void compile_union_decl_stmt(ASTNode *node);
 void compile_global_decl_item(ASTNode *node);
+void predeclare_top_level_objects(ASTNode *program);
 void predeclare_top_level_functions(ASTNode *program);
 void compile_defdecl_stmt(ASTNode *node);
 void reject_function_pointers(ASTNode *node);

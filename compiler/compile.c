@@ -233,6 +233,7 @@ static void compile(ASTNode *program) {
    check_struct_union_undefined(program);
    crosscheck_struct_union_nesting(program);
    calculate_struct_union_sizes(program);
+   predeclare_top_level_objects(program);
    predeclare_top_level_functions(program);
 
    for (int i = 0; i < program->count; i++) {

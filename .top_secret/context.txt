@@ -1103,7 +1103,7 @@ The first unfinished item is the default next action.
         under controlled symbol prefixes, and let components declare public
         functions or objects that the linked application must or should use.
 
-        [ ] 22a. Add file-scope `require` and `recommend` declaration specifiers
+        [x] 22a. Add file-scope `require` and `recommend` declaration specifiers
                   for objects and functions. Define compatible declaration
                   merging, make `require` dominate `recommend`, and reject use on
                   locals, parameters, members, typedefs, enums, and labels.
@@ -1114,7 +1114,7 @@ The first unfinished item is the default next action.
                             normalized strength query where `require` dominates
                             `recommend`, and reject local objects, parameters,
                             aggregate members, typedef/enum positions, and labels.
-                  [ ] 22a2. Merge compatible repeated object and function
+                  [x] 22a2. Merge compatible repeated object and function
                             declarations while retaining the strongest contract
                             and its diagnostic source location. Preserve ordinary
                             duplicate-definition and incompatible-signature errors.
@@ -4027,3 +4027,24 @@ Before returning another modified archive:
   still need to retain the strongest contract and diagnostic location before o26
   metadata work begins. Pass 297/297 compile-only tests and 160/160 end-to-end/
   generic tests.
+
+2026-07-24 19:58:00 PDT, complete declaration-contract merging
+-------------------------------------------------------------------------------
+* Complete roadmap task 22a2 and therefore task 22a. Predeclare file-scope
+  objects, accept compatible repeated `extern` declarations plus one
+  definition, select exactly one declaration for storage/import/export lowering,
+  and preserve ordinary duplicate-definition and incompatible-type diagnostics.
+* Add a translation-unit contract registry shared by objects and functions.
+  Merge declaration strengths as `none < recommend < require`, retain the source
+  token that introduced the strongest contract, and expose a query for task 22b
+  object metadata without depending on whichever prototype or definition became
+  the lowering representative.
+* Preserve compatible repeated function behavior while recording contracts from
+  prototypes and definitions. Add positive coverage for a weaker object
+  declaration followed by a stronger declaration and later definition, including
+  use before the defining declaration, plus focused conflicting-object and
+  duplicate-definition regressions.
+* Pass 300/300 compile-only tests and 160/160 end-to-end/generic tests. Stop
+  before 22b because o26 contract/type/location metadata and semantic use records
+  form the next larger atomic slice.
+

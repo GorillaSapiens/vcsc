@@ -59,8 +59,20 @@ typedef enum DeclarationUseContract {
    DECL_USE_CONTRACT_REQUIRE = 2
 } DeclarationUseContract;
 
+typedef enum DeclarationContractSymbolKind {
+   DECL_CONTRACT_OBJECT = 0,
+   DECL_CONTRACT_FUNCTION = 1
+} DeclarationContractSymbolKind;
+
 DeclarationUseContract declaration_use_contract(const ASTNode *modifiers);
 bool declaration_has_use_contract(const ASTNode *modifiers);
+const ASTNode *declaration_use_contract_origin(const ASTNode *modifiers);
+void remember_declaration_use_contract(DeclarationContractSymbolKind kind,
+                                       const char *name,
+                                       const ASTNode *modifiers);
+DeclarationUseContract declaration_symbol_use_contract(DeclarationContractSymbolKind kind,
+                                                        const char *name,
+                                                        const ASTNode **origin_out);
 bool declaration_const_applies_to_object(const ASTNode *modifiers, const ASTNode *declarator);
 int get_size(const char *type);
 int type_size_from_node(const ASTNode *type);
