@@ -177,6 +177,10 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances_reversed.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
 	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \

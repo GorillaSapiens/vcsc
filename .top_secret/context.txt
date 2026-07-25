@@ -1262,12 +1262,22 @@ The first unfinished item is the default next action.
                              assembly labels, and prove two instances build with
                              independent RAM and a stable scheduler-driven
                              262-line frame from both source and installed trees.
-                  [ ] 22h2. Migrate the maintained one-score cartridge and its
-                             private golden fixture to the component, prove its
-                             raster/timing output matches the predecessor, add
-                             both two-instance draw orders, and add component-
-                             specific omitted-lifecycle diagnostics before
-                             retiring the single-instance module.
+                  [ ] 22h2. Finish migration and retire the single-instance
+                             module.
+
+                             [x] 22h2a. Prove both two-instance draw orders build
+                                        from source and the staged installed
+                                        toolchain, retain stable scheduler-driven
+                                        262-line frames, and diagnose omission of
+                                        each six-glyph lifecycle call with the
+                                        corresponding component-specific
+                                        `require` error.
+                             [ ] 22h2b. Migrate the maintained one-score cartridge
+                                        and its private golden fixture to the
+                                        component, prove raster/timing output
+                                        matches the predecessor, migrate remaining
+                                        users, then retire the single-instance
+                                        module.
         [ ] 22i. Convert the remaining maintained display kernels into
                   composable lifecycle components and remove their embedded
                   `six_glyph_score` ownership. Start with the all-five standard
@@ -4361,3 +4371,19 @@ Before returning another modified archive:
 * Keep the legacy single-instance `six_glyph_display.c26` and example 03
   unchanged until 22h2 proves one-instance raster/timing equivalence and both
   draw orders. Do not begin that migration in this timebox.
+
+
+2026-07-25 01:42:00 PDT, prove reversible six-glyph composition contracts
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h2a. Add a reversed two-instance fixture which draws
+  the lower score before the upper score while retaining independent component
+  state and the same 192-line visible accounting.
+* Extend the component regression to build and execute both draw orders, locking
+  stable scheduler-driven 262-line frames for each. Build both fixtures through
+  the staged installed toolchain as well as the source tree.
+* Add component-specific negative link coverage which omits `init`, `vblank`,
+  `draw`, and `overscan` one at a time and requires the corresponding
+  `required function 'one_PHASE' not used` diagnostic.
+* Leave 22h2b next for migrating the maintained one-score cartridge and golden
+  fixture, proving predecessor raster/timing equivalence, migrating remaining
+  users, and only then deleting `six_glyph_display.c26`.

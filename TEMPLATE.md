@@ -597,6 +597,8 @@ The first real component conversion should prove:
 - two instances maintain independent scores and private state;
 - both instances coexist within measured RAM, ROM, and stack budgets;
 - the application may draw instance 1 above instance 2 or reverse the order;
+- both draw orders build and hold exact scheduler-driven 262-line frames from
+  the source tree and staged installed toolchain;
 - exact scanline counts, entry/exit cycles, glyph order, colors, and TIA writes;
 - the VBLANK deadline starts before the first `vblank()` call, all component
   callbacks fit within the shared budget, and VBLANK clears at cycle zero only
@@ -605,7 +607,9 @@ The first real component conversion should prove:
   scanline boundary, and set sticky phase bits only in diagnostic builds;
 - component callbacks do not take ownership of VBLANK, WSYNC, or the RIOT timer;
 - lifecycle calls are all externally visible to `require` checking;
-- omitting `score1_init()` produces the intended link error;
+- omitting any one of `score1_init()`, `score1_vblank()`, `score1_draw()`,
+  or `score1_overscan()` produces the corresponding component-specific link
+  error;
 - omitting a recommended score-state use produces only a warning;
 - source and installed-toolchain builds behave identically.
 
