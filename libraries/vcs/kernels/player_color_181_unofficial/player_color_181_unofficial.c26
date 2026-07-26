@@ -400,6 +400,8 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @goback;
 
    asm @lastkernelline:;
+   // Preserve the final gameplay row through the end of its visible line.
+   asm sta WSYNC;
    asm lda #0;
    asm sta PF0;
    asm sta PF1;
@@ -423,7 +425,15 @@ require inline void TEMPLATE_draw(void) {
    asm clc;
    asm sbc.z TEMPLATE_playfield_position;
    asm sta.z TEMPLATE_playfield_position;
-   asm sta WSYNC;
+   // The boundary move changes the old pre-WSYNC phase by 30 cycles. Keep
+   // those cycles on the now-blank cleanup line so the profile remains 181
+   // scanlines and returns at the same scheduler boundary.
+   asm ldx #5;
+   asm @terminal_phase_delay:;
+   asm dex;
+   asm bne @terminal_phase_delay;
+   asm nop;
+   asm nop;
    asm sta WSYNC;
 }
 

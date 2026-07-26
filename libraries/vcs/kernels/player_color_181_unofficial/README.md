@@ -17,7 +17,9 @@ uses only reviewed stable/common NMOS forms: two `AXS #252` operations and
 four zero-page unofficial NOPs. One-byte official NOPs remain where necessary
 to preserve the official component's exact cycle boundaries. Tests compare
 five official/unofficial cartridge pairs, including both score orders and
-asynchronous motion, before reporting linked-byte savings.
+asynchronous motion, before reporting linked-byte savings. The terminal-row repair increases both
+matched smoke cartridges equally to 1429 linked ROM bytes, so the measured
+saving remains zero bytes.
 
 This profile is explicit rather than selected by an alias so opcode policy is
 obvious from the template filename.

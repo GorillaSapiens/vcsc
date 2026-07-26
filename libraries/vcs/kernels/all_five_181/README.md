@@ -60,7 +60,7 @@ Machine-readable contracts publish:
 - `game_PLAYFIELD_ROWS := 11`
 
 The implementation uses only official NMOS 6502/6507 opcodes. The visible
-playfield writes occur at cycles 24, 31, 38, and 45 of each measured steady
+steady playfield writes occur at cycles 24, 31, 38, and 45; staged row-entry writes occur at 21, 28, 38, and 45 of each measured
 scanline. On return from `game_draw()`, all playfield, player, missile, ball,
 vertical-delay, and horizontal-motion graphics state is cleared and the
 application-visible Y positions are restored.

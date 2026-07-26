@@ -105,8 +105,8 @@ require_re($unofficial,qr/zero-byte result.*successful and\s+publishable outcome
    'unofficial-opcode comparison incorrectly assumes a saving');
 require_re($doc,qr/official linked ROM bytes:\s+1421.*unofficial linked ROM bytes:\s+1421.*signed saving:\s+0/s,
    'component conversion document lost the measured zero-byte result');
-require_re($doc,qr/four `AXS #252` sites.*four zero-page unofficial\s+NOPs/si,
-   'component conversion document lost the reviewed unofficial opcode set');
+require_re($doc,qr/four `AXS #252` sites.*Three zero-page unofficial\s+NOPs/si,
+   'component conversion document lost the repaired unofficial opcode set');
 require_re($unofficial,qr/1421 linked ROM bytes for both components.*0 bytes saved/s,
    'unofficial-opcode history lost the measured result');
 

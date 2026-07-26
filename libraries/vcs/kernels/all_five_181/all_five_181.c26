@@ -304,10 +304,12 @@ require inline void TEMPLATE_draw(void) {
    asm lda #1;
    asm sta VDELBL;
    asm sta VDELP0;
-      asm ldx.z TEMPLATE_ball_height;
-   asm inx;
-   asm inx;
-      asm stx.z TEMPLATE_workspace + 3;
+   // Workspace byte 3 is not live during drawing.  Seed it with the
+   // first row's left PF1 byte; each row transition refreshes it for the next
+   // row without changing the transition-line cycle count.
+   asm lda.a TEMPLATE_playfield;
+      asm sta.z TEMPLATE_workspace + 3;
+   asm bit.z CXM0P;
       asm lda.z TEMPLATE_player1_y;
       asm sta.z TEMPLATE_workspace + 2;
       asm ldx.z TEMPLATE_missile0_height;
@@ -375,12 +377,15 @@ require inline void TEMPLATE_draw(void) {
       asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm lda #1;
    asm adc #0;
-   asm nop;
    asm sta ENAM1;
-   asm lda.ax TEMPLATE_playfield,x;
+   // The transition path preloads the next row's left PF1 byte into zero
+   // page.  The one-cycle-faster load completes left PF1/PF2 at cycles 21/28;
+   // the three-cycle BIT keeps the right-half writes at cycles 38/45.
+      asm lda.z TEMPLATE_workspace + 3;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+   asm bit.z CXM0P;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+2,x;
@@ -408,14 +413,17 @@ require inline void TEMPLATE_draw(void) {
    // at every row boundary.  These eight non-TIA cycles retain the exact
    // schedule and carry state while leaving the row raster intact.
    asm lda #0;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
    asm txa;
    asm adc #4;
    asm tax;
    asm cpx #44;
    asm bcs @lastkernelline;
-   asm bit.z CXM0P;
+   // Replace the former nine delay cycles with a seven-cycle next-row PF1
+   // preload plus a two-cycle NOP.  This leaves every later object and
+   // playfield write at its previous cycle.
+   asm lda.ax TEMPLATE_playfield,x;
+      asm sta.z TEMPLATE_workspace + 3;
+   asm nop;
    asm lda #8;
       asm sta.z TEMPLATE_workspace;
       asm lsr.zx TEMPLATE_object_masks - 4,x;
@@ -426,6 +434,11 @@ require inline void TEMPLATE_draw(void) {
    // The predecessor's steady loop has drawn eleven complete rows. The
    // remaining measured setup/cleanup boundaries bring this profile to 181 lines.
    asm @lastkernelline:;
+   // Preserve the final gameplay row through its complete visible scanline.
+   // This WSYNC replaces the second terminal WSYNC below, so cleanup moves to
+   // cycle zero of the existing cleanup line without changing the final
+   // component return boundary.
+   asm sta WSYNC;
    asm lda #0;
    asm sta PF0;
    asm sta PF1;
@@ -457,7 +470,6 @@ require inline void TEMPLATE_draw(void) {
       asm sbc.z TEMPLATE_playfield_position;
       asm sta.z TEMPLATE_playfield_position;
 
-   asm sta WSYNC;
    asm sta WSYNC;
 }
 

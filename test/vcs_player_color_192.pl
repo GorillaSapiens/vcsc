@@ -114,9 +114,9 @@ my $phase_exe=File::Spec->catfile($tmp,'player_color_192_playfield');
    $cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase_exe);
 $rc==0 && !$sig or die "player-color 192 playfield harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "player-color 192 playfield harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($phase_exe,$bin,'10');
+($rc,$sig,$out,$err)=capture($phase_exe,$bin,'11','12');
 $rc==0 && !$sig or die "player-color 192 playfield raster failed\n$out$err";
-$out eq "vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n"
+$out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
    or die "unexpected player-color 192 playfield output: $out";
 $err eq '' or die "player-color 192 playfield harness stderr: $err";
 

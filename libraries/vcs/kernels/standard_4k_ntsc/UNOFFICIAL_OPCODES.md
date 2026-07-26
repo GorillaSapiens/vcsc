@@ -78,8 +78,10 @@ Measured result
 ---------------
 
 The matched `all_five_181_unofficial` component uses four stable/common
-`AXS #252` sites and four stable/common zero-page NOP (`$04`) sites.
-Compensating NOPs preserve every official cycle boundary. The maintained smoke
+`AXS #252` sites and three stable/common zero-page NOP (`$04`) sites.
+The row-boundary PF1 preload replaced the fourth `$04` site with an ordinary
+two-cycle NOP while preserving the matched raster. Compensating NOPs preserve
+every official cycle boundary. The maintained smoke
 cartridge measures 1421 linked ROM bytes for both components: **0 bytes saved**.
 Pairwise static/motion raster tests and the 360-frame motion oracle enforce the
 claimed equivalence.
@@ -94,8 +96,10 @@ comparison because the official sequences' flag results were live and the
 candidate cartridges failed to complete frames. Compensating NOPs preserve the
 accepted sites' exact cycle boundaries.
 
-The maintained smoke cartridge measures 1422 linked ROM bytes for both the
-official and unofficial components: **0 bytes saved**. Pairwise smoke, static,
+The terminal-row raster repair moves cleanup behind a scanline boundary and
+adds a compact 30-cycle blank-line phase pad. The maintained smoke cartridge
+therefore measures 1429 linked ROM bytes for both the official and unofficial
+components: **0 bytes saved**. Pairwise smoke, static,
 and motion raster/timing tests cover both score orders, and the existing
 320-frame player-color motion oracle enforces full-range P0/P1/Ball behavior,
 per-row colors, and application-state preservation.

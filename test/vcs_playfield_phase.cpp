@@ -98,13 +98,16 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 2 && argc != 3) {
-      std::fprintf(stderr, "usage: %s ROM.bin [10]\n", argv[0]);
+   if (argc < 2 || argc > 4) {
+      std::fprintf(stderr, "usage: %s ROM.bin [checked_rows [source_rows]]\n", argv[0]);
       return 2;
    }
-   const int raster_rows = argc == 3 ? std::atoi(argv[2]) : 0;
-   if (raster_rows != 0 && raster_rows != 10)
-      fail("raster row count must be 10");
+   const int raster_rows = argc >= 3 ? std::atoi(argv[2]) : 0;
+   const int source_rows = argc == 4 ? std::atoi(argv[3]) : raster_rows;
+   if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
+      fail("checked raster row count must be 11 or 12");
+   if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
+      fail("source row count must equal checked rows or be 12 when checking 11");
    std::memset(memory_image, 0, sizeof(memory_image));
    std::ifstream rom(argv[1], std::ios::binary);
    if (!rom) fail("could not open ROM");
@@ -129,12 +132,27 @@ int main(int argc, char **argv) {
 
    std::map<uint64_t, std::vector<PfEvent>> by_line;
    for (const PfEvent &event : pf_events) by_line[event.line].push_back(event);
-   const uint64_t expected_cycles[] = {24, 31, 38, 45};
    const uint16_t expected_addresses[] = {kPf1, kPf2, kPf1, kPf2};
    size_t checked = 0;
    for (uint64_t line = 38; line <= 213; ++line) {
       const auto found = by_line.find(line);
       if (found == by_line.end() || found->second.size() != 4) continue;
+      const uint64_t first_cycle = found->second[0].cycle;
+      const bool staged_left = first_cycle == 21 && found->second[1].cycle == 28;
+      const bool early_left = first_cycle == 22 && found->second[1].cycle == 29;
+      const bool steady_left = first_cycle == 24 && found->second[1].cycle == 31;
+      if (!staged_left && !early_left && !steady_left) {
+         std::fprintf(stderr,
+            "vcs_playfield_phase: line %llu left writes are cycles %llu/%llu; "
+            "expected 21/28, 22/29, or 24/31\n",
+            static_cast<unsigned long long>(line),
+            static_cast<unsigned long long>(found->second[0].cycle),
+            static_cast<unsigned long long>(found->second[1].cycle));
+         return 1;
+      }
+      const uint64_t expected_cycles[] = {
+         first_cycle, found->second[1].cycle, 38, 45
+      };
       for (size_t i = 0; i < 4; ++i) {
          if (found->second[i].cycle != expected_cycles[i] ||
              found->second[i].address != expected_addresses[i]) {
@@ -154,13 +172,10 @@ int main(int argc, char **argv) {
    if (checked < 150) fail("too few complete visible playfield scanlines checked");
 
    if (raster_rows) {
-      static const uint8_t expected[12][4] = {
-         {0xff,0xff,0xff,0xff}, {0x81,0x18,0x18,0x81},
-         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
-         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
-         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
-         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
-         {0xff,0xff,0xff,0xff}, {0xff,0xff,0xff,0xff}
+      auto expected_byte = [&](int row, int byte) -> uint8_t {
+         if (row == 0 || row == source_rows - 1) return 0xff;
+         if (byte == 0 || byte == 3) return 0x81;
+         return (row & 1) ? 0x18 : 0x00;
       };
       auto register_at = [&](uint64_t line, uint64_t cycle, uint16_t address) {
          uint8_t value = 0;
@@ -185,16 +200,16 @@ int main(int argc, char **argv) {
                bool actual = false, want = false;
                if (pixel >= 16 && pixel < 48) {
                   const unsigned n=(pixel-16)/4;
-                  actual=bit(pf1,7-n); want=bit(expected[row][0],7-n);
+                  actual=bit(pf1,7-n); want=bit(expected_byte(row,0),7-n);
                } else if (pixel >= 48 && pixel < 80) {
                   const unsigned n=(pixel-48)/4;
-                  actual=bit(pf2,n); want=bit(expected[row][1],n);
+                  actual=bit(pf2,n); want=bit(expected_byte(row,1),n);
                } else if (pixel >= 80 && pixel < 112) {
                   const unsigned n=(pixel-80)/4;
-                  actual=bit(pf2,7-n); want=bit(expected[row][2],7-n);
+                  actual=bit(pf2,7-n); want=bit(expected_byte(row,2),7-n);
                } else if (pixel >= 112 && pixel < 144) {
                   const unsigned n=(pixel-112)/4;
-                  actual=bit(pf1,n); want=bit(expected[row][3],n);
+                  actual=bit(pf1,n); want=bit(expected_byte(row,3),n);
                }
                if (actual != want) {
                   std::fprintf(stderr,
@@ -208,7 +223,7 @@ int main(int argc, char **argv) {
       std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
                   raster_rows);
    } else {
-      std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24,31,38,45\n", checked);
+      std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 21/28, 22/29, or 24/31,38,45\n", checked);
    }
    return 0;
 }

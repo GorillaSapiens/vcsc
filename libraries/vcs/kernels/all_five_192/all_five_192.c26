@@ -306,10 +306,11 @@ require inline void TEMPLATE_draw(void) {
    asm lda #1;
    asm sta VDELBL;
    asm sta VDELP0;
-      asm ldx.z TEMPLATE_ball_height;
-   asm inx;
-   asm inx;
-      asm stx.z TEMPLATE_workspace + 3;
+   // Workspace byte 3 is dead during drawing; use it to stage the next
+   // row's left PF1 byte without adding RAM or cycles.
+   asm lda.a TEMPLATE_playfield;
+      asm sta.z TEMPLATE_workspace + 3;
+   asm bit.z CXM0P;
       asm lda.z TEMPLATE_player1_y;
       asm sta.z TEMPLATE_workspace + 2;
       asm ldx.z TEMPLATE_missile0_height;
@@ -377,12 +378,14 @@ require inline void TEMPLATE_draw(void) {
       asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm lda #1;
    asm adc #0;
-   asm nop;
    asm sta ENAM1;
-   asm lda.ax TEMPLATE_playfield,x;
+   // The transition path stages left PF1 in zero page.  This completes the
+   // left PF1/PF2 writes at cycles 21/28 while preserving 38/45 on the right.
+      asm lda.z TEMPLATE_workspace + 3;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+   asm bit.z CXM0P;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+2,x;
@@ -410,14 +413,14 @@ require inline void TEMPLATE_draw(void) {
    // at every row boundary.  These eight non-TIA cycles retain the exact
    // schedule and carry state while leaving the row raster intact.
    asm lda #0;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
    asm txa;
    asm adc #4;
    asm tax;
    asm cpx #44;
    asm bcs @lastkernelline;
-   asm bit.z CXM0P;
+   asm lda.ax TEMPLATE_playfield,x;
+      asm sta.z TEMPLATE_workspace + 3;
+   asm nop;
    asm lda #8;
       asm sta.z TEMPLATE_workspace;
       asm lsr.zx TEMPLATE_object_masks - 4,x;

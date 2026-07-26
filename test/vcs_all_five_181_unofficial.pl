@@ -82,7 +82,7 @@ my $text=read_file($asm);
 my $axs=()=$text =~ /^\s*axs\s+#252\s*$/gmi;
 my $nopzp=()=$text =~ /^\s*nop\.z\s+\$00\s*$/gmi;
 $axs==4 or die "expected four AXS sites, found $axs\n";
-$nopzp==4 or die "expected four unofficial zero-page NOP sites, found $nopzp\n";
+$nopzp==3 or die "expected three unofficial zero-page NOP sites, found $nopzp\n";
 my $other=$text;
 $other =~ s/^\s*axs\s+#252\s*$//gmi;
 $other =~ s/^\s*nop\.z\s+\$00\s*$//gmi;

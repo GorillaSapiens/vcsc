@@ -140,8 +140,8 @@ four-byte hidden call-stack allowance covers the inline VBLANK preparation
 subroutine.
 
 Emulator regressions lock a stable 262-line scheduler frame when the application
-reserves the independent score's eleven visible lines, 161 measured steady
-playfield scanlines with PF writes at cycles 24, 31, 38, and 45, and visible
+reserves the independent score's eleven visible lines, measured playfield scanlines with steady writes at 24/31/38/45 and
+row-entry writes at 21/28/38/45, and visible
 object counts P0=7, P1=7, M0=6, M1=8, BL=4. Source inspection rejects score/font
 imports, frame/timer ownership, and unofficial opcodes, while map inspection
 locks RAM, page placement, and stack depth. All four lifecycle requirements have
@@ -170,8 +170,8 @@ application fixtures. It must be assembled with `-Wa,--illegals`.
 
 Only reviewed stable/common NMOS forms are present. Four `AXS #252` sites
 replace row-index `TXA`/`ADC`/`TAX` idioms, with one-byte NOP padding retaining
-the official sequences' exact byte and cycle counts. Four zero-page unofficial
-NOPs (`$04`) replace dead-flag `BIT $00` padding; both forms are two bytes and
+the official sequences' exact byte and cycle counts. Three zero-page unofficial
+NOPs (`$04`) replace dead-flag `BIT $00` padding after the PF1 staging repair; both forms are two bytes and
 three cycles. No silicon-sensitive or unstable opcode is used.
 
 The maintained smoke links measure:
@@ -219,14 +219,31 @@ final retirement gates are complete.
 The inherited two-line kernel cleared PF1 and PF2 at cycles 18 and 21 of every
 row-transition scanline. That made each nominal 16-line playfield row render as
 15 intended lines plus one blank or malformed line. The six current gameplay
-components now spend the same eight cycles in non-TIA delay instead, preserving
-timing while leaving the sixteenth line intact.
+components now replace those writes with non-TIA work so the old row survives
+its complete sixteenth line.
 
-The maintained pixel oracle reconstructs all 160 playfield pixels on all 16
-scanlines of the ten ordinary rows shared by every 181- and 192-line profile.
-This is the completed 22i4b1a slice only. The 181-line terminal cleanup boundary,
-the 192-line special twelfth-row path, and complete player/missile/Ball pixels
-remain under 22i4b1b and must pass before any monolith is retired.
+Real Stella screenshots then exposed a second all-five defect: on the following
+row-entry line PF1/PF2 were still established too late for a clean edge. The
+all-five profiles now stage the next row's left PF1 byte in dead workspace and
+write the left PF1/PF2 pair at cycles 21/28 while retaining the right pair at
+38/45. The official and unofficial 181-line twins remain byte- and raster-
+matched; the staged path leaves three, rather than four, `$04` NOP sites in the
+unofficial twin.
+
+The 181-line all-five and player-color profiles also preserve the final row
+through a WSYNC boundary before clearing visible TIA state. The player-color
+path needs a compact 30-cycle phase pad on the blank cleanup line to retain its
+exact 181-line return boundary; both official and unofficial smoke links now
+measure 1429 bytes and still differ by zero bytes.
+
+The maintained source-level oracle checks eleven ordinary rows, sixteen lines
+per row, and 160 playfield pixels per line. Real Stella captures are also used
+during development because the simplified oracle does not yet model every TIA
+sub-cycle phase precisely. The all-five static example is visually clean at its
+ordinary and terminal boundaries after this repair. The player-color first-row
+entry notch, the two 192-line special twelfth-row paths, and complete
+P0/P1/M0/M1/Ball pixel reconstruction remain open. No monolith may be retired
+until those cases and the measured component handoff contract pass.
 
 ## Evidence required before retiring a monolith
 
@@ -289,8 +306,9 @@ Only two `AXS #252` row-mask advance sites and four zero-page unofficial NOP
 sites survived equivalence testing. The other two tempting `AXS` substitutions
 were rejected because they changed live flag behavior and prevented complete
 frames. Compensating official NOPs retain every accepted site's cycle boundary.
-The maintained smoke cartridges measure 1422 linked ROM bytes for both official
-and unofficial components: **0 bytes saved**. Five pairwise raster/timing
+After the terminal-row cleanup repair, the maintained smoke cartridges measure
+1429 linked ROM bytes for both official and unofficial components: **0 bytes
+saved**. Five pairwise raster/timing
 comparisons plus the existing 320-frame composition oracle enforce that result.
 
 ## Official player-color 192-line scoreless profile

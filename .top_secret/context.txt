@@ -1463,24 +1463,35 @@ The first unfinished item is the default next action.
                                                     intended playfield pixel across all
                                                     rows and especially each first row
                                                     scanline.
-                                                    [x] 22i4b1a. Repair the ten ordinary
-                                                               row-boundary transitions
-                                                               shared by all six current
-                                                               gameplay components. Replace
-                                                               the inherited PF1/PF2 clear
-                                                               with cycle-equivalent non-TIA
-                                                               delay, and check 10 rows x 16
-                                                               lines x 160 pixels for both
-                                                               official families in both
-                                                               181- and 192-line profiles.
-                                                    [ ] 22i4b1b. Finish the terminal-row
-                                                               and full player/object pixel
-                                                               oracle. The 181-line cleanup
-                                                               boundary and the 192-line
-                                                               special twelfth-row path still
-                                                               need exact whole-raster and
-                                                               entry/exit-cycle evidence before
-                                                               22i4b1 is complete.
+                                                    [ ] 22i4b1a. Finish ordinary and
+                                                               terminal playfield correctness.
+                                                               Earlier evidence was insufficient:
+                                                               removing the inherited PF1/PF2
+                                                               clears preserved the old row but
+                                                               did not by itself prove the next
+                                                               row's first line or component
+                                                               boundaries on real TIA timing.
+                                                               [x] Replace the transition-line
+                                                                   clears in all six components.
+                                                               [x] Stage all-five next-row PF1;
+                                                                   verify 21/28 and 38/45 writes,
+                                                                   eleven 16-line source rows,
+                                                                   and a clean real-Stella raster.
+                                                               [x] Move both official/unofficial
+                                                                   181-line terminal cleanups past
+                                                                   the visible-row boundary while
+                                                                   preserving exact 181-line timing.
+                                                               [ ] Repair and screenshot-verify
+                                                                   the player-color first-row entry
+                                                                   without corrupting its per-line
+                                                                   color timing.
+                                                               [ ] Prove both 192-line special
+                                                                   twelfth-row entry/exit paths.
+                                                    [ ] 22i4b1b. Finish the full player/object
+                                                               pixel oracle for P0/P1/M0/M1/Ball,
+                                                               including endpoint positions and
+                                                               every transition/terminal line,
+                                                               before 22i4b1 is complete.
 
                                          [ ] 22i4b2. Define and publish a measured
                                                     visible-component handoff contract.
@@ -4834,8 +4845,9 @@ Before returning another modified archive:
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i2e and therefore 22i2. Add and install the separately
   named `kernels/all_five_181_unofficial/all_five_181_unofficial.c26` twin.
-  Permit only four reviewed stable/common `AXS #252` sites and four reviewed
-  stable/common zero-page NOP sites, with compensating one-byte NOP padding so
+  Permit only four reviewed stable/common `AXS #252` sites; the raster repair
+  leaves three reviewed stable/common zero-page NOP sites, with compensating
+  one-byte NOP padding so
   API, RAM layout, lifecycle boundaries, visible timing, and 181-line accounting
   remain identical to the official component.
 * Measure the maintained smoke link at 1421 ROM bytes for both official and
@@ -4917,8 +4929,8 @@ Before returning another modified archive:
   stable/common zero-page NOP sites. Reject the other two tempting AXS sites
   after emulator comparison showed their official flag results were live and
   the substituted cartridges failed to complete frames.
-* Measure the maintained smoke link at 1422 ROM bytes for both official and
-  unofficial components: zero bytes saved. Lock identical RAM addresses and
+* Measure the maintained pre-repair smoke link at 1422 ROM bytes for both
+  official and unofficial components: zero bytes saved. Lock identical RAM addresses and
   inspect generated assembly for exactly the reviewed opcode set.
 * Add official/unofficial pairwise visible-TIA and 42-frame timing comparisons
   for smoke, both static score orders, and both motion score orders. Reuse the
@@ -5017,4 +5029,22 @@ Before returning another modified archive:
   Leave 22i4b1b next for the 181 terminal cleanup line, the 192 special twelfth-
   row path, and pixel-accurate player/missile/Ball output; do not claim the full
   stop-ship raster gate complete yet.
+2026-07-25 20:06:47 PDT, continue stop-ship playfield raster repair
+
+* Reproduce the reported jagged all-five raster in a real headless Stella 7.0
+  capture. Stage each next-row left PF1 byte in dead workspace so all-five row
+  entry writes move from 24/31 to 21/28 while right-half writes remain 38/45.
+  Preserve the complete final 181-line row by moving TIA cleanup behind WSYNC.
+  A fresh example-05 Stella capture removes the large top, internal, and bottom
+  steps.
+* Extend the playfield oracle from ten to eleven ordinary rows and distinguish
+  checked rows from the 192-line fixtures' twelve source rows. Keep the task
+  open because this simplified bus-phase model is not yet a complete TIA pixel
+  model.
+* Move official and unofficial player-color 181-line cleanup behind the final
+  visible-row boundary. Restore its former phase with a compact exact 30-cycle
+  blank-line loop, retaining 262-line frames and official/unofficial equality.
+  The matched smoke links now use 1429 bytes each.
+* Reopen 22i4b1a explicitly: player-color first-row entry, both special 192-line
+  twelfth rows, and full object pixels remain stop-ship work.
 

@@ -20,7 +20,9 @@ Only reviewed stable/common NMOS 6502/6507 forms are used:
   idiom. One-byte NOP padding retains the official sequence's exact byte count
   and cycle count. A is dead and the following `CPX` or load replaces flags.
 * zero-page unofficial `NOP` (`$04`) replaces `BIT CXM0P` only where flags are
-  dead. Both encodings are two bytes and three cycles.
+  dead. Three such sites remain after the row-boundary PF1 preload replaced the
+  fourth with an ordinary two-cycle NOP. Both `$04` and `BIT` remain matched
+  where they are used.
 
 These substitutions deliberately preserve every cycle boundary. They produce
 **zero linked-byte savings** in the maintained smoke cartridge: both official
