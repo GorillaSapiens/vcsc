@@ -1,0 +1,10 @@
+// vcsc-cc1 -I ../libraries/vcs
+
+include "vcs.c26"
+include "color_ntsc.c26"
+
+#if (VCS_NTSC_GRAY_92 == 0x0e) && (VCS_NTSC_GOLDENROD == 0x2e) && (VCS_NTSC_SANDY_BROWN == 0x3e) && (VCS_NTSC_LIGHT_CORAL == 0x4e) && (VCS_NTSC_ORCHID == 0x5e) && (VCS_NTSC_VIOLET == 0x6e) && (VCS_NTSC_MEDIUM_PURPLE == 0x7e) && (VCS_NTSC_DARK_BLUE == 0x82) && (VCS_NTSC_ROYAL_BLUE == 0x8e) && (VCS_NTSC_SKY_BLUE_2 == 0x9e) && (VCS_NTSC_SKY_BLUE == 0xae) && (VCS_NTSC_AQUAMARINE == 0xbe) && (VCS_NTSC_PALE_GREEN == 0xce)
+void main(void) {}
+#else
+this is broken
+#endif

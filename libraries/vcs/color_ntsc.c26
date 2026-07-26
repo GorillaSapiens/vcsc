@@ -1,0 +1,21 @@
+// Approximate names for selected Atari 2600 NTSC TIA colors.
+//
+// TIA color bytes are hardware color/luminance codes, not RGB values. These
+// names describe the Stella 7.0 standard-palette rendering at default color
+// adjustments. The RGB comments come from the reference capture for example 05;
+// names were chosen from nearby entries in X11 rgb.txt and made unique where
+// neighboring TIA colors would otherwise receive the same name.
+
+alias VCS_NTSC_GRAY_92          0x0e // RGB #eaeae9; near X11 gray92
+alias VCS_NTSC_GOLDENROD        0x2e // RGB #eac254; near X11 goldenrod
+alias VCS_NTSC_SANDY_BROWN      0x3e // RGB #fdb568; near X11 sandy brown
+alias VCS_NTSC_LIGHT_CORAL      0x4e // RGB #fd8685; near X11 light coral
+alias VCS_NTSC_ORCHID           0x5e // RGB #ea82dc; near X11 orchid
+alias VCS_NTSC_VIOLET           0x6e // RGB #d082fb; between violet and medium purple
+alias VCS_NTSC_MEDIUM_PURPLE    0x7e // RGB #b586fb; near X11 MediumPurple1
+alias VCS_NTSC_DARK_BLUE        0x82 // RGB #12139d; near X11 dark blue
+alias VCS_NTSC_ROYAL_BLUE       0x8e // RGB #7986fb; near X11 royal blue
+alias VCS_NTSC_SKY_BLUE_2       0x9e // RGB #79c2fb; near X11 SkyBlue2
+alias VCS_NTSC_SKY_BLUE         0xae // RGB #79ddfb; near X11 sky blue
+alias VCS_NTSC_AQUAMARINE       0xbe // RGB #79fdcf; near X11 aquamarine
+alias VCS_NTSC_PALE_GREEN       0xce // RGB #86fd85; near X11 pale green

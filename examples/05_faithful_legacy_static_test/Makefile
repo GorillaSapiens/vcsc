@@ -7,7 +7,8 @@ SOURCE := faithful_legacy_static_test.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(PROFILE)/faithful_legacy_playercolors.c26 \
+$(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/playfield.c26 \
+           $(PROFILE)/faithful_legacy_playercolors.c26 \
            $(PROFILE)/faithful_legacy_playercolors_macros.inc \
            $(PROFILE)/faithful_legacy_playercolors.cfg
 	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -T $(PROFILE)/faithful_legacy_playercolors.cfg \

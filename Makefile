@@ -74,6 +74,7 @@ install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
+	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
@@ -152,6 +153,7 @@ uninstall:
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
@@ -231,6 +233,7 @@ installcheck: tools
 	  "$(CURDIR)/examples/04_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
+	test -f "$$stage_vcs/color_ntsc.c26"; \
 	test -f "$$stage_vcs/frame_ntsc.c26"; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_display.c26"; \
@@ -367,6 +370,7 @@ installcheck: tools
 	  "$(CURDIR)/examples/10_xy_motion/xy_motion.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/xy_motion.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/xy_motion.bin"` -eq 4096
+	rm -rf $(INSTALLCHECK_STAGING)
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz

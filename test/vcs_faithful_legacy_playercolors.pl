@@ -30,6 +30,7 @@ my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));
 my $template_src=File::Spec->catfile($repo,qw(examples 05_faithful_legacy_static_test faithful_legacy_static_test.c26));
+my $color_src=File::Spec->catfile($vcs,'color_ntsc.c26');
 my $reference_bin=File::Spec->catfile($tmp,'faithful_reference.bin');
 my $template_bin=File::Spec->catfile($tmp,'faithful_template.bin');
 my $reference_map=File::Spec->catfile($tmp,'faithful_reference.map');
@@ -54,6 +55,45 @@ for my $mnemonic (qw(dcp lax sbx asr)) {
    $reference_text =~ /^\s*\Q$mnemonic\E\b/im
       or die "faithful reference lost unofficial mnemonic $mnemonic\n";
 }
+my $example_text=read_file($template_src);
+my $color_text=read_file($color_src);
+$example_text =~ /^include "color_ntsc\.c26"$/m
+   or die "example 05 does not include the shared NTSC color aliases\n";
+for my $pair (
+   ['VCS_NTSC_GRAY_92',       '0x0e'],
+   ['VCS_NTSC_GOLDENROD',     '0x2e'],
+   ['VCS_NTSC_SANDY_BROWN',   '0x3e'],
+   ['VCS_NTSC_LIGHT_CORAL',   '0x4e'],
+   ['VCS_NTSC_ORCHID',        '0x5e'],
+   ['VCS_NTSC_VIOLET',        '0x6e'],
+   ['VCS_NTSC_MEDIUM_PURPLE', '0x7e'],
+   ['VCS_NTSC_DARK_BLUE',     '0x82'],
+   ['VCS_NTSC_ROYAL_BLUE',    '0x8e'],
+   ['VCS_NTSC_SKY_BLUE_2',    '0x9e'],
+   ['VCS_NTSC_SKY_BLUE',      '0xae'],
+   ['VCS_NTSC_AQUAMARINE',    '0xbe'],
+   ['VCS_NTSC_PALE_GREEN',    '0xce'],
+) {
+   my($name,$value)=@$pair;
+   $color_text =~ /^alias\s+\Q$name\E\s+\Q$value\E\b/m
+      or die "color_ntsc.c26 lost $name = $value\n";
+   $example_text =~ /\b\Q$name\E\b/
+      or die "example 05 does not use $name\n";
+}
+for my $row (qw(
+   0b..XXXX.. 0b.XX..XX. 0b.XXXXXX. 0b.XXXXX..
+)) {
+   $example_text =~ /\Q$row\E/
+      or die "example 05 lost visual glyph row $row\n";
+}
+for my $glyph (qw(p0g p1g)) {
+   $example_text =~ /page const uint8_t \Q$glyph\E\[8\] := \{(.*?)\n\};/s
+      or die "cannot find example 05 glyph $glyph\n";
+   my $body=$1;
+   $body !~ /0x[0-9a-f]+/i
+      or die "example 05 glyph $glyph reverted to hexadecimal bytes\n";
+}
+
 my $template_text=read_file(File::Spec->catfile($profile,'faithful_legacy_playercolors.c26'));
 for my $mnemonic (qw(dcp lax sbx asr)) {
    $template_text =~ /^\s*asm\s+\Q$mnemonic\E\b/im

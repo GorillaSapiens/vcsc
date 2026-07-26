@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_190140.tar.gz
+    vcsc.20260726_193718.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -5301,4 +5301,32 @@ Before returning another modified archive:
   tests before the execution window ended; the explicit remaining eighteen then
   passed 18/18, covering all 183 end-to-end tests with no failures. No files are
   removed. Leave roadmap task 22i4b1a next.
+
+2026-07-26 12:53:04 PDT, make example 05 source visually readable
+-------------------------------------------------------------------------------
+* Add installed `libraries/vcs/color_ntsc.c26` with human-readable aliases for
+  the thirteen Atari 2600 NTSC TIA color bytes used by example 05. The names are
+  approximate display names selected from nearby X11 `rgb.txt` entries; comments
+  retain the Stella 7.0 reference-capture RGB values so the mapping is explicit
+  rather than folklore disguised as a specification.
+* Reformat example 05 into logical setup blocks with one assignment per line.
+  Replace hexadecimal sprite bytes with left-to-right visual binary rows such
+  as `0b..XXXX..`, while preserving the source-order row contract required by
+  the faithful two-line kernel. Replace unexplained color literals with the new
+  shared aliases.
+* Install and uninstall `color_ntsc.c26` with the other VCS support includes,
+  make example 05 depend on it, and extend installcheck to compile the example
+  entirely against the staged installation. Make successful installcheck runs
+  remove their staging tree so a subsequent source-hygiene run sees only source.
+* Add a compile-only alias-value regression and extend the faithful example
+  regression to require the include, all thirteen definitions/usages, and visual
+  rather than hexadecimal glyph rows. The retained-audit and pristine-bB oracle
+  comparisons remain unchanged and pass.
+* Verify 310/310 compile-only tests and staged installcheck. The full end-to-end
+  run passed through 175/183 before the command window expired; the initial
+  source-hygiene check exposed installcheck's leftover staging directory, the
+  cleanup above fixed it, source-tree hygiene passed, and
+  the remaining eight tests passed 8/8. Thus all 183 end-to-end tests are
+  covered with no product failures. No files are removed; leave roadmap task
+  22i4b1a next.
 

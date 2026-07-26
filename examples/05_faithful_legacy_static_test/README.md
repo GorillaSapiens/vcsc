@@ -22,8 +22,12 @@ The retained kernel spells its timing-critical branch requirements directly as
 page phase; this example does not pin the loop to a magic ROM low byte.
 
 The deliberately asymmetric playfield makes stale-byte and row-transition
-errors visible. The playfield is RAM-backed because the stock kernel depends on
-zero-page-indexed reads; putting it in ROM changes both addressing and timing.
+errors visible. The cartridge uses the shared `color_ntsc.c26` aliases instead
+of unexplained TIA color bytes, and its two player glyphs are written as
+left-to-right visual `0b..XXXX..` rows. The playfield is RAM-backed because
+the stock kernel depends on zero-page-indexed reads; putting it in ROM changes
+both addressing and timing.
+
 The disabled missile height/Y fields must be initialized before the player-color
 pointers because each pair overlays the corresponding two-byte pointer. P0's
 color latch likewise aliases the disabled M0 X byte.
