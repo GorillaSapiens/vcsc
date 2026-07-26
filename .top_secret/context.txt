@@ -40,7 +40,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260725_003123.tar.gz
+    vcsc.20260726_094012.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1451,29 +1451,59 @@ The first unfinished item is the default next action.
                                          substeps pass from both source and staged
                                          installed toolchains.
 
-                                         [x] 22i4b0. Establish the faithful legacy
-                                                    baseline that should have preceded
-                                                    the derived-kernel work. Select the
-                                                    simplest useful retained profile:
-                                                    the NTSC unbanked player-color
-                                                    standard kernel with P0, P1, Ball,
-                                                    per-row player colors, integrated
-                                                    six-digit score, original unofficial
-                                                    opcodes, and monolithic frame
-                                                    ownership. Wrap that exact code in
-                                                    the template namespace without
-                                                    changing its raster algorithm. Keep
-                                                    an independently linked raw audit
-                                                    reference tied to hashes of the
-                                                    retained inputs and differentially
-                                                    prove the template port's complete
-                                                    visible TIA-write schedule and frame
-                                                    period. Add public
+                                         [ ] 22i4b0. Establish a truly faithful
+                                                    legacy baseline before trusting any
+                                                    derived-kernel comparison. Select the
+                                                    NTSC unbanked player-color standard
+                                                    kernel with P0, P1, Ball, per-row
+                                                    player colors, integrated six-digit
+                                                    score, original unofficial opcodes,
+                                                    and monolithic frame ownership.
+                                                    Preserve stock upstream BASIC
+                                                    RAM aliases and complete frame
+                                                    behavior, not merely the retained
+                                                    instruction branches.
+
+                                                    [x] 22i4b0a. Build and lock an
+                                                               external gold-standard
+                                                               4096-byte cartridge with
+                                                               pristine upstream Atari
+                                                               2600 BASIC 1.9 commit
+                                                               1cefae05151da014467a0ecfcbacee6847d61404
+                                                               and DASM 2.20.14.1. Keep
+                                                               its complete `.bas` source,
+                                                               ROM SHA-256, provenance, and
+                                                               a clean second-build check in
+                                                               `test/oracles/`. Reproduce the
+                                                               current known gaps: stock
+                                                               upstream BASIC has 264 raw
+                                                               lines per stable
+                                                               frame while the retained-source
+                                                               VCSC audit has 265, and the
+                                                               first visible mismatch is HMM0
+                                                               because upstream BASIC aliases
+                                                               `player0colorstore` with
+                                                               `missile0x`.
+
+                                                    [ ] 22i4b0b. Repair the template and
+                                                               retained-source audit fixture
+                                                               against the pristine upstream BASIC ROM.
+                                                               Model every selected-profile
+                                                               RAM alias that affects behavior,
+                                                               match the 264-raw-line stable
+                                                               frame, and replace the known-gap
+                                                               regression with a positive full
+                                                               visible-TIA/frame equivalence
+                                                               test. Only then may this profile
+                                                               again be called faithful.
+
+                                                    Keep public
                                                     `05_faithful_legacy_static_test` and
-                                                    renumber the former examples 05-09
-                                                    to 06-10. From this point onward,
-                                                    derive and prove one transformation
-                                                    at a time—template wrapping, score
+                                                    the renumbered examples 06-10, but
+                                                    treat example 05 as provisional until
+                                                    22i4b0b passes. From this point onward,
+                                                    derive and prove one transformation at
+                                                    a time—template wrapping, score
                                                     extraction, opcode legalization,
                                                     object extension, and line-budget
                                                     changes must never again be combined
@@ -5148,3 +5178,28 @@ Before returning another modified archive:
   introduce and prove one transformation at a time instead of combining score
   extraction, opcode legalization, new objects, new line budgets, and component
   boundaries in one conversion.
+
+2026-07-26 09:52:36 PDT, add pristine upstream BASIC gold ROM
+----------------------------------------------------------------
+* Build upstream Atari 2600 BASIC tag v1.9 at commit
+  `1cefae05151da014467a0ecfcbacee6847d61404` from the supplied pristine archive
+  with the supplied Flex package and DASM 2.20.14.1. The stock compiler rejects
+  `set kernel_options playercolors` even though its shipped standard kernel
+  supports those conditional branches, so the oracle source selects the exact
+  profile with direct `playercolors=1` and `player1colors=1` constants without
+  patching compiler, include, or assembler source.
+* Add the complete upstream BASIC source and independently generated 4096-byte
+  ROM under `test/oracles/pristine_basic_v1.9_playercolors/`. A fresh second
+  extraction and build reproduces SHA-256
+  `573cc86c7ba12c0626fb73678480721e043e3468795151635beaae8f7f3e0b6a`
+  byte for byte.
+* Add `vcs_pristine_basic_oracle.test`. It locks the source/ROM hashes and
+  proves that the existing VCSC retained-source audit is not yet a gold
+  standard: pristine upstream BASIC has a stable 20,064-cycle/264-raw-line
+  frame rather than 20,140/265, and the first visible TIA mismatch is HMM0
+  `$60` versus `$70`. The cause is stock upstream BASIC's selected-profile RAM alias
+  `player0colorstore = missile0x`, which the current VCSC baseline separated.
+* Reopen 22i4b0 and make 22i4b0b the next work. Rename the existing regression
+  wording from "raw retained kernel" to "retained-source audit" and document
+  that example 05 remains provisional until the template matches the pristine
+  upstream BASIC ROM positively. No files are removed.

@@ -36,7 +36,7 @@ my $reference_map=File::Spec->catfile($tmp,'faithful_reference.map');
 my $template_map=File::Spec->catfile($tmp,'faithful_template.map');
 
 # The audit source records the retained inputs it was selected from. Refuse to
-# call the port faithful if any retained input changes without refreshing it.
+# trust the provisional audit if any retained input changes without refreshing it.
 my $reference_text=read_file($reference_asm);
 for my $rel (
    'legacy-basic-kernels/common/macro.h',
@@ -93,9 +93,9 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 $rc==0 && !$sig or die "faithful comparator build failed\n$out$err";
 $out eq '' && $err eq '' or die "faithful comparator build wrote output\n$out$err";
 ($rc,$sig,$out,$err)=capture($harness,$reference_bin,$template_bin,'265','265');
-$rc==0 && !$sig or die "faithful template differs from raw reference\n$out$err";
+$rc==0 && !$sig or die "faithful template differs from retained-source audit\n$out$err";
 $out =~ /^vcs_faithful_legacy_compare ok: \d+ events and 42 stable frames per ROM\n$/
    or die "unexpected faithful comparator output: $out";
 $err eq '' or die "faithful comparator stderr: $err";
 
-print "vcs_faithful_legacy_playercolors ok: template matches raw retained kernel\n";
+print "vcs_faithful_legacy_playercolors ok: template matches retained-source audit\n";
