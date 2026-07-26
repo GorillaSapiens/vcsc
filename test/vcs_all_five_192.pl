@@ -123,9 +123,8 @@ my @harnesses=(
    ['timing','vcs_frame_timing.cpp','50','--no-audio','--raw-lines','262',
       qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes
 $/],
-   ['phase','vcs_playfield_phase.cpp',
-      qr/^vcs_playfield_phase ok: 161 scanlines at cycles 24,31,38,45
-$/],
+   ['phase','vcs_playfield_phase.cpp','10',
+      qr/^vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n$/],
    ['objects','vcs_standard_objects.cpp',
       qr/^vcs_standard_objects ok: P0=7 P1=8 M0=6 M1=8 BL=5
 $/],

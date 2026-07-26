@@ -1463,6 +1463,24 @@ The first unfinished item is the default next action.
                                                     intended playfield pixel across all
                                                     rows and especially each first row
                                                     scanline.
+                                                    [x] 22i4b1a. Repair the ten ordinary
+                                                               row-boundary transitions
+                                                               shared by all six current
+                                                               gameplay components. Replace
+                                                               the inherited PF1/PF2 clear
+                                                               with cycle-equivalent non-TIA
+                                                               delay, and check 10 rows x 16
+                                                               lines x 160 pixels for both
+                                                               official families in both
+                                                               181- and 192-line profiles.
+                                                    [ ] 22i4b1b. Finish the terminal-row
+                                                               and full player/object pixel
+                                                               oracle. The 181-line cleanup
+                                                               boundary and the 192-line
+                                                               special twelfth-row path still
+                                                               need exact whole-raster and
+                                                               entry/exit-cycle evidence before
+                                                               22i4b1 is complete.
 
                                          [ ] 22i4b2. Define and publish a measured
                                                     visible-component handoff contract.
@@ -4981,4 +4999,22 @@ Before returning another modified archive:
   kernel O is top or bottom; arbitrary vertical placement and multiple score
   instances are proved separately without splitting gameplay. Freeze tasks 23-25
   and predecessor retirement until this stop-ship gate and corrected examples pass.
+
+2026-07-25 17:18:00 PDT, repair ordinary gameplay row-boundary raster
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22i4b1a. Reproduce the visible defect as the inherited
+  row-transition path writing PF1=0 and PF2=0 at cycles 18 and 21 of every
+  sixteenth row scanline: each nominal 16-line playfield row was therefore 15
+  intended lines plus one blank/malformed boundary line.
+* Replace those eight cycles in all official 181/192 all-five and player-color
+  components with cycle-equivalent non-TIA LDA/BIT/BIT delay, preserving carry,
+  branch timing, frame length, RAM, and the unofficial twins' matched schedule.
+* Extend `vcs_playfield_phase.cpp` with a rendered-playfield oracle. For the ten
+  ordinary rows common to every current profile it reconstructs all 160 visible
+  pixels on all 16 scanlines from timed PF1/PF2 writes and compares them with the
+  fixture's four-byte row data: 25,600 checked pixels per cartridge.
+* Run that oracle from both official all-five and player-color 181/192 tests.
+  Leave 22i4b1b next for the 181 terminal cleanup line, the 192 special twelfth-
+  row path, and pixel-accurate player/missile/Ball output; do not claim the full
+  stop-ship raster gate complete yet.
 

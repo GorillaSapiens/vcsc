@@ -214,6 +214,20 @@ staged-installed builds. The matched unofficial 181-line profile is complete wit
 The predecessor monolith remains installed until the player-color family and
 final retirement gates are complete.
 
+## Stop-ship row-boundary raster repair
+
+The inherited two-line kernel cleared PF1 and PF2 at cycles 18 and 21 of every
+row-transition scanline. That made each nominal 16-line playfield row render as
+15 intended lines plus one blank or malformed line. The six current gameplay
+components now spend the same eight cycles in non-TIA delay instead, preserving
+timing while leaving the sixteenth line intact.
+
+The maintained pixel oracle reconstructs all 160 playfield pixels on all 16
+scanlines of the ten ordinary rows shared by every 181- and 192-line profile.
+This is the completed 22i4b1a slice only. The 181-line terminal cleanup boundary,
+the 192-line special twelfth-row path, and complete player/missile/Ball pixels
+remain under 22i4b1b and must pass before any monolith is retired.
+
 ## Evidence required before retiring a monolith
 
 For each profile, the replacement must provide all of the following:

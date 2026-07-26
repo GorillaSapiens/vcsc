@@ -26,7 +26,7 @@ constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
 
 struct WriteEvent { uint16_t address; uint8_t value; };
-struct PfEvent { uint64_t line; uint64_t cycle; uint16_t address; };
+struct PfEvent { uint64_t line; uint64_t cycle; uint16_t address; uint8_t value; };
 
 uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
@@ -90,7 +90,7 @@ void apply_writes() {
          const uint64_t relative = virtual_cycles - frame_start;
          pf_events.push_back({relative / kCyclesPerScanline,
                               relative % kCyclesPerScanline,
-                              event.address});
+                              event.address, event.value});
       }
    }
    writes.clear();
@@ -98,10 +98,13 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 2) {
-      std::fprintf(stderr, "usage: %s ROM.bin\n", argv[0]);
+   if (argc != 2 && argc != 3) {
+      std::fprintf(stderr, "usage: %s ROM.bin [10]\n", argv[0]);
       return 2;
    }
+   const int raster_rows = argc == 3 ? std::atoi(argv[2]) : 0;
+   if (raster_rows != 0 && raster_rows != 10)
+      fail("raster row count must be 10");
    std::memset(memory_image, 0, sizeof(memory_image));
    std::ifstream rom(argv[1], std::ios::binary);
    if (!rom) fail("could not open ROM");
@@ -150,6 +153,62 @@ int main(int argc, char **argv) {
    }
    if (checked < 150) fail("too few complete visible playfield scanlines checked");
 
-   std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24,31,38,45\n", checked);
+   if (raster_rows) {
+      static const uint8_t expected[12][4] = {
+         {0xff,0xff,0xff,0xff}, {0x81,0x18,0x18,0x81},
+         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
+         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
+         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
+         {0x81,0x00,0x00,0x81}, {0x81,0x18,0x18,0x81},
+         {0xff,0xff,0xff,0xff}, {0xff,0xff,0xff,0xff}
+      };
+      auto register_at = [&](uint64_t line, uint64_t cycle, uint16_t address) {
+         uint8_t value = 0;
+         for (const PfEvent &event : pf_events) {
+            if (event.address != address) continue;
+            if (event.line < line || (event.line == line && event.cycle <= cycle))
+               value = event.value;
+         }
+         return value;
+      };
+      auto bit = [](uint8_t value, unsigned index) {
+         return ((value >> index) & 1u) != 0;
+      };
+      constexpr uint64_t first_row_line = 43;
+      for (int row = 0; row < raster_rows; ++row) {
+         for (int subline = 0; subline < 16; ++subline) {
+            const uint64_t line = first_row_line + row * 16 + subline;
+            for (unsigned pixel = 0; pixel < 160; ++pixel) {
+               const uint64_t cycle = (68 + pixel) / 3;
+               const uint8_t pf1 = register_at(line, cycle, kPf1);
+               const uint8_t pf2 = register_at(line, cycle, kPf2);
+               bool actual = false, want = false;
+               if (pixel >= 16 && pixel < 48) {
+                  const unsigned n=(pixel-16)/4;
+                  actual=bit(pf1,7-n); want=bit(expected[row][0],7-n);
+               } else if (pixel >= 48 && pixel < 80) {
+                  const unsigned n=(pixel-48)/4;
+                  actual=bit(pf2,n); want=bit(expected[row][1],n);
+               } else if (pixel >= 80 && pixel < 112) {
+                  const unsigned n=(pixel-80)/4;
+                  actual=bit(pf2,7-n); want=bit(expected[row][2],7-n);
+               } else if (pixel >= 112 && pixel < 144) {
+                  const unsigned n=(pixel-112)/4;
+                  actual=bit(pf1,n); want=bit(expected[row][3],n);
+               }
+               if (actual != want) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: row %d line %d pixel %u is %d, expected %d\n",
+                     row, subline, pixel, actual ? 1 : 0, want ? 1 : 0);
+                  return 1;
+               }
+            }
+         }
+      }
+      std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
+                  raster_rows);
+   } else {
+      std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24,31,38,45\n", checked);
+   }
    return 0;
 }

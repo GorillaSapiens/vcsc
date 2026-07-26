@@ -379,9 +379,13 @@ require inline void TEMPLATE_draw(void) {
    asm dec.z TEMPLATE_workspace;
    asm bne @continuekernel;
    asm @altkernel:;
+   // Preserve the sixteenth scanline of the completed playfield row.  The
+   // inherited kernel cleared PF1/PF2 here, producing one blank/malformed line
+   // at every row boundary.  These eight non-TIA cycles retain the exact
+   // schedule and carry state while leaving the row raster intact.
    asm lda #0;
-   asm sta PF1;
-   asm sta PF2;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
    asm txa;
    asm adc #4;
    asm tax;

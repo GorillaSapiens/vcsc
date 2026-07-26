@@ -108,6 +108,18 @@ $out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no m
    or die "unexpected player-color 192 output: $out";
 $err eq '' or die "player-color 192 harness stderr: $err";
 
+my $phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
+my $phase_exe=File::Spec->catfile($tmp,'player_color_192_playfield');
+($rc,$sig,$out,$err)=capture(
+   $cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase_exe);
+$rc==0 && !$sig or die "player-color 192 playfield harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "player-color 192 playfield harness build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($phase_exe,$bin,'10');
+$rc==0 && !$sig or die "player-color 192 playfield raster failed\n$out$err";
+$out eq "vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n"
+   or die "unexpected player-color 192 playfield output: $out";
+$err eq '' or die "player-color 192 playfield harness stderr: $err";
+
 for my $phase (qw(init vblank draw overscan)) {
    my $bad=$fixture;
    my $removed=($bad =~ s/^\s*game_\Q$phase\E\(\);\s*$//m);
