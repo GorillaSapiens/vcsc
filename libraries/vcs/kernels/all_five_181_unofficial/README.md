@@ -19,10 +19,9 @@ Only reviewed stable/common NMOS 6502/6507 forms are used:
 * `AXS #252` replaces each `TXA` / optional `CLC` / `ADC #4` / `TAX` row-index
   idiom. One-byte NOP padding retains the official sequence's exact byte count
   and cycle count. A is dead and the following `CPX` or load replaces flags.
-* zero-page unofficial `NOP` (`$04`) replaces `BIT CXM0P` only where flags are
-  dead. Three such sites remain after the row-boundary PF1 preload replaced the
-  fourth with an ordinary two-cycle NOP. Both `$04` and `BIT` remain matched
-  where they are used.
+* one zero-page unofficial `NOP` (`$04`) remains where it replaces `BIT CXM0P`
+  with dead flags outside the corrected draw path. The draw routine now matches
+  the official component's horizontal-blank PF1 restoration exactly.
 
 These substitutions deliberately preserve every cycle boundary. They produce
 **zero linked-byte savings** in the maintained smoke cartridge: both official

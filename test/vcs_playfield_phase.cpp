@@ -132,44 +132,46 @@ int main(int argc, char **argv) {
 
    std::map<uint64_t, std::vector<PfEvent>> by_line;
    for (const PfEvent &event : pf_events) by_line[event.line].push_back(event);
-   const uint16_t expected_addresses[] = {kPf1, kPf2, kPf1, kPf2};
    size_t checked = 0;
-   for (uint64_t line = 38; line <= 213; ++line) {
-      const auto found = by_line.find(line);
-      if (found == by_line.end() || found->second.size() != 4) continue;
-      const uint64_t first_cycle = found->second[0].cycle;
-      const bool staged_left = first_cycle == 21 && found->second[1].cycle == 28;
-      const bool early_left = first_cycle == 22 && found->second[1].cycle == 29;
-      const bool steady_left = first_cycle == 24 && found->second[1].cycle == 31;
-      if (!staged_left && !early_left && !steady_left) {
-         std::fprintf(stderr,
-            "vcs_playfield_phase: line %llu left writes are cycles %llu/%llu; "
-            "expected 21/28, 22/29, or 24/31\n",
-            static_cast<unsigned long long>(line),
-            static_cast<unsigned long long>(found->second[0].cycle),
-            static_cast<unsigned long long>(found->second[1].cycle));
-         return 1;
-      }
-      const uint64_t expected_cycles[] = {
-         first_cycle, found->second[1].cycle, 38, 45
-      };
-      for (size_t i = 0; i < 4; ++i) {
-         if (found->second[i].cycle != expected_cycles[i] ||
-             found->second[i].address != expected_addresses[i]) {
+   if (!raster_rows) {
+      const uint16_t expected_addresses[] = {kPf1, kPf2, kPf1, kPf2};
+      for (uint64_t line = 38; line <= 213; ++line) {
+         const auto found = by_line.find(line);
+         if (found == by_line.end() || found->second.size() != 4) continue;
+         const uint64_t first_cycle = found->second[0].cycle;
+         const bool staged_left = first_cycle == 21 && found->second[1].cycle == 28;
+         const bool early_left = first_cycle == 22 && found->second[1].cycle == 29;
+         const bool steady_left = first_cycle == 24 && found->second[1].cycle == 31;
+         if (!staged_left && !early_left && !steady_left) {
             std::fprintf(stderr,
-               "vcs_playfield_phase: line %llu write %zu is reg $%02x cycle %llu; "
-               "expected reg $%02x cycle %llu\n",
-               static_cast<unsigned long long>(line), i,
-               found->second[i].address,
-               static_cast<unsigned long long>(found->second[i].cycle),
-               expected_addresses[i],
-               static_cast<unsigned long long>(expected_cycles[i]));
+               "vcs_playfield_phase: line %llu left writes are cycles %llu/%llu; "
+               "expected 21/28, 22/29, or 24/31\n",
+               static_cast<unsigned long long>(line),
+               static_cast<unsigned long long>(found->second[0].cycle),
+               static_cast<unsigned long long>(found->second[1].cycle));
             return 1;
          }
+         const uint64_t expected_cycles[] = {
+            first_cycle, found->second[1].cycle, 38, 45
+         };
+         for (size_t i = 0; i < 4; ++i) {
+            if (found->second[i].cycle != expected_cycles[i] ||
+                found->second[i].address != expected_addresses[i]) {
+               std::fprintf(stderr,
+                  "vcs_playfield_phase: line %llu write %zu is reg $%02x cycle %llu; "
+                  "expected reg $%02x cycle %llu\n",
+                  static_cast<unsigned long long>(line), i,
+                  found->second[i].address,
+                  static_cast<unsigned long long>(found->second[i].cycle),
+                  expected_addresses[i],
+                  static_cast<unsigned long long>(expected_cycles[i]));
+               return 1;
+            }
+         }
+         ++checked;
       }
-      ++checked;
+      if (checked < 150) fail("too few complete visible playfield scanlines checked");
    }
-   if (checked < 150) fail("too few complete visible playfield scanlines checked");
 
    if (raster_rows) {
       auto expected_byte = [&](int row, int byte) -> uint8_t {

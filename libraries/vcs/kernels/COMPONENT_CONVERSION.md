@@ -140,9 +140,9 @@ four-byte hidden call-stack allowance covers the inline VBLANK preparation
 subroutine.
 
 Emulator regressions lock a stable 262-line scheduler frame when the application
-reserves the independent score's eleven visible lines, measured playfield scanlines with steady writes at 24/31/38/45 and
-row-entry writes at 21/28/38/45, and visible
-object counts P0=7, P1=7, M0=6, M1=8, BL=4. Source inspection rejects score/font
+reserves the independent score's eleven visible lines, strict intended-pixel
+playfield checks across all eleven 16-line rows, alternating left-half writes at
+8/28 and 24/31 with right-half writes at 38/45, and visible object counts P0=7, P1=7, M0=6, M1=8, BL=4. Source inspection rejects score/font
 imports, frame/timer ownership, and unofficial opcodes, while map inspection
 locks RAM, page placement, and stack depth. All four lifecycle requirements have
 component-specific omission diagnostics.

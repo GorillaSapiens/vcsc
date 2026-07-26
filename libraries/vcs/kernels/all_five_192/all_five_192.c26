@@ -306,10 +306,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda #1;
    asm sta VDELBL;
    asm sta VDELP0;
-   // Workspace byte 3 is dead during drawing; use it to stage the next
-   // row's left PF1 byte without adding RAM or cycles.
-   asm lda.a TEMPLATE_playfield;
-      asm sta.z TEMPLATE_workspace + 3;
+   // PF1 is established after the setup clear below.
    asm bit.z CXM0P;
       asm lda.z TEMPLATE_player1_y;
       asm sta.z TEMPLATE_workspace + 2;
@@ -317,18 +314,21 @@ require inline void TEMPLATE_draw(void) {
    asm inx;
    asm inx;
       asm stx.z TEMPLATE_object_masks + 3;
+      asm lda.z TEMPLATE_playfield_position;
+      asm sta.z TEMPLATE_workspace;
       asm lda.z TEMPLATE_player0_y;
    asm ldx #0;
    asm sta WSYNC;
-   // Scheduler handoff alignment: preserve the predecessor's cycle-24 PF1 edge.
-   asm bit.z CXM0P;
+   // The setup line is blank; use two two-cycle NOPs so the first PF1 byte
+   // can also seed the per-row staging byte without changing kernel entry.
+   asm nop;
    asm nop;
    asm stx GRP0;
    asm stx GRP1;
    asm stx PF1;
    asm stx PF2;
    asm stx CXCLR;
-   asm bit.z CXM0P;
+   asm nop;
       asm sta.z TEMPLATE_workspace + 1;
    asm ldx #0;
       asm dec.z TEMPLATE_player0_y;
@@ -338,9 +338,9 @@ require inline void TEMPLATE_draw(void) {
    asm clc;
    asm adc #89;
       asm sta.z TEMPLATE_workspace + 4;
-   asm nop;
-      asm lda.z TEMPLATE_playfield_position;
-      asm sta.z TEMPLATE_workspace;
+   asm lda.a TEMPLATE_playfield;
+   asm sta PF1;
+      asm sta.z TEMPLATE_workspace + 3;
    asm lda #10;
    asm clc;
       asm sbc.z TEMPLATE_playfield_position;
@@ -375,14 +375,16 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm @continueP1:;
    asm sta GRP1;
+   // PF1 ends each scanline holding the right-half byte. Restore the staged
+   // left-half byte immediately after GRP1, inside horizontal blank.
+      asm lda.z TEMPLATE_workspace + 3;
+   asm sta PF1;
       asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
-   // The transition path stages left PF1 in zero page.  This completes the
-   // left PF1/PF2 writes at cycles 21/28 while preserving 38/45 on the right.
-      asm lda.z TEMPLATE_workspace + 3;
-   asm sta PF1;
+   // Left PF1 was restored during horizontal blank. Load the remaining
+   // left and right playfield bytes at the measured asymmetric-kernel phases.
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm bit.z CXM0P;
