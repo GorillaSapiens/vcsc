@@ -7,13 +7,13 @@ include "fonts/default_decimal.c26"
 page const uint8_t game_playfield[44] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_..X....._X......X),
    VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_.....X.._X......X),
    VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_..X....._X......X),
    VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_.....X.._X......X),
    VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
 };
