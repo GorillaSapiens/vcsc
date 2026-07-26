@@ -117,6 +117,10 @@ install-data:
 	install -m 0644 libraries/vcs/kernels/player_color_192/README.md \
 	  libraries/vcs/kernels/player_color_192/player_color_192.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score
+	install -m 0644 libraries/vcs/kernels/poison_debug_score/README.md \
+	  libraries/vcs/kernels/poison_debug_score/poison_debug_score.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
 	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
 	  libraries/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md \
@@ -187,6 +191,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/player_color_192.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/poison_debug_score.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
@@ -307,6 +314,12 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/player_color_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192.bin"` -eq 4096; \
+	test -f "$$stage_vcs/kernels/poison_debug_score/README.md"; \
+	test -f "$$stage_vcs/kernels/poison_debug_score/poison_debug_score.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/poison_debug_score/standalone.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"` -eq 4096; \
 	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
 	    -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \

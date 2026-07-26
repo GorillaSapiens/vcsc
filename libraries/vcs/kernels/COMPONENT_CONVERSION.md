@@ -328,3 +328,20 @@ bytes, 66 total. Missiles remain unavailable; score/font and scheduler-owned
 frame/timer state remain absent. The maintained regression locks stable raw
 262-line frames, exact row colors, Ball output, official opcodes, hard-page ROM
 objects, map sizes, and all four lifecycle contracts.
+
+## Poison debug score composition probe
+
+`poison_debug_score/poison_debug_score.c26` is the maintained adversarial
+11-line score-profile substitute used by the 22i4b correctness gate. It owns
+zero RAM and deliberately exits with hostile TIA state: red `COLUBK`, patterned
+playfield registers, enabled and reflected player/missile/Ball graphics,
+vertical delay, non-default copy/size modes, fine motion, coarse position
+strobes, and HMOVE. Its values are deterministic so a failure reproduces.
+
+This probe does not relax the component contract. It owns exactly eleven WSYNC
+boundaries and no frame, timer, or collision-clear hardware. A big gameplay
+component placed after it must establish every register and position required
+by its own raster. A score component placed after gameplay must likewise
+establish its own state. Passing only after the friendly centered score is not
+sufficient evidence of composability.
+

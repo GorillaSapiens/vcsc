@@ -232,3 +232,23 @@ intentionally invalid and verify assembler diagnostics.
 
 - `driver_version_format.test` verifies that `vcsc -V` aligns tool-name colons and prints the resolved executable path for each tool.
 - `driver_temp_cleanup.test` forces a post-compilation linker failure and verifies that the driver removes its private `vcsc.*` directory and intermediates on the failing exit path.
+
+`linker_ram_usage.test` links a fixture with a known activation overlay and
+three-deep call graph. It requires terminal and map-file RAM accounting to
+report unique object bytes, the separately identified hardware-stack reserve,
+combined used bytes, and physical free bytes exactly.
+
+`vcs_poison_debug_score.test` builds the installed adversarial score-profile
+component, checks zero instance RAM, all intended hostile TIA writes, exactly
+11 WSYNC stores, the red-background sentinel, prohibited frame/timer ownership,
+and stable 262-line standalone scheduling.
+
+
+`vcs_poison_player_color_handoff.test` composes the poison debug score above
+and below the 181-line player-color component and leaves the 192-line scoreless
+component under hostile state from the previous overscan. It requires stable
+262-line scheduling and the existing P0/P1/Ball register/color raster in all
+three cases. It also deliberately records the remaining stop-ship gap: the
+score-above path still performs gameplay positioning before the poison kernel
+and has no post-score RESP/HMxx/HMOVE restoration. This is a diagnostic probe,
+not the unfinished full object-pixel oracle.

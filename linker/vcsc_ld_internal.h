@@ -52,6 +52,7 @@
 typedef struct {
    uint16_t start;
    uint16_t size;
+   uint16_t physical_size;
    char type[8];
    int define_yes;
    int callstack_callgraph;

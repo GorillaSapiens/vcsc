@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_poison_player_color_handoff.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 90
+# expectstdout: poison player-color probes ok; score-above position restoration remains open
+# expectexit: 0

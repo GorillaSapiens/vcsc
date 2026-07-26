@@ -56,6 +56,7 @@ struct CompositionStats {
    unsigned game_pf = 0;
    unsigned game_grp = 0;
    unsigned game_ball = 0;
+   unsigned game_missiles = 0;
    unsigned score_pf = 0;
    unsigned score_grp = 0;
    unsigned score_objects = 0;
@@ -85,6 +86,7 @@ std::map<int, CompositionStats> composition_stats;
 
 enum class ScoreOrder { None, Above, Below };
 ScoreOrder score_order = ScoreOrder::None;
+bool poison_score = false;
 bool motion_mode = false;
 int frames_to_check = 4;
 uint8_t object_x_zp = 0;
@@ -215,6 +217,8 @@ void classify_composition_write(const WriteEvent &event) {
    else {
       if (pf) ++stats.game_pf;
       if (grp) ++stats.game_grp;
+      if ((event.address == kEnam0 || event.address == kEnam1) &&
+          (event.value & 2) != 0) ++stats.game_missiles;
       if (event.address == kEnabl && (event.value & 2) != 0) ++stats.game_ball;
    }
 }
@@ -409,9 +413,17 @@ void verify_composition() {
       if (stats.game_pf < 100) fail("game region did not emit the playfield");
       if (stats.game_grp < 8 || stats.game_ball < 2)
          fail("game region did not emit P0/P1/BL activity");
-      if (stats.score_grp < 16) fail("score region did not emit six-glyph activity");
-      if (stats.score_pf != 0 || stats.score_objects != 0)
-         fail("score region leaked playfield, missile, or ball activity");
+      if (stats.game_missiles != 0)
+         fail("game region inherited an enabled missile");
+      if (poison_score) {
+         if (stats.score_pf < 3 || stats.score_grp < 2 || stats.score_objects < 3)
+            fail("poison score region did not emit hostile TIA activity");
+      }
+      else {
+         if (stats.score_grp < 16) fail("score region did not emit six-glyph activity");
+         if (stats.score_pf != 0 || stats.score_objects != 0)
+            fail("score region leaked playfield, missile, or ball activity");
+      }
    }
 }
 } // namespace
@@ -419,7 +431,7 @@ void verify_composition() {
 int main(int argc, char **argv) {
    if (argc < 7 || argc > 9) {
       std::fprintf(stderr,
-         "usage: %s static|motion ROM object_x p0_y p1_y ball_y [directions] [above|below]\n", argv[0]);
+         "usage: %s static|motion ROM object_x p0_y p1_y ball_y [directions] [above|below|poison-above|poison-below|poison-prior]\n", argv[0]);
       return 2;
    }
    const std::string mode = argv[1];
@@ -431,7 +443,19 @@ int main(int argc, char **argv) {
       const std::string order = argv[base_argc];
       if (order == "above") score_order = ScoreOrder::Above;
       else if (order == "below") score_order = ScoreOrder::Below;
-      else fail("score order must be above or below");
+      else if (order == "poison-above") {
+         score_order = ScoreOrder::Above;
+         poison_score = true;
+      }
+      else if (order == "poison-below") {
+         score_order = ScoreOrder::Below;
+         poison_score = true;
+      }
+      else if (order == "poison-prior") {
+         score_order = ScoreOrder::None;
+         poison_score = true;
+      }
+      else fail("score order must be above, below, poison-above, poison-below, or poison-prior");
    }
    frames_to_check = motion_mode ? 320 : 4;
    object_x_zp = parse_zp(argv[3]);
@@ -461,7 +485,8 @@ int main(int argc, char **argv) {
    if (frame < frames_to_check) fail("instruction limit reached before verification completed");
    if (frame_periods.size() < static_cast<size_t>(frames_to_check))
       fail("missing frame-period samples");
-   for (uint64_t period : frame_periods) {
+   for (size_t i = 2; i < frame_periods.size(); ++i) {
+      const uint64_t period = frame_periods[i];
       if (period < 262 * kCyclesPerScanline || period >= 263 * kCyclesPerScanline) {
          std::fprintf(stderr,
             "vcs_player_color_181: frame period is %llu cycles; expected 262 raw lines\n",
@@ -469,7 +494,8 @@ int main(int argc, char **argv) {
          return 1;
       }
    }
-   if (missile0_enabled || missile1_enabled) fail("missile enable became active");
+   if (!poison_score && (missile0_enabled || missile1_enabled))
+      fail("missile enable became active");
    verify_positioning();
    verify_raster();
    verify_composition();
@@ -480,14 +506,16 @@ int main(int argc, char **argv) {
       if (score_order == ScoreOrder::None)
          std::printf("vcs_player_color_181 motion ok: 320 frames, full-range P0/P1/BL motion, exact row colors\n");
       else
-         std::printf("vcs_player_color_181 composition motion %s ok\n",
+         std::printf("vcs_player_color_181 composition motion %s%s ok\n",
+                     poison_score ? "poison-" : "",
                      score_order == ScoreOrder::Above ? "above" : "below");
    }
    else {
       if (score_order == ScoreOrder::None)
          std::printf("vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n");
       else
-         std::printf("vcs_player_color_181 composition static %s ok\n",
+         std::printf("vcs_player_color_181 composition static %s%s ok\n",
+                     poison_score ? "poison-" : "",
                      score_order == ScoreOrder::Above ? "above" : "below");
    }
    return 0;

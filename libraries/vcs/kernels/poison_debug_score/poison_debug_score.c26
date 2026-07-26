@@ -1,0 +1,91 @@
+// Deliberately hostile eleven-line score-profile component for composition tests.
+//
+// Instantiate with:
+//
+//     template "kernels/poison_debug_score/poison_debug_score.c26" as poison
+//
+// Include vcs.c26 first. This is not a user-facing score renderer. It obeys the
+// visible/lifecycle ownership rules of a short score component while leaving
+// deterministic hostile TIA state behind so the following component cannot
+// accidentally rely on friendly register leftovers. Its red background and
+// patterned objects make leaked state visually obvious.
+
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_VBLANK_MAX_CYCLES := 0,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
+   TEMPLATE_PUBLIC_RAM_BYTES := 0,
+   TEMPLATE_PRIVATE_RAM_BYTES := 0,
+   TEMPLATE_MODULE_RAM_BYTES := 0
+};
+
+alias TEMPLATE_RED __builtin_ntsc_rgb(0xff, 0x00, 0x00)
+alias TEMPLATE_YELLOW __builtin_ntsc_rgb(0xff, 0xff, 0x00)
+alias TEMPLATE_CYAN __builtin_ntsc_rgb(0x00, 0xff, 0xff)
+
+require inline void TEMPLATE_init(void) {
+}
+
+require inline void TEMPLATE_vblank(void) {
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Line 1: paint an unmistakable red field and hostile playfield state.
+   COLUBK := TEMPLATE_RED;
+   COLUPF := TEMPLATE_YELLOW;
+   COLUP0 := TEMPLATE_CYAN;
+   COLUP1 := TEMPLATE_YELLOW;
+   CTRLPF := 0x37;
+   PF0 := 0xf0;
+   PF1 := 0xaa;
+   PF2 := 0x55;
+   WSYNC := 0;
+
+   // Line 2: enable and distort every movable object latch used by the score
+   // and gameplay profiles. The values are fixed so failures reproduce.
+   NUSIZ0 := 0x37;
+   NUSIZ1 := 0x17;
+   REFP0 := 0x08;
+   REFP1 := 0x08;
+   VDELP0 := 1;
+   VDELP1 := 1;
+   VDELBL := 1;
+   GRP0 := 0xaa;
+   GRP1 := 0x55;
+   ENAM0 := 2;
+   ENAM1 := 2;
+   ENABL := 2;
+   WSYNC := 0;
+
+   // Line 3: poison fine motion and coarse positions, then apply HMOVE.
+   asm lda #$70;
+   asm sta HMP0;
+   asm lda #$80;
+   asm sta HMP1;
+   asm lda #$60;
+   asm sta HMM0;
+   asm lda #$90;
+   asm sta HMM1;
+   asm lda #$f0;
+   asm sta HMBL;
+   asm sta RESP0;
+   asm sta RESP1;
+   asm sta RESM0;
+   asm sta RESM1;
+   asm sta RESBL;
+   asm sta HMOVE;
+   asm sta WSYNC;
+
+   // Hold the hostile image for the remaining eight score-profile lines.
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+}
+
+require inline void TEMPLATE_overscan(void) {
+}

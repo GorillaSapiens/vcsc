@@ -18,7 +18,7 @@ sub read_file {
    local $/; my $d=<$f>; close($f); return defined($d)?$d:'';
 }
 sub without_cartridge_usage {
-   my($out)=@_; $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//; return $out;
+   my($out)=@_; $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//; return $out;
 }
 
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;

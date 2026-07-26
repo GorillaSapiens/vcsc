@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/linker_ram_usage.pl @REPO@ @TMP@
+# phase: e2e
+# expectstdout: linker reports occupied, free, and hardware-stack RAM bytes
+# expectexit: 0

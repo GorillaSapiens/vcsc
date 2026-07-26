@@ -202,18 +202,34 @@ is a source-located warning and the link continues. This metadata path also
 handles true-inline calls and optimized-away object accesses that leave no
 ordinary relocation.
 
-## Cartridge ROM usage and map file
+## ROM/RAM usage and map file
 
-After every successful link, `vcsc-ld` prints a `CARTRIDGE ROM USAGE` summary.
-Every MEMORY region used as the load target of a read-only or initialized-data
-segment is reported separately with occupied bytes, free bytes, and percentages.
-The counts come from the final output occupancy bitmap after relocation and
-linker-generated tables are written: alignment holes remain free, while actual
-initializer tables and vector bytes count as used. A failed link emits no success
-summary.
+After every successful link, `vcsc-ld` prints both `CARTRIDGE ROM USAGE` and
+`RAM USAGE` summaries. Every cartridge MEMORY region used as the load target of
+a read-only or initialized-data segment is reported separately with occupied
+bytes, free bytes, and percentages. ROM counts come from the final output
+occupancy bitmap after relocation and linker-generated tables are written:
+alignment holes remain free, while initializer tables and vectors count as used.
 
-When you request a map file, `vcsc-ld` writes the same cartridge-ROM usage
-section plus:
+Each writable MEMORY region reports unique runtime object occupancy, the
+hardware-stack reservation, their combined used total, and remaining physical
+RAM. Runtime DATA, BSS, and zero-page layouts are counted by address, so
+activation overlays sharing the same bytes are counted once rather than added
+together. `objects=` excludes the stack; `hardware-stack=` is the call-graph
+reservation, including configured supplementary stack bytes. The percentage
+and `free=` fields use the original physical region size, before the linker
+shrinks the allocatable range to reserve the stack. A failed link emits no
+success summary.
+
+For example, a 128-byte VCS RAM region might report:
+
+```text
+RAM USAGE
+  RAM        used=19 bytes (14.84%) free=109 bytes (85.16%) objects=13 bytes hardware-stack=6 bytes
+```
+
+When you request a map file, `vcsc-ld` writes the same ROM and RAM usage
+sections plus:
 - effective memory regions after any call-graph stack reservation
 - object placement
 - the selected call-stack region, graph depth, byte reserve, and physical range

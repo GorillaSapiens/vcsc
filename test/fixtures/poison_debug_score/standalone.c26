@@ -1,0 +1,19 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+template "kernels/poison_debug_score/poison_debug_score.c26" as poison
+
+void main(void) {
+   VBLANK := 2;
+   poison_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      poison_vblank();
+      vcs_ntsc_end_vblank();
+      poison_draw();
+      vcs_ntsc_wait_scanlines(181);
+      vcs_ntsc_begin_overscan();
+      poison_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

@@ -17,7 +17,7 @@ sub read_file {
    my($p)=@_; open(my $f,'<:raw',$p) or die "read $p: $!\n";
    local $/; my $d=<$f>; close($f); return defined($d)?$d:'';
 }
-sub without_usage { my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//; return $s; }
+sub without_usage { my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//; return $s; }
 sub map_symbol {
    my($map,$name)=@_;
    $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map is missing $name\n";

@@ -570,6 +570,7 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
    {
       size_t i;
       for (i = 0; i < cfg->mem_count; ++i) {
+         cfg->mem[i].physical_size = cfg->mem[i].size;
          if (cfg->mem[i].callstack_extra && !cfg->mem[i].callstack_callgraph) {
             fprintf(stderr,
                "vcsc-ld: MEMORY region '%s' sets callstack_extra but does not request callstack=callgraph\n",
@@ -2862,6 +2863,12 @@ static int memory_region_is_cartridge_rom(const linker_config_t *cfg,
    return 0;
 }
 
+//! @brief Return whether a MEMORY region represents writable runtime RAM.
+static int memory_region_is_writable_ram(const memory_region_t *mem)
+{
+   return mem != NULL && str_ieq(mem->type, "rw");
+}
+
 //! @brief Count occupied output bytes inside one MEMORY region.
 static uint32_t memory_region_used_bytes(const memory_region_t *mem, const uint8_t *used)
 {
@@ -2907,6 +2914,87 @@ static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
    }
 }
 
+//! @brief Count unique runtime object bytes in one writable-RAM region.
+static uint32_t memory_region_runtime_used_bytes(const memory_region_t *mem,
+                                                 const input_set_t *in)
+{
+   uint8_t *occupied;
+   uint32_t count = 0;
+   uint32_t start;
+   uint32_t end;
+   size_t i;
+
+   if (mem == NULL || in == NULL)
+      return 0;
+   occupied = (uint8_t *)xmalloc(65536);
+   memset(occupied, 0, 65536);
+   start = mem->start;
+   end = start + (mem->physical_size ? mem->physical_size : mem->size);
+   if (end > 0x10000u)
+      end = 0x10000u;
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         uint32_t lay_start;
+         uint32_t lay_end;
+         uint32_t addr;
+         if (lay->segid != O26_SEG_DATA && lay->segid != O26_SEG_BSS &&
+             lay->segid != O26_SEG_ZP)
+            continue;
+         lay_start = lay->run_addr;
+         lay_end = lay_start + lay->size;
+         if (lay_start < start)
+            lay_start = start;
+         if (lay_end > end)
+            lay_end = end;
+         for (addr = lay_start; addr < lay_end; ++addr)
+            occupied[addr] = 1;
+      }
+   }
+   for (; start < end; ++start) {
+      if (occupied[start])
+         count++;
+   }
+   free(occupied);
+   return count;
+}
+
+static void write_ram_usage(FILE *fp, const linker_config_t *cfg,
+                            const input_set_t *in, const layout_t *layout,
+                            const char *indent)
+{
+   size_t i;
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      uint32_t object_bytes;
+      uint32_t stack_bytes = 0;
+      uint32_t total_bytes;
+      uint32_t used_bytes;
+      uint32_t free_bytes;
+      double used_percent;
+      double free_percent;
+
+      if (!memory_region_is_writable_ram(mem))
+         continue;
+      object_bytes = memory_region_runtime_used_bytes(mem, in);
+      if (layout->call_stack_enabled && !strcmp(cfg->call_stack_region, mem->name))
+         stack_bytes = layout->call_stack_size;
+      total_bytes = mem->physical_size ? mem->physical_size : mem->size + stack_bytes;
+      used_bytes = object_bytes + stack_bytes;
+      free_bytes = total_bytes >= used_bytes ? total_bytes - used_bytes : 0;
+      used_percent = total_bytes ? (100.0 * (double)used_bytes / (double)total_bytes) : 0.0;
+      free_percent = total_bytes ? (100.0 - used_percent) : 0.0;
+      fprintf(fp,
+              "%s%-10s used=%" PRIu32 " bytes (%.2f%%) free=%" PRIu32
+              " bytes (%.2f%%) objects=%" PRIu32 " bytes hardware-stack=%" PRIu32 " bytes\n",
+              indent, mem->name, used_bytes, used_percent, free_bytes, free_percent,
+              object_bytes, stack_bytes);
+   }
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in,
                            const layout_t *layout, const uint8_t *used)
@@ -2929,6 +3017,9 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
 
    fprintf(fp, "\nCARTRIDGE ROM USAGE\n");
    write_cartridge_rom_usage(fp, cfg, used, "  ");
+
+   fprintf(fp, "\nRAM USAGE\n");
+   write_ram_usage(fp, cfg, in, layout, "  ");
 
    fprintf(fp, "\nOBJECTS\n");
    for (i = 0; i < in->object_count; ++i) {
@@ -3213,6 +3304,8 @@ int main(int argc, char **argv)
    write_map_file(map_path, &cfg, &inputs, &layout, used);
    puts("CARTRIDGE ROM USAGE");
    write_cartridge_rom_usage(stdout, &cfg, used, "  ");
+   puts("RAM USAGE");
+   write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
 
    free(image);
    free(used);

@@ -103,8 +103,9 @@ The command-line tools follow GCC/binutils conventions where practical:
   Relative branches may use `.same`, `.cross`, or explicit `.flex` suffixes to
   communicate page-cycle placement requirements to the linker.
 - `vcsc-ld` requires a linker script when used directly, performs whole-program
-  activation and hardware-stack sizing, places page-sensitive objects, and
-  writes Intel HEX or flat `.bin` output.
+  activation and hardware-stack sizing, places page-sensitive objects, reports
+  used/free ROM and RAM with the hardware-stack share, and writes Intel HEX or
+  flat `.bin` output.
 - `vcsc-ar` creates and updates `.l26` archives using GNU-`ar`-style operation
   strings such as `rcs`.
 - `vcsc-sim` executes linked test programs and provides tracing and host-dispatch
@@ -136,6 +137,9 @@ score fonts, the shared six-glyph display, and two maintained NTSC kernel
 profiles. The compile-time `__builtin_ntsc_rgb(r, g, b)` matcher selects the
 nearest meaningful NTSC TIA byte from ordinary RGB components with no runtime
 cost.
+The installed `poison_debug_score` component provides a deterministic hostile
+11-line score-profile predecessor for finding hidden TIA-state coupling while
+the componentized kernels pass the 22i4b correctness gate.
 
 The maintained kernel profiles are:
 

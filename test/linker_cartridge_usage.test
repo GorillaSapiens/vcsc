@@ -1,4 +1,4 @@
 # runner: perl @TEST_ROOT@/linker_cartridge_usage.pl @REPO@ @TMP@
 # phase: e2e
-# expectstdout: linker reports occupied and free cartridge ROM bytes
+# expectstdout: linker reports occupied and free cartridge ROM and RAM bytes
 # expectexit: 0

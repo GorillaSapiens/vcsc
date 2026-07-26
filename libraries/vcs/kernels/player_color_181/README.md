@@ -65,3 +65,14 @@ frames, and disjoint 11-line score plus 181-line gameplay regions.
 
 A composed link measures 65 bytes of gameplay RAM plus 17 bytes for the
 independent score. A gameplay-only link contains no score state or font.
+
+## Adversarial handoff status
+
+The installed `poison_debug_score` component is the hostile-state probe for
+this profile. It deliberately overwrites TIA geometry, graphics, colors,
+position, motion, and delay state while obeying its own scanline/frame-ownership
+contract. The player-color family remains under the 22i4b stop-ship pixel and
+handoff audit until its raster is proved identical after that predecessor.
+Existing friendly-score fixtures remain historical regression coverage; they
+are not by themselves proof of arbitrary-state independence.
+

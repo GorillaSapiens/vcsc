@@ -27,6 +27,7 @@ Files:
 - `kernels/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors and tested score-above/score-below composition
 - `kernels/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured zero-byte saving
 - `kernels/player_color_192/` ... distinct official-opcode 192-line scoreless P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
+- `kernels/poison_debug_score/` ... zero-RAM adversarial eleven-line score-profile component that leaves deterministic hostile TIA state for composition debugging
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
@@ -104,6 +105,29 @@ Define `alias VCS_NTSC_DIAGNOSTICS 1` before including `frame_ntsc.c26` to add a
 sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and
 `VCS_NTSC_OVERSCAN_OVERRUN` identify missed deadlines. Production builds omit
 that RAM byte and all flag-setting code.
+
+
+## Poison debug score kernel
+
+`kernels/poison_debug_score/poison_debug_score.c26` is a deterministic
+adversarial component, not a production score renderer. It consumes exactly
+11 visible scanlines, owns no RAM, and deliberately leaves a bright red
+background plus hostile playfield, player, missile, Ball, reflection,
+vertical-delay, copy/size, fine-motion, coarse-position, and HMOVE state. It
+never owns VSYNC, VBLANK, the RIOT timer, or collision-latch clearing.
+
+Use it wherever an ordinary short score component would be composed:
+
+```vcsc
+template "kernels/poison_debug_score/poison_debug_score.c26" as poison
+```
+
+A following gameplay component must produce the same raster after `poison_draw()`
+as it does after blank or friendly state. Failures are intentionally loud and
+repeatable; the component uses fixed patterns rather than random values. The
+current player-color component family remains under the 22i4b stop-ship handoff
+and pixel-oracle gate, so this kernel is also a diagnostic for unfinished
+composition work rather than evidence that those kernels are already independent.
 
 ## Target type definitions
 

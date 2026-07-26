@@ -21,7 +21,7 @@ sub write_file {
    my($p,$d)=@_; open(my $f,'>:raw',$p) or die "write $p: $!\n";
    print {$f} $d; close($f) or die "close $p: $!\n";
 }
-sub without_usage { my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+//; return $s; }
+sub without_usage { my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//; return $s; }
 sub require_re { my($s,$re,$why)=@_; $s =~ $re or die "$why\n"; }
 sub map_zp {
    my($map,$name)=@_;
