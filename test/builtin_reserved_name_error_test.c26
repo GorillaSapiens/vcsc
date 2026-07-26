@@ -1,0 +1,6 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: '__builtin_ntsc_rgb' is a reserved compiler builtin name
+include "vcs.c26"
+uint8_t __builtin_ntsc_rgb(uint8_t r, uint8_t g, uint8_t b) { return 0; }
+void main(void) {}

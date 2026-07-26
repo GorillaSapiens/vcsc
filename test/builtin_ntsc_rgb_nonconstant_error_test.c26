@@ -1,0 +1,5 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: argument 1 to compiler builtin '__builtin_ntsc_rgb' must be a compile-time integer constant
+include "vcs.c26"
+void main(void) { uint8_t red := 1; COLUBK := __builtin_ntsc_rgb(red, 0, 0); }

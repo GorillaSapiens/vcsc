@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "builtin.h"
 #include "compile_declarator.h"
 #include "compile_function_registry.h"
 #include "compile_internal.h"
@@ -399,6 +400,10 @@ void remember_function(const ASTNode *node, const char *name) {
    if (!name) {
       error_user("[%s:%d.%d] unnamed function declaration is not supported here",
                  node->file, node->line, node->column);
+   }
+   if (builtin_name_is_registered(name)) {
+      error_user("[%s:%d.%d] '%s' is a reserved compiler builtin name",
+                 node->file, node->line, node->column, name);
    }
    if (has_modifier((ASTNode *)modifiers, "page") && !function_has_body(node)) {
       error_user("[%s:%d.%d] 'page' on a function requires its definition so the complete function size is known",

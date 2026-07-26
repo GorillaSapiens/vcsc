@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_193718.tar.gz
+    vcsc.20260726_201143.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -54,6 +54,13 @@ Settled final-language decisions
 * Binary literals accept visual digits after `0b`/`0B`: `.` is zero and
   `X`/`x` is one. The lexer normalizes them to ordinary binary digits before
   parsing, so all existing integer semantics and range checks remain shared.
+* Compiler-owned builtins use the `__builtin_` namespace and ordinary call
+  syntax. Registered builtins are compile-time integer expressions, have
+  descriptor-owned result type/arity/argument contracts, are shared with
+  conditional preprocessing, and emit no runtime call. The first builtin is
+  `__builtin_ntsc_rgb(r,g,b)`: three constant `0..255` components, nearest of
+  the 128 meaningful even NTSC TIA values by squared RGB distance, lower TIA
+  byte on an exact tie, result type `uint8_t`.
 * The stock machine interface exposes eight ordinary binary integer types and
   four unsigned packed-decimal integer types:
 
@@ -5330,3 +5337,33 @@ Before returning another modified archive:
   covered with no product failures. No files are removed; leave roadmap task
   22i4b1a next.
 
+
+2026-07-26 13:27:40 PDT, add extensible compile-time RGB builtin framework
+-------------------------------------------------------------------------------
+* Add the compiler-owned `__builtin_ntsc_rgb(r,g,b)` constant expression. Each
+  argument must be a compile-time integer in `0..255`; the result is a
+  `uint8_t` TIA byte. Match against all 128 meaningful even NTSC values using
+  squared RGB distance, and choose the lower TIA byte on an exact tie. The
+  fold emits no runtime search, palette table, or function call.
+* Introduce a descriptor-driven builtin registry carrying name, result type,
+  arity, argument contract, and evaluator. Share its already-folded integer
+  dispatch between normal constant-expression lowering and `#if`/`#elif`
+  conditional evaluation. Keep reusable RGB nearest-palette logic and the NTSC
+  table in `builtin_rgb.c`, so later PAL/SECAM matchers require a palette,
+  evaluator, and registry row rather than new parser or lowering paths.
+* Convert every selected alias in `libraries/vcs/color_ntsc.c26` from a copied
+  TIA literal to its documented reference RGB triplet passed through the
+  builtin. Preserve exact resulting values and retain comments naming both the
+  TIA byte and nearby X11 display name.
+* Add a complete 128-entry exact-palette folding regression, runtime checks for
+  exact/nearest/tie/type behavior, conditional-preprocessor coverage, and
+  negative tests for arity, nonconstant arguments, range, unknown builtin, and
+  reserved-name misuse. Update root, compiler, VCS-library, and example-05
+  documentation. No packed RGB form is added.
+* Verify 316/316 compile-only tests and staged `installcheck`. The main
+  end-to-end run exercised tests 1..178 and exposed only a stale example-05
+  source-structure expectation; after updating it to require builtin RGB
+  triplets and folded TIA comments, that test passed. The remaining six tests
+  passed after replacing one prohibited upstream proper name in a source
+  comment, covering all 184 end-to-end tests with no product failures. No files
+  are removed; leave roadmap task 22i4b1a next.

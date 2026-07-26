@@ -1,0 +1,5 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: unknown compiler builtin '__builtin_pal_rgb'
+include "vcs.c26"
+void main(void) { COLUBK := __builtin_pal_rgb(0, 0, 0); }

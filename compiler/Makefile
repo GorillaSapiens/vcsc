@@ -28,6 +28,8 @@ GENHDR = parser.tab.h delexer.h coverage_map.h
 SRCSRC = \
    abi_meta.c \
    ast.c \
+   builtin.c \
+   builtin_rgb.c \
    compile.c \
    compile_call.c \
    compile_declarator.c \

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "builtin.h"
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_internal.h"
@@ -218,6 +219,13 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       LValueRef lv;
       if (resolve_lvalue(ctx, expr, &lv)) {
          return lv.type;
+      }
+   }
+
+   if (!strcmp(expr->name, "()")) {
+      const char *builtin_type = builtin_call_result_type_name(expr);
+      if (builtin_type) {
+         return required_typename_node(builtin_type);
       }
    }
 

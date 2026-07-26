@@ -1,0 +1,5 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: compiler builtin '__builtin_ntsc_rgb' expects 3 arguments, got 2
+include "vcs.c26"
+void main(void) { COLUBK := __builtin_ntsc_rgb(0, 0); }

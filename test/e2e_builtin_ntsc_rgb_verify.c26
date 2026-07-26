@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+#if __builtin_ntsc_rgb(0xfd, 0x86, 0x85) != 0x4e
+this is broken
+#endif
+
+void fail(uint8_t code) {
+   asm lda #$ff;
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   if (__builtin_ntsc_rgb(0x00, 0x00, 0x00) != 0x00`uint8_t) { fail(1); }
+   if (__builtin_ntsc_rgb(0xfd, 0x86, 0x85) != 0x4e`uint8_t) { fail(2); }
+   if (__builtin_ntsc_rgb(0xfc, 0x86, 0x85) != 0x4e`uint8_t) { fail(3); }
+
+   // RGB (116,116,115) ties TIA $04 and $06; lower TIA byte wins.
+   if (__builtin_ntsc_rgb(116, 116, 115) != 0x04`uint8_t) { fail(4); }
+   if (sizeof(__builtin_ntsc_rgb(0, 0, 0)) != 1`int16_t) { fail(5); }
+
+   // A discarded builtin call is validated and emits no runtime call.
+   __builtin_ntsc_rgb(0xea, 0xc2, 0x54);
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

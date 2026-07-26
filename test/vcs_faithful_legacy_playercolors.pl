@@ -59,24 +59,24 @@ my $example_text=read_file($template_src);
 my $color_text=read_file($color_src);
 $example_text =~ /^include "color_ntsc\.c26"$/m
    or die "example 05 does not include the shared NTSC color aliases\n";
-for my $pair (
-   ['VCS_NTSC_GRAY_92',       '0x0e'],
-   ['VCS_NTSC_GOLDENROD',     '0x2e'],
-   ['VCS_NTSC_SANDY_BROWN',   '0x3e'],
-   ['VCS_NTSC_LIGHT_CORAL',   '0x4e'],
-   ['VCS_NTSC_ORCHID',        '0x5e'],
-   ['VCS_NTSC_VIOLET',        '0x6e'],
-   ['VCS_NTSC_MEDIUM_PURPLE', '0x7e'],
-   ['VCS_NTSC_DARK_BLUE',     '0x82'],
-   ['VCS_NTSC_ROYAL_BLUE',    '0x8e'],
-   ['VCS_NTSC_SKY_BLUE_2',    '0x9e'],
-   ['VCS_NTSC_SKY_BLUE',      '0xae'],
-   ['VCS_NTSC_AQUAMARINE',    '0xbe'],
-   ['VCS_NTSC_PALE_GREEN',    '0xce'],
+for my $color (
+   ['VCS_NTSC_GRAY_92',       '0xea', '0xea', '0xe9', '0x0e'],
+   ['VCS_NTSC_GOLDENROD',     '0xea', '0xc2', '0x54', '0x2e'],
+   ['VCS_NTSC_SANDY_BROWN',   '0xfd', '0xb5', '0x68', '0x3e'],
+   ['VCS_NTSC_LIGHT_CORAL',   '0xfd', '0x86', '0x85', '0x4e'],
+   ['VCS_NTSC_ORCHID',        '0xea', '0x82', '0xdc', '0x5e'],
+   ['VCS_NTSC_VIOLET',        '0xd0', '0x82', '0xfb', '0x6e'],
+   ['VCS_NTSC_MEDIUM_PURPLE', '0xb5', '0x86', '0xfb', '0x7e'],
+   ['VCS_NTSC_DARK_BLUE',     '0x12', '0x13', '0x9d', '0x82'],
+   ['VCS_NTSC_ROYAL_BLUE',    '0x79', '0x86', '0xfb', '0x8e'],
+   ['VCS_NTSC_SKY_BLUE_2',    '0x79', '0xc2', '0xfb', '0x9e'],
+   ['VCS_NTSC_SKY_BLUE',      '0x79', '0xdd', '0xfb', '0xae'],
+   ['VCS_NTSC_AQUAMARINE',    '0x79', '0xfd', '0xcf', '0xbe'],
+   ['VCS_NTSC_PALE_GREEN',    '0x86', '0xfd', '0x85', '0xce'],
 ) {
-   my($name,$value)=@$pair;
-   $color_text =~ /^alias\s+\Q$name\E\s+\Q$value\E\b/m
-      or die "color_ntsc.c26 lost $name = $value\n";
+   my($name,$r,$g,$b,$value)=@$color;
+   $color_text =~ /^alias\s+\Q$name\E\s+__builtin_ntsc_rgb\(\s*\Q$r\E\s*,\s*\Q$g\E\s*,\s*\Q$b\E\s*\)\s*\/\/\s*TIA\s+\Q$value\E\b/m
+      or die "color_ntsc.c26 lost $name RGB ($r,$g,$b) -> $value\n";
    $example_text =~ /\b\Q$name\E\b/
       or die "example 05 does not use $name\n";
 }

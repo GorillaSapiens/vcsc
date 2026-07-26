@@ -118,10 +118,42 @@ Supported beginning-of-line directives are:
 ```
 
 `#if` and `#elif` accept integer literals, object-like aliases,
-`defined(NAME)`, unary `!`, unary `+`/`-`, `&&`, `||`, integer comparisons, and
-parentheses. Undefined names evaluate to zero. Function-like aliases are not
-expanded in conditional expressions. Skipped branches are lexer-inert except
-for nested conditional directives.
+`defined(NAME)`, registered compiler-builtin calls, unary `!`, unary `+`/`-`,
+`&&`, `||`, integer comparisons, and parentheses. Undefined names evaluate to
+zero. Function-like aliases are not expanded in conditional expressions.
+Skipped branches are lexer-inert except for nested conditional directives.
+
+## Compiler builtins
+
+Compiler builtins use ordinary call syntax but are owned by the compiler rather
+than declared by source code. Their names are reserved, their arguments are
+validated and folded at compile time, and they emit no runtime call or lookup
+table. Registered builtins are available anywhere the compiler accepts an
+integer constant expression, including global initializers, ordinary
+expressions, and `#if`/`#elif` conditionals.
+
+The current builtin is:
+
+```vcsc
+uint8_t color := __builtin_ntsc_rgb(0xfd, 0x86, 0x85);
+```
+
+`__builtin_ntsc_rgb(r, g, b)` requires three compile-time integer arguments in
+`0..255`. It compares the requested RGB triplet with the 128 meaningful even
+Atari NTSC TIA color values using squared Euclidean RGB distance and returns the
+nearest TIA byte as `uint8_t`. Odd TIA bytes select the same color as the
+preceding even byte and are therefore not candidates. Exact distance ties choose
+the lower TIA byte. Display palettes are approximations, so this is a convenient
+source-color matcher, not a promise that every television or emulator will show
+identical RGB values.
+
+The implementation is intentionally extensible. `builtin.c` contains the
+name/type/arity/argument-contract registry and shared dispatch used by both the
+parser and conditional preprocessor. Domain-specific evaluators live in
+separate modules; `builtin_rgb.c` provides the reusable nearest-palette matcher
+and the NTSC table. A future PAL or SECAM matcher can add another palette,
+evaluator, and registry row without changing call lowering or preprocessor
+parsing.
 
 ## Types
 

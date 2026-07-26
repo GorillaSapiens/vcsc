@@ -15,7 +15,7 @@ Files:
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `color_ntsc.c26` ... readable names for the selected NTSC TIA colors currently used by the examples
+- `color_ntsc.c26` ... readable aliases defined through the compile-time `__builtin_ntsc_rgb(r, g, b)` NTSC palette matcher
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
@@ -42,6 +42,30 @@ Files:
 - `../../examples/10_xy_motion/xy_motion.c26` ... scoreless full-height P0 motion in both X and Y
 - `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
 - `LEGACY_KERNEL_CONVERSION.md` ... retained-kernel inventory, compatibility analysis, and staged conversion plan
+
+## NTSC color matching
+
+`__builtin_ntsc_rgb(r, g, b)` accepts three compile-time integer RGB components
+in `0..255` and folds them to the nearest of the 128 meaningful even NTSC TIA
+color bytes. Matching uses squared RGB distance; exact ties choose the lower TIA
+byte. There is no cartridge-resident palette and no generated runtime search.
+For example:
+
+```vcsc
+COLUP0 := __builtin_ntsc_rgb(0xfd, 0x86, 0x85); // folds to TIA $4e
+```
+
+`color_ntsc.c26` uses that builtin to define selected human-readable
+`VCS_NTSC_*` aliases. Each definition retains the reference RGB triplet and the
+resulting TIA value in its comment, so the names remain readable labels rather
+than a second independently maintained numeric palette. The RGB table is the
+Stella-compatible NTSC reference palette used by the project; real hardware,
+television decoding, capture equipment, and emulator palette settings can all
+produce different displayed RGB values.
+
+The compiler-side matcher is structured so later PAL and SECAM builtins can
+reuse the same nearest-palette machinery while supplying their own reference
+tables.
 
 Typical use:
 

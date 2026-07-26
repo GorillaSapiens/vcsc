@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "builtin.h"
 #include "enumname.h"
 #include "integer.h"
 #include "lextern.h"
@@ -1012,6 +1013,56 @@ static void pp_skip_invocation_text(const char **pp) {
 
 static long long pp_parse_or(const char **pp);
 
+static long long pp_parse_builtin_call(const char *name, const char **pp) {
+   const char *p = pp_skip_hspace(*pp);
+   long long arguments[16];
+   int argument_count = 0;
+   long long value = 0;
+   BuiltinIntegerEvalDiagnostic diagnostic = {0};
+   BuiltinIntegerEvalStatus status;
+
+   if (*p != '(') {
+      PP_ERROR_AT(p, "compiler builtin '%s' requires an argument list", name);
+   }
+   p++;
+   p = pp_skip_hspace(p);
+   if (*p != ')') {
+      for (;;) {
+         if (argument_count >= (int)(sizeof(arguments) / sizeof(arguments[0]))) {
+            PP_ERROR_AT(p, "too many arguments to compiler builtin '%s'", name);
+         }
+         arguments[argument_count++] = pp_parse_or(&p);
+         p = pp_skip_hspace(p);
+         if (*p == ')') break;
+         if (*p != ',') {
+            PP_ERROR_AT(p, "expected ',' or ')' in compiler builtin '%s'", name);
+         }
+         p++;
+      }
+   }
+   p++;
+
+   status = builtin_eval_integer_arguments(name, arguments, argument_count,
+                                           &value, &diagnostic);
+   if (status == BUILTIN_INTEGER_EVAL_WRONG_ARITY) {
+      PP_ERROR_AT(*pp, "compiler builtin '%s' expects %d arguments, got %d",
+                  name, diagnostic.expected_arity, argument_count);
+   }
+   if (status == BUILTIN_INTEGER_EVAL_ARGUMENT_RANGE) {
+      PP_ERROR_AT(*pp, "%s argument %d to compiler builtin '%s' is outside %lld..%lld: %lld",
+                  diagnostic.argument_kind ? diagnostic.argument_kind : "integer",
+                  diagnostic.argument_index, name, diagnostic.argument_minimum,
+                  diagnostic.argument_maximum,
+                  arguments[diagnostic.argument_index - 1]);
+   }
+   if (status != BUILTIN_INTEGER_EVAL_OK) {
+      PP_ERROR_AT(*pp, "compiler builtin '%s' could not be evaluated", name);
+   }
+
+   *pp = p;
+   return value;
+}
+
 static long long pp_parse_primary(const char **pp) {
    const char *p = pp_skip_hspace(*pp);
    long long value;
@@ -1089,6 +1140,13 @@ static long long pp_parse_primary(const char **pp) {
          free(name);
          *pp = p;
          return 0;
+      }
+
+      if (builtin_name_is_registered(name)) {
+         value = pp_parse_builtin_call(name, &p);
+         free(name);
+         *pp = p;
+         return value;
       }
 
       int index = alias_find(name);

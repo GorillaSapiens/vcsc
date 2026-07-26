@@ -12,6 +12,7 @@
 #include <limits.h>
 
 #include "ast.h"
+#include "builtin.h"
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_internal.h"
@@ -398,6 +399,10 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       out->symbol = remember_string_literal(expr->strval);
       out->addend = 0;
       return true;
+   }
+
+   if (!strcmp(expr->name, "()") && builtin_call_result_type_name(expr)) {
+      return builtin_eval_constant_call(expr, out);
    }
 
    {

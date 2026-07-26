@@ -23,8 +23,10 @@ page phase; this example does not pin the loop to a magic ROM low byte.
 
 The deliberately asymmetric playfield makes stale-byte and row-transition
 errors visible. The cartridge uses the shared `color_ntsc.c26` aliases instead
-of unexplained TIA color bytes, and its two player glyphs are written as
-left-to-right visual `0b..XXXX..` rows. The playfield is RAM-backed because
+of unexplained TIA color bytes. Those aliases are defined through
+`__builtin_ntsc_rgb(r, g, b)`, which folds their reference RGB triplets to TIA
+bytes at compile time. The two player glyphs are written as left-to-right visual
+`0b..XXXX..` rows. The playfield is RAM-backed because
 the stock kernel depends on zero-page-indexed reads; putting it in ROM changes
 both addressing and timing.
 

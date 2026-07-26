@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #include "ast.h"
+#include "builtin.h"
 #include "abi_meta.h"
 #include "compile_call.h"
 #include "compile_expr.h"
@@ -365,6 +366,20 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       return false;
    }
 
+   {
+      const char *builtin_type = builtin_call_result_type_name(expr);
+      if (builtin_type) {
+         if (!dst) {
+            InitConstValue value = {0};
+            if (!builtin_eval_constant_call(expr, &value)) {
+               error_unreachable("registered compiler builtin did not evaluate");
+            }
+            return true;
+         }
+         return compile_constant_expr_to_slot(expr, ctx, dst);
+      }
+   }
+
    ASTNode *callee = expr->children[0];
    ASTNode *args = (expr->count > 1) ? expr->children[1] : NULL;
    const ASTNode *fn = NULL;
@@ -379,6 +394,10 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       const char *callee_name = expr_bare_identifier_name(callee);
       if (callee_name) {
          fn = resolve_function_call_target(callee_name, expr, args, ctx);
+         if (!fn && !strncmp(callee_name, "__builtin_", 10)) {
+            error_user("[%s:%d.%d] unknown compiler builtin '%s'",
+                       expr->file, expr->line, expr->column, callee_name);
+         }
          if (!fn && is_identifier_spelling(callee_name) && !ctx_lookup(ctx, callee_name) && !global_decl_lookup(callee_name)) {
             error_user("[%s:%d.%d] call target '%s' has no visible signature; declare it in this translation unit or with extern",
                   expr->file, expr->line, expr->column, callee_name);
