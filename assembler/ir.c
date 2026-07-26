@@ -73,6 +73,31 @@ static mode_spec_t parse_mode_spec(const char *suffix)
    return MODE_SPEC_NONE;
 }
 
+
+//! @brief Parse a relative-branch page suffix.
+static branch_page_spec_t parse_branch_page_spec(const char *suffix)
+{
+   if (suffix_equals(suffix, ".flex"))
+      return BRANCH_PAGE_FLEX;
+   if (suffix_equals(suffix, ".same"))
+      return BRANCH_PAGE_SAME;
+   if (suffix_equals(suffix, ".cross"))
+      return BRANCH_PAGE_CROSS;
+   return BRANCH_PAGE_UNSPECIFIED;
+}
+
+//! @brief Return the source spelling for a relative-branch page suffix.
+const char *branch_page_spec_suffix(branch_page_spec_t spec)
+{
+   switch (spec) {
+      case BRANCH_PAGE_UNSPECIFIED: return "";
+      case BRANCH_PAGE_FLEX:        return ".flex";
+      case BRANCH_PAGE_SAME:        return ".same";
+      case BRANCH_PAGE_CROSS:       return ".cross";
+   }
+   return "";
+}
+
 //! @brief Return mode spec suffix data used by assembler IR builder; returned pointers alias existing storage unless explicitly allocated by the function name.
 const char *mode_spec_suffix(mode_spec_t spec)
 {
@@ -93,7 +118,8 @@ const char *mode_spec_suffix(mode_spec_t spec)
 }
 
 //! @brief Parse opcode text into the normalized representation used by assembler IR builder.
-static void split_opcode_text(const char *opcode_text, char **opcode_out, mode_spec_t *spec_out)
+static void split_opcode_text(const char *opcode_text, char **opcode_out,
+                              mode_spec_t *spec_out, branch_page_spec_t *branch_page_out)
 {
    const char *dot;
    size_t len;
@@ -102,12 +128,15 @@ static void split_opcode_text(const char *opcode_text, char **opcode_out, mode_s
    if (!dot) {
       *opcode_out = dup_upper(opcode_text, strlen(opcode_text));
       *spec_out = MODE_SPEC_NONE;
+      *branch_page_out = BRANCH_PAGE_UNSPECIFIED;
       return;
    }
 
    len = (size_t)(dot - opcode_text);
    *opcode_out = dup_upper(opcode_text, len);
-   *spec_out = parse_mode_spec(dot);
+   *branch_page_out = parse_branch_page_spec(dot);
+   *spec_out = (*branch_page_out == BRANCH_PAGE_UNSPECIFIED)
+      ? parse_mode_spec(dot) : MODE_SPEC_NONE;
 }
 
 //! @brief Handle program IR init logic for assembler IR builder.
@@ -222,7 +251,8 @@ stmt_t *stmt_make_insn(const char *file, int line, char *label, char *opcode_tex
    stmt->label = xstrdup(label);
    stmt->scope = NULL;
    stmt->segment = NULL;
-   split_opcode_text(opcode_text, &stmt->u.insn.opcode, &stmt->u.insn.spec);
+   split_opcode_text(opcode_text, &stmt->u.insn.opcode, &stmt->u.insn.spec,
+                     &stmt->u.insn.branch_page);
    stmt->u.insn.mode = mode;
    stmt->u.insn.expr = expr;
    stmt->u.insn.has_operand = has_operand;
@@ -395,6 +425,7 @@ static stmt_t *stmt_clone(const stmt_t *stmt)
       case STMT_INSN:
          out->u.insn.opcode = xstrdup(stmt->u.insn.opcode);
          out->u.insn.spec = stmt->u.insn.spec;
+         out->u.insn.branch_page = stmt->u.insn.branch_page;
          out->u.insn.mode = stmt->u.insn.mode;
          out->u.insn.expr = expr_clone(stmt->u.insn.expr);
          out->u.insn.has_operand = stmt->u.insn.has_operand;
@@ -680,9 +711,10 @@ void stmt_print(const stmt_t *stmt)
          break;
 
       case STMT_INSN:
-         printf("insn %s%s %s size=%d emode=%d",
+         printf("insn %s%s%s %s size=%d emode=%d",
                 stmt->u.insn.opcode,
                 mode_spec_suffix(stmt->u.insn.spec),
+                branch_page_spec_suffix(stmt->u.insn.branch_page),
                 addr_mode_name(stmt->u.insn.mode),
                 stmt->u.insn.size,
                 (int)stmt->u.insn.final_mode);

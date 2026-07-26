@@ -276,8 +276,10 @@ static int parse_branches_at(const uint8_t *data, size_t size, size_t start,
 {
    size_t i;
    size_t pos = start;
+   size_t record_size;
    uint16_t count;
    branch_t *items;
+   int version;
 
    if (pos == size) {
       *out = NULL;
@@ -285,13 +287,21 @@ static int parse_branches_at(const uint8_t *data, size_t size, size_t start,
       *end_out = pos;
       return 1;
    }
-   if (pos + O26_BRANCH_MAGIC_SIZE + 2 > size ||
-       memcmp(data + pos, O26_BRANCH_MAGIC, O26_BRANCH_MAGIC_SIZE) != 0)
+   if (pos + O26_BRANCH_MAGIC_SIZE + 2 > size)
       return 0;
+   if (memcmp(data + pos, O26_BRANCH_MAGIC_V2, O26_BRANCH_MAGIC_SIZE) == 0) {
+      version = 2;
+      record_size = 7;
+   } else if (memcmp(data + pos, O26_BRANCH_MAGIC_V1, O26_BRANCH_MAGIC_SIZE) == 0) {
+      version = 1;
+      record_size = 6;
+   } else {
+      return 0;
+   }
    pos += O26_BRANCH_MAGIC_SIZE;
    count = (uint16_t)(data[pos] | (data[pos + 1] << 8));
    pos += 2;
-   if (pos + (size_t)count * 6u != size)
+   if (pos + (size_t)count * record_size != size)
       return 0;
 
    items = (branch_t *)xcalloc(count ? count : 1, sizeof(*items));
@@ -302,7 +312,9 @@ static int parse_branches_at(const uint8_t *data, size_t size, size_t start,
       items[i].target = (uint16_t)(data[pos] | (data[pos + 1] << 8));
       pos += 2;
       items[i].opcode = data[pos++];
-      if (items[i].segid < O26_SEG_TEXT || items[i].segid > O26_SEG_ZP) {
+      items[i].page_policy = version >= 2 ? data[pos++] : BRANCH_PAGE_FLEX;
+      if (items[i].segid < O26_SEG_TEXT || items[i].segid > O26_SEG_ZP ||
+          items[i].page_policy > BRANCH_PAGE_CROSS) {
          free(items);
          return 0;
       }

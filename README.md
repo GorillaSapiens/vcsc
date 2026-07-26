@@ -100,6 +100,8 @@ The command-line tools follow GCC/binutils conventions where practical:
 - `vcsc-as` assembles `.s26` or retained/imported `.asm` source. Official NMOS
   6502/6507 opcodes are the default; `--illegals` deliberately enables named
   unofficial opcodes for silicon experiments such as the fingerprint example.
+  Relative branches may use `.same`, `.cross`, or explicit `.flex` suffixes to
+  communicate page-cycle placement requirements to the linker.
 - `vcsc-ld` requires a linker script when used directly, performs whole-program
   activation and hardware-stack sizing, places page-sensitive objects, and
   writes Intel HEX or flat `.bin` output.

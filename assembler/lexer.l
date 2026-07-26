@@ -105,7 +105,7 @@ IDSTART      [A-Za-z_@?]
 IDCHAR       [A-Za-z0-9_@?$]
 IDENT        {IDSTART}{IDCHAR}*
 DIRECTIVE    \.[A-Za-z_][A-Za-z0-9_]*
-MODE_SUFFIX  \.(z|zx|zy|a|ax|ay|i|ix|iy)
+MODE_SUFFIX  \.(z|zx|zy|a|ax|ay|i|ix|iy|flex|same|cross)
 OPCODETOK    {IDENT}{MODE_SUFFIX}?
 
 %%

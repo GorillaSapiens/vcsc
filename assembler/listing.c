@@ -37,9 +37,10 @@ static void render_stmt_text(FILE *fp, const stmt_t *stmt)
          break;
 
       case STMT_INSN:
-         fprintf(fp, "%s%s",
+         fprintf(fp, "%s%s%s",
                  stmt->u.insn.opcode,
-                 mode_spec_suffix(stmt->u.insn.spec));
+                 mode_spec_suffix(stmt->u.insn.spec),
+                 branch_page_spec_suffix(stmt->u.insn.branch_page));
 
          if (stmt->u.insn.has_operand) {
             fprintf(fp, " ");

@@ -68,7 +68,7 @@ CFG
 require_ok('assemble',$as,'-o',$obj,$src);
 require_ok('link',$ld,'-T',$cfg,'-Map',$map,'-o',$bin,$obj);
 my $m=slurp($map);
-$m =~ /\Q$obj\E\n\s+\$20FE -> \$2103 BNE opcode=\$D0 taken-page=same\n\s+\$2109 -> \$210D BNE opcode=\$D0 taken-page=same/s
+$m =~ /\Q$obj\E\n\s+\$20FE -> \$2103 BNE opcode=\$D0 taken-page=same policy=flex\n\s+\$2109 -> \$210D BNE opcode=\$D0 taken-page=same policy=flex/s
   or die "map did not preserve local branch metadata or branch-aware placement\n$m";
 
 # Task 20l searches one bounded low-byte cycle. Moving this 261-byte unit by

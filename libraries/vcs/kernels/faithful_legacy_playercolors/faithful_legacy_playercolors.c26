@@ -99,7 +99,7 @@ require void TEMPLATE_drawscreen(void) {
 
    asm @overscanloop:;
    asm lda INTIM; // wait for sync
-   asm bmi @overscanloop;
+   asm bmi.same @overscanloop;
    asm @doneoverscan:;
 
    // do VSYNC
@@ -129,12 +129,12 @@ require void TEMPLATE_drawscreen(void) {
    asm sec; // +2 11
    asm @DivideLoop:;
    asm sbc #15;
-   asm bcs @DivideLoop; // +4 15
+   asm bcs.same @DivideLoop; // +4 15
    asm sta TEMPLATE_pointer_workspace + 6,X; // +4 19
    asm sta RESP0,X; // +4 23
    asm sta WSYNC;
    asm dex;
-   asm bpl @HorPosLoop; // +5 5
+   asm bpl.same @HorPosLoop; // +5 5
    // 4
 
    asm ldx #4;
@@ -189,7 +189,7 @@ require void TEMPLATE_drawscreen(void) {
    // run possible vblank bB code
    asm @vblk2:;
    asm LDA INTIM;
-   asm bmi @vblk2;
+   asm bmi.same @vblk2;
    asm jmp @kernel;
 
 
@@ -272,9 +272,8 @@ require void TEMPLATE_drawscreen(void) {
    asm sta TEMPLATE_playfield_position;
    asm jmp @startkernel;
 
-   // Match the stock bB loop's low-byte placement: ordinary loop branches
-   // stay on-page, while the final BMI intentionally crosses into the next.
-   asm .align 256, $83, $ea;
+   // Page-timing contracts below let the linker reproduce stock bB timing:
+   // ordinary loop branches stay on-page and the final BMI crosses once.
    asm @skipDrawP0:;
    asm lda #0;
    asm tay;
@@ -313,7 +312,7 @@ require void TEMPLATE_drawscreen(void) {
    asm @startkernel:;
    asm lda TEMPLATE_player1_height; // 3
    asm dcp TEMPLATE_player1_y; // 5
-   asm bcc @skipDrawP1; // 2
+   asm bcc.same @skipDrawP1; // 2
    asm ldy TEMPLATE_player1_y; // 3
    asm lda (TEMPLATE_player1_graphics),y; // 5; player0pointer must be selected carefully by the compiler
    // so it doesn't cross a page boundary!
@@ -338,7 +337,7 @@ require void TEMPLATE_drawscreen(void) {
 
    asm lda TEMPLATE_player0_height;
    asm dcp TEMPLATE_player0_y;
-   asm bcc @skipDrawP0;
+   asm bcc.same @skipDrawP0;
    asm ldy TEMPLATE_player0_y;
    asm lda (TEMPLATE_player0_graphics),y;
    asm @continueP0:;
@@ -348,7 +347,7 @@ require void TEMPLATE_drawscreen(void) {
    asm sta TEMPLATE_object_x + 2;
    asm SLEEP 6;
    asm dec TEMPLATE_pointer_workspace + 6;
-   asm bne @continuekernel;
+   asm bne.same @continuekernel;
 
    asm @altkernel:;
 
@@ -367,7 +366,7 @@ require void TEMPLATE_drawscreen(void) {
    asm txa;
    asm sbx #256-4;
 
-   asm bmi @lastkernelline;
+   asm bmi.cross @lastkernelline;
 
    // read paddle 0
    // lo-res paddle read
@@ -435,7 +434,7 @@ require void TEMPLATE_drawscreen(void) {
 
    asm lda TEMPLATE_player1_height; // 3
    asm dcp TEMPLATE_player1_y; // 5
-   asm bcc @skipDrawlastP1;
+   asm bcc.same @skipDrawlastP1;
    asm ldy TEMPLATE_player1_y; // 3
    asm lda (TEMPLATE_player1_graphics),y; // 5; player0pointer must be selected carefully by the compiler
    // so it doesn't cross a page boundary!
@@ -448,7 +447,7 @@ require void TEMPLATE_drawscreen(void) {
 
    asm dex;
    // dec temp4 ; might try putting this above PF writes
-   asm beq @endkernel;
+   asm beq.same @endkernel;
 
 
    asm ldy.a TEMPLATE_playfield-48+4*12+44;
@@ -465,7 +464,7 @@ require void TEMPLATE_drawscreen(void) {
 
    asm lda.a TEMPLATE_player0_height;
    asm dcp TEMPLATE_player0_y;
-   asm bcc @skipDrawlastP0;
+   asm bcc.same @skipDrawlastP0;
    asm ldy TEMPLATE_player0_y;
    asm lda (TEMPLATE_player0_graphics),y;
    asm @continuelastP0:;
@@ -630,7 +629,7 @@ require void TEMPLATE_drawscreen(void) {
    asm sta GRP1; // +3 50 150 D5 D5 D6 D4!
    asm sty GRP0; // +3 53 159 D4* D5! D6 D6
    asm dey;
-   asm bpl @loop2; // +2 60 180
+   asm bpl.same @loop2; // +2 60 180
 
    asm ldx TEMPLATE_kernel_scratch + 0;
    asm txs;

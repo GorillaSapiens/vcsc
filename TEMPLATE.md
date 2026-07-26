@@ -489,6 +489,8 @@ can be freely reordered. Every component must document and test:
 - instance RAM and shared RAM requirements;
 - ROM cost;
 - page containment, alignment, adjacency, and indexed-range requirements;
+- `.same`, `.cross`, or `.flex` annotations on timing-sensitive relative
+  branches whose taken-page behavior is part of the cycle contract;
 - conservative maximum VBLANK and overscan cycle counts;
 - ownership of VBLANK, phase-transition WSYNC, and the RIOT timer/status
   registers, plus any bounded internal WSYNC use during blanking callbacks;

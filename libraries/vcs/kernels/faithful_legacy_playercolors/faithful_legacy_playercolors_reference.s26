@@ -103,7 +103,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 
 @overscanloop:
      lda INTIM ;wait for sync
-     bmi @overscanloop
+     bmi.same @overscanloop
 @doneoverscan:
 
      ;do VSYNC
@@ -133,12 +133,12 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
      sec ;+2 11
 @DivideLoop:
      sbc #15
-     bcs @DivideLoop;+4 15
+     bcs.same @DivideLoop;+4 15
      sta vcs_standard_pointer_workspace + 6,X ;+4 19
      sta RESP0,X ;+4 23
      sta WSYNC
      dex
-     bpl @HorPosLoop;+5 5
+     bpl.same @HorPosLoop;+5 5
      ; 4
 
      ldx #4
@@ -193,7 +193,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
      ; run possible vblank bB code
 @vblk2:
      LDA INTIM
-     bmi @vblk2
+     bmi.same @vblk2
      jmp @kernel
      
 
@@ -276,8 +276,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
      sta vcs_standard_playfield_position
      jmp @startkernel
 
-     ; Match the stock bB low-byte placement and branch-cycle pattern.
-     .align 256, $83, $ea
+     ; Linker-visible branch annotations reproduce the stock bB cycle pattern.
 @skipDrawP0:
      lda #0
      tay
@@ -316,7 +315,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 @startkernel:
      lda vcs_standard_player1_height ;3
      dcp vcs_standard_player1_y ;5
-     bcc @skipDrawP1 ;2
+     bcc.same @skipDrawP1 ;2
      ldy vcs_standard_player1_y ;3
      lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
      ; so it doesn't cross a page boundary!
@@ -341,7 +340,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 
      lda vcs_standard_player0_height
      dcp vcs_standard_player0_y
-     bcc @skipDrawP0
+     bcc.same @skipDrawP0
      ldy vcs_standard_player0_y
      lda (vcs_standard_player0_graphics),y
 @continueP0:
@@ -351,7 +350,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
              sta vcs_standard_object_x + 2
              SLEEP 6
          dec vcs_standard_pointer_workspace + 6
-         bne @continuekernel
+         bne.same @continuekernel
 
 @altkernel:
 
@@ -370,7 +369,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
      txa
          sbx #256-4
 
-     bmi @lastkernelline
+     bmi.cross @lastkernelline
 
                      ; read paddle 0
                      ; lo-res paddle read
@@ -439,7 +438,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 
      lda vcs_standard_player1_height ;3
      dcp vcs_standard_player1_y ;5
-     bcc @skipDrawlastP1
+     bcc.same @skipDrawlastP1
      ldy vcs_standard_player1_y ;3
      lda (vcs_standard_player1_graphics),y ;5; player0pointer must be selected carefully by the compiler
      ; so it doesn't cross a page boundary!
@@ -452,7 +451,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
 
      dex
      ;dec temp4 ; might try putting this above PF writes
-     beq @endkernel
+     beq.same @endkernel
 
 
          ldy.a vcs_standard_playfield-48+4*12+44
@@ -469,7 +468,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
      
      lda.a vcs_standard_player0_height
      dcp vcs_standard_player0_y
-     bcc @skipDrawlastP0
+     bcc.same @skipDrawlastP0
      ldy vcs_standard_player0_y
      lda (vcs_standard_player0_graphics),y
 @continuelastP0:
@@ -634,7 +633,7 @@ __sbpmeta$E$vcs_standard_kernel_drawscreen$vcs_standard_overscan_hook = 0
          sta GRP1 ;+3 50 150 D5 D5 D6 D4!
          sty GRP0 ;+3 53 159 D4* D5! D6 D6
          dey
-         bpl @loop2 ;+2 60 180
+         bpl.same @loop2 ;+2 60 180
 
          ldx vcs_standard_kernel_scratch + 0 
          txs

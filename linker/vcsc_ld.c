@@ -1546,26 +1546,86 @@ static memory_cursor_t *ensure_cursor(layout_t *layout, const linker_config_t *c
 
 static int range_fits_one_page(uint32_t addr, uint16_t size);
 
-//! @brief Count taken relative branches in one layout that cross a page at a candidate base.
+//! @brief Return whether branch source and target both belong to one movable layout.
+static int branch_fully_in_layout(const branch_t *branch,
+                                  const object_layout_t *lay)
+{
+   uint32_t packed_end;
+
+   if (!branch || !lay || branch->segid != lay->segid || lay->size == 0)
+      return 0;
+   packed_end = (uint32_t)lay->packed_base + lay->size;
+   return branch->source >= lay->packed_base && branch->source < packed_end &&
+          branch->target >= lay->packed_base && branch->target < packed_end;
+}
+
+//! @brief Return whether all hard branch-page contracts hold at a candidate base.
+static int layout_branch_contracts_hold_at(const object_file_t *obj,
+                                           const object_layout_t *lay,
+                                           uint16_t candidate)
+{
+   size_t i;
+
+   for (i = 0; i < obj->branch_count; ++i) {
+      const branch_t *branch = &obj->branches[i];
+      uint32_t source;
+      uint32_t target;
+      int crosses;
+
+      if (!branch_fully_in_layout(branch, lay) ||
+          branch->page_policy == BRANCH_PAGE_FLEX)
+         continue;
+      source = (uint32_t)candidate + branch->source - lay->packed_base;
+      target = (uint32_t)candidate + branch->target - lay->packed_base;
+      crosses = ((((source + 2u) ^ target) & 0xff00u) != 0);
+      if ((branch->page_policy == BRANCH_PAGE_SAME && crosses) ||
+          (branch->page_policy == BRANCH_PAGE_CROSS && !crosses))
+         return 0;
+   }
+   return 1;
+}
+
+//! @brief Reject hard branch contracts whose target is outside the source layout.
+static void validate_layout_hard_branch_scope(const object_file_t *obj,
+                                              const object_layout_t *lay)
+{
+   size_t i;
+   uint32_t packed_end;
+
+   if (!obj || !lay || lay->size == 0)
+      return;
+   packed_end = (uint32_t)lay->packed_base + lay->size;
+   for (i = 0; i < obj->branch_count; ++i) {
+      const branch_t *branch = &obj->branches[i];
+      if (branch->page_policy == BRANCH_PAGE_FLEX || branch->segid != lay->segid ||
+          branch->source < lay->packed_base || branch->source >= packed_end)
+         continue;
+      if (branch->target < lay->packed_base || branch->target >= packed_end) {
+         fprintf(stderr,
+                 "vcsc-ld: hard branch-page annotation at packed $%04X in %s targets outside movable layout %s\n",
+                 branch->source, obj->origin, lay->name);
+         exit(1);
+      }
+   }
+}
+
+//! @brief Count flexible taken branches in one layout that cross at a candidate base.
 static size_t layout_branch_crossings_at(const object_file_t *obj,
                                          const object_layout_t *lay,
                                          uint16_t candidate)
 {
    size_t i;
    size_t crossings = 0;
-   uint32_t packed_end;
 
    if (!obj || !lay || lay->size == 0)
       return 0;
-   packed_end = (uint32_t)lay->packed_base + lay->size;
    for (i = 0; i < obj->branch_count; ++i) {
       const branch_t *branch = &obj->branches[i];
       uint32_t source;
       uint32_t target;
 
-      if (branch->segid != lay->segid ||
-          branch->source < lay->packed_base || branch->source >= packed_end ||
-          branch->target < lay->packed_base || branch->target >= packed_end)
+      if (!branch_fully_in_layout(branch, lay) ||
+          branch->page_policy != BRANCH_PAGE_FLEX)
          continue;
       source = (uint32_t)candidate + branch->source - lay->packed_base;
       target = (uint32_t)candidate + branch->target - lay->packed_base;
@@ -1575,7 +1635,7 @@ static size_t layout_branch_crossings_at(const object_file_t *obj,
    return crossings;
 }
 
-//! @brief Return whether one layout contains any retained relative branch metadata.
+//! @brief Return whether one layout contains any retained relative-branch source.
 static int layout_has_branches(const object_file_t *obj,
                                const object_layout_t *lay)
 {
@@ -1588,8 +1648,7 @@ static int layout_has_branches(const object_file_t *obj,
    for (i = 0; i < obj->branch_count; ++i) {
       const branch_t *branch = &obj->branches[i];
       if (branch->segid == lay->segid &&
-          branch->source >= lay->packed_base && branch->source < packed_end &&
-          branch->target >= lay->packed_base && branch->target < packed_end)
+          branch->source >= lay->packed_base && branch->source < packed_end)
          return 1;
    }
    return 0;
@@ -1787,6 +1846,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
    uint32_t step = alignment > 1 ? alignment : 1;
    size_t i;
    int found = 0;
+   int saw_place_candidate = 0;
    int best_from_hole = 0;
    size_t best_hole = 0;
    uint32_t best_addr = 0;
@@ -1798,6 +1858,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
       return alloc_from_region_policy(layout, cfg, mem_name, lay->size,
          alignment, lay, what, origin);
 
+   validate_layout_hard_branch_scope(obj, lay);
    cursor = ensure_cursor(layout, cfg, mem_name);
    if (lay->size == 0)
       return cursor->cur;
@@ -1812,7 +1873,11 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
 
 #define CONSIDER_BRANCH_CANDIDATE(candidate_, growth_, from_hole_, hole_) do { \
       uint32_t candidate_value__ = (candidate_); \
-      size_t crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
+      size_t crossings__; \
+      saw_place_candidate = 1; \
+      if (!layout_branch_contracts_hold_at(obj, lay, (uint16_t)candidate_value__)) \
+         break; \
+      crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
       int page_penalty__ = range_fits_one_page(candidate_value__, lay->size) ? 0 : 1; \
       uint32_t growth_value__ = (growth_); \
       if (!found || crossings__ < best_crossings || \
@@ -1863,8 +1928,14 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
 #undef CONSIDER_BRANCH_CANDIDATE
 
    if (!found) {
-      fprintf(stderr, "vcsc-ld: %s overflow while branch-placing %s from %s in %s\n",
-              mem_name, what, origin, mem_name);
+      if (saw_place_candidate) {
+         fprintf(stderr,
+                 "vcsc-ld: cannot place %s from %s: .same/.cross branch-page requirements are mutually unsatisfiable\n",
+                 what, origin);
+      } else {
+         fprintf(stderr, "vcsc-ld: %s overflow while branch-placing %s from %s in %s\n",
+                 mem_name, what, origin, mem_name);
+      }
       exit(1);
    }
    if (best_from_hole) {
@@ -2721,11 +2792,54 @@ static const char *branch_opcode_name(uint8_t opcode)
    }
 }
 
+//! @brief Return the map spelling for a branch-page policy.
+static const char *branch_page_policy_name(uint8_t policy)
+{
+   switch (policy) {
+      case BRANCH_PAGE_SAME:  return "same";
+      case BRANCH_PAGE_CROSS: return "cross";
+      case BRANCH_PAGE_FLEX:
+      default:                return "flex";
+   }
+}
+
 //! @brief Return whether a taken relative branch incurs the NMOS page-cross cycle.
 static int taken_branch_crosses_page(uint16_t source, uint16_t target)
 {
    uint16_t next_pc = (uint16_t)(source + 2u);
    return (next_pc & 0xff00u) != (target & 0xff00u);
+}
+
+//! @brief Verify all hard branch-page contracts after final layout.
+static void enforce_branch_page_contracts(const input_set_t *in)
+{
+   size_t i;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+
+      for (j = 0; j < obj->branch_count; ++j) {
+         const branch_t *branch = &obj->branches[j];
+         uint16_t source;
+         uint16_t target;
+         int crosses;
+
+         if (branch->page_policy == BRANCH_PAGE_FLEX)
+            continue;
+         source = object_runtime_addr_for_value(obj, branch->segid, branch->source);
+         target = object_runtime_addr_for_value(obj, branch->segid, branch->target);
+         crosses = taken_branch_crosses_page(source, target);
+         if ((branch->page_policy == BRANCH_PAGE_SAME && crosses) ||
+             (branch->page_policy == BRANCH_PAGE_CROSS && !crosses)) {
+            fprintf(stderr,
+                    "vcsc-ld: branch-page contract %s failed in %s at $%04X -> $%04X\n",
+                    branch_page_policy_name(branch->page_policy), obj->origin,
+                    source, target);
+            exit(1);
+         }
+      }
+   }
 }
 
 //! @brief Return whether a MEMORY region holds cartridge output bytes.
@@ -2856,9 +2970,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          const branch_t *branch = &o->branches[j];
          uint16_t source = object_runtime_addr_for_value(o, branch->segid, branch->source);
          uint16_t target = object_runtime_addr_for_value(o, branch->segid, branch->target);
-         fprintf(fp, "     $%04X -> $%04X %-3s opcode=$%02X taken-page=%s\n",
+         fprintf(fp, "     $%04X -> $%04X %-3s opcode=$%02X taken-page=%s policy=%s\n",
                  source, target, branch_opcode_name(branch->opcode), branch->opcode,
-                 taken_branch_crosses_page(source, target) ? "crossing" : "same");
+                 taken_branch_crosses_page(source, target) ? "crossing" : "same",
+                 branch_page_policy_name(branch->page_policy));
       }
    }
 
@@ -3083,6 +3198,7 @@ int main(int argc, char **argv)
    }
    warn_unused_cmdline_objects(&inputs);
    layout_objects(&cfg, &inputs, &layout);
+   enforce_branch_page_contracts(&inputs);
    add_generated_symbols(&layout);
    resolve_all(&inputs, &layout);
    enforce_declaration_use_contracts(&inputs);

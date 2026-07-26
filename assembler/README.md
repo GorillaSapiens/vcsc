@@ -649,7 +649,33 @@ Supported addressing-mode suffixes are:
 | `.ix`  | indexed indirect      | `opA1.ix ($12,X)`            | opcode + 1 operand byte |
 | `.iy`  | indirect indexed      | `opB1.iy ($12),Y`            | opcode + 1 operand byte |
 
-There are no suffixes for implied, accumulator, immediate, or relative forms. Use normal operand syntax instead: no operand for implied, `A` for accumulator, `#expr` for immediate, and a conditional-branch opcode such as `opF0 target` for relative branches.  `.i` means indirect, not immediate.
+There are no addressing-mode suffixes for implied, accumulator, immediate, or
+relative forms. Use normal operand syntax instead: no operand for implied, `A`
+for accumulator, `#expr` for immediate, and a conditional-branch opcode such as
+`opF0 target` for relative branches. `.i` means indirect, not immediate.
+
+Relative conditional branches have a separate set of optional page-timing
+suffixes:
+
+```asm
+bne       loop       ; flexible; linker prefers a same-page taken branch
+bne.flex loop       ; explicit spelling of the default
+bne.same loop       ; taken branch must remain on the same page
+bmi.cross final     ; taken branch must cross a page
+```
+
+The page comparison uses the PC after the two-byte branch instruction, exactly
+matching the NMOS 6502/6507 taken-branch timing rule. Bare branches and `.flex`
+are placement preferences, not contracts: the linker minimizes their page
+crossings but may allow one when other constraints require it. `.same` and
+`.cross` are hard contracts and cause an error if no valid placement exists.
+
+These suffixes are valid only on the eight relative conditional branches (or
+their matching raw-opcode spellings, such as `opF0.same`). A hard annotation
+must remain a short relative branch; it may not relax into the assembler's
+long-branch sequence. In relocatable output, the annotated source and target
+must belong to the same movable code layout so the linker can control their page
+relationship. In flat assembly, `vcsc-as` checks the final addresses directly.
 
 Suffixes must agree with the operand syntax before the opcode table is consulted.  Expression-family suffixes use ordinary expression operands:
 
@@ -723,10 +749,12 @@ object declaration.
 
 After the layout table, current o26 objects also carry a compact relative-branch
 table.  Each record preserves the coarse segment, packed source and target
-offsets, and actual branch opcode.  Local-label branches are included even
-though their displacement was fully resolved by the assembler. The records are
-not relocations and never change branch bytes or displacements, but the linker
-uses them both for final-address timing diagnostics and for its bounded
+offsets, actual branch opcode, and page policy. `B26\2` policy values encode
+flexible, required-same-page, and required-crossing behavior; an omitted suffix
+and explicit `.flex` serialize identically. Local-label branches are included
+even though their displacement was fully resolved by the assembler. The records
+are not relocations and never change branch bytes or displacements, but the
+linker uses them both for final-address timing diagnostics and for its bounded
 low-byte code-placement search.
 
 Word relocations used by indirect `JMP` additionally carry the

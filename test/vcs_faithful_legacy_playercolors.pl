@@ -68,8 +68,17 @@ $template_text =~ /union TEMPLATE_player1_color_alias/
    or die "faithful port lost missile/color-pointer overlays\n";
 $template_text =~ /extern uint8_t TEMPLATE_playfield\[48\]/
    or die "faithful port playfield is not RAM-backed\n";
-$template_text =~ /asm \.(?:align) 256, \$83, \$ea;/
-   or die "faithful port lost stock loop page placement\n";
+$template_text !~ /asm \.align 256, \$83, \$ea;/
+   or die "faithful port still depends on the obsolete low-byte \$83 placement hack\n";
+my $same_count=()=$template_text =~ /^\s*asm\s+b(?:cc|cs|eq|mi|ne|pl|vc|vs)\.same\b/mg;
+$same_count==11 or die "faithful port must require same-page timing on eleven branches\n";
+my $cross_count=()=$template_text =~ /^\s*asm\s+b(?:cc|cs|eq|mi|ne|pl|vc|vs)\.cross\b/mg;
+$cross_count==1 or die "faithful port must require exactly one crossing branch\n";
+$template_text =~ /^\s*asm\s+bmi\.cross\s+\@lastkernelline\s*;/m
+   or die "faithful port lost the terminal visible-loop crossing contract\n";
+my $cfg_text=read_file($cfg);
+$cfg_text !~ /KERNEL_CODE\s*:\s*load\s*=\s*ROM[^;]*\balign\s*=\s*\$0100/i
+   or die "faithful port still forces KERNEL_CODE to a 256-byte boundary\n";
 my $zx_count=()=$template_text =~ /asm (?:lda|ldy)\.zx TEMPLATE_playfield[^;]+,x;/g;
 $zx_count==8 or die "faithful port must use eight zero-page-indexed dynamic playfield loads\n";
 
@@ -92,8 +101,10 @@ $tmap =~ /\blegacy_drawscreen\b/ or die "template map lacks instance-prefixed dr
 $tmap =~ /\blegacy_object_x\b/ or die "template map lacks instance-prefixed state\n";
 $tmap !~ /\bvcs_standard_kernel_drawscreen\b/
    or die "template cartridge leaked fixed predecessor drawscreen symbol\n";
-my @crossing=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ BMI opcode=\$30 taken-page=crossing$/mg);
+my @crossing=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ BMI opcode=\$30 taken-page=crossing policy=cross$/mg);
 @crossing==1 or die "template map must retain exactly one intentional BMI page crossing\n";
+my @same=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ B(?:CC|CS|EQ|MI|NE|PL|VC|VS) opcode=\$[0-9A-F]{2} taken-page=same policy=same$/mg);
+@same==11 or die "template map must satisfy eleven required same-page branches\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));

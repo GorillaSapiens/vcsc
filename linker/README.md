@@ -248,19 +248,29 @@ to contain the altered value. That distinction is essential for the standard
 VCS kernel's negative-Y fine-motion lookup.
 
 The current assembler nevertheless preserves every actual relative branch as
-placement metadata, including branches to assembler-local labels. Linker maps
-contain a `BRANCHES` section with final source and target addresses and report
-`taken-page=same` or `taken-page=crossing`.  The classification compares the
-target page with the PC after the two-byte branch instruction, matching the
-NMOS 6502/6507 extra-cycle rule.
+placement metadata, including branches to assembler-local labels. The current
+`B26\2` table adds a page policy byte to every record; the linker still accepts
+older `B26\1` tables and treats their branches as flexible. Policies are:
+
+- `flex`: the default for a bare branch and the explicit `.flex` spelling;
+- `same`: the source used `.same`, requiring no taken-branch page crossing;
+- `cross`: the source used `.cross`, requiring the taken branch to cross.
+
+Linker maps contain a `BRANCHES` section with final source and target addresses
+and report both `taken-page=same|crossing` and `policy=flex|same|cross`. The page
+classification compares the target with the PC after the two-byte branch
+instruction, matching the NMOS 6502/6507 extra-cycle rule.
 
 For each code layout containing retained branches, the linker exhaustively
 scores every aligned start in existing holes plus one bounded 256-byte sweep at
-the region high-water mark. It minimizes taken-branch page crossings first,
-then image growth, then page status and address. Existing-hole choices are
-zero-growth local moves; farther starts are not useful because they repeat a
-low-byte phase while wasting at least one complete page. The search is greedy
-in input order, deterministic, and deliberately bounded rather than an
+the region high-water mark. It first rejects candidates that violate `.same`
+or `.cross`, then minimizes crossings among `flex` branches, followed by image
+growth, page status, and address. Hard annotations must have source and target
+inside the same movable layout; otherwise the linker rejects them because it
+cannot guarantee their relationship while placing that layout. Existing-hole
+choices are zero-growth local moves; farther starts are not useful because they
+repeat a low-byte phase while wasting at least one complete page. The search is
+greedy in input order, deterministic, and deliberately bounded rather than an
 unbounded global code-layout optimizer.
 - the config parser is intentionally small and only covers the needed subset
 - Intel HEX is emitted as sparse data records rather than one giant padded image dump

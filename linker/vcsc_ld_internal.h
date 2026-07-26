@@ -31,8 +31,13 @@
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 #define O26_LAYOUT_INDEX_RANGE    0x02
 
-#define O26_BRANCH_MAGIC "B26\1"
+#define O26_BRANCH_MAGIC_V1 "B26\1"
+#define O26_BRANCH_MAGIC_V2 "B26\2"
 #define O26_BRANCH_MAGIC_SIZE 4
+
+#define BRANCH_PAGE_FLEX  0
+#define BRANCH_PAGE_SAME  1
+#define BRANCH_PAGE_CROSS 2
 
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
 #define ABI_META_PREFIX "__abimeta$V1$"
@@ -116,6 +121,7 @@ typedef struct {
    uint16_t source;
    uint16_t target;
    uint8_t opcode;
+   uint8_t page_policy;
 } branch_t;
 
 //! One loadable o26 segment plus relocations against it.

@@ -1573,6 +1573,51 @@ static int can_relax_to_zp_family(const insn_info_t *insn, emit_mode_t current_m
    return 0;
 }
 
+//! @brief Validate source-level relative-branch page annotations after relaxation.
+static void validate_branch_page_specs(asm_context_t *ctx)
+{
+   stmt_t *stmt;
+
+   for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
+      branch_page_spec_t spec;
+
+      if (stmt->kind != STMT_INSN)
+         continue;
+      spec = stmt->u.insn.branch_page;
+      if (spec == BRANCH_PAGE_UNSPECIFIED)
+         continue;
+      if (stmt->u.insn.final_mode != EM_REL &&
+          stmt->u.insn.final_mode != EM_REL_LONG) {
+         asm_error(ctx, stmt, "%s is valid only on a relative conditional branch",
+                   branch_page_spec_suffix(spec));
+         continue;
+      }
+      if ((spec == BRANCH_PAGE_SAME || spec == BRANCH_PAGE_CROSS) &&
+          stmt->u.insn.final_mode != EM_REL) {
+         asm_error(ctx, stmt, "%s requires a short relative branch; long-branch expansion is not timing-equivalent",
+                   branch_page_spec_suffix(spec));
+         continue;
+      }
+      if (!ctx->object_mode_o26 &&
+          (spec == BRANCH_PAGE_SAME || spec == BRANCH_PAGE_CROSS)) {
+         long target;
+         int crosses;
+
+         if (!stmt->u.insn.expr ||
+             expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
+                       stmt->address + 1, &target) != EXPR_EVAL_OK)
+            continue;
+         crosses = ((((stmt->address + 2) ^ target) & 0xff00L) != 0);
+         if ((spec == BRANCH_PAGE_SAME && crosses) ||
+             (spec == BRANCH_PAGE_CROSS && !crosses)) {
+            asm_error(ctx, stmt, "%s page requirement is not satisfied at $%04lX -> $%04lX",
+                      branch_page_spec_suffix(spec), stmt->address & 0xffffL,
+                      target & 0xffffL);
+         }
+      }
+   }
+}
+
 //! @brief Handle asm relax logic for assembler pass and relaxation engine.
 int asm_relax(asm_context_t *ctx)
 {
@@ -1662,6 +1707,7 @@ int asm_relax(asm_context_t *ctx)
       }
    }
 
+   validate_branch_page_specs(ctx);
    return ctx->error_count ? 1 : 0;
 }
 

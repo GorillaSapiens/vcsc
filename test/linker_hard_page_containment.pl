@@ -47,10 +47,11 @@ sub mark_page_contained {
       $p += 5; # flags plus indexed-range start/max in current layout records
    }
    if ($p<length($data)) {
-      substr($data,$p,4) eq "B26\1" or die "unexpected o26 layout tail\n";
+      my $magic=substr($data,$p,4);
+      ($magic eq "B26\1" || $magic eq "B26\2") or die "unexpected o26 layout tail\n";
       $p+=4;
       my $branches=get_u16(\$data,\$p);
-      $p += $branches*6;
+      $p += $branches * ($magic eq "B26\2" ? 7 : 6);
    }
    $p==length($data) or die "unexpected o26 branch tail\n";
    $found==1 or die "layout $want found $found times\n";

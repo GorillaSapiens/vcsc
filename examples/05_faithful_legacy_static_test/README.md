@@ -17,6 +17,10 @@ profile under the template prefix `legacy`:
 - original unofficial `DCP`, `LAX`, `SBX`, and `ASR` instructions;
 - stock selected-profile RAM aliases and branch-cycle behavior.
 
+The retained kernel spells its timing-critical branch requirements directly as
+`.same` or `.cross`. The linker is therefore responsible for finding a valid
+page phase; this example does not pin the loop to a magic ROM low byte.
+
 The deliberately asymmetric playfield makes stale-byte and row-transition
 errors visible. The playfield is RAM-backed because the stock kernel depends on
 zero-page-indexed reads; putting it in ROM changes both addressing and timing.

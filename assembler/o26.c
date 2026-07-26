@@ -37,7 +37,7 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_LAYOUT_PAGE_CONTAINED 0x01
 #define O26_LAYOUT_INDEX_RANGE    0x02
 
-#define O26_BRANCH_MAGIC "B26\1"
+#define O26_BRANCH_MAGIC "B26\2"
 #define O26_BRANCH_MAGIC_SIZE 4
 
 #define DEFAULT_SEGMENT_NAME "__default__"
@@ -94,6 +94,7 @@ typedef struct o26_branch {
    unsigned short source;
    unsigned short target;
    unsigned char opcode;
+   unsigned char page_policy;
    struct o26_branch *next;
 } o26_branch_t;
 
@@ -636,7 +637,8 @@ static int add_reloc(o26_segment_buf_t *buf, long offset, unsigned char type, un
 }
 
 //! @brief Record one actual relative branch for linker diagnostics.
-static int add_branch(o26_writer_t *wr, unsigned char segid, long source, long target, unsigned char opcode)
+static int add_branch(o26_writer_t *wr, unsigned char segid, long source, long target,
+                      unsigned char opcode, unsigned char page_policy)
 {
    o26_branch_t *branch;
 
@@ -650,6 +652,7 @@ static int add_branch(o26_writer_t *wr, unsigned char segid, long source, long t
    branch->source = (unsigned short)source;
    branch->target = (unsigned short)target;
    branch->opcode = opcode;
+   branch->page_policy = page_policy;
 
    if (!wr->branches)
       wr->branches = branch;
@@ -1323,7 +1326,8 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                writer_error(wr->ctx, stmt, "failed to write long branch prefix");
                return 0;
             }
-            if (!add_branch(wr, (unsigned char)segid, insn_off, insn_off + 5, inv_opcode)) {
+            if (!add_branch(wr, (unsigned char)segid, insn_off, insn_off + 5,
+                            inv_opcode, 0)) {
                writer_error(wr->ctx, stmt, "out of memory recording branch metadata");
                return 0;
             }
@@ -1384,7 +1388,13 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                   writer_error(wr->ctx, stmt, "failed to write branch displacement");
                   return 0;
                }
-               if (!add_branch(wr, (unsigned char)segid, insn_off, info.value, opcode)) {
+               unsigned char page_policy = 0;
+               if (stmt->u.insn.branch_page == BRANCH_PAGE_SAME)
+                  page_policy = 1;
+               else if (stmt->u.insn.branch_page == BRANCH_PAGE_CROSS)
+                  page_policy = 2;
+               if (!add_branch(wr, (unsigned char)segid, insn_off, info.value,
+                               opcode, page_policy)) {
                   writer_error(wr->ctx, stmt, "out of memory recording branch metadata");
                   return 0;
                }
@@ -1546,7 +1556,8 @@ static int write_branches(FILE *fp, const o26_branch_t *branch)
 
    for (; branch; branch = branch->next) {
       if (!write_u8(fp, branch->segid) || !write_u16(fp, branch->source) ||
-          !write_u16(fp, branch->target) || !write_u8(fp, branch->opcode))
+          !write_u16(fp, branch->target) || !write_u8(fp, branch->opcode) ||
+          !write_u8(fp, branch->page_policy))
          return 0;
    }
    return 1;

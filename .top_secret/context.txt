@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_182002.tar.gz
+    vcsc.20260726_190140.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -5265,3 +5265,40 @@ Before returning another modified archive:
   passed 8/8, covering all 182 end-to-end tests with no failures.
 * Leave 22i4b1a next: repair and screenshot-verify the player-color component's
   first-row entry, then prove both special 192-line twelfth-row paths.
+
+2026-07-26 12:25:45 PDT, add linker-enforced branch page annotations
+-------------------------------------------------------------------------------
+* Add relative-branch opcode suffixes `.flex`, `.same`, and `.cross`. A bare
+  branch and explicit `.flex` are equivalent: placement remains flexible and
+  the linker prefers a same-page taken branch. `.same` and `.cross` are hard
+  timing contracts. The syntax works on named conditional branches and matching
+  raw relative opcode spellings; hard contracts must remain short branches.
+* Extend the object branch table from `B26\1` to backward-compatible `B26\2`
+  with one page-policy byte per record. The linker continues accepting `B26\1`
+  as all-flexible metadata, filters placements that violate hard contracts, and
+  minimizes crossings only among flexible branches before its existing growth,
+  page, and address tie-breakers. Maps now report both `taken-page=` and
+  `policy=` for every retained branch.
+* Reject hard annotations whose target lies outside the source's movable code
+  layout, long-branch expansions carrying `.same`/`.cross`, invalid suffix use
+  on non-relative instructions, and layouts for which no satisfying page phase
+  exists. Keep `.flex` eligible for ordinary long-branch relaxation.
+* Annotate all twelve timing-critical branches in the faithful retained bB
+  player-color kernel and its independent retained-source audit: eleven are
+  `.same`, and the terminal visible-loop `BMI` is `.cross`. Remove the old
+  `.align 256, $83, $ea` source hack and the KERNEL_CODE 256-byte alignment;
+  the linker now chooses the satisfying low-byte phase from the stated timing
+  contracts.
+* Add `linker_branch_annotations.test` covering named and raw `.flex`, required
+  same/cross placement, invalid nonbranch use, prohibited long hard branches,
+  an unsatisfiable crossing, and a hard target outside its movable layout.
+  Update branch-metadata/page-containment readers and the faithful-kernel test
+  to lock eleven satisfied same-page contracts plus exactly one crossing.
+* Update the root, assembler, linker, template-design, profile, and example-05
+  documentation. Preserve positive equivalence with the pristine bB 1.9 oracle:
+  1,230 visible TIA events, 42 stable frames, and 20,064 cycles/264 raw lines.
+* Verify 309/309 compile-only tests. The end-to-end runner passed its first 165
+  tests before the execution window ended; the explicit remaining eighteen then
+  passed 18/18, covering all 183 end-to-end tests with no failures. No files are
+  removed. Leave roadmap task 22i4b1a next.
+

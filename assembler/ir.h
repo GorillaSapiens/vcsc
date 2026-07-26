@@ -24,6 +24,14 @@ typedef enum mode_spec {
    MODE_SPEC_IY
 } mode_spec_t;
 
+//! Optional relative-branch page behavior requested by an opcode suffix.
+typedef enum branch_page_spec {
+   BRANCH_PAGE_UNSPECIFIED = 0,
+   BRANCH_PAGE_FLEX,
+   BRANCH_PAGE_SAME,
+   BRANCH_PAGE_CROSS
+} branch_page_spec_t;
+
 //! Kinds of top-level assembler statements stored in the IR.
 typedef enum stmt_kind {
    STMT_INSN = 0,
@@ -42,6 +50,7 @@ typedef enum const_assign_kind {
 typedef struct insn_info {
    char *opcode;
    mode_spec_t spec;
+   branch_page_spec_t branch_page;
    addr_mode_t mode;
    expr_t *expr;
    int has_operand;
@@ -97,6 +106,7 @@ stmt_t *stmt_make_const_default(const char *file, int line, char *name, expr_t *
 stmt_t *stmt_make_const_set(const char *file, int line, char *name, expr_t *expr);
 
 const char *mode_spec_suffix(mode_spec_t spec);
+const char *branch_page_spec_suffix(branch_page_spec_t spec);
 
 void stmt_print(const stmt_t *stmt);
 void program_ir_print(const program_ir_t *prog);
