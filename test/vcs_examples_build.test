@@ -1,3 +1,3 @@
 # runner: perl @TEST_ROOT@/vcs_examples_build.pl @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_examples_build ok: all nine editable examples compile and link
+# expectstdout: vcs_examples_build ok: all ten editable examples compile and link

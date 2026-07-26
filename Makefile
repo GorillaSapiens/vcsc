@@ -84,6 +84,13 @@ install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels
 	install -m 0644 libraries/vcs/kernels/COMPONENT_CONVERSION.md \
 	  $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
+	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors
+	install -m 0644 libraries/vcs/kernels/faithful_legacy_playercolors/README.md \
+	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26 \
+	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc \
+	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26 \
+	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/
 	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181
 	install -m 0644 libraries/vcs/kernels/all_five_181/README.md \
 	  libraries/vcs/kernels/all_five_181/all_five_181.c26 \
@@ -153,6 +160,12 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/all_five_181.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181 2>/dev/null || true
@@ -231,6 +244,16 @@ installcheck: tools
 	test -f "$$stage_vcs/playfield.c26"; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
 	test -f "$$stage_vcs/kernels/COMPONENT_CONVERSION.md"; \
+	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/README.md"; \
+	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26"; \
+	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc"; \
+	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
+	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	  -T "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
+	  "$(CURDIR)/examples/05_faithful_legacy_static_test/faithful_legacy_static_test.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/all_five_181/README.md"; \
 	test -f "$$stage_vcs/kernels/all_five_181/all_five_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -324,23 +347,23 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/05_static_kernel_test/static_kernel_test.c26" \
+	  "$(CURDIR)/examples/06_static_kernel_test/static_kernel_test.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/static_kernel_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/06_object_motion_test/object_motion_test.c26" \
+	  "$(CURDIR)/examples/07_object_motion_test/object_motion_test.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/object_motion_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/object_motion_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/07_playercolor_static_test/playercolor_static_test.c26" \
+	  "$(CURDIR)/examples/08_playercolor_static_test/playercolor_static_test.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_static_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/08_playercolor_motion_test/playercolor_motion_test.c26" \
+	  "$(CURDIR)/examples/09_playercolor_motion_test/playercolor_motion_test.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/playercolor_motion_test.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/09_xy_motion/xy_motion.c26" \
+	  "$(CURDIR)/examples/10_xy_motion/xy_motion.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/xy_motion.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/xy_motion.bin"` -eq 4096
 

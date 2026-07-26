@@ -162,8 +162,8 @@ Measured linked 4K cartridges:
 
 | Example | ROM used | ROM free |
 | --- | ---: | ---: |
-| `07_playercolor_static_test` | 1,827 bytes | 2,263 bytes |
-| `08_playercolor_motion_test` | 2,759 bytes | 1,331 bytes |
+| `08_playercolor_static_test` | 1,827 bytes | 2,263 bytes |
+| `09_playercolor_motion_test` | 2,759 bytes | 1,331 bytes |
 
 These figures include application code, runtime, kernel, tables, and vectors.
 They are measurements of the checked examples, not promises that future code
@@ -195,7 +195,7 @@ It verifies:
 
 The human-facing cartridges are:
 
-- `examples/07_playercolor_static_test` — stationary P0 and P1, each with eight
+- `examples/08_playercolor_static_test` — stationary P0 and P1, each with eight
   visibly distinct logical-row colors;
-- `examples/08_playercolor_motion_test` — the same row colors while P0, P1, and
+- `examples/09_playercolor_motion_test` — the same row colors while P0, P1, and
   BL move asynchronously through X=`0..159`.

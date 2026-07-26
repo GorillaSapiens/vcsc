@@ -99,7 +99,7 @@ The exact standard-kernel regression cartridges live under
 `test/fixtures/vcs_examples/`; user-facing examples are only smoke-built and
 may be edited without changing test harness constants.
 
-`examples/05_static_kernel_test` is the first complete integration: it links the
+`examples/06_static_kernel_test` is the first complete integration: it links the
 object to module state, enforces final page placement, checks the legalized
 cycle schedule, and has been verified by Stella 7.0 at a stable 262 lines and
 60.0 Hz.
@@ -193,13 +193,13 @@ write application-owned audio/state. Ordinary VCSC calls made by the hook are
 covered by the exported call-graph edge.
 
 The draw call and hook must enter and return with decimal mode clear. The first
-cartridge, `examples/05_static_kernel_test`, produces a stable
+cartridge, `examples/06_static_kernel_test`, produces a stable
 262-scanline non-interlaced NTSC frame at 60.0 Hz in Stella 7.0. The developer
 status overlay is used as the final timing authority rather than treating
 comments in the retained source as proof.
 
-`examples/05_static_kernel_test` now carries a checked Stella 7.0 PNG plus exact
-object/playfield bounding boxes. `examples/06_object_motion_test` is the moving
+`examples/06_static_kernel_test` now carries a checked Stella 7.0 PNG plus exact
+object/playfield bounding boxes. `examples/07_object_motion_test` is the moving
 position diagnostic: a visible ruler playfield remains fixed while all five
 objects traverse the complete public X=0..159 range at different integer
 speeds and starting phases. Its regression locks the frame-relative object rows

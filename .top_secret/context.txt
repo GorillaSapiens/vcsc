@@ -953,7 +953,7 @@ The first unfinished item is the default next action.
         [x] 20c. Add reproducible DASM-to-vcsc-as normalization for the five
                   retained macros, directives, conditionals, expressions, and
                   forced addressing modes needed by that one configuration.
-        [x] 20d. Build `examples/05_static_kernel_test`, a no-bankswitch,
+        [x] 20d. Build `examples/06_static_kernel_test`, a no-bankswitch,
                   no-Superchip standard-kernel cartridge with fixed Breakout-
                   style inspection state. Verify exact 4K size, timing-safe ROM
                   placement, page-aligned kernel/table windows, unofficial and
@@ -1432,9 +1432,10 @@ The first unfinished item is the default next action.
                               stack, collision, opcode, multiple-instance, and linked-
                               byte contracts.
 
-                              [x] 22i4a. Migrate examples 05 through 08 from the
-                                         monoliths to the nominal official 181-line
-                                         components and add example 09 using the
+                              [x] 22i4a. Migrate the former examples 05 through 08
+                                         (now 06 through 09) from the monoliths to the
+                                         nominal official 181-line components and add
+                                         the former example 09 (now 10) using the
                                          official 192-line all-five component with
                                          simultaneous P0 X/Y motion. Treat examples
                                          05 through 08 as provisional until 22i4b:
@@ -1449,6 +1450,34 @@ The first unfinished item is the default next action.
                                          retire either predecessor until all 22i4b
                                          substeps pass from both source and staged
                                          installed toolchains.
+
+                                         [x] 22i4b0. Establish the faithful legacy
+                                                    baseline that should have preceded
+                                                    the derived-kernel work. Select the
+                                                    simplest useful retained profile:
+                                                    the NTSC unbanked player-color
+                                                    standard kernel with P0, P1, Ball,
+                                                    per-row player colors, integrated
+                                                    six-digit score, original unofficial
+                                                    opcodes, and monolithic frame
+                                                    ownership. Wrap that exact code in
+                                                    the template namespace without
+                                                    changing its raster algorithm. Keep
+                                                    an independently linked raw audit
+                                                    reference tied to hashes of the
+                                                    retained inputs and differentially
+                                                    prove the template port's complete
+                                                    visible TIA-write schedule and frame
+                                                    period. Add public
+                                                    `05_faithful_legacy_static_test` and
+                                                    renumber the former examples 05-09
+                                                    to 06-10. From this point onward,
+                                                    derive and prove one transformation
+                                                    at a time—template wrapping, score
+                                                    extraction, opcode legalization,
+                                                    object extension, and line-budget
+                                                    changes must never again be combined
+                                                    into one untraceable conversion.
 
                                          [ ] 22i4b1. Add a pixel-accurate TIA raster
                                                     oracle for playfield and player
@@ -3365,7 +3394,7 @@ Before returning another modified archive:
 
 2026-07-21 16:33:10 PDT, build the static standard-kernel cartridge
 ------------------------------------------------------------------------
-* Complete task 20d with `examples/05_static_kernel_test`, an exact 4096-byte
+* Complete task 20d with `examples/06_static_kernel_test`, an exact 4096-byte
   unbanked NTSC cartridge using the normalized no-Superchip standard kernel.
   The deterministic Breakout-style scene exercises the asymmetric 32x12 ROM
   playfield, both players, both missiles, the ball, and score `123456`.
@@ -3899,7 +3928,7 @@ Before returning another modified archive:
   +10, reconstructing it in the existing twelve-cycle setup slot. Remove the
   retained 37-cycle pre-kernel setup delay that had shifted the complete object
   field by one scanline.
-* Add `examples/06_object_motion_test`. Give P0, P1, M0, M1, and BL distinct
+* Add `examples/07_object_motion_test`. Give P0, P1, M0, M1, and BL distinct
   fixed vertical bands and independently phased horizontal motion between X=8
   and X=148. Document the exact frame-relative TIA write scanlines rather than
   relying on window-scaled screenshot coordinates.
@@ -3919,7 +3948,7 @@ Before returning another modified archive:
 
 2026-07-22 15:49:00 PDT, replace false motion oracle and repair affine relocation
 ------------------------------------------------------------------------
-* Reject the first `06_object_motion_test` as a visual oracle. Its empty
+* Reject the first `07_object_motion_test` as a visual oracle. Its empty
   playfield made phase errors hard to judge, its deliberately skipped update
   frames made correct motion look jerky, and its RAM-state assertions did not
   prove that the TIA received the requested horizontal coordinates.
@@ -3962,7 +3991,7 @@ Before returning another modified archive:
 
 2026-07-22 16:12:52 PDT, make object-motion diagnostic full-range
 ------------------------------------------------------------------------
-* Correct `examples/06_object_motion_test` so all five TIA objects traverse the
+* Correct `examples/07_object_motion_test` so all five TIA objects traverse the
   same complete public horizontal coordinate range, X=0 through X=159. Remove
   the arbitrary object-specific endpoints that made M1 appear capable of moving
   farther left than M0.
@@ -3980,7 +4009,7 @@ Before returning another modified archive:
 
 2026-07-22 16:38:48 PDT, add exhaustive pairwise horizontal-position regression
 ------------------------------------------------------------------------
-* Leave `examples/06_object_motion_test/object_motion_test.c26` unchanged. Add
+* Leave `examples/07_object_motion_test/object_motion_test.c26` unchanged. Add
   `vcs_standard_pairwise.test` as a dedicated machine-level regression for
   the linked standard kernel's actual horizontal-position routine.
 * Exhaust all ten unordered pairs of P0, P1, M0, M1, and BL across every
@@ -4207,8 +4236,8 @@ Before returning another modified archive:
   ball-only mask preparation is shorter than the all-five preparation path.
   This restores the same 20,140-cycle emulator frame-period baseline without
   moving the cycle-counted player/playfield/color schedule.
-* Add `examples/07_playercolor_static_test` and
-  `examples/08_playercolor_motion_test`. Both players use eight distinct colors
+* Add `examples/08_playercolor_static_test` and
+  `examples/09_playercolor_motion_test`. Both players use eight distinct colors
   in visible top-to-bottom logical-row order. The static cartridge separates
   P0/P1/BL for inspection; the motion cartridge moves P0/P1/BL asynchronously
   through X=0..159 at speeds 1, 5, and 7 while preserving row colors.
@@ -4963,7 +4992,7 @@ Before returning another modified archive:
   draw the score below asynchronous gameplay. Remove their companion-assembly and
   profile-specific linker arguments so each builds through the ordinary VCSC
   driver and installed component catalog.
-* Add `examples/09_xy_motion`, a scoreless full-height `all_five_192` cartridge
+* Add `examples/10_xy_motion`, a scoreless full-height `all_five_192` cartridge
   in which P0 moves simultaneously across X=0..159 and Y=8..80 while the other
   four TIA objects remain visible as references. Update motion after
   `game_overscan()` restores application-visible coordinates.
@@ -5099,3 +5128,23 @@ Before returning another modified archive:
   below order. Apply the cycle/size-equivalent correction to official all-five
   181/192 and the unofficial 181 twin, while leaving player-color and special
   192-line work open.
+
+2026-07-26 00:40:00 PDT, add faithful retained player-color template baseline
+-------------------------------------------------------------------------------
+* Select the simplest useful retained legacy profile: NTSC unbanked 4K P0/P1/
+  Ball with per-row player colors and the integrated six-digit score. Preserve
+  its original DCP/LAX/SBX/ASR instructions, instruction ordering, monolithic
+  frame ownership, score path, workspace, and 20,140-cycle frame period.
+* Add `kernels/faithful_legacy_playercolors` as a repeatable template namespace
+  plus a separately linked raw audit assembly tied to SHA-256 hashes of the
+  retained source inputs. Differentially compare 1,230 visible TIA events and
+  42 stable frames; ignore only data values written to TIA strobe registers,
+  whose bus value is hardware-irrelevant and may differ with page placement.
+* Add public `examples/05_faithful_legacy_static_test` with deliberately
+  asymmetric playfield rows. Renumber the former examples 05 through 09 to
+  06 through 10 and update catalogs, build tests, install checks, and removal
+  history accordingly.
+* Make this faithful baseline task 22i4b0 and require all later kernel work to
+  introduce and prove one transformation at a time instead of combining score
+  extraction, opcode legalization, new objects, new line budgets, and component
+  boundaries in one conversion.

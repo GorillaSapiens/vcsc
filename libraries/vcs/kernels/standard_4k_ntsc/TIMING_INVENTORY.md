@@ -17,7 +17,7 @@ altering a cycle-sensitive path.
 Current linked layout
 ---------------------
 
-The `examples/05_static_kernel_test` baseline map places `KERNEL_CODE` at
+The `examples/06_static_kernel_test` baseline map places `KERNEL_CODE` at
 `$F300..$F5FF` (size `$0300`), `KERNEL_RODATA` at `$F600..$F657` (size `$0058`),
 and the immutable 48-byte playfield at `$F100..$F12F`.  The source presently has
 page anchors before the main visible loop, last-line kernel, score loop, and
