@@ -80,8 +80,10 @@ void main(void) {
    /* Run component vblank callbacks here. */
    vcs_ntsc_end_vblank();
 
-   /* The first component enters at cycle 3. Between adjacent visible
-      components call vcs_ntsc_component_handoff(). */
+   /* The first component enters at the canonical measured phase. Between
+      adjacent visible components call vcs_ntsc_component_handoff(). For a
+      blank gap immediately before a component, use
+      vcs_ntsc_wait_component_scanlines() instead of the generic WSYNC loop. */
    /* Draw exactly VCS_NTSC_VISIBLE_SCANLINES here. */
 
    vcs_ntsc_begin_overscan();

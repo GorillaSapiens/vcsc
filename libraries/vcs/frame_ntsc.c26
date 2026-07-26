@@ -16,12 +16,37 @@ enum vcs_ntsc_frame_timing {
    VCS_NTSC_FRAME_SCANLINES := 262
 };
 
-// Wait for exactly scanlines WSYNC boundaries.  A zero count is a no-op.
+// Wait for exactly scanlines WSYNC boundaries. A zero count is a no-op.
+// The compiler-generated loop performs ordinary bookkeeping after the final
+// WSYNC, so its return phase is not suitable for entering a cycle-counted
+// visible component. Use vcs_ntsc_wait_component_scanlines() for a blank gap
+// immediately followed by such a component.
 inline void vcs_ntsc_wait_scanlines(uint8_t scanlines) {
    while (scanlines) {
       WSYNC := 0;
       scanlines--;
    }
+}
+
+// Draw a blank visible gap and enter the following component at the same
+// measured phase as the first component after vcs_ntsc_end_vblank(). The
+// count must be at least two. The controlled tail completes the final blank
+// scanline without spending another WSYNC boundary.
+inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
+   scanlines--;
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+
+   // The 41-cycle loop plus a harmless documented three-cycle collision
+   // register read completes the calibrated tail. The following component
+   // may assume ordinary condition flags are unspecified at entry.
+   asm ldy #8;
+   asm @delay:;
+   asm dey;
+   asm bne.same @delay;
+   asm bit.z CXM0P;
 }
 
 // The scheduler enters the first visible component at the measured cycle-3

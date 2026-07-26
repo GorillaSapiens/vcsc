@@ -178,7 +178,7 @@ void main(void) {
       vcs_ntsc_end_vblank();
 
       // Preserve the predecessor display's absolute visible-line placement.
-      vcs_ntsc_wait_scanlines(91);
+      vcs_ntsc_wait_component_scanlines(91);
       display_draw();
       vcs_ntsc_wait_scanlines(90);
 

@@ -22,6 +22,17 @@ same component, so their RESP/GRP timing cannot diverge. The fingerprint bytes
 are copied verbatim into the component's three-byte score storage so all six
 hexadecimal nibbles, including A through F, retain their raw values.
 
+## Visible placement
+
+The display follows a 91-line blank gap, so the example uses
+`vcs_ntsc_wait_component_scanlines(91)` rather than the generic WSYNC loop. The
+component-aware helper completes the final blank line at the calibrated phase
+required by `display_draw()`. The generic helper leaves loop bookkeeping in the
+visible line, moving both player reset strobes and wrapping the rightmost
+hexadecimal digit around to the opposite side of the screen. The reviewed
+Stella 7.0 capture is kept as
+`test/fixtures/vcs_examples/04_fingerprint/reference_stella_7.0.png`.
+
 The display uses the shared hexadecimal font module:
 
 ```vcsc

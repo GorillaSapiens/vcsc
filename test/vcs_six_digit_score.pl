@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -66,6 +67,7 @@ my $oldinclude=File::Spec->catdir($repo,qw(test fixtures six_glyph_component));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,qw(fonts default_decimal.c26));
+my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 03_six_digit_score reference_stella_7.0.png));
 my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');
 my $bin=File::Spec->catfile($tmp,'six_digit_score.bin');
 my $oldbin=File::Spec->catfile($tmp,'six_digit_score_pre_template.bin');
@@ -109,6 +111,9 @@ for my $i (0..79) {
 }
 
 my $source=read_file($src);
+sha256_hex(read_file($reference)) eq
+   'ef34364b790e2ffe7dbf7ebec6cf9937d88f0b96e9a45d32aeba30a68a063333'
+   or die "reviewed six-digit Stella reference PNG changed\n";
 my $component_text=read_file($component);
 my $frame_text=read_file($frame);
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
@@ -122,7 +127,7 @@ require_re($source,qr/frame_counter\s*==\s*SCORE_PERIOD.*?score_score\+\+/s,
            'score fixture no longer increments packed BCD every 20 frames');
 require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?score_vblank\(\).*?vcs_ntsc_end_vblank\(\)/s,
            'score vblank lifecycle is not inside the scheduler-owned budget');
-require_re($source,qr/vcs_ntsc_wait_scanlines\(91\).*?score_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
+require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?score_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
            'score fixture lost legacy absolute visible-line placement');
 require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?score_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
            'score overscan lifecycle is not inside the scheduler-owned budget');
@@ -142,6 +147,8 @@ require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
 my $generated=read_file($asm);
 $generated !~ /\bjsr\s+score_(?:init|vblank|draw|overscan)\b/
    or die "score lifecycle unexpectedly emitted callable boundaries\n";
+require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
+           'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
            'component per-draw horizontal positioning sequence changed');
 require_re($generated,qr/cmp #\$14/,'generated code lost the 20-frame cadence');
@@ -181,5 +188,18 @@ die "visible trace/timing comparison failed\n$out$err" if $exit || $sig;
 require_re($out,
    qr/^vcs_visible_trace_compare timing ok: 42 stable frames per ROM\n$/,
    'pre-template and component frame timing did not match their measured contracts');
+my $entry_source=File::Spec->catfile($repo,qw(test vcs_six_glyph_standalone_entry.cpp));
+my $entry_exe=File::Spec->catfile($tmp,'vcs_six_glyph_standalone_entry');
+($exit,$sig,$out,$err)=run_capture(
+   $cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
+   '-I',$mos,$entry_source,@mos_input,'-o',$entry_exe);
+die "standalone-entry harness build failed\n$out$err" if $exit || $sig;
+die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $err ne '';
+($exit,$sig,$out,$err)=run_capture($entry_exe,$bin);
+die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
+require_re($out,
+   qr/^vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n$/,
+   'standalone score did not enter the six-glyph component at its calibrated phase');
+$err eq '' or die "standalone-entry harness stderr: $err";
 
 print "vcs_six_digit_score ok\n";

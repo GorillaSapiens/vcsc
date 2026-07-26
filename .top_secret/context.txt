@@ -5466,3 +5466,36 @@ Before returning another modified archive:
   official/unofficial size, and now-positive poison handoff. Correct those
   test gates, pass them directly, and pass the remaining thirteen tests 13/13.
   Thus all 187 end-to-end tests are covered with no product failures.
+
+
+2026-07-26 16:38:24 PDT, repair examples 03/04 standalone component entry
+-------------------------------------------------------------------------------
+* Reproduce the visible regressions in examples 03 and 04 under Stella 7.0:
+  the first five glyphs appear at the left edge while the sixth wraps to the
+  right. Both cartridges still compile and retain nominal frame timing, so the
+  previous build-only coverage did not detect the raster failure.
+* Identify the lifecycle mismatch. `vcs_ntsc_wait_scanlines(91)` owns exactly
+  91 WSYNC boundaries, but its compiler-generated loop bookkeeping returns at
+  an arbitrary phase. The repaired six-glyph component requires the canonical
+  measured entry phase supplied by `vcs_ntsc_end_vblank()` or an explicit
+  component handoff. Entering 32 cycles late moves RESP0/RESP1 far enough to
+  wrap one digit. Appending `vcs_ntsc_component_handoff()` alone is not valid;
+  it shifts the setup again and produces a 263-line frame.
+* Add `vcs_ntsc_wait_component_scanlines(count)` for a blank visible gap of at
+  least two scanlines immediately followed by a cycle-counted component. It
+  spends `count-1` ordinary WSYNC boundaries and uses a controlled 44-cycle
+  tail (a documented LDY/DEY/BNE loop plus harmless `BIT CXM0P`) to complete
+  the final blank line and reproduce the canonical component-entry phase
+  without consuming another scanline. Verify gaps of 2, 3, 10, 91, and 180
+  lines all enter the following component at the same cycle.
+* Change examples 03/04 and their golden sources to use the component-aware
+  91-line gap. Add a simulator oracle requiring the accepted line-131 setup
+  transactions: NUSIZ0/1 at cycles 0/3, colors at 8/11, HMCLR at 14, HMP0/1 at
+  19/24, RESP0/1 at 29/32, and HMOVE at 71, together with stable 262-line
+  frames. Add and hash-lock reviewed Stella 7.0 captures showing a centered
+  six-digit score and centered `8A55CE` fingerprint with no wrapped glyph.
+* Update the scheduler/VCS library documentation and both example READMEs.
+  Verify 316/316 compile-only tests, the first 170/187 end-to-end tests before
+  the execution window expired, the uncovered final 17 as 17/17, staged
+  `installcheck`, and final source-tree hygiene. No source files are removed;
+  keep the broader 22i4b all-object pixel matrix open.

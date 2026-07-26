@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -68,6 +69,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $cfg=File::Spec->catfile($vcs,'vcs_4k.cfg');
 my $ex=File::Spec->catdir($repo,'test','fixtures','vcs_examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'golden.c26');
+my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 04_fingerprint reference_stella_7.0.png));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,'fonts','default_hex.c26');
@@ -113,6 +115,9 @@ for my $i (0..127) {
 }
 
 my $source=read_file($src);
+sha256_hex(read_file($reference)) eq
+   'a1d92669507ed85b80666648bfb5db05aa686fb37f57711c6222367f5c494314'
+   or die "reviewed fingerprint Stella reference PNG changed\n";
 my $component_text=read_file($component);
 my $frame_text=read_file($frame);
 require_re($source,qr/include\s+"fonts\/default_hex\.c26"/,
@@ -131,7 +136,7 @@ for my $phase (qw(init vblank draw overscan)) {
 }
 require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?vcs_ntsc_end_vblank\(\)/s,
            'display vblank lifecycle is not inside the scheduler-owned budget');
-require_re($source,qr/vcs_ntsc_wait_scanlines\(91\).*?display_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
+require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?display_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
            'fingerprint display lost predecessor visible-line placement');
 require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?display_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
            'display overscan lifecycle is not inside the scheduler-owned budget');
@@ -185,6 +190,8 @@ $arr_count==4 or die "generated assembly has $arr_count named ARR probes, expect
 
 $generated !~ /\bjsr\s+display_(?:init|vblank|draw|overscan)\b/
    or die "display lifecycle unexpectedly emitted callable boundaries\n";
+require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
+           'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
            'component per-draw horizontal positioning sequence changed');
 my ($loop)=$generated =~ /(\@inline_\d+_asm_display_draw_loop:.*?bpl\.same \@inline_\d+_asm_display_draw_loop)/s;
@@ -222,5 +229,18 @@ die "timing harness compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$e
 die "timing harness exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 require_re($out,qr/vcs_frame_timing ok: 77 frames at 262 lines/,
            'fingerprint cartridge lost stable 262-line timing');
+my $entry_source=File::Spec->catfile($repo,qw(test vcs_six_glyph_standalone_entry.cpp));
+my $entry_exe=File::Spec->catfile($tmp,'vcs_six_glyph_standalone_entry');
+($exit,$sig,$out,$err)=run_capture(
+   'g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
+   '-I'.$mos_dir,$entry_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$entry_exe);
+die "standalone-entry harness build failed\n$out$err" if $exit || $sig;
+die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $err ne '';
+($exit,$sig,$out,$err)=run_capture($entry_exe,$bin);
+die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
+require_re($out,
+   qr/^vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n$/,
+   'fingerprint display did not enter the six-glyph component at its calibrated phase');
+$err eq '' or die "standalone-entry harness stderr: $err";
 
 print "vcs_fingerprint ok\n";
