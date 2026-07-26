@@ -5,7 +5,7 @@
 // retained entry/exit behavior.  It is a baseline, not a composable lifecycle
 // kernel.
 //
-// Include vcs.c26 first, define page-contained INSTANCE_playfield[48], and set
+// Include vcs.c26 first, define RAM-backed INSTANCE_playfield[48], and set
 // the graphics/color pointers before the first draw.  Build cartridges using
 // -Wa,--illegals and the matching faithful_legacy_playercolors.cfg script.
 
@@ -23,28 +23,55 @@ alias TEMPLATE_OBJECT_BALL 4
 alias TEMPLATE_PLAYER0_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER0]
 alias TEMPLATE_PLAYER1_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER1]
 alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
-alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
-alias TEMPLATE_SPRITE_ROWS(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
+alias TEMPLATE_SPRITE_ROWS(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
 
-extern const uint8_t TEMPLATE_playfield[48];
+extern uint8_t TEMPLATE_playfield[48];
 
 // The retained five-strobe horizontal-position loop still visits the two
-// missile slots.  In this player-color profile they are private ghost X values.
+// missile slots. In this player-color profile M0's byte doubles as the P0
+// color latch, while M1's byte remains a private ghost X value.
 uint8_t TEMPLATE_object_x[5];
+alias TEMPLATE_player0_color_latch TEMPLATE_object_x[2]
 uint8_t TEMPLATE_player0_y;
 uint8_t TEMPLATE_player1_y;
-uint8_t TEMPLATE_missile1_height;
-uint8_t TEMPLATE_missile1_y;
+
+// The selected upstream player-color profile deliberately overlays each
+// two-byte color-table pointer with the disabled missile's height/Y pair.
+// Writing the missile fields after installing the pointer destroys it; this is
+// stock bB behavior and therefore part of the faithful source contract.
+struct TEMPLATE_player1_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union TEMPLATE_player1_color_alias {
+   uint8_t *colors;
+   TEMPLATE_player1_missile_alias missile;
+};
+TEMPLATE_player1_color_alias TEMPLATE_player1_color_state;
+alias TEMPLATE_player1_colors TEMPLATE_player1_color_state.colors
+alias TEMPLATE_missile1_height TEMPLATE_player1_color_state.missile.height
+alias TEMPLATE_missile1_y TEMPLATE_player1_color_state.missile.y
+
 uint8_t TEMPLATE_ball_y;
 uint8_t *TEMPLATE_player0_graphics;
 uint8_t *TEMPLATE_player1_graphics;
-uint8_t *TEMPLATE_player0_colors;
-uint8_t *TEMPLATE_player1_colors;
-uint8_t TEMPLATE_player0_color_latch;
 uint8_t TEMPLATE_player0_height;
 uint8_t TEMPLATE_player1_height;
-uint8_t TEMPLATE_missile0_height;
-uint8_t TEMPLATE_missile0_y;
+
+struct TEMPLATE_player0_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union TEMPLATE_player0_color_alias {
+   uint8_t *colors;
+   TEMPLATE_player0_missile_alias missile;
+};
+TEMPLATE_player0_color_alias TEMPLATE_player0_color_state;
+alias TEMPLATE_player0_colors TEMPLATE_player0_color_state.colors
+alias TEMPLATE_missile0_height TEMPLATE_player0_color_state.missile.height
+alias TEMPLATE_missile0_y TEMPLATE_player0_color_state.missile.y
+
 uint8_t TEMPLATE_ball_height;
 
 // Preserve the retained three-byte score representation rather than adapting
@@ -205,7 +232,7 @@ require void TEMPLATE_drawscreen(void) {
    asm lda TEMPLATE_player1_y;
    asm sta TEMPLATE_pointer_workspace + 8;
 
-   asm ldx TEMPLATE_missile0_height;
+   asm ldx TEMPLATE_player0_color_state;
    asm inx;
 
    asm inx;
@@ -231,9 +258,9 @@ require void TEMPLATE_drawscreen(void) {
 
    asm dec TEMPLATE_player0_y;
 
-   asm lda TEMPLATE_missile0_y;
+   asm lda TEMPLATE_player0_color_state + 1;
    asm sta TEMPLATE_pointer_workspace + 10;
-   asm lda TEMPLATE_missile1_y;
+   asm lda TEMPLATE_player1_color_state + 1;
    asm sta TEMPLATE_pointer_workspace + 11;
 
    asm lda TEMPLATE_playfield_position;
@@ -245,6 +272,9 @@ require void TEMPLATE_drawscreen(void) {
    asm sta TEMPLATE_playfield_position;
    asm jmp @startkernel;
 
+   // Match the stock bB loop's low-byte placement: ordinary loop branches
+   // stay on-page, while the final BMI intentionally crosses into the next.
+   asm .align 256, $83, $ea;
    asm @skipDrawP0:;
    asm lda #0;
    asm tay;
@@ -262,13 +292,13 @@ require void TEMPLATE_drawscreen(void) {
    asm @continuekernel2:;
    asm lda TEMPLATE_ball_height;
 
-   asm ldy TEMPLATE_playfield-48+4*12+44-128,x;
+   asm ldy.zx TEMPLATE_playfield-48+4*12+44-128,x;
    asm sty PF1; // 3
-   asm ldy TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
+   asm ldy.zx TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
    asm sty PF2; // 3
-   asm ldy TEMPLATE_playfield-48+4*12+47-128,x; // 4
+   asm ldy.zx TEMPLATE_playfield-48+4*12+47-128,x; // 4
    asm sty PF1; // 3 too early?
-   asm ldy TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
+   asm ldy.zx TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
    asm sty PF2; // 3
 
    // should be playfield+$38 for width=2
@@ -291,18 +321,18 @@ require void TEMPLATE_drawscreen(void) {
    asm @continueP1:;
    asm sta GRP1; // 3
 
-   asm lda (TEMPLATE_player1_colors),y;
+   asm lda (TEMPLATE_player1_color_state),y;
    asm sta COLUP1;
-   asm lda.a TEMPLATE_player0_color_latch;
+   asm lda.a TEMPLATE_object_x + 2;
    asm sta COLUP0;
 
-   asm lda TEMPLATE_playfield-48+4*12+44-128,x; // 4
+   asm lda.zx TEMPLATE_playfield-48+4*12+44-128,x; // 4
    asm sta PF1; // 3
-   asm lda TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
+   asm lda.zx TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
    asm sta PF2; // 3
-   asm lda TEMPLATE_playfield-48+4*12+47-128,x; // 4
+   asm lda.zx TEMPLATE_playfield-48+4*12+47-128,x; // 4
    asm sta PF1; // 3 too early?
-   asm lda TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
+   asm lda.zx TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
    asm sta PF2; // 3
    // sleep 3
 
@@ -314,8 +344,8 @@ require void TEMPLATE_drawscreen(void) {
    asm @continueP0:;
    asm sta GRP0;
 
-   asm lda (TEMPLATE_player0_colors),y;
-   asm sta TEMPLATE_player0_color_latch;
+   asm lda (TEMPLATE_player0_color_state),y;
+   asm sta TEMPLATE_object_x + 2;
    asm SLEEP 6;
    asm dec TEMPLATE_pointer_workspace + 6;
    asm bne @continuekernel;
@@ -356,7 +386,6 @@ require void TEMPLATE_drawscreen(void) {
 
 
    asm jmp @goback;
-
 
    asm @lastkernelline:;
    asm SLEEP 10;
@@ -414,7 +443,7 @@ require void TEMPLATE_drawscreen(void) {
    asm @continuelastP1:;
    asm sta GRP1; // 3
 
-   asm lda (TEMPLATE_player1_colors),y;
+   asm lda (TEMPLATE_player1_color_state),y;
    asm sta COLUP1;
 
    asm dex;
@@ -431,7 +460,7 @@ require void TEMPLATE_drawscreen(void) {
    asm ldy.a TEMPLATE_playfield-48+4*12+46-0;
    asm sty PF2; // 3
 
-   asm lda.a TEMPLATE_player0_color_latch;
+   asm lda.a TEMPLATE_object_x + 2;
    asm sta COLUP0;
 
    asm lda.a TEMPLATE_player0_height;
@@ -444,8 +473,8 @@ require void TEMPLATE_drawscreen(void) {
 
 
 
-   asm lda TEMPLATE_missile0_height; // 3
-   asm dcp TEMPLATE_missile0_y; // 5
+   asm lda TEMPLATE_player0_color_state; // 3
+   asm dcp TEMPLATE_player0_color_state + 1; // 5
    asm sbc TEMPLATE_kernel_scratch + 0;
    asm sta ENAM0; // 3
    asm jmp @endkerloop;

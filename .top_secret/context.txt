@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_094012.tar.gz
+    vcsc.20260726_182002.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1453,7 +1453,7 @@ The first unfinished item is the default next action.
                                          substeps pass from both source and staged
                                          installed toolchains.
 
-                                         [ ] 22i4b0. Establish a truly faithful
+                                         [x] 22i4b0. Establish a truly faithful
                                                     legacy baseline before trusting any
                                                     derived-kernel comparison. Select the
                                                     NTSC unbanked player-color standard
@@ -1487,7 +1487,7 @@ The first unfinished item is the default next action.
                                                                `player0colorstore` with
                                                                `missile0x`.
 
-                                                    [ ] 22i4b0b. Repair the template and
+                                                    [x] 22i4b0b. Repair the template and
                                                                retained-source audit fixture
                                                                against the pristine upstream BASIC ROM.
                                                                Model every selected-profile
@@ -1501,15 +1501,16 @@ The first unfinished item is the default next action.
 
                                                     Keep public
                                                     `05_faithful_legacy_static_test` and
-                                                    the renumbered examples 06-10, but
-                                                    treat example 05 as provisional until
-                                                    22i4b0b passes. From this point onward,
-                                                    derive and prove one transformation at
-                                                    a time—template wrapping, score
-                                                    extraction, opcode legalization,
-                                                    object extension, and line-budget
-                                                    changes must never again be combined
-                                                    into one untraceable conversion.
+                                                    the renumbered examples 06-10. Example
+                                                    05 is now the positively verified
+                                                    faithful monolithic baseline. From this
+                                                    point onward, derive and prove one
+                                                    transformation at a time—template
+                                                    wrapping, score extraction, opcode
+                                                    legalization, object extension, and
+                                                    line-budget changes must never again
+                                                    be combined into one untraceable
+                                                    conversion.
 
                                          [ ] 22i4b1. Add a pixel-accurate TIA raster
                                                     oracle for playfield and player
@@ -5230,3 +5231,37 @@ Before returning another modified archive:
 * This entry supersedes the sprite-validity claim in the 09:52 oracle entry. The
   next roadmap work remains 22i4b0b: reproduce stock RAM aliases and frame timing,
   then convert the known-gap comparison into positive equivalence.
+
+2026-07-26 11:41:52 PDT, complete faithful example-05 oracle equivalence
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b0b and restore example 05 as the faithful
+  monolithic Atari 2600 BASIC 1.9 player-color baseline. The uploaded example
+  had four independent defects: graphics/color macros reversed source-order
+  table bytes, the playfield lived in ROM instead of zero-page RAM, selected-
+  profile missile/color storage aliases were split, and the cycle-critical
+  visible loop landed on the wrong ROM page boundaries.
+* Preserve the stock aliases `player0colorstore = missile0x`, `player0color =
+  missile0height/missile0y`, and `player1color = missile1height/missile1y` with
+  source-level aliases/unions. Initialize disabled missile fields before
+  installing either color-table pointer so ordinary example setup cannot erase
+  them.
+* Make the 48-byte playfield RAM-backed and force all eight dynamic kernel loads
+  to zero-page-indexed `.zx` addressing. Retain source-order sprite and color
+  bytes because the two-line kernel indexes those tables downward itself.
+* Place the main loop at ROM low byte `$83`. Its ordinary BCC/BNE branches now
+  stay on-page, while the terminal BMI crosses exactly once as in stock bB.
+  This removes the former accumulating one-cycle-per-line drift and restores the
+  deliberate final transition cycle.
+* Repair the separately linked retained-source audit fixture and convert both
+  former known-gap regressions into positive comparisons. The pristine upstream
+  ROM, retained-source audit, and public example now agree on all 1,230 visible
+  TIA events and 42 stable 20,064-cycle/264-raw-line frames. Both players expose
+  all eight exact two-line graphics/color rows.
+* Update profile, example, oracle, and source-order documentation. Add structural
+  regression gates for the three RAM overlays, RAM playfield, eight `.zx`
+  accesses, and exactly one intentional BMI page crossing. No files are removed.
+* Verify 309/309 compile-only tests. The full end-to-end runner passed its first
+  174 tests before the execution window ended; an explicit final-eight run then
+  passed 8/8, covering all 182 end-to-end tests with no failures.
+* Leave 22i4b1a next: repair and screenshot-verify the player-color component's
+  first-row entry, then prove both special 192-line twelfth-row paths.

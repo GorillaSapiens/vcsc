@@ -5,15 +5,13 @@
    \_/  \___||___/ \___|
 ```
 
-# Provisional retained legacy player-color baseline
+# Faithful retained legacy player-color baseline
 
-This profile is a provisional retained-source baseline, not yet the external
-gold standard and not a redesigned gameplay component. It selects the retained
-legacy NTSC standard-kernel branches for P0, P1, Ball, per-row player colors,
-and the integrated six-digit score. It preserves the selected unofficial
-opcodes and instruction order, but the pristine upstream Atari 2600 BASIC 1.9
-cartridge has shown that the current VCSC state layout does not yet preserve
-all stock RAM aliases or the exact stable frame period.
+This profile is a compatibility baseline, not a redesigned gameplay component.
+It selects the retained NTSC standard-kernel branches for P0, P1, Ball, per-row
+player colors, and the integrated six-digit score. It preserves the original
+unofficial opcodes, instruction order, monolithic frame ownership, selected RAM
+aliases, zero-page playfield accesses, and branch page-cross timing.
 
 Instantiate it after `vcs.c26`:
 
@@ -21,24 +19,33 @@ Instantiate it after `vcs.c26`:
 template "kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 ```
 
-The application supplies page-contained `legacy_playfield[48]` and graphics and
-color tables, initializes the instance state, and repeatedly calls
+The application supplies RAM-backed `legacy_playfield[48]`, page-contained
+graphics and color tables, initializes the instance state, and repeatedly calls
 `legacy_drawscreen()`. Build with `-Wa,--illegals` and
 `faithful_legacy_playercolors.cfg`.
 
+Three stock aliasing rules are part of the source contract:
+
+```text
+player0colorstore = missile0x
+player0color      = missile0height/missile0y
+player1color      = missile1height/missile1y
+```
+
+Consequently, disabled missile height/Y fields must be initialized before the
+color-table pointers. Writing them afterward destroys those pointers. The
+playfield must remain in RAM because the kernel deliberately uses wrapped
+zero-page-indexed reads. The cycle-critical loop is placed at low byte `$83` so
+its ordinary branches remain on-page while the final `BMI` retains the one
+page-cross cycle present upstream.
+
 `faithful_legacy_playercolors_reference.s26` is a separately linked
-**retained-source audit**, not an independent gold oracle. The existing
-regression still usefully proves that the template matches that audit's visible
-TIA-write schedule and 20,140-cycle frame period.
+retained-source audit. It is not the independent oracle, but it now matches the
+external pristine upstream BASIC 1.9 ROM positively: 1,230 visible TIA events,
+20,064-cycle/264-raw-line frames, and 42 stable frames per ROM. The oracle and
+its complete provenance live under
+`test/oracles/pristine_basic_v1.9_playercolors/`.
 
-The actual external oracle lives under
-`test/oracles/pristine_basic_v1.9_playercolors/` and was built with pristine
-upstream BASIC 1.9 plus DASM 2.20.14.1. It currently exposes two stop-ship gaps:
-stock upstream BASIC has a 20,064-cycle (264 raw line) stable frame, and its
-first visible mismatch is HMM0 because `player0colorstore` aliases `missile0x`
-in the stock selected-profile RAM map. Values written to TIA strobe registers
-remain data-insensitive, but HMM0 is not a strobe and its value is behaviorally
-significant.
-
-Do not use this template as a derivation oracle until roadmap task 22i4b0b turns
-the known-gap regression into a positive comparison against the pristine ROM.
+This profile may be used as the faithful derivation baseline. Any later
+transformation—template wrapping, score extraction, opcode legalization, object
+extension, or line-budget change—must be introduced and proved separately.

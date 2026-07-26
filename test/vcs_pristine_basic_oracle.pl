@@ -82,22 +82,13 @@ $out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exa
    or die "unexpected sprite-oracle output: $out";
 $err eq '' or die "sprite-oracle stderr: $err";
 
-# First lock the independently measured frame-period gap.  Stock upstream BASIC
-# reaches a stable 264 raw lines while the retained-source VCSC audit reaches 265.
-($rc,$sig,$out,$err)=capture($harness,$oracle_bin,$reference_bin,'265','265');
-$rc==1 && !$sig or die "expected pristine upstream BASIC frame-period gap was not reproduced\n$out$err";
-$out eq '' or die "unexpected frame-gap stdout: $out";
-$err =~ /old frame 3 has 20064 cycles \(264 raw lines\), expected 20140 cycles \(265 raw lines\)/
-   or die "unexpected frame-gap diagnostic: $err";
+# The repaired retained-source audit must now match the independent upstream
+# cartridge positively.  The comparator checks every nonblank visible TIA write
+# (ignoring only hardware-insensitive strobe bus values) and stable frame periods.
+($rc,$sig,$out,$err)=capture($harness,$oracle_bin,$reference_bin,'264','264');
+$rc==0 && !$sig or die "retained audit differs from pristine upstream BASIC oracle\n$out$err";
+$out eq "vcs_faithful_legacy_compare ok: 1230 events and 42 stable frames per ROM\n"
+   or die "unexpected positive-oracle output: $out";
+$err eq '' or die "positive-oracle stderr: $err";
 
-# Compare each ROM against its actual stable period to expose the first visible
-# semantic mismatch.  The corrected upstream ROM now updates the aliased
-# player0colorstore/missile0x byte with real row colors, so the disabled M0
-# horizontal-position strobe moves before the retained VCSC audit does.
-($rc,$sig,$out,$err)=capture($harness,$oracle_bin,$reference_bin,'264','265');
-$rc==1 && !$sig or die "expected pristine upstream BASIC alias gap was not reproduced\n$out$err";
-$out eq '' or die "unexpected alias-gap stdout: $out";
-$err =~ /event 2 differs: old 6:40 12=f3, new 6:20 12=f1/
-   or die "unexpected alias-gap diagnostic: $err";
-
-print "vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; colored 8-row sprites and 264-line/alias gaps reproduced\n";
+print "vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; retained audit matches 1230 visible events and 264-line frames\n";

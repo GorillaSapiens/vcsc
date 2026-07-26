@@ -7,23 +7,45 @@ alias vcs_standard_OBJECT_BALL 4
 alias vcs_standard_PLAYER0_X vcs_standard_object_x[0]
 alias vcs_standard_PLAYER1_X vcs_standard_object_x[1]
 alias vcs_standard_BALL_X vcs_standard_object_x[4]
-alias vcs_standard_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
-alias vcs_standard_SPRITE_ROWS(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias vcs_standard_SPRITE_GLYPH(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
+alias vcs_standard_SPRITE_ROWS(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
 uint8_t vcs_standard_object_x[5];
+alias vcs_standard_player0_color_latch vcs_standard_object_x[2]
 uint8_t vcs_standard_player0_y;
 uint8_t vcs_standard_player1_y;
-uint8_t vcs_standard_missile1_height;
-uint8_t vcs_standard_missile1_y;
+
+struct vcs_standard_player1_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union vcs_standard_player1_color_alias {
+   uint8_t *colors;
+   vcs_standard_player1_missile_alias missile;
+};
+vcs_standard_player1_color_alias vcs_standard_player1_color_state;
+alias vcs_standard_player1_colors vcs_standard_player1_color_state.colors
+alias vcs_standard_missile1_height vcs_standard_player1_color_state.missile.height
+alias vcs_standard_missile1_y vcs_standard_player1_color_state.missile.y
+
 uint8_t vcs_standard_ball_y;
 uint8_t *vcs_standard_player0_graphics;
 uint8_t *vcs_standard_player1_graphics;
-uint8_t *vcs_standard_player0_colors;
-uint8_t *vcs_standard_player1_colors;
-uint8_t vcs_standard_player0_color_latch;
 uint8_t vcs_standard_player0_height;
 uint8_t vcs_standard_player1_height;
-uint8_t vcs_standard_missile0_height;
-uint8_t vcs_standard_missile0_y;
+
+struct vcs_standard_player0_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union vcs_standard_player0_color_alias {
+   uint8_t *colors;
+   vcs_standard_player0_missile_alias missile;
+};
+vcs_standard_player0_color_alias vcs_standard_player0_color_state;
+alias vcs_standard_player0_colors vcs_standard_player0_color_state.colors
+alias vcs_standard_missile0_height vcs_standard_player0_color_state.missile.height
+alias vcs_standard_missile0_y vcs_standard_player0_color_state.missile.y
+
 uint8_t vcs_standard_ball_height;
 uint8_t vcs_standard_score[3];
 uint8_t vcs_standard_score_color;
@@ -33,7 +55,7 @@ uint8_t vcs_standard_kernel_scratch[2];
 extern void vcs_standard_kernel_drawscreen(void);
 void vcs_standard_overscan_hook(void) {}
 
-page const uint8_t vcs_standard_playfield[48] := {
+uint8_t vcs_standard_playfield[48] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX......X_...X...._......X._X......X),
    VCS_PLAYFIELD_ROW(0bX...X..X_.....X.._..X....._X..X...X),
@@ -58,10 +80,10 @@ void main(void) {
    vcs_standard_object_x[2]:=0; vcs_standard_object_x[3]:=0;
    vcs_standard_player0_y:=78; vcs_standard_player1_y:=42; vcs_standard_ball_y:=45;
    vcs_standard_player0_graphics:=p0g; vcs_standard_player1_graphics:=p1g;
-   vcs_standard_player0_colors:=p0c; vcs_standard_player1_colors:=p1c;
    vcs_standard_player0_height:=7; vcs_standard_player1_height:=7; vcs_standard_ball_height:=3;
    vcs_standard_missile0_height:=0; vcs_standard_missile1_height:=0;
    vcs_standard_missile0_y:=0; vcs_standard_missile1_y:=0;
+   vcs_standard_player0_colors:=p0c; vcs_standard_player1_colors:=p1c;
    vcs_standard_score[0]:=0x21; vcs_standard_score[1]:=0x07; vcs_standard_score[2]:=0x21;
    vcs_standard_score_color:=0x0e; vcs_standard_playfield_position:=8;
    VBLANK:=2; TIM64T:=0;

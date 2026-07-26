@@ -3,7 +3,7 @@ include "playfield.c26"
 
 template "kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 
-page const uint8_t legacy_playfield[48] := {
+uint8_t legacy_playfield[48] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX......X_...X...._......X._X......X),
    VCS_PLAYFIELD_ROW(0bX...X..X_.....X.._..X....._X..X...X),
@@ -28,10 +28,11 @@ void main(void) {
    legacy_object_x[2]:=0; legacy_object_x[3]:=0;
    legacy_player0_y:=78; legacy_player1_y:=42; legacy_ball_y:=45;
    legacy_player0_graphics:=p0g; legacy_player1_graphics:=p1g;
-   legacy_player0_colors:=p0c; legacy_player1_colors:=p1c;
    legacy_player0_height:=7; legacy_player1_height:=7; legacy_ball_height:=3;
+   // These fields overlay the color pointers. Initialize them first.
    legacy_missile0_height:=0; legacy_missile1_height:=0;
    legacy_missile0_y:=0; legacy_missile1_y:=0;
+   legacy_player0_colors:=p0c; legacy_player1_colors:=p1c;
    legacy_score[0]:=0x21; legacy_score[1]:=0x07; legacy_score[2]:=0x21;
    legacy_score_color:=0x0e; legacy_playfield_position:=8;
    VBLANK:=2; TIM64T:=0;
