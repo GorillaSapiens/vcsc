@@ -1,5 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_pristine_basic_oracle.pl @REPO@ @TMP@
 # phase: e2e
 # timeout: 5
-# expectstdout: vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; 264-line/HMM0 gaps reproduced
+# expectstdout: vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; colored 8-row sprites and 264-line/alias gaps reproduced
 # expectexit: 0

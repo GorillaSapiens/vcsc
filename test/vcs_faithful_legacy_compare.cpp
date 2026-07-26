@@ -190,6 +190,67 @@ private:
 TraceMachine *TraceMachine::active_ = nullptr;
 } // namespace
 
+
+void validate_sprite_oracle(const std::vector<Event> &events) {
+   struct RowWrite { uint64_t line; uint8_t value; };
+   std::vector<RowWrite> p0_rows;
+   std::vector<RowWrite> p1_rows;
+   for (const Event &event : events) {
+      if (event.line >= 210 || event.value == 0) continue;
+      if (event.address == 0x001b) p0_rows.push_back({event.line, event.value});
+      if (event.address == 0x001c) p1_rows.push_back({event.line, event.value});
+   }
+   const uint8_t expected_p0[] = {0x3c,0x66,0x66,0x66,0x7e,0x66,0x66,0x3c};
+   const uint8_t expected_p1[] = {0x7c,0x66,0x66,0x66,0x7c,0x66,0x66,0x7c};
+   if (p0_rows.size() != 8 || p1_rows.size() != 8) {
+      std::fprintf(stderr,
+         "vcs_faithful_legacy_compare: sprite row counts are P0=%zu P1=%zu; expected 8 each\n",
+         p0_rows.size(), p1_rows.size());
+      std::exit(1);
+   }
+   for (size_t i = 0; i < 8; ++i) {
+      if (p0_rows[i].value != expected_p0[i] || p1_rows[i].value != expected_p1[i]) {
+         std::fprintf(stderr,
+            "vcs_faithful_legacy_compare: sprite row %zu is P0=%02x P1=%02x; expected %02x/%02x\n",
+            i, p0_rows[i].value, p1_rows[i].value, expected_p0[i], expected_p1[i]);
+         std::exit(1);
+      }
+      if (i && (p0_rows[i].line != p0_rows[i-1].line + 2 ||
+                p1_rows[i].line != p1_rows[i-1].line + 2)) {
+         std::fprintf(stderr,
+            "vcs_faithful_legacy_compare: sprite row spacing changed at row %zu\n", i);
+         std::exit(1);
+      }
+   }
+
+   std::vector<uint8_t> p0_colors;
+   std::vector<uint8_t> p1_colors;
+   for (const Event &event : events) {
+      if (event.address == 0x0006 && event.line >= p0_rows.front().line &&
+          event.line <= p0_rows.back().line) p0_colors.push_back(event.value);
+      if (event.address == 0x0007 && event.line >= p1_rows.front().line &&
+          event.line <= p1_rows.back().line) p1_colors.push_back(event.value);
+   }
+   const uint8_t expected_p0_colors[] = {0x3e,0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e};
+   const uint8_t expected_p1_colors[] = {0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce};
+   if (p0_colors.size() != 8 || p1_colors.size() != 8) {
+      std::fprintf(stderr,
+         "vcs_faithful_legacy_compare: sprite color row counts are P0=%zu P1=%zu; expected 8 each\n",
+         p0_colors.size(), p1_colors.size());
+      std::exit(1);
+   }
+   for (size_t i = 0; i < 8; ++i) {
+      if (p0_colors[i] != expected_p0_colors[i] || p1_colors[i] != expected_p1_colors[i]) {
+         std::fprintf(stderr,
+            "vcs_faithful_legacy_compare: sprite color row %zu is P0=%02x P1=%02x; expected %02x/%02x\n",
+            i, p0_colors[i], p1_colors[i], expected_p0_colors[i], expected_p1_colors[i]);
+         std::exit(1);
+      }
+   }
+   std::printf(
+      "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n");
+}
+
 uint64_t parse_raw_lines(const char *text) {
    char *end = nullptr;
    const unsigned long value = std::strtoul(text, &end, 10);
@@ -201,9 +262,17 @@ uint64_t parse_raw_lines(const char *text) {
 }
 
 int main(int argc, char **argv) {
+   if (argc == 4 && std::strcmp(argv[3], "--sprites") == 0) {
+      TraceMachine machine(argv[1]);
+      const std::vector<Event> events =
+         machine.run(parse_raw_lines(argv[2]), "oracle");
+      validate_sprite_oracle(events);
+      return 0;
+   }
    if (argc != 5) {
       std::fprintf(stderr,
-         "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n", argv[0]);
+         "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n"
+         "       %s ROM.bin RAW_LINES --sprites\n", argv[0], argv[0]);
       return 2;
    }
    TraceMachine old_machine(argv[1]);

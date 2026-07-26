@@ -5203,3 +5203,28 @@ Before returning another modified archive:
   wording from "raw retained kernel" to "retained-source audit" and document
   that example 05 remains provisional until the template matches the pristine
   upstream BASIC ROM positively. No files are removed.
+
+2026-07-26 10:54:56 PDT, repair pristine BASIC player-color oracle
+-------------------------------------------------------------------------------
+* Reproduce the reported black sprites in Stella 7.0. The first oracle source
+  installed `player0color` and `player1color`, then zeroed the aliased
+  `missile0height/missile0y` and `missile1height/missile1y` bytes. Stock bB maps
+  those four bytes directly over the two color-table pointers, so both pointers
+  became `$0000`; the ROM was reproducible but visually invalid.
+* Move all disabled-missile initialization before the two color declarations so
+  the declarations install the final pointers. Rebuild twice from pristine bB
+  v1.9 and DASM 2.20.14.1; the corrected 4096-byte ROM is reproducible at
+  SHA-256 `eaae118b4770b7d7e45a5f0ca958ef1c1c54e51d8bc992dba293c09d753fc364`.
+* Add a headless Stella 7.0 reference capture. Both players now use the intended
+  row colors. All eight bitmap rows are present for P0 and P1, with each source
+  row occupying two raw scanlines in the stock two-line kernel; the earlier
+  apparent missing rows were black-on-blue camouflage rather than lost GRP data.
+* Extend `vcs_faithful_legacy_compare` with an oracle-only sprite mode and make
+  `vcs_pristine_basic_oracle.test` lock the exact eight-row P0/P1 graphics,
+  two-line row spacing, and row-color sequences. Update provenance and known-gap
+  diagnostics. The corrected oracle still measures 264 raw lines versus the
+  retained VCSC audit's 265, and now exposes the expected disabled-M0 positioning
+  difference caused by `player0colorstore = missile0x` before deeper comparison.
+* This entry supersedes the sprite-validity claim in the 09:52 oracle entry. The
+  next roadmap work remains 22i4b0b: reproduce stock RAM aliases and frame timing,
+  then convert the known-gap comparison into positive equivalence.

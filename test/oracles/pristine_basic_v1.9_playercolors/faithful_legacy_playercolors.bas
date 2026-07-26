@@ -43,6 +43,13 @@ end
  %01111100
 end
 
+ missile0x=0
+ missile1x=0
+ missile0height=0
+ missile1height=0
+ missile0y=0
+ missile1y=0
+
  player0color:
  $3e
  $4e
@@ -71,18 +78,12 @@ end
  player0x=44
  player1x=108
  ballx=78
- missile0x=0
- missile1x=0
  player0y=78
  player1y=42
  bally=45
  player0height=7
  player1height=7
  ballheight=3
- missile0height=0
- missile1height=0
- missile0y=0
- missile1y=0
  sc0=$21
  sc1=$07
  sc2=$21

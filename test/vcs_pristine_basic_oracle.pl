@@ -29,9 +29,9 @@ my $oracle_bin=File::Spec->catfile($oracle_dir,'faithful_legacy_playercolors.bin
 my $source=read_file($oracle_src);
 my $rom=read_file($oracle_bin);
 length($rom)==4096 or die "pristine upstream BASIC oracle is not exactly 4096 bytes\n";
-sha256_hex($source) eq '8daaeb4eb35131a5beb2c93d2e2e4732f09c86c97d83763b627d6be7c4c130d3'
+sha256_hex($source) eq 'f8572691ca8e8ab301f369f865934f589634cfe35543c8d53baa623c69f82303'
    or die "pristine upstream BASIC source hash changed\n";
-sha256_hex($rom) eq '573cc86c7ba12c0626fb73678480721e043e3468795151635beaae8f7f3e0b6a'
+sha256_hex($rom) eq 'eaae118b4770b7d7e45a5f0ca958ef1c1c54e51d8bc992dba293c09d753fc364'
    or die "pristine upstream BASIC ROM hash changed\n";
 $source =~ /^\s*const\s+playercolors\s*=\s*1\s*$/m
    or die "oracle source no longer selects playercolors\n";
@@ -39,6 +39,14 @@ $source =~ /^\s*const\s+player1colors\s*=\s*1\s*$/m
    or die "oracle source no longer selects player1colors\n";
 $source !~ /^\s*set\s+kernel_options\s+playercolors\s*$/m
    or die "oracle source uses the upstream compiler's rejected setter combination\n";
+for my $pair ([qw(missile0height player0color)], [qw(missile0y player0color)],
+              [qw(missile1height player1color)], [qw(missile1y player1color)]) {
+   my($assignment,$table)=@$pair;
+   my $a=index($source," $assignment=0");
+   my $t=index($source," $table:\n");
+   $a >= 0 && $t >= 0 && $a < $t
+      or die "$assignment must be initialized before $table installs its aliased pointer\n";
+}
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
@@ -68,6 +76,12 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 $rc==0 && !$sig or die "oracle comparator build failed\n$out$err";
 $out eq '' && $err eq '' or die "oracle comparator build wrote output\n$out$err";
 
+($rc,$sig,$out,$err)=capture($harness,$oracle_bin,'264','--sprites');
+$rc==0 && !$sig or die "pristine upstream BASIC sprite oracle failed\n$out$err";
+$out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n"
+   or die "unexpected sprite-oracle output: $out";
+$err eq '' or die "sprite-oracle stderr: $err";
+
 # First lock the independently measured frame-period gap.  Stock upstream BASIC
 # reaches a stable 264 raw lines while the retained-source VCSC audit reaches 265.
 ($rc,$sig,$out,$err)=capture($harness,$oracle_bin,$reference_bin,'265','265');
@@ -77,12 +91,13 @@ $err =~ /old frame 3 has 20064 cycles \(264 raw lines\), expected 20140 cycles \
    or die "unexpected frame-gap diagnostic: $err";
 
 # Compare each ROM against its actual stable period to expose the first visible
-# semantic mismatch.  Address $22 is HMM0.  Upstream BASIC writes $60 because
-# its player0colorstore byte aliases missile0x; the VCSC audit writes $70.
+# semantic mismatch.  The corrected upstream ROM now updates the aliased
+# player0colorstore/missile0x byte with real row colors, so the disabled M0
+# horizontal-position strobe moves before the retained VCSC audit does.
 ($rc,$sig,$out,$err)=capture($harness,$oracle_bin,$reference_bin,'264','265');
-$rc==1 && !$sig or die "expected pristine upstream BASIC HMM0 gap was not reproduced\n$out$err";
-$out eq '' or die "unexpected HMM0-gap stdout: $out";
-$err =~ /event 7 differs: old 9:46 22=60, new 9:46 22=70/
-   or die "unexpected HMM0-gap diagnostic: $err";
+$rc==1 && !$sig or die "expected pristine upstream BASIC alias gap was not reproduced\n$out$err";
+$out eq '' or die "unexpected alias-gap stdout: $out";
+$err =~ /event 2 differs: old 6:40 12=f3, new 6:20 12=f1/
+   or die "unexpected alias-gap diagnostic: $err";
 
-print "vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; 264-line/HMM0 gaps reproduced\n";
+print "vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; colored 8-row sprites and 264-line/alias gaps reproduced\n";
