@@ -24,6 +24,8 @@ context.txt and figure out what to do next":
 
    Exception: when the user explicitly requests erasing a proper name from the
    project, obsolete paths containing that name are not retained in the ledger.
+6. When creating tarballs to hand back, use `date -u "+%Y%m%d_%H%M%S"` to
+   generate a filename with a timestamp.
 
 Project goal
 ------------

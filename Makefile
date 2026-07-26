@@ -35,6 +35,7 @@ tools: clean
 .PHONY: exam
 
 exam:
+	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 	@for each in examples/*; do \
 		if [ -d "$$each" ]; then \
 			$(MAKE) -C "$$each" clean && \
@@ -209,7 +210,7 @@ uninstall-data:
 package: tools
 	rm -rf $(PACKAGE_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
-	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y-%m-%dT%H:%M:%SZ"`.tar.gz .
+	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y%m%d_%H%M%S"`.tar.gz .
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
@@ -369,7 +370,7 @@ installcheck: tools
 
 tar:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz
-	git ls-files | tar -czv -T - -f /tmp/`basename $$(git rev-parse --show-toplevel)`.`date "+%Y%m%d_%H%M%S"`.tar.gz
+	git ls-files | tar -czv -T - -f /tmp/`basename $$(git rev-parse --show-toplevel)`.`date -u "+%Y%m%d_%H%M%S"`.tar.gz
 
 unit: tools
 	@$(MAKE) --no-print-directory -C ./test unit
