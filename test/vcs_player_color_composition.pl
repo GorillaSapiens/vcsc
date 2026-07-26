@@ -49,8 +49,8 @@ for my $mode (qw(static motion)) {
       without_usage($out) eq '' && $err eq '' or die "$key build wrote output\n$out$err";
       -s $bin == 4096 or die "$key is not a 4K ROM\n";
       my $source=read_file($src);
-      my $game_first=$source =~ /game_draw\(\);\s*score_draw\(\);/s;
-      my $score_first=$source =~ /score_draw\(\);.*game_draw\(\);/s;
+      my $game_first=$source =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s;
+      my $score_first=$source =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s;
       ($game_first xor $score_first) or die "$key does not contain exactly one draw order\n";
       ($order eq 'above' ? $score_first : $game_first)
          or die "$key draw order does not match its name\n";

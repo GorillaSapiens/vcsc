@@ -386,7 +386,9 @@ Called once per frame in the application's selected visible-component order.
 
 Expected contract:
 
-- enters at CPU cycle zero of its first visible scanline;
+- enters at the target's documented visible-component phase; for the shared
+  NTSC scheduler this is CPU cycle 3, supplied by `vcs_ntsc_end_vblank()` for
+  the first component or `vcs_ntsc_component_handoff()` between components;
 - VBLANK is clear;
 - produces exactly `TEMPLATE_VISIBLE_SCANLINES` scanlines;
 - exits at CPU cycle zero of the following scanline;

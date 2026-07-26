@@ -302,12 +302,12 @@ RAM map, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
 score orders, and static/motion fixtures. It must be assembled with
 `-Wa,--illegals`.
 
-Only two `AXS #252` row-mask advance sites and four zero-page unofficial NOP
-sites survived equivalence testing. The other two tempting `AXS` substitutions
+Only two `AXS #252` row-mask advance sites and one zero-page unofficial NOP
+site survived equivalence testing. The other two tempting `AXS` substitutions
 were rejected because they changed live flag behavior and prevented complete
 frames. Compensating official NOPs retain every accepted site's cycle boundary.
 After the terminal-row cleanup repair, the maintained smoke cartridges measure
-1429 linked ROM bytes for both official and unofficial components: **0 bytes
+1605 linked ROM bytes for both official and unofficial components: **0 bytes
 saved**. Five pairwise raster/timing
 comparisons plus the existing 320-frame composition oracle enforce that result.
 
@@ -333,15 +333,18 @@ objects, map sizes, and all four lifecycle contracts.
 
 `poison_debug_score/poison_debug_score.c26` is the maintained adversarial
 11-line score-profile substitute used by the 22i4b correctness gate. It owns
-zero RAM and deliberately exits with hostile TIA state: red `COLUBK`, patterned
-playfield registers, enabled and reflected player/missile/Ball graphics,
-vertical delay, non-default copy/size modes, fine motion, coarse position
-strobes, and HMOVE. Its values are deterministic so a failure reproduces.
+one caller-selected exit-background byte and deliberately exits with hostile
+P0/P1 graphics, color, reflection, vertical-delay, copy/size, fine-motion,
+coarse-position, and HMOVE state. It preserves playfield, missile, and Ball
+geometry, matching the ownership boundary of the production P0/P1 score. Its
+values are deterministic so a failure reproduces.
 
 This probe does not relax the component contract. It owns exactly eleven WSYNC
 boundaries and no frame, timer, or collision-clear hardware. A big gameplay
-component placed after it must establish every register and position required
-by its own raster. A score component placed after gameplay must likewise
-establish its own state. Passing only after the friendly centered score is not
-sufficient evidence of composability.
+component placed after it must re-establish every P0/P1 register and position
+required by its own raster. A score component placed after gameplay must do the
+same. Adjacent visible components use `vcs_ntsc_component_handoff()` to convert
+the preceding component's cycle-zero return into the canonical cycle-3 entry.
+The maintained player-color fixtures prove both orders over all X coordinates,
+including horizontal clipping and terminal gameplay lines.
 

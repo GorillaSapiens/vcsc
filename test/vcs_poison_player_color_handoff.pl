@@ -54,8 +54,10 @@ for my $name (sort keys %cases) {
    my $map=read_file($mapfile);
    $map !~ /(?:score_font|score_score|score_pointers|score_row|score_delayed)/
       or die "$name linked production score state\n";
+   $map =~ /BSS\.__vcsc_object\$poison_exit_background\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/
+      or die "$name does not allocate exactly the poison background handoff byte\n";
    $map !~ /\bpoison_(?:score|pointers|row|delayed|workspace)\b/
-      or die "$name allocated poison instance RAM\n";
+      or die "$name allocated unexpected poison instance RAM\n";
    $built{$name}=[$bin,$map];
 }
 
@@ -98,23 +100,28 @@ for my $name (sort keys %cases) {
          or die "unexpected $name output: $out";
    }
    else {
-      $out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n"
+      $out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n"
          or die "unexpected $name output: $out";
    }
    $err eq '' or die "$name player harness stderr: $err";
 }
 
-# This is intentionally a diagnostic gate, not a false declaration of full
-# composability. The score-above path still positions gameplay during VBLANK,
-# then lets the hostile score overwrite RESP/HMxx/HMOVE before game_draw().
+# The formerly open score-above defect is now a positive source and runtime
+# contract. Adjacent components use the explicit phase bridge, and gameplay
+# re-establishes P0/P1 coarse position, fine motion, NUSIZ, and HMOVE before
+# the timed raster begins. The simulator checks P0/P1/Ball position and clipped
+# pixel endpoints for all three hostile compositions above.
 my $above=read_file(File::Spec->catfile($fixtures,'player_color_181_above.c26'));
-$above =~ /game_vblank\(\);.*poison_draw\(\);.*game_draw\(\);/s
-   or die "score-above fixture no longer exercises the hostile position handoff\n";
+$above =~ /poison_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
+   or die "score-above fixture is missing the explicit component handoff\n";
+my $below=read_file(File::Spec->catfile($fixtures,'player_color_181_below.c26'));
+$below =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*poison_draw\(\);/s
+   or die "score-below fixture is missing the explicit component handoff\n";
 my $game=read_file(File::Spec->catfile($vcs,qw(kernels player_color_181 player_color_181.c26)));
-$game =~ /require inline void TEMPLATE_draw\(void\) \{(.*?)\n\}/s
-   or die "could not isolate player-color draw source\n";
-my $draw=$1;
-$draw !~ /\b(?:RESP0|RESP1|RESBL|HMP0|HMP1|HMBL|HMOVE)\b/
-   or die "score-above position restoration was added; replace this known-gap probe with a positive pixel test\n";
+for my $required (qw(RESP0 RESP1 HMP0 HMP1 HMOVE NUSIZ0 NUSIZ1)) {
+   $game =~ /\b\Q$required\E\b/ or die "gameplay handoff is missing $required\n";
+}
+$game =~ /TEMPLATE_player_position_table\s*\[\s*160\s*\]/
+   or die "gameplay handoff is missing its full-range packed position table\n";
 
-print "poison player-color probes ok; score-above position restoration remains open\n";
+print "poison player-color handoff ok: hostile score composition preserves P0/P1/BL positions and pixel endpoints\n";

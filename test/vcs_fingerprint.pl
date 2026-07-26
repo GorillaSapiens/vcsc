@@ -185,15 +185,15 @@ $arr_count==4 or die "generated assembly has $arr_count named ARR probes, expect
 
 $generated !~ /\bjsr\s+display_(?:init|vblank|draw|overscan)\b/
    or die "display lifecycle unexpectedly emitted callable boundaries\n";
-require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+bit display_pointers\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11/s,
-           'component horizontal positioning sequence changed');
-my ($loop)=$generated =~ /(\@inline_\d+_asm_display_draw_loop:.*?bpl \@inline_\d+_asm_display_draw_loop)/s;
+require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
+           'component per-draw horizontal positioning sequence changed');
+my ($loop)=$generated =~ /(\@inline_\d+_asm_display_draw_loop:.*?bpl\.same \@inline_\d+_asm_display_draw_loop)/s;
 defined($loop) or die "generated assembly is missing the instantiated display row loop\n";
 $loop !~ /\bjsr\b/ or die "timed fingerprint row loop contains a call\n";
 $loop !~ /\b(?:lax|tsx|txs)\b/ or die "fingerprint display uses an unofficial or stack-pointer opcode\n";
 my @actual=map { s/^\s+|\s+$//gr } grep { length } split(/\n/,$loop);
 $actual[0] =~ s/^\@inline_\d+_asm_display_draw_loop:/\@loop:/;
-$actual[-1] =~ s/bpl \@inline_\d+_asm_display_draw_loop/bpl \@loop/;
+$actual[-1] =~ s/bpl\.same \@inline_\d+_asm_display_draw_loop/bpl.same \@loop/;
 my @expected=(
    '@loop:', 'ldy display_row', 'lda (display_pointers),y', 'sta $1B',
    'sta $02', 'lda (display_pointers+$2),y', 'sta $1C',
@@ -202,7 +202,7 @@ my @expected=(
    'lda (display_pointers+$8),y', 'tax',
    'lda (display_pointers+$a),y', 'tay', 'lda display_delayed',
    'sta $1C', 'stx $1B', 'sty $1C', 'sta $1B',
-   'dec display_row', 'bpl @loop',
+   'dec display_row', 'bpl.same @loop',
 );
 join("\n",@actual) eq join("\n",@expected)
    or die "instantiated fingerprint row loop changed:\n".join("\n",@actual)."\n";

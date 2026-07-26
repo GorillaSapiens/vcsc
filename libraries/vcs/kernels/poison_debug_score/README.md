@@ -7,11 +7,11 @@
 
 # Poison debug score kernel
 
-`poison_debug_score.c26` is an adversarial eleven-visible-line component for
-finding hidden TIA-state coupling.  It has the same lifecycle shape and visible
-height as the current centered score mini-kernel, but it deliberately renders a
-red diagnostic band and exits with deterministic hostile playfield, player,
-missile, Ball, reflection, vertical-delay, size/copy, position, and HMOVE state.
+`poison_debug_score.c26` is an adversarial eleven-visible-line score-profile
+component for finding hidden TIA-state coupling. It renders a bright red
+diagnostic band and leaves deterministic hostile P0/P1 color, graphics,
+reflection, vertical-delay, copy/size, coarse-position, fine-motion, and HMOVE
+state.
 
 Instantiate it after `vcs.c26`:
 
@@ -19,11 +19,22 @@ Instantiate it after `vcs.c26`:
 template "kernels/poison_debug_score/poison_debug_score.c26" as poison
 ```
 
-It owns no RAM, score value, font, frame register, RIOT timer, or collision-latch
-clear.  `poison_draw()` consumes exactly eleven visible scanlines and returns at
-cycle zero of the following line.  The exit state is intentionally *not* a
-normal component handoff guarantee; the whole point is to force the following
-component to establish every TIA register and position it actually requires.
+The component uses one public RAM byte:
 
-The patterns are fixed rather than random.  A failure must be reproducible on
-the next run, not disappear because the fuzzer rolled a friendlier number.
+```c
+poison_exit_background := VCS_NTSC_DARK_BLUE;
+```
+
+It restores that background before returning, so red is confined to its own
+band. `poison_draw()` consumes exactly eleven visible scanlines and returns at
+cycle zero. Use `vcs_ntsc_component_handoff()` before invoking another visible
+component.
+
+The poison kernel owns and trashes P0/P1 state because an actual score
+mini-kernel owns those resources. It deliberately preserves playfield,
+missiles, and Ball geometry. Before its HMOVE it zeros HMM0, HMM1, and HMBL, so
+its hostile player motion cannot move those preserved objects. It never owns
+VSYNC, VBLANK, a RIOT timer, CXCLR, a score value, or a font.
+
+The patterns are fixed rather than random. A failure must reproduce on the next
+run, not vanish because the fuzzer rolled a friendlier number.

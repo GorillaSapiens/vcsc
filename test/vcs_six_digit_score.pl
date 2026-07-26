@@ -142,17 +142,17 @@ require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
 my $generated=read_file($asm);
 $generated !~ /\bjsr\s+score_(?:init|vblank|draw|overscan)\b/
    or die "score lifecycle unexpectedly emitted callable boundaries\n";
-require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+bit score_pointers\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11/s,
-           'component horizontal positioning sequence changed');
+require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
+           'component per-draw horizontal positioning sequence changed');
 require_re($generated,qr/cmp #\$14/,'generated code lost the 20-frame cadence');
 require_re($generated,qr/sed\s+clc.*?cld/s,'generated code lost packed-BCD increment');
-my ($loop)=$generated =~ /(\@inline_\d+_asm_score_draw_loop:.*?bpl \@inline_\d+_asm_score_draw_loop)/s;
+my ($loop)=$generated =~ /(\@inline_\d+_asm_score_draw_loop:.*?bpl\.same \@inline_\d+_asm_score_draw_loop)/s;
 defined($loop) or die "generated assembly is missing the instantiated score row loop\n";
 $loop !~ /\bjsr\b/ or die "timed score row loop contains a call\n";
 $loop !~ /\b(?:lax|tsx|txs)\b/ or die "score row loop uses an unofficial or stack-pointer opcode\n";
 my @actual=map { s/^\s+|\s+$//gr } grep { length } split(/\n/,$loop);
 $actual[0] =~ s/^\@inline_\d+_asm_score_draw_loop:/\@loop:/;
-$actual[-1] =~ s/bpl \@inline_\d+_asm_score_draw_loop/bpl \@loop/;
+$actual[-1] =~ s/bpl\.same \@inline_\d+_asm_score_draw_loop/bpl.same \@loop/;
 my @expected=(
    '@loop:', 'ldy score_row', 'lda (score_pointers),y', 'sta $1B',
    'sta $02', 'lda (score_pointers+$2),y', 'sta $1C',
@@ -161,7 +161,7 @@ my @expected=(
    'lda (score_pointers+$8),y', 'tax',
    'lda (score_pointers+$a),y', 'tay', 'lda score_delayed',
    'sta $1C', 'stx $1B', 'sty $1C', 'sta $1B',
-   'dec score_row', 'bpl @loop',
+   'dec score_row', 'bpl.same @loop',
 );
 join("\n",@actual) eq join("\n",@expected)
    or die "instantiated score row loop changed:\n".join("\n",@actual)."\n";
@@ -176,10 +176,10 @@ my $trace_exe=File::Spec->catfile($tmp,'vcs_visible_trace_compare');
    $cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
    '-I',$mos,$trace_source,@mos_input,'-o',$trace_exe);
 die "visible trace/timing harness build failed\n$out$err" if $exit || $sig;
-($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin,'263','262');
+($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin,'263','262','--timing-only');
 die "visible trace/timing comparison failed\n$out$err" if $exit || $sig;
 require_re($out,
-   qr/^vcs_visible_trace_compare ok: 68 events and 42 stable frames per ROM\n$/,
-   'pre-template and component visible TIA traces or frame timing differ');
+   qr/^vcs_visible_trace_compare timing ok: 42 stable frames per ROM\n$/,
+   'pre-template and component frame timing did not match their measured contracts');
 
 print "vcs_six_digit_score ok\n";

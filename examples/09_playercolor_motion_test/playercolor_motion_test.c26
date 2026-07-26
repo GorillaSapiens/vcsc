@@ -36,8 +36,6 @@ page const uint8_t p1_graphics[8] := {
 void configure_game_frame(void) {
    COLUPF := 0x2e;
    CTRLPF := 0x21;
-   NUSIZ0 := 0x20;
-   NUSIZ1 := 0x20;
 }
 
 void initialize_scene(void) {
@@ -45,6 +43,8 @@ void initialize_scene(void) {
    COLUBK := 0x84;
    game_PLAYER0_X := 0;
    game_PLAYER1_X := 159;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
    game_BALL_X := 80;
    game_player0_y := 18;
    game_player1_y := 78;
@@ -66,12 +66,15 @@ alias DIRECTION_BALL 0x04
 uint8_t motion_directions := 0x05;
 
 inline void update_motion(void) {
-   asm ldx #4;
+   // Only P0, P1, and Ball are public position slots. object_x[2:3] retain
+   // NUSIZ values for the score-to-gameplay handoff.
+   asm ldx #2;
    asm @motion_loop:;
+   asm ldy.ax @motion_object_offsets,x;
    asm lda motion_directions;
    asm and.ax @motion_direction_bits,x;
    asm beq @motion_left;
-   asm lda game_object_x,x;
+   asm lda game_object_x,y;
    asm cmp.ax @motion_highs,x;
    asm bcc @motion_add;
    asm lda #159;
@@ -81,7 +84,7 @@ inline void update_motion(void) {
    asm adc.ax @motion_speeds,x;
    asm jmp @motion_store;
    asm @motion_left:;
-   asm lda game_object_x,x;
+   asm lda game_object_x,y;
    asm cmp.ax @motion_speeds,x;
    asm bcc @motion_zero;
    asm beq @motion_zero;
@@ -91,22 +94,24 @@ inline void update_motion(void) {
    asm @motion_zero:;
    asm lda #0;
    asm @motion_reverse:;
-   asm tay;
+   asm pha;
    asm lda motion_directions;
    asm eor.ax @motion_direction_bits,x;
    asm sta motion_directions;
-   asm tya;
+   asm pla;
    asm @motion_store:;
-   asm sta game_object_x,x;
+   asm sta game_object_x,y;
    asm dex;
    asm bpl @motion_loop;
    asm jmp @motion_done;
+   asm @motion_object_offsets:;
+   asm .byte 0,1,4;
    asm @motion_direction_bits:;
-   asm .byte $01,$02,$00,$00,$04;
+   asm .byte $01,$02,$04;
    asm @motion_speeds:;
-   asm .byte $01,$05,$00,$00,$07;
+   asm .byte $01,$05,$07;
    asm @motion_highs:;
-   asm .byte $9e,$9a,$ff,$ff,$98;
+   asm .byte $9e,$9a,$98;
    asm @motion_done:;
 }
 
@@ -117,9 +122,10 @@ void main(void) {
       vcs_ntsc_begin_vblank();
       game_vblank();
       score_vblank();
-      vcs_ntsc_end_vblank();
       configure_game_frame();
+      vcs_ntsc_end_vblank();
       game_draw();
+      vcs_ntsc_component_handoff();
       score_draw();
       vcs_ntsc_begin_overscan();
       game_overscan();

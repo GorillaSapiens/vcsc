@@ -8,11 +8,14 @@
 // must define the shared page-contained score_font table.  Each instance owns
 // its score, six 16-bit glyph pointers, row counter, and delayed glyph byte.
 //
-// Visible contract: enter TEMPLATE_draw at cycle zero with VBLANK clear.  It
-// consumes exactly eleven scanlines and returns at cycle zero of the following
-// line.  It owns P0/P1 graphics, colors, VDEL, NUSIZ, horizontal motion, and
-// RESP0/RESP1 while drawing.  It flushes GRP0/GRP1 and disables VDEL before
-// returning.  It never touches VSYNC, VBLANK, the RIOT timer, or collision
+// Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
+// VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
+// of the following line. Use vcs_ntsc_component_handoff() before an adjacent
+// visible component. It owns P0/P1 graphics, colors, VDEL, NUSIZ, horizontal
+// motion, and
+// RESP0/RESP1 while drawing. It may leave all of that P0/P1 state clobbered.
+// It preserves playfield, missile, and Ball state, flushes GRP0/GRP1, and
+// disables player VDEL before returning. It never touches VSYNC, VBLANK, the RIOT timer, or collision
 // latches.  A/X/Y and arithmetic flags are clobbered; hardware stack depth is
 // unchanged at lifecycle boundaries.
 
@@ -98,14 +101,20 @@ static inline void TEMPLATE_prepare_pointers(void) {
 }
 
 require inline void TEMPLATE_init(void) {
-   // Horizontal positions persist, so perform this sequence once while VBLANK
-   // is asserted. The RESP write cycle is part of the component contract.
-   WSYNC := 0;
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Line one re-establishes the score's fixed P0/P1 geometry every time it is
+   // invoked. This makes both score-above and score-below composition legal.
    asm lda #$03;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
    asm lda #$0e;
-   asm bit TEMPLATE_pointers;
    asm sta COLUP0;
    asm sta COLUP1;
    asm sta HMCLR;
@@ -116,19 +125,11 @@ require inline void TEMPLATE_init(void) {
    asm nop;
    asm sta RESP0;
    asm sta RESP1;
-   WSYNC := 0;
-   HMOVE := 0;
-   TEMPLATE_prepare_pointers();
-}
+   asm sta WSYNC;
 
-require inline void TEMPLATE_vblank(void) {
-   TEMPLATE_prepare_pointers();
-}
-
-require inline void TEMPLATE_draw(void) {
-   // Anchor setup to a fresh scanline, flush both current and delayed player
-   // latches, then draw eight glyph rows with the canonical 48-pixel schedule.
-   WSYNC := 0;
+   // Line two applies motion, flushes both current/delayed player latches, and
+   // enters the canonical eight-row 48-pixel glyph schedule.
+   asm sta HMOVE;
    GRP0 := 0;
    GRP1 := 0;
    GRP0 := 0;
@@ -159,7 +160,7 @@ require inline void TEMPLATE_draw(void) {
    asm sty GRP1;
    asm sta GRP0;
    asm dec TEMPLATE_row;
-   asm bpl @TEMPLATE_draw_loop;
+   asm bpl.same @TEMPLATE_draw_loop;
 
    GRP0 := 0;
    GRP1 := 0;

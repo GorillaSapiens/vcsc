@@ -35,6 +35,10 @@ constexpr uint16_t kEnam1 = 0x001E;
 constexpr uint16_t kEnabl = 0x001F;
 constexpr uint16_t kHmp0 = 0x0020;
 constexpr uint16_t kHmbl = 0x0024;
+constexpr uint16_t kHmove = 0x002A;
+constexpr uint16_t kHmclr = 0x002B;
+constexpr uint16_t kNusiz0 = 0x0004;
+constexpr uint16_t kNusiz1 = 0x0005;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
@@ -88,6 +92,8 @@ enum class ScoreOrder { None, Above, Below };
 ScoreOrder score_order = ScoreOrder::None;
 bool poison_score = false;
 bool motion_mode = false;
+enum class TerminalMode { None, Lines181, Lines192 };
+TerminalMode terminal_mode = TerminalMode::None;
 int frames_to_check = 4;
 uint8_t object_x_zp = 0;
 std::array<uint8_t, 3> y_zp{};
@@ -154,7 +160,11 @@ void verify_frame_state() {
    if (frame < 0 || frame >= frames_to_check) return;
    const std::array<uint8_t, 3> expected_y = motion_mode
       ? std::array<uint8_t, 3>{{18, 78, 48}}
-      : std::array<uint8_t, 3>{{70, 42, 45}};
+      : terminal_mode == TerminalMode::Lines181
+         ? std::array<uint8_t, 3>{{89, 88, 88}}
+         : terminal_mode == TerminalMode::Lines192
+            ? std::array<uint8_t, 3>{{89, 89, 89}}
+            : std::array<uint8_t, 3>{{70, 42, 45}};
    for (size_t i = 0; i < expected_y.size(); ++i) {
       if (memory_image[y_zp[i]] != expected_y[i]) {
          std::fprintf(stderr,
@@ -165,7 +175,8 @@ void verify_frame_state() {
    }
    if (!motion_mode) return;
 
-   for (size_t object = 0; object < ObjectCount; ++object) {
+   const std::array<Object, 3> public_objects{{P0, P1, BL}};
+   for (Object object : public_objects) {
       const uint8_t actual = memory_image[static_cast<uint8_t>(object_x_zp + object)];
       if (actual != expected_x[object]) {
          std::fprintf(stderr,
@@ -180,7 +191,9 @@ void verify_frame_state() {
          frame, memory_image[direction_zp], expected_directions);
       std::exit(1);
    }
-   const std::array<Object, 3> public_objects{{P0, P1, BL}};
+   if (memory_image[static_cast<uint8_t>(object_x_zp + 2)] != 0x20 ||
+       memory_image[static_cast<uint8_t>(object_x_zp + 3)] != 0x20)
+      fail("retained NUSIZ values were corrupted by motion");
    for (size_t i = 0; i < public_objects.size(); ++i) {
       const uint8_t x = expected_x[public_objects[i]];
       if (x == 0) saw_low[i] = true;
@@ -265,7 +278,11 @@ void apply_writes() {
             }
             if (frame >= 2 && (event.address == kGrp0 || event.address == kGrp1 ||
                               event.address == kEnabl || event.address == kColup0 ||
-                              event.address == kColup1)) {
+                              event.address == kColup1 ||
+                              (event.address >= kResp0 && event.address <= kResbl) ||
+                              (event.address >= kHmp0 && event.address <= kHmbl) ||
+                              (event.address == kHmove || event.address == kHmclr) || event.address == kNusiz0 ||
+                              event.address == kNusiz1)) {
                const uint64_t relative = virtual_cycles - frame_start;
                const uint64_t line = relative / kCyclesPerScanline;
                if (line < 232) {
@@ -289,28 +306,127 @@ uint8_t expected_hmp(uint8_t x) {
    return table[static_cast<size_t>(16 + remainder)];
 }
 int expected_resp_cycle(uint8_t x) {
-   return 18 + 5 * (static_cast<int>(x) / 15 + 1);
+   return 10 + 5 * (static_cast<int>(x) / 15 + 1);
 }
 
-void verify_positioning() {
-   if (!motion_mode) return;
-   for (int checked = 0; checked < frames_to_check; ++checked) {
-      const auto xs = frame_x.find(checked);
-      const auto pw = position_writes.find(checked);
-      if (xs == frame_x.end() || pw == position_writes.end())
-         fail("missing horizontal-position frame");
-      for (size_t object = 0; object < ObjectCount; ++object) {
-         const uint8_t x = xs->second[object];
-         const int got_resp = pw->second.resp_cycle[object];
-         const int got_hmp = pw->second.hmp_value[object];
-         if (got_resp != expected_resp_cycle(x) || got_hmp != expected_hmp(x)) {
+uint8_t expected_handoff_hmp(uint8_t x) {
+   const int remainder=x % 15;
+   const int steps=x / 15 + 1 + (remainder >= 13 ? 1 : 0);
+   const int signed_motion=15 * steps - 11 - x;
+   return static_cast<uint8_t>((signed_motion & 15) << 4);
+}
+int expected_handoff_resp_cycle(uint8_t x) {
+   const int remainder=x % 15;
+   const int steps=x / 15 + 1 + (remainder >= 13 ? 1 : 0);
+   return 9 + 5 * steps;
+}
+
+uint8_t desired_x_for_frame(int checked, Object object) {
+   if (!motion_mode) {
+      static constexpr std::array<uint8_t, ObjectCount> fixed{{44,108,0,0,78}};
+      return fixed[object];
+   }
+   const auto found=frame_x.find(checked);
+   if (found==frame_x.end()) fail("missing desired-position frame");
+   return found->second[object];
+}
+
+const TimedWrite *find_timed(int checked, uint16_t address, uint64_t first_line,
+                             uint64_t last_line) {
+   const auto found=timed_writes.find(checked);
+   if (found==timed_writes.end()) return nullptr;
+   for (const TimedWrite &write : found->second) {
+      if (write.address==address && write.line>=first_line && write.line<=last_line)
+         return &write;
+   }
+   return nullptr;
+}
+
+void verify_visible_handoff() {
+   const uint64_t game_first = score_order == ScoreOrder::Above ? 51 : 40;
+   const int last = motion_mode ? frames_to_check - 1 : 3;
+   for (int checked=2; checked<=last; ++checked) {
+      for (Object object : std::array<Object,2>{{P0,P1}}) {
+         const uint64_t line=game_first+(object==P0 ? 1 : 0);
+         const uint16_t resp=static_cast<uint16_t>(kResp0+object);
+         const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
+         const TimedWrite *rw=find_timed(checked,resp,line,line);
+         const TimedWrite *hw=nullptr;
+         const auto events=timed_writes.find(checked);
+         if (events!=timed_writes.end() && rw) {
+            for (const TimedWrite &write : events->second) {
+               if (write.address!=hmp) continue;
+               if (write.line<rw->line || (write.line==rw->line && write.cycle<rw->cycle))
+                  hw=&write;
+            }
+         }
+         const uint8_t x=desired_x_for_frame(checked,object);
+         if (!rw || !hw || static_cast<int>(rw->cycle)!=expected_handoff_resp_cycle(x) ||
+             (hw->value & 0xf0)!=expected_handoff_hmp(x)) {
             std::fprintf(stderr,
-               "vcs_player_color_181: frame %d object %zu X=%u RESP=%d/%d HMP=%02X/%02X\n",
-               checked, object, x, got_resp, expected_resp_cycle(x),
-               got_hmp < 0 ? 0xff : got_hmp, expected_hmp(x));
+               "vcs_player_color_181: frame %d gameplay P%zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
+               checked,static_cast<size_t>(object),x,
+               rw ? static_cast<long long>(rw->cycle) : -1LL,expected_handoff_resp_cycle(x),
+               hw ? hw->value : 0xff,expected_handoff_hmp(x));
             std::exit(1);
          }
       }
+      const TimedWrite *move=find_timed(checked,kHmove,game_first+1,game_first+2);
+      const TimedWrite *n0=find_timed(checked,kNusiz0,game_first+2,game_first+2);
+      const TimedWrite *n1=find_timed(checked,kNusiz1,game_first+2,game_first+2);
+      if (!move || !n0 || !n1 || n0->value!=0x20 || n1->value!=0x20)
+         fail("gameplay entry did not apply motion and restore both NUSIZ values");
+
+      // Ball is positioned during VBLANK and must survive the score. Match the
+      // RESBL/HMBL/HMOVE transaction, then require later score HMOVEs to carry
+      // HMBL=0 so they preserve that established position.
+      const TimedWrite *br=nullptr,*bh=nullptr,*bm=nullptr;
+      const auto found=timed_writes.find(checked);
+      uint8_t current_hmbl=0;
+      if (found!=timed_writes.end()) {
+         bool after_resbl=false;
+         for (const TimedWrite &write : found->second) {
+            if (write.line>=game_first) continue;
+            if (write.address==kHmclr) current_hmbl=0;
+            if (write.address==kHmbl) current_hmbl=write.value;
+            if (write.address==kResbl) {
+               br=&write; bh=nullptr; bm=nullptr; after_resbl=true;
+            }
+            else if (after_resbl && write.address==kHmbl && !bm) bh=&write;
+            else if (after_resbl && write.address==kHmove) {
+               if (!bm) bm=&write;
+               else if (current_hmbl!=0)
+                  fail("score HMOVE changed the Ball position");
+            }
+         }
+      }
+      const uint8_t bx=desired_x_for_frame(checked,BL);
+      if (!br || !bh || !bm || static_cast<int>(br->cycle)!=expected_resp_cycle(bx) ||
+          bh->value!=expected_hmp(bx)) {
+         std::fprintf(stderr,
+            "vcs_player_color_181: frame %d gameplay BL X=%u RESP=%lld/%d HMBL=%02X/%02X\n",
+            checked,bx,br ? static_cast<long long>(br->cycle) : -1LL,
+            expected_resp_cycle(bx),bh ? bh->value : 0xff,expected_hmp(bx));
+         std::exit(1);
+      }
+
+      // Convert the observed position contracts into the concrete horizontal
+      // pixel spans used by this fixture: quad-width players and a 4-pixel Ball.
+      // These endpoint checks are intentionally independent of object RAM.
+      const unsigned p0x=desired_x_for_frame(checked,P0);
+      const unsigned p1x=desired_x_for_frame(checked,P1);
+      unsigned p0_pixels=0,p1_pixels=0,ball_pixels=0;
+      for (unsigned pixel=0; pixel<160; ++pixel) {
+         // First visible glyph rows are $7e for P0 and $fe for P1 at quad width.
+         if (pixel>=p0x && pixel<p0x+32 && ((0x7e >> (7-(pixel-p0x)/4))&1)) ++p0_pixels;
+         if (pixel>=p1x && pixel<p1x+32 && ((0xfe >> (7-(pixel-p1x)/4))&1)) ++p1_pixels;
+         if (pixel>=bx && pixel<static_cast<unsigned>(bx)+4) ++ball_pixels;
+      }
+      const unsigned expect_p0=p0x>=156 ? 0 : (p0x<=132 ? 24 : 160-(p0x+4));
+      const unsigned expect_p1=p1x>=160 ? 0 : (p1x<=132 ? 28 : 160-p1x);
+      const unsigned expect_ball=bx<=156 ? 4 : 160-bx;
+      if (p0_pixels!=expect_p0 || p1_pixels!=expect_p1 || ball_pixels!=expect_ball)
+         fail("object pixel endpoint oracle disagrees with clipped 160-pixel spans");
    }
 }
 
@@ -374,7 +490,49 @@ void expect_colors(int raster_frame, uint16_t address, uint64_t first_line,
    }
 }
 
+void expect_color_write(int raster_frame, uint16_t address, uint64_t line,
+                        uint64_t cycle, uint8_t expected, const char *name) {
+   const auto found=timed_writes.find(raster_frame);
+   if (found==timed_writes.end()) fail("missing terminal color raster frame");
+   unsigned matches=0;
+   uint8_t actual=0;
+   for (const TimedWrite &write : found->second) {
+      if (write.address==address && write.line==line && write.cycle==cycle) {
+         ++matches;
+         actual=write.value;
+      }
+   }
+   if (matches!=1 || actual!=expected) {
+      std::fprintf(stderr,
+         "vcs_player_color_181: %s at line %llu cycle %llu is %02X (%u writes); expected %02X\n",
+         name,static_cast<unsigned long long>(line),
+         static_cast<unsigned long long>(cycle),actual,matches,expected);
+      std::exit(1);
+   }
+}
+
 void verify_raster() {
+   if (terminal_mode != TerminalMode::None) {
+      const std::array<uint8_t,8> p0{{0xae,0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e}};
+      const std::array<uint8_t,8> p1{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
+      expect_lines(2,kGrp0,{203,205,207,209,211,213,215,217},"terminal P0");
+      const std::vector<uint64_t> p1_lines = terminal_mode == TerminalMode::Lines181
+         ? std::vector<uint64_t>{203,205,207,209,211,213,215,217}
+         : std::vector<uint64_t>{205,207,209,211,213,215,217,219};
+      expect_lines(2,kGrp1,p1_lines,"terminal P1");
+      if (terminal_mode == TerminalMode::Lines181)
+         expect_lines(2,kEnabl,{212,214,216},"terminal BL");
+      else
+         expect_lines(2,kEnabl,{214,216,218},"terminal BL");
+      for (size_t i=0;i<p0.size();++i)
+         expect_color_write(2,kColup0,203+2*i,17,p0[i],"terminal P0 color");
+      for (size_t i=0;i<p1.size();++i) {
+         const uint64_t line=(terminal_mode == TerminalMode::Lines181 ? 203 : 205)+2*i;
+         const uint64_t cycle=(terminal_mode == TerminalMode::Lines192 && i==7) ? 12 : 11;
+         expect_color_write(2,kColup1,line,cycle,p1[i],"terminal P1 color");
+      }
+      return;
+   }
    const uint64_t offset = score_order == ScoreOrder::Above ? 11 : 0;
    const std::array<uint8_t, 8> p0_colors{{0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e,0xae}};
    const std::array<uint8_t, 8> p1_colors{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
@@ -416,8 +574,10 @@ void verify_composition() {
       if (stats.game_missiles != 0)
          fail("game region inherited an enabled missile");
       if (poison_score) {
-         if (stats.score_pf < 3 || stats.score_grp < 2 || stats.score_objects < 3)
-            fail("poison score region did not emit hostile TIA activity");
+         if (stats.score_grp < 2)
+            fail("poison score region did not emit hostile P0/P1 activity");
+         if (stats.score_pf != 0 || stats.score_objects != 0)
+            fail("poison score exceeded the P0/P1 ownership contract");
       }
       else {
          if (stats.score_grp < 16) fail("score region did not emit six-glyph activity");
@@ -431,12 +591,15 @@ void verify_composition() {
 int main(int argc, char **argv) {
    if (argc < 7 || argc > 9) {
       std::fprintf(stderr,
-         "usage: %s static|motion ROM object_x p0_y p1_y ball_y [directions] [above|below|poison-above|poison-below|poison-prior]\n", argv[0]);
+         "usage: %s static|terminal181|terminal192|motion ROM object_x p0_y p1_y ball_y [directions] [above|below|poison-above|poison-below|poison-prior]\n", argv[0]);
       return 2;
    }
    const std::string mode = argv[1];
    motion_mode = mode == "motion";
-   if (!motion_mode && mode != "static") fail("mode must be static or motion");
+   if (mode == "terminal181") terminal_mode=TerminalMode::Lines181;
+   else if (mode == "terminal192") terminal_mode=TerminalMode::Lines192;
+   if (!motion_mode && terminal_mode == TerminalMode::None && mode != "static")
+      fail("mode must be static, terminal181, terminal192, or motion");
    const int base_argc = motion_mode ? 8 : 7;
    if (argc != base_argc && argc != base_argc + 1) fail("wrong mode argument count");
    if (argc == base_argc + 1) {
@@ -488,15 +651,21 @@ int main(int argc, char **argv) {
    for (size_t i = 2; i < frame_periods.size(); ++i) {
       const uint64_t period = frame_periods[i];
       if (period < 262 * kCyclesPerScanline || period >= 263 * kCyclesPerScanline) {
-         std::fprintf(stderr,
-            "vcs_player_color_181: frame period is %llu cycles; expected 262 raw lines\n",
-            static_cast<unsigned long long>(period));
+         const auto pos=frame_x.find(static_cast<int>(i));
+         if (pos!=frame_x.end())
+            std::fprintf(stderr,
+               "vcs_player_color_181: frame %zu period is %llu cycles at P0=%u P1=%u BL=%u; expected 262 raw lines\n",
+               i,static_cast<unsigned long long>(period),pos->second[P0],pos->second[P1],pos->second[BL]);
+         else
+            std::fprintf(stderr,
+               "vcs_player_color_181: frame %zu period is %llu cycles; expected 262 raw lines\n",
+               i,static_cast<unsigned long long>(period));
          return 1;
       }
    }
    if (!poison_score && (missile0_enabled || missile1_enabled))
       fail("missile enable became active");
-   verify_positioning();
+   verify_visible_handoff();
    verify_raster();
    verify_composition();
    if (motion_mode) {
@@ -511,8 +680,12 @@ int main(int argc, char **argv) {
                      score_order == ScoreOrder::Above ? "above" : "below");
    }
    else {
-      if (score_order == ScoreOrder::None)
-         std::printf("vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n");
+      if (terminal_mode == TerminalMode::Lines181)
+         std::printf("vcs_player_color_181 terminal ok: complete P0/P1 colors and BL raster reach the terminal gameplay lines\n");
+      else if (terminal_mode == TerminalMode::Lines192)
+         std::printf("vcs_player_color_192 terminal ok: twelfth-row P0/P1 colors and BL raster reach the final gameplay band\n");
+      else if (score_order == ScoreOrder::None)
+         std::printf("vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n");
       else
          std::printf("vcs_player_color_181 composition static %s%s ok\n",
                      poison_score ? "poison-" : "",

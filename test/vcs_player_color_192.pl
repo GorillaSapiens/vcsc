@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -47,10 +48,22 @@ my $module=File::Spec->catfile($vcs,qw(kernels player_color_192 player_color_192
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_192 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192.map');
+my $terminal_source=File::Spec->catfile($repo,qw(test fixtures player_color_192 terminal.c26));
+my $terminal_bin=File::Spec->catfile($tmp,'player_color_192_terminal.bin');
+my $terminal_mapfile=File::Spec->catfile($tmp,'player_color_192_terminal.map');
+my $reference=File::Spec->catfile($repo,qw(test fixtures player_color_192 reference_terminal_stella_7.0.png));
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "player-color 192 build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "player-color 192 build wrote output\n$out$err";
 -s $bin == 4096 or die "player-color 192 ROM is not 4096 bytes\n";
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$terminal_mapfile,$terminal_source,'-o',$terminal_bin);
+$rc==0 && !$sig or die "player-color 192 terminal build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "player-color 192 terminal build wrote output\n$out$err";
+-s $terminal_bin == 4096 or die "player-color 192 terminal ROM is not 4096 bytes\n";
+my $terminal_map=read_file($terminal_mapfile);
+sha256_hex(read_file($reference)) eq
+   '86b15f426011765d4b8f75b90e413a2f268608b17cef8ac04a4eee7c1878a323'
+   or die "reviewed player-color 192 Stella reference PNG changed\n";
 my $text=read_file($module);
 my $fixture=read_file($source);
 my $map=read_file($mapfile);
@@ -76,7 +89,7 @@ $code =~ s{/\*.*?\*/}{}gs;
 $code !~ /\b(?:lax|dcp|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|axs|xaa|ahx|shx|shy|tas|las)\b/i
    or die "official component contains an unofficial mnemonic\n";
 $code !~ /\bop[0-9A-Fa-f]{2}\b/ or die "official component contains a raw opcode escape\n";
-for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graphics p1_graphics)) {
+for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graphics p1_graphics game_reposition_table game_player_position_table)) {
    require_re($map,qr/RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}.*page=hard/, "$name is not hard-page-contained");
 }
 my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
@@ -104,9 +117,16 @@ my @zp=map { sprintf('0x%02x',map_zp($map,$_)) }
    qw(game_object_x game_player0_y game_player1_y game_ball_y);
 ($rc,$sig,$out,$err)=capture($harness,'static',$bin,@zp);
 $rc==0 && !$sig or die "player-color 192 raster failed\n$out$err";
-$out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n"
+$out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n"
    or die "unexpected player-color 192 output: $out";
 $err eq '' or die "player-color 192 harness stderr: $err";
+my @terminal_zp=map { sprintf('0x%02x',map_zp($terminal_map,$_)) }
+   qw(game_object_x game_player0_y game_player1_y game_ball_y);
+($rc,$sig,$out,$err)=capture($harness,'terminal192',$terminal_bin,@terminal_zp);
+$rc==0 && !$sig or die "player-color 192 terminal raster failed\n$out$err";
+$out eq "vcs_player_color_192 terminal ok: twelfth-row P0/P1 colors and BL raster reach the final gameplay band\n"
+   or die "unexpected player-color 192 terminal output: $out";
+$err eq '' or die "player-color 192 terminal harness stderr: $err";
 
 my $phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my $phase_exe=File::Spec->catfile($tmp,'player_color_192_playfield');

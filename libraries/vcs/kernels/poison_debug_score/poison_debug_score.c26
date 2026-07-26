@@ -14,14 +14,18 @@ enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 11,
    TEMPLATE_VBLANK_MAX_CYCLES := 0,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
-   TEMPLATE_PUBLIC_RAM_BYTES := 0,
+   TEMPLATE_PUBLIC_RAM_BYTES := 1,
    TEMPLATE_PRIVATE_RAM_BYTES := 0,
-   TEMPLATE_MODULE_RAM_BYTES := 0
+   TEMPLATE_MODULE_RAM_BYTES := 1
 };
 
 alias TEMPLATE_RED __builtin_ntsc_rgb(0xff, 0x00, 0x00)
 alias TEMPLATE_YELLOW __builtin_ntsc_rgb(0xff, 0xff, 0x00)
 alias TEMPLATE_CYAN __builtin_ntsc_rgb(0x00, 0xff, 0xff)
+
+// The score may paint COLUBK while active but restores this value before its
+// handoff. P0/P1 state remains deliberately poisoned.
+uint8_t TEMPLATE_exit_background;
 
 require inline void TEMPLATE_init(void) {
 }
@@ -30,53 +34,38 @@ require inline void TEMPLATE_vblank(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
-   // Line 1: paint an unmistakable red field and hostile playfield state.
+   // A score component owns P0/P1 while drawing. Poison every part of that
+   // ownership surface, but preserve playfield, missile, and Ball state.
    COLUBK := TEMPLATE_RED;
-   COLUPF := TEMPLATE_YELLOW;
    COLUP0 := TEMPLATE_CYAN;
    COLUP1 := TEMPLATE_YELLOW;
-   CTRLPF := 0x37;
-   PF0 := 0xf0;
-   PF1 := 0xaa;
-   PF2 := 0x55;
-   WSYNC := 0;
-
-   // Line 2: enable and distort every movable object latch used by the score
-   // and gameplay profiles. The values are fixed so failures reproduce.
    NUSIZ0 := 0x37;
    NUSIZ1 := 0x17;
    REFP0 := 0x08;
    REFP1 := 0x08;
    VDELP0 := 1;
    VDELP1 := 1;
-   VDELBL := 1;
    GRP0 := 0xaa;
    GRP1 := 0x55;
-   ENAM0 := 2;
-   ENAM1 := 2;
-   ENABL := 2;
    WSYNC := 0;
 
-   // Line 3: poison fine motion and coarse positions, then apply HMOVE.
+   // Poison player fine motion and coarse positions. Clear the motion values
+   // for objects outside the score contract before HMOVE so they do not move.
    asm lda #$70;
    asm sta HMP0;
    asm lda #$80;
    asm sta HMP1;
-   asm lda #$60;
+   asm lda #0;
    asm sta HMM0;
-   asm lda #$90;
    asm sta HMM1;
-   asm lda #$f0;
    asm sta HMBL;
+   asm lda #$ff;
    asm sta RESP0;
    asm sta RESP1;
-   asm sta RESM0;
-   asm sta RESM1;
-   asm sta RESBL;
    asm sta HMOVE;
    asm sta WSYNC;
 
-   // Hold the hostile image for the remaining eight score-profile lines.
+   // Hold the hostile score image through line ten.
    asm sta WSYNC;
    asm sta WSYNC;
    asm sta WSYNC;
@@ -84,6 +73,18 @@ require inline void TEMPLATE_draw(void) {
    asm sta WSYNC;
    asm sta WSYNC;
    asm sta WSYNC;
+   asm sta WSYNC;
+
+   // Line eleven flushes delayed player state but deliberately leaves colors,
+   // NUSIZ, reflection, position, and motion poisoned for the next component.
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm lda.z TEMPLATE_exit_background;
+   asm sta COLUBK;
    asm sta WSYNC;
 }
 

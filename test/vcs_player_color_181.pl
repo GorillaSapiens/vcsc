@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -43,10 +44,22 @@ my $module=File::Spec->catfile($vcs,qw(kernels player_color_181 player_color_181
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_181 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_181.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_181.map');
+my $terminal_source=File::Spec->catfile($repo,qw(test fixtures player_color_181 terminal.c26));
+my $terminal_bin=File::Spec->catfile($tmp,'player_color_181_terminal.bin');
+my $terminal_mapfile=File::Spec->catfile($tmp,'player_color_181_terminal.map');
+my $reference=File::Spec->catfile($repo,qw(test fixtures player_color_181 reference_score_above_stella_7.0.png));
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "player-color 181 build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "player-color 181 build wrote output\n$out$err";
 -s $bin == 4096 or die "player-color 181 ROM is not 4096 bytes\n";
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$terminal_mapfile,$terminal_source,'-o',$terminal_bin);
+$rc==0 && !$sig or die "player-color 181 terminal build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "player-color 181 terminal build wrote output\n$out$err";
+-s $terminal_bin == 4096 or die "player-color 181 terminal ROM is not 4096 bytes\n";
+my $terminal_map=read_file($terminal_mapfile);
+sha256_hex(read_file($reference)) eq
+   '9facf33d7d035a6f98bc5d362ed78d94e8d629a4471c827edfb7ad5a0378bb71'
+   or die "reviewed player-color 181 Stella reference PNG changed\n";
 my $text=read_file($module);
 my $map=read_file($mapfile);
 require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/, 'visible-line contract changed');
@@ -56,7 +69,7 @@ require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*65/, 'module-RAM contract c
 for my $bad (qw(score font VSYNC VBLANK TIM64T INTIM TIMINT)) {
    $text !~ /^\s*asm\s+.*\b\Q$bad\E\b/im or die "component owns forbidden $bad resource\n";
 }
-for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graphics p1_graphics)) {
+for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graphics p1_graphics game_reposition_table game_player_position_table)) {
    require_re($map,qr/RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}.*page=hard/, "$name is not hard-page-contained");
 }
 my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
@@ -83,9 +96,16 @@ my @zp=map { sprintf('0x%02x',map_zp($map,$_)) }
    qw(game_object_x game_player0_y game_player1_y game_ball_y);
 ($rc,$sig,$out,$err)=capture($harness,'static',$bin,@zp);
 $rc==0 && !$sig or die "player-color 181 raster failed\n$out$err";
-$out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, BL raster, no missiles\n"
+$out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n"
    or die "unexpected player-color 181 output: $out";
 $err eq '' or die "player-color 181 harness stderr: $err";
+my @terminal_zp=map { sprintf('0x%02x',map_zp($terminal_map,$_)) }
+   qw(game_object_x game_player0_y game_player1_y game_ball_y);
+($rc,$sig,$out,$err)=capture($harness,'terminal181',$terminal_bin,@terminal_zp);
+$rc==0 && !$sig or die "player-color 181 terminal raster failed\n$out$err";
+$out eq "vcs_player_color_181 terminal ok: complete P0/P1 colors and BL raster reach the terminal gameplay lines\n"
+   or die "unexpected player-color 181 terminal output: $out";
+$err eq '' or die "player-color 181 terminal harness stderr: $err";
 
 my $phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my $phase_exe=File::Spec->catfile($tmp,'player_color_181_playfield');

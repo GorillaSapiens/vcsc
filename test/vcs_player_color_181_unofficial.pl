@@ -54,8 +54,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1429 or die "official smoke now uses $official_used bytes, expected 1429\n";
-$unofficial_used==1429 or die "unofficial smoke now uses $unofficial_used bytes, expected 1429\n";
+$official_used==1605 or die "official smoke now uses $official_used bytes, expected 1605\n";
+$unofficial_used==1605 or die "unofficial smoke now uses $unofficial_used bytes, expected 1605\n";
 $official_used-$unofficial_used==0
    or die "unexpected savings: official=$official_used unofficial=$unofficial_used\n";
 
@@ -80,7 +80,7 @@ my $text=read_file($asm);
 my $axs=()=$text =~ /^\s*axs\s+#252\s*$/gmi;
 my $nopzp=()=$text =~ /^\s*nop\.z\s+\$00\s*$/gmi;
 $axs==2 or die "expected two AXS sites, found $axs\n";
-$nopzp==4 or die "expected four unofficial zero-page NOP sites, found $nopzp\n";
+$nopzp==1 or die "expected one unofficial zero-page NOP site, found $nopzp\n";
 my $other=$text;
 $other =~ s/^\s*axs\s+#252\s*$//gmi;
 $other =~ s/^\s*nop\.z\s+\$00\s*$//gmi;

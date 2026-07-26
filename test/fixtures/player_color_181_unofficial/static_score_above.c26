@@ -35,8 +35,6 @@ page const uint8_t p1_graphics[8] := {
 void configure_game_frame(void) {
    COLUPF := 0x2e;
    CTRLPF := 0x21;
-   NUSIZ0 := 0x20;
-   NUSIZ1 := 0x20;
 }
 
 void initialize_scene(void) {
@@ -44,6 +42,8 @@ void initialize_scene(void) {
    COLUBK := 0x84;
    game_PLAYER0_X := 44;
    game_PLAYER1_X := 108;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
    game_BALL_X := 78;
    game_player0_y := 70;
    game_player1_y := 42;
@@ -67,9 +67,10 @@ void main(void) {
       vcs_ntsc_begin_vblank();
       game_vblank();
       score_vblank();
+      configure_game_frame();
       vcs_ntsc_end_vblank();
       score_draw();
-      configure_game_frame();
+      vcs_ntsc_component_handoff();
       game_draw();
       vcs_ntsc_begin_overscan();
       game_overscan();

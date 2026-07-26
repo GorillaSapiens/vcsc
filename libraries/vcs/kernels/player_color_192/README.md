@@ -14,20 +14,40 @@ profile with independent per-row P0 and P1 color tables. Instantiate it after
 The application supplies page-contained `INSTANCE_playfield[48]`,
 `INSTANCE_player0_colors[8]`, and `INSTANCE_player1_colors[8]` objects plus
 page-contained player graphics. The component owns exactly 192 visible lines;
-it cannot be combined with the independent 11-line score inside a standard
-192-line visible field.
+it cannot be combined with an eleven-line score inside the standard visible
+field.
 
-RAM contract: 13 public bytes, 53 private bytes, 66 bytes total. Missiles are
-not available. The component owns no score/font, VSYNC, VBLANK, or RIOT timer
-state and uses only official NMOS 6502 opcodes.
+RAM contract: 13 public bytes, 53 private bytes, 66 bytes total. The component
+also contains the same 176-byte packed player-position support used by the
+181-line profile. Missiles are unavailable. It owns no score/font, VSYNC,
+VBLANK, or RIOT timer state and uses only official NMOS 6502 opcodes.
 
-## Adversarial handoff status
+`vcs_ntsc_end_vblank()` supplies the canonical cycle-3 entry phase. The first
+two setup lines re-establish P1/P0 position for all X coordinates, and the third
+applies HMOVE and restores NUSIZ. Ball is positioned during VBLANK.
 
-The installed `poison_debug_score` component is the hostile-state probe for
-this profile. It deliberately overwrites TIA geometry, graphics, colors,
-position, motion, and delay state while obeying its own scanline/frame-ownership
-contract. The player-color family remains under the 22i4b stop-ship pixel and
-handoff audit until its raster is proved identical after that predecessor.
-Existing friendly-score fixtures remain historical regression coverage; they
-are not by themselves proof of arbitrary-state independence.
+The full-height regression places P0, P1, and Ball in the terminal gameplay
+band and verifies the special twelfth-row paths rather than merely recognizing
+their source labels. It checks all eight terminal P0/P1 graphics activations,
+all row-color writes including the special final P1 write, Ball activity in the
+last band, the complete twelve-row playfield raster, and the final 262-line
+frame boundary.
 
+A second fixture runs the 192-line frame after the poison debug component has
+left hostile P0/P1 state during the preceding overscan. The next frame restores
+P0/P1/Ball positions and produces the same measured raster and horizontal pixel
+endpoints. No score code, font, or score RAM is linked.
+
+## Reviewed Stella reference
+
+The terminal-band fixture has a reviewed Stella 7.0 capture:
+
+Source-tree reference:
+
+```text
+test/fixtures/player_color_192/reference_terminal_stella_7.0.png
+```
+
+The image is hash-locked by the regression. P0, P1, and Ball visibly reach the
+bottom gameplay band, providing a human review alongside the exact terminal
+write and line-boundary checks.

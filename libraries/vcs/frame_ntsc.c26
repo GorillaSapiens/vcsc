@@ -24,6 +24,14 @@ inline void vcs_ntsc_wait_scanlines(uint8_t scanlines) {
    }
 }
 
+// The scheduler enters the first visible component at the measured cycle-3
+// phase produced by clearing VBLANK. A component returns at cycle zero after
+// its final WSYNC. Insert this bridge between adjacent visible components so
+// every component sees the same entry phase without spending another line.
+inline void vcs_ntsc_component_handoff(void) {
+   asm bit.z CXM0P;
+}
+
 // Generate the standard three-scanline NTSC vertical-sync pulse.  The caller
 // enters at an arbitrary cycle and leaves immediately after clearing VSYNC;
 // the following phase helper will own alignment of the first VBLANK line.

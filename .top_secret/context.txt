@@ -1561,12 +1561,16 @@ The first unfinished item is the default next action.
                                                                    181-line terminal cleanups past
                                                                    the visible-row boundary while
                                                                    preserving exact 181-line timing.
-                                                               [ ] Repair and screenshot-verify
-                                                                   the player-color first-row entry
-                                                                   without corrupting its per-line
-                                                                   color timing.
-                                                               [ ] Prove both 192-line special
-                                                                   twelfth-row entry/exit paths.
+                                                               [x] Repair the player-color first-row
+                                                                   entry without corrupting per-line
+                                                                   color timing; prove P0/P1/BL
+                                                                   positioning for every X=0..159.
+                                                               [x] Capture and review Stella 7.0
+                                                                   screenshots for score-above first-row
+                                                                   and 192-line terminal-band fixtures.
+                                                               [x] Prove the 192-line special twelfth-row
+                                                                   entry/exit paths with terminal P0/P1
+                                                                   color and Ball-raster evidence.
                                                     [ ] 22i4b1b. Finish the full player/object
                                                                pixel oracle for P0/P1/M0/M1/Ball,
                                                                including endpoint positions and
@@ -1591,6 +1595,11 @@ The first unfinished item is the default next action.
                                                     emulator measurements show it is
                                                     necessary. Never force a terminal
                                                     `sta WSYNC` merely by convention.
+                                                    [x] For the maintained NTSC score and
+                                                        player-color components, standardize a
+                                                        cycle-3 entry/cycle-zero return contract
+                                                        with `vcs_ntsc_component_handoff()` and
+                                                        verify both composition orders.
 
                                          [ ] 22i4b3. Repair the centered six-glyph
                                                     score so every draw is independent
@@ -1610,19 +1619,17 @@ The first unfinished item is the default next action.
                                                     pair still totals exactly 192. A
                                                     working raster outranks preservation
                                                     of the historical eleven-line count.
-                                                    [x] Add the installed zero-RAM
+                                                    [x] Add the installed one-byte
                                                         `poison_debug_score` probe: exactly
-                                                        eleven WSYNC boundaries, deterministic
-                                                        red/background/playfield/player/
-                                                        missile/Ball/VDEL/NUSIZ/RESP/HMxx/HMOVE
-                                                        state, and no frame/timer/collision-
-                                                        clear ownership. Use it above/below
-                                                        player-color gameplay and before the
-                                                        next 192-line frame to expose hidden
-                                                        incoming-state assumptions.
-                                                    [ ] Repair the centered score itself and
+                                                        eleven WSYNC boundaries, a red diagnostic
+                                                        band, hostile P0/P1 state, preserved
+                                                        playfield/missile/Ball geometry, and no
+                                                        frame/timer/collision-clear ownership.
+                                                    [x] Repair the centered score so every draw
+                                                        re-establishes its P0/P1 geometry, and
                                                         replace the diagnostic known gap with
-                                                        positive object-pixel/position evidence.
+                                                        positive position/raster evidence in both
+                                                        score/gameplay orders.
 
                                          [ ] 22i4b4. Prove repeatable-template
                                                     composition rather than accidental
@@ -5415,3 +5422,47 @@ Before returning another modified archive:
   descriptor so the runner no longer skips it, verify the final discovery count
   is 187, and pass that additional test separately. Thus all 187 end-to-end
   tests are covered with no product failures.
+
+
+2026-07-26 15:49:42 PDT, repair player-color/score handoff and terminal paths
+-------------------------------------------------------------------------------
+* Standardize the maintained NTSC visible-component boundary: the scheduler's
+  VBLANK exit supplies cycle 3 to the first component, every visible component
+  returns at cycle zero after its final WSYNC, and
+  `vcs_ntsc_component_handoff()` supplies the same cycle-3 phase between
+  adjacent components without consuming another scanline. Update the public
+  lifecycle contract, examples, source comments, and composition fixtures.
+* Narrow the poison debug score to the resources a real P0/P1 score owns. It
+  now uses one caller-selected exit-background byte, paints its eleven-line red
+  diagnostic band, trashes deterministic P0/P1 graphics/color/size/reflection/
+  delay/RESP/HMxx/HMOVE state, and preserves playfield, missiles, and Ball.
+* Make the production six-glyph score establish its P0/P1 NUSIZ, color, motion,
+  coarse position, VDEL, and graphics state on every draw rather than relying on
+  `init()` or friendly gameplay leftovers. Both score-above and score-below
+  compositions now enter through the same measured phase contract.
+* Repair the official and unofficial 181-line and official 192-line player-color
+  entries. VBLANK positions Ball and performs constant-time P0/P1 lookup; the
+  first two visible setup lines re-establish P1/P0 position and fine motion, and
+  the third applies HMOVE, restores application NUSIZ, and clears stale graphics.
+  A page-contained 160-entry packed table carries the coarse-loop count and
+  HMxx nibble, keeping every X coordinate 0..159 inside its scanline.
+* Extend the simulator oracle from register-row checks to measured P0/P1/Ball
+  positioning transactions and clipped horizontal pixel endpoints over 320
+  asynchronous frames. Verify hostile score above and below, all X=0..159,
+  stable 262-line frames, exact 11+181 ownership, and no score HMOVE disturbance
+  of Ball. Add terminal fixtures proving all eight P0/P1 color rows and Ball
+  activity reach the final 181-line band and the 192-line twelfth-row path.
+* Retain 65-byte RAM for player-color 181 and 66 bytes for player-color 192.
+  The shared private positioning support is 176 ROM bytes. The matched official
+  and unofficial 181-line smoke cartridges are both 1605 linked bytes and retain
+  a measured zero-byte unofficial-opcode saving.
+* Add and hash-lock reviewed Stella 7.0 captures for the 181-line score-above
+  scene and the 192-line terminal-band fixture. Keep the broader 22i4b all-object
+  pixel matrix open; the deterministic endpoint model still does not substitute
+  for every future all-five-object analog rendering case.
+* Verify 316/316 compile-only tests and staged `installcheck`. The full
+  end-to-end run passed through test 174 before the execution window expired;
+  it exposed three stale expectations for the repaired score setup, new
+  official/unofficial size, and now-positive poison handoff. Correct those
+  test gates, pass them directly, and pass the remaining thirteen tests 13/13.
+  Thus all 187 end-to-end tests are covered with no product failures.
