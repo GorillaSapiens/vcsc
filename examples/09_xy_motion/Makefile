@@ -4,7 +4,7 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: xy_motion.bin
 
-xy_motion.bin: xy_motion.c26
+xy_motion.bin: xy_motion.c26 $(VCS_DIR)/playfield.c26
 	$(VCSC) -I $(VCS_DIR) -Map xy_motion.map xy_motion.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

@@ -337,8 +337,10 @@ require inline void TEMPLATE_draw(void) {
    asm adc #88;
       asm sta.z TEMPLATE_workspace + 4;
    asm lda.a TEMPLATE_playfield;
-   asm sta PF1;
       asm sta.z TEMPLATE_workspace + 3;
+   // Keep this visible setup line entirely blank.  The first real gameplay
+   // line restores staged PF1 at cycle 8, before its PF1 pixels begin.
+   asm bit.z CXM0P;
    asm lda #10;
    asm clc;
       asm sbc.z TEMPLATE_playfield_position;

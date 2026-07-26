@@ -1,0 +1,18 @@
+// Compile-time helpers for writing asymmetric 128-pixel playfield rows from
+// left-to-right visual binary literals. Include vcs.c26 before this file.
+//
+// Each VCS_PLAYFIELD_ROW() argument describes the 128 central playfield pixels
+// in screen order. The helper emits the four TIA bytes in kernel storage order:
+// left PF1, bit-reversed left PF2, right PF2, bit-reversed right PF1.
+
+alias VCS_REVERSE8(x) ( \
+   ((((x) & 0x01) << 7) | (((x) & 0x02) << 5) | \
+    (((x) & 0x04) << 3) | (((x) & 0x08) << 1) | \
+    (((x) & 0x10) >> 1) | (((x) & 0x20) >> 3) | \
+    (((x) & 0x40) >> 5) | (((x) & 0x80) >> 7)) )
+
+alias VCS_PLAYFIELD_ROW(x) \
+   (((x`uint32_t) >> 24) & 0xff), \
+   VCS_REVERSE8(((x`uint32_t) >> 16) & 0xff), \
+   (((x`uint32_t) >> 8) & 0xff), \
+   VCS_REVERSE8((x`uint32_t) & 0xff)

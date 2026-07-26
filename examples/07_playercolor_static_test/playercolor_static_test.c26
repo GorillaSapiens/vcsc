@@ -1,20 +1,21 @@
 // P0/P1/BL player-color gameplay with an independent score above gameplay.
 include "vcs.c26"
 include "frame_ntsc.c26"
+include "playfield.c26"
 include "fonts/default_decimal.c26"
 
 page const uint8_t game_playfield[44] := {
-   0xff,0xff,0xff,0xff,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0xff,0xff,0xff,0xff
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
+   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
 };
 page const uint8_t game_player0_colors[8] := {
    0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e

@@ -13,3 +13,7 @@ M0, M1, and Ball remain visible as references. Motion is updated during
 overscan after the component restores application-visible coordinates.
 
 Build with `make` and run `xy_motion.bin` in Stella.
+
+The playfield uses `VCS_PLAYFIELD_ROW()` so each 32-bit visual-binary literal
+reads left-to-right on screen; all bit reversal and byte extraction is folded at
+compile time.

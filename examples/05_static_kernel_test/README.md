@@ -18,3 +18,7 @@ P0, P1, M0, M1, Ball, the asymmetric playfield, and a fixed `123456` score are
 all visible. `main()` owns the frame scheduler and invokes both complete
 lifecycle interfaces. Build with `make` and run `static_kernel_test.bin` in
 Stella.
+
+The playfield uses `VCS_PLAYFIELD_ROW()` so each 32-bit visual-binary literal
+reads left-to-right on screen; all bit reversal and byte extraction is folded at
+compile time.

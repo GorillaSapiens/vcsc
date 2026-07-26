@@ -1481,6 +1481,13 @@ The first unfinished item is the default next action.
                                                                    verify all 28,160 intended pixels
                                                                    across eleven 16-line rows, and
                                                                    screenshot example 05 in Stella.
+                                                               [x] Keep the all-five visible setup
+                                                                   line wholly blank instead of writing
+                                                                   the first PF1 byte late on that line.
+                                                                   Restore the staged byte on the first
+                                                                   real row and prove exact pixels for
+                                                                   both score-above and score-below
+                                                                   compositions used by examples 05/06.
                                                                [x] Move both official/unofficial
                                                                    181-line terminal cleanups past
                                                                    the visible-row boundary while
@@ -5071,3 +5078,24 @@ Before returning another modified archive:
 * Rebuild examples 05 and 06 and verify example 05 in a fresh Stella 7.0
   capture: top, internal, and bottom playfield edges are straight. Keep the
   player-color row-entry and both special twelfth-row paths open.
+
+2026-07-25 22:27:00 PDT, add visual playfield rows and repair examples 05/06 setup artifact
+------------------------------------------------------------------------------------------
+* Add installed `libraries/vcs/playfield.c26` with compile-time
+  `VCS_PLAYFIELD_ROW()` and `VCS_REVERSE8()` aliases. A 32-bit visual-binary
+  row is written left-to-right and expands to the kernel's four asymmetric TIA
+  bytes; a focused compiler test locks an asymmetric non-palindromic conversion.
+* Convert examples 05 through 09 to readable `X`/`.` playfield rows without
+  changing their emitted playfield bytes. Add the helper to install, uninstall,
+  staged-installation, VCS catalog, example dependencies, and example READMEs.
+* Repair the remaining one-scanline all-five entry artifact. The setup line
+  previously cleared PF1/PF2 and then wrote the first PF1 byte at cycle 40,
+  producing a partial right-side playfield stripe before the first real row.
+  It now seeds only private workspace and remains completely blank; the first
+  gameplay row restores staged PF1 at cycle 8 and loads PF2 before its pixels.
+* Strengthen the pixel oracle to require the setup line immediately preceding
+  row zero to be blank. The uploaded baseline fails at setup-line pixel 112;
+  repaired examples 05 and 06 pass all eleven rows in score-above and score-
+  below order. Apply the cycle/size-equivalent correction to official all-five
+  181/192 and the unofficial 181 twin, while leaving player-color and special
+  192-line work open.

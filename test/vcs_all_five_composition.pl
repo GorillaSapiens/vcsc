@@ -89,6 +89,24 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
 $rc==0 && !$sig or die "composition harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "composition harness build wrote output\n$out$err";
+
+# Build the strict intended-pixel oracle too. The score-above layout starts the
+# first gameplay row at frame line 54; score-below starts it at line 43.
+my $raster_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
+my $raster_exe=File::Spec->catfile($tmp,'vcs_all_five_composition_raster');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$raster_src,@mos_input,'-o',$raster_exe);
+$rc==0 && !$sig or die "raster harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "raster harness build wrote output\n$out$err";
+for my $order (qw(above below)) {
+   my $key="static_score_${order}";
+   my($bin)=@{$built{$key}};
+   my $first=$order eq 'above' ? 54 : 43;
+   ($rc,$sig,$out,$err)=capture($raster_exe,$bin,'11','11',$first);
+   $rc==0 && !$sig or die "$key raster failed\n$out$err";
+   $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
+      or die "unexpected $key raster output: $out";
+   $err eq '' or die "$key raster stderr: $err";
+}
 for my $mode (qw(static motion)) {
    for my $order (qw(above below)) {
       my $key="${mode}_score_${order}";

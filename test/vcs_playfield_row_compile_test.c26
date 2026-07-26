@@ -1,0 +1,10 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: visual_rows:
+// expectasm: 	.byte $ff, $ff, $ff, $ff, $80, $02, $20, $08
+include "vcs.c26"
+include "playfield.c26"
+
+const uint8_t visual_rows[8] := {
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+   VCS_PLAYFIELD_ROW(0bX......._.X......_..X....._...X....)
+};
