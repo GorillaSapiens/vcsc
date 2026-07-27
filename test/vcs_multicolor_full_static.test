@@ -1,3 +1,3 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_full_static.pl @REPO@ @TMP@
 # exit: 0
-# expectstdout: vcs_multicolor_full_static ok: raw-byte trace, all 12 PF rows, A/B colors, Ball, and reviewed Stella image
+# expectstdout: vcs_multicolor_full_static ok: proven full-height smoke trace, all 12 PF rows, P0/P1 colors, Ball, and reviewed Stella image

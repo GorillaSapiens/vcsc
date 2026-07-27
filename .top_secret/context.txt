@@ -5571,3 +5571,16 @@ Before returning another modified archive:
   tests 1..169 before the execution window expired; run the remaining twenty
   tests explicitly and pass 20/20, covering all 189 with no failures. Staged
   `installcheck`, final source hygiene, and branding checks pass.
+
+2026-07-27, restore example 05 from the proven full-height smoke fixture
+------------------------------------------------------------------------
+* Stop redesigning public example 05. Replace the newly invented static scene
+  with the previously verified `player_color_192` smoke cartridge scene. Keep
+  the public source readable through visual playfield/sprite literals and named
+  NTSC colors, but require its visible TIA behavior to match the older raw-byte
+  smoke fixture exactly.
+* Keep P0 at Y=70, P1 at Y=42, and Ball at Y=45 so all three objects are fully
+  visible. Preserve all twelve playfield rows, no score, no missiles, stable
+  262-line frames, and a fresh Stella 7.0 snapshot of the built cartridge.
+* Touch only example 05 and its dedicated fixture/test/documentation. Examples
+  06 through 13 remain pending and untrusted.

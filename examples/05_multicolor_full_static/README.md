@@ -7,21 +7,22 @@
 
 # Multicolor Full Static
 
-This is the certified static example for the official scoreless 192-line
-multicolor P0+P1+Ball kernel.
+This is the static example for the official scoreless 192-line multicolor
+P0+P1+Ball kernel.
 
-The frame is intentionally diagnostic rather than decorative:
+It restores the already-proven full-height smoke scene that existed before the
+public examples were reorganized. It was not redesigned for this example.
 
-- a twelve-row asymmetric playfield with a genuine bottom border;
-- a clear object lane so the players are not hidden by playfield pixels;
-- eight independently colored rows for each player;
-- fixed P0, P1, and Ball positions; and
-- no score, missiles, or motion code.
+The cartridge contains:
 
-The source uses readable binary glyphs and named NTSC colors. Regression
-coverage compares the cartridge against an independent raw-byte golden source,
-checks the complete TIA display trace—including all twelve playfield rows—and
-locks a reviewed Stella 7.0 reference image under
-`test/fixtures/vcs_examples/05_multicolor_full_static/`.
+- all twelve playfield rows;
+- eight independently colored rows for P0 and P1;
+- a visible Ball;
+- no score or missiles; and
+- stable 262-line NTSC frames.
+
+The source uses readable binary playfield/sprite rows and named NTSC colors.
+The regression compares its visible TIA trace against the older independent
+raw-byte smoke fixture and locks a fresh Stella 7.0 snapshot of the built ROM.
 
 Build with `make`, then run `multicolor_full_static.bin` in Stella.

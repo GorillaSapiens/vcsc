@@ -67,15 +67,15 @@ require_re($text,qr/template "kernels\/player_color_192\/player_color_192\.c26" 
 $text !~ /six_glyph_component/ or die "example 05 unexpectedly links a score component\n";
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
 @pfrows==12 or die "example 05 has ".scalar(@pfrows)." playfield rows, expected 12\n";
-require_re($text,qr/0b\.\.XXXX\.\./,'example 05 lost the readable A glyph');
-require_re($text,qr/0b\.XXXXX\.\./,'example 05 lost the readable B glyph');
+require_re($text,qr/0b\.XXXXXX\./,'example 05 lost readable P0 glyph rows');
+require_re($text,qr/0bXXXXXXX\./,'example 05 lost readable P1 glyph rows');
 for my $locked (
    [qr/game_PLAYER0_X\s*:=\s*44\s*;/,'P0 X'],
    [qr/game_PLAYER1_X\s*:=\s*108\s*;/,'P1 X'],
    [qr/game_BALL_X\s*:=\s*78\s*;/,'Ball X'],
-   [qr/game_player0_y\s*:=\s*48\s*;/,'P0 Y'],
-   [qr/game_player1_y\s*:=\s*48\s*;/,'P1 Y'],
-   [qr/game_ball_y\s*:=\s*50\s*;/,'Ball Y'],
+   [qr/game_player0_y\s*:=\s*70\s*;/,'P0 Y'],
+   [qr/game_player1_y\s*:=\s*42\s*;/,'P1 Y'],
+   [qr/game_ball_y\s*:=\s*45\s*;/,'Ball Y'],
    [qr/COLUBK\s*:=\s*VCS_NTSC_MEDIUM_BLUE\s*;/,'background'],
    [qr/COLUPF\s*:=\s*VCS_NTSC_GOLDENROD\s*;/,'playfield color'],
 ) { require_re($text,$locked->[0],"example 05 changed $locked->[1]"); }
@@ -122,7 +122,7 @@ my $png=read_file($reference);
 substr($png,0,8) eq "\x89PNG\r\n\x1a\n" or die "example 05 reference is not PNG\n";
 my($width,$height)=unpack('NN',substr($png,16,8));
 $width==320 && $height==228 or die "example 05 reference is ${width}x${height}, expected 320x228\n";
-sha256_hex($png) eq '54c455652f0859094429296244781a7f1e835696f3647c5dafa6cc184baa5bf5'
+sha256_hex($png) eq 'ca91debb8f607258273d22850ba88865fa14384730ce665347a9557ed4535098'
    or die "reviewed example 05 Stella reference changed\n";
 
-print "vcs_multicolor_full_static ok: raw-byte trace, all 12 PF rows, A/B colors, Ball, and reviewed Stella image\n";
+print "vcs_multicolor_full_static ok: proven full-height smoke trace, all 12 PF rows, P0/P1 colors, Ball, and reviewed Stella image\n";
