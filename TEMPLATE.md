@@ -630,7 +630,7 @@ The first real component conversion should prove:
 
 ## Implementation sequence
 
-Implement this as vertical slices rather than one parser-to-kernel leap:
+Implement this as vertical slices rather than one parser-to-renderer leap:
 
 1. Add `require` and `recommend` to declaration parsing and type-compatible
    declaration merging, but initially emit metadata only.
@@ -655,8 +655,8 @@ Implement this as vertical slices rather than one parser-to-kernel leap:
    overrun diagnostics, and exact NTSC phase regressions are maintained together.
 9. Convert the existing six-glyph display into the first reusable component and
    prove two independent instances in both draw orders.
-10. Update the kernel-authoring documentation after the implementation has
+10. Update the renderer-authoring documentation after the implementation has
     established real constraints and examples.
 
 Each slice must leave the complete existing test suite green and must add focused
-negative tests before relying on the new contract for maintained kernels.
+negative tests before relying on the new contract for maintained renderers.

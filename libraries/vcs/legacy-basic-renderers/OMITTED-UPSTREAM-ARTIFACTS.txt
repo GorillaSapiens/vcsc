@@ -1,0 +1,16 @@
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+
+The following upstream artifacts were not mirrored into this text/source
+renderer snapshot because they are packaged binary blobs rather than source:
+
+- includes/DPCplus.arm
+- includes/PXE-pre.arm
+- includes/PXE-post.arm
+- includes/PXE_CC_pre.arm
+- includes/PXE_CC_post.arm
+- includes/custom/bin/custom2.bin
+
+Adding them would require a separate binary-artifact import and license review.

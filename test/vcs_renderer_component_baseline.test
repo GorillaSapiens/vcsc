@@ -1,0 +1,4 @@
+# runner: perl @TEST_ROOT@/vcs_renderer_component_baseline.pl @REPO@
+# phase: e2e
+# expectstdout: vcs_renderer_component_baseline ok
+# expectexit: 0

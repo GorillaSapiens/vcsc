@@ -20,16 +20,16 @@ Files:
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display
-- `kernels/COMPONENT_CONVERSION.md` ... measured predecessor baseline plus the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
-- `kernels/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component for composition with an independent eleven-line score
-- `kernels/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line all-five component; measured zero-byte saving
-- `kernels/all_five_192/` ... distinct official-opcode 192-line scoreless P0/P1/M0/M1/BL lifecycle component
-- `kernels/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors and tested score-above/score-below composition
-- `kernels/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured zero-byte saving
-- `kernels/player_color_192/` ... distinct official-opcode 192-line scoreless P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
-- `kernels/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
-- `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
-- `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
+- `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline plus the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
+- `renderers/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component for composition with an independent eleven-line score
+- `renderers/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line all-five component; measured zero-byte saving
+- `renderers/all_five_192/` ... distinct official-opcode 192-line scoreless P0/P1/M0/M1/BL lifecycle component
+- `renderers/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors and tested score-above/score-below composition
+- `renderers/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured zero-byte saving
+- `renderers/player_color_192/` ... distinct official-opcode 192-line scoreless P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
+- `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
+- `renderers/standard_4k_ntsc/` ... all-five-object solid-color standard-renderer profile
+- `renderers/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
 - `../../examples/01_blank_screen/blank_screen.c26` ... minimal complete blank-screen cartridge
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
@@ -113,9 +113,9 @@ sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and
 that RAM byte and all flag-setting code.
 
 
-## Poison debug score kernel
+## Poison debug score renderer
 
-`kernels/poison_debug_score/poison_debug_score.c26` is a deterministic
+`renderers/poison_debug_score/poison_debug_score.c26` is a deterministic
 adversarial component, not a production score renderer. It consumes exactly
 11 visible scanlines and owns one caller-set exit-background byte. While its
 red diagnostic band is visible it deliberately leaves hostile P0/P1 graphics,
@@ -127,7 +127,7 @@ collision-latch clearing.
 Use it wherever an ordinary short score component would be composed:
 
 ```vcsc
-template "kernels/poison_debug_score/poison_debug_score.c26" as poison
+template "renderers/poison_debug_score/poison_debug_score.c26" as poison
 ```
 
 Set `poison_exit_background` to the background expected by the following
@@ -174,7 +174,7 @@ Notes:
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
 - `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
-- Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. A linker configuration may add `callstack_extra` bytes for hardware-stack use declared by an included assembly module. Both maintained standard-kernel objects export their assembly-initiated overscan-hook edge and use four supplementary bytes for the deeper internal mask-preparation chain. Arbitrary inline-assembly pushes and stack-pointer manipulation are still not inferred.
+- Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. A linker configuration may add `callstack_extra` bytes for hardware-stack use declared by an included assembly module. Both maintained standard-renderer objects export their assembly-initiated overscan-hook edge and use four supplementary bytes for the deeper internal mask-preparation chain. Arbitrary inline-assembly pushes and stack-pointer manipulation are still not inferred.
 - Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
-- `legacy-basic-kernels/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_KERNEL_CONVERSION.md` for the staged conversion inventory.
+- `legacy-basic-renderers/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_RENDERER_CONVERSION.md` for the staged conversion inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.

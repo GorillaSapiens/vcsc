@@ -125,7 +125,7 @@ The language is intentionally smaller and more explicit than C:
 - VCS-specific memory regions, hardware bindings, and inline assembly;
 - link-time activation overlay and call-graph-based hardware-stack sizing.
 
-Cycle-counted display kernels remain separately assembled code. VCSC source is
+Cycle-counted display renderers remain separately assembled code. VCSC source is
 best used for setup, VBLANK/overscan game logic, state updates, score handling,
 and other work outside the visible scanline schedule.
 
@@ -133,15 +133,15 @@ and other work outside the visible scanline schedule.
 
 [`libraries/vcs/`](libraries/vcs/) contains TIA/RIOT bindings, the stock 4K
 linker layout, shared NTSC frame primitives, audio aliases, named NTSC colors,
-score fonts, the shared six-glyph display, and two maintained NTSC kernel
+score fonts, the shared six-glyph display, and two maintained NTSC renderer
 profiles. The compile-time `__builtin_ntsc_rgb(r, g, b)` matcher selects the
 nearest meaningful NTSC TIA byte from ordinary RGB components with no runtime
 cost.
 The installed `poison_debug_score` component provides a deterministic hostile
 11-line score-profile predecessor for finding hidden TIA-state coupling while
-the componentized kernels pass the 22i4b correctness gate.
+the componentized renderers pass the 22i4b correctness gate.
 
-The maintained kernel profiles are:
+The maintained renderer profiles are:
 
 - `standard_4k_ntsc` — P0, P1, M0, M1, and Ball with solid TIA color groups;
 - `standard_4k_ntsc_playercolors` — P0, P1, and Ball with independent per-row
@@ -153,7 +153,7 @@ The user-facing examples are deliberately editable:
 - [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
 - [`03_score`](examples/03_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color kernel example
+- [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color renderer example
 - [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — **pending display repair**; scoreless 192-line static multicolor P0+P1+Ball display
 - [`07_multicolor_score_above_static`](examples/07_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
 - [`08_multicolor_score_below`](examples/08_multicolor_score_below/) — **pending display repair**; static multicolor gameplay with score below
@@ -166,7 +166,7 @@ The user-facing examples are deliberately editable:
 
 The `faithful_legacy_playercolors` template is compared with an independently
 built retained-source audit using the same fixture scene. Public example 05 uses
-that kernel with different playfield data, so its test checks the 264-line frame
+that renderer with different playfield data, so its test checks the 264-line frame
 schedule plus exact P0/P1 rows and colors rather than falsely claiming byte-for-
 byte identity with the pristine scene ROM. Example 06 currently has build,
 262-line frame, player, and Ball smoke coverage only; its playfield pixels are
@@ -198,8 +198,8 @@ The installed layout contains:
 - `$(PREFIX)/lib/` — `libvcsc.l26`;
 - `$(PREFIX)/include/` — `vcsc-runtime.inc`;
 - `$(PREFIX)/share/cfg/` — assembler opcode tables;
-- `$(PREFIX)/share/vcs/` — VCS bindings, fonts, kernels, linker configuration,
-  and retained legacy-kernel conversion references.
+- `$(PREFIX)/share/vcs/` — VCS bindings, fonts, renderers, linker configuration,
+  and retained legacy-renderer conversion references.
 
 The driver first recognizes the built source-tree layout. When installed, it
 finds sibling tools and data relative to the common prefix. It uses the bundled
@@ -235,7 +235,7 @@ Documentation is organized by responsibility:
 - [`archiver/README.md`](archiver/README.md) — `.l26` archive operations and format
 - [`simulator/README.md`](simulator/README.md) — execution, tracing, and host calls
 - [`libraries/runtime/README.md`](libraries/runtime/README.md) — runtime archive construction and ABI
-- [`libraries/vcs/README.md`](libraries/vcs/README.md) — target bindings, kernels, fonts, and examples
+- [`libraries/vcs/README.md`](libraries/vcs/README.md) — target bindings, renderers, fonts, and examples
 - [`test/README.md`](test/README.md) — unified test harness
 
 ## Licensing

@@ -4,7 +4,7 @@
 // See libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
 // The remaining printable ASCII glyphs extend the same 8x8 visual style.
 // Glyph rows are written top-to-bottom for visual readability; the
-// VCS_FONT_GLYPH alias reverses each glyph for the score kernel.
+// VCS_FONT_GLYPH alias reverses each glyph for the score renderer.
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 

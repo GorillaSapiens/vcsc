@@ -35,7 +35,7 @@ $repo=abs_path($repo) // die "resolve repo\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(kernels standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
+my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $fixtures=File::Spec->catdir($repo,qw(test fixtures poison_debug_score));
 my %cases=(
    player_color_181_above => 'poison-above',
@@ -122,7 +122,7 @@ $above =~ /poison_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
 my $below=read_file(File::Spec->catfile($fixtures,'player_color_181_below.c26'));
 $below =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*poison_draw\(\);/s
    or die "score-below fixture is missing the explicit component handoff\n";
-my $game=read_file(File::Spec->catfile($vcs,qw(kernels player_color_181 player_color_181.c26)));
+my $game=read_file(File::Spec->catfile($vcs,qw(renderers player_color_181 player_color_181.c26)));
 for my $required (qw(RESP0 RESP1 HMP0 HMP1 HMOVE NUSIZ0 NUSIZ1)) {
    $game =~ /\b\Q$required\E\b/ or die "gameplay handoff is missing $required\n";
 }

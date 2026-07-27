@@ -16,7 +16,7 @@ collection of historical test cartridges.
 | 02 | `ode_to_joy` | Frame-driven TIA audio |
 | 03 | `score` | Standalone six-glyph score component |
 | 04 | `fingerprint` | Unstable-opcode silicon fingerprint |
-| 05 | `faithful_legacy_playercolors` | Faithful legacy player-color kernel example |
+| 05 | `faithful_legacy_playercolors` | Faithful legacy player-color renderer example |
 | 06 | `multicolor_full_static` | Pending-repair scoreless 192-line static P0+P1+Ball display |
 | 07 | `multicolor_score_above_static` | Static 181-line display with score above |
 | 08 | `multicolor_score_below` | Static 181-line display with score below |
@@ -27,7 +27,7 @@ collection of historical test cartridges.
 | 13 | `multicolor_score_above_dynamic_x_and_y_motion` | Two-axis motion with score above |
 | 14 | `multicolor_score_below_dynamic_x_and_y_motion` | Two-axis motion with score below |
 
-Example 05 is checked separately. The kernel template is compared with a
+Example 05 is checked separately. The renderer template is compared with a
 retained-source audit using an identical fixture scene, while the public example
 checks its 264-line frame schedule and exact sprite rows/colors. Its different
 playfield scene is not compared with the pristine cartridge.
@@ -42,5 +42,5 @@ certification:
 | X only | 09 pending | 10 pending | 11 pending |
 | X and Y | 12 pending | 13 pending | 14 pending |
 
-These examples intentionally do not exercise M0 or M1. Five-object kernel work
+These examples intentionally do not exercise M0 or M1. Five-object renderer work
 remains blocked until every P0+P1+Ball example is independently certified.

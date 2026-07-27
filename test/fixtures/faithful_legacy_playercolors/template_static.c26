@@ -2,7 +2,7 @@ include "vcs.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 
-template "kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 
 uint8_t legacy_playfield[48] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),

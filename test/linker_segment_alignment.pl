@@ -61,7 +61,7 @@ MEMORY {
 SEGMENTS {
    ZEROPAGE:   load=ROM, run=ZEROPAGE, type=zp;
    CODE:       load=ROM, type=ro;
-   KERNEL_CODE:load=ROM, type=ro, align=$0100;
+   RENDERER_CODE:load=ROM, type=ro, align=$0100;
    RODATA:     load=ROM, type=ro;
    BSS:        load=RAM, type=bss;
    DATA:       load=ROM, run=RAM, type=data;
@@ -70,7 +70,7 @@ CFG
 
 my $src=File::Spec->catfile($tmp,'aligned.s26');
 write_file($src,<<'ASM');
-.segment "KERNEL_CODE"
+.segment "RENDERER_CODE"
 .export main
 .export __sbpmeta$F$main
 __sbpmeta$F$main = 0
@@ -87,8 +87,8 @@ my $map=slurp($mapfile);
 $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+main\b/m or die "aligned map lacks main\n";
 my $main=hex($1);
 ($main & 0xff) == 0 or die sprintf("main was placed at %04X, not a page boundary\n",$main);
-$map =~ /^\s*KERNEL_CODE\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
-   or die "aligned map lacks one-byte KERNEL_CODE layout\n";
+$map =~ /^\s*RENDERER_CODE\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/m
+   or die "aligned map lacks one-byte RENDERER_CODE layout\n";
 
 my $badcfg=File::Spec->catfile($tmp,'bad_align.cfg');
 my $badtext=slurp($cfg); $badtext =~ s/align=\$0100/align=3/;
@@ -103,7 +103,7 @@ my $mis_src=File::Spec->catfile($tmp,'misaligned.s26');
 write_file($mis_src,<<'ASM');
 .segment "CODE"
 .byte $ea
-.segment "KERNEL_CODE"
+.segment "RENDERER_CODE"
 .export main
 .export __sbpmeta$F$main
 __sbpmeta$F$main = 0
@@ -120,6 +120,6 @@ my $mis_text=slurp($mis_map);
 $mis_text =~ /^\s*\$([0-9A-Fa-f]{4})\s+main\b/m
    or die "independent aligned map lacks main\n";
 (hex($1) & 0xff) == 0
-   or die sprintf("independent KERNEL_CODE layout was placed at %04X\n",hex($1));
+   or die sprintf("independent RENDERER_CODE layout was placed at %04X\n",hex($1));
 
 print "linker segment alignment enforced\n";

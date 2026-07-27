@@ -30,9 +30,9 @@ sub map_zp {
 }
 sub require_re { my($text,$re,$why)=@_; $text =~ $re or die "$why\n"; }
 sub build_profile {
-   my($driver,$vcs,$cfg,$source,$kernel,$bin,$map)=@_;
+   my($driver,$vcs,$cfg,$source,$renderer,$bin,$map)=@_;
    my($rc,$sig,$out,$err)=capture(
-      $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,$source,$kernel,'-o',$bin);
+      $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,$source,$renderer,'-o',$bin);
    $rc==0 && !$sig or die "player-color cartridge build failed\nstdout:\n$out\nstderr:\n$err";
    without_cartridge_usage($out) eq '' or die "player-color build wrote unexpected stdout:\n$out";
    $err eq '' or die "player-color build wrote stderr:\n$err";
@@ -45,9 +45,9 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels standard_4k_ntsc_playercolors));
+my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc_playercolors));
 my $contract=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors.c26');
-my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors_kernel.s26');
+my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors_renderer.s26');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc_playercolors.cfg');
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $static_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 07_playercolor_static golden.c26));
@@ -63,22 +63,22 @@ $out eq "standard_4k_ntsc_playercolors normalization current\n"
    or die "unexpected normalizer output: $out";
 $err eq '' or die "normalizer wrote stderr: $err";
 
-# The standalone kernel must assemble with only the official opcode table.
-my $kernel_object=File::Spec->catfile($tmp,'standard_4k_ntsc_playercolors_kernel.o26');
-($rc,$sig,$out,$err)=capture($assembler,'-I',$profile,'-o',$kernel_object,$kernel);
-$rc==0 && !$sig or die "plain player-color kernel assembly failed\n$out$err";
+# The standalone renderer must assemble with only the official opcode table.
+my $renderer_object=File::Spec->catfile($tmp,'standard_4k_ntsc_playercolors_renderer.o26');
+($rc,$sig,$out,$err)=capture($assembler,'-I',$profile,'-o',$renderer_object,$renderer);
+$rc==0 && !$sig or die "plain player-color renderer assembly failed\n$out$err";
 without_cartridge_usage($out) eq '' && $err eq ''
-   or die "plain player-color kernel assembly wrote output\n$out$err";
+   or die "plain player-color renderer assembly wrote output\n$out$err";
 
-build_profile($driver,$vcs,$cfg,$static_source,$kernel,$static_bin,$static_map);
-build_profile($driver,$vcs,$cfg,$motion_source,$kernel,$motion_bin,$motion_map);
+build_profile($driver,$vcs,$cfg,$static_source,$renderer,$static_bin,$static_map);
+build_profile($driver,$vcs,$cfg,$motion_source,$renderer,$motion_bin,$motion_map);
 my $smap=read_file($static_map);
 my $mmap=read_file($motion_map);
 
 for my $map ($smap,$mmap) {
-   require_re($map,qr/^\s*KERNEL_CODE\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0300\b/m,
-      'player-color kernel code is not page aligned in a 0x300-byte window');
-   require_re($map,qr/^\s*KERNEL_RODATA\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0058\b/m,
+   require_re($map,qr/^\s*RENDERER_CODE\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0300\b/m,
+      'player-color renderer code is not page aligned in a 0x300-byte window');
+   require_re($map,qr/^\s*RENDERER_RODATA\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0058\b/m,
       'player-color score table is not page aligned');
 }
 require_re($smap,qr/region=RAM\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
@@ -108,16 +108,16 @@ require_re($contract_text,qr/VCS_STANDARD_COLOR_MODULE_RAM_BYTES\s+77\b/,
    'player-color total module RAM cost changed');
 $contract_text !~ /MISSILE0|MISSILE1|missile0|missile1/
    or die "public player-color contract advertises missile state\n";
-my $kernel_text=read_file($kernel);
-$kernel_text !~ /^\s*(?:dcp|lax|sax|sbx|asr|anc|arr|isc|isb|rla|rra|slo|sre)\b/im
-   or die "player-color kernel contains an unofficial mnemonic\n";
-$kernel_text !~ /^\s*op[0-9A-Fa-f]{2}\b/im
-   or die "player-color kernel contains a raw opcode escape\n";
-require_re($kernel_text,qr/^\s*lda\s+#38\+128\s*$/m,
+my $renderer_text=read_file($renderer);
+$renderer_text !~ /^\s*(?:dcp|lax|sax|sbx|asr|anc|arr|isc|isb|rla|rra|slo|sre)\b/im
+   or die "player-color renderer contains an unofficial mnemonic\n";
+$renderer_text !~ /^\s*op[0-9A-Fa-f]{2}\b/im
+   or die "player-color renderer contains a raw opcode escape\n";
+require_re($renderer_text,qr/^\s*lda\s+#38\+128\s*$/m,
    'player-color VBLANK timer no longer preserves the standard frame period');
-require_re($kernel_text,qr/lda\.ay\s+vcs_standard_color_player0_colors,y.*sta\s+vcs_standard_color_player0_latch/s,
+require_re($renderer_text,qr/lda\.ay\s+vcs_standard_color_player0_colors,y.*sta\s+vcs_standard_color_player0_latch/s,
    'P0 row-color stage is missing');
-require_re($kernel_text,qr/lda\.ay\s+vcs_standard_color_player1_colors,y.*sta\s+COLUP1/s,
+require_re($renderer_text,qr/lda\.ay\s+vcs_standard_color_player1_colors,y.*sta\s+COLUP1/s,
    'P1 row-color write is missing');
 
 # Compile one reusable CPU/TIA-write harness, then lock both private fixtures.

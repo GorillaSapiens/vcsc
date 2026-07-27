@@ -18,7 +18,7 @@ Each family has two modules:
   128-byte array.
 
 Include exactly one font module in a translation unit. Every module defines the
-common table symbol `score_font`, which is the interface expected by score kernels.
+common table symbol `score_font`, which is the interface expected by score renderers.
 Each font module uses the VCSC `page` declaration modifier, so the linker
 places the complete table anywhere it fits within one 256-byte page. This is a timing requirement: `(score_font + digit * 8),Y`
 gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
@@ -36,7 +36,7 @@ gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
 
 ## Selecting a font
 
-Example 03 selects the table expected by its score kernel by including one
+Example 03 selects the table expected by its score renderer by including one
 module:
 
 ```vcsc
@@ -48,7 +48,7 @@ use digit values in the range `0..15`; packed BCD naturally supplies only
 `0..9`. Example 04 selects `default_hex.c26` to display a binary 24-bit
 processor fingerprint as six hexadecimal digits.
 
-The arrays are stored in the row order consumed by the score kernel, but source
+The arrays are stored in the row order consumed by the score renderer, but source
 rows are written top-to-bottom. `VCS_FONT_GLYPH` performs the reversal at
 compile time.
 
@@ -56,5 +56,5 @@ compile time.
 
 The original assembly font data is from the retained legacy BASIC support
 materials and is released under CC0-1.0. The exact upstream licensing overview
-is retained at `../legacy-basic-kernels/LICENSE.txt`. The conversion to VCSC
+is retained at `../legacy-basic-renderers/LICENSE.txt`. The conversion to VCSC
 visual-binary source does not change that license.

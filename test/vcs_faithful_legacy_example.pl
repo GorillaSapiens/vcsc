@@ -35,7 +35,7 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels faithful_legacy_playercolors));
+my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
 my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $source=File::Spec->catfile($repo,qw(examples 05_faithful_legacy_playercolors faithful_legacy_playercolors.c26));
 my $bin=File::Spec->catfile($tmp,'faithful_legacy_playercolors.bin');
@@ -46,8 +46,8 @@ require_re($text,qr/^include "color_ntsc\.c26"$/m,
    'example 05 does not use named NTSC colors');
 require_re($text,qr/^include "playfield\.c26"$/m,
    'example 05 does not use visual playfield rows');
-require_re($text,qr/template "kernels\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
-   'example 05 does not use the oracle-backed faithful legacy kernel');
+require_re($text,qr/template "renderers\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
+   'example 05 does not use the oracle-backed faithful legacy renderer');
 require_re($text,qr/^uint8_t legacy_playfield\[48\]/m,
    'example 05 playfield is not RAM-backed');
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
@@ -87,4 +87,4 @@ $out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exa
    or die "unexpected faithful sprite/frame output: $out";
 $err eq '' or die "faithful sprite/frame stderr: $err";
 
-print "vcs_faithful_legacy_example ok: public example 05 uses the faithful legacy kernel with 264-line frames and exact sprites\n";
+print "vcs_faithful_legacy_example ok: public example 05 uses the faithful legacy renderer with 264-line frames and exact sprites\n";

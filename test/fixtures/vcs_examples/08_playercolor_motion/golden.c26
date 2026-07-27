@@ -1,4 +1,4 @@
-// Motion diagnostic for the P0+P1+BL per-row player-color kernel variant.
+// Motion diagnostic for the P0+P1+BL per-row player-color renderer variant.
 // Both players retain a different color on every logical sprite row while all
 // three supported objects move asynchronously across the full X=0..159 range.
 
@@ -19,7 +19,7 @@ page const uint8_t vcs_standard_color_playfield[48] := {
    0x00, 0x00, 0x00, 0x00
 };
 
-include "kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"
+include "renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"
 
 
 page const uint8_t player0_graphics[8] := {
@@ -136,6 +136,6 @@ void main(void) {
    initialize_scene();
    while (1) {
       configure_frame();
-      vcs_standard_color_kernel_drawscreen();
+      vcs_standard_color_renderer_drawscreen();
    }
 }

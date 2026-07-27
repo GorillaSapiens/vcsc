@@ -1,5 +1,5 @@
 //! @file vcs_standard_playercolors.cpp
-//! @brief Verify the P0+P1+BL per-row-color standard-kernel profile.
+//! @brief Verify the P0+P1+BL per-row-color standard-renderer profile.
 
 #include <array>
 #include <cstdint>

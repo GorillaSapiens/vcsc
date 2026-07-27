@@ -1,4 +1,4 @@
-// Static diagnostic for the P0+P1+BL per-row player-color kernel variant.
+// Static diagnostic for the P0+P1+BL per-row player-color renderer variant.
 
 include "vcs.c26"
 
@@ -17,7 +17,7 @@ page const uint8_t vcs_standard_color_playfield[48] := {
    0x00, 0x00, 0x00, 0x00
 };
 
-include "kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"
+include "renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"
 
 page const uint8_t player0_graphics[8] := {
    VCS_STANDARD_COLOR_SPRITE_GLYPH(
@@ -46,7 +46,7 @@ page const uint8_t player1_graphics[8] := {
 };
 
 // Every logical sprite row has a distinct color. The helper accepts colors in
-// visible top-to-bottom order and reverses them to match the kernel's row index.
+// visible top-to-bottom order and reverses them to match the renderer's row index.
 page const uint8_t vcs_standard_color_player0_colors[8] := {
    VCS_STANDARD_COLOR_SPRITE_ROWS(
       0x3e, 0x4e, 0x5e, 0x6e, 0x7e, 0x8e, 0x9e, 0xae
@@ -98,6 +98,6 @@ void main(void) {
    initialize_scene();
    while (1) {
       configure_frame();
-      vcs_standard_color_kernel_drawscreen();
+      vcs_standard_color_renderer_drawscreen();
    }
 }

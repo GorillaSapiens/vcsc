@@ -19,7 +19,7 @@ VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX.X.X.X._.X.X.X.X_X.X.X.X._.X.X.X.X)
 };
 
-template "kernels/player_color_192/player_color_192.c26" as game
+template "renderers/player_color_192/player_color_192.c26" as game
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(

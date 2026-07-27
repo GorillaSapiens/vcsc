@@ -1,3 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_standard_kernel_legal_bytes.pl @REPO@ @TMP@
-# expectstdout: vcs_standard_kernel_legal_bytes ok
-# expectexit: 0

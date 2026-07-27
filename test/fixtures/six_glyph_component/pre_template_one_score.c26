@@ -1,7 +1,7 @@
 // Centered six-digit score display adapted from a legacy standard score
-// mini-kernel. VCSC owns the score, font, frame structure, scanline waits,
+// mini-renderer. VCSC owns the score, font, frame structure, scanline waits,
 // update cadence, and ordinary TIA setup. Inline assembly is confined to
-// compact glyph-pointer construction and the cycle-counted visible kernel.
+// compact glyph-pointer construction and the cycle-counted visible renderer.
 
 include "vcs.c26"
 include "fonts/default_decimal.c26"

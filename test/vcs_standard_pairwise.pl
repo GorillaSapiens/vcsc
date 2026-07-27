@@ -37,15 +37,15 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels standard_4k_ntsc));
+my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
 my $source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 06_object_motion golden.c26));
-my $kernel=File::Spec->catfile($profile,'standard_4k_ntsc_kernel.s26');
+my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'object_pairwise.bin');
 my $mapfile=File::Spec->catfile($tmp,'object_pairwise.map');
 my($rc,$sig,$out,$err)=capture(
    $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
-   $source,$kernel,'-o',$bin);
+   $source,$renderer,'-o',$bin);
 $rc==0 && !$sig or die "pairwise diagnostic build failed\n$out$err";
 without_cartridge_usage($out) eq '' && $err eq '' or die "pairwise diagnostic build wrote output\n$out$err";
 my $map=read_file($mapfile);

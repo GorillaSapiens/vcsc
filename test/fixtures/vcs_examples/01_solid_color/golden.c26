@@ -1,6 +1,6 @@
 // Minimal unbanked 4K Atari VCS cartridge.
 //
-// This deliberately keeps the visible kernel in inline 6502 assembly while
+// This deliberately keeps the visible renderer in inline 6502 assembly while
 // exercising the static-frame source ABI during initialization.
 
 include "vcs.c26"

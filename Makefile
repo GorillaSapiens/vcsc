@@ -73,7 +73,7 @@ install-core:
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
-	install -m 0644 libraries/vcs/LEGACY_KERNEL_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
+	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
 	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
@@ -83,66 +83,66 @@ install-data:
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels
-	install -m 0644 libraries/vcs/kernels/COMPONENT_CONVERSION.md \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors
-	install -m 0644 libraries/vcs/kernels/faithful_legacy_playercolors/README.md \
-	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26 \
-	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc \
-	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26 \
-	  libraries/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181
-	install -m 0644 libraries/vcs/kernels/all_five_181/README.md \
-	  libraries/vcs/kernels/all_five_181/all_five_181.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial
-	install -m 0644 libraries/vcs/kernels/all_five_181_unofficial/README.md \
-	  libraries/vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192
-	install -m 0644 libraries/vcs/kernels/all_five_192/README.md \
-	  libraries/vcs/kernels/all_five_192/all_five_192.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181
-	install -m 0644 libraries/vcs/kernels/player_color_181/README.md \
-	  libraries/vcs/kernels/player_color_181/player_color_181.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial
-	install -m 0644 libraries/vcs/kernels/player_color_181_unofficial/README.md \
-	  libraries/vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192
-	install -m 0644 libraries/vcs/kernels/player_color_192/README.md \
-	  libraries/vcs/kernels/player_color_192/player_color_192.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score
-	install -m 0644 libraries/vcs/kernels/poison_debug_score/README.md \
-	  libraries/vcs/kernels/poison_debug_score/poison_debug_score.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc
-	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc/README.md \
-	  libraries/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md \
-	  libraries/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26 \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26 \
-	  libraries/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
-	  libraries/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/
-	install -d $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors
-	install -m 0644 libraries/vcs/kernels/standard_4k_ntsc_playercolors/README.md \
-	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26 \
-	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26 \
-	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc \
-	  libraries/vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg \
-	  $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers
+	install -m 0644 libraries/vcs/renderers/COMPONENT_CONVERSION.md \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors
+	install -m 0644 libraries/vcs/renderers/faithful_legacy_playercolors/README.md \
+	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26 \
+	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc \
+	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26 \
+	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181
+	install -m 0644 libraries/vcs/renderers/all_five_181/README.md \
+	  libraries/vcs/renderers/all_five_181/all_five_181.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial
+	install -m 0644 libraries/vcs/renderers/all_five_181_unofficial/README.md \
+	  libraries/vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192
+	install -m 0644 libraries/vcs/renderers/all_five_192/README.md \
+	  libraries/vcs/renderers/all_five_192/all_five_192.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181
+	install -m 0644 libraries/vcs/renderers/player_color_181/README.md \
+	  libraries/vcs/renderers/player_color_181/player_color_181.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial
+	install -m 0644 libraries/vcs/renderers/player_color_181_unofficial/README.md \
+	  libraries/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192
+	install -m 0644 libraries/vcs/renderers/player_color_192/README.md \
+	  libraries/vcs/renderers/player_color_192/player_color_192.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score
+	install -m 0644 libraries/vcs/renderers/poison_debug_score/README.md \
+	  libraries/vcs/renderers/poison_debug_score/poison_debug_score.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc
+	install -m 0644 libraries/vcs/renderers/standard_4k_ntsc/README.md \
+	  libraries/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md \
+	  libraries/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md \
+	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26 \
+	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26 \
+	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
+	  libraries/vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors
+	install -m 0644 libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md \
+	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26 \
+	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26 \
+	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc \
+	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/
 	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
 	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
-	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels
-	install -m 0644 libraries/vcs/legacy-basic-kernels/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
-	install -m 0644 libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
-	install -m 0644 libraries/vcs/legacy-basic-kernels/README.md $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/README.md
+	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers
+	install -m 0644 libraries/vcs/legacy-basic-renderers/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/LICENSE.txt
+	install -m 0644 libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt
+	install -m 0644 libraries/vcs/legacy-basic-renderers/README.md $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/README.md
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
@@ -156,7 +156,7 @@ uninstall:
 
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_KERNEL_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
@@ -166,55 +166,55 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/COMPONENT_CONVERSION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/faithful_legacy_playercolors 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181/all_five_181.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_181_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192/all_five_192.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/all_five_192 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181/player_color_181.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_181_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192/player_color_192.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/player_color_192 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score/poison_debug_score.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/poison_debug_score 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels/standard_4k_ntsc_playercolors 2>/dev/null || true
-	rmdir $(DESTDIR)$(DATADIR)/vcs/kernels 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/all_five_181.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/all_five_192.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/player_color_181.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/player_color_192.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/poison_debug_score.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors 2>/dev/null || true
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/fonts 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/LICENSE.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-kernels/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/LICENSE.txt
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt
+	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/README.md
 
 package: tools
 	rm -rf $(PACKAGE_STAGING)
@@ -254,120 +254,120 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
 	test -f "$$stage_vcs/playfield.c26"; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
-	test -f "$$stage_vcs/kernels/COMPONENT_CONVERSION.md"; \
-	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/README.md"; \
-	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26"; \
-	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc"; \
-	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
-	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
+	test -f "$$stage_vcs/renderers/COMPONENT_CONVERSION.md"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/README.md"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/06_multicolor_full_static/multicolor_full_static.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  -T "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
+	  -T "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
 	  "$(CURDIR)/examples/05_faithful_legacy_playercolors/faithful_legacy_playercolors.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/all_five_181/README.md"; \
-	test -f "$$stage_vcs/kernels/all_five_181/all_five_181.c26"; \
+	test -f "$$stage_vcs/renderers/all_five_181/README.md"; \
+	test -f "$$stage_vcs/renderers/all_five_181/all_five_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181.bin"` -eq 4096; \
 	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	    -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	    "$(CURDIR)/test/fixtures/all_five_181/$$fixture.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/$$fixture.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$fixture.bin"` -eq 4096; \
 	done; \
-	test -f "$$stage_vcs/kernels/all_five_181_unofficial/README.md"; \
-	test -f "$$stage_vcs/kernels/all_five_181_unofficial/all_five_181_unofficial.c26"; \
+	test -f "$$stage_vcs/renderers/all_five_181_unofficial/README.md"; \
+	test -f "$$stage_vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/all_five_192/README.md"; \
-	test -f "$$stage_vcs/kernels/all_five_192/all_five_192.c26"; \
+	test -f "$$stage_vcs/renderers/all_five_192/README.md"; \
+	test -f "$$stage_vcs/renderers/all_five_192/all_five_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_192.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/player_color_181/README.md"; \
-	test -f "$$stage_vcs/kernels/player_color_181/player_color_181.c26"; \
+	test -f "$$stage_vcs/renderers/player_color_181/README.md"; \
+	test -f "$$stage_vcs/renderers/player_color_181/player_color_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/player_color_181_unofficial/README.md"; \
-	test -f "$$stage_vcs/kernels/player_color_181_unofficial/player_color_181_unofficial.c26"; \
+	test -f "$$stage_vcs/renderers/player_color_181_unofficial/README.md"; \
+	test -f "$$stage_vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/player_color_192/README.md"; \
-	test -f "$$stage_vcs/kernels/player_color_192/player_color_192.c26"; \
+	test -f "$$stage_vcs/renderers/player_color_192/README.md"; \
+	test -f "$$stage_vcs/renderers/player_color_192/player_color_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192.bin"` -eq 4096; \
-	test -f "$$stage_vcs/kernels/poison_debug_score/README.md"; \
-	test -f "$$stage_vcs/kernels/poison_debug_score/poison_debug_score.c26"; \
+	test -f "$$stage_vcs/renderers/poison_debug_score/README.md"; \
+	test -f "$$stage_vcs/renderers/poison_debug_score/poison_debug_score.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/poison_debug_score/standalone.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"` -eq 4096; \
 	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	    -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	    "$(CURDIR)/test/fixtures/player_color_181/$$fixture.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"` -eq 4096; \
 	done; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/README.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc.c26"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/README.md"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_kernel.s26"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc"; \
-	test -f "$$stage_vcs/kernels/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/README.md"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/README.md"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc"; \
+	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg"; \
 	"$$stage_bin/vcsc-as" \
-	  -I "$$stage_vcs/kernels/standard_4k_ntsc" \
-	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.map" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26"` -gt 0; \
-	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_kernel.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
+	  -I "$$stage_vcs/renderers/standard_4k_ntsc" \
+	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.map" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" \
+	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"` -gt 0; \
+	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
 	if "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/test/vcs_standard_kernel_contract_smoke.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.bin" \
-	  >"$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stdout" \
-	  2>"$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stderr"; then \
-	  echo "mutable standard-kernel playfield unexpectedly linked" >&2; exit 1; \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/vcs_standard_renderer_contract_smoke.c26" \
+	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.bin" \
+	  >"$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout" \
+	  2>"$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; then \
+	  echo "mutable standard-renderer playfield unexpectedly linked" >&2; exit 1; \
 	fi; \
-	test ! -s "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stdout"; \
-	grep -q "RAM overflow" "$(INSTALLCHECK_STAGING)/standard_kernel_contract_smoke.stderr"; \
+	test ! -s "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout"; \
+	grep -q "RAM overflow" "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/test/vcs_standard_kernel_contract_rom_smoke.c26" \
-	  "$$stage_vcs/kernels/standard_4k_ntsc/standard_4k_ntsc_kernel.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/test/vcs_standard_renderer_contract_rom_smoke.c26" \
+	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
 		  07_multicolor_score_above_static/multicolor_score_above_static \
 	  08_multicolor_score_below/multicolor_score_below \

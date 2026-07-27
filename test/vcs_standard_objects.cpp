@@ -1,5 +1,5 @@
 //! @file vcs_standard_objects.cpp
-//! @brief Prove the normalized standard kernel actively emits every TIA object.
+//! @brief Prove the normalized standard renderer actively emits every TIA object.
 
 #include <cstdint>
 #include <cstdio>

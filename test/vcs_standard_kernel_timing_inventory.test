@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_standard_kernel_timing_inventory.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: vcs_standard_kernel_timing_inventory ok
-# expectexit: 0

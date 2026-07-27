@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_static_kernel_test.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 10
-# expectstdout: vcs_static_kernel_test ok
-# expectexit: 0

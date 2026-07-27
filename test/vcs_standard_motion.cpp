@@ -1,5 +1,5 @@
 //! @file vcs_standard_motion.cpp
-//! @brief Lock the standard kernel's object rows and asynchronous X motion.
+//! @brief Lock the standard renderer's object rows and asynchronous X motion.
 
 #include <array>
 #include <cstdint>

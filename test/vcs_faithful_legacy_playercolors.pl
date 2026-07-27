@@ -25,7 +25,7 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels faithful_legacy_playercolors));
+my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
 my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));
@@ -40,11 +40,11 @@ my $template_map=File::Spec->catfile($tmp,'faithful_template.map');
 # trust the retained audit if any source input changes without refreshing it.
 my $reference_text=read_file($reference_asm);
 for my $rel (
-   'legacy-basic-kernels/common/macro.h',
-   'legacy-basic-kernels/common/2600basic.h',
-   'legacy-basic-kernels/standard/std_overscan.asm',
-   'legacy-basic-kernels/standard/std_kernel.asm',
-   'legacy-basic-kernels/common/score_graphics.asm',
+   'legacy-basic-renderers/common/macro.h',
+   'legacy-basic-renderers/common/2600basic.h',
+   'legacy-basic-renderers/standard/std_overscan.asm',
+   'legacy-basic-renderers/standard/std_renderer.asm',
+   'legacy-basic-renderers/common/score_graphics.asm',
 ) {
    my $path=File::Spec->catfile($vcs,split('/', $rel));
    my $hash=sha256_hex(read_file($path));
@@ -114,11 +114,11 @@ my $same_count=()=$template_text =~ /^\s*asm\s+b(?:cc|cs|eq|mi|ne|pl|vc|vs)\.sam
 $same_count==11 or die "faithful port must require same-page timing on eleven branches\n";
 my $cross_count=()=$template_text =~ /^\s*asm\s+b(?:cc|cs|eq|mi|ne|pl|vc|vs)\.cross\b/mg;
 $cross_count==1 or die "faithful port must require exactly one crossing branch\n";
-$template_text =~ /^\s*asm\s+bmi\.cross\s+\@lastkernelline\s*;/m
+$template_text =~ /^\s*asm\s+bmi\.cross\s+\@lastrendererline\s*;/m
    or die "faithful port lost the terminal visible-loop crossing contract\n";
 my $cfg_text=read_file($cfg);
-$cfg_text !~ /KERNEL_CODE\s*:\s*load\s*=\s*ROM[^;]*\balign\s*=\s*\$0100/i
-   or die "faithful port still forces KERNEL_CODE to a 256-byte boundary\n";
+$cfg_text !~ /RENDERER_CODE\s*:\s*load\s*=\s*ROM[^;]*\balign\s*=\s*\$0100/i
+   or die "faithful port still forces RENDERER_CODE to a 256-byte boundary\n";
 my $zx_count=()=$template_text =~ /asm (?:lda|ldy)\.zx TEMPLATE_playfield[^;]+,x;/g;
 $zx_count==8 or die "faithful port must use eight zero-page-indexed dynamic playfield loads\n";
 
@@ -139,7 +139,7 @@ for my $bin ($reference_bin,$template_bin) {
 my $tmap=read_file($template_map);
 $tmap =~ /\blegacy_drawscreen\b/ or die "template map lacks instance-prefixed drawscreen\n";
 $tmap =~ /\blegacy_object_x\b/ or die "template map lacks instance-prefixed state\n";
-$tmap !~ /\bvcs_standard_kernel_drawscreen\b/
+$tmap !~ /\bvcs_standard_renderer_drawscreen\b/
    or die "template cartridge leaked fixed predecessor drawscreen symbol\n";
 my @crossing=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ BMI opcode=\$30 taken-page=crossing policy=cross$/mg);
 @crossing==1 or die "template map must retain exactly one intentional BMI page crossing\n";

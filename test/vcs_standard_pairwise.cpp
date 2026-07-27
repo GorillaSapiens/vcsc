@@ -1,5 +1,5 @@
 //! @file vcs_standard_pairwise.cpp
-//! @brief Exhaust every pair of standard-kernel horizontal object positions.
+//! @brief Exhaust every pair of standard-renderer horizontal object positions.
 
 #include <array>
 #include <cstdint>

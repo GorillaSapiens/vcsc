@@ -1,4 +1,4 @@
-// Shared centered six-glyph TIA display kernel.
+// Shared centered six-glyph TIA display renderer.
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it must
 // define score_font. The caller fills six_glyph_pointers with six complete

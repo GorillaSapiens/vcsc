@@ -79,7 +79,7 @@ include "fonts/default_decimal.c26"
 
 Fonts live under `libraries/vcs/fonts/`. Source rows are visual binary written
 top-to-bottom; the font module reverses each glyph for the row-7-through-row-0
-kernel traversal. The page-contained table avoids indexed-load page-crossing
+renderer traversal. The page-contained table avoids indexed-load page-crossing
 cycle penalties.
 
 Build after building the toolchain:

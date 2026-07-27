@@ -43,7 +43,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(kernels standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
+my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $source=File::Spec->catfile($repo,qw(examples 06_multicolor_full_static multicolor_full_static.c26));
 my $bin=File::Spec->catfile($tmp,'multicolor_full_static.bin');
 my $mapfile=File::Spec->catfile($tmp,'multicolor_full_static.map');
@@ -55,8 +55,8 @@ require_re($text,qr/^include "color_ntsc\.c26"$/m,
    'example 06 does not use named NTSC colors');
 require_re($text,qr/^include "playfield\.c26"$/m,
    'example 06 does not use visual playfield rows');
-require_re($text,qr/template "kernels\/player_color_192\/player_color_192\.c26" as game/,
-   'example 06 does not use the full 192-line player-color kernel');
+require_re($text,qr/template "renderers\/player_color_192\/player_color_192\.c26" as game/,
+   'example 06 does not use the full 192-line player-color renderer');
 $text !~ /six_glyph_component|score_draw|score_/ or die "example 06 unexpectedly contains score ownership\n";
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
 @pfrows==12 or die "example 06 has ".scalar(@pfrows)." playfield rows, expected 12\n";

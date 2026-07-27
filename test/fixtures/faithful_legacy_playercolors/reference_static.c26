@@ -51,8 +51,8 @@ uint8_t vcs_standard_score[3];
 uint8_t vcs_standard_score_color;
 uint8_t vcs_standard_pointer_workspace[12];
 uint8_t vcs_standard_playfield_position;
-uint8_t vcs_standard_kernel_scratch[2];
-extern void vcs_standard_kernel_drawscreen(void);
+uint8_t vcs_standard_renderer_scratch[2];
+extern void vcs_standard_renderer_drawscreen(void);
 void vcs_standard_overscan_hook(void) {}
 
 uint8_t vcs_standard_playfield[48] := {
@@ -89,6 +89,6 @@ void main(void) {
    VBLANK:=2; TIM64T:=0;
    while (1) {
       COLUPF:=0x2e; CTRLPF:=0x21; NUSIZ0:=0x20; NUSIZ1:=0x20;
-      vcs_standard_kernel_drawscreen();
+      vcs_standard_renderer_drawscreen();
    }
 }

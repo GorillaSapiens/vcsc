@@ -37,7 +37,7 @@ $source =~ /^\s*const\s+playercolors\s*=\s*1\s*$/m
    or die "oracle source no longer selects playercolors\n";
 $source =~ /^\s*const\s+player1colors\s*=\s*1\s*$/m
    or die "oracle source no longer selects player1colors\n";
-$source !~ /^\s*set\s+kernel_options\s+playercolors\s*$/m
+$source !~ /^\s*set\s+renderer_options\s+playercolors\s*$/m
    or die "oracle source uses the upstream compiler's rejected setter combination\n";
 for my $pair ([qw(missile0height player0color)], [qw(missile0y player0color)],
               [qw(missile1height player1color)], [qw(missile1y player1color)]) {
@@ -50,7 +50,7 @@ for my $pair ([qw(missile0height player0color)], [qw(missile0y player0color)],
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels faithful_legacy_playercolors));
+my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
 my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));

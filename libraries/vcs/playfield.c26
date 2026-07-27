@@ -2,7 +2,7 @@
 // left-to-right visual binary literals. Include vcs.c26 before this file.
 //
 // Each VCS_PLAYFIELD_ROW() argument describes the 128 central playfield pixels
-// in screen order. The helper emits the four TIA bytes in kernel storage order:
+// in screen order. The helper emits the four TIA bytes in renderer storage order:
 // left PF1, bit-reversed left PF2, right PF2, bit-reversed right PF1.
 
 alias VCS_REVERSE8(x) ( \

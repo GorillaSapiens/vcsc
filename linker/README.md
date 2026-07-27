@@ -141,7 +141,7 @@ the stock startup's init-table cursor while it calls an initializer.
 
 `callstack_extra = N` adds an explicit byte count to that reserve. It is for
 stack use known by a source-integration contract but hidden from compiler call
-metadata, such as an internal JSR in an included assembly kernel. It is rejected
+metadata, such as an internal JSR in an included assembly renderer. It is rejected
 unless the same region also uses `callstack = callgraph`. The selected value is
 reported in the map and exported as `__call_stack_extra`; it does not attempt to
 infer arbitrary inline-assembly pushes or stack-pointer manipulation.
@@ -261,7 +261,7 @@ the layout that actually defines `table`. The final numeric addend is allowed
 to point before that layout; the linker applies it to that layout's final base.
 It never infers the target layout merely by asking which packed interval happens
 to contain the altered value. That distinction is essential for the standard
-VCS kernel's negative-Y fine-motion lookup.
+VCS renderer's negative-Y fine-motion lookup.
 
 The current assembler nevertheless preserves every actual relative branch as
 placement metadata, including branches to assembler-local labels. The current
@@ -361,6 +361,6 @@ report exact function size and page status. Functions up to 256 bytes are kept
 within one page when an existing hole permits it without increasing the region
 high-water mark. A function definition marked `page` carries the hard flag and
 fails clearly when its final size exceeds one page or no legal placement exists.
-Explicit kernel code segments are not split automatically.
+Explicit renderer code segments are not split automatically.
 Their complete layout may still receive the same bounded branch-aware
 start-address search.

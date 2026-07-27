@@ -1,7 +1,7 @@
 ROOT ?= ../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
-PROFILE := $(VCS_DIR)/kernels/faithful_legacy_playercolors
+PROFILE := $(VCS_DIR)/renderers/faithful_legacy_playercolors
 
 TARGET := faithful_legacy_playercolors.bin
 SOURCE := faithful_legacy_playercolors.c26

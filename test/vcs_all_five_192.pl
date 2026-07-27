@@ -40,8 +40,8 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $profile=File::Spec->catdir($vcs,qw(kernels standard_4k_ntsc));
-my $component=File::Spec->catfile($vcs,qw(kernels all_five_192 all_five_192.c26));
+my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
+my $component=File::Spec->catfile($vcs,qw(renderers all_five_192 all_five_192.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26));
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'all_five_192.bin');
@@ -65,7 +65,7 @@ require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*51/,
    'component private-RAM contract changed');
 require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*70/,
    'component total-RAM contract changed');
-require_re($fixture,qr/template\s+"kernels\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
+require_re($fixture,qr/template\s+"renderers\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
@@ -111,7 +111,7 @@ bss_size($map,'game_object_masks')==44 or die "object-mask storage is not 44 byt
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0030\s+page=hard\b/m
    or die "game playfield is not a page-contained 48-byte ROM object\n";
 $map !~ /(?:score|font)/i or die "gameplay-only map retained score/font symbols\n";
-$map !~ /KERNEL_RODATA/ or die "gameplay-only link retained predecessor score ROM segment\n";
+$map !~ /RENDERER_RODATA/ or die "gameplay-only link retained predecessor score ROM segment\n";
 $map =~ /region=RAM\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF\s+extra=\$0004/
    or die "component map lost the inline-assembly helper stack allowance\n";
 

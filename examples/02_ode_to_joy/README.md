@@ -25,7 +25,7 @@ the natural indexed form `music[music_index].field`. For an ordinary `uint8_t`
 index and this four-byte struct, the compiler now scales the index inline in
 compiler-owned zero-page scratch; it does not allocate per-expression BSS or
 call the generic multiplication helper.
-The kernel starts `TIM64T`, calls the source-level player while the timer counts
+The renderer starts `TIM64T`, calls the source-level player while the timer counts
 down, waits for `INTIM` to reach zero, and uses two final `WSYNC`s before the
 next VSYNC. Stella reports a stable 262-line NTSC frame. A dynamic regression
 also verifies that audio is silent before the first frame boundary and that the

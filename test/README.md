@@ -102,8 +102,8 @@ mixed visual/conventional digits, underscores, wider values, preprocessor use,
 and runtime values. Companion rejection tests cover bad digits, malformed
 underscores, and width overflow after normalization.
 
-`vcs_standard_kernel_contract.test` enforces the source contract for
-the first minimal unbanked 4K NTSC standard-kernel module. It checks the
+`vcs_standard_renderer_contract.test` enforces the source contract for
+the first minimal unbanked 4K NTSC standard-renderer module. It checks the
 80-byte mandatory state span, the required ROM playfield, the documented
 frame/clobber/page contract, the weak end-of-frame overscan hook, its exported
 call-graph edge, the four-byte supplementary assembly-stack reserve, the linker
@@ -111,22 +111,22 @@ map and generated symbols, rejection of `callstack_extra` without call-graph
 sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM smoke
 cartridge.
 
-`vcs_standard_kernel_normalization.test` enforces deterministic kernel-source
+`vcs_standard_renderer_normalization.test` enforces deterministic renderer-source
 normalization. It regenerates the selected source beside the checked-in outputs
 and requires byte identity, checks all five deliberate macro ports and the
 selected DASM transformations, requires the legal `AND`/`LSR`,
-`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting kernel
+`TXA`/`ADC`/`TAX`, and `BIT` replacements, assembles the resulting renderer
 without unofficial-opcode mode, verifies its segment map and score table, and
 assembles a smoke source that invokes every retained macro.
 
-`vcs_standard_kernel_legal_bytes.test` builds the complete static profile
+`vcs_standard_renderer_legal_bytes.test` builds the complete static profile
 without `--illegals`, decodes all seven linked executable segments against the
 151 official NMOS 6502 opcodes, and skips only the profile's two explicitly
 located lookup-table ranges. A second build injects raw `op4B #$F0`; assembly
 and linking still succeed, but the linked-byte gate must reject the unofficial
 instruction byte.
 
-`vcs_standard_kernel_legal_schedule.test` executes the complete static-kernel
+`vcs_standard_renderer_legal_schedule.test` executes the complete static-renderer
 cartridge and locks the legal packed-mask schedule across 46 steady-state
 scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
@@ -151,7 +151,7 @@ period, absence of missile enables, eight distinct logical-row colors for each
 player, exact P0/P1/BL raster rows, and 320 frames of full-range P0/P1/BL
 RESP/HMxx motion.
 
-`vcs_standard_pairwise.test` jumps directly into the linked standard kernel's
+`vcs_standard_pairwise.test` jumps directly into the linked standard renderer's
 actual horizontal-position routine and exhausts all `5 choose 2` object pairs
 at every `160 * 160` coordinate combination: 256,000 cases. The remaining
 three objects stay at distinct sentinel coordinates. Every case requires one
@@ -249,6 +249,6 @@ and below the 181-line player-color component and leaves the 192-line scoreless
 component under hostile state from the previous overscan. It requires stable
 262-line scheduling and the existing P0/P1/Ball register/color raster in all
 three cases. It also deliberately records the remaining stop-ship gap: the
-score-above path still performs gameplay positioning before the poison kernel
+score-above path still performs gameplay positioning before the poison renderer
 and has no post-score RESP/HMxx/HMOVE restoration. This is a diagnostic probe,
 not the unfinished full object-pixel oracle.

@@ -19,7 +19,7 @@ VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
 };
 
-template "kernels/player_color_181/player_color_181.c26" as game
+template "renderers/player_color_181/player_color_181.c26" as game
 template "six_glyph_component.c26" as score
 
 page const uint8_t p0_graphics[8] := {

@@ -18,7 +18,7 @@ page const uint8_t game_playfield[48] := {
    VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...)
 };
 
-// Stored in the kernel's highest-index-to-zero display order.
+// Stored in the renderer's highest-index-to-zero display order.
 page const uint8_t game_player0_colors[8] := {
    VCS_NTSC_SKY_BLUE,
    VCS_NTSC_SKY_BLUE_2,
@@ -41,7 +41,7 @@ page const uint8_t game_player1_colors[8] := {
    VCS_NTSC_PALE_GREEN
 };
 
-template "kernels/player_color_192/player_color_192.c26" as game
+template "renderers/player_color_192/player_color_192.c26" as game
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(

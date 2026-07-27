@@ -345,7 +345,7 @@ The replacement text runs to end-of-line (before any `;` comment), so it can als
 
 The bundled `illegals.cfg` is intentionally **not** a complete catalog of every known unofficial 6502 opcode encoding.
 
-It deliberately enables two alternate spellings used by the retained standard-kernel source:
+It deliberately enables two alternate spellings used by the retained standard-renderer source:
 
 ```text
 ASR  imm  $4B    # same encoding as ALR

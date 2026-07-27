@@ -49,8 +49,8 @@ make_path($tmp);
 $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(kernels standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
-my $module=File::Spec->catfile($vcs,qw(kernels player_color_192 player_color_192.c26));
+my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
+my $module=File::Spec->catfile($vcs,qw(renderers player_color_192 player_color_192.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_192 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192.map');
@@ -77,11 +77,11 @@ require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*57/, 'private-RAM contract
 require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*70/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
-require_re($text,qr/cpx #48.*?bcs \@endkernel/s,
-   'full-height path no longer runs the ordinary kernel through all twelve rows');
+require_re($text,qr/cpx #48.*?bcs \@endrenderer/s,
+   'full-height path no longer runs the ordinary renderer through all twelve rows');
 require_re($text,qr/TEMPLATE_object_masks\[48\]/,
    'full-height object mask storage no longer covers all 96 two-line pairs');
-$text !~ /\@(?:lastkernelline|enterfromNBL|enterlastkernel)\b/
+$text !~ /\@(?:lastrendererline|enterfromNBL|enterlastrenderer)\b/
    or die "obsolete special terminal-row path returned\n";
 require_re($text,qr/Position Ball, P1, and P0 entirely during VBLANK/,
    'objects are no longer positioned entirely during VBLANK');

@@ -1,5 +1,5 @@
 //! @file vcs_playfield_phase.cpp
-//! @brief Verify the normalized two-line kernel's cycle-stable PF writes.
+//! @brief Verify the normalized two-line renderer's cycle-stable PF writes.
 
 #include <cstdint>
 #include <cstdio>

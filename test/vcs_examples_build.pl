@@ -31,7 +31,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $faithful_cfg=File::Spec->catfile($vcs,qw(kernels faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
+my $faithful_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my @examples=(
    ['01_blank_screen','blank_screen.c26',[]],
    ['02_ode_to_joy','ode_to_joy.c26',[]],
@@ -56,11 +56,11 @@ for my $entry (@examples) {
    my $map=File::Spec->catfile($tmp,"$dir.map");
    -f $source or die "missing editable example $source\n";
    my @cmd=($driver,'-I',$vcs,'-Map',$map,@$extra);
-   # Kernel source operands must follow the C source. Move any trailing .s26
+   # Renderer source operands must follow the C source. Move any trailing .s26
    # operand after the example while leaving compiler/linker options in place.
-   my @kernel=grep { /\.s26\z/ } @cmd;
+   my @renderer=grep { /\.s26\z/ } @cmd;
    @cmd=grep { !/\.s26\z/ } @cmd;
-   push @cmd,$source,@kernel,'-o',$bin;
+   push @cmd,$source,@renderer,'-o',$bin;
    my($rc,$sig,$out,$err)=capture(@cmd);
    $rc==0 && !$sig or die "$dir build failed\nstdout:\n$out\nstderr:\n$err";
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";

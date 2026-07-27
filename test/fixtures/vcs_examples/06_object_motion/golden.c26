@@ -1,5 +1,5 @@
 // Visible horizontal/vertical reference cartridge for the normalized unbanked
-// 4K NTSC standard kernel. Every object traverses the complete public horizontal
+// 4K NTSC standard renderer. Every object traverses the complete public horizontal
 // range from X=0 through X=159 at its own integer speed, against a fixed ruler.
 
 include "vcs.c26"
@@ -21,7 +21,7 @@ page const uint8_t vcs_standard_playfield[48] := {
    0x00, 0x00, 0x00, 0x00
 };
 
-include "kernels/standard_4k_ntsc/standard_4k_ntsc.c26"
+include "renderers/standard_4k_ntsc/standard_4k_ntsc.c26"
 
 page const uint8_t player0_graphics[8] := {
    VCS_STANDARD_SPRITE_GLYPH(
@@ -112,7 +112,7 @@ void initialize_motion_scene(void) {
    VCS_STANDARD_MISSILE1_X := 121;
    VCS_STANDARD_BALL_X := 80;
 
-   // Fixed non-overlapping vertical bands in the kernel's public Y convention.
+   // Fixed non-overlapping vertical bands in the renderer's public Y convention.
    vcs_standard_player0_y := 18;
    vcs_standard_missile0_y := 34;
    vcs_standard_ball_y := 48;
@@ -135,7 +135,7 @@ void initialize_motion_scene(void) {
    TIM64T := 0;
 }
 
-// The kernel borrows the player colors for the score and clears NUSIZ0/1.
+// The renderer borrows the player colors for the score and clears NUSIZ0/1.
 // Reapply all geometry/color registers whose persistence is not in the ABI.
 void configure_motion_frame(void) {
    COLUPF := 0x2e;
@@ -146,7 +146,7 @@ void configure_motion_frame(void) {
    NUSIZ1 := 0x20;
 }
 
-// Called by the kernel once VBLANK is asserted and all persistent object state
+// Called by the renderer once VBLANK is asserted and all persistent object state
 // has been restored. These changes become the next frame's positions and score.
 void vcs_standard_overscan_hook(void) {
    update_motion();
@@ -157,6 +157,6 @@ void main(void) {
    initialize_motion_scene();
    while (1) {
       configure_motion_frame();
-      vcs_standard_kernel_drawscreen();
+      vcs_standard_renderer_drawscreen();
    }
 }

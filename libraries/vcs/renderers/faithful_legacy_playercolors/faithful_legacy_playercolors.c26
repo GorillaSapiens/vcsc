@@ -1,0 +1,785 @@
+// Faithful template-wrapped port of the retained legacy NTSC standard renderer
+// configured for P0, P1, Ball, per-row player colors, and the integrated
+// six-digit score.  This reference intentionally preserves the monolithic
+// frame ownership, original unofficial opcodes, instruction order, and
+// retained entry/exit behavior.  It is a baseline, not a composable lifecycle
+// renderer.
+//
+// Include vcs.c26 first, define RAM-backed INSTANCE_playfield[48], and set
+// the graphics/color pointers before the first draw.  Build cartridges using
+// -Wa,--illegals and the matching faithful_legacy_playercolors.cfg script.
+
+enum TEMPLATE_contract {
+   TEMPLATE_PLAYFIELD_BYTES := 48,
+   TEMPLATE_PLAYFIELD_ROWS := 12,
+   TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
+   TEMPLATE_SCORE_FONT_BYTES := 88,
+   TEMPLATE_OBJECT_COUNT := 3
+};
+
+alias TEMPLATE_OBJECT_PLAYER0 0
+alias TEMPLATE_OBJECT_PLAYER1 1
+alias TEMPLATE_OBJECT_BALL 4
+alias TEMPLATE_PLAYER0_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER0]
+alias TEMPLATE_PLAYER1_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER1]
+alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
+alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
+alias TEMPLATE_SPRITE_ROWS(a,b,c,d,e,f,g,h) a,b,c,d,e,f,g,h
+
+extern uint8_t TEMPLATE_playfield[48];
+
+// The retained five-strobe horizontal-position loop still visits the two
+// missile slots. In this player-color profile M0's byte doubles as the P0
+// color latch, while M1's byte remains a private ghost X value.
+uint8_t TEMPLATE_object_x[5];
+alias TEMPLATE_player0_color_latch TEMPLATE_object_x[2]
+uint8_t TEMPLATE_player0_y;
+uint8_t TEMPLATE_player1_y;
+
+// The selected upstream player-color profile deliberately overlays each
+// two-byte color-table pointer with the disabled missile's height/Y pair.
+// Writing the missile fields after installing the pointer destroys it; this is
+// stock bB behavior and therefore part of the faithful source contract.
+struct TEMPLATE_player1_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union TEMPLATE_player1_color_alias {
+   uint8_t *colors;
+   TEMPLATE_player1_missile_alias missile;
+};
+TEMPLATE_player1_color_alias TEMPLATE_player1_color_state;
+alias TEMPLATE_player1_colors TEMPLATE_player1_color_state.colors
+alias TEMPLATE_missile1_height TEMPLATE_player1_color_state.missile.height
+alias TEMPLATE_missile1_y TEMPLATE_player1_color_state.missile.y
+
+uint8_t TEMPLATE_ball_y;
+uint8_t *TEMPLATE_player0_graphics;
+uint8_t *TEMPLATE_player1_graphics;
+uint8_t TEMPLATE_player0_height;
+uint8_t TEMPLATE_player1_height;
+
+struct TEMPLATE_player0_missile_alias {
+   uint8_t height;
+   uint8_t y;
+};
+union TEMPLATE_player0_color_alias {
+   uint8_t *colors;
+   TEMPLATE_player0_missile_alias missile;
+};
+TEMPLATE_player0_color_alias TEMPLATE_player0_color_state;
+alias TEMPLATE_player0_colors TEMPLATE_player0_color_state.colors
+alias TEMPLATE_missile0_height TEMPLATE_player0_color_state.missile.height
+alias TEMPLATE_missile0_y TEMPLATE_player0_color_state.missile.y
+
+uint8_t TEMPLATE_ball_height;
+
+// Preserve the retained three-byte score representation rather than adapting
+// it to bcd24_t.  The faithful example initializes the exact legacy byte order.
+uint8_t TEMPLATE_score[3];
+uint8_t TEMPLATE_score_color;
+uint8_t TEMPLATE_pointer_workspace[12];
+uint8_t TEMPLATE_playfield_position;
+uint8_t TEMPLATE_renderer_scratch[2];
+
+// One call owns the complete retained frame, including overscan, VSYNC,
+// VBLANK, gameplay, the integrated score, and the following VBLANK transition.
+require void TEMPLATE_drawscreen(void) {
+   asm jmp TEMPLATE_renderer_entry;
+   asm .segment "RENDERER_CODE";
+   asm VSYNC = $0000;
+   asm .include "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc";
+   asm TEMPLATE_renderer_entry:;
+   // ---- normalized from standard/std_overscan.asm ----
+   // Provided under the CC0 license. See the included LICENSE.txt for details.
+
+
+
+   asm @overscan:;
+
+   asm @overscanloop:;
+   asm lda INTIM; // wait for sync
+   asm bmi.same @overscanloop;
+   asm @doneoverscan:;
+
+   // do VSYNC
+
+
+   asm lda #2;
+   asm sta WSYNC;
+   asm sta VSYNC;
+   asm STA WSYNC;
+   asm STA WSYNC;
+   asm lsr;
+   asm STA WSYNC;
+   asm STA VSYNC;
+   asm sta VBLANK;
+   asm lda #37+128;
+   asm sta TIM64T;
+
+
+   asm .if {<*} > $e9 && {<*} < $fa;
+   asm .align 256, $fa, $ea;
+   asm .endif;
+   asm sta WSYNC;
+   asm ldx #4;
+   asm SLEEP 3;
+   asm @HorPosLoop:; // 5
+   asm lda TEMPLATE_object_x + 0,X; // +4 9
+   asm sec; // +2 11
+   asm @DivideLoop:;
+   asm sbc #15;
+   asm bcs.same @DivideLoop; // +4 15
+   asm sta TEMPLATE_pointer_workspace + 6,X; // +4 19
+   asm sta RESP0,X; // +4 23
+   asm sta WSYNC;
+   asm dex;
+   asm bpl.same @HorPosLoop; // +5 5
+   // 4
+
+   asm ldx #4;
+   asm ldy TEMPLATE_pointer_workspace + 6,X;
+   asm lda @repostable-256,Y;
+   asm sta HMP0,X; // +14 18
+
+   asm dex;
+   asm ldy TEMPLATE_pointer_workspace + 6,X;
+   asm lda @repostable-256,Y;
+   asm sta HMP0,X; // +14 32
+
+   asm dex;
+   asm ldy TEMPLATE_pointer_workspace + 6,X;
+   asm lda @repostable-256,Y;
+   asm sta HMP0,X; // +14 46
+
+   asm dex;
+   asm ldy TEMPLATE_pointer_workspace + 6,X;
+   asm lda @repostable-256,Y;
+   asm sta HMP0,X; // +14 60
+
+   asm dex;
+   asm ldy TEMPLATE_pointer_workspace + 6,X;
+   asm lda @repostable-256,Y;
+   asm sta HMP0,X; // +14 74
+
+   asm sta WSYNC;
+
+   asm sta HMOVE; // +3 3
+
+
+
+
+
+
+   // set score pointers
+   asm lax TEMPLATE_score+2;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+5;
+   asm stx TEMPLATE_pointer_workspace+2;
+   asm lax TEMPLATE_score+1;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+4;
+   asm stx TEMPLATE_pointer_workspace+1;
+   asm lax TEMPLATE_score;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+3;
+   asm stx TEMPLATE_pointer_workspace;
+
+   asm @vblk:;
+   // run possible vblank bB code
+   asm @vblk2:;
+   asm LDA INTIM;
+   asm bmi.same @vblk2;
+   asm jmp @renderer;
+
+
+   asm .byte $80,$70,$60,$50,$40,$30,$20,$10,$00;
+   asm .byte $F0,$E0,$D0,$C0,$B0,$A0,$90;
+   asm @repostable:;
+
+   asm @scorepointerset:;
+   asm and #$0F;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm adc #<TEMPLATE_score_table;
+   asm tay;
+   asm txa;
+   // and #$F0
+   // lsr
+   asm asr #$F0;
+   asm adc #<TEMPLATE_score_table;
+   asm tax;
+   asm rts;
+
+
+   // ---- normalized from standard/std_renderer.asm ----
+   // Provided under the CC0 license. See the included LICENSE.txt for details.
+
+   // This is a 2-line renderer!
+   asm @renderer:;
+   asm sta WSYNC;
+   asm lda #255;
+   asm sta TIM64T;
+
+   asm lda #1;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm ldx TEMPLATE_ball_height;
+   asm inx;
+   asm inx;
+   asm stx TEMPLATE_pointer_workspace + 9;
+   asm lda TEMPLATE_player1_y;
+   asm sta TEMPLATE_pointer_workspace + 8;
+
+   asm ldx TEMPLATE_player0_color_state;
+   asm inx;
+
+   asm inx;
+   asm stx TEMPLATE_renderer_scratch + 0;
+
+   asm lda TEMPLATE_ball_y;
+   asm sta TEMPLATE_renderer_scratch + 1;
+
+   asm lda TEMPLATE_player0_y;
+   asm ldx #0;
+   asm sta WSYNC;
+   asm stx GRP0;
+   asm stx GRP1;
+   asm stx PF1;
+   asm stx PF2;
+   asm stx CXCLR;
+   asm SLEEP 3;
+
+   asm sta TEMPLATE_pointer_workspace + 7,x;
+
+   // store these so they can be retrieved later
+   asm ldx #128-44+{4-4}*12;
+
+   asm dec TEMPLATE_player0_y;
+
+   asm lda TEMPLATE_player0_color_state + 1;
+   asm sta TEMPLATE_pointer_workspace + 10;
+   asm lda TEMPLATE_player1_color_state + 1;
+   asm sta TEMPLATE_pointer_workspace + 11;
+
+   asm lda TEMPLATE_playfield_position;
+   asm sta TEMPLATE_pointer_workspace + 6;
+
+   asm lda #10;
+   asm clc;
+   asm sbc TEMPLATE_playfield_position;
+   asm sta TEMPLATE_playfield_position;
+   asm jmp @startrenderer;
+
+   // Page-timing contracts below let the linker reproduce stock bB timing:
+   // ordinary loop branches stay on-page and the final BMI crosses once.
+   asm @skipDrawP0:;
+   asm lda #0;
+   asm tay;
+   asm jmp @continueP0;
+
+   asm @skipDrawP1:;
+   asm lda #0;
+   asm tay;
+   asm jmp @continueP1;
+
+   asm @kerloop:; // enter at cycle 59??
+
+   asm @continuerenderer:;
+   asm SLEEP 2;
+   asm @continuerenderer2:;
+   asm lda TEMPLATE_ball_height;
+
+   asm ldy.zx TEMPLATE_playfield-48+4*12+44-128,x;
+   asm sty PF1; // 3
+   asm ldy.zx TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
+   asm sty PF2; // 3
+   asm ldy.zx TEMPLATE_playfield-48+4*12+47-128,x; // 4
+   asm sty PF1; // 3 too early?
+   asm ldy.zx TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
+   asm sty PF2; // 3
+
+   // should be playfield+$38 for width=2
+
+   asm dcp TEMPLATE_ball_y;
+   asm rol;
+   asm rol;
+   // rol
+   // rol
+   asm @goback:;
+   asm sta ENABL;
+   asm @startrenderer:;
+   asm lda TEMPLATE_player1_height; // 3
+   asm dcp TEMPLATE_player1_y; // 5
+   asm bcc.same @skipDrawP1; // 2
+   asm ldy TEMPLATE_player1_y; // 3
+   asm lda (TEMPLATE_player1_graphics),y; // 5; player0pointer must be selected carefully by the compiler
+   // so it doesn't cross a page boundary!
+
+   asm @continueP1:;
+   asm sta GRP1; // 3
+
+   asm lda (TEMPLATE_player1_color_state),y;
+   asm sta COLUP1;
+   asm lda.a TEMPLATE_object_x + 2;
+   asm sta COLUP0;
+
+   asm lda.zx TEMPLATE_playfield-48+4*12+44-128,x; // 4
+   asm sta PF1; // 3
+   asm lda.zx TEMPLATE_playfield-48+4*12+45-128-0,x; // 4
+   asm sta PF2; // 3
+   asm lda.zx TEMPLATE_playfield-48+4*12+47-128,x; // 4
+   asm sta PF1; // 3 too early?
+   asm lda.zx TEMPLATE_playfield-48+4*12+46-128-0,x; // 4
+   asm sta PF2; // 3
+   // sleep 3
+
+   asm lda TEMPLATE_player0_height;
+   asm dcp TEMPLATE_player0_y;
+   asm bcc.same @skipDrawP0;
+   asm ldy TEMPLATE_player0_y;
+   asm lda (TEMPLATE_player0_graphics),y;
+   asm @continueP0:;
+   asm sta GRP0;
+
+   asm lda (TEMPLATE_player0_color_state),y;
+   asm sta TEMPLATE_object_x + 2;
+   asm SLEEP 6;
+   asm dec TEMPLATE_pointer_workspace + 6;
+   asm bne.same @continuerenderer;
+
+   asm @altrenderer:;
+
+   asm lda #0;
+   asm sta PF1;
+   asm sta PF2;
+
+
+   // sleep 3
+
+   // 28 cycles to fix things
+   // minus 11=17
+
+   // lax temp4
+   // clc
+   asm txa;
+   asm sbx #256-4;
+
+   asm bmi.cross @lastrendererline;
+
+   // read paddle 0
+   // lo-res paddle read
+   // bit INPT0
+   // bmi paddleskipread
+   // inc paddle0
+   // donepaddleskip
+   asm SLEEP 10;
+   asm lda #8;
+   asm sta TEMPLATE_pointer_workspace + 6;
+
+
+   asm lda TEMPLATE_ball_height;
+   asm dcp TEMPLATE_ball_y;
+   asm sbc TEMPLATE_pointer_workspace + 9;
+
+
+   asm jmp @goback;
+
+   asm @lastrendererline:;
+   asm SLEEP 10;
+
+   asm ldx TEMPLATE_playfield_position;
+   // sleep 3
+   asm SLEEP 2; // this was over 1 cycle
+
+   asm jmp @enterlastrenderer;
+
+
+   asm .if {<*} > $d5;
+   asm .align 256;
+   asm .endif;
+   // this is a kludge to prevent page wrapping - fix!!!
+
+   asm @skipDrawlastP1:;
+   asm lda #0;
+   asm tay; // added so we don't cross a page
+   asm jmp @continuelastP1;
+
+   asm @endkerloop:; // enter at cycle 59??
+
+   asm nop;
+
+   asm @enterfromNBL:;
+   asm ldy.a TEMPLATE_playfield-48+4*12+44;
+   asm sty PF1; // 3
+   asm ldy.a TEMPLATE_playfield-48+4*12+45-0;
+   asm sty PF2; // 3
+   asm ldy.a TEMPLATE_playfield-48+4*12+47;
+   asm sty PF1; // possibly too early?
+   asm ldy.a TEMPLATE_playfield-48+4*12+46-0;
+   asm sty PF2; // 3
+
+   asm @enterlastrenderer:;
+   asm lda TEMPLATE_ball_height;
+
+   // tya
+   asm dcp TEMPLATE_ball_y;
+   // sleep 4
+
+   // sbc stack3
+   asm rol;
+   asm rol;
+   asm sta ENABL;
+
+   asm lda TEMPLATE_player1_height; // 3
+   asm dcp TEMPLATE_player1_y; // 5
+   asm bcc.same @skipDrawlastP1;
+   asm ldy TEMPLATE_player1_y; // 3
+   asm lda (TEMPLATE_player1_graphics),y; // 5; player0pointer must be selected carefully by the compiler
+   // so it doesn't cross a page boundary!
+
+   asm @continuelastP1:;
+   asm sta GRP1; // 3
+
+   asm lda (TEMPLATE_player1_color_state),y;
+   asm sta COLUP1;
+
+   asm dex;
+   // dec temp4 ; might try putting this above PF writes
+   asm beq.same @endrenderer;
+
+
+   asm ldy.a TEMPLATE_playfield-48+4*12+44;
+   asm sty PF1; // 3
+   asm ldy.a TEMPLATE_playfield-48+4*12+45-0;
+   asm sty PF2; // 3
+   asm ldy.a TEMPLATE_playfield-48+4*12+47;
+   asm sty PF1; // possibly too early?
+   asm ldy.a TEMPLATE_playfield-48+4*12+46-0;
+   asm sty PF2; // 3
+
+   asm lda.a TEMPLATE_object_x + 2;
+   asm sta COLUP0;
+
+   asm lda.a TEMPLATE_player0_height;
+   asm dcp TEMPLATE_player0_y;
+   asm bcc.same @skipDrawlastP0;
+   asm ldy TEMPLATE_player0_y;
+   asm lda (TEMPLATE_player0_graphics),y;
+   asm @continuelastP0:;
+   asm sta GRP0;
+
+
+
+   asm lda TEMPLATE_player0_color_state; // 3
+   asm dcp TEMPLATE_player0_color_state + 1; // 5
+   asm sbc TEMPLATE_renderer_scratch + 0;
+   asm sta ENAM0; // 3
+   asm jmp @endkerloop;
+
+
+   // ifconst donepaddleskip
+   // paddleskipread
+   // this is kind of lame, since it requires 4 cycles from a page boundary crossing
+   // plus we get a lo-res paddle read
+   // bmi donepaddleskip
+   // endif
+
+   asm @skipDrawlastP0:;
+   asm lda #0;
+   asm tay;
+   asm jmp @continuelastP0;
+
+
+   asm @endrenderer:;
+   // 6 digit score routine
+   asm stx PF1;
+   asm stx PF2;
+   asm stx PF0;
+   asm clc;
+
+   asm lda #10;
+
+   asm sbc TEMPLATE_playfield_position;
+   asm sta TEMPLATE_playfield_position;
+   asm txa;
+
+
+   asm sta WSYNC,x;
+
+   // STA WSYNC ;first one, need one more
+   asm sta REFP0;
+   asm sta REFP1;
+   asm STA GRP0;
+   asm STA GRP1;
+   // STA PF1
+   // STA PF2
+   asm sta HMCLR;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+
+   asm lda TEMPLATE_pointer_workspace + 7; // restore variables that were obliterated by renderer
+   asm sta TEMPLATE_player0_y;
+   asm lda TEMPLATE_pointer_workspace + 8;
+   asm sta TEMPLATE_player1_y;
+   asm lda TEMPLATE_renderer_scratch + 1;
+   asm sta TEMPLATE_ball_y;
+
+   // strangely, this isn't required any more. might have
+   // resulted from the no_blank_lines score bounce fix
+   // ifconst no_blank_lines
+   // sta WSYNC
+   // endif
+
+   asm lda INTIM;
+   asm clc;
+   asm adc #43+12+87;
+   // sta WSYNC
+   asm sta TIM64T;
+
+
+   // now reassign temp vars for score pointers
+
+   // score pointers contain:
+   // score1-5: lo1,lo2,lo3,lo4,lo5,lo6
+   // swap lo2->temp1
+   // swap lo4->temp3
+   // swap lo6->temp5
+   asm lda TEMPLATE_pointer_workspace+1;
+   // ldy temp1
+   asm sta TEMPLATE_pointer_workspace + 6;
+   // sty scorepointers+1
+
+   asm lda TEMPLATE_pointer_workspace+3;
+   // ldy temp3
+   asm sta TEMPLATE_pointer_workspace + 8;
+   // sty scorepointers+3
+
+
+   asm sta HMCLR;
+   asm tsx;
+   asm stx TEMPLATE_renderer_scratch + 0;
+   asm ldx #$E0;
+   asm stx HMP0;
+
+   asm LDA TEMPLATE_score_color;
+   asm STA COLUP0;
+   asm STA COLUP1;
+   asm sta WSYNC;
+   asm ldx #0;
+   asm STx GRP0;
+   asm STx GRP1; // seems to be needed because of vdel
+
+   asm lda TEMPLATE_pointer_workspace+5;
+   // ldy temp5
+   asm sta TEMPLATE_pointer_workspace + 10,x;
+   // sty scorepointers+5
+   asm lda #>TEMPLATE_score_table;
+   asm sta TEMPLATE_pointer_workspace+1;
+   asm sta TEMPLATE_pointer_workspace+3;
+   asm sta TEMPLATE_pointer_workspace+5;
+   asm sta TEMPLATE_pointer_workspace + 7;
+   asm sta TEMPLATE_pointer_workspace + 9;
+   asm sta TEMPLATE_pointer_workspace + 11;
+   asm LDY #7;
+   asm STY VDELP0;
+   asm STA RESP0;
+   asm STA RESP1;
+
+
+   asm LDA #$03;
+   asm STA NUSIZ0;
+   asm STA NUSIZ1;
+   asm STA VDELP1;
+   asm LDA #$F0;
+   asm STA HMP1;
+   asm lda (TEMPLATE_pointer_workspace),y;
+   asm sta GRP0;
+   asm STA HMOVE; // cycle 73 ?
+   asm jmp @beginscore;
+
+
+   asm .if {<*} > $d4;
+   asm .align 256; // kludge that potentially wastes space! should be fixed!
+   asm .endif;
+
+   asm @loop2:;
+   asm lda (TEMPLATE_pointer_workspace),y; // +5 68 204
+   asm sta GRP0; // +3 71 213 D1 -- -- --
+   asm SLEEP 7;
+   // cycle 0
+   asm @beginscore:;
+   asm lda (TEMPLATE_pointer_workspace+$8),y; // +5 5 15
+   asm sta GRP1; // +3 8 24 D1 D1 D2 --
+   asm lda (TEMPLATE_pointer_workspace+$6),y; // +5 13 39
+   asm sta GRP0; // +3 16 48 D3 D1 D2 D2
+   asm lax (TEMPLATE_pointer_workspace+$2),y; // +5 29 87
+   asm txs;
+   asm lax (TEMPLATE_pointer_workspace+$4),y; // +5 36 108
+   asm SLEEP 3;
+
+   asm SLEEP 6;
+
+   asm lda (TEMPLATE_pointer_workspace+$A),y; // +5 21 63
+   asm stx GRP1; // +3 44 132 D3 D3 D4 D2!
+   asm tsx;
+   asm stx GRP0; // +3 47 141 D5 D3! D4 D4
+   asm sta GRP1; // +3 50 150 D5 D5 D6 D4!
+   asm sty GRP0; // +3 53 159 D4* D5! D6 D6
+   asm dey;
+   asm bpl.same @loop2; // +2 60 180
+
+   asm ldx TEMPLATE_renderer_scratch + 0;
+   asm txs;
+   // lda scorepointers+1
+   asm ldy TEMPLATE_pointer_workspace + 6;
+   // sta temp1
+   asm sty TEMPLATE_pointer_workspace+1;
+
+   asm LDA #0;
+   asm sta PF1;
+   asm STA GRP0;
+   asm STA GRP1;
+   asm STA VDELP0;
+   asm STA VDELP1; // do we need these
+   asm STA NUSIZ0;
+   asm STA NUSIZ1;
+
+   // lda scorepointers+3
+   asm ldy TEMPLATE_pointer_workspace + 8;
+   // sta temp3
+   asm sty TEMPLATE_pointer_workspace+3;
+
+   // lda scorepointers+5
+   asm ldy TEMPLATE_pointer_workspace + 10;
+   // sta temp5
+   asm sty TEMPLATE_pointer_workspace+5;
+   asm lda #2;
+   asm sta WSYNC;
+   asm sta VBLANK;
+   asm RETURN;
+
+
+
+   asm .align 256;
+   asm .segment "RENDERER_RODATA";
+   asm .align 256;
+   asm TEMPLATE_score_table:;
+   // digit 0
+   asm .byte %00111100;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %00111100;
+
+   // digit 1
+   asm .byte %01111110;
+   asm .byte %00011000;
+   asm .byte %00011000;
+   asm .byte %00011000;
+   asm .byte %00011000;
+   asm .byte %00111000;
+   asm .byte %00011000;
+   asm .byte %00001000;
+
+   // digit 2
+   asm .byte %01111110;
+   asm .byte %01100000;
+   asm .byte %01100000;
+   asm .byte %00111100;
+   asm .byte %00000110;
+   asm .byte %00000110;
+   asm .byte %01000110;
+   asm .byte %00111100;
+
+   // digit 3
+   asm .byte %00111100;
+   asm .byte %01000110;
+   asm .byte %00000110;
+   asm .byte %00000110;
+   asm .byte %00011100;
+   asm .byte %00000110;
+   asm .byte %01000110;
+   asm .byte %00111100;
+
+   // digit 4
+   asm .byte %00001100;
+   asm .byte %00001100;
+   asm .byte %01111110;
+   asm .byte %01001100;
+   asm .byte %01001100;
+   asm .byte %00101100;
+   asm .byte %00011100;
+   asm .byte %00001100;
+
+   // digit 5
+   asm .byte %00111100;
+   asm .byte %01000110;
+   asm .byte %00000110;
+   asm .byte %00000110;
+   asm .byte %00111100;
+   asm .byte %01100000;
+   asm .byte %01100000;
+   asm .byte %01111110;
+
+   // digit 6
+   asm .byte %00111100;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01111100;
+   asm .byte %01100000;
+   asm .byte %01100010;
+   asm .byte %00111100;
+
+   // digit 7
+   asm .byte %00110000;
+   asm .byte %00110000;
+   asm .byte %00110000;
+   asm .byte %00011000;
+   asm .byte %00001100;
+   asm .byte %00000110;
+   asm .byte %01000010;
+   asm .byte %00111110;
+
+   // digit 8
+   asm .byte %00111100;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %00111100;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %00111100;
+
+   // digit 9
+   asm .byte %00111100;
+   asm .byte %01000110;
+   asm .byte %00000110;
+   asm .byte %00111110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %01100110;
+   asm .byte %00111100;
+
+   // blank glyph
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+   asm .byte %00000000;
+
+
+   // The selected reference uses the retained no-op application hook.
+   asm .segment "CODE";
+   asm TEMPLATE_overscan_hook:;
+   asm rts;
+}

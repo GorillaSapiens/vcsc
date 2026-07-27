@@ -62,9 +62,9 @@ for my $parts (
    [qw(libraries runtime vcsc-zp-ptr2.s26)],
    [qw(libraries runtime libvcsc.l26)],
    [qw(libraries vcs vcs.c26)],
-   [qw(libraries vcs LEGACY_KERNEL_CONVERSION.md)],
-   [qw(libraries vcs legacy-basic-kernels standard std_kernel.asm)],
-   [qw(libraries vcs legacy-basic-kernels multisprite multisprite_kernel.asm)],
+   [qw(libraries vcs LEGACY_RENDERER_CONVERSION.md)],
+   [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],
+   [qw(libraries vcs legacy-basic-renderers multisprite multisprite_renderer.asm)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required renamed/retained file is missing: $path\n";
@@ -118,8 +118,8 @@ for my $parts (
    [qw(test e2e_static_parameter_cycle_fail.c26)],
    [qw(test switch_range_compact_codegen_test.c26)],
    [qw(assembler tests obj2.s26)],
-   [qw(libraries vcs kernels standard_4k_ntsc unofficial_opcodes.pl)],
-   [qw(libraries vcs kernels standard_4k_ntsc standard_4k_ntsc_unofficial_opcodes.tsv)],
+   [qw(libraries vcs renderers standard_4k_ntsc unofficial_opcodes.pl)],
+   [qw(libraries vcs renderers standard_4k_ntsc standard_4k_ntsc_unofficial_opcodes.tsv)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    !-e $path or die "developer-only or obsolete root file remains: $path\n";
@@ -166,7 +166,7 @@ for my $path (@markdown) {
    index($data, $prefix) == 0 or die "documentation lacks VCSC FIGlet banner: $path\n";
 }
 for my $rel ('compiler/ABI.txt', '.top_secret/context.txt',
-             'libraries/vcs/legacy-basic-kernels/OMITTED-UPSTREAM-ARTIFACTS.txt') {
+             'libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt') {
    my $path = File::Spec->catfile($repo, split('/', $rel));
    my $data = slurp($path);
    index($data, "$banner\n\n") == 0 or die "text documentation lacks VCSC FIGlet banner: $path\n";

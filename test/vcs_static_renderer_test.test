@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_static_renderer_test.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 10
+# expectstdout: vcs_static_renderer_test ok
+# expectexit: 0
