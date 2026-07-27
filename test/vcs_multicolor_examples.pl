@@ -45,7 +45,7 @@ for my $case (@cases) {
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
    my $text=read_file($src);
    $text =~ /^include "color_ntsc\.c26"$/m or die "$dir lacks named NTSC colors\n";
-   $text =~ /0b\.\.XXXX\.\./ or die "$dir lacks visual sprite glyphs\n";
+   $text =~ /0b[.X]{8}(?![.X])/ or die "$dir lacks visual sprite glyphs\n";
    if ($placement eq 'full') {
       $text =~ /player_color_192/ or die "$dir does not use player_color_192\n";
       $text !~ /six_glyph_component/ or die "$dir unexpectedly contains a score\n";

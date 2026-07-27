@@ -5572,8 +5572,8 @@ Before returning another modified archive:
   tests explicitly and pass 20/20, covering all 189 with no failures. Staged
   `installcheck`, final source hygiene, and branding checks pass.
 
-2026-07-27, restore example 05 from the proven full-height smoke fixture
-------------------------------------------------------------------------
+2026-07-27 05:20:04 PDT, restore example 05 from the proven full-height smoke fixture
+--------------------------------------------------------------------------------
 * Stop redesigning public example 05. Replace the newly invented static scene
   with the previously verified `player_color_192` smoke cartridge scene. Keep
   the public source readable through visual playfield/sprite literals and named
@@ -5584,3 +5584,12 @@ Before returning another modified archive:
   262-line frames, and a fresh Stella 7.0 snapshot of the built cartridge.
 * Touch only example 05 and its dedicated fixture/test/documentation. Examples
   06 through 13 remain pending and untrusted.
+
+2026-07-27 08:06:04 PDT, generalize the multicolor-example glyph predicate
+--------------------------------------------------------------------------------
+* Fix `vcs_multicolor_examples.pl` so its readability check accepts any visual
+  eight-pixel binary glyph row written as `0b` followed by eight `.`/`X`
+  characters. The old predicate incorrectly required the one exact row
+  `0b..XXXX..`, causing a source-only failure before example 05 was built or run.
+* Do not change example 05, the kernels, or examples 06 through 13 in this step.
+
