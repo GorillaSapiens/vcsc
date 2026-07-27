@@ -193,50 +193,34 @@ int main(int argc, char **argv) {
       return memory_image[static_cast<uint16_t>(playfield+row*4+byte)];
    };
    if (rows == 12) {
-      auto register_at = [&](uint64_t line, uint64_t cycle, uint16_t address) {
-         uint8_t value = 0;
-         for (const TimedWrite &event : frame_writes) {
-            if (event.address != address) continue;
-            if (event.line < line || (event.line == line && event.cycle <= cycle))
-               value = event.value;
-         }
-         return value;
-      };
-      auto bit = [](uint8_t value, unsigned index) {
-         return ((value >> index) & 1u) != 0;
+      const std::array<uint16_t,4> address{{kPf1,kPf2,kPf2,kPf1}};
+      auto expect_full_line = [&](uint64_t line, int row,
+                                  const std::array<uint64_t,4> &cycle,
+                                  const char *what) {
+         expect_pf_line(line, {
+            pf(line,cycle[0],address[0],row_byte(row,0)),
+            pf(line,cycle[1],address[1],row_byte(row,1)),
+            pf(line,cycle[2],address[2],row_byte(row,2)),
+            pf(line,cycle[3],address[3],row_byte(row,3))
+         }, what);
       };
       for (int row=0;row<12;++row) {
-         for (int subline=0;subline<16;++subline) {
-            const uint64_t line=first_row+row*16+subline;
-            for (unsigned pixel=0;pixel<160;++pixel) {
-               const uint64_t cycle=(68+pixel)/3;
-               const uint8_t pf1=register_at(line,cycle,kPf1);
-               const uint8_t pf2=register_at(line,cycle,kPf2);
-               bool actual=false,want=false;
-               if (pixel>=16 && pixel<48) {
-                  const unsigned n=(pixel-16)/4;
-                  actual=bit(pf1,7-n); want=bit(row_byte(row,0),7-n);
-               }
-               else if (pixel>=48 && pixel<80) {
-                  const unsigned n=(pixel-48)/4;
-                  actual=bit(pf2,n); want=bit(row_byte(row,1),n);
-               }
-               else if (pixel>=80 && pixel<112) {
-                  const unsigned n=(pixel-80)/4;
-                  actual=bit(pf2,7-n); want=bit(row_byte(row,2),7-n);
-               }
-               else if (pixel>=112 && pixel<144) {
-                  const unsigned n=(pixel-112)/4;
-                  actual=bit(pf1,n); want=bit(row_byte(row,3),n);
-               }
-               if (actual!=want) {
-                  std::fprintf(stderr,
-                     "vcs_multicolor_display_raster: row %d line %d pixel %u is %d; expected %d\n",
-                     row,subline,pixel,actual?1:0,want?1:0);
-                  return 1;
-               }
-            }
+         const uint64_t first=first_row+row*16;
+         if (row==0) {
+            for (int sub=0;sub<=14;++sub)
+               expect_full_line(first+sub,row,{{18,25,38,45}},"first row");
          }
+         else {
+            expect_full_line(first,row,{{15,22,36,43}},"row entry P0");
+            expect_full_line(first+1,row,{{16,23,36,43}},"row entry P1");
+            expect_full_line(first+2,row,{{18,25,37,44}},"row entry settle");
+            for (int sub=3;sub<=14;++sub)
+               expect_full_line(first+sub,row,{{18,25,38,45}},"steady row");
+         }
+         expect_full_line(first+15,row,
+            row==11 ? std::array<uint64_t,4>{{10,17,43,46}}
+                    : std::array<uint64_t,4>{{10,17,41,44}},
+            row==11 ? "terminal row" : "row boundary");
       }
       bool boundary=false;
       for (const TimedWrite &event:frame_writes)

@@ -1,5 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_full_static.pl @REPO@ @TMP@
 # phase: e2e
 # timeout: 10
-# expectstdout: vcs_multicolor_full_static ok: public example 06 builds a 262-line player-color 192 cartridge with VBLANK positioning, P0/P1 rows, Ball, and no missiles
+# expectstdout: vcs_multicolor_full_static ok: public example 06 builds a 262-line cartridge with exact asymmetric playfield rows, P0/P1 colors, Ball, and no missiles
 # expectexit: 0

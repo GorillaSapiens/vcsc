@@ -96,4 +96,18 @@ $out eq "vcs_player_color_192 static ok: exact 192-line frame, VBLANK positionin
    or die "unexpected example 06 pixel output: $out";
 $err eq '' or die "example 06 pixel stderr: $err";
 
-print "vcs_multicolor_full_static ok: public example 06 builds a 262-line player-color 192 cartridge with VBLANK positioning, P0/P1 rows, Ball, and no missiles\n";
+my $display_src=File::Spec->catfile($repo,qw(test vcs_multicolor_display_raster.cpp));
+my $display_exe=File::Spec->catfile($tmp,'multicolor_full_static_display');
+($rc,$sig,$out,$err)=capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$display_src,@mos_input,'-o',$display_exe);
+$rc==0 && !$sig or die "example 06 display harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "example 06 display harness build wrote output\n$out$err";
+my @display_symbols=map { map_symbol($map,$_) }
+   qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
+($rc,$sig,$out,$err)=capture($display_exe,$bin,'full',@display_symbols);
+$rc==0 && !$sig or die "example 06 display raster failed\n$out$err";
+$out eq "vcs_multicolor_display_raster full ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
+   or die "unexpected example 06 display output: $out";
+$err eq '' or die "example 06 display stderr: $err";
+
+print "vcs_multicolor_full_static ok: public example 06 builds a 262-line cartridge with exact asymmetric playfield rows, P0/P1 colors, Ball, and no missiles\n";

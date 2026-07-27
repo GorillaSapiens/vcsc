@@ -5772,3 +5772,30 @@ Before returning another modified archive:
   current output, the repaired PNG decodes as a 320x228 RGB image with ROM Name
   `static_renderer_test`, source-tree/branding checks pass, and staged
   `installcheck` passes.
+
+2026-07-27 16:53:19 PDT, repair and certify the 192-line renderer playfield timing
+---------------------------------------------------------------------------------
+* Reproduce example 06's mismatch in Stella 7.0 from the public `.c26` source
+  rather than trusting any checked-in PNG. The first visible bit of playfield
+  row zero was already wrong, and later row boundaries drifted progressively.
+* Fix the right half of each asymmetric playfield line by writing reflected PF2
+  before reflected PF1. Rebuild the row-transition paths so each two-line pair
+  remains exactly 152 CPU cycles; the previous transition-follow path added two
+  cycles per row and moved every later row farther out of phase.
+* Preserve the delayed P0 color across row boundaries, install it before the
+  boundary line, and use register staging for the old row's right-side bytes so
+  the added color write does not disturb display timing. Finish the twelfth row
+  on its dedicated boundary path before overscan begins.
+* Strengthen the 192-line trace regressions. Example 06 now checks every one of
+  its twelve asymmetric source rows on all sixteen scanlines, including the
+  distinct entry, settling, ordinary-boundary, and terminal-boundary schedules.
+  It also checks every P0/P1 graphics and color row, Ball activity, no missiles,
+  VBLANK-only positioning, and stable 262-line frames. The generic 192-line
+  renderer fixture and both all-five/181-line regressions remain passing.
+* Review the rebuilt public cartridge in Stella 7.0. Its three asymmetric
+  playfield strokes now match the `.c26` data through the final visible line;
+  historical PNG fixtures remain explicitly non-authoritative.
+* Verification: the compile-only suite passes 316/316. The broad end-to-end run
+  passes tests 1..164 before the outer execution window expires, and the
+  remaining 26 pass explicitly, accounting for all 190 tests with no failures.
+  Staged `installcheck` passes.

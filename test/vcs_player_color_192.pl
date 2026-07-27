@@ -77,12 +77,12 @@ require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*57/, 'private-RAM contract
 require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*70/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
-require_re($text,qr/cpx #48.*?bcs \@endrenderer/s,
-   'full-height path no longer runs the ordinary renderer through all twelve rows');
+require_re($text,qr/cpx #44.*?beq \@terminalrenderer/s,
+   'full-height path no longer reaches the twelfth-row terminal line');
+require_re($text,qr/ldy\.ax TEMPLATE_playfield\+2,x;.*?sty PF2;.*?sta PF1;/s,
+   'right-half playfield bytes are no longer written in display order');
 require_re($text,qr/TEMPLATE_object_masks\[48\]/,
    'full-height object mask storage no longer covers all 96 two-line pairs');
-$text !~ /\@(?:lastrendererline|enterfromNBL|enterlastrenderer)\b/
-   or die "obsolete special terminal-row path returned\n";
 require_re($text,qr/Position Ball, P1, and P0 entirely during VBLANK/,
    'objects are no longer positioned entirely during VBLANK');
 for my $bad (qw(score font VSYNC VBLANK TIM1T TIM8T TIM64T T1024T INTIM TIMINT)) {

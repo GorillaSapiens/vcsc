@@ -25,14 +25,16 @@ NMOS 6502 opcodes.
 P0, P1, and Ball are positioned entirely during VBLANK. The first P1/Ball half
 and the left half of playfield row zero are staged while output is blanked, so
 visible drawing starts directly at line 40 in the same two-line pipeline used
-for every later row. There is no separate terminal-row mini-renderer: the ordinary
-loop renders all twelve rows and returns at the boundary after visible line 231.
-Display-state cleanup occurs after VBLANK is asserted in overscan, and public Y
-coordinates are then restored.
+for every later row. Row transitions use cycle-matched paths so the four
+playfield writes stay aligned instead of drifting downward. The final boundary
+finishes row twelve before returning after visible line 231. Display-state
+cleanup occurs after VBLANK is asserted in overscan, and public Y coordinates are
+then restored.
 
 The regression tests use the 6502/TIA write trace as the oracle. They verify all
-192 visible playfield lines pixel by pixel, exact 262-line frames, VBLANK-only
-horizontal positioning, P0/P1 glyph order and colors, Ball activity in both the
-normal and terminal bands, and the absence of missile activity. Historical PNG
-fixtures are not treated as authoritative because several captured broken
-rasters.
+192 visible lines against the source playfield bytes at the exact safe write
+phases, exact 262-line frames, VBLANK-only horizontal positioning, P0/P1 glyph
+order and colors, Ball activity in both the normal and terminal bands, and the
+absence of missile activity. Example 06 is also reviewed in Stella 7.0.
+Historical PNG fixtures are not treated as authoritative because several are
+captured from broken rasters.

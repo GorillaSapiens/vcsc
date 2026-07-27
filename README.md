@@ -154,7 +154,7 @@ The user-facing examples are deliberately editable:
 - [`03_score`](examples/03_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
 - [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color renderer example
-- [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — **pending display repair**; scoreless 192-line static multicolor P0+P1+Ball display
+- [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — certified scoreless 192-line static multicolor P0+P1+Ball display
 - [`07_multicolor_score_above_static`](examples/07_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
 - [`08_multicolor_score_below`](examples/08_multicolor_score_below/) — **pending display repair**; static multicolor gameplay with score below
 - [`09_multicolor_full_dynamic_x_motion`](examples/09_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
@@ -168,10 +168,12 @@ The `faithful_legacy_playercolors` template is compared with an independently
 built retained-source audit using the same fixture scene. Public example 05 uses
 that renderer with different playfield data, so its test checks the 264-line frame
 schedule plus exact P0/P1 rows and colors rather than falsely claiming byte-for-
-byte identity with the pristine scene ROM. Example 06 currently has build,
-262-line frame, player, and Ball smoke coverage only; its playfield pixels are
-not certified. Examples 06 through 14 must not be treated as rendering
-references until their display timing is repaired and independently verified.
+byte identity with the pristine scene ROM. Example 06 independently checks all
+twelve asymmetric playfield rows at their exact TIA write phases, P0/P1 graphics
+and colors, Ball activity, and stable 262-line timing; its built cartridge was
+also reviewed in Stella 7.0. Examples 07 through 14 must not be treated as
+rendering references until their display timing is repaired and independently
+verified.
 
 Example 04 intentionally needs unofficial-opcode mode:
 

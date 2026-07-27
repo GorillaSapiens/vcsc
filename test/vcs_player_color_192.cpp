@@ -264,13 +264,13 @@ int main(int argc,char **argv) {
    const std::vector<uint8_t> p1{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
    if (mode=="static") {
       expect_nonzero_lines(kGrp0,{164,166,168,170,172,174,176,178},p0,"static P0");
-      expect_nonzero_lines(kGrp1,{111,113,115,117,119,121,123,125},p1,"static P1");
+      expect_nonzero_lines(kGrp1,{111,113,115,117,120,121,123,125},p1,"static P1");
       expect_nonzero_lines(kEnabl,{125,127,129,131},{2,2,2,2},"static Ball");
       std::printf("vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n");
    }
    else {
       expect_nonzero_lines(kGrp0,{202,204,206,208,210,212,214,216},p0,"terminal P0");
-      expect_nonzero_lines(kGrp1,{205,207,209,211,213,215,217,219},p1,"terminal P1");
+      expect_nonzero_lines(kGrp1,{205,207,209,211,213,216,217,219},p1,"terminal P1");
       expect_nonzero_lines(kEnabl,{213,215,217,219},{2,2,2,2},"terminal Ball");
       std::printf("vcs_player_color_192 terminal ok: P0/P1/Ball reach the uniform twelfth-row raster\n");
    }

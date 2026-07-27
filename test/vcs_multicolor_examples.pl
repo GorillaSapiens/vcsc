@@ -74,4 +74,4 @@ for my $case (@cases) {
    $out =~ /^vcs_multicolor_example_matrix \Q$motion\E ok: 8\d stable frames\n$/ or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: examples 07-14 nonvisual build, frame, and RAM-motion smoke only; example 05 is legacy-checked separately and example 06 remains pending display repair\n";
+print "vcs_multicolor_examples ok: examples 07-14 nonvisual build, frame, and RAM-motion smoke only; examples 05 and 06 have separate display certification\n";
