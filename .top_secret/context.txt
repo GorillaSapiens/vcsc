@@ -5654,3 +5654,41 @@ Before returning another modified archive:
   first 168/190 tests before the outer execution window expires; run the
   remaining 22 explicitly and pass 22/22, accounting for all 190 tests with no
   failures. Staged `installcheck` passes.
+
+2026-07-27 11:09:00 PDT, replace the broken 192-line terminal pipeline with one uniform raster
+----------------------------------------------------------------------------------------------
+* Treat the checked-in player-color PNGs as untrusted historical captures, not
+  as correctness oracles. Remove the `player_color_192` terminal PNG hash lock
+  and replace write-shape assumptions with simulator checks of the actual TIA
+  raster. Other PNGs remain outside this repair and must not be assumed correct.
+* Fix `player_color_192` by removing both sources of visible corruption: the
+  three-line visible P0/P1 positioning handoff and the separate shortened
+  twelfth-row mini-kernel. Position Ball, P1, and P0 entirely during VBLANK,
+  stage the first P1/Ball half and the left half of row zero while output is
+  blanked, and run the ordinary two-line kernel through all twelve rows.
+  Visible output is now exactly rows 0..11, sixteen scanlines each, on lines
+  40..231; VBLANK is asserted on line 232.
+* Expand the object-mask workspace from 44 to 48 bytes so all 96 two-scanline
+  pairs are represented, update the RAM contract to 13 public + 57 private = 70
+  bytes, remove the now-dead 160-byte visible-handoff position table, and keep
+  only the 16-byte divide-by-fifteen fine-motion table. Move display cleanup to
+  overscan and restore P0/P1/Ball public Y values there.
+* Preserve the established public object coordinates with private Y staging
+  biases and the retained horizontal calibration. Add a three-cycle return-path
+  adjustment so `vcs_ntsc_begin_overscan()` blanks at line 232 rather than at
+  the far right edge of line 231. Replace a layout-dependent relative branch
+  across `.align 256` with an equal-cycle absolute jump; this fixes branch-range
+  failures in the larger dynamic full-height examples without changing raster
+  timing.
+* Add a dedicated `vcs_player_color_192.cpp` trace oracle. It verifies exact
+  262-line frames, visible boundaries, VBLANK-only RESP/HMP/HMOVE transactions,
+  NUSIZ restoration, P0/P1 row order, Ball activity in normal and terminal
+  bands, public-Y restoration, and no missiles. Change the playfield/display
+  oracles to check all 12 x 16 x 160 visible pixels instead of blessing the old
+  setup lines, terminal partial clears, or special bottom-row writes. Update
+  the poison handoff regression to use the dedicated 192-line oracle.
+* Focused tests pass for `player_color_192`, public example 05, hostile prior-
+  frame state, and the full dynamic example matrix. The compile-only suite
+  passes 316/316. The end-to-end suite passes all 190 tests with no failures;
+  the first 166 were observed in the broad run before its outer timeout and the
+  remaining 24 pass explicitly. Staged `installcheck` also passes.

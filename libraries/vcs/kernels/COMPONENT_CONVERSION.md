@@ -236,14 +236,14 @@ path needs a compact 30-cycle phase pad on the blank cleanup line to retain its
 exact 181-line return boundary; both official and unofficial smoke links now
 measure 1429 bytes and still differ by zero bytes.
 
-The maintained source-level oracle checks eleven ordinary rows, sixteen lines
-per row, and 160 playfield pixels per line. Real Stella captures are also used
-during development because the simplified oracle does not yet model every TIA
-sub-cycle phase precisely. The all-five static example is visually clean at its
-ordinary and terminal boundaries after this repair. The player-color first-row
-entry notch, the two 192-line special twelfth-row paths, and complete
-P0/P1/M0/M1/Ball pixel reconstruction remain open. No monolith may be retired
-until those cases and the measured component handoff contract pass.
+The maintained source-level oracle checks every gameplay row, sixteen lines per
+row, and all 160 playfield pixels per line. The 192-line player-color profile
+now uses the same two-line raster path for all twelve rows; its former first-row
+entry notch and two special twelfth-row paths are gone. The trace oracle also
+reconstructs its P0, P1, and Ball output and verifies that all coarse/fine
+positioning occurs during VBLANK. Complete P0/P1/M0/M1/Ball reconstruction for
+the other profiles remains open. No monolith may be retired until those cases
+and the measured component handoff contract pass.
 
 ## Evidence required before retiring a monolith
 
@@ -320,14 +320,17 @@ visible field. The application supplies a twelve-row/48-byte playfield plus the
 same page-contained graphics and eight-byte color tables as the 181-line
 profile.
 
-The full-height component retains the predecessor's genuine twelfth-row path,
-including precomputed final-row P0/P1 graphics and colors and final Ball state.
-It then holds that gameplay state through the eleven lines reserved by the
-score-composable profile. Its measured RAM contract is 13 public plus 53 private
-bytes, 66 total. Missiles remain unavailable; score/font and scheduler-owned
-frame/timer state remain absent. The maintained regression locks stable raw
-262-line frames, exact row colors, Ball output, official opcodes, hard-page ROM
-objects, map sizes, and all four lifecycle contracts.
+The full-height component has one uniform two-line raster loop for all twelve
+rows. P0, P1, and Ball are positioned entirely during VBLANK; staged row-zero
+state enters the visible field at the same half-row phase used by every later
+row. The obsolete terminal pipeline and its 160-byte position table were
+removed. Its measured RAM contract is 13 public plus 57 private bytes, 70 total,
+and its only position helper is a page-contained 16-byte divide-by-15 table.
+Missiles remain unavailable; score/font and scheduler-owned frame/timer state
+remain absent. The maintained trace regression locks exact 262-line frames,
+all twelve 16-line rows, all 160 playfield pixels per line, P0/P1/Ball output,
+VBLANK-only positioning, official opcodes, hard-page ROM objects, map sizes,
+and all four lifecycle contracts. Screenshot PNGs are not correctness oracles.
 
 ## Poison debug score composition probe
 

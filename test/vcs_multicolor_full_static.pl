@@ -94,7 +94,7 @@ my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 
-my $pixel_src=File::Spec->catfile($repo,qw(test vcs_player_color_181.cpp));
+my $pixel_src=File::Spec->catfile($repo,qw(test vcs_player_color_192.cpp));
 my $pixel_exe=File::Spec->catfile($tmp,'multicolor_full_static_pixels');
 ($rc,$sig,$out,$err)=capture(
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$pixel_src,@mos_input,'-o',$pixel_exe);
@@ -103,7 +103,7 @@ $out eq '' && $err eq '' or die "example 05 pixel harness build wrote output\n$o
 my @zp=map { map_zp($map,$_) } qw(game_object_x game_player0_y game_player1_y game_ball_y);
 ($rc,$sig,$out,$err)=capture($pixel_exe,'static',$bin,@zp);
 $rc==0 && !$sig or die "example 05 pixel raster failed\n$out$err";
-$out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n"
+$out eq "vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n"
    or die "unexpected example 05 pixel output: $out";
 $err eq '' or die "example 05 pixel stderr: $err";
 
@@ -127,9 +127,9 @@ my $phase_exe=File::Spec->catfile($tmp,'multicolor_full_static_playfield');
    $cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase_exe);
 $rc==0 && !$sig or die "example 05 playfield harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "example 05 playfield harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($phase_exe,$bin);
+($rc,$sig,$out,$err)=capture($phase_exe,$bin,12,12,40);
 $rc==0 && !$sig or die "example 05 playfield timing failed\n$out$err";
-$out eq "vcs_playfield_phase ok: 161 scanlines at cycles 21/28, 22/29, or 24/31,38,45\n"
+$out eq "vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n"
    or die "unexpected example 05 playfield output: $out";
 $err eq '' or die "example 05 playfield stderr: $err";
 

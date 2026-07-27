@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
       if (frame_periods[i] != 262*kCyclesPerLine) fail("frame is not exactly 262 lines");
 
    const uint64_t game_first = placement == "above" ? 51 : 40;
-   const uint64_t first_row = game_first + 3;
+   const uint64_t first_row = placement == "full" ? game_first : game_first + 3;
    const int rows = placement == "full" ? 12 : 11;
    auto pf = [](uint64_t line,uint64_t cycle,uint16_t address,uint8_t value) {
       return TimedWrite{line,cycle,address,value};
@@ -192,56 +192,65 @@ int main(int argc, char **argv) {
    auto row_byte = [&](int row,int byte) {
       return memory_image[static_cast<uint16_t>(playfield+row*4+byte)];
    };
-   expect_pf_line(first_row-1, {
-      pf(first_row-1,26,kPf1,0), pf(first_row-1,29,kPf2,0)
-   }, "setup clear");
-
    if (rows == 12) {
-      // Rows 0..10 use fifteen timed write lines followed by one hold line.
-      // The final hold line of row 10 installs row 11 late in horizontal
-      // blank, after which the genuine twelfth row persists through the
-      // shortened terminal band.
-      for (int row=0;row<11;++row) {
-         const uint64_t first=first_row+row*16;
-         for (int sub=0;sub<15;++sub) {
-            const uint64_t line=first+sub;
-            expect_pf_line(line, {
-               pf(line,24,kPf1,row_byte(row,0)),
-               pf(line,31,kPf2,row_byte(row,1)),
-               pf(line,38,kPf1,row_byte(row,3)),
-               pf(line,45,kPf2,row_byte(row,2))
-            }, "ordinary row");
+      auto register_at = [&](uint64_t line, uint64_t cycle, uint16_t address) {
+         uint8_t value = 0;
+         for (const TimedWrite &event : frame_writes) {
+            if (event.address != address) continue;
+            if (event.line < line || (event.line == line && event.cycle <= cycle))
+               value = event.value;
          }
-         const uint64_t hold=first+15;
-         if (row<10) {
-            expect_pf_line(hold,{},"ordinary hold line");
-         }
-         else {
-            expect_pf_line(hold, {
-               pf(hold,53,kPf1,row_byte(11,0)),
-               pf(hold,60,kPf2,row_byte(11,1)),
-               pf(hold,67,kPf1,row_byte(11,3)),
-               pf(hold,74,kPf2,row_byte(11,2))
-            }, "twelfth-row preload");
+         return value;
+      };
+      auto bit = [](uint8_t value, unsigned index) {
+         return ((value >> index) & 1u) != 0;
+      };
+      for (int row=0;row<12;++row) {
+         for (int subline=0;subline<16;++subline) {
+            const uint64_t line=first_row+row*16+subline;
+            for (unsigned pixel=0;pixel<160;++pixel) {
+               const uint64_t cycle=(68+pixel)/3;
+               const uint8_t pf1=register_at(line,cycle,kPf1);
+               const uint8_t pf2=register_at(line,cycle,kPf2);
+               bool actual=false,want=false;
+               if (pixel>=16 && pixel<48) {
+                  const unsigned n=(pixel-16)/4;
+                  actual=bit(pf1,7-n); want=bit(row_byte(row,0),7-n);
+               }
+               else if (pixel>=48 && pixel<80) {
+                  const unsigned n=(pixel-48)/4;
+                  actual=bit(pf2,n); want=bit(row_byte(row,1),n);
+               }
+               else if (pixel>=80 && pixel<112) {
+                  const unsigned n=(pixel-80)/4;
+                  actual=bit(pf2,7-n); want=bit(row_byte(row,2),7-n);
+               }
+               else if (pixel>=112 && pixel<144) {
+                  const unsigned n=(pixel-112)/4;
+                  actual=bit(pf1,n); want=bit(row_byte(row,3),n);
+               }
+               if (actual!=want) {
+                  std::fprintf(stderr,
+                     "vcs_multicolor_display_raster: row %d line %d pixel %u is %d; expected %d\n",
+                     row,subline,pixel,actual?1:0,want?1:0);
+                  return 1;
+               }
+            }
          }
       }
-
-      const uint64_t terminal=first_row+11*16;
-      for (int sub=0;sub<11;++sub)
-         expect_pf_line(terminal+sub,{},"twelfth-row hold");
-      expect_pf_line(terminal+11,{pf(terminal+11,74,kPf1,0)},"terminal clear PF1");
-      expect_pf_line(terminal+12,{pf(terminal+12,1,kPf2,0)},"terminal clear PF2");
-
       bool boundary=false;
       for (const TimedWrite &event:frame_writes)
-         if (event.address==kVblank && event.line==terminal+12 &&
-             event.cycle==73 && (event.value&2)) boundary=true;
-      if (!boundary) fail("full-height terminal band does not reach the visible boundary");
+         if (event.address==kVblank && event.line==232 && (event.value&2)) boundary=true;
+      if (!boundary) fail("full-height raster does not enter overscan after line 231");
    }
    else {
+      expect_pf_line(first_row-1, {
+         pf(first_row-1,26,kPf1,0), pf(first_row-1,29,kPf2,0)
+      }, "setup clear");
+
       // The score-composable 181-line profile retains its inherited preload
-      // schedule. Its detailed raster will be certified when examples 06/07
-      // are repaired; example 05 exercises only the full-height branch above.
+      // schedule. Its detailed raster is checked independently of the repaired
+      // full-height branch.
       const int ordinary_rows=11;
       for (int row=0;row<ordinary_rows;++row) {
          const uint64_t first=first_row+row*16;

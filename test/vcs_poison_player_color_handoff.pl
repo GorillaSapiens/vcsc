@@ -79,16 +79,21 @@ for my $name (sort keys %cases) {
    $err eq '' or die "$name frame harness stderr: $err";
 }
 
-my $player_src=File::Spec->catfile($repo,qw(test vcs_player_color_181.cpp));
-my $player=File::Spec->catfile($tmp,'vcs_player_color_poison_handoff');
-($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$player_src,@mos_input,'-o',$player);
-$rc==0 && !$sig or die "player harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "player harness build wrote output\n$out$err";
+my %player;
+for my $lines (181,192) {
+   my $player_src=File::Spec->catfile($repo,'test',"vcs_player_color_$lines.cpp");
+   $player{$lines}=File::Spec->catfile($tmp,"vcs_player_color_${lines}_poison_handoff");
+   ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+      $player_src,@mos_input,'-o',$player{$lines});
+   $rc==0 && !$sig or die "player-color $lines harness build failed\n$out$err";
+   $out eq '' && $err eq '' or die "player-color $lines harness build wrote output\n$out$err";
+}
 for my $name (sort keys %cases) {
    my($bin,$map)=@{$built{$name}};
-   my @args=($player,'static',$bin,map { map_zp($map,$_) }
+   my $lines=$name =~ /192/ ? 192 : 181;
+   my @args=($player{$lines},'static',$bin,map { map_zp($map,$_) }
       qw(game_object_x game_player0_y game_player1_y game_ball_y));
-   push @args,$cases{$name};
+   push @args,$cases{$name} if $lines==181;
    ($rc,$sig,$out,$err)=capture(@args);
    $rc==0 && !$sig or die "$name register-raster probe failed\n$out$err";
    if ($name eq 'player_color_181_above') {
@@ -100,7 +105,7 @@ for my $name (sort keys %cases) {
          or die "unexpected $name output: $out";
    }
    else {
-      $out eq "vcs_player_color_181 static ok: exact P0/P1 row colors, P0/P1/BL position and pixel endpoints, no missiles\n"
+      $out eq "vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n"
          or die "unexpected $name output: $out";
    }
    $err eq '' or die "$name player harness stderr: $err";

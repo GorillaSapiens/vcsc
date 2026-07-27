@@ -193,25 +193,6 @@ int main(int argc, char **argv) {
       auto bit = [](uint8_t value, unsigned index) {
          return ((value >> index) & 1u) != 0;
       };
-      // The preceding line belongs to the component's setup overhead and must
-      // remain wholly blank.  A late PF1 seed here produced the one-scanline
-      // artifact seen at the start of examples 05 and 06.
-      for (unsigned pixel = 0; pixel < 160; ++pixel) {
-         const uint64_t cycle = (68 + pixel) / 3;
-         const uint8_t pf1 = register_at(first_row_line - 1, cycle, kPf1);
-         const uint8_t pf2 = register_at(first_row_line - 1, cycle, kPf2);
-         bool actual = false;
-         if (pixel >= 16 && pixel < 48) actual=bit(pf1,7-(pixel-16)/4);
-         else if (pixel >= 48 && pixel < 80) actual=bit(pf2,(pixel-48)/4);
-         else if (pixel >= 80 && pixel < 112) actual=bit(pf2,7-(pixel-80)/4);
-         else if (pixel >= 112 && pixel < 144) actual=bit(pf1,(pixel-112)/4);
-         if (actual) {
-            std::fprintf(stderr,
-               "vcs_playfield_phase: setup line pixel %u is set; expected blank\n",
-               pixel);
-            return 1;
-         }
-      }
       for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
             const uint64_t line = first_row_line + row * 16 + subline;

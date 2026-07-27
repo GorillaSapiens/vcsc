@@ -9,25 +9,25 @@
 // INSTANCE_playfield[48], INSTANCE_player0_colors[], and
 // INSTANCE_player1_colors[] objects. Graphics and colors share the same
 // highest-index-to-zero row order. The component draws an exact 192-line
-// scoreless gameplay field using the predecessor's genuine twelfth row and
-// final-row color path. It cannot be combined with the independent eleven-line
-// score inside the standard 192-line visible field.
+// scoreless gameplay field as twelve uniform 16-line rows. It cannot be combined
+// with the independent eleven-line score inside the standard visible field.
 //
-// It owns no score/font, VSYNC, VBLANK, or RIOT timer state. draw() clears
-// gameplay state before returning; overscan() restores application Y values.
+// It owns no score/font, VSYNC, VBLANK, or RIOT timer state. draw() returns on
+// the boundary after the 192nd visible line; overscan() clears gameplay state
+// and restores application Y values.
 
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 192,
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
-   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 56,
    TEMPLATE_OBJECT_COUNT := 3,
    TEMPLATE_PLAYFIELD_BYTES := 48,
    TEMPLATE_PLAYFIELD_ROWS := 12,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
    TEMPLATE_WORKSPACE_BYTES := 5,
-   TEMPLATE_PRIVATE_RAM_BYTES := 53,
+   TEMPLATE_PRIVATE_RAM_BYTES := 57,
    TEMPLATE_PUBLIC_RAM_BYTES := 13,
-   TEMPLATE_MODULE_RAM_BYTES := 66
+   TEMPLATE_MODULE_RAM_BYTES := 70
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -51,24 +51,6 @@ page const uint8_t TEMPLATE_reposition_table[16] := {
    0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
 };
 
-// Packed visible-handoff positioning table. The high nibble is the HMxx
-// value and the low nibble is the number of five-cycle coarse-loop steps.
-// Both player entry lines use a RESP phase one CPU cycle earlier than the
-// retained VBLANK schedule; the table compensates by fine motion and, for
-// remainders 13..14, one additional coarse step.
-page const uint8_t TEMPLATE_player_position_table[160] := {
-   0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
-   0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
-   0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
-   0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,0x25,0x15,
-   0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,0x16,0x06,
-   0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,
-   0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,
-   0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,
-   0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,
-   0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
-};
-
 // Entries 2 and 3 retain the per-player NUSIZ values that draw() must
 // restore after an independent score component has owned P0/P1.
 uint8_t TEMPLATE_object_x[5];
@@ -83,7 +65,7 @@ uint8_t TEMPLATE_ball_height;
 
 uint8_t TEMPLATE_workspace[5];
 uint8_t TEMPLATE_playfield_position;
-uint8_t TEMPLATE_object_masks[44];
+uint8_t TEMPLATE_object_masks[48];
 uint8_t TEMPLATE_player0_latch;
 
 require inline void TEMPLATE_init(void) {
@@ -95,6 +77,25 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_workspace + 1;
    asm lda.z TEMPLATE_player1_y;
    asm sta.z TEMPLATE_workspace + 2;
+   asm lda.z TEMPLATE_ball_y;
+   asm sta.z TEMPLATE_workspace + 3;
+
+   // The old visible-entry RESP setup consumed two scanlines before the object
+   // raster.  With positioning moved into VBLANK, bias the private working Y
+   // coordinates by one so the public coordinate system remains unchanged.
+   asm lda.z TEMPLATE_player0_y;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_player1_y;
+   asm clc;
+   // P1 is staged one two-scanline pair before draw() begins.
+   asm adc #2;
+   asm sta.z TEMPLATE_player1_y;
+   asm lda.z TEMPLATE_ball_y;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_ball_y;
 
    asm jsr @TEMPLATE_prepare_object_masks;
    asm jmp @TEMPLATE_prepare_object_masks_done;
@@ -109,19 +110,15 @@ require inline void TEMPLATE_vblank(void) {
    asm clc;
    asm adc #4;
    asm tax;
-   asm cpx #44;
+   asm cpx #48;
    asm bcc @clear;
-   asm lda #87;
+   // The uniform 12-row loop addresses all 96 two-scanline pairs.
+   asm lda #95;
    asm sta.z TEMPLATE_object_masks + 31;
    asm lda.z TEMPLATE_ball_y;
    asm ldy.z TEMPLATE_ball_height;
    asm ldx #0;
    asm jsr @prepare_one;
-   asm lda.z TEMPLATE_ball_y;
-   asm sta.z TEMPLATE_object_masks + 7;
-   asm sec;
-   asm sbc #87;
-   asm sta.z TEMPLATE_ball_y;
    asm lda.z TEMPLATE_player0_height;
    asm clc;
    asm adc #1;
@@ -135,49 +132,8 @@ require inline void TEMPLATE_vblank(void) {
    asm lda #1;
    asm sta.z TEMPLATE_object_masks + 23;
 
-   // Precompute final-row Ball, graphics, and per-player colors before visible drawing.
-   asm lda.z TEMPLATE_ball_height;
-   asm dec.z TEMPLATE_ball_y;
-   asm cmp.z TEMPLATE_ball_y;
-   asm rol;
-   asm rol;
-   asm sta.z TEMPLATE_object_masks + 27;
-
-   asm lda.z TEMPLATE_player1_y;
-   asm sec;
-   asm sbc #89;
-   asm tay;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @final_player1_zero;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm sta.z TEMPLATE_object_masks + 31;
-   asm lda.ay TEMPLATE_player1_colors,y;
-   asm jmp @final_player1_color;
-   asm @final_player1_zero:;
-   asm ldy #0;
-   asm lda #0;
-   asm sta.z TEMPLATE_object_masks + 31;
-   asm lda.ay TEMPLATE_player1_colors,y;
-   asm @final_player1_color:;
-   asm sta.z TEMPLATE_object_masks + 35;
-
-   asm lda.z TEMPLATE_player0_y;
-   asm sec;
-   asm sbc #89;
-   asm tay;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bcs @final_player0_zero;
-   asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm sta.z TEMPLATE_object_masks + 39;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm jmp @final_player0_color;
-   asm @final_player0_zero:;
-   asm ldy #0;
-   asm lda #0;
-   asm sta.z TEMPLATE_object_masks + 39;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm @final_player0_color:;
-   asm sta.z TEMPLATE_object_masks + 43;
+   // No special terminal row is required: Ball, P0, and P1 all remain in
+   // the ordinary raster pipeline through row twelve.
    asm rts;
 
    asm @prepare_one:;
@@ -305,10 +261,10 @@ require inline void TEMPLATE_vblank(void) {
    asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
    asm @TEMPLATE_prepare_object_masks_done:;
 
-   // Ball positioning is a VBLANK responsibility. Score mini-kernels preserve
-   // Ball position and motion, so only P0/P1 require a visible-boundary handoff.
-   // Keep the Ball strobe at the same cycle used by the retained five-object
-   // schedule so its public X coordinate remains bit-for-bit compatible.
+   // Position Ball, P1, and P0 entirely during VBLANK using the retained
+   // divide-by-fifteen schedule.  The older full-height conversion reused a
+   // table calibrated for visible-boundary RESP strobes; moving those strobes
+   // into VBLANK without changing the calibration displaced both players.
    asm sta WSYNC;
    asm ldx #4;
    asm bit.z CXM0P;
@@ -317,65 +273,47 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_ball_divide_loop:;
    asm sbc #15;
    asm bcs.same @TEMPLATE_ball_divide_loop;
-   asm sta.zx TEMPLATE_workspace,x;
+   asm nop;
+   asm nop;
    asm sta RESP0,x;
-   asm ldy.zx TEMPLATE_workspace,x;
+   asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_player1_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_player1_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_player0_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_player0_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
    asm lda #0;
-   asm sta HMP0;
-   asm sta HMP1;
    asm sta HMM0;
    asm sta HMM1;
    asm sta WSYNC;
-   asm sta HMOVE;
-   asm lda #0;
-   asm sta ENAM0;
-   asm sta ENAM1;
-
-   // Precompute packed P0/P1 position controls in constant time. Repeated
-   // subtraction here made VBLANK coordinate-dependent and overran at the
-   // right endpoint; the visible entry loops consume the packed step counts.
-   asm ldx.z TEMPLATE_object_x;
-   asm lda.ax TEMPLATE_player_position_table,x;
-   asm sta.z TEMPLATE_workspace + 3;
-   asm ldx.z TEMPLATE_object_x + 1;
-   asm lda.ax TEMPLATE_player_position_table,x;
-   asm sta.z TEMPLATE_workspace + 4;
-}
-
-require inline void TEMPLATE_draw(void) {
-   asm @kernel:;
-
-   // Visible-boundary handoff, line 1: restore P1 coarse/fine position.
-   // The packed table makes the loop constant-shape and keeps X=159 inside
-   // the scanline while preserving the requested pixel coordinate.
-   asm ldy.z TEMPLATE_workspace + 4;
-   asm sty HMP1;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm @TEMPLATE_player1_position_loop:;
-   asm dex;
-   asm bne.same @TEMPLATE_player1_position_loop;
-   asm sta RESP1;
-   asm sta WSYNC;
-
-   // Line 2 restores P0 at the same effective RESP phase.
-   asm ldy.z TEMPLATE_workspace + 3;
-   asm sty HMP0;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm bit.z CXM0P;
-   asm @TEMPLATE_player0_position_loop:;
-   asm dex;
-   asm bne.same @TEMPLATE_player0_position_loop;
-   asm sta RESP0;
-   asm sta WSYNC;
-
-   // Apply the restored player motion at the start of the third setup line.
-   // HMM0/HMM1/HMBL are zero by the score contract, so Ball position survives.
    asm sta HMOVE;
    asm lda.z TEMPLATE_object_x + 2;
    asm sta NUSIZ0;
@@ -387,17 +325,89 @@ require inline void TEMPLATE_draw(void) {
    asm ldx #0;
    asm stx GRP0;
    asm stx GRP1;
-   asm stx PF1;
-   asm stx PF2;
    asm stx CXCLR;
    asm dec.z TEMPLATE_player0_y;
-   asm lda.z TEMPLATE_playfield_position;
+   asm lda #8;
    asm sta.z TEMPLATE_workspace;
    asm lda #10;
    asm clc;
    asm sbc.z TEMPLATE_playfield_position;
    asm sta.z TEMPLATE_playfield_position;
-   asm jmp @startkernel;
+
+   // Stage the first half of the ordinary two-line pipeline while VBLANK is
+   // still asserted.  draw() can therefore begin with the P0 half at exactly
+   // the same phase used after every later row transition; no visible setup
+   // scanline is consumed.
+   asm lda.z TEMPLATE_object_masks + 23;
+   asm lsr.zx TEMPLATE_object_masks,x;
+   asm adc #0;
+   asm sta ENABL;
+
+   asm ldy.z TEMPLATE_player1_y;
+   asm dey;
+   asm sty.z TEMPLATE_player1_y;
+   asm cpy.z TEMPLATE_object_masks + 15;
+   asm bcs @TEMPLATE_first_player1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_first_player1_ready;
+   asm @TEMPLATE_first_player1_zero:;
+   asm lda #0;
+   asm tay;
+   asm @TEMPLATE_first_player1_ready:;
+   asm sta GRP1;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+
+   asm ldy #0;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta.z TEMPLATE_player0_latch;
+   asm sta COLUP0;
+
+   // Prime the left half of the first row while output is blanked.  The right
+   // half is installed by the first timed raster line.
+   asm lda.a TEMPLATE_playfield;
+   asm sta PF1;
+   asm lda.a TEMPLATE_playfield + 1;
+   asm sta PF2;
+}
+
+require inline void TEMPLATE_draw(void) {
+   // The scheduler enters at cycle 3.  This harmless three-cycle read places
+   // the first P0-half body at the exact phase used by every later row start.
+   // VBLANK already staged P1, Ball, and the left playfield half.
+   asm bit.z CXM0P;
+   asm lda.z TEMPLATE_player0_latch;
+   asm sta COLUP0;
+   asm lda.ax TEMPLATE_playfield,x;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield+1,x;
+   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield+3,x;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield+2,x;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
+   asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bcs @first_skipP0;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @first_continueP0;
+   asm @first_skipP0:;
+   asm lda #0;
+   asm tay;
+   asm bit.z TEMPLATE_object_masks + 19;
+   asm @first_continueP0:;
+   asm sta.a GRP0;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta.z TEMPLATE_player0_latch;
+   asm clc;
+   asm bit.z CXM0P;
+   asm dec.z TEMPLATE_workspace;
+   // VBLANK initializes this counter to eight, so the first half always
+   // continues into the ordinary row body.  Use an absolute jump because a
+   // relative branch across the page alignment is not range-stable.
+   asm jmp @continuekernel;
 
    asm .align 256;
    asm @kerloop:;
@@ -461,19 +471,18 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z CXM0P;
    asm dec.z TEMPLATE_workspace;
    asm bne @continuekernel;
+
    asm @altkernel:;
-   // Preserve the sixteenth scanline of the completed playfield row.  The
-   // inherited kernel cleared PF1/PF2 here, producing one blank/malformed line
-   // at every row boundary.  These eight non-TIA cycles retain the exact
-   // schedule and carry state while leaving the row raster intact.
+   // This line is the sixteenth scanline of the completed row.  Leave all TIA
+   // display state untouched while selecting the next four-byte row.
    asm lda #0;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
    asm txa;
    asm adc #4;
    asm tax;
-   asm cpx #44;
-   asm bcs @lastkernelline;
+   asm cpx #48;
+   asm bcs @endkernel;
    asm bit.z CXM0P;
    asm lda #8;
    asm sta.z TEMPLATE_workspace;
@@ -482,114 +491,39 @@ require inline void TEMPLATE_draw(void) {
    asm adc #0;
    asm jmp @goback;
 
-   asm @lastkernelline:;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm ldx.z TEMPLATE_playfield_position;
-   asm nop;
-   // The full-height path must install the genuine twelfth playfield row
-   // before entering the shortened terminal-row object pipeline.  Jumping
-   // directly to enterlastkernel merely held row eleven through the bottom
-   // band and made the twelfth public row dead data.
-   asm jmp @enterfromNBL;
-
-   asm .align 256;
-   asm @endkerloop:;
-   asm nop;
-   asm @enterfromNBL:;
-   asm ldy.a TEMPLATE_playfield+44;
-   asm sty PF1;
-   asm ldy.a TEMPLATE_playfield+45;
-   asm sty PF2;
-   asm ldy.a TEMPLATE_playfield+47;
-   asm sty PF1;
-   asm ldy.a TEMPLATE_playfield+46;
-   asm sty PF2;
-
-   asm @enterlastkernel:;
-   asm lda.z TEMPLATE_object_masks + 27;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm sta ENABL;
-   asm lda.z TEMPLATE_object_masks + 31;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm sta GRP1;
-   asm lda.z TEMPLATE_object_masks + 35;
-   asm sta COLUP1;
-   asm nop;
-   asm dex;
-   asm beq @endkernel;
-
-   asm ldy.a TEMPLATE_playfield+44;
-   asm sty PF1;
-   asm ldy.a TEMPLATE_playfield+45;
-   asm sty PF2;
-   asm ldy.a TEMPLATE_playfield+47;
-   asm sty PF1;
-   asm ldy.a TEMPLATE_playfield+46;
-   asm sty PF2;
-   asm lda.a TEMPLATE_player0_latch;
-   asm sta COLUP0;
-   asm lda.z TEMPLATE_object_masks + 39;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_object_masks + 43;
-   asm sta.z TEMPLATE_player0_latch;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm jmp @endkerloop;
-
    asm @endkernel:;
-   // Hold the final gameplay state through the eleven score-reserved lines.
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm sta WSYNC;
-   asm stx PF0;
-   asm stx PF1;
-   asm stx PF2;
-   asm stx GRP0;
-   asm stx GRP1;
-   asm stx ENAM0;
-   asm stx ENAM1;
-   asm stx ENABL;
-   asm stx VDELBL;
-   asm stx VDELP0;
-   asm stx VDELP1;
-   asm stx HMCLR;
    asm lda #10;
    asm clc;
    asm sbc.z TEMPLATE_playfield_position;
    asm sta.z TEMPLATE_playfield_position;
+   // Start the sixteenth scanline of row twelve, then account for the
+   // generated return path so begin_overscan writes VBLANK at line 232 rather
+   // than at the extreme right edge of visible line 231.
    asm sta WSYNC;
+   asm bit.z CXM0P;
 }
 
 require inline void TEMPLATE_overscan(void) {
+   // VBLANK is asserted before this callback, so display-state cleanup cannot
+   // cut a visible scanline short.
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta HMCLR;
+
    asm lda.z TEMPLATE_workspace + 1;
    asm sta.z TEMPLATE_player0_y;
    asm lda.z TEMPLATE_workspace + 2;
    asm sta.z TEMPLATE_player1_y;
-   asm lda.z TEMPLATE_object_masks + 7;
+   asm lda.z TEMPLATE_workspace + 3;
    asm sta.z TEMPLATE_ball_y;
 }
