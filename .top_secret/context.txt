@@ -5540,3 +5540,34 @@ Before returning another modified archive:
   the remaining seventeen explicitly and pass 17/17, covering all 188 tests
   with no failures. Final source-tree hygiene and VCSC branding checks pass.
 
+
+
+2026-07-26 20:09:43 PDT, repair and certify public example 05 only
+-------------------------------------------------------------------------------
+* Retract the previous claim that examples 05 through 13 formed a validated
+  display matrix. The matrix regression checked successful links, 262-line
+  frames, coordinate bounds, and RAM motion, but never inspected rendered TIA
+  pixels. Keep that test only as an explicitly nonvisual smoke test. Examples
+  06 through 13 remain untrusted and pending one-at-a-time repair.
+* Rebuild `05_multicolor_full_static` as a clean diagnostic scene: twelve
+  asymmetric playfield rows, a clear object lane, readable A/B glyphs, fixed
+  P0/P1/Ball positions, named NTSC colors, and no score or motion code. Add an
+  independent raw-byte golden source and a reviewed Stella 7.0 reference.
+* Fix a real `player_color_192` terminal-entry bug. The old final path jumped
+  directly to `enterlastkernel`, leaving public playfield row twelve unused and
+  repeating row eleven through the bottom band. Route `lastkernelline` through
+  `enterfromNBL` so bytes 44..47 are installed before the shortened terminal
+  object pipeline. Update the terminal P1/Ball timing oracle and reviewed
+  terminal Stella image for the corrected schedule.
+* Add `vcs_multicolor_full_static.test`. Require exact trace equivalence with
+  the raw-byte golden ROM, all twelve playfield rows and their transition
+  writes, all eight P0/P1 graphics and color rows, Ball activity, absence of
+  missiles/score ownership, exact 262-line frames, and the hash-locked Stella
+  image. Strengthen `vcs_player_color_192.test` to use the same twelve-row TIA
+  display oracle instead of the old eleven-row checker.
+* Do not modify or certify examples 06 through 13 in this step. The next public
+  example task is 06. Do not begin five-object kernel work.
+* Verify 316/316 compile-only tests. The full 189-test end-to-end run passed
+  tests 1..169 before the execution window expired; run the remaining twenty
+  tests explicitly and pass 20/20, covering all 189 with no failures. Staged
+  `installcheck`, final source hygiene, and branding checks pass.

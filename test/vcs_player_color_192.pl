@@ -29,6 +29,11 @@ sub map_zp {
    $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n";
    my $v=hex($1); $v <= 0xff or die "$name is not in zero page\n"; return $v;
 }
+sub map_symbol {
+   my($map,$name)=@_;
+   $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n";
+   return sprintf('0x%04x',hex($1));
+}
 sub bss_size {
    my($map,$name)=@_;
    $map =~ /^\s+BSS\.__vcsc_object\$\Q$name\E\s+run=\$[0-9A-Fa-f]{4}\s+size=\$([0-9A-Fa-f]{4})\b/m
@@ -62,7 +67,7 @@ without_usage($out) eq '' && $err eq '' or die "player-color 192 terminal build 
 -s $terminal_bin == 4096 or die "player-color 192 terminal ROM is not 4096 bytes\n";
 my $terminal_map=read_file($terminal_mapfile);
 sha256_hex(read_file($reference)) eq
-   '86b15f426011765d4b8f75b90e413a2f268608b17cef8ac04a4eee7c1878a323'
+   'eac7bab9aaf8b015687eef08bd2b5871643d6d53a88924100e361e94ffac53de'
    or die "reviewed player-color 192 Stella reference PNG changed\n";
 my $text=read_file($module);
 my $fixture=read_file($source);
@@ -75,6 +80,8 @@ require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*53/, 'private-RAM contract
 require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*66/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
+require_re($text,qr/\@lastkernelline:.*?jmp \@enterfromNBL/s,
+   'full-height path no longer enters the genuine twelfth playfield row');
 require_re($text,qr/TEMPLATE_playfield\+44/, 'full-height final-row playfield path is missing');
 require_re($text,qr/TEMPLATE_object_masks \+ 35.*COLUP1/s,
    'full-height final-row P1 color path is missing');
@@ -134,11 +141,25 @@ my $phase_exe=File::Spec->catfile($tmp,'player_color_192_playfield');
    $cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase_exe);
 $rc==0 && !$sig or die "player-color 192 playfield harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "player-color 192 playfield harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($phase_exe,$bin,'11','12');
-$rc==0 && !$sig or die "player-color 192 playfield raster failed\n$out$err";
-$out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
-   or die "unexpected player-color 192 playfield output: $out";
-$err eq '' or die "player-color 192 playfield harness stderr: $err";
+($rc,$sig,$out,$err)=capture($phase_exe,$bin);
+$rc==0 && !$sig or die "player-color 192 playfield timing failed\n$out$err";
+$out eq "vcs_playfield_phase ok: 161 scanlines at cycles 21/28, 22/29, or 24/31,38,45\n"
+   or die "unexpected player-color 192 playfield timing output: $out";
+$err eq '' or die "player-color 192 playfield timing stderr: $err";
+
+my $display_src=File::Spec->catfile($repo,qw(test vcs_multicolor_display_raster.cpp));
+my $display_exe=File::Spec->catfile($tmp,'player_color_192_display');
+($rc,$sig,$out,$err)=capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$display_src,@mos_input,'-o',$display_exe);
+$rc==0 && !$sig or die "player-color 192 display harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "player-color 192 display harness build wrote output\n$out$err";
+my @display_symbols=map { map_symbol($map,$_) }
+   qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
+($rc,$sig,$out,$err)=capture($display_exe,$bin,'full',@display_symbols);
+$rc==0 && !$sig or die "player-color 192 display raster failed\n$out$err";
+$out eq "vcs_multicolor_display_raster full ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
+   or die "unexpected player-color 192 display output: $out";
+$err eq '' or die "player-color 192 display harness stderr: $err";
 
 for my $phase (qw(init vblank draw overscan)) {
    my $bad=$fixture;

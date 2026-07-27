@@ -1,3 +1,3 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_examples.pl @REPO@ @TMP@
 # exit: 0
-# expectstdout: vcs_multicolor_examples ok: complete 3x3 static, X-motion, and X/Y-motion matrix
+# expectstdout: vcs_multicolor_examples ok: nonvisual build, frame, and RAM-motion smoke only; example 05 has separate display certification

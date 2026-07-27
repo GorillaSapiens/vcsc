@@ -75,4 +75,4 @@ for my $case (@cases) {
    $out =~ /^vcs_multicolor_example_matrix \Q$motion\E ok: 8\d stable frames\n$/ or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: complete 3x3 static, X-motion, and X/Y-motion matrix\n";
+print "vcs_multicolor_examples ok: nonvisual build, frame, and RAM-motion smoke only; example 05 has separate display certification\n";

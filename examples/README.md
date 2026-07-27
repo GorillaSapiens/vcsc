@@ -26,14 +26,18 @@ collection of historical test cartridges.
 | 12 | `multicolor_score_above_dynamic_x_and_y_motion` | Two-axis motion with score above |
 | 13 | `multicolor_score_below_dynamic_x_and_y_motion` | Two-axis motion with score below |
 
-Examples 05 through 13 form a deliberate 3×3 matrix:
+Examples 05 through 13 are intended to become a 3×3 matrix:
 
 | Motion | Full 192 lines | Score above | Score below |
 |---|---|---|---|
-| Static | 05 | 06 | 07 |
-| X only | 08 | 09 | 10 |
-| X and Y | 11 | 12 | 13 |
+| Static | **05 certified** | 06 pending | 07 pending |
+| X only | 08 pending | 09 pending | 10 pending |
+| X and Y | 11 pending | 12 pending | 13 pending |
 
-All nine matrix cartridges use the official multicolor P0+P1+Ball kernels.
-They intentionally do not exercise M0 or M1; five-object kernel work remains a
-separate later phase.
+Only example 05 currently has pixel-level display certification and a reviewed
+Stella reference. Examples 06 through 13 remain present for one-at-a-time
+repair, but their successful builds and stable frame lengths must not be read as
+proof that they render correctly.
+
+These examples intentionally do not exercise M0 or M1. Five-object kernel work
+remains blocked until every P0+P1+Ball example is independently certified.

@@ -523,12 +523,12 @@ void verify_raster() {
       if (terminal_mode == TerminalMode::Lines181)
          expect_lines(2,kEnabl,{212,214,216},"terminal BL");
       else
-         expect_lines(2,kEnabl,{214,216,218},"terminal BL");
+         expect_lines(2,kEnabl,{214,216,219},"terminal BL");
       for (size_t i=0;i<p0.size();++i)
          expect_color_write(2,kColup0,203+2*i,17,p0[i],"terminal P0 color");
       for (size_t i=0;i<p1.size();++i) {
          const uint64_t line=(terminal_mode == TerminalMode::Lines181 ? 203 : 205)+2*i;
-         const uint64_t cycle=(terminal_mode == TerminalMode::Lines192 && i==7) ? 12 : 11;
+         const uint64_t cycle=(terminal_mode == TerminalMode::Lines192 && i==7) ? 40 : 11;
          expect_color_write(2,kColup1,line,cycle,p1[i],"terminal P1 color");
       }
       return;

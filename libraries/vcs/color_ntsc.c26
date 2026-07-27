@@ -16,6 +16,7 @@ alias VCS_NTSC_ORCHID           __builtin_ntsc_rgb(0xea, 0x82, 0xdc) // TIA 0x5e
 alias VCS_NTSC_VIOLET           __builtin_ntsc_rgb(0xd0, 0x82, 0xfb) // TIA 0x6e; between violet and medium purple
 alias VCS_NTSC_MEDIUM_PURPLE    __builtin_ntsc_rgb(0xb5, 0x86, 0xfb) // TIA 0x7e; near X11 MediumPurple1
 alias VCS_NTSC_DARK_BLUE        __builtin_ntsc_rgb(0x12, 0x13, 0x9d) // TIA 0x82; near X11 dark blue
+alias VCS_NTSC_MEDIUM_BLUE      __builtin_ntsc_rgb(0x24, 0x28, 0xb0) // TIA 0x84; near X11 medium blue
 alias VCS_NTSC_ROYAL_BLUE       __builtin_ntsc_rgb(0x79, 0x86, 0xfb) // TIA 0x8e; near X11 royal blue
 alias VCS_NTSC_SKY_BLUE_2       __builtin_ntsc_rgb(0x79, 0xc2, 0xfb) // TIA 0x9e; near X11 SkyBlue2
 alias VCS_NTSC_SKY_BLUE         __builtin_ntsc_rgb(0x79, 0xdd, 0xfb) // TIA 0xae; near X11 sky blue

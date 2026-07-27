@@ -153,19 +153,20 @@ The user-facing examples are deliberately editable:
 - [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
 - [`03_score`](examples/03_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_multicolor_full_static`](examples/05_multicolor_full_static/) — full-height static multicolor P0+P1+Ball
-- [`06_multicolor_score_above_static`](examples/06_multicolor_score_above_static/) — static multicolor gameplay with score above
-- [`07_multicolor_score_below_static`](examples/07_multicolor_score_below_static/) — static multicolor gameplay with score below
-- [`08_multicolor_full_dynamic_x_motion`](examples/08_multicolor_full_dynamic_x_motion/) — full-height horizontal motion
-- [`09_multicolor_score_above_dynamic_x_motion`](examples/09_multicolor_score_above_dynamic_x_motion/) — horizontal motion with score above
-- [`10_multicolor_score_below_dynamic_x_motion`](examples/10_multicolor_score_below_dynamic_x_motion/) — horizontal motion with score below
-- [`11_multicolor_full_dynamic_x_and_y_motion`](examples/11_multicolor_full_dynamic_x_and_y_motion/) — full-height two-axis motion
-- [`12_multicolor_score_above_dynamic_x_and_y_motion`](examples/12_multicolor_score_above_dynamic_x_and_y_motion/) — two-axis motion with score above
-- [`13_multicolor_score_below_dynamic_x_and_y_motion`](examples/13_multicolor_score_below_dynamic_x_and_y_motion/) — two-axis motion with score below
+- [`05_multicolor_full_static`](examples/05_multicolor_full_static/) — **certified** full-height static multicolor P0+P1+Ball
+- [`06_multicolor_score_above_static`](examples/06_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
+- [`07_multicolor_score_below_static`](examples/07_multicolor_score_below_static/) — **pending display repair**; static multicolor gameplay with score below
+- [`08_multicolor_full_dynamic_x_motion`](examples/08_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
+- [`09_multicolor_score_above_dynamic_x_motion`](examples/09_multicolor_score_above_dynamic_x_motion/) — **pending display repair**; horizontal motion with score above
+- [`10_multicolor_score_below_dynamic_x_motion`](examples/10_multicolor_score_below_dynamic_x_motion/) — **pending display repair**; horizontal motion with score below
+- [`11_multicolor_full_dynamic_x_and_y_motion`](examples/11_multicolor_full_dynamic_x_and_y_motion/) — **pending display repair**; full-height two-axis motion
+- [`12_multicolor_score_above_dynamic_x_and_y_motion`](examples/12_multicolor_score_above_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score above
+- [`13_multicolor_score_below_dynamic_x_and_y_motion`](examples/13_multicolor_score_below_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score below
 
-Exact golden raster, timing, palette, score, music, and motion assertions use
-private copies under `test/fixtures/vcs_examples/`; changing an example should
-not require editing a golden harness.
+Example 05 has an exact raw-byte golden cartridge, a pixel-level TIA raster
+oracle, and a reviewed Stella image under `test/fixtures/vcs_examples/`.
+Examples 06 through 13 currently have nonvisual build/frame/motion smoke tests
+only and must not be treated as rendering references.
 
 Example 04 intentionally needs unofficial-opcode mode:
 

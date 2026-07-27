@@ -158,23 +158,23 @@ three-function call depth plus four explicit hidden-stack bytes, reserving ten
 hardware-stack bytes. Its initialization activation occupies three bytes, so
 the checked static cartridge leaves 30 RIOT bytes unallocated.
 
-Measured linked 4K cartridges from the current public multicolor matrix:
+Measured linked 4K cartridges from the public multicolor examples:
 
-| Example | ROM used | ROM free |
-| --- | ---: | ---: |
-| `05_multicolor_full_static` | 1,949 bytes | 2,147 bytes |
-| `06_multicolor_score_above_static` | 1,965 bytes | 2,131 bytes |
-| `07_multicolor_score_below_static` | 2,077 bytes | 2,019 bytes |
-| `08_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,368 bytes |
-| `09_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,352 bytes |
-| `10_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,240 bytes |
-| `11_multicolor_full_dynamic_x_and_y_motion` | 3,492 bytes | 604 bytes |
-| `12_multicolor_score_above_dynamic_x_and_y_motion` | 3,508 bytes | 588 bytes |
-| `13_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 476 bytes |
+| Example | ROM used | ROM free | Display status |
+| --- | ---: | ---: | --- |
+| `05_multicolor_full_static` | 1,947 bytes | 2,143 bytes | Pixel-certified |
+| `06_multicolor_score_above_static` | 1,965 bytes | 2,125 bytes | Pending repair |
+| `07_multicolor_score_below_static` | 2,077 bytes | 2,013 bytes | Pending repair |
+| `08_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,362 bytes | Pending repair |
+| `09_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,346 bytes | Pending repair |
+| `10_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,234 bytes | Pending repair |
+| `11_multicolor_full_dynamic_x_and_y_motion` | 3,492 bytes | 598 bytes | Pending repair |
+| `12_multicolor_score_above_dynamic_x_and_y_motion` | 3,508 bytes | 582 bytes | Pending repair |
+| `13_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 470 bytes | Pending repair |
 
 These figures include application code, runtime, kernel, tables, and vectors.
-They are measurements of the checked examples, not promises that future code
-will retain identical addresses.
+For examples 06 through 13 they are linked-size measurements only, not evidence
+of correct rendering. Future changes may alter both size and placement.
 
 ## Timing and validation
 
@@ -182,10 +182,12 @@ The visible loop replaces the two missile-update slots with balanced legal
 loads and `COLUP0`/`COLUP1` writes. The final row is precomputed during VBLANK.
 Both ENAM registers are cleared before the visible field and never enabled.
 
-`test/vcs_standard_playercolors.test` verifies the kernel against private
-golden cartridges under `test/fixtures/vcs_examples/`; the examples below are
-smoke-built but their literal palettes, positions, and motion constants are not
-part of the regression contract.
+`test/vcs_standard_playercolors.test` verifies the predecessor profile against
+private golden cartridges under `test/fixtures/vcs_examples/`.
+`test/vcs_multicolor_full_static.test` separately certifies public example 05
+against a raw-byte golden cartridge, an exact twelve-row TIA raster oracle, and
+a reviewed Stella image. Examples 06 through 13 currently receive nonvisual
+build/frame/motion smoke coverage only and remain pending.
 
 It verifies:
 
@@ -200,7 +202,8 @@ It verifies:
 - 320 frames of full-range asynchronous P0/P1/BL horizontal positioning,
   including RESP cycles and HMxx values.
 
-The current human-facing multicolor matrix is `examples/05_*` through
-`examples/13_*`. Exact regressions for this predecessor profile remain under
+The intended human-facing multicolor matrix is `examples/05_*` through
+`examples/13_*`. Only example 05 is currently display-certified. Exact
+regressions for the predecessor profile remain under
 `test/fixtures/vcs_examples/07_playercolor_static` and
 `test/fixtures/vcs_examples/08_playercolor_motion`.

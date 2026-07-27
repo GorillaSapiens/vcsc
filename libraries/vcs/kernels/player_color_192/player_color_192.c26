@@ -487,7 +487,11 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z CXM0P;
    asm ldx.z TEMPLATE_playfield_position;
    asm nop;
-   asm jmp @enterlastkernel;
+   // The full-height path must install the genuine twelfth playfield row
+   // before entering the shortened terminal-row object pipeline.  Jumping
+   // directly to enterlastkernel merely held row eleven through the bottom
+   // band and made the twelfth public row dead data.
+   asm jmp @enterfromNBL;
 
    asm .align 256;
    asm @endkerloop:;
