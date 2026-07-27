@@ -5624,3 +5624,33 @@ Before returning another modified archive:
   faithful retained-audit comparison, pristine oracle lock, all-thirteen build,
   and the remaining 06-13 nonvisual matrix smoke test. No kernel source changes
   are made in this repair.
+
+2026-07-27 09:38:56 PDT, put full static and score-below static in the correct slots
+-----------------------------------------------------------------------------------
+* Move the verified oracle-backed faithful legacy cartridge from public example
+  05 to `07_multicolor_score_below_static`, replacing the unverified
+  componentized example 07. Preserve its source byte-for-byte at SHA-256
+  `ef251cb98c0e4b602df4680b9026f317e378c69432bb68c3667903950a5d6889`,
+  its faithful-profile linker configuration, unofficial-opcode option, and
+  direct pristine BASIC 1.9 oracle comparison.
+* Rebuild `05_multicolor_full_static` as a genuine scoreless 192-line cartridge
+  using `player_color_192`. Express the already-verified full-height smoke scene
+  with visual playfield/sprite literals and named NTSC colors. Require the
+  public example to build byte-for-byte identically to
+  `test/fixtures/player_color_192/smoke.c26`, then verify its twelve-row TIA
+  raster, P0/P1 graphics and row colors, P0/P1/Ball pixel positions, absence of
+  missiles and score ownership, exact playfield write phase, and stable
+  262-line frames.
+* Relocate the faithful public-source audit and direct pristine comparison to
+  example 07. Add `vcs_multicolor_score_below_static.test`; repurpose
+  `vcs_multicolor_full_static.test` for the true 192-line example. Remove
+  example 07 from the unfinished nonvisual matrix smoke and compile examples 05
+  and 07 with their actual profile options in editable-example and staged
+  installation checks.
+* Update public examples documentation and profile references. Increase the
+  historically too-tight `vcs_player_color_192.test` timeout from three to six
+  seconds; the test takes about 3.6 seconds in a clean build.
+* Verify 316/316 compile-only tests. The complete end-to-end run passes the
+  first 168/190 tests before the outer execution window expires; run the
+  remaining 22 explicitly and pass 22/22, accounting for all 190 tests with no
+  failures. Staged `installcheck` passes.

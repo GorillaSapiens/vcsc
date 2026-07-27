@@ -20,7 +20,6 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my @cases=(
  ['06_multicolor_score_above_static','multicolor_score_above_static','above','static'],
- ['07_multicolor_score_below_static','multicolor_score_below_static','below','static'],
  ['08_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion','full','x'],
  ['09_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion','above','x'],
  ['10_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion','below','x'],
@@ -74,4 +73,4 @@ for my $case (@cases) {
    $out =~ /^vcs_multicolor_example_matrix \Q$motion\E ok: 8\d stable frames\n$/ or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: examples 06-13 nonvisual build, frame, and RAM-motion smoke only; example 05 is oracle-certified separately\n";
+print "vcs_multicolor_examples ok: examples 06 and 08-13 nonvisual build, frame, and RAM-motion smoke only; examples 05 and 07 are display-certified separately\n";

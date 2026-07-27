@@ -260,11 +260,16 @@ installcheck: tools
 	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc"; \
 	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
 	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -T "$$stage_vcs/kernels/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/examples/05_multicolor_full_static/multicolor_full_static.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
-	  "$(CURDIR)/examples/05_multicolor_full_static/multicolor_full_static.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"` -eq 4096; \
+	  "$(CURDIR)/examples/07_multicolor_score_below_static/multicolor_score_below_static.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/multicolor_score_below_static.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/multicolor_score_below_static.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/all_five_181/README.md"; \
 	test -f "$$stage_vcs/kernels/all_five_181/all_five_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -365,7 +370,6 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
 		  06_multicolor_score_above_static/multicolor_score_above_static \
-	  07_multicolor_score_below_static/multicolor_score_below_static \
 	  08_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion \
 	  09_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion \
 	  10_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion \

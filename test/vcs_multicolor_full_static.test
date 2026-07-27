@@ -1,5 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_full_static.pl @REPO@ @TMP@
 # phase: e2e
-# timeout: 8
-# expectstdout: vcs_multicolor_full_static ok: public example 05 matches pristine BASIC oracle: 1230 visible events, 264-line frames, exact sprites
+# timeout: 10
+# expectstdout: vcs_multicolor_full_static ok: public example 05 matches the verified 192-line smoke ROM, exact display raster, and 262-line frames
 # expectexit: 0

@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_multicolor_score_below_static.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 8
+# expectstdout: vcs_multicolor_score_below_static ok: public example 07 matches pristine BASIC oracle: 1230 visible events, 264-line frames, exact sprites
+# expectexit: 0

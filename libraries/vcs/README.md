@@ -35,9 +35,9 @@ Files:
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
 - `../../examples/03_score/score.c26` ... centered lifecycle-component `bcd24_t` score display
 - `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes
-- `../../examples/05_multicolor_full_static/multicolor_full_static.c26` ... oracle-backed faithful legacy static multicolor P0+P1+Ball with integrated score
+- `../../examples/05_multicolor_full_static/multicolor_full_static.c26` ... certified scoreless 192-line static multicolor P0+P1+Ball
 - `../../examples/06_multicolor_score_above_static/multicolor_score_above_static.c26` ... pending display repair; static multicolor gameplay with score above
-- `../../examples/07_multicolor_score_below_static/multicolor_score_below_static.c26` ... pending display repair; static multicolor gameplay with score below
+- `../../examples/07_multicolor_score_below_static/multicolor_score_below_static.c26` ... certified oracle-backed faithful legacy static display with score below
 - `../../examples/08_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion.c26` ... pending display repair; full-height horizontal motion
 - `../../examples/09_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion.c26` ... pending display repair; horizontal motion with score above
 - `../../examples/10_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion.c26` ... pending display repair; horizontal motion with score below

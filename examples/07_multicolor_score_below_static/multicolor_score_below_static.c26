@@ -1,12 +1,11 @@
-// Multicolor Score Below Static.
 include "vcs.c26"
-include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
-include "fonts/default_decimal.c26"
 
-page const uint8_t game_playfield[44] := {
-VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+template "kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+
+uint8_t legacy_playfield[48] := {
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX......X_...X...._......X._X......X),
    VCS_PLAYFIELD_ROW(0bX...X..X_.....X.._..X....._X..X...X),
    VCS_PLAYFIELD_ROW(0bX......X_..XX...._....XX.._X......X),
@@ -16,14 +15,12 @@ VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX......X_....X..._...X...._X......X),
    VCS_PLAYFIELD_ROW(0bX....X.X_.......X_X......._X.X....X),
    VCS_PLAYFIELD_ROW(0bX......X_.XX....._.....XX._X......X),
-   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........)
 };
 
-template "kernels/player_color_181/player_color_181.c26" as game
-template "six_glyph_component.c26" as score
-
-page const uint8_t p0_graphics[8] := {
-   game_SPRITE_GLYPH(
+page const uint8_t p0g[8] := {
+   legacy_SPRITE_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
@@ -35,8 +32,8 @@ page const uint8_t p0_graphics[8] := {
    )
 };
 
-page const uint8_t p1_graphics[8] := {
-   game_SPRITE_GLYPH(
+page const uint8_t p1g[8] := {
+   legacy_SPRITE_GLYPH(
       0b.XXXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
@@ -48,8 +45,8 @@ page const uint8_t p1_graphics[8] := {
    )
 };
 
-page const uint8_t game_player0_colors[8] := {
-   game_SPRITE_GLYPH(
+page const uint8_t p0c[8] := {
+   legacy_SPRITE_ROWS(
       VCS_NTSC_SANDY_BROWN,
       VCS_NTSC_LIGHT_CORAL,
       VCS_NTSC_ORCHID,
@@ -61,8 +58,8 @@ page const uint8_t game_player0_colors[8] := {
    )
 };
 
-page const uint8_t game_player1_colors[8] := {
-   game_SPRITE_GLYPH(
+page const uint8_t p1c[8] := {
+   legacy_SPRITE_ROWS(
       VCS_NTSC_PALE_GREEN,
       VCS_NTSC_AQUAMARINE,
       VCS_NTSC_SKY_BLUE,
@@ -74,49 +71,50 @@ page const uint8_t game_player1_colors[8] := {
    )
 };
 
-void configure_game_frame(void) {
+void main(void) {
    COLUBK := VCS_NTSC_DARK_BLUE;
    COLUPF := VCS_NTSC_GOLDENROD;
    CTRLPF := 0x21;
-}
 
-void initialize_scene(void) {
+   legacy_PLAYER0_X := 44;
+   legacy_PLAYER1_X := 108;
+   legacy_BALL_X := 78;
+   legacy_object_x[2] := 0;
+   legacy_object_x[3] := 0;
+
+   legacy_player0_y := 78;
+   legacy_player1_y := 42;
+   legacy_ball_y := 45;
+
+   legacy_player0_graphics := p0g;
+   legacy_player1_graphics := p1g;
+   legacy_player0_height := 7;
+   legacy_player1_height := 7;
+   legacy_ball_height := 3;
+
+   // These fields overlay the color pointers. Initialize them first.
+   legacy_missile0_height := 0;
+   legacy_missile1_height := 0;
+   legacy_missile0_y := 0;
+   legacy_missile1_y := 0;
+
+   legacy_player0_colors := p0c;
+   legacy_player1_colors := p1c;
+
+   legacy_score[0] := 0x21;
+   legacy_score[1] := 0x07;
+   legacy_score[2] := 0x21;
+   legacy_score_color := VCS_NTSC_GRAY_92;
+   legacy_playfield_position := 8;
+
    VBLANK := 2;
-   game_PLAYER0_X := 44;
-   game_PLAYER1_X := 108;
-   game_PLAYER0_NUSIZ := 0x20;
-   game_PLAYER1_NUSIZ := 0x20;
-   game_BALL_X := 78;
-   game_player0_y := 70;
-   game_player1_y := 42;
-   game_ball_y := 45;
-   game_player0_graphics := p0_graphics;
-   game_player1_graphics := p1_graphics;
-   game_player0_height := 7;
-   game_player1_height := 7;
-   game_ball_height := 3;
-   game_playfield_position := 8;
-   score_score := 123456;
-   game_init();
-   score_init();
-}
-
-void main(void) {
-   initialize_scene();
+   TIM64T := 0;
 
    while (1) {
-      vcs_ntsc_vsync();
-      vcs_ntsc_begin_vblank();
-      game_vblank();
-      score_vblank();
-      configure_game_frame();
-      vcs_ntsc_end_vblank();
-      game_draw();
-      vcs_ntsc_component_handoff();
-      score_draw();
-      vcs_ntsc_begin_overscan();
-      game_overscan();
-      score_overscan();
-      vcs_ntsc_end_overscan();
+      COLUPF := VCS_NTSC_GOLDENROD;
+      CTRLPF := 0x21;
+      NUSIZ0 := 0x20;
+      NUSIZ1 := 0x20;
+      legacy_drawscreen();
    }
 }
