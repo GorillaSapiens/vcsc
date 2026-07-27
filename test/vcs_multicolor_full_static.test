@@ -1,3 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_full_static.pl @REPO@ @TMP@
-# exit: 0
-# expectstdout: vcs_multicolor_full_static ok: proven full-height smoke trace, all 12 PF rows, P0/P1 colors, Ball, and reviewed Stella image
+# phase: e2e
+# timeout: 8
+# expectstdout: vcs_multicolor_full_static ok: public example 05 matches pristine BASIC oracle: 1230 visible events, 264-line frames, exact sprites
+# expectexit: 0

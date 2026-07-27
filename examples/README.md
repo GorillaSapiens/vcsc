@@ -16,7 +16,7 @@ collection of historical test cartridges.
 | 02 | `ode_to_joy` | Frame-driven TIA audio |
 | 03 | `score` | Standalone six-glyph score component |
 | 04 | `fingerprint` | Unstable-opcode silicon fingerprint |
-| 05 | `multicolor_full_static` | Full 192-line static P0+P1+Ball display |
+| 05 | `multicolor_full_static` | Oracle-backed faithful legacy static P0+P1+Ball display with integrated score |
 | 06 | `multicolor_score_above_static` | Static 181-line display with score above |
 | 07 | `multicolor_score_below_static` | Static 181-line display with score below |
 | 08 | `multicolor_full_dynamic_x_motion` | Full-height horizontal motion |
@@ -26,18 +26,19 @@ collection of historical test cartridges.
 | 12 | `multicolor_score_above_dynamic_x_and_y_motion` | Two-axis motion with score above |
 | 13 | `multicolor_score_below_dynamic_x_and_y_motion` | Two-axis motion with score below |
 
-Examples 05 through 13 are intended to become a 3×3 matrix:
+Examples 06 through 13 remain the unfinished component matrix. Example 05 is the restored oracle-backed legacy baseline and is intentionally outside that matrix:
 
 | Motion | Full 192 lines | Score above | Score below |
 |---|---|---|---|
-| Static | **05 certified** | 06 pending | 07 pending |
+| Static | full-height slot not yet certified | 06 pending | 07 pending |
 | X only | 08 pending | 09 pending | 10 pending |
 | X and Y | 11 pending | 12 pending | 13 pending |
 
-Only example 05 currently has pixel-level display certification and a reviewed
-Stella reference. Examples 06 through 13 remain present for one-at-a-time
-repair, but their successful builds and stable frame lengths must not be read as
-proof that they render correctly.
+Example 05 is certified directly against the independently built pristine BASIC
+1.9 ROM: all 1,230 visible TIA events, exact sprite rows/colors, and 264-line
+frames. Examples 06 through 13 remain present for one-at-a-time repair, but
+their successful builds and stable frame lengths must not be read as proof that
+they render correctly.
 
 These examples intentionally do not exercise M0 or M1. Five-object kernel work
 remains blocked until every P0+P1+Ball example is independently certified.

@@ -162,7 +162,6 @@ Measured linked 4K cartridges from the public multicolor examples:
 
 | Example | ROM used | ROM free | Display status |
 | --- | ---: | ---: | --- |
-| `05_multicolor_full_static` | 1,947 bytes | 2,143 bytes | Pixel-certified |
 | `06_multicolor_score_above_static` | 1,965 bytes | 2,125 bytes | Pending repair |
 | `07_multicolor_score_below_static` | 2,077 bytes | 2,013 bytes | Pending repair |
 | `08_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,362 bytes | Pending repair |
@@ -173,8 +172,9 @@ Measured linked 4K cartridges from the public multicolor examples:
 | `13_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 470 bytes | Pending repair |
 
 These figures include application code, runtime, kernel, tables, and vectors.
-For examples 06 through 13 they are linked-size measurements only, not evidence
-of correct rendering. Future changes may alter both size and placement.
+These are linked-size measurements only, not evidence of correct rendering.
+Future changes may alter both size and placement. Public example 05 no longer
+uses this profile; it is the restored faithful legacy oracle baseline.
 
 ## Timing and validation
 
@@ -184,10 +184,10 @@ Both ENAM registers are cleared before the visible field and never enabled.
 
 `test/vcs_standard_playercolors.test` verifies the predecessor profile against
 private golden cartridges under `test/fixtures/vcs_examples/`.
-`test/vcs_multicolor_full_static.test` separately certifies public example 05
-against a raw-byte golden cartridge, an exact twelve-row TIA raster oracle, and
-a reviewed Stella image. Examples 06 through 13 currently receive nonvisual
-build/frame/motion smoke coverage only and remain pending.
+`test/vcs_multicolor_full_static.test` certifies public example 05 against the
+independently built pristine BASIC 1.9 ROM; it does not certify this component
+profile. Examples 06 through 13 currently receive nonvisual build/frame/motion
+smoke coverage only and remain pending.
 
 It verifies:
 

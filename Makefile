@@ -262,7 +262,7 @@ installcheck: tools
 	test -f "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/kernels/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
-	  "$(CURDIR)/test/fixtures/faithful_legacy_playercolors/template_static.c26" \
+	  "$(CURDIR)/examples/05_multicolor_full_static/multicolor_full_static.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_static_test.bin"` -eq 4096; \
 	test -f "$$stage_vcs/kernels/all_five_181/README.md"; \
@@ -364,8 +364,7 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_kernel_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
-	  05_multicolor_full_static/multicolor_full_static \
-	  06_multicolor_score_above_static/multicolor_score_above_static \
+		  06_multicolor_score_above_static/multicolor_score_above_static \
 	  07_multicolor_score_below_static/multicolor_score_below_static \
 	  08_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion \
 	  09_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion \

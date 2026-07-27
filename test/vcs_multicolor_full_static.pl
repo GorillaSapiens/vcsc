@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
-use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
@@ -26,19 +25,6 @@ sub without_usage {
    return $s;
 }
 sub require_re { my($s,$re,$why)=@_; $s =~ $re or die "$why\n"; }
-sub map_symbol {
-   my($map,$name)=@_;
-   $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m
-      or die "map missing $name\n";
-   return sprintf('0x%04x',hex($1));
-}
-sub build {
-   my($driver,$vcs,$source,$bin,$map)=@_;
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$source,'-o',$bin);
-   $rc==0 && !$sig or die "build failed for $source\n$out$err";
-   without_usage($out) eq '' && $err eq '' or die "build wrote output for $source\n$out$err";
-   length(read_file($bin))==4096 or die "$source did not produce a 4096-byte ROM\n";
-}
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
@@ -49,80 +35,64 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $example=File::Spec->catdir($repo,qw(examples 05_multicolor_full_static));
-my $source=File::Spec->catfile($example,'multicolor_full_static.c26');
-my $fixture=File::Spec->catdir($repo,qw(test fixtures vcs_examples 05_multicolor_full_static));
-my $golden=File::Spec->catfile($fixture,'golden.c26');
-my $reference=File::Spec->catfile($fixture,'reference_stella_7.0.png');
+my $profile=File::Spec->catdir($vcs,qw(kernels faithful_legacy_playercolors));
+my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
+my $source=File::Spec->catfile($repo,qw(examples 05_multicolor_full_static multicolor_full_static.c26));
+my $oracle=File::Spec->catfile($repo,qw(test oracles pristine_basic_v1.9_playercolors faithful_legacy_playercolors.bin));
 my $bin=File::Spec->catfile($tmp,'multicolor_full_static.bin');
 my $map=File::Spec->catfile($tmp,'multicolor_full_static.map');
-my $goldbin=File::Spec->catfile($tmp,'multicolor_full_static_golden.bin');
-my $goldmap=File::Spec->catfile($tmp,'multicolor_full_static_golden.map');
 
 my $text=read_file($source);
-require_re($text,qr/^include "color_ntsc\.c26"$/m,'example 05 does not use named NTSC colors');
-require_re($text,qr/^include "playfield\.c26"$/m,'example 05 does not use visual playfield rows');
-require_re($text,qr/template "kernels\/player_color_192\/player_color_192\.c26" as game/,
-   'example 05 does not use the full-height player-color kernel');
-$text !~ /six_glyph_component/ or die "example 05 unexpectedly links a score component\n";
+require_re($text,qr/^include "color_ntsc\.c26"$/m,
+   'example 05 does not use named NTSC colors');
+require_re($text,qr/^include "playfield\.c26"$/m,
+   'example 05 does not use visual playfield rows');
+require_re($text,qr/template "kernels\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
+   'example 05 does not use the oracle-backed faithful legacy kernel');
+require_re($text,qr/^uint8_t legacy_playfield\[48\]/m,
+   'example 05 playfield is not RAM-backed');
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
 @pfrows==12 or die "example 05 has ".scalar(@pfrows)." playfield rows, expected 12\n";
-require_re($text,qr/0b\.XXXXXX\./,'example 05 lost readable P0 glyph rows');
-require_re($text,qr/0bXXXXXXX\./,'example 05 lost readable P1 glyph rows');
-for my $locked (
-   [qr/game_PLAYER0_X\s*:=\s*44\s*;/,'P0 X'],
-   [qr/game_PLAYER1_X\s*:=\s*108\s*;/,'P1 X'],
-   [qr/game_BALL_X\s*:=\s*78\s*;/,'Ball X'],
-   [qr/game_player0_y\s*:=\s*70\s*;/,'P0 Y'],
-   [qr/game_player1_y\s*:=\s*42\s*;/,'P1 Y'],
-   [qr/game_ball_y\s*:=\s*45\s*;/,'Ball Y'],
-   [qr/COLUBK\s*:=\s*VCS_NTSC_MEDIUM_BLUE\s*;/,'background'],
-   [qr/COLUPF\s*:=\s*VCS_NTSC_GOLDENROD\s*;/,'playfield color'],
-) { require_re($text,$locked->[0],"example 05 changed $locked->[1]"); }
-require_re(read_file(File::Spec->catfile($vcs,'color_ntsc.c26')),
-   qr/VCS_NTSC_MEDIUM_BLUE\s+__builtin_ntsc_rgb\(0x24,\s*0x28,\s*0xb0\).*TIA 0x84/,
-   'named medium-blue alias no longer folds to TIA $84');
+my @visual=$text =~ /0b[.X]{8}(?![.X])/g;
+@visual>=16 or die "example 05 lacks sixteen visual sprite rows\n";
+for my $name (qw(
+   VCS_NTSC_GRAY_92 VCS_NTSC_GOLDENROD VCS_NTSC_SANDY_BROWN
+   VCS_NTSC_LIGHT_CORAL VCS_NTSC_ORCHID VCS_NTSC_VIOLET
+   VCS_NTSC_MEDIUM_PURPLE VCS_NTSC_DARK_BLUE VCS_NTSC_ROYAL_BLUE
+   VCS_NTSC_SKY_BLUE_2 VCS_NTSC_SKY_BLUE VCS_NTSC_AQUAMARINE
+   VCS_NTSC_PALE_GREEN
+)) {
+   $text =~ /\b\Q$name\E\b/ or die "example 05 does not use $name\n";
+}
 
-build($driver,$vcs,$source,$bin,$map);
-build($driver,$vcs,$golden,$goldbin,$goldmap);
+my($rc,$sig,$out,$err)=capture(
+   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$source,'-o',$bin);
+$rc==0 && !$sig or die "example 05 build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "example 05 build wrote output\n$out$err";
+length(read_file($bin))==4096 or die "example 05 did not produce a 4096-byte ROM\n";
+length(read_file($oracle))==4096 or die "pristine oracle is not a 4096-byte ROM\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
+my $hsrc=File::Spec->catfile($repo,qw(test vcs_faithful_legacy_compare.cpp));
+my $harness=File::Spec->catfile($tmp,'vcs_multicolor_full_static_compare');
+($rc,$sig,$out,$err)=capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$hsrc,@mos_input,'-o',$harness);
+$rc==0 && !$sig or die "oracle comparator build failed\n$out$err";
+$out eq '' && $err eq '' or die "oracle comparator build wrote output\n$out$err";
 
-my $trace_src=File::Spec->catfile($repo,qw(test vcs_visible_trace_compare.cpp));
-my $trace=File::Spec->catfile($tmp,'vcs_visible_trace_compare');
-my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
-   $trace_src,@mos_input,'-o',$trace);
-$rc==0 && !$sig or die "trace comparator build failed\n$out$err";
-$out eq '' && $err eq '' or die "trace comparator build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($trace,$goldbin,$bin,262,262);
-$rc==0 && !$sig or die "example 05 differs from its raw-byte golden trace\n$out$err";
-$out eq "vcs_visible_trace_compare ok: 1132 events and 42 stable frames per ROM\n"
-   or die "unexpected trace result: $out";
-$err eq '' or die "trace comparator stderr: $err";
+($rc,$sig,$out,$err)=capture($harness,$oracle,$bin,'264','264');
+$rc==0 && !$sig or die "example 05 differs from pristine BASIC oracle\n$out$err";
+$out eq "vcs_faithful_legacy_compare ok: 1230 events and 42 stable frames per ROM\n"
+   or die "unexpected oracle comparison output: $out";
+$err eq '' or die "oracle comparator stderr: $err";
 
-my $raster_src=File::Spec->catfile($repo,qw(test vcs_multicolor_display_raster.cpp));
-my $raster=File::Spec->catfile($tmp,'vcs_multicolor_display_raster');
-($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
-   $raster_src,@mos_input,'-o',$raster);
-$rc==0 && !$sig or die "display-raster harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "display-raster harness build wrote output\n$out$err";
-my $map_text=read_file($map);
-my @symbols=map { map_symbol($map_text,$_) }
-   qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
-($rc,$sig,$out,$err)=capture($raster,$bin,'full',@symbols);
-$rc==0 && !$sig or die "example 05 display-raster verification failed\n$out$err";
-$out eq "vcs_multicolor_display_raster full ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
-   or die "unexpected display-raster result: $out";
-$err eq '' or die "display-raster stderr: $err";
+($rc,$sig,$out,$err)=capture($harness,$bin,'264','--sprites');
+$rc==0 && !$sig or die "example 05 sprite oracle failed\n$out$err";
+$out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n"
+   or die "unexpected sprite-oracle output: $out";
+$err eq '' or die "sprite-oracle stderr: $err";
 
-my $png=read_file($reference);
-substr($png,0,8) eq "\x89PNG\r\n\x1a\n" or die "example 05 reference is not PNG\n";
-my($width,$height)=unpack('NN',substr($png,16,8));
-$width==320 && $height==228 or die "example 05 reference is ${width}x${height}, expected 320x228\n";
-sha256_hex($png) eq 'ca91debb8f607258273d22850ba88865fa14384730ce665347a9557ed4535098'
-   or die "reviewed example 05 Stella reference changed\n";
-
-print "vcs_multicolor_full_static ok: proven full-height smoke trace, all 12 PF rows, P0/P1 colors, Ball, and reviewed Stella image\n";
+print "vcs_multicolor_full_static ok: public example 05 matches pristine BASIC oracle: 1230 visible events, 264-line frames, exact sprites\n";

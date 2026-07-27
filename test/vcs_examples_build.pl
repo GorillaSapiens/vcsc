@@ -31,12 +31,13 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+my $faithful_cfg=File::Spec->catfile($vcs,qw(kernels faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my @examples=(
    ['01_blank_screen','blank_screen.c26',[]],
    ['02_ode_to_joy','ode_to_joy.c26',[]],
    ['03_score','score.c26',[]],
    ['04_fingerprint','fingerprint.c26',['-Wa,--illegals']],
-   ['05_multicolor_full_static','multicolor_full_static.c26',[]],
+   ['05_multicolor_full_static','multicolor_full_static.c26',['-Wa,--illegals','-T',$faithful_cfg]],
    ['06_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
    ['07_multicolor_score_below_static','multicolor_score_below_static.c26',[]],
    ['08_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],

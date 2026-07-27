@@ -5593,3 +5593,34 @@ Before returning another modified archive:
   `0b..XXXX..`, causing a source-only failure before example 05 was built or run.
 * Do not change example 05, the kernels, or examples 06 through 13 in this step.
 
+
+2026-07-27 08:47:12 PDT, restore example 05 from verified oracle-backed tree
+-------------------------------------------------------------------------------
+* Independently build `vcsc.bec461cf082f9e6ed58641587e7fddca37da7b10` and
+  verify its public faithful legacy example in both links of the oracle chain:
+  the example matches the retained-source audit, and the retained-source audit
+  matches the independently built pristine upstream BASIC 1.9 ROM. A direct
+  example-to-pristine comparison also matches all 1,230 visible TIA events and
+  42 stable 20,064-cycle/264-raw-line frames.
+* Replace only `examples/05_multicolor_full_static/multicolor_full_static.c26`
+  with the verified candidate source, byte-for-byte at SHA-256
+  `ef251cb98c0e4b602df4680b9026f317e378c69432bb68c3667903950a5d6889`.
+  Retain the current filename and directory, current compiler builtins, linker
+  RAM reporting, and branch-annotation implementation. Build the example with
+  the faithful profile configuration and unofficial-opcode mode as required by
+  the retained kernel.
+* Restore public example 05 to the actual pristine-oracle certification chain.
+  `vcs_faithful_legacy_playercolors.pl` now builds the public example rather than
+  a private substitute. `vcs_multicolor_full_static.pl` compares the public ROM
+  directly with the pristine ROM and separately checks all eight P0/P1 graphics
+  and color rows. The abandoned self-generated 192-line golden cartridge is no
+  longer used to certify example 05.
+* Remove example 05 from the nonvisual 06-13 matrix smoke test. That test now
+  says exactly what it covers. Update editable-example and staged-install builds
+  to use the faithful profile flags for example 05, and correct the public
+  documentation so it no longer claims that example 05 certifies the unfinished
+  scoreless 192-line component.
+* Focused verification passes: public example-to-pristine direct comparison,
+  faithful retained-audit comparison, pristine oracle lock, all-thirteen build,
+  and the remaining 06-13 nonvisual matrix smoke test. No kernel source changes
+  are made in this repair.
