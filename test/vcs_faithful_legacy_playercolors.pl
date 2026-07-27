@@ -29,7 +29,7 @@ my $profile=File::Spec->catdir($vcs,qw(kernels faithful_legacy_playercolors));
 my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));
-my $template_src=File::Spec->catfile($repo,qw(examples 07_multicolor_score_below_static multicolor_score_below_static.c26));
+my $template_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors template_static.c26));
 my $color_src=File::Spec->catfile($vcs,'color_ntsc.c26');
 my $reference_bin=File::Spec->catfile($tmp,'faithful_reference.bin');
 my $template_bin=File::Spec->catfile($tmp,'faithful_template.bin');
@@ -58,7 +58,7 @@ for my $mnemonic (qw(dcp lax sbx asr)) {
 my $example_text=read_file($template_src);
 my $color_text=read_file($color_src);
 $example_text =~ /^include "color_ntsc\.c26"$/m
-   or die "example 07 does not include the shared NTSC color aliases\n";
+   or die "faithful template fixture does not include the shared NTSC color aliases\n";
 for my $color (
    ['VCS_NTSC_GRAY_92',       '0xea', '0xea', '0xe9', '0x0e'],
    ['VCS_NTSC_GOLDENROD',     '0xea', '0xc2', '0x54', '0x2e'],
@@ -78,20 +78,20 @@ for my $color (
    $color_text =~ /^alias\s+\Q$name\E\s+__builtin_ntsc_rgb\(\s*\Q$r\E\s*,\s*\Q$g\E\s*,\s*\Q$b\E\s*\)\s*\/\/\s*TIA\s+\Q$value\E\b/m
       or die "color_ntsc.c26 lost $name RGB ($r,$g,$b) -> $value\n";
    $example_text =~ /\b\Q$name\E\b/
-      or die "example 07 does not use $name\n";
+      or die "faithful template fixture does not use $name\n";
 }
 for my $row (qw(
    0b..XXXX.. 0b.XX..XX. 0b.XXXXXX. 0b.XXXXX..
 )) {
    $example_text =~ /\Q$row\E/
-      or die "example 07 lost visual glyph row $row\n";
+      or die "faithful template fixture lost visual glyph row $row\n";
 }
 for my $glyph (qw(p0g p1g)) {
    $example_text =~ /page const uint8_t \Q$glyph\E\[8\] := \{(.*?)\n\};/s
-      or die "cannot find example 07 glyph $glyph\n";
+      or die "cannot find faithful template fixture glyph $glyph\n";
    my $body=$1;
    $body !~ /0x[0-9a-f]+/i
-      or die "example 07 glyph $glyph reverted to hexadecimal bytes\n";
+      or die "faithful template fixture glyph $glyph reverted to hexadecimal bytes\n";
 }
 
 my $template_text=read_file(File::Spec->catfile($profile,'faithful_legacy_playercolors.c26'));

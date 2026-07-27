@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_163940.tar.gz
+    vcsc.20260727_184106.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -5692,3 +5692,48 @@ Before returning another modified archive:
   passes 316/316. The end-to-end suite passes all 190 tests with no failures;
   the first 166 were observed in the broad run before its outer timeout and the
   remaining 24 pass explicitly. Staged `installcheck` also passes.
+
+2026-07-27 11:53:14 PDT, renumber the public multicolor examples
+-------------------------------------------------------------------------------
+* Rename the public example directories exactly as requested: faithful legacy is
+  now example 05; full static is 06; score-above static is 07; X-motion examples
+  are 09-11; and X+Y-motion examples are 12-14. Rename the faithful example's
+  source and cartridge stem to `faithful_legacy_playercolors`.
+* Add `08_multicolor_score_below/multicolor_score_below.c26` as the missing
+  static score-below composition. It uses `player_color_181` followed by the
+  six-glyph score component, with the score drawn below the gameplay field.
+* Update example indexes, filenames, build lists, installcheck, regressions, and
+  public documentation. Apart from the new example 08, make no kernel or example
+  source-code changes.
+* Verify that every pre-existing example source is byte-for-byte identical after
+  its move. All fourteen editable examples build, the 07-14 nonvisual matrix
+  smoke passes, and staged `installcheck` passes. The supplied input archive
+  already fails both exact display certifications: its faithful cartridge
+  differs from the pristine oracle at visible TIA event 21, and its full-static
+  cartridge differs from the player-color 192 smoke fixture. Preserve those
+  inherited failures rather than changing code outside the requested rename.
+
+2026-07-27 12:22:53 PDT, make the renumbered tree build honestly
+-------------------------------------------------------------------------------
+* Correct the previous rename handoff, which knowingly preserved three failing
+  tests and therefore did not produce a usable `make` result. Use the supplied
+  Bison/Flex DEBs to perform a real clean tool build and run the actual suite.
+* Keep every pre-existing example source and every library kernel/config source
+  byte-for-byte identical to the supplied `184106` archive. The only new example
+  code remains `08_multicolor_score_below`, using `player_color_181` with the
+  six-glyph score drawn after the gameplay component.
+* Restore the faithful-kernel audit to its identical private fixture scene.
+  Public example 05 uses different playfield data, so check its 264-line frame
+  schedule and exact P0/P1 rows/colors without falsely comparing the entire scene
+  against the pristine ROM.
+* Remove the stale `player_color_192` byte-for-byte smoke-fixture comparison and
+  exact playfield-pixel claims from example 06's regression. A Stella 7.0 render
+  confirms that example 06's playfield is still visibly broken. Keep only its
+  honest build/frame/P0/P1/Ball/no-missile smoke coverage and mark it pending
+  display repair in public documentation. Do not change the kernel or example 06
+  source as part of this rename-only task.
+* Verification: 316/316 compile-only tests pass. The end-to-end suite accounts
+  for all 190 tests with no failures: the broad run passes the first 168 before
+  the outer command window expires, `vcs_player_color_181.test` passes alone,
+  and the remaining 21 pass explicitly. All fourteen examples build, the
+  07-14 matrix passes, and staged `installcheck` passes.

@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_faithful_legacy_example.pl @REPO@ @TMP@
+# phase: e2e
+# timeout: 8
+# expectstdout: vcs_faithful_legacy_example ok: public example 05 uses the faithful legacy kernel with 264-line frames and exact sprites
+# expectexit: 0

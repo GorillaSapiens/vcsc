@@ -4,18 +4,18 @@ include "color_ntsc.c26"
 include "playfield.c26"
 
 page const uint8_t game_playfield[48] := {
-   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX......X_........_........_X......X),
-   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
+   VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
+   VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
+   VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
+   VCS_PLAYFIELD_ROW(0b...X...._......X._........_..X.....),
+   VCS_PLAYFIELD_ROW(0b....X..._.......X_........_...X....),
+   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...),
+   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
+   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
+   VCS_PLAYFIELD_ROW(0b........_X......._...X...._.......X),
+   VCS_PLAYFIELD_ROW(0b........_.X......_....X..._......X.),
+   VCS_PLAYFIELD_ROW(0b........_..X....._.....X.._.....X..),
+   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...)
 };
 
 // Stored in the kernel's highest-index-to-zero display order.

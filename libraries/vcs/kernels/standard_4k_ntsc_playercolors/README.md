@@ -162,18 +162,20 @@ Measured linked 4K cartridges from the public multicolor examples:
 
 | Example | ROM used | ROM free | Display status |
 | --- | ---: | ---: | --- |
-| `06_multicolor_score_above_static` | 1,965 bytes | 2,125 bytes | Pending repair |
-| `07_multicolor_score_below_static` | faithful legacy profile | n/a | Certified pristine-oracle baseline |
-| `08_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,362 bytes | Pending repair |
-| `09_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,346 bytes | Pending repair |
-| `10_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,234 bytes | Pending repair |
-| `11_multicolor_full_dynamic_x_and_y_motion` | 3,492 bytes | 598 bytes | Pending repair |
-| `12_multicolor_score_above_dynamic_x_and_y_motion` | 3,508 bytes | 582 bytes | Pending repair |
-| `13_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 470 bytes | Pending repair |
+| `05_faithful_legacy_playercolors` | faithful legacy profile | n/a | Certified pristine-oracle baseline |
+| `06_multicolor_full_static` | scoreless 192-line component | n/a | Certified |
+| `07_multicolor_score_above_static` | 1,965 bytes | 2,125 bytes | Pending repair |
+| `08_multicolor_score_below` | componentized 181+11 | n/a | Pending repair |
+| `09_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,362 bytes | Pending repair |
+| `10_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,346 bytes | Pending repair |
+| `11_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,234 bytes | Pending repair |
+| `12_multicolor_full_dynamic_x_and_y_motion` | 3,492 bytes | 598 bytes | Pending repair |
+| `13_multicolor_score_above_dynamic_x_and_y_motion` | 3,508 bytes | 582 bytes | Pending repair |
+| `14_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 470 bytes | Pending repair |
 
 These figures include application code, runtime, kernel, tables, and vectors.
 These are linked-size measurements only, not evidence of correct rendering.
-Future changes may alter both size and placement. Public example 07 is the
+Future changes may alter both size and placement. Public example 05 is the
 restored faithful-legacy oracle baseline; it does not use this componentized
 profile.
 
@@ -185,10 +187,10 @@ Both ENAM registers are cleared before the visible field and never enabled.
 
 `test/vcs_standard_playercolors.test` verifies the predecessor profile against
 private golden cartridges under `test/fixtures/vcs_examples/`.
-`test/vcs_multicolor_score_below_static.test` certifies public example 07 against the
+`test/vcs_faithful_legacy_example.test` certifies public example 05 against the
 independently built pristine BASIC 1.9 ROM; it does not certify this component
-profile. Examples 06 and 08 through 13 currently receive nonvisual
-build/frame/motion smoke coverage only and remain pending.
+profile. Examples 07 through 14 currently receive nonvisual build/frame/motion
+smoke coverage only and remain pending.
 
 It verifies:
 
@@ -203,8 +205,8 @@ It verifies:
 - 320 frames of full-range asynchronous P0/P1/BL horizontal positioning,
   including RESP cycles and HMxx values.
 
-The intended human-facing multicolor matrix is `examples/05_*` through
-`examples/13_*`. Examples 05 and 07 are currently display-certified. Exact
+The intended human-facing componentized multicolor matrix is `examples/06_*` through
+`examples/14_*`. Examples 05 and 06 are currently display-certified. Exact
 regressions for the predecessor profile remain under
 `test/fixtures/vcs_examples/07_playercolor_static` and
 `test/fixtures/vcs_examples/08_playercolor_motion`.

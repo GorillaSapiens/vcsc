@@ -153,24 +153,25 @@ The user-facing examples are deliberately editable:
 - [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
 - [`03_score`](examples/03_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_multicolor_full_static`](examples/05_multicolor_full_static/) — **certified** scoreless 192-line static multicolor P0+P1+Ball display
-- [`06_multicolor_score_above_static`](examples/06_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
-- [`07_multicolor_score_below_static`](examples/07_multicolor_score_below_static/) — **certified** oracle-backed faithful legacy static multicolor P0+P1+Ball with score below
-- [`08_multicolor_full_dynamic_x_motion`](examples/08_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
-- [`09_multicolor_score_above_dynamic_x_motion`](examples/09_multicolor_score_above_dynamic_x_motion/) — **pending display repair**; horizontal motion with score above
-- [`10_multicolor_score_below_dynamic_x_motion`](examples/10_multicolor_score_below_dynamic_x_motion/) — **pending display repair**; horizontal motion with score below
-- [`11_multicolor_full_dynamic_x_and_y_motion`](examples/11_multicolor_full_dynamic_x_and_y_motion/) — **pending display repair**; full-height two-axis motion
-- [`12_multicolor_score_above_dynamic_x_and_y_motion`](examples/12_multicolor_score_above_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score above
-- [`13_multicolor_score_below_dynamic_x_and_y_motion`](examples/13_multicolor_score_below_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score below
+- [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color kernel example
+- [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — **pending display repair**; scoreless 192-line static multicolor P0+P1+Ball display
+- [`07_multicolor_score_above_static`](examples/07_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
+- [`08_multicolor_score_below`](examples/08_multicolor_score_below/) — **pending display repair**; static multicolor gameplay with score below
+- [`09_multicolor_full_dynamic_x_motion`](examples/09_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
+- [`10_multicolor_score_above_dynamic_x_motion`](examples/10_multicolor_score_above_dynamic_x_motion/) — **pending display repair**; horizontal motion with score above
+- [`11_multicolor_score_below_dynamic_x_motion`](examples/11_multicolor_score_below_dynamic_x_motion/) — **pending display repair**; horizontal motion with score below
+- [`12_multicolor_full_dynamic_x_and_y_motion`](examples/12_multicolor_full_dynamic_x_and_y_motion/) — **pending display repair**; full-height two-axis motion
+- [`13_multicolor_score_above_dynamic_x_and_y_motion`](examples/13_multicolor_score_above_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score above
+- [`14_multicolor_score_below_dynamic_x_and_y_motion`](examples/14_multicolor_score_below_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score below
 
-Example 05 uses `player_color_192` and is checked against the verified
-full-height smoke ROM, exact twelve-row TIA display raster, P0/P1/Ball pixels,
-and 262-line frames. Example 07 is built through
-`faithful_legacy_playercolors` and compared directly with the independently
-built pristine BASIC 1.9 ROM under `test/oracles/`: all 1,230 visible TIA
-events, exact P0/P1 rows and colors, and 264-line frames. Examples 06 and
-08 through 13 currently have nonvisual build/frame/motion smoke tests only and
-must not be treated as rendering references.
+The `faithful_legacy_playercolors` template is compared with an independently
+built retained-source audit using the same fixture scene. Public example 05 uses
+that kernel with different playfield data, so its test checks the 264-line frame
+schedule plus exact P0/P1 rows and colors rather than falsely claiming byte-for-
+byte identity with the pristine scene ROM. Example 06 currently has build,
+262-line frame, player, and Ball smoke coverage only; its playfield pixels are
+not certified. Examples 06 through 14 must not be treated as rendering
+references until their display timing is repaired and independently verified.
 
 Example 04 intentionally needs unofficial-opcode mode:
 

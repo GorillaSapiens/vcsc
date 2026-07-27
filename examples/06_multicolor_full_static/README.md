@@ -14,8 +14,9 @@ It displays a twelve-row asymmetric playfield, two fixed eight-row multicolor
 players, and the Ball. It contains no score component, score font, or missiles.
 The source uses visual binary rows and the shared NTSC color aliases.
 
-The scene is the same full-height smoke scene used by the kernel regression. Its
-built cartridge is checked for exact 262-line frames, all twelve playfield rows,
-P0/P1 graphics and row colors, Ball activity, and absence of score ownership.
+This example is still pending display repair. Its smoke test checks the 262-line
+frame schedule, VBLANK positioning, P0/P1 row activity, Ball activity, and the
+absence of missiles. It does not certify the playfield pixels or serve as a
+rendering oracle.
 
 Build with `make`, then run `multicolor_full_static.bin` in Stella.

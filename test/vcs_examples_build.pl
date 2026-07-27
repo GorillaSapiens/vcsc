@@ -37,15 +37,16 @@ my @examples=(
    ['02_ode_to_joy','ode_to_joy.c26',[]],
    ['03_score','score.c26',[]],
    ['04_fingerprint','fingerprint.c26',['-Wa,--illegals']],
-   ['05_multicolor_full_static','multicolor_full_static.c26',[]],
-   ['06_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
-   ['07_multicolor_score_below_static','multicolor_score_below_static.c26',['-Wa,--illegals','-T',$faithful_cfg]],
-   ['08_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],
-   ['09_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion.c26',[]],
-   ['10_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion.c26',[]],
-   ['11_multicolor_full_dynamic_x_and_y_motion','multicolor_full_dynamic_x_and_y_motion.c26',[]],
-   ['12_multicolor_score_above_dynamic_x_and_y_motion','multicolor_score_above_dynamic_x_and_y_motion.c26',[]],
-   ['13_multicolor_score_below_dynamic_x_and_y_motion','multicolor_score_below_dynamic_x_and_y_motion.c26',[]],
+   ['05_faithful_legacy_playercolors','faithful_legacy_playercolors.c26',['-Wa,--illegals','-T',$faithful_cfg]],
+   ['06_multicolor_full_static','multicolor_full_static.c26',[]],
+   ['07_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
+   ['08_multicolor_score_below','multicolor_score_below.c26',[]],
+   ['09_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],
+   ['10_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion.c26',[]],
+   ['11_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion.c26',[]],
+   ['12_multicolor_full_dynamic_x_and_y_motion','multicolor_full_dynamic_x_and_y_motion.c26',[]],
+   ['13_multicolor_score_above_dynamic_x_and_y_motion','multicolor_score_above_dynamic_x_and_y_motion.c26',[]],
+   ['14_multicolor_score_below_dynamic_x_and_y_motion','multicolor_score_below_dynamic_x_and_y_motion.c26',[]],
 );
 
 for my $entry (@examples) {
@@ -72,4 +73,4 @@ for my $entry (@examples) {
    }
 }
 
-print "vcs_examples_build ok: all thirteen editable examples compile and link\n";
+print "vcs_examples_build ok: all fourteen editable examples compile and link\n";
