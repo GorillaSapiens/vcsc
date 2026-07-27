@@ -1,4 +1,4 @@
-# runner: vcsc -### -I @REPO@/libraries/vcs @REPO@/examples/01_solid_color/solid_color.c26 -o @TMP@/solid_color.bin
+# runner: vcsc -### -I @REPO@/libraries/vcs @REPO@/examples/01_blank_screen/blank_screen.c26 -o @TMP@/blank_screen.bin
 # phase: e2e
 # expectstdout: -T
 # expectstdout: libraries/vcs/vcs_4k.cfg

@@ -31,18 +31,19 @@ Files:
 - `kernels/standard_4k_ntsc/` ... all-five-object solid-color standard-kernel profile
 - `kernels/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
-- `../../examples/01_solid_color/solid_color.c26` ... first complete 4K cartridge example
+- `../../examples/01_blank_screen/blank_screen.c26` ... minimal complete blank-screen cartridge
 - `../../examples/02_ode_to_joy/ode_to_joy.c26` ... frame-driven music example using a ROM score table
-- `../../examples/03_six_digit_score/six_digit_score.c26` ... centered lifecycle-component `bcd24_t` score display using `frame_ntsc.c26` and the shared VCS font catalog
-- `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes using the shared hexadecimal font
-- `../../examples/05_faithful_legacy_static_test/faithful_legacy_static_test.c26` ... faithful template-wrapped legacy player-color kernel with integrated score
-- `../../examples/06_static_kernel_test/static_kernel_test.c26` ... all-five lifecycle component with the score above gameplay
-- `../../examples/07_object_motion_test/object_motion_test.c26` ... moving all-five component with the score below gameplay
-- `../../examples/08_playercolor_static_test/playercolor_static_test.c26` ... player-color component with the score above gameplay
-- `../../examples/09_playercolor_motion_test/playercolor_motion_test.c26` ... moving player-color component with the score below gameplay
-- `../../examples/10_xy_motion/xy_motion.c26` ... scoreless full-height P0 motion in both X and Y
-- `legacy-basic-kernels/` ... vendored upstream legacy BASIC kernel source tree (standard, multisprite) with provenance and license notes
-- `LEGACY_KERNEL_CONVERSION.md` ... retained-kernel inventory, compatibility analysis, and staged conversion plan
+- `../../examples/03_score/score.c26` ... centered lifecycle-component `bcd24_t` score display
+- `../../examples/04_fingerprint/fingerprint.c26` ... CRC-24 display of four unstable 6507 `ARR` probes
+- `../../examples/05_multicolor_full_static/multicolor_full_static.c26` ... full-height static multicolor P0+P1+Ball
+- `../../examples/06_multicolor_score_above_static/multicolor_score_above_static.c26` ... static multicolor gameplay with score above
+- `../../examples/07_multicolor_score_below_static/multicolor_score_below_static.c26` ... static multicolor gameplay with score below
+- `../../examples/08_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion.c26` ... full-height horizontal motion
+- `../../examples/09_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion.c26` ... horizontal motion with score above
+- `../../examples/10_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion.c26` ... horizontal motion with score below
+- `../../examples/11_multicolor_full_dynamic_x_and_y_motion/multicolor_full_dynamic_x_and_y_motion.c26` ... full-height two-axis motion
+- `../../examples/12_multicolor_score_above_dynamic_x_and_y_motion/multicolor_score_above_dynamic_x_and_y_motion.c26` ... two-axis motion with score above
+- `../../examples/13_multicolor_score_below_dynamic_x_and_y_motion/multicolor_score_below_dynamic_x_and_y_motion.c26` ... two-axis motion with score below
 
 ## NTSC color matching
 

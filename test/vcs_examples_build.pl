@@ -31,18 +31,20 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $faithful_cfg=File::Spec->catfile($vcs,qw(kernels faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my @examples=(
-   ['01_solid_color','solid_color.c26',[]],
+   ['01_blank_screen','blank_screen.c26',[]],
    ['02_ode_to_joy','ode_to_joy.c26',[]],
-   ['03_six_digit_score','six_digit_score.c26',[]],
+   ['03_score','score.c26',[]],
    ['04_fingerprint','fingerprint.c26',['-Wa,--illegals']],
-   ['05_faithful_legacy_static_test','faithful_legacy_static_test.c26',['-Wa,--illegals','-T',$faithful_cfg]],
-   ['06_static_kernel_test','static_kernel_test.c26',[]],
-   ['07_object_motion_test','object_motion_test.c26',[]],
-   ['08_playercolor_static_test','playercolor_static_test.c26',[]],
-   ['09_playercolor_motion_test','playercolor_motion_test.c26',[]],
-   ['10_xy_motion','xy_motion.c26',[]],
+   ['05_multicolor_full_static','multicolor_full_static.c26',[]],
+   ['06_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
+   ['07_multicolor_score_below_static','multicolor_score_below_static.c26',[]],
+   ['08_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],
+   ['09_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion.c26',[]],
+   ['10_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion.c26',[]],
+   ['11_multicolor_full_dynamic_x_and_y_motion','multicolor_full_dynamic_x_and_y_motion.c26',[]],
+   ['12_multicolor_score_above_dynamic_x_and_y_motion','multicolor_score_above_dynamic_x_and_y_motion.c26',[]],
+   ['13_multicolor_score_below_dynamic_x_and_y_motion','multicolor_score_below_dynamic_x_and_y_motion.c26',[]],
 );
 
 for my $entry (@examples) {
@@ -69,4 +71,4 @@ for my $entry (@examples) {
    }
 }
 
-print "vcs_examples_build ok: all ten editable examples compile and link\n";
+print "vcs_examples_build ok: all thirteen editable examples compile and link\n";

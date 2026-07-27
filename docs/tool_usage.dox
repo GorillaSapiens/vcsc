@@ -28,13 +28,13 @@
 //! High-level flow:
 //!
 //! @code{.sh}
-//! vcsc -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.bin
+//! vcsc -I libraries/vcs examples/01_blank_screen/blank_screen.c26 -o solid_color.bin
 //! @endcode
 //!
 //! Direct stage-by-stage flow:
 //!
 //! @code{.sh}
-//! vcsc-cc1 -quiet -I libraries/vcs examples/01_solid_color/solid_color.c26 -o solid_color.s26 -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
+//! vcsc-cc1 -quiet -I libraries/vcs examples/01_blank_screen/blank_screen.c26 -o solid_color.s26 -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
 //! vcsc-as -I libraries/runtime/ -o solid_color.o26 solid_color.s26
 //! vcsc-ld -T libraries/vcs/vcs_4k.cfg -o solid_color.bin solid_color.o26 libraries/runtime/libvcsc.l26
 //! @endcode

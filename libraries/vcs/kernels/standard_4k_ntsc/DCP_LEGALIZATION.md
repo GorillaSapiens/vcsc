@@ -83,7 +83,7 @@ lock the complete raster. Three rendering regressions consequently survived:
 
 The repaired helper keeps zero in Y while X advances, reconstructs and saves M0
 Y in the existing twelve-cycle post-positioning slot, and removes the extra
-pre-kernel delay. `examples/07_object_motion_test` gives all five TIA objects
+pre-kernel delay. `test/fixtures/vcs_examples/06_object_motion/golden.c26` gives all five TIA objects
 separate documented vertical bands and independently phased horizontal motion.
 The first version of `vcs_standard_motion.test` still checked only RAM X values
 and vertical TIA writes. That missed a separate linker failure: each

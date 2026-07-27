@@ -42,7 +42,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260726_204242.tar.gz
+    vcsc.20260726_163940.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1678,16 +1678,25 @@ The first unfinished item is the default next action.
                                                     split a big gameplay kernel to insert a
                                                     score in its middle.
 
-                              [ ] 22i4c. Re-evaluate and repair examples 03 through
-                                         09 against the completed contracts. Examples
-                                         03 and 04 retain centered six-glyph displays;
-                                         examples 05 and 07 show fixed left/right two-
-                                         plus-two scores at the top; examples 06 and
-                                         08 show explicit moving left/right two-plus-
-                                         two scores at the bottom; example 09 remains
-                                         the scoreless full-height X/Y-motion example.
-                                         Add additional canonical examples needed to
-                                         expose every remaining N*M*O combination.
+                              [ ] 22i4c. Maintain a coherent public example
+                                         progression and complete the remaining score-
+                                         composition matrix before beginning task 23.
+
+                                         [x] 22i4c0. Rebuild `examples/` as thirteen
+                                                    canonical cartridges: blank screen,
+                                                    Ode to Joy, centered score,
+                                                    fingerprint, then a 3x3 multicolor
+                                                    P0+P1+Ball matrix crossing full/
+                                                    score-above/score-below with static,
+                                                    X-only motion, and X+Y motion. Keep
+                                                    five-object demonstrations private
+                                                    until task 23 actually begins.
+
+                                         [ ] 22i4c1. After the left/right two-plus-two
+                                                    score component exists, add its
+                                                    required public static and moving
+                                                    compositions without disturbing the
+                                                    thirteen-example baseline.
 
                               [ ] 22i4d. Retire the two installed predecessor
                                          monolithic profiles only after the entire
@@ -5499,3 +5508,35 @@ Before returning another modified archive:
   the execution window expired, the uncovered final 17 as 17/17, staged
   `installcheck`, and final source-tree hygiene. No source files are removed;
   keep the broader 22i4b all-object pixel matrix open.
+
+2026-07-26 17:13:18 PDT, rebuild public examples as a thirteen-cartridge matrix
+--------------------------------------------------------------------------------
+* Replace the historical public-example grab bag with an ordered progression:
+  `01_blank_screen`, `02_ode_to_joy`, `03_score`, `04_fingerprint`, followed by
+  nine official multicolor P0+P1+Ball cartridges. The multicolor set is a 3x3
+  matrix crossing full 192-line, score-above 181+11, and score-below 181+11
+  layouts with static, asynchronous X-only, and asynchronous X+Y motion.
+* Remove the faithful legacy and all-five cartridges from public `examples/`.
+  Preserve the faithful template source under private regression fixtures and
+  retain all-five exact/motion coverage under `test/fixtures/`; five-object work
+  remains blocked until the public multicolor matrix is stable.
+* Rename the first and third examples to match their visible purpose:
+  `01_blank_screen/blank_screen.c26` and `03_score/score.c26`. Add
+  `examples/README.md` with the ordered list and explicit 3x3 matrix.
+* Give every multicolor example the same readable structure, named NTSC colors,
+  visual-binary playfield and sprite rows, P0/P1 eight-row color tables, and
+  explicit lifecycle composition. X-only examples move P0/P1/Ball at distinct
+  rates; X+Y examples move all three objects independently on both axes.
+* Add `vcs_multicolor_examples.test`, which source-checks all nine matrix cells,
+  builds each exact 4K ROM, verifies the requested component order and motion
+  mode, runs 80+ frames, requires stable 262-line timing, checks X/Y bounds, and
+  proves static/X-only/X+Y RAM motion behavior. Expand the editable-example
+  smoke build and staged install check from ten to thirteen cartridges.
+* Update public documentation, driver examples, retired-profile references, the
+  faithful regression source location, removal ledger, and roadmap task 22i4c.
+  Do not begin the five-object kernel task.
+* Verify 316/316 compile-only tests and staged `installcheck`. The full
+  end-to-end run passed 171/188 before the execution window expired; execute
+  the remaining seventeen explicitly and pass 17/17, covering all 188 tests
+  with no failures. Final source-tree hygiene and VCSC branding checks pass.
+

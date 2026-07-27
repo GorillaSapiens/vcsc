@@ -62,7 +62,7 @@ Build the first cartridge through the high-level driver:
 
 ```sh
 ./driver/vcsc -I libraries/vcs \
-  examples/01_solid_color/solid_color.c26 \
+  examples/01_blank_screen/blank_screen.c26 \
   -o solid_color.bin
 ```
 
@@ -73,7 +73,7 @@ The same build performed one stage at a time is:
 
 ```sh
 ./compiler/vcsc-cc1 -quiet -I libraries/vcs \
-  examples/01_solid_color/solid_color.c26 \
+  examples/01_blank_screen/blank_screen.c26 \
   -o solid_color.s26 \
   -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
 
@@ -149,16 +149,19 @@ The maintained kernel profiles are:
 
 The user-facing examples are deliberately editable:
 
-- [`01_solid_color`](examples/01_solid_color/) — minimal complete cartridge
+- [`01_blank_screen`](examples/01_blank_screen/) — minimal complete blank-screen cartridge
 - [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
-- [`03_six_digit_score`](examples/03_six_digit_score/) — centered six-glyph BCD score
+- [`03_score`](examples/03_score/) — centered six-glyph BCD score
 - [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_faithful_legacy_static_test`](examples/05_faithful_legacy_static_test/) — faithful monolithic legacy player-color/score baseline
-- [`06_static_kernel_test`](examples/06_static_kernel_test/) — all-five component with score above gameplay
-- [`07_object_motion_test`](examples/07_object_motion_test/) — moving all-five component with score below gameplay
-- [`08_playercolor_static_test`](examples/08_playercolor_static_test/) — player-color component with score above gameplay
-- [`09_playercolor_motion_test`](examples/09_playercolor_motion_test/) — moving player-color component with score below gameplay
-- [`10_xy_motion`](examples/10_xy_motion/) — full-height sprite motion in both X and Y
+- [`05_multicolor_full_static`](examples/05_multicolor_full_static/) — full-height static multicolor P0+P1+Ball
+- [`06_multicolor_score_above_static`](examples/06_multicolor_score_above_static/) — static multicolor gameplay with score above
+- [`07_multicolor_score_below_static`](examples/07_multicolor_score_below_static/) — static multicolor gameplay with score below
+- [`08_multicolor_full_dynamic_x_motion`](examples/08_multicolor_full_dynamic_x_motion/) — full-height horizontal motion
+- [`09_multicolor_score_above_dynamic_x_motion`](examples/09_multicolor_score_above_dynamic_x_motion/) — horizontal motion with score above
+- [`10_multicolor_score_below_dynamic_x_motion`](examples/10_multicolor_score_below_dynamic_x_motion/) — horizontal motion with score below
+- [`11_multicolor_full_dynamic_x_and_y_motion`](examples/11_multicolor_full_dynamic_x_and_y_motion/) — full-height two-axis motion
+- [`12_multicolor_score_above_dynamic_x_and_y_motion`](examples/12_multicolor_score_above_dynamic_x_and_y_motion/) — two-axis motion with score above
+- [`13_multicolor_score_below_dynamic_x_and_y_motion`](examples/13_multicolor_score_below_dynamic_x_and_y_motion/) — two-axis motion with score below
 
 Exact golden raster, timing, palette, score, music, and motion assertions use
 private copies under `test/fixtures/vcs_examples/`; changing an example should

@@ -158,12 +158,19 @@ three-function call depth plus four explicit hidden-stack bytes, reserving ten
 hardware-stack bytes. Its initialization activation occupies three bytes, so
 the checked static cartridge leaves 30 RIOT bytes unallocated.
 
-Measured linked 4K cartridges:
+Measured linked 4K cartridges from the current public multicolor matrix:
 
 | Example | ROM used | ROM free |
 | --- | ---: | ---: |
-| `08_playercolor_static_test` | 1,827 bytes | 2,263 bytes |
-| `09_playercolor_motion_test` | 2,759 bytes | 1,331 bytes |
+| `05_multicolor_full_static` | 1,949 bytes | 2,147 bytes |
+| `06_multicolor_score_above_static` | 1,965 bytes | 2,131 bytes |
+| `07_multicolor_score_below_static` | 2,077 bytes | 2,019 bytes |
+| `08_multicolor_full_dynamic_x_motion` | 2,728 bytes | 1,368 bytes |
+| `09_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,352 bytes |
+| `10_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,240 bytes |
+| `11_multicolor_full_dynamic_x_and_y_motion` | 3,492 bytes | 604 bytes |
+| `12_multicolor_score_above_dynamic_x_and_y_motion` | 3,508 bytes | 588 bytes |
+| `13_multicolor_score_below_dynamic_x_and_y_motion` | 3,620 bytes | 476 bytes |
 
 These figures include application code, runtime, kernel, tables, and vectors.
 They are measurements of the checked examples, not promises that future code
@@ -193,9 +200,7 @@ It verifies:
 - 320 frames of full-range asynchronous P0/P1/BL horizontal positioning,
   including RESP cycles and HMxx values.
 
-The human-facing cartridges are:
-
-- `examples/08_playercolor_static_test` — stationary P0 and P1, each with eight
-  visibly distinct logical-row colors;
-- `examples/09_playercolor_motion_test` — the same row colors while P0, P1, and
-  BL move asynchronously through X=`0..159`.
+The current human-facing multicolor matrix is `examples/05_*` through
+`examples/13_*`. Exact regressions for this predecessor profile remain under
+`test/fixtures/vcs_examples/07_playercolor_static` and
+`test/fixtures/vcs_examples/08_playercolor_motion`.
