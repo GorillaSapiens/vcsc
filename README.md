@@ -156,7 +156,7 @@ The user-facing examples are deliberately editable:
 - [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color renderer example
 - [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — certified scoreless 192-line static multicolor P0+P1+Ball display
 - [`07_multicolor_score_above_static`](examples/07_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
-- [`08_multicolor_score_below`](examples/08_multicolor_score_below/) — **pending display repair**; static multicolor gameplay with score below
+- [`08_multicolor_score_below_static`](examples/08_multicolor_score_below_static/) — **pending display repair**; static multicolor gameplay with score below
 - [`09_multicolor_full_dynamic_x_motion`](examples/09_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
 - [`10_multicolor_score_above_dynamic_x_motion`](examples/10_multicolor_score_above_dynamic_x_motion/) — **pending display repair**; horizontal motion with score above
 - [`11_multicolor_score_below_dynamic_x_motion`](examples/11_multicolor_score_below_dynamic_x_motion/) — **pending display repair**; horizontal motion with score below

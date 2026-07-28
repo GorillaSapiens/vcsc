@@ -20,7 +20,7 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my @cases=(
  ['07_multicolor_score_above_static','multicolor_score_above_static','above','static'],
- ['08_multicolor_score_below','multicolor_score_below','below','static'],
+ ['08_multicolor_score_below_static','multicolor_score_below_static','below','static'],
  ['09_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion','full','x'],
  ['10_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion','above','x'],
  ['11_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion','below','x'],

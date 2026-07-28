@@ -38,7 +38,7 @@ Files:
 - `../../examples/05_faithful_legacy_playercolors/faithful_legacy_playercolors.c26` ... certified faithful legacy player-color cartridge
 - `../../examples/06_multicolor_full_static/multicolor_full_static.c26` ... certified scoreless 192-line static multicolor P0+P1+Ball
 - `../../examples/07_multicolor_score_above_static/multicolor_score_above_static.c26` ... pending display repair; static multicolor gameplay with score above
-- `../../examples/08_multicolor_score_below/multicolor_score_below.c26` ... pending display repair; static multicolor gameplay with score below
+- `../../examples/08_multicolor_score_below_static/multicolor_score_below_static.c26` ... pending display repair; static multicolor gameplay with score below
 - `../../examples/09_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion.c26` ... pending display repair; full-height horizontal motion
 - `../../examples/10_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion.c26` ... pending display repair; horizontal motion with score above
 - `../../examples/11_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion.c26` ... pending display repair; horizontal motion with score below

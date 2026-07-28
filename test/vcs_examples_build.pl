@@ -40,7 +40,7 @@ my @examples=(
    ['05_faithful_legacy_playercolors','faithful_legacy_playercolors.c26',['-Wa,--illegals','-T',$faithful_cfg]],
    ['06_multicolor_full_static','multicolor_full_static.c26',[]],
    ['07_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
-   ['08_multicolor_score_below','multicolor_score_below.c26',[]],
+   ['08_multicolor_score_below_static','multicolor_score_below_static.c26',[]],
    ['09_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],
    ['10_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion.c26',[]],
    ['11_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion.c26',[]],

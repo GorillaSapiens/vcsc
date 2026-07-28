@@ -165,7 +165,7 @@ Measured linked 4K cartridges from the public multicolor examples:
 | `05_faithful_legacy_playercolors` | faithful legacy profile | n/a | Certified pristine-oracle baseline |
 | `06_multicolor_full_static` | 1,651 bytes | 2,439 bytes | Certified |
 | `07_multicolor_score_above_static` | 1,965 bytes | 2,125 bytes | Pending repair |
-| `08_multicolor_score_below` | 2,077 bytes | 2,013 bytes | Pending repair |
+| `08_multicolor_score_below_static` | 2,077 bytes | 2,013 bytes | Pending repair |
 | `09_multicolor_full_dynamic_x_motion` | 2,584 bytes | 1,506 bytes | Pending repair |
 | `10_multicolor_score_above_dynamic_x_motion` | 2,744 bytes | 1,346 bytes | Pending repair |
 | `11_multicolor_score_below_dynamic_x_motion` | 2,856 bytes | 1,234 bytes | Pending repair |

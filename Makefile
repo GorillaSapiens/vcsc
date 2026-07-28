@@ -370,7 +370,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
 		  07_multicolor_score_above_static/multicolor_score_above_static \
-	  08_multicolor_score_below/multicolor_score_below \
+	  08_multicolor_score_below_static/multicolor_score_below_static \
 	  09_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion \
 	  10_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion \
 	  11_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion \

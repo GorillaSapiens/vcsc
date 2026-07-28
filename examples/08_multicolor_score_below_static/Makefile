@@ -2,8 +2,8 @@ ROOT ?= ../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-TARGET := multicolor_score_below.bin
-SOURCE := multicolor_score_below.c26
+TARGET := multicolor_score_below_static.bin
+SOURCE := multicolor_score_below_static.c26
 
 all: $(TARGET)
 

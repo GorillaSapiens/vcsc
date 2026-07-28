@@ -5699,7 +5699,7 @@ Before returning another modified archive:
   now example 05; full static is 06; score-above static is 07; X-motion examples
   are 09-11; and X+Y-motion examples are 12-14. Rename the faithful example's
   source and cartridge stem to `faithful_legacy_playercolors`.
-* Add `08_multicolor_score_below/multicolor_score_below.c26` as the missing
+* Add `08_multicolor_score_below_static/multicolor_score_below_static.c26` as the missing
   static score-below composition. It uses `player_color_181` followed by the
   six-glyph score component, with the score drawn below the gameplay field.
 * Update example indexes, filenames, build lists, installcheck, regressions, and
@@ -5720,7 +5720,7 @@ Before returning another modified archive:
   Bison/Flex DEBs to perform a real clean tool build and run the actual suite.
 * Keep every pre-existing example source and every library renderer/config source
   byte-for-byte identical to the supplied `184106` archive. The only new example
-  code remains `08_multicolor_score_below`, using `player_color_181` with the
+  code remains `08_multicolor_score_below_static`, using `player_color_181` with the
   six-glyph score drawn after the gameplay component.
 * Restore the faithful-renderer audit to its identical private fixture scene.
   Public example 05 uses different playfield data, so check its 264-line frame
@@ -5854,3 +5854,14 @@ Before returning another modified archive:
   intact, and the following captured image row is 320/320 black pixels. The
   focused display tests, neighboring 181-line and all-five regressions, all
   316 compile-only tests, all 190 end-to-end tests, and staged installcheck pass.
+
+2026-07-27 19:19:40 PDT, correct example 08 static naming
+-------------------------------------------------------------------------------
+* Rename example 08 from `08_multicolor_score_below` to
+  `08_multicolor_score_below_static`.
+* Rename its source and cartridge stem from `multicolor_score_below` to
+  `multicolor_score_below_static`, and update build lists, tests, installcheck,
+  indexes, and documentation to use the corrected name.
+* Preserve the example source contents unchanged apart from the filename.
+* Verification: the renamed example builds as a 4096-byte cartridge;
+  `vcs_examples_build.pl` and `vcs_multicolor_examples.pl` pass.
