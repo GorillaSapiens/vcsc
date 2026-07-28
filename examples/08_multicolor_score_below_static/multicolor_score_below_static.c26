@@ -6,7 +6,6 @@ include "playfield.c26"
 include "fonts/default_decimal.c26"
 
 page const uint8_t game_playfield[44] := {
-VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
    VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
    VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
    VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),

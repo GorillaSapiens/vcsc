@@ -930,7 +930,14 @@ bool compile_initializer_to_scratch(const ASTNode *init, Context *ctx, const AST
       int elem_size = declarator_first_element_size(type, declarator);
       bool ok = true;
       initializer_collect_items(uinit, items, &index);
-      for (int i = 0; i < index && i < elem_count; i++) {
+      if (index > elem_count) {
+         const char *name = declarator_name(declarator);
+         free(items);
+         error_user("[%s:%d.%d] too many initializers for array '%s': %d provided, %d allowed",
+               uinit->file, uinit->line, uinit->column,
+               name ? name : "<anonymous>", index, elem_count);
+      }
+      for (int i = 0; i < index; i++) {
          const ASTNode *item = items[i];
          if (!item || item->count < 2) {
             continue;
@@ -1059,7 +1066,14 @@ static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_o
       int elem_size = declarator_first_element_size(type, declarator);
       bool ok = true;
       initializer_collect_items(uinit, items, &index);
-      for (int i = 0; i < index && i < elem_count; i++) {
+      if (index > elem_count) {
+         const char *name = declarator_name(declarator);
+         free(items);
+         error_user("[%s:%d.%d] too many initializers for array '%s': %d provided, %d allowed",
+               uinit->file, uinit->line, uinit->column,
+               name ? name : "<anonymous>", index, elem_count);
+      }
+      for (int i = 0; i < index; i++) {
          const ASTNode *item = items[i];
          if (!item || item->count < 2) {
             continue;

@@ -15,7 +15,7 @@
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 181,
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
-   TEMPLATE_OVERSCAN_MAX_CYCLES := 40,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
    TEMPLATE_OBJECT_COUNT := 3,
    TEMPLATE_PLAYFIELD_BYTES := 44,
    TEMPLATE_PLAYFIELD_ROWS := 11,
@@ -294,17 +294,14 @@ require inline void TEMPLATE_vblank(void) {
    asm ldx.z TEMPLATE_object_x + 1;
    asm lda.ax TEMPLATE_player_position_table,x;
    asm sta.z TEMPLATE_workspace + 4;
-
-   // Prepare the row counter and private Y state while output is blanked.
-   // Ball and initial player color installation remain on the third visible
-   // setup line so this callback stays within the existing VBLANK deadline.
-   asm lda.z TEMPLATE_playfield_position;
-   asm sta.z TEMPLATE_workspace;
-   asm dec.z TEMPLATE_player0_y;
 }
 
 require inline void TEMPLATE_draw(void) {
-   // Visible handoff line 1: restore P1 coarse/fine position.
+   asm @renderer:;
+
+   // Visible-boundary handoff, line 1: restore P1 coarse/fine position.
+   // The packed table makes the loop constant-shape and keeps X=159 inside
+   // the scanline while preserving the requested pixel coordinate.
    asm ldy.z TEMPLATE_workspace + 4;
    asm sty HMP1;
    asm tya;
@@ -316,7 +313,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta RESP1;
    asm sta WSYNC;
 
-   // Visible handoff line 2: restore P0 at the matching RESP phase.
+   // Line 2 restores P0 at the same effective RESP phase.
    asm ldy.z TEMPLATE_workspace + 3;
    asm sty HMP0;
    asm tya;
@@ -329,9 +326,8 @@ require inline void TEMPLATE_draw(void) {
    asm sta RESP0;
    asm sta WSYNC;
 
-   // Setup line 3 applies motion, restores gameplay object state, and installs
-   // the values staged during VBLANK.  The following WSYNC starts the 176-line
-   // playfield raster at a fixed phase independent of either player X value.
+   // Apply the restored player motion at the start of the third setup line.
+   // HMM0/HMM1/HMBL are zero by the score contract, so Ball position survives.
    asm sta HMOVE;
    asm lda.z TEMPLATE_object_x + 2;
    asm sta NUSIZ0;
@@ -343,73 +339,38 @@ require inline void TEMPLATE_draw(void) {
    asm ldx #0;
    asm stx GRP0;
    asm stx GRP1;
-   asm stx PF0;
    asm stx PF1;
    asm stx PF2;
    asm stx CXCLR;
-   asm lda.z TEMPLATE_object_masks + 23;
-   asm lsr.zx TEMPLATE_object_masks,x;
-   asm adc #0;
-   asm sta ENABL;
-   asm ldy #0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.z TEMPLATE_player0_latch;
-   asm sta COLUP0;
-   asm sta WSYNC;
-
-   // WSYNC returns at cycle zero; the normal component-entry phase is cycle
-   // three.  Restore that phase before using the proven four-write schedule.
-   asm bit.z CXM0P;
-
-   // First visible raster line: P0 half of the ordinary two-line pipeline.
-   asm lda.z TEMPLATE_player0_latch;
-   asm sta COLUP0;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield,x;
-   asm sta PF1;
-   asm lda.ax TEMPLATE_playfield+1,x;
-   asm sta PF2;
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
-   asm sty.z TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
-   asm bcs @first_skipP0;
-   asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm jmp @first_continueP0;
-   asm @first_skipP0:;
-   asm lda #0;
-   asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm @first_continueP0:;
-   asm sta.a GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.a TEMPLATE_player0_latch;
-   asm dec.z TEMPLATE_workspace;
-   asm jmp @continuerenderer;
+   asm dec.z TEMPLATE_player0_y;
+   asm lda.z TEMPLATE_playfield_position;
+   asm sta.z TEMPLATE_workspace;
+   asm lda #10;
+   asm clc;
+   asm sbc.z TEMPLATE_playfield_position;
+   asm sta.z TEMPLATE_playfield_position;
+   asm jmp @startrenderer;
 
    asm .align 256;
+   asm @kerloop:;
    asm @continuerenderer:;
-   // P1 half.
-   asm lda #1;
+   asm @continuerenderer2:;
+   asm lda.z TEMPLATE_object_masks + 23;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
+   asm ldy.ax TEMPLATE_playfield+3,x;
+   asm sty PF1;
+   asm ldy.ax TEMPLATE_playfield+2,x;
+   asm sty PF2;
    asm lsr.zx TEMPLATE_object_masks,x;
    asm adc #0;
+   asm @goback:;
    asm sta ENABL;
+   asm @startrenderer:;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
    asm bcs @skipP1;
@@ -425,22 +386,18 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    asm lda.z TEMPLATE_player0_latch;
    asm sta COLUP0;
-
-   // P0 half.
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
+   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield+3,x;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
    asm bcs @skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @continueP0;
@@ -451,147 +408,35 @@ require inline void TEMPLATE_draw(void) {
    asm @continueP0:;
    asm sta.a GRP0;
    asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.a TEMPLATE_player0_latch;
-   asm dec.z TEMPLATE_workspace;
-   asm bne.same @continuerenderer;
-
-   // Sixteenth line of the row.  Finish the old row before advancing X, then
-   // begin the next row at the same four beam phases as every ordinary line.
-   asm @altrenderer:;
-   asm sta COLUP0;
-   asm lda.ax TEMPLATE_playfield,x;
-   asm sta PF1;
-   asm lda.ax TEMPLATE_playfield+1,x;
-   asm sta PF2;
-   asm cpx #40;
-   asm beq @terminalrenderer;
-   asm ldy.ax TEMPLATE_playfield+2,x;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm inx;
-   asm inx;
-   asm inx;
-   asm sty.a PF2;
-   asm inx;
-   asm nop;
-   asm sta PF1;
-   asm ldy.z TEMPLATE_player1_y;
-   asm dey;
-   asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_activeP1;
-   asm ldy #0;
-   asm sty.a GRP1;
-   asm bcs @transition_continueP1;
-   asm @transition_activeP1:;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm sta GRP1;
-   asm @transition_continueP1:;
-   asm lda.ay TEMPLATE_player1_colors,y;
-   asm lsr.zx TEMPLATE_object_masks-4,x;
-
-   asm ldy.ax TEMPLATE_playfield,x;
-   asm sty PF1;
-   asm ldy.ax TEMPLATE_playfield+1,x;
-   asm sty PF2;
-   asm sta COLUP1;
-   asm lda #1;
-   asm adc #0;
-   asm sta ENABL;
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta.a PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
-   asm sty.a TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bcs @transition_skipP0;
-   asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm jmp @transition_continueP0;
-   asm @transition_skipP0:;
-   asm lda #0;
-   asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm @transition_continueP0:;
-   asm sta.a GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta COLUP0;
-
-   asm lda #1;
-   asm nop;
-   asm ldy.ax TEMPLATE_playfield,x;
-   asm sty PF1;
-   asm ldy.ax TEMPLATE_playfield+1,x;
-   asm sty PF2;
-   asm lsr.zx TEMPLATE_object_masks,x;
-   asm adc #0;
-   asm sta ENABL;
-   asm bit.z CXM0P;
-   asm lda #7;
-   asm ldy.ax TEMPLATE_playfield+2,x;
-   asm sty PF2;
-   asm ldy.ax TEMPLATE_playfield+3,x;
-   asm sty PF1;
-   asm sta.z TEMPLATE_workspace;
-   asm ldy.z TEMPLATE_player1_y;
-   asm dey;
-   asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_first_activeP1;
-   asm lda #0;
-   asm sta GRP1;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm nop;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm jmp @transition_first_doneP1;
-   asm @transition_first_activeP1:;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm sta GRP1;
-   asm lda.ay TEMPLATE_player1_colors,y;
-   asm sta COLUP1;
-   asm @transition_first_doneP1:;
-
-   asm lda.ax TEMPLATE_playfield,x;
-   asm sta PF1;
-   asm lda.ax TEMPLATE_playfield+1,x;
-   asm sta PF2;
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
-   asm sty.z TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
-   asm bcs @transition_follow_skipP0;
-   asm lda.iy (TEMPLATE_player0_graphics),y;
-   asm jmp @transition_follow_continueP0;
-   asm @transition_follow_skipP0:;
-   asm lda #0;
-   asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm @transition_follow_continueP0:;
-   asm sta GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
    asm sta.z TEMPLATE_player0_latch;
+   asm clc;
+   asm bit.z CXM0P;
    asm dec.z TEMPLATE_workspace;
    asm bne @continuerenderer;
-   asm jmp @altrenderer;
+   asm @altrenderer:;
+   // Preserve the sixteenth scanline of the completed playfield row.  The
+   // inherited renderer cleared PF1/PF2 here, producing one blank/malformed line
+   // at every row boundary.  These eight non-TIA cycles retain the exact
+   // schedule and carry state while leaving the row raster intact.
+   asm lda #0;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm txa;
+   asm adc #4;
+   asm tax;
+   asm cpx #44;
+   asm bcs @lastrendererline;
+   asm bit.z CXM0P;
+   asm lda #8;
+   asm sta.z TEMPLATE_workspace;
+   asm lsr.zx TEMPLATE_object_masks - 4,x;
+   asm lda.z TEMPLATE_object_masks + 23;
+   asm adc #0;
+   asm jmp @goback;
 
-   // Finish row ten's reflected half and consume the two remaining gameplay
-   // lines blank.  Return at cycle zero after exactly 181 component lines.
-   asm @terminalrenderer:;
-   asm ldy.ax TEMPLATE_playfield+2,x;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm bit.z CXM0P;
-   asm nop;
-   asm sty PF2;
-   asm bit.z CXM0P;
-   asm sta.a PF1;
+   asm @lastrendererline:;
+   // Preserve the final gameplay row through the end of its visible line.
    asm sta WSYNC;
-
    asm lda #0;
    asm sta PF0;
    asm sta PF1;
@@ -605,15 +450,27 @@ require inline void TEMPLATE_draw(void) {
    asm sta VDELP0;
    asm sta VDELP1;
    asm sta HMCLR;
-   asm sta WSYNC;
-   asm sta WSYNC;
-}
-
-require inline void TEMPLATE_overscan(void) {
    asm lda.z TEMPLATE_workspace + 1;
    asm sta.z TEMPLATE_player0_y;
    asm lda.z TEMPLATE_workspace + 2;
    asm sta.z TEMPLATE_player1_y;
    asm lda.z TEMPLATE_object_masks + 7;
    asm sta.z TEMPLATE_ball_y;
+   asm lda #10;
+   asm clc;
+   asm sbc.z TEMPLATE_playfield_position;
+   asm sta.z TEMPLATE_playfield_position;
+   // The boundary move changes the old pre-WSYNC phase by 30 cycles. Keep
+   // those cycles on the now-blank cleanup line so the profile remains 181
+   // scanlines and returns at the same scheduler boundary.
+   asm ldx #5;
+   asm @terminal_phase_delay:;
+   asm dex;
+   asm bne @terminal_phase_delay;
+   asm nop;
+   asm nop;
+   asm sta WSYNC;
+}
+
+require inline void TEMPLATE_overscan(void) {
 }

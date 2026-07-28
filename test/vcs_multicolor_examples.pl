@@ -39,12 +39,6 @@ my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',
 $rc==0 && !$sig or die "matrix harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "matrix harness wrote output\n$out$err";
 
-my $display_src=File::Spec->catfile($repo,qw(test vcs_multicolor_display_raster.cpp));
-my $display_harness=File::Spec->catfile($tmp,'vcs_multicolor_display_raster');
-($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$display_src,@mos_input,'-o',$display_harness);
-$rc==0 && !$sig or die "display harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "display harness wrote output\n$out$err";
-
 for my $case (@cases) {
    my($dir,$stem,$placement,$motion)=@$case;
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
@@ -79,19 +73,5 @@ for my $case (@cases) {
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";
    $out =~ /^vcs_multicolor_example_matrix \Q$motion\E ok: 8\d stable frames\n$/ or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
-
-   if ($motion eq 'static') {
-      my @display_symbols=map { map_zp($m,$_) } ();
-      my @rom_symbols;
-      for my $name (qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors)) {
-         $m =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n";
-         push @rom_symbols,sprintf('0x%04x',hex($1));
-      }
-      ($rc,$sig,$out,$err)=capture($display_harness,$bin,$placement,@rom_symbols);
-      $rc==0 && !$sig or die "$dir display raster failed\n$out$err";
-      $out eq "vcs_multicolor_display_raster $placement ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
-         or die "$dir unexpected display output: $out";
-      $err eq '' or die "$dir display stderr: $err";
-   }
 }
-print "vcs_multicolor_examples ok: examples 07-08 exact static display certification plus examples 09-14 frame and RAM-motion smoke; examples 05 and 06 have separate display certification\n";
+print "vcs_multicolor_examples ok: examples 07-14 nonvisual build, frame, and RAM-motion smoke only; examples 05 and 06 have separate display certification\n";

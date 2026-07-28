@@ -5866,16 +5866,18 @@ Before returning another modified archive:
 * Verification: the renamed example builds as a 4096-byte cartridge;
   `vcs_examples_build.pl` and `vcs_multicolor_examples.pl` pass.
 
-2026-07-27 20:21:00 PDT, partial 181-line renderer repair for examples 07 and 08
----------------------------------------------------------------------------------
-* Repair the shared 181-line renderer playfield schedule used by examples 07
-  and 08. Replace the inherited mixed old/new-row boundary path with four fixed
-  playfield-write phases on every scanline, preserving all sixteen scanlines of
-  each of the eleven source rows.
-* Certify examples 07 and 08 against their literal `VCS_PLAYFIELD` data. The
-  focused display harness reports exact playfield rows, player graphics/colors,
-  Ball state, and score ownership for both score-above and score-below layouts.
-* This is an intentionally partial handoff. Example 13 currently produces a
-  263-line frame with this shared renderer change instead of the required 262
-  lines. That dynamic score-above timing regression remains to be repaired in a
-  later pass; no claim is made that the complete example matrix passes yet.
+2026-07-27 22:08:00 PDT, bounded repair pass after broken 181-line handoff
+----------------------------------------------------------------------------
+* Add a hard compiler diagnostic when an array initializer expands to more
+  elements than the declared bound. The exact 12-row `VCS_PLAYFIELD_ROW` case
+  now reports 48 provided elements for a 44-byte array instead of silently
+  truncating the final row.
+* Correct example 08 itself to contain the 11 rows required by the shared
+  181-line renderer: remove the accidental twelfth all-on row so its declared
+  44-byte playfield and initializer agree.
+* Add `array_too_many_macro_initializers_error_test.c26` covering the exact
+  macro-expanded overflow reported by the user.
+* Do not retain the experimental 181-line renderer rewrite from the previous
+  handoff. Compact timing experiments either preserved the incorrect Stella
+  playfield or broke established player/frame timing; the renderer is restored
+  to the uploaded 02:30 baseline for a later focused repair.
