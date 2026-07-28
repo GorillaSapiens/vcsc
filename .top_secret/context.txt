@@ -5799,3 +5799,30 @@ Before returning another modified archive:
   passes tests 1..164 before the outer execution window expires, and the
   remaining 26 pass explicitly, accounting for all 190 tests with no failures.
   Staged `installcheck` passes.
+
+2026-07-27 18:24:08 PDT, correct the incomplete 192-line renderer handoff
+----------------------------------------------------------------------------
+* Supersede the 16:53 handoff. Its Stella review was wrong: although the output
+  looked substantially improved, the row-transition schedule still changed the
+  reflected right half at the wrong beam phase and did not reproduce the public
+  example 06 `VCS_PLAYFIELD` data exactly.
+* Rebuild the row-transition schedule around four invariant playfield write
+  phases. Preserve the old row's reflected PF2/PF1 bytes across the X advance,
+  draw the boundary line completely, and enter the next row without cumulative
+  two-cycle drift. Keep the dedicated terminal path so row 11 remains visible
+  through its sixteenth scanline.
+* Catch and repair a second regression exposed by the focused display test: the
+  transition path reused Y for playfield loads before selecting P1's color,
+  skipping one table entry (0x8e). Preserve the selected P1 color in A while the
+  Ball-mask shift supplies carry, then install that color without moving any of
+  the four beam-critical playfield writes.
+* Certify the public source directly against Stella 7.0. Build a diagnostic copy
+  that changes only the three object Y initializers, leaving code layout and all
+  playfield data unchanged, so no player or Ball pixel can hide a playfield bit.
+  Compare all 32 bits of all 12 source rows across all 16 scanlines: 6,144
+  logical positions, zero mismatches.
+* Verification after the color-path correction: 316/316 compile-only tests pass;
+  all 190 end-to-end tests are accounted for and pass; the exact example 06 and
+  generic 192-line display certifications pass; the neighboring 181-line and
+  all-five regressions pass; the dynamic-example matrix passes; and staged
+  `installcheck` passes. Historical PNG references remain non-authoritative.

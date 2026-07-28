@@ -204,23 +204,11 @@ int main(int argc, char **argv) {
             pf(line,cycle[3],address[3],row_byte(row,3))
          }, what);
       };
+      const std::array<uint64_t,4> exact{{10,17,40,47}};
       for (int row=0;row<12;++row) {
          const uint64_t first=first_row+row*16;
-         if (row==0) {
-            for (int sub=0;sub<=14;++sub)
-               expect_full_line(first+sub,row,{{18,25,38,45}},"first row");
-         }
-         else {
-            expect_full_line(first,row,{{15,22,36,43}},"row entry P0");
-            expect_full_line(first+1,row,{{16,23,36,43}},"row entry P1");
-            expect_full_line(first+2,row,{{18,25,37,44}},"row entry settle");
-            for (int sub=3;sub<=14;++sub)
-               expect_full_line(first+sub,row,{{18,25,38,45}},"steady row");
-         }
-         expect_full_line(first+15,row,
-            row==11 ? std::array<uint64_t,4>{{10,17,43,46}}
-                    : std::array<uint64_t,4>{{10,17,41,44}},
-            row==11 ? "terminal row" : "row boundary");
+         for (int sub=0;sub<16;++sub)
+            expect_full_line(first+sub,row,exact,"full-height row");
       }
       bool boundary=false;
       for (const TimedWrite &event:frame_writes)

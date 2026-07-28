@@ -204,23 +204,10 @@ int main(int argc, char **argv) {
             }
          }
       };
-      const uint64_t steady[4]={18,25,38,45};
-      const uint64_t entry0[4]={15,22,36,43};
-      const uint64_t entry1[4]={16,23,36,43};
-      const uint64_t settle[4]={18,25,37,44};
-      const uint64_t boundary[4]={10,17,41,44};
-      const uint64_t terminal[4]={10,17,43,46};
+      const uint64_t exact[4]={10,17,40,47};
       for (int row=0;row<12;++row) {
          const uint64_t first=first_row_line+row*16;
-         if (row==0) {
-            for (int sub=0;sub<=14;++sub) check_line(first+sub,row,steady);
-         } else {
-            check_line(first,row,entry0);
-            check_line(first+1,row,entry1);
-            check_line(first+2,row,settle);
-            for (int sub=3;sub<=14;++sub) check_line(first+sub,row,steady);
-         }
-         check_line(first+15,row,row==11 ? terminal : boundary);
+         for (int sub=0;sub<16;++sub) check_line(first+sub,row,exact);
       }
       std::printf("vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n");
    }

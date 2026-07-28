@@ -375,23 +375,23 @@ require inline void TEMPLATE_draw(void) {
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
-   asm bit.z CXM0P;
    asm lda.z TEMPLATE_player0_latch;
    asm sta COLUP0;
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
    asm nop;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
    asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
    asm bit.z CXM0P;
+   asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm cpy.z TEMPLATE_object_masks + 11;
    asm bcs @first_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @first_continueP0;
@@ -402,7 +402,7 @@ require inline void TEMPLATE_draw(void) {
    asm @first_continueP0:;
    asm sta.a GRP0;
    asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.z TEMPLATE_player0_latch;
+   asm sta.a TEMPLATE_player0_latch;
    asm dec.z TEMPLATE_workspace;
    asm jmp @continuerenderer;
 
@@ -413,22 +413,21 @@ require inline void TEMPLATE_draw(void) {
    // P1 half.  Update Ball before the display writes, then leave a three-cycle
    // gap between the left and right halves of the asymmetric playfield.
    asm lda #1;
-   asm lsr.zx TEMPLATE_object_masks,x;
-   asm adc #0;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks,x;
+   asm adc #0;
    asm sta ENABL;
-   asm bit.z CXM0P;
-   asm ldy.ax TEMPLATE_playfield+2,x;
-   asm sty PF2;
-   asm ldy.ax TEMPLATE_playfield+3,x;
-   asm sty PF1;
-   asm @goback:;
-   asm @startrenderer:;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
+   asm lda.ax TEMPLATE_playfield+2,x;
+   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield+3,x;
+   asm sta PF1;
+   asm @goback:;
+   asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
    asm bcs @skipP1;
@@ -449,19 +448,20 @@ require inline void TEMPLATE_draw(void) {
    // P0 half.  Move eleven cycles of P0 bookkeeping ahead of the playfield
    // writes and remove the old carry clear; every Ball ADC gets its carry from
    // the immediately preceding LSR.  The pair remains exactly 152 cycles.
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
    asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
    asm bit.z CXM0P;
+   asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm cpy.z TEMPLATE_object_masks + 11;
    asm bcs @skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @continueP0;
@@ -472,7 +472,7 @@ require inline void TEMPLATE_draw(void) {
    asm @continueP0:;
    asm sta.a GRP0;
    asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.z TEMPLATE_player0_latch;
+   asm sta.a TEMPLATE_player0_latch;
    asm dec.z TEMPLATE_workspace;
    asm bne @continuerenderer;
 
@@ -498,44 +498,52 @@ require inline void TEMPLATE_draw(void) {
    asm inx;
    asm inx;
    asm inx;
+   asm sty.a PF2;
    asm inx;
-   asm sty PF2;
+   asm nop;
    asm sta PF1;
-   asm bit.z CXM0P;
-   asm lsr.zx TEMPLATE_object_masks-4,x;
-   asm lda #1;
-   asm adc #0;
-   asm sta ENABL;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @transition_skipP1;
+   asm bcc @transition_activeP1;
+   // The inactive and active paths are both eleven cycles.  The absolute STY
+   // supplies the otherwise impossible one-cycle pad while also leaving Y=0
+   // for the color lookup below.
+   asm ldy #0;
+   asm sty.a GRP1;
+   asm bcs @transition_continueP1;
+   asm @transition_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp @transition_continueP1;
-   asm @transition_skipP1:;
-   asm lda #0;
-   asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm @transition_continueP1:;
    asm sta GRP1;
-
-   // First P0 half after a row transition.  Finish P1's color update between
-   // the two left bytes and the two right bytes, then do P0 bookkeeping after
-   // all four display writes.
-   asm lda.ax TEMPLATE_playfield,x;
-   asm sta PF1;
-   asm lda.ax TEMPLATE_playfield+1,x;
-   asm sta PF2;
+   asm @transition_continueP1:;
+   // Preserve the P1 color in A before the playfield loads reuse Y.  The Ball
+   // mask shift then supplies carry while leaving A untouched.  This keeps the
+   // four playfield writes at cycles 10, 17, 40, and 47, installs the correct
+   // P1 color, and still enables the Ball well before its horizontal position.
    asm lda.ay TEMPLATE_player1_colors,y;
+   asm lsr.zx TEMPLATE_object_masks-4,x;
+
+   // First P0 half after a row transition.  Its four playfield writes must land
+   // at the same phases as every steady scanline.
+   asm ldy.ax TEMPLATE_playfield,x;
+   asm sty PF1;
+   asm ldy.ax TEMPLATE_playfield+1,x;
+   asm sty PF2;
    asm sta COLUP1;
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
+   asm lda #1;
+   asm adc #0;
+   asm sta ENABL;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
-   asm sty.z TEMPLATE_player0_y;
+   asm lda.ax TEMPLATE_playfield+2,x;
+   asm sta.a PF2;
+   asm lda.ax TEMPLATE_playfield+3,x;
+   asm sta PF1;
+   // Save the decremented P0 index only after the beam-critical writes.  The
+   // absolute store also restores the one cycle saved by the balanced P1 path,
+   // keeping the following scanlines on the same phase.
+   asm sty.a TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm bcs @transition_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
@@ -554,52 +562,55 @@ require inline void TEMPLATE_draw(void) {
    // the steady lines without changing the total pair length.
    asm @transition_firstP1:;
    asm lda #1;
-   asm lsr.zx TEMPLATE_object_masks,x;
-   asm adc #0;
+   asm nop;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
+   asm lsr.zx TEMPLATE_object_masks,x;
+   asm adc #0;
    asm sta ENABL;
    asm bit.z CXM0P;
+   asm lda #7;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm sty PF2;
    asm ldy.ax TEMPLATE_playfield+3,x;
    asm sty PF1;
-   asm lda #7;
    asm sta.z TEMPLATE_workspace;
-   asm bit.z CXM0P;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @transition_first_skipP1;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp @transition_first_continueP1;
-   asm @transition_first_skipP1:;
+   asm bcc @transition_first_activeP1;
    asm lda #0;
-   asm tay;
+   asm sta GRP1;
    asm bit.z TEMPLATE_object_masks + 19;
-   asm @transition_first_continueP1:;
+   asm nop;
+   asm bit.z TEMPLATE_object_masks + 19;
+   asm jmp @transition_first_doneP1;
+   asm @transition_first_activeP1:;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
+   asm @transition_first_doneP1:;
 
    // Fall directly into a P0 half.  Duplicating this one body avoids the
    // three-cycle jump that would otherwise shift every later row.
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
    asm sty.z TEMPLATE_player0_y;
+   asm cpy.z TEMPLATE_object_masks + 11;
+   asm bit.z CXM0P;
    asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm cpy.z TEMPLATE_object_masks + 11;
    asm bcs @transition_follow_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @transition_follow_continueP0;
@@ -624,13 +635,12 @@ require inline void TEMPLATE_draw(void) {
    // overscan line, so the caller cannot blank the final visible scanline early.
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
-   asm nop;
-   asm nop;
-   asm nop;
+   asm bit.z CXM0P;
    asm nop;
    asm sty PF2;
-   asm sta PF1;
    asm bit.z CXM0P;
+   asm sta.a PF1;
+   asm nop;
    asm lsr.zx TEMPLATE_object_masks,x;
    asm lda #1;
    asm adc #0;
