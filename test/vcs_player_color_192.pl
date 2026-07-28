@@ -79,6 +79,8 @@ require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
 require_re($text,qr/cpx #44.*?beq \@terminalrenderer/s,
    'full-height path no longer reaches the twelfth-row terminal line');
+require_re($text,qr/\@terminalrenderer:.*?sty PF2;.*?sta\.a PF1;.*?sta WSYNC;/s,
+   'terminal path no longer completes line 231 before the overscan handoff');
 require_re($text,qr/ldy\.ax TEMPLATE_playfield\+2,x;.*?sty PF2;.*?sta PF1;/s,
    'right-half playfield bytes are no longer written in display order');
 require_re($text,qr/TEMPLATE_object_masks\[48\]/,

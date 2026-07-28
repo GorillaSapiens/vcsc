@@ -42,7 +42,13 @@ constexpr uint16_t kTim64t=0x0296;
 constexpr uint16_t kT1024t=0x0297;
 
 struct Write { uint16_t address; uint8_t value; };
-struct TimedWrite { uint64_t line; uint64_t cycle; uint16_t address; uint8_t value; };
+struct TimedWrite {
+   uint64_t line;
+   uint64_t cycle;
+   uint64_t beam_cycle;
+   uint16_t address;
+   uint8_t value;
+};
 uint8_t memory_image[65536];
 uint64_t virtual_cycles=0;
 uint64_t cpu_cycles=0;
@@ -98,7 +104,7 @@ void apply_writes() {
       if (frame==2 && event.address!=kWsync && event.address!=kVsync) {
          const uint64_t relative=virtual_cycles-frame_start;
          frame_writes.push_back({relative/kCyclesPerLine,relative%kCyclesPerLine,
-                                 event.address,event.value});
+                                 virtual_cycles%kCyclesPerLine,event.address,event.value});
       }
       if (event.address==kWsync) {
          const uint64_t phase=virtual_cycles%kCyclesPerLine;
@@ -206,10 +212,20 @@ void verify_positioning() {
 }
 void verify_boundaries() {
    bool visible=false,overscan=false;
+   uint64_t visible_line=0;
    for (const TimedWrite &event:frame_writes) {
       if (event.address!=kVblank) continue;
-      if (event.line==39 && event.value==0) visible=true;
-      if (event.line==232 && (event.value&2)) overscan=true;
+      if (event.line==39 && event.value==0) {
+         visible=true;
+         visible_line=event.line;
+      }
+      // The terminal WSYNC returns draw() at cycle zero of line 232.  With the
+      // caller's immediate LDA/STA sequence, VBLANK must land at physical beam
+      // cycle five exactly 192 lines after the visible-phase transition.  The
+      // trace's frame-relative line/cycle pair is offset by the VSYNC entry
+      // phase, so beam_cycle is the authoritative horizontal phase here.
+      if (visible && event.line==visible_line+192 && event.beam_cycle==5 &&
+          (event.value&2)) overscan=true;
    }
    if (!visible || !overscan) {
       for (const TimedWrite &event:frame_writes)
@@ -219,7 +235,7 @@ void verify_boundaries() {
                          static_cast<unsigned long long>(event.cycle),event.value);
    }
    if (!visible) fail("VBLANK was not cleared immediately before line 40");
-   if (!overscan) fail("VBLANK was not asserted immediately after line 231");
+   if (!overscan) fail("VBLANK was not asserted at beam cycle five after 192 visible lines");
 }
 } // namespace
 

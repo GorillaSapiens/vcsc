@@ -5,18 +5,18 @@ include "playfield.c26"
 template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 
 uint8_t legacy_playfield[48] := {
-   VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
-   VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
-   VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
-   VCS_PLAYFIELD_ROW(0b...X...._......X._........_..X.....),
-   VCS_PLAYFIELD_ROW(0b....X..._.......X_........_...X....),
-   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...),
-   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
-   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
-   VCS_PLAYFIELD_ROW(0b........_X......._...X...._.......X),
-   VCS_PLAYFIELD_ROW(0b........_.X......_....X..._......X.),
-   VCS_PLAYFIELD_ROW(0b........_..X....._.....X.._.....X..),
-   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...)
+   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
+   VCS_PLAYFIELD_ROW(0bX......X...X..........X.X......X),
+   VCS_PLAYFIELD_ROW(0bX...X..X.....X....X.....X..X...X),
+   VCS_PLAYFIELD_ROW(0bX......X..XX........XX..X......X),
+   VCS_PLAYFIELD_ROW(0bX.X....X......X..X......X....X.X),
+   VCS_PLAYFIELD_ROW(0bX......X...XX......XX...X......X),
+   VCS_PLAYFIELD_ROW(0bX..X...X.X............X.X...X..X),
+   VCS_PLAYFIELD_ROW(0bX......X....X......X....X......X),
+   VCS_PLAYFIELD_ROW(0bX....X.X.......XX.......X.X....X),
+   VCS_PLAYFIELD_ROW(0bX......X.XX..........XX.X......X),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
+   VCS_PLAYFIELD_ROW(0b................................)
 };
 
 page const uint8_t p0g[8] := {

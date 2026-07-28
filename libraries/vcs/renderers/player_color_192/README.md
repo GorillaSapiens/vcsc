@@ -26,10 +26,13 @@ P0, P1, and Ball are positioned entirely during VBLANK. The first P1/Ball half
 and the left half of playfield row zero are staged while output is blanked, so
 visible drawing starts directly at line 40 in the same two-line pipeline used
 for every later row. Row transitions use cycle-matched paths so the four
-playfield writes stay aligned instead of drifting downward. The final boundary
-finishes row twelve before returning after visible line 231. Display-state
-cleanup occurs after VBLANK is asserted in overscan, and public Y coordinates are
-then restored.
+playfield writes stay aligned instead of drifting downward. The terminal path
+finishes row twelve, then uses WSYNC to consume the remainder of visible line
+231. draw() therefore returns at the line-232 boundary, where the frame scheduler
+asserts VBLANK at physical beam cycle five. Display-state cleanup and the private
+playfield-position restore occur afterward in overscan, so they cannot expose a
+partially drawn extra scanline at the bottom of Stella's display. Public Y
+coordinates are then restored.
 
 The regression tests use the 6502/TIA write trace as the oracle. They verify all
 192 visible lines against the source playfield bytes at the exact safe write

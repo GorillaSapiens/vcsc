@@ -5826,3 +5826,31 @@ Before returning another modified archive:
   generic 192-line display certifications pass; the neighboring 181-line and
   all-five regressions pass; the dynamic-example matrix passes; and staged
   `installcheck` passes. Historical PNG references remain non-authoritative.
+
+2026-07-27 18:56:28 PDT, eliminate the partial scanline after the 192-line display
+-------------------------------------------------------------------------------
+* Supersede the claim that the 18:24 handoff was complete. Its source-to-Stella
+  audit checked the intended 12 rows x 16 scanlines, but did not inspect the
+  following physical scanline. Example 06 therefore still exposed a partial
+  extra line at the bottom of Stella's display.
+* Trace the end-of-frame path. The final reflected PF2/PF1 writes completed
+  visible line 231, but the renderer then crossed into line 232 for unnecessary
+  next-line P1/Ball setup and spent another ten cycles restoring private state
+  before the frame scheduler asserted VBLANK. An intermediate change that moved
+  only the state restore asserted VBLANK at CPU cycle 22 and still left 46
+  visible playfield pixels in Stella.
+* Remove all nonexistent-next-line object setup from the terminal path. After
+  the final reflected PF2/PF1 writes, issue WSYNC to consume the rest of visible
+  line 231 and return at the line-232 boundary. The caller's immediate LDA/STA
+  sequence now asserts VBLANK at physical beam cycle five. Move the private
+  playfield-position restore into overscan, after output is already blanked, and
+  increase the documented overscan cycle contract by the corresponding ten
+  cycles.
+* Strengthen both the focused 192-line fixture and the public multicolor raster
+  fixture to require VBLANK exactly 192 lines after visible output begins and at
+  physical beam cycle five. Add a source-shape check requiring the terminal PF2,
+  PF1, WSYNC sequence.
+* Verify directly in Stella 7.0: all sixteen scanlines of source row 11 remain
+  intact, and the following captured image row is 320/320 black pixels. The
+  focused display tests, neighboring 181-line and all-five regressions, all
+  316 compile-only tests, all 190 end-to-end tests, and staged installcheck pass.

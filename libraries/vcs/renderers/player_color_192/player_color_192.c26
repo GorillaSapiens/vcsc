@@ -19,7 +19,7 @@
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 192,
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
-   TEMPLATE_OVERSCAN_MAX_CYCLES := 56,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 66,
    TEMPLATE_OBJECT_COUNT := 3,
    TEMPLATE_PLAYFIELD_BYTES := 48,
    TEMPLATE_PLAYFIELD_ROWS := 12,
@@ -626,13 +626,11 @@ require inline void TEMPLATE_draw(void) {
    asm bne @continuerenderer;
    asm jmp @altrenderer;
 
-   // The final row uses the same P1-half body.  It needs no row advance and no
-   // following P0 half; returning naturally after the last visible line lets
-   // the frame scheduler assert VBLANK on line 232.
+   // The final row needs no object setup for a following line.  Finish its
+   // reflected right half, then WSYNC through the remainder of visible line
+   // 231.  draw() therefore returns at cycle zero of line 232 and the caller's
+   // immediate VBLANK write cannot leave a partially drawn extra scanline.
    asm @terminalrenderer:;
-   // Finish the final row exactly like an ordinary row boundary, but retain X
-   // and omit all next-row setup.  The P1 work naturally crosses into the first
-   // overscan line, so the caller cannot blank the final visible scanline early.
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm bit.z CXM0P;
@@ -640,37 +638,22 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    asm bit.z CXM0P;
    asm sta.a PF1;
-   asm nop;
-   asm lsr.zx TEMPLATE_object_masks,x;
-   asm lda #1;
-   asm adc #0;
-   asm sta ENABL;
-   asm ldy.z TEMPLATE_player1_y;
-   asm dey;
-   asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @terminal_skipP1;
-   asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm jmp @terminal_continueP1;
-   asm @terminal_skipP1:;
-   asm lda #0;
-   asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
-   asm @terminal_continueP1:;
-   asm sta GRP1;
-   asm lda.ay TEMPLATE_player1_colors,y;
-   asm sta COLUP1;
+   asm sta WSYNC;
 
    asm @endrenderer:;
-   asm lda #10;
-   asm clc;
-   asm sbc.z TEMPLATE_playfield_position;
-   asm sta.z TEMPLATE_playfield_position;
 }
 
 require inline void TEMPLATE_overscan(void) {
    // VBLANK is asserted before this callback, so display-state cleanup cannot
-   // cut a visible scanline short.
+   // cut a visible scanline short.  Restore the caller's playfield position
+   // here rather than at the end of draw(): those ten cycles previously delayed
+   // the VBLANK assertion into the first visible pixels of line 232, producing a
+   // partially drawn extra scanline in Stella.
+   asm lda #10;
+   asm clc;
+   asm sbc.z TEMPLATE_playfield_position;
+   asm sta.z TEMPLATE_playfield_position;
+
    asm lda #0;
    asm sta PF0;
    asm sta PF1;

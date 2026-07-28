@@ -47,6 +47,7 @@ std::vector<uint64_t> frame_periods;
 bool vsync_asserted = false;
 int frame = -1;
 uint64_t frame_start = 0;
+uint64_t captured_frame_start_phase = 0;
 bool timer_active = false;
 uint64_t timer_start = 0;
 uint16_t timer_divisor = 1;
@@ -101,6 +102,7 @@ void apply_writes() {
             if (frame >= 0) frame_periods.push_back(virtual_cycles - frame_start);
             ++frame;
             frame_start = virtual_cycles;
+            if (frame == 2) captured_frame_start_phase = frame_start % kCyclesPerLine;
          }
          vsync_asserted = next;
       }
@@ -211,9 +213,21 @@ int main(int argc, char **argv) {
             expect_full_line(first+sub,row,exact,"full-height row");
       }
       bool boundary=false;
-      for (const TimedWrite &event:frame_writes)
-         if (event.address==kVblank && event.line==232 && (event.value&2)) boundary=true;
-      if (!boundary) fail("full-height raster does not enter overscan after line 231");
+      uint64_t visible_line=0;
+      bool visible=false;
+      for (const TimedWrite &event:frame_writes) {
+         if (event.address!=kVblank) continue;
+         if (event.line==39 && event.value==0) {
+            visible=true;
+            visible_line=event.line;
+         }
+         const uint64_t beam_cycle=(captured_frame_start_phase+event.line*kCyclesPerLine+
+                                    event.cycle)%kCyclesPerLine;
+         if (visible && event.line==visible_line+192 && beam_cycle==5 &&
+             (event.value&2)) boundary=true;
+      }
+      if (!boundary)
+         fail("full-height raster does not blank at beam cycle five after 192 lines");
    }
    else {
       expect_pf_line(first_row-1, {
