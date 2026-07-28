@@ -231,35 +231,27 @@ int main(int argc, char **argv) {
    }
    else {
       expect_pf_line(first_row-1, {
-         pf(first_row-1,26,kPf1,0), pf(first_row-1,29,kPf2,0)
+         pf(first_row-1,29,kPf1,0), pf(first_row-1,32,kPf2,0)
       }, "setup clear");
 
-      // The score-composable 181-line profile retains its inherited preload
-      // schedule. Its detailed raster is checked independently of the repaired
-      // full-height branch.
-      const int ordinary_rows=11;
-      for (int row=0;row<ordinary_rows;++row) {
+      const std::array<uint16_t,4> address{{kPf1,kPf2,kPf2,kPf1}};
+      const std::array<uint64_t,4> cycle{{10,17,40,47}};
+      for (int row=0;row<11;++row) {
          const uint64_t first=first_row+row*16;
-         expect_pf_line(first, {
-            pf(first,28,kPf2,row_byte(row,1)),
-            pf(first,38,kPf1,row_byte(row,3)),
-            pf(first,45,kPf2,row_byte(row,2))
-         }, "row entry");
-         for (int sub=1;sub<=14;++sub) {
+         for (int sub=0;sub<16;++sub) {
             const uint64_t line=first+sub;
             expect_pf_line(line, {
-               pf(line,24,kPf1,row_byte(row,0)),
-               pf(line,31,kPf2,row_byte(row,1)),
-               pf(line,38,kPf1,row_byte(row,3)),
-               pf(line,45,kPf2,row_byte(row,2))
-            }, "steady row");
+               pf(line,cycle[0],address[0],row_byte(row,0)),
+               pf(line,cycle[1],address[1],row_byte(row,1)),
+               pf(line,cycle[2],address[2],row_byte(row,2)),
+               pf(line,cycle[3],address[3],row_byte(row,3))
+            }, "score-composable row");
          }
-         const uint64_t last=first+15;
-         if (row+1<ordinary_rows)
-            expect_pf_line(last,{pf(last,70,kPf1,row_byte(row+1,0))},"row preload");
-         else
-            expect_pf_line(last,{},"ordinary terminal line");
       }
+      const uint64_t cleanup=first_row+11*16;
+      expect_pf_line(cleanup, {
+         pf(cleanup,0,kPf1,0), pf(cleanup,3,kPf2,0)
+      }, "terminal clear");
    }
 
    const uint64_t game_end = game_first + (placement == "full" ? 192 : 181);

@@ -7,16 +7,17 @@ include "fonts/default_decimal.c26"
 
 page const uint8_t game_playfield[44] := {
 VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
-   VCS_PLAYFIELD_ROW(0bX......X_...X...._......X._X......X),
-   VCS_PLAYFIELD_ROW(0bX...X..X_.....X.._..X....._X..X...X),
-   VCS_PLAYFIELD_ROW(0bX......X_..XX...._....XX.._X......X),
-   VCS_PLAYFIELD_ROW(0bX.X....X_......X._.X......_X....X.X),
-   VCS_PLAYFIELD_ROW(0bX......X_...XX..._...XX..._X......X),
-   VCS_PLAYFIELD_ROW(0bX..X...X_.X......_......X._X...X..X),
-   VCS_PLAYFIELD_ROW(0bX......X_....X..._...X...._X......X),
-   VCS_PLAYFIELD_ROW(0bX....X.X_.......X_X......._X.X....X),
-   VCS_PLAYFIELD_ROW(0bX......X_.XX....._.....XX._X......X),
-   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
 };
 
 template "renderers/player_color_181/player_color_181.c26" as game
