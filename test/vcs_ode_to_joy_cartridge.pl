@@ -132,7 +132,7 @@ $source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\s*==\s*0xff.*m
    or die "music_tick does not synchronize the first note before direct indexed playback\n";
 $source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*0\s*;.*AUDC0\s*:=\s*music\[music_index\]\.control.*AUDF0\s*:=\s*music\[music_index\]\.frequency.*AUDV0\s*:=\s*music\[music_index\]\.volume/s
    or die "source does not mute before retuning and enable channel-0 volume last\n";
--f File::Spec->catfile($repo,'examples','02_ode_to_joy','music_player.s26')
+-f File::Spec->catfile($repo,'examples','01_basic','02_ode_to_joy','music_player.s26')
    and die "obsolete companion assembly player still exists\n";
 
 my $cxx=$ENV{CXX} || 'c++';

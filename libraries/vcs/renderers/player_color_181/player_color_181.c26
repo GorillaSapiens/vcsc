@@ -369,10 +369,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta.z TEMPLATE_player0_latch;
    asm sta COLUP0;
-   asm lda.a TEMPLATE_playfield;
-   asm sta PF1;
-   asm lda.a TEMPLATE_playfield + 1;
-   asm sta PF2;
+   // End the visible setup line with the playfield still cleared.  Priming
+   // only PF1/PF2 here exposed a malformed half-initialized row before the
+   // first complete timed scanline.
    asm sta WSYNC;
    asm bit.z CXM0P;
 

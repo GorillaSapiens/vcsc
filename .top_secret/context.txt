@@ -42,10 +42,33 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260727_215939.tar.gz
+    vcsc.20260728_161654.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
+
+Example hierarchy policy
+------------------------
+* Public examples are grouped by renderer or display architecture, then by
+  layout, then by locally numbered example. Numbers restart in each directory
+  and are append-only presentation identifiers rather than permanent global
+  IDs. Deleted entries may leave gaps; unrelated groups are not renumbered.
+* Current groups:
+
+      examples/01_basic/
+      examples/02_faithful_legacy_playercolors/
+      examples/03_player_color_192/01_full/
+      examples/04_player_color_181/01_score_above/
+      examples/04_player_color_181/02_score_below/
+
+* Every leaf directory contains exactly one editable `.c26` cartridge, one
+  Makefile, and one README. Renderer and layout directories have READMEs that
+  document the shared timing, resource, and composition contracts.
+* Tests must not assume examples are exactly one directory below `examples/`.
+  The general build test discovers leaf `.c26` files recursively. Tests that
+  validate a specific renderer matrix may keep explicit nested case metadata.
+* Source filenames and cartridge stems remain descriptive and are independent
+  of local directory numbers.
 
 Settled final-language decisions
 --------------------------------
@@ -648,22 +671,23 @@ Result: passed.
 
 Compile suite:
 
-    285 passed, 0 failed, 285 total
+    317 passed, 0 failed, 317 total
 
 End-to-end/generic suite:
 
-    142 passed, 0 failed, 142 total
+    190 passed, 0 failed, 190 total
 
 Staged install check:
 
     passed
 
-Examples 01 through 04 build directly as raw 4096-byte cartridges with the
-stock VCS script. Example 05 builds as an exact 4096-byte cartridge with the
-standard-renderer profile script. The staged installed toolchain also compiles the
-VCS header smoke program using `int24_t`, `uint24_t`, `int32_t`, and `uint32_t`.
-Bare `vcsc-ld` invocation without a script still fails with a focused diagnostic,
-while retained generic e2e tests use `test/generic_6502.cfg`.
+All public examples are organized under renderer-specific nested paths and
+build as raw 4096-byte cartridges. The general example-build regression discovers
+leaf `.c26` files recursively; individual leaf Makefiles compute the correct
+repository root from their nesting depth. The staged installed toolchain also
+compiles the VCS header smoke program using `int24_t`, `uint24_t`, `int32_t`, and
+`uint32_t`. Bare `vcsc-ld` invocation without a script still fails with a focused
+diagnostic, while retained generic e2e tests use `test/generic_6502.cfg`.
 
 Immediate TODO
 --------------
@@ -5964,3 +5988,72 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   obsolete now that the finished implementation is active.
 * Staged `installcheck` passes, including all fourteen examples and both the
   official and unofficial-enabled renderer smoke cartridges.
+
+2026-07-28 08:54:07 PDT, clear the malformed 181-line entry scanline
+-------------------------------------------------------------------------------
+* Restrict this repair to examples 07 and 08, the official 181-line renderer,
+  and the single visible setup scanline immediately before the eleven complete
+  16-line playfield rows.
+* Diagnose the existing audit blind spot: it began at frame line 44, while frame
+  line 43 had already written only PF1/PF2's left-side bytes at cycles 20/27.
+  Stella therefore exposed a five-bit, half-initialized copy of row zero before
+  the first fully timed row scanline.
+* Remove those two premature playfield loads/stores. The setup scanline now
+  remains background-only, and the first complete row begins unchanged on the
+  following scanline with all four proven write phases.
+* Extend `vcs_playfield_phase.cpp` so the 181-line profile requires the setup
+  scanline to contain no active PF1/PF2 pixels. The new check rejects the input
+  archive and accepts the repaired cartridge.
+* Fresh Stella 7.0 captures of examples 07 and 08 differ from the input only on
+  that one scanline: exactly 40 erroneous goldenrod pixels become background.
+  The next line contains the six row-zero source bits at x=32,80,128,176,224,272,
+  and every subsequent captured pixel is unchanged.
+
+2026-07-28 09:07:00 PDT, synchronize the unofficial 181-line first-scanline fix and size contract
+-------------------------------------------------------------------------------
+* Apply the same setup-scanline repair to the unofficial-enabled 181-line
+  renderer: do not prime PF1/PF2 before the first complete timed playfield row.
+  This restores visible trace equivalence with the official renderer and keeps
+  the setup scanline background-only in both implementations.
+* Update the exact linked-size contract and documentation after removing the
+  obsolete setup writes: official smoke 1789 bytes, unofficial smoke 1787
+  bytes, preserving the intended two-byte unofficial-opcode saving.
+* Verification: vcs_player_color_181_unofficial passes all five official versus
+  unofficial cartridge comparisons, the AXS/NOP opcode inventory, RAM-layout
+  equality, and static/motion composition checks. The official 181-line,
+  composition, hostile-handoff, examples-build, and both all-five 181-line
+  focused tests also pass. vcs_multicolor_examples passes when run directly;
+  batched runs can exceed the test runner's three-second per-test timeout.
+
+
+2026-07-28 09:35:00 PDT, reorganize public examples by renderer and layout
+-------------------------------------------------------------------------------
+* Replace the flat globally numbered `examples/01_*` through `examples/14_*`
+  tree with locally numbered renderer and layout groups:
+
+      01_basic/{01_blank_screen,02_ode_to_joy,03_score,04_fingerprint}
+      02_faithful_legacy_playercolors/01_static
+      03_player_color_192/01_full/{01_static,02_dynamic_x,03_dynamic_xy}
+      04_player_color_181/01_score_above/{01_static,02_dynamic_x,03_dynamic_xy}
+      04_player_color_181/02_score_below/{01_static,02_dynamic_x,03_dynamic_xy}
+
+* Preserve every example source filename and cartridge stem. Directory numbers
+  are local, append-only presentation order; they are not stable global IDs.
+* Add top-level, renderer-level, and layout-level READMEs describing which
+  renderer is demonstrated, its visible-line and object contract, score
+  composition, timing handoff, and the motion progression within each layout.
+* Update root documentation, VCS support documentation, tool examples,
+  installcheck, focused renderer tests, and all source-tree path probes.
+* Make `vcs_examples_build.pl` recursively discover every editable `.c26` leaf
+  under `examples/`, while retaining special flags for the fingerprint and
+  faithful legacy cartridges. Keep explicit nested metadata in the multicolor
+  runtime matrix because placement and motion are behavioral expectations.
+* Update every leaf Makefile for its new depth. Verify all fourteen leaf
+  Makefiles, recursive example builds, and the nested multicolor matrix.
+* Give the nested multicolor matrix a ten-second test-runner limit. Its eight
+  compile/link/simulation cases pass directly but exceed the generic three-
+  second default on this container.
+* Verification: all fourteen leaf Makefiles pass; recursive example discovery
+  and the nested multicolor matrix pass; compile-only tests pass 317/317; all
+  190 end-to-end tests are accounted for and pass; staged `installcheck` passes;
+  and the documentation/branding checks accept every new README.

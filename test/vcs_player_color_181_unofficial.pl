@@ -54,8 +54,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1799 or die "official smoke now uses $official_used bytes, expected 1799\n";
-$unofficial_used==1797 or die "unofficial smoke now uses $unofficial_used bytes, expected 1797\n";
+$official_used==1789 or die "official smoke now uses $official_used bytes, expected 1789\n";
+$unofficial_used==1787 or die "unofficial smoke now uses $unofficial_used bytes, expected 1787\n";
 $official_used-$unofficial_used==2
    or die "unexpected savings: official=$official_used unofficial=$unofficial_used\n";
 

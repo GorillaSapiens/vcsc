@@ -69,7 +69,7 @@ use `.s26`; new code should not use `.s`.
 Build and link a program:
 
 ```sh
-./driver/vcsc -I libraries/vcs examples/01_blank_screen/blank_screen.c26 -o solid_color.bin
+./driver/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o solid_color.bin
 ```
 
 Compile only:
@@ -93,7 +93,7 @@ Link extra archives from a search directory:
 Show the exact subordinate commands without running them:
 
 ```sh
-./driver/vcsc -### -I libraries/vcs examples/01_blank_screen/blank_screen.c26 -o solid_color.bin
+./driver/vcsc -### -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o solid_color.bin
 ```
 
 Show aligned driver/subtool versions and the exact tool paths being used:

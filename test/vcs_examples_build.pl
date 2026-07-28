@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use File::Find qw(find);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
@@ -32,30 +33,35 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $faithful_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
-my @examples=(
-   ['01_blank_screen','blank_screen.c26',[]],
-   ['02_ode_to_joy','ode_to_joy.c26',[]],
-   ['03_score','score.c26',[]],
-   ['04_fingerprint','fingerprint.c26',['-Wa,--illegals']],
-   ['05_faithful_legacy_playercolors','faithful_legacy_playercolors.c26',['-Wa,--illegals','-T',$faithful_cfg]],
-   ['06_multicolor_full_static','multicolor_full_static.c26',[]],
-   ['07_multicolor_score_above_static','multicolor_score_above_static.c26',[]],
-   ['08_multicolor_score_below_static','multicolor_score_below_static.c26',[]],
-   ['09_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion.c26',[]],
-   ['10_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion.c26',[]],
-   ['11_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion.c26',[]],
-   ['12_multicolor_full_dynamic_x_and_y_motion','multicolor_full_dynamic_x_and_y_motion.c26',[]],
-   ['13_multicolor_score_above_dynamic_x_and_y_motion','multicolor_score_above_dynamic_x_and_y_motion.c26',[]],
-   ['14_multicolor_score_below_dynamic_x_and_y_motion','multicolor_score_below_dynamic_x_and_y_motion.c26',[]],
-);
+my $examples_root=File::Spec->catdir($repo,'examples');
+my @examples;
+find({
+   no_chdir=>1,
+   wanted=>sub {
+      return unless -f $_ && /\.c26\z/;
+      my $source=$File::Find::name;
+      my($vol,$dir,$file)=File::Spec->splitpath($source);
+      my $rel=File::Spec->abs2rel($dir,$examples_root);
+      push @examples,[$rel,$file];
+   },
+},$examples_root);
+@examples=sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] } @examples;
+@examples or die "no editable examples found under $examples_root\n";
 
 for my $entry (@examples) {
-   my($dir,$file,$extra)=@$entry;
-   my $source=File::Spec->catfile($repo,'examples',$dir,$file);
-   my $bin=File::Spec->catfile($tmp,"$dir.bin");
-   my $map=File::Spec->catfile($tmp,"$dir.map");
+   my($dir,$file)=@$entry;
+   my $source=File::Spec->catfile($examples_root,$dir,$file);
+   my $tag=$dir; $tag =~ s{[^A-Za-z0-9_.-]+}{__}g;
+   my $bin=File::Spec->catfile($tmp,"$tag.bin");
+   my $map=File::Spec->catfile($tmp,"$tag.map");
+   my @extra;
+   if ($file eq 'fingerprint.c26') {
+      push @extra,'-Wa,--illegals';
+   } elsif ($file eq 'faithful_legacy_playercolors.c26') {
+      push @extra,'-Wa,--illegals','-T',$faithful_cfg;
+   }
    -f $source or die "missing editable example $source\n";
-   my @cmd=($driver,'-I',$vcs,'-Map',$map,@$extra);
+   my @cmd=($driver,'-I',$vcs,'-Map',$map,@extra);
    # Renderer source operands must follow the C source. Move any trailing .s26
    # operand after the example while leaving compiler/linker options in place.
    my @renderer=grep { /\.s26\z/ } @cmd;
@@ -73,4 +79,4 @@ for my $entry (@examples) {
    }
 }
 
-print "vcs_examples_build ok: all fourteen editable examples compile and link\n";
+print "vcs_examples_build ok: all recursively discovered editable examples compile and link\n";

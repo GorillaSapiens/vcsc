@@ -62,7 +62,7 @@ Build the first cartridge through the high-level driver:
 
 ```sh
 ./driver/vcsc -I libraries/vcs \
-  examples/01_blank_screen/blank_screen.c26 \
+  examples/01_basic/01_blank_screen/blank_screen.c26 \
   -o solid_color.bin
 ```
 
@@ -73,7 +73,7 @@ The same build performed one stage at a time is:
 
 ```sh
 ./compiler/vcsc-cc1 -quiet -I libraries/vcs \
-  examples/01_blank_screen/blank_screen.c26 \
+  examples/01_basic/01_blank_screen/blank_screen.c26 \
   -o solid_color.s26 \
   -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
 
@@ -147,39 +147,31 @@ The maintained renderer profiles are:
 - `standard_4k_ntsc_playercolors` — P0, P1, and Ball with independent per-row
   player colors and no missiles.
 
-The user-facing examples are deliberately editable:
+The user-facing examples are deliberately editable and are grouped by renderer
+rather than kept in one global numbered list:
 
-- [`01_blank_screen`](examples/01_blank_screen/) — minimal complete blank-screen cartridge
-- [`02_ode_to_joy`](examples/02_ode_to_joy/) — frame-driven TIA music
-- [`03_score`](examples/03_score/) — centered six-glyph BCD score
-- [`04_fingerprint`](examples/04_fingerprint/) — unstable-`ARR` silicon fingerprint
-- [`05_faithful_legacy_playercolors`](examples/05_faithful_legacy_playercolors/) — faithful Atari 2600 BASIC 1.9 player-color renderer example
-- [`06_multicolor_full_static`](examples/06_multicolor_full_static/) — certified scoreless 192-line static multicolor P0+P1+Ball display
-- [`07_multicolor_score_above_static`](examples/07_multicolor_score_above_static/) — **pending display repair**; static multicolor gameplay with score above
-- [`08_multicolor_score_below_static`](examples/08_multicolor_score_below_static/) — **pending display repair**; static multicolor gameplay with score below
-- [`09_multicolor_full_dynamic_x_motion`](examples/09_multicolor_full_dynamic_x_motion/) — **pending display repair**; full-height horizontal motion
-- [`10_multicolor_score_above_dynamic_x_motion`](examples/10_multicolor_score_above_dynamic_x_motion/) — **pending display repair**; horizontal motion with score above
-- [`11_multicolor_score_below_dynamic_x_motion`](examples/11_multicolor_score_below_dynamic_x_motion/) — **pending display repair**; horizontal motion with score below
-- [`12_multicolor_full_dynamic_x_and_y_motion`](examples/12_multicolor_full_dynamic_x_and_y_motion/) — **pending display repair**; full-height two-axis motion
-- [`13_multicolor_score_above_dynamic_x_and_y_motion`](examples/13_multicolor_score_above_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score above
-- [`14_multicolor_score_below_dynamic_x_and_y_motion`](examples/14_multicolor_score_below_dynamic_x_and_y_motion/) — **pending display repair**; two-axis motion with score below
+- [`01_basic`](examples/01_basic/) — standalone cartridges and reusable display components
+- [`02_faithful_legacy_playercolors`](examples/02_faithful_legacy_playercolors/) — faithful retained legacy compatibility profile
+- [`03_player_color_192`](examples/03_player_color_192/) — scoreless full-height 192-line P0/P1/Ball renderer examples
+- [`04_player_color_181`](examples/04_player_color_181/) — 181-line P0/P1/Ball gameplay composed with an 11-line score above or below
 
-The `faithful_legacy_playercolors` template is compared with an independently
-built retained-source audit using the same fixture scene. Public example 05 uses
-that renderer with different playfield data, so its test checks the 264-line frame
-schedule plus exact P0/P1 rows and colors rather than falsely claiming byte-for-
-byte identity with the pristine scene ROM. Example 06 independently checks all
-twelve asymmetric playfield rows at their exact TIA write phases, P0/P1 graphics
-and colors, Ball activity, and stable 262-line timing; its built cartridge was
-also reviewed in Stella 7.0. Examples 07 through 14 must not be treated as
-rendering references until their display timing is repaired and independently
-verified.
+Numbers restart inside each renderer and layout directory. They are local,
+append-only presentation identifiers rather than global example IDs. See
+[`examples/README.md`](examples/README.md) and the README in each renderer group
+for the complete hierarchy and renderer contract.
+
+The faithful legacy example remains the independently audited compatibility
+baseline. The static `player_color_192` example is certified against its source
+playfield and Stella output. Both static `player_color_181` score placements are
+likewise source-to-Stella certified, including their entry and terminal
+scanlines. Dynamic examples exercise the same renderer implementations while
+adding asynchronous horizontal or two-axis P0/P1/Ball motion.
 
 Example 04 intentionally needs unofficial-opcode mode:
 
 ```sh
 ./driver/vcsc -I libraries/vcs -Wa,--illegals \
-  examples/04_fingerprint/fingerprint.c26 \
+  examples/01_basic/04_fingerprint/fingerprint.c26 \
   -o fingerprint.bin
 ```
 

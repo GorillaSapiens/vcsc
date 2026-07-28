@@ -228,16 +228,16 @@ installcheck: tools
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
 	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/03_score" \
-	  "$(CURDIR)/examples/03_score/score.c26" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/03_score" \
+	  "$(CURDIR)/examples/01_basic/03_score/score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/score.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/04_fingerprint/fingerprint.c26" \
+	  "$(CURDIR)/examples/01_basic/04_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
 	test -f "$$stage_vcs/color_ntsc.c26"; \
@@ -262,12 +262,12 @@ installcheck: tools
 	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/examples/06_multicolor_full_static/multicolor_full_static.c26" \
+	  "$(CURDIR)/examples/03_player_color_192/01_full/01_static/multicolor_full_static.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
-	  "$(CURDIR)/examples/05_faithful_legacy_playercolors/faithful_legacy_playercolors.c26" \
+	  "$(CURDIR)/examples/02_faithful_legacy_playercolors/01_static/faithful_legacy_playercolors.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/all_five_181/README.md"; \
@@ -369,15 +369,15 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
-		  07_multicolor_score_above_static/multicolor_score_above_static \
-	  08_multicolor_score_below_static/multicolor_score_below_static \
-	  09_multicolor_full_dynamic_x_motion/multicolor_full_dynamic_x_motion \
-	  10_multicolor_score_above_dynamic_x_motion/multicolor_score_above_dynamic_x_motion \
-	  11_multicolor_score_below_dynamic_x_motion/multicolor_score_below_dynamic_x_motion \
-	  12_multicolor_full_dynamic_x_and_y_motion/multicolor_full_dynamic_x_and_y_motion \
-	  13_multicolor_score_above_dynamic_x_and_y_motion/multicolor_score_above_dynamic_x_and_y_motion \
-	  14_multicolor_score_below_dynamic_x_and_y_motion/multicolor_score_below_dynamic_x_and_y_motion; do \
-	  dir=$${spec%/*}; stem=$${spec#*/}; \
+	  03_player_color_192/01_full/02_dynamic_x/multicolor_full_dynamic_x_motion \
+	  03_player_color_192/01_full/03_dynamic_xy/multicolor_full_dynamic_x_and_y_motion \
+	  04_player_color_181/01_score_above/01_static/multicolor_score_above_static \
+	  04_player_color_181/01_score_above/02_dynamic_x/multicolor_score_above_dynamic_x_motion \
+	  04_player_color_181/01_score_above/03_dynamic_xy/multicolor_score_above_dynamic_x_and_y_motion \
+	  04_player_color_181/02_score_below/01_static/multicolor_score_below_static \
+	  04_player_color_181/02_score_below/02_dynamic_x/multicolor_score_below_dynamic_x_motion \
+	  04_player_color_181/02_score_below/03_dynamic_xy/multicolor_score_below_dynamic_x_and_y_motion; do \
+	  stem=$${spec##*/}; dir=$${spec%/*}; \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
 	    "$(CURDIR)/examples/$$dir/$$stem.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \

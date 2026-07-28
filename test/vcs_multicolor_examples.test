@@ -1,3 +1,4 @@
 # runner: perl @TEST_ROOT@/vcs_multicolor_examples.pl @REPO@ @TMP@
 # exit: 0
-# expectstdout: vcs_multicolor_examples ok: examples 07-14 nonvisual build, frame, and RAM-motion smoke only; examples 05 and 06 have separate display certification
+# timeout: 10
+# expectstdout: vcs_multicolor_examples ok: nested player-color example matrix passes build, frame, and RAM-motion checks

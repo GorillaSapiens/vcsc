@@ -229,6 +229,38 @@ int main(int argc, char **argv) {
       auto bit = [](uint8_t value, unsigned index) {
          return ((value >> index) & 1u) != 0;
       };
+      if (raster_rows == 11) {
+         // The score-composable renderer spends one visible line staging its
+         // object pipeline before the eleven complete playfield rows begin.
+         // That line must remain background-only; priming just PF1/PF2 there
+         // exposed a malformed partial copy of row zero in Stella.
+         const uint64_t setup_line = first_row_line - 1;
+         for (unsigned pixel = 16; pixel < 144; ++pixel) {
+            const uint64_t cycle = (68 + pixel) / 3;
+            const uint8_t pf1 = register_at(setup_line, cycle, kPf1);
+            const uint8_t pf2 = register_at(setup_line, cycle, kPf2);
+            bool active = false;
+            if (pixel < 48) {
+               const unsigned n = (pixel - 16) / 4;
+               active = bit(pf1, 7 - n);
+            } else if (pixel < 80) {
+               const unsigned n = (pixel - 48) / 4;
+               active = bit(pf2, n);
+            } else if (pixel < 112) {
+               const unsigned n = (pixel - 80) / 4;
+               active = bit(pf2, 7 - n);
+            } else {
+               const unsigned n = (pixel - 112) / 4;
+               active = bit(pf1, n);
+            }
+            if (active) {
+               std::fprintf(stderr,
+                  "vcs_playfield_phase: 181-line setup scanline pixel %u is active; expected background\n",
+                  pixel);
+               return 1;
+            }
+         }
+      }
       for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
             const uint64_t line = first_row_line + row * 16 + subline;

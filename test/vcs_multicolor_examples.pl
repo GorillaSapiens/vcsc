@@ -19,14 +19,14 @@ $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($t
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my @cases=(
- ['07_multicolor_score_above_static','multicolor_score_above_static','above','static'],
- ['08_multicolor_score_below_static','multicolor_score_below_static','below','static'],
- ['09_multicolor_full_dynamic_x_motion','multicolor_full_dynamic_x_motion','full','x'],
- ['10_multicolor_score_above_dynamic_x_motion','multicolor_score_above_dynamic_x_motion','above','x'],
- ['11_multicolor_score_below_dynamic_x_motion','multicolor_score_below_dynamic_x_motion','below','x'],
- ['12_multicolor_full_dynamic_x_and_y_motion','multicolor_full_dynamic_x_and_y_motion','full','xy'],
- ['13_multicolor_score_above_dynamic_x_and_y_motion','multicolor_score_above_dynamic_x_and_y_motion','above','xy'],
- ['14_multicolor_score_below_dynamic_x_and_y_motion','multicolor_score_below_dynamic_x_and_y_motion','below','xy'],
+ ['03_player_color_192/01_full/02_dynamic_x','multicolor_full_dynamic_x_motion','full','x'],
+ ['03_player_color_192/01_full/03_dynamic_xy','multicolor_full_dynamic_x_and_y_motion','full','xy'],
+ ['04_player_color_181/01_score_above/01_static','multicolor_score_above_static','above','static'],
+ ['04_player_color_181/01_score_above/02_dynamic_x','multicolor_score_above_dynamic_x_motion','above','x'],
+ ['04_player_color_181/01_score_above/03_dynamic_xy','multicolor_score_above_dynamic_x_and_y_motion','above','xy'],
+ ['04_player_color_181/02_score_below/01_static','multicolor_score_below_static','below','static'],
+ ['04_player_color_181/02_score_below/02_dynamic_x','multicolor_score_below_dynamic_x_motion','below','x'],
+ ['04_player_color_181/02_score_below/03_dynamic_xy','multicolor_score_below_dynamic_x_and_y_motion','below','xy'],
 );
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -74,4 +74,4 @@ for my $case (@cases) {
    $out =~ /^vcs_multicolor_example_matrix \Q$motion\E ok: 8\d stable frames\n$/ or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: examples 07-14 nonvisual build, frame, and RAM-motion smoke only; examples 05 and 06 have separate display certification\n";
+print "vcs_multicolor_examples ok: nested player-color example matrix passes build, frame, and RAM-motion checks\n";
