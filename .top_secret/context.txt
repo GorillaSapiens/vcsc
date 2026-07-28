@@ -669,6 +669,30 @@ Immediate TODO
 --------------
 The first unfinished item is the default next action.
 
+[x] 0. Repair the shared 181-line renderer by deriving its beam schedule
+       directly from the proven 192-line renderer.
+
+       Completed 2026-07-28:
+
+       * Replace the compact inherited raster body with the proven four-write
+         schedule. The 181-line variant differs only in its eleven-row limit,
+         score-component handoff, and terminal accounting.
+       * Preserve exact playfield write phases at CPU cycles 10, 17, 40, and 47
+         for PF1-left, PF2-left, PF2-right, and PF1-right respectively.
+       * Compensate the score handoff for P0 without changing the steady raster,
+         retain exact 262-line frames, and keep example 13 within 4K ROM.
+       * Port the same visible behavior to the unofficial-enabled twin while
+         retaining its two reviewed AXS substitutions and one zero-page NOP.
+       * Certify examples 07 and 08 against fresh Stella output using their
+         literal C26 playfield rows: 11 rows x 16 scanlines x 32 logical bits,
+         5,632 positions per example, zero mismatches.
+       * Strengthen the permanent raster checks to validate all eleven rows and
+         all four beam-critical writes instead of accepting the former broken
+         register choreography.
+       * Remove the obsolete standalone candidate patch now that its work is
+         integrated.
+
+
 [x] 1. Initially return retained scalar/pointer values in A:X. Task 18a
        now supersedes this with callee-owned memory returns.
 
@@ -5881,3 +5905,62 @@ Before returning another modified archive:
   handoff. Compact timing experiments either preserved the incorrect Stella
   playfield or broke established player/frame timing; the renderer is restored
   to the uploaded 02:30 baseline for a later focused repair.
+
+2026-07-28 06:40:00 PDT, bounded 181-line renderer integration investigation
+-------------------------------------------------------------------------------
+Roadmap item 0 — finish the 181-line Stella repair before other unfinished work:
+* Start from `.top_secret/player_color_181_stella_candidate.patch`.  It applies
+  the already Stella-correct four-write playfield schedule to the official
+  181-line renderer while deliberately removing the hard `.align 256` and
+  retaining the loop's `.same` branch constraint.
+* This combination is the first candidate that simultaneously:
+  - builds all fourteen examples, including example 13 with no ROM overflow;
+  - keeps all examples 07-14 at exactly 262 raw lines in the matrix harness;
+  - preserves the exact 11 x 16 x 160 playfield audit for examples 07 and 08.
+* It is not yet suitable for activation because the official object trace still
+  places P1 register/color updates one scanline late, and the matched unofficial
+  renderer plus its byte-size/trace contract have not been ported.  Do not
+  normalize those failures by weakening the tests.  Complete the object schedule
+  or prove an equivalent delayed-latch schedule in Stella, then port the same
+  visible behavior to the unofficial twin.
+* Dead ends established in this pass:
+  - removing the `.same` constraint lets the code link but reintroduces a
+    motion-dependent 263-line frame through a page-crossing loop branch;
+  - preloading P1 on the setup line shifts its register writes two lines early;
+  - enabling delayed P1 and duplicating the transition tail produces 263-line
+    static frames;
+  - removing either terminal WSYNC shortens ordinary compositions to 261 lines.
+* The active source is intentionally restored to the uploaded compact baseline.
+  The candidate is kept only as a standalone patch, so this checkpoint has no
+  half-integrated renderer and retains the existing passing behavior.
+
+
+2026-07-28 00:52:00 PDT, derive and finish the 181-line renderer from the proven 192-line schedule
+---------------------------------------------------------------------------------------------------
+* Replace both 181-line raster bodies with the proven four-write beam schedule
+  from the corrected 192-line renderer, changing only the eleven-row limit,
+  score handoff, and terminal-line accounting required by the shorter profile.
+* Preserve PF1-left, PF2-left, PF2-right, and PF1-right writes at CPU cycles
+  10, 17, 40, and 47. Compensate the two-line score handoff for P0 before the
+  copied pipeline so P0/P1/Ball graphics and colors retain their established
+  positions while frames remain exactly 262 lines.
+* Certify examples 07 and 08 directly in Stella with objects moved offscreen in
+  diagnostic builds. Compare every logical playfield position from the literal
+  C26 rows: 11 x 16 x 32 = 5,632 positions per example, zero mismatches for both
+  score placements.
+* Keep example 13 within its 4K cartridge: 3,774 ROM bytes used, 316 bytes free.
+  The official smoke uses 1,799 linked bytes. The unofficial-enabled twin keeps
+  its two reviewed AXS substitutions and one zero-page NOP, uses 1,797 bytes,
+  and remains visibly trace-equivalent to the official implementation.
+* Update the player-color, composition, hostile-handoff, all-five, example
+  matrix, reference-image, and exact-raster tests. The nine renderer-focused
+  end-to-end tests pass, including every failure reported by the user.
+* A broad end-to-end run reached test 164 before the outer command window
+  expired. Its renderer-related tests through that point passed. Four earlier
+  assembler tests fail because their companion source fixtures are absent from
+  the supplied archive; the compile-only run likewise has one missing-fixture
+  failure. These pre-existing archive omissions are unrelated to this repair.
+* Delete `.top_secret/player_color_181_stella_candidate.patch`; the candidate is
+  obsolete now that the finished implementation is active.
+* Staged `installcheck` passes, including all fourteen examples and both the
+  official and unofficial-enabled renderer smoke cartridges.

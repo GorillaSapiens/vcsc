@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
       if (frame_periods[i] != 262*kCyclesPerLine) fail("frame is not exactly 262 lines");
 
    const uint64_t game_first = placement == "above" ? 51 : 40;
-   const uint64_t first_row = placement == "full" ? game_first : game_first + 3;
+   const uint64_t first_row = placement == "full" ? game_first : game_first + 4;
    const int rows = placement == "full" ? 12 : 11;
    auto pf = [](uint64_t line,uint64_t cycle,uint16_t address,uint8_t value) {
       return TimedWrite{line,cycle,address,value};
@@ -230,35 +230,18 @@ int main(int argc, char **argv) {
          fail("full-height raster does not blank at beam cycle five after 192 lines");
    }
    else {
-      expect_pf_line(first_row-1, {
-         pf(first_row-1,26,kPf1,0), pf(first_row-1,29,kPf2,0)
-      }, "setup clear");
-
-      // The score-composable 181-line profile retains its inherited preload
-      // schedule. Its detailed raster is checked independently of the repaired
-      // full-height branch.
-      const int ordinary_rows=11;
-      for (int row=0;row<ordinary_rows;++row) {
-         const uint64_t first=first_row+row*16;
-         expect_pf_line(first, {
-            pf(first,28,kPf2,row_byte(row,1)),
-            pf(first,38,kPf1,row_byte(row,3)),
-            pf(first,45,kPf2,row_byte(row,2))
-         }, "row entry");
-         for (int sub=1;sub<=14;++sub) {
-            const uint64_t line=first+sub;
+      const std::array<uint16_t,4> address{{kPf1,kPf2,kPf2,kPf1}};
+      const std::array<uint64_t,4> cycle{{10,17,40,47}};
+      for (int row=0;row<11;++row) {
+         for (int sub=0;sub<16;++sub) {
+            const uint64_t line=first_row+row*16+sub;
             expect_pf_line(line, {
-               pf(line,24,kPf1,row_byte(row,0)),
-               pf(line,31,kPf2,row_byte(row,1)),
-               pf(line,38,kPf1,row_byte(row,3)),
-               pf(line,45,kPf2,row_byte(row,2))
-            }, "steady row");
+               pf(line,cycle[0],address[0],row_byte(row,0)),
+               pf(line,cycle[1],address[1],row_byte(row,1)),
+               pf(line,cycle[2],address[2],row_byte(row,2)),
+               pf(line,cycle[3],address[3],row_byte(row,3))
+            }, "score-composable row");
          }
-         const uint64_t last=first+15;
-         if (row+1<ordinary_rows)
-            expect_pf_line(last,{pf(last,70,kPf1,row_byte(row+1,0))},"row preload");
-         else
-            expect_pf_line(last,{},"ordinary terminal line");
       }
    }
 

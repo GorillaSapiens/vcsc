@@ -58,7 +58,7 @@ without_usage($out) eq '' && $err eq '' or die "player-color 181 terminal build 
 -s $terminal_bin == 4096 or die "player-color 181 terminal ROM is not 4096 bytes\n";
 my $terminal_map=read_file($terminal_mapfile);
 sha256_hex(read_file($reference)) eq
-   '9facf33d7d035a6f98bc5d362ed78d94e8d629a4471c827edfb7ad5a0378bb71'
+   '769d2ec6a076edf2f27587e74922045b55f65dff31b4caf94bc3059ac7e66b99'
    or die "reviewed player-color 181 Stella reference PNG changed\n";
 my $text=read_file($module);
 my $map=read_file($mapfile);
@@ -113,7 +113,7 @@ my $phase_exe=File::Spec->catfile($tmp,'player_color_181_playfield');
    $cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase_exe);
 $rc==0 && !$sig or die "player-color 181 playfield harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "player-color 181 playfield harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($phase_exe,$bin,'11');
+($rc,$sig,$out,$err)=capture($phase_exe,$bin,'11','11','44');
 $rc==0 && !$sig or die "player-color 181 playfield raster failed\n$out$err";
 $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
    or die "unexpected player-color 181 playfield output: $out";

@@ -54,9 +54,9 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1605 or die "official smoke now uses $official_used bytes, expected 1605\n";
-$unofficial_used==1605 or die "unofficial smoke now uses $unofficial_used bytes, expected 1605\n";
-$official_used-$unofficial_used==0
+$official_used==1799 or die "official smoke now uses $official_used bytes, expected 1799\n";
+$unofficial_used==1797 or die "unofficial smoke now uses $unofficial_used bytes, expected 1797\n";
+$official_used-$unofficial_used==2
    or die "unexpected savings: official=$official_used unofficial=$unofficial_used\n";
 
 my @ram_symbols=qw(
@@ -77,15 +77,12 @@ my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Wa,--illegals','-S',
 $rc==0 && !$sig or die "unofficial assembly generation failed\n$out$err";
 $out eq '' && $err eq '' or die "unofficial assembly generation wrote output\n$out$err";
 my $text=read_file($asm);
-my $axs=()=$text =~ /^\s*axs\s+#252\s*$/gmi;
-my $nopzp=()=$text =~ /^\s*nop\.z\s+\$00\s*$/gmi;
-$axs==2 or die "expected two AXS sites, found $axs\n";
-$nopzp==1 or die "expected one unofficial zero-page NOP site, found $nopzp\n";
-my $other=$text;
-$other =~ s/^\s*axs\s+#252\s*$//gmi;
-$other =~ s/^\s*nop\.z\s+\$00\s*$//gmi;
-$other !~ /^\s*(?:dcp|lax|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|xaa|ahx|shx|shy|tas|las)\b/im
-   or die "unreviewed unofficial mnemonic reached generated assembly\n";
+my $axs_count=()=($text =~ /^\s*axs\s+#252\s*$/gim);
+$axs_count==2 or die "unofficial assembly has $axs_count AXS substitutions, expected 2\n";
+my $zpnop_count=()=($text =~ /^\s*nop\.z\s+\$00\s*$/gim);
+$zpnop_count==1 or die "unofficial assembly has $zpnop_count zero-page NOP substitutions, expected 1\n";
+$text !~ /^\s*(?:dcp|lax|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|xaa|ahx|shx|shy|tas|las)\b/im
+   or die "unofficial assembly contains an unreviewed unofficial mnemonic\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -125,4 +122,4 @@ for my $mode (qw(static motion)) {
    }
 }
 
-print "vcs_player_color_181_unofficial ok: official=$official_used unofficial=$unofficial_used saving=0\n";
+print "vcs_player_color_181_unofficial ok: official=$official_used unofficial=$unofficial_used saving=2\n";

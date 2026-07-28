@@ -997,3 +997,4 @@ examples/10_xy_motion/.gitignore
 examples/10_xy_motion/Makefile
 examples/10_xy_motion/README.md
 examples/10_xy_motion/xy_motion.c26
+.top_secret/player_color_181_stella_candidate.patch
