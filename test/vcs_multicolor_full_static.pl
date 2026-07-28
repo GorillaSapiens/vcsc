@@ -44,7 +44,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
-my $source=File::Spec->catfile($repo,qw(examples 03_player_color_192 01_full 01_static multicolor_full_static.c26));
+my $source=File::Spec->catfile($repo,qw(examples 03_player_color_192 01_static multicolor_full_static.c26));
 my $bin=File::Spec->catfile($tmp,'multicolor_full_static.bin');
 my $mapfile=File::Spec->catfile($tmp,'multicolor_full_static.map');
 

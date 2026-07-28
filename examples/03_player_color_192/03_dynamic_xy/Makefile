@@ -1,4 +1,4 @@
-ROOT ?= ../../../..
+ROOT ?= ../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 

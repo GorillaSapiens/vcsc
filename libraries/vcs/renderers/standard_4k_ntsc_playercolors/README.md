@@ -160,7 +160,7 @@ the checked static cartridge leaves 30 RIOT bytes unallocated.
 
 Public componentized examples now live under renderer-specific paths:
 
-- `examples/03_player_color_192/01_full/` contains the full-height static,
+- `examples/03_player_color_192/` contains the full-height static,
   horizontal-motion, and two-axis-motion examples.
 - `examples/04_player_color_181/01_score_above/` contains the score-above
   static, horizontal-motion, and two-axis-motion examples.

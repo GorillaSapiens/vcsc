@@ -26,6 +26,16 @@ context.txt and figure out what to do next":
    project, obsolete paths containing that name are not retained in the ledger.
 6. When creating tarballs to hand back, use `date -u "+%Y%m%d_%H%M%S"` to
    generate a filename with a timestamp.
+7. Every changelog entry appended to this file must begin with a complete local
+   timestamp followed by a comma and the entry title, exactly in this form:
+
+       YYYY-MM-DD HH:MM:SS TZ, entry title
+
+   Generate the timestamp with:
+
+       TZ=America/Los_Angeles date "+%Y-%m-%d %H:%M:%S %Z"
+
+   Never use a date-only changelog heading and never omit the timezone.
 
 Project goal
 ------------
@@ -42,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260728_161654.tar.gz
+    vcsc.20260728_170804.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -57,7 +67,7 @@ Example hierarchy policy
 
       examples/01_basic/
       examples/02_faithful_legacy_playercolors/
-      examples/03_player_color_192/01_full/
+      examples/03_player_color_192/
       examples/04_player_color_181/01_score_above/
       examples/04_player_color_181/02_score_below/
 
@@ -6033,7 +6043,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 
       01_basic/{01_blank_screen,02_ode_to_joy,03_score,04_fingerprint}
       02_faithful_legacy_playercolors/01_static
-      03_player_color_192/01_full/{01_static,02_dynamic_x,03_dynamic_xy}
+      03_player_color_192/{01_static,02_dynamic_x,03_dynamic_xy}
       04_player_color_181/01_score_above/{01_static,02_dynamic_x,03_dynamic_xy}
       04_player_color_181/02_score_below/{01_static,02_dynamic_x,03_dynamic_xy}
 
@@ -6057,3 +6067,26 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   and the nested multicolor matrix pass; compile-only tests pass 317/317; all
   190 end-to-end tests are accounted for and pass; staged `installcheck` passes;
   and the documentation/branding checks accept every new README.
+
+2026-07-28 10:17:25 PDT, flatten the player_color_192 example group
+------------------------------------------------------
+* Remove the redundant `01_full` layout directory under
+  `examples/03_player_color_192/`. The renderer has no alternate layout: it
+  always owns the full 192-line visible field.
+* Move the three examples directly under the renderer group:
+
+      03_player_color_192/{01_static,02_dynamic_x,03_dynamic_xy}
+
+* Absorb the deleted layout README into the renderer README, update the leaf
+  Makefile root depth, and update every test, installcheck, documentation, and
+  source-tree path reference.
+* Keep the score-above and score-below layout directories under
+  `04_player_color_181`; those are real alternate compositions rather than a
+  redundant single-choice layer.
+* Verification: all three moved leaf Makefiles build independently; recursive
+  example discovery, the multicolor example matrix, the exact 192-line static
+  renderer test, the player-color renderer/composition tests, staged
+  `installcheck`, branding, and source-tree hygiene all pass. The compile-only
+  suite passes 317/317. A broad end-to-end run reached 154/190 with no failures
+  before the outer command window expired; all path-sensitive VCS tests were
+  then run directly and passed.

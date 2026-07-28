@@ -17,7 +17,9 @@ examples/
   01_basic/
   02_faithful_legacy_playercolors/
   03_player_color_192/
-    01_full/
+    01_static/
+    02_dynamic_x/
+    03_dynamic_xy/
   04_player_color_181/
     01_score_above/
     02_score_below/

@@ -19,8 +19,8 @@ $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($t
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my @cases=(
- ['03_player_color_192/01_full/02_dynamic_x','multicolor_full_dynamic_x_motion','full','x'],
- ['03_player_color_192/01_full/03_dynamic_xy','multicolor_full_dynamic_x_and_y_motion','full','xy'],
+ ['03_player_color_192/02_dynamic_x','multicolor_full_dynamic_x_motion','full','x'],
+ ['03_player_color_192/03_dynamic_xy','multicolor_full_dynamic_x_and_y_motion','full','xy'],
  ['04_player_color_181/01_score_above/01_static','multicolor_score_above_static','above','static'],
  ['04_player_color_181/01_score_above/02_dynamic_x','multicolor_score_above_dynamic_x_motion','above','x'],
  ['04_player_color_181/01_score_above/03_dynamic_xy','multicolor_score_above_dynamic_x_and_y_motion','above','xy'],

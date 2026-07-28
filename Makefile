@@ -262,7 +262,7 @@ installcheck: tools
 	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
-	  "$(CURDIR)/examples/03_player_color_192/01_full/01_static/multicolor_full_static.c26" \
+	  "$(CURDIR)/examples/03_player_color_192/01_static/multicolor_full_static.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/multicolor_full_static.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
@@ -369,8 +369,8 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
-	  03_player_color_192/01_full/02_dynamic_x/multicolor_full_dynamic_x_motion \
-	  03_player_color_192/01_full/03_dynamic_xy/multicolor_full_dynamic_x_and_y_motion \
+	  03_player_color_192/02_dynamic_x/multicolor_full_dynamic_x_motion \
+	  03_player_color_192/03_dynamic_xy/multicolor_full_dynamic_x_and_y_motion \
 	  04_player_color_181/01_score_above/01_static/multicolor_score_above_static \
 	  04_player_color_181/01_score_above/02_dynamic_x/multicolor_score_above_dynamic_x_motion \
 	  04_player_color_181/01_score_above/03_dynamic_xy/multicolor_score_above_dynamic_x_and_y_motion \
