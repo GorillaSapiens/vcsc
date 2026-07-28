@@ -35,14 +35,14 @@ tools: clean
 .PHONY: exam
 
 exam:
-	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
-	@for each in examples/*; do \
+	@for each in `find examples/ -name Makefile | sed "s/Makefile//g" | sort`; do \
 		if [ -d "$$each" ]; then \
 			$(MAKE) -C "$$each" clean && \
 			$(MAKE) -C "$$each" && \
 			stella "$$each"/*.bin; \
 		fi; \
 	done
+#	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
 	@$(MAKE) --no-print-directory -C ./assembler clean
