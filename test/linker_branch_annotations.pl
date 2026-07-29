@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

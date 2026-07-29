@@ -1,4 +1,9 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: fixed multiply/divide helpers use expression scratch and no extra RIOT RAM
+# expectexit: 0
+
 use strict;
 use warnings;
 use File::Spec;

@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: define option support passed
+# expectstderrexact:
+
 
 use strict;
 use warnings;

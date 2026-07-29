@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: assembler fixture summary: 27 passed
+# expectstderrexact:
+
 
 use strict;
 use warnings;

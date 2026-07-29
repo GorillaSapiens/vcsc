@@ -1,4 +1,6 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+
 use strict;
 use warnings;
 use File::Spec;

@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/assembler_illegal_alias_catalog.pl @REPO@
-# phase: e2e
-# expectstdout: assembler illegal alias catalog ok
-# expectexit: 0

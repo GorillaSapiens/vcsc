@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 45
+# expectstdout: vcs_poison_debug_score ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

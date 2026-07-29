@@ -1,4 +1,9 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 8-byte workspace
+
 use strict;
 use warnings;
 use File::Spec;

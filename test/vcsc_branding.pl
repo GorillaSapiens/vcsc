@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# expectstdout: VCSC hard rename and documentation branding ok
+# expectexit: 0
+# phase: e2e
+
 
 use strict;
 use warnings;

@@ -1,4 +1,8 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: driver temp cleanup ok
+
 
 use strict;
 use warnings;

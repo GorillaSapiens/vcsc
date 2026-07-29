@@ -1,6 +1,0 @@
-# runner: perl @TEST_ROOT@/unicode_identifier_mangle.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 30
-# expectexit: 0
-# expectstdout: unicode identifier mangle tests passed
-# expectstderrexact:

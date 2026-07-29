@@ -64,7 +64,7 @@ exact bytes that the old final `DCP` sequences would have produced:
   `NOP` delays to preserve every TIA store cycle.
 
 The formerly temporary schedule regression is now
-`vcs_standard_renderer_legal_schedule.test`. It locks the three steady mask
+`vcs_standard_renderer_legal_schedule.pl`. It locks the three steady mask
 operands and cycles and checks all five final precomputed values.
 
 ## Post-legalization raster repair
@@ -85,7 +85,7 @@ The repaired helper keeps zero in Y while X advances, reconstructs and saves M0
 Y in the existing twelve-cycle post-positioning slot, and removes the extra
 pre-renderer delay. `test/fixtures/vcs_examples/06_object_motion/golden.c26` gives all five TIA objects
 separate documented vertical bands and independently phased horizontal motion.
-The first version of `vcs_standard_motion.test` still checked only RAM X values
+The first version of `vcs_standard_motion.pl` still checked only RAM X values
 and vertical TIA writes. That missed a separate linker failure: each
 `@repostable-$100` operand was relocated by its altered packed value, which
 happened to lie in an earlier code layout. RESP coarse positioning worked while

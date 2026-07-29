@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 20
+# expectstdout: vcs_standard_renderer_unofficial_opcodes ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

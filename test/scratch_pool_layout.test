@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/scratch_pool_layout.pl @REPO@ @TMP@
-# phase: compile
-# expectstdout: scratch pool layout ok
-# expectexit: 0

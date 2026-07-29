@@ -6153,3 +6153,28 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the first 172 passed before the outer
   command window expired, and the remaining 21 passed when run explicitly.
   No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-28 22:43:33 PDT, eliminate redundant Perl test wrappers
+------------------------------------------------------------
+* Teach `test/test.pl` to discover metadata-bearing `.pl` files directly.
+  Perl test drivers now keep their `runner:`, phase, timeout, and expectation
+  directives in the leading comment block after the shebang and invoke
+  themselves through `@FILE@`.
+* Move the metadata from 83 same-named `.test` forwarding files into their
+  corresponding Perl drivers and remove the wrappers. Keep the remaining 16
+  `.test` files because they run non-Perl tools, contain their own executable
+  test body, or intentionally test the top-level runner.
+* Update directory and default discovery so unmarked Perl support scripts are
+  skipped while explicitly selected runnable `.pl` tests work normally.
+  Update the single-file runner smoke test to select a metadata-bearing Perl
+  test directly.
+* Strengthen `source_tree_hygiene.pl` to treat metadata-bearing Perl files as
+  live tests and to reject any future `.test` file that merely invokes a
+  same-named `.pl` driver. Update current test names and runner documentation
+  throughout the public documentation.
+* Record all 83 intentionally removed wrappers in `.top_secret/remove.txt`.
+* Verification: 325/325 compile-only tests pass. The end-to-end/generic suite
+  remains 193/193: the first 172 passed before the outer command window
+  expired, the remaining 21 passed explicitly, and the subsequently tightened
+  direct-Perl selection smoke test passed on its own. Source-tree hygiene and
+  direct selection of migrated `.pl` tests also pass.

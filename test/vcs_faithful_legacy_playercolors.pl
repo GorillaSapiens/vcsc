@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 3
+# expectstdout: vcs_faithful_legacy_playercolors ok: template matches repaired 264-line retained-source audit
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

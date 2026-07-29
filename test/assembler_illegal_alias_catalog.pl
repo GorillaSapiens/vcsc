@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# phase: e2e
+# expectstdout: assembler illegal alias catalog ok
+# expectexit: 0
+
 
 use strict;
 use warnings;

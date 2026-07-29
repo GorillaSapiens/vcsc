@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# expectstdout: runtime frame pointer removed; static scratch is directly addressed
+# expectexit: 0
+# phase: e2e
+
 
 use strict;
 use warnings;

@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# phase: e2e
+# expectstdout: source tree hygiene ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -85,24 +90,43 @@ sub referenced_elsewhere {
    return 0;
 }
 
+sub leading_header {
+   my($body)=@_;
+   my @header;
+   for my $line (split(/\n/,$body)) {
+      if ($line =~ /^\s*\z/ || $line =~ /^\s*(?:(?:\/\/)|#|;)/) {
+         push @header,$line;
+         next;
+      }
+      last;
+   }
+   return join("\n",@header);
+}
+
+sub has_runner_header {
+   my($body)=@_;
+   my $header=leading_header($body);
+   return $header =~ /^\s*(?:(?:\/\/)|#|;)\s*(?:runner:|vcsc-cc1\b|vcsc\b|vcsc-as\b|vcsc-ld\b|vcsc-ar\b|vcsc-sim\b|perl\b|make\b|stdbuf\b)/m;
+}
+
+my @redundant_perl_wrappers;
+for my $path (@test_files) {
+   my $name=basename($path);
+   next if $name !~ /^(.*)\.test\z/;
+   my $stem=$1;
+   push @redundant_perl_wrappers,$name
+      if $text{$path} =~ /^\s*#\s*runner:\s*perl\s+\S*\Q$stem\E\.pl\b/m;
+}
+@redundant_perl_wrappers and die "redundant .test wrappers around same-named Perl tests: @redundant_perl_wrappers\n";
+
 my @dead;
 for my $path (@test_files) {
    my $name=basename($path);
    if ($name =~ /\.c26\z/) {
-      my @header;
-      for my $line (split(/\n/,$text{$path})) {
-         if ($line =~ /^\s*\z/ || $line =~ /^\s*(?:(?:\/\/)|#|;)/) {
-            push @header,$line;
-            next;
-         }
-         last;
-      }
-      my $header=join("\n",@header);
-      my $runnable=$header =~ /^\s*(?:(?:\/\/)|#|;)\s*(?:runner:|vcsc-cc1\b|vcsc\b|vcsc-as\b|vcsc-ld\b|vcsc-ar\b|vcsc-sim\b|perl\b|make\b|stdbuf\b)/m;
-      push @dead,$name if !$runnable && !referenced_elsewhere($path);
+      push @dead,$name if !has_runner_header($text{$path}) && !referenced_elsewhere($path);
    }
    elsif ($name =~ /\.pl\z/ && $name ne 'test.pl') {
-      push @dead,$name if !referenced_elsewhere($path);
+      push @dead,$name if !has_runner_header($text{$path}) && !referenced_elsewhere($path);
    }
    elsif ($name =~ /\.(?:s26|cfg|hex|cpp)\z/) {
       push @dead,$name if !referenced_elsewhere($path);

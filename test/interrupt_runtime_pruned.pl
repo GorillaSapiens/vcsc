@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# expectstdout: interrupt runtime pruned: required vector stubs only
+# expectexit: 0
+# phase: e2e
+
 
 use strict;
 use warnings;

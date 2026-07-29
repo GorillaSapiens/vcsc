@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# expectstdout: generic target bundle pruned; VCS and legacy renderer references retained
+# expectexit: 0
+# phase: e2e
+
 
 use strict;
 use warnings;

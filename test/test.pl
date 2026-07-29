@@ -751,9 +751,12 @@ sub should_include_case {
    return 1;
 }
 
-sub supported_test_filename {
-   my ($name) = @_;
-   return ($name =~ /\.(?:c26|test)$/);
+sub supported_test_path {
+   my ($path) = @_;
+   return 1 if $path =~ /\.(?:c26|test)$/;
+   return 0 if $path !~ /\.pl$/;
+   my $header_lines = read_header_lines($path);
+   return defined(parse_runner_from_header($path, $header_lines));
 }
 
 sub resolve_requested_paths {
@@ -771,9 +774,10 @@ sub resolve_requested_paths {
       for my $candidate (@candidates) {
          if (-d $candidate) {
             opendir(my $dh, $candidate) or die "[$FAIL] could not open $candidate: $!\n";
-            my @names = sort grep { supported_test_filename($_) && -f File::Spec->catfile($candidate, $_) } readdir($dh);
+            my @paths = sort map { File::Spec->catfile($candidate, $_) }
+               grep { -f File::Spec->catfile($candidate, $_) } readdir($dh);
             closedir($dh);
-            push @resolved, map { File::Spec->catfile($candidate, $_) } @names;
+            push @resolved, grep { supported_test_path($_) } @paths;
          }
          else {
             push @resolved, $candidate;
@@ -787,8 +791,8 @@ sub resolve_requested_paths {
 sub discover_default_paths {
    opendir(my $dh, $test_root) or die "[$FAIL] could not open $test_root: $!\n";
    my @paths = sort map { File::Spec->catfile($test_root, $_) }
-      grep { supported_test_filename($_) && -f File::Spec->catfile($test_root, $_) }
-      readdir($dh);
+      grep { -f File::Spec->catfile($test_root, $_) } readdir($dh);
+   @paths = grep { supported_test_path($_) } @paths;
    closedir($dh);
    return @paths;
 }

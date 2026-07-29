@@ -1,4 +1,9 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: compile
+# expectstdout: common indexed address reuse ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

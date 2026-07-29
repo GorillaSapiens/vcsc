@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_return_memory_encoding.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: vcs return memory encoding ok
-# expectexit: 0

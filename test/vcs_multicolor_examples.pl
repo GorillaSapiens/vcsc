@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# exit: 0
+# timeout: 10
+# expectstdout: vcs_multicolor_examples ok: nested player-color example matrix passes build, frame, and RAM-motion checks
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_standard_motion.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 30
-# expectstdout: vcs_standard_motion ok
-# expectexit: 0

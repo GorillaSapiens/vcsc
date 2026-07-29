@@ -1,4 +1,8 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@
+# expectstdout: software-stack inventory ok: compiler 0/0, runtime removed
+# expectexit: 0
+
 use strict;
 use warnings;
 use File::Spec;

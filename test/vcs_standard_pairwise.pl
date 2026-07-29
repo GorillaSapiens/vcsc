@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 120
+# expectstdout: vcs_standard_pairwise ok
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

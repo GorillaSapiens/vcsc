@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: linker segment alignment enforced
+# expectexit: 0
+
 
 use strict;
 use warnings;

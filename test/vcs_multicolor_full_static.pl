@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 10
+# expectstdout: vcs_multicolor_full_static ok: player_color_192 static example builds a 262-line cartridge with exact asymmetric playfield rows, P0/P1 colors, Ball, and no missiles
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

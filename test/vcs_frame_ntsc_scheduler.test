@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_frame_ntsc_scheduler.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 30
-# expectstdout: vcs_frame_ntsc_scheduler ok
-# expectexit: 0

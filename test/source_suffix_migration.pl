@@ -1,4 +1,10 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectexit: 0
+# expectstdout: assembler source suffix migration passed
+# expectstderrexact:
+
 use strict;
 use warnings;
 use Cwd qw(abs_path getcwd);

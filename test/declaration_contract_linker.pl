@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# expectstdout: linker enforces reachable external declaration-use contracts
+# expectexit: 0
+# phase: e2e
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

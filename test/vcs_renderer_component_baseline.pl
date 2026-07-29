@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# phase: e2e
+# expectstdout: vcs_renderer_component_baseline ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

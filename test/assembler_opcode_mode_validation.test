@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/assembler_opcode_mode_validation.pl @REPO@ @TMP@
-# phase: e2e
-# expectexit: 0
-# expectstdout: assembler opcode mode validation passed
-# expectstderrexact:

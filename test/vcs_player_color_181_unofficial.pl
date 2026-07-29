@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 12
+# expectstdout: vcs_player_color_181_unofficial ok: official=1789 unofficial=1787 saving=2
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

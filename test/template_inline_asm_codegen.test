@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/template_inline_asm_codegen.pl @VCSC_CC1@ @TEST_ROOT@
-# phase: compile
-# timeout: 20
-# expectexit: 0
-# expectstdout: template inline asm codegen tests passed

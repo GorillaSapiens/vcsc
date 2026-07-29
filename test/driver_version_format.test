@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/driver_version_format.pl @REPO@
-# phase: e2e
-# expectstdout: driver_version_format ok
-# expectexit: 0

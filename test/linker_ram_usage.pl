@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: linker reports occupied, free, and hardware-stack RAM bytes
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 30
+# expectstdout: vcs_six_glyph_component ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

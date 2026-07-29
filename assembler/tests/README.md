@@ -8,7 +8,7 @@
 # vcsc-as fixture sources
 
 This directory contains source fixtures for the assembler tests.  They are not
-standalone test runner scripts; `test/assembler_fixture_suite.test` runs them
+standalone test runner scripts; `test/assembler_fixture_suite.pl` runs them
 through `test/assembler_fixture_suite.pl` and checks the expected success or
 failure behavior.
 

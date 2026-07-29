@@ -1,3 +1,0 @@
-# runner: perl @TEST_ROOT@/driver_temp_cleanup.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: driver temp cleanup ok

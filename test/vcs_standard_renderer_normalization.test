@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_standard_renderer_normalization.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: vcs_standard_renderer_normalization ok
-# expectexit: 0

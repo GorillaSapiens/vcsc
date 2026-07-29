@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 12
+# expectstdout: vcs_all_five_181_unofficial ok: official=1421 unofficial=1421 saving=0
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/common_indexed_address_reuse.pl @REPO@ @TMP@
-# phase: compile
-# expectstdout: common indexed address reuse ok
-# expectexit: 0

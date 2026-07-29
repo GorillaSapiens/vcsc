@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@
+# phase: e2e
+# expectstdout: driver_version_format ok
+# expectexit: 0
+
 
 use strict;
 use warnings;

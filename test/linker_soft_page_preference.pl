@@ -1,4 +1,8 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# expectexit: 0
+# expectstdout: linker soft page preference reuses holes without image growth
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

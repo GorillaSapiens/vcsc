@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/fp_removed.pl @REPO@ @TMP@
-# expectstdout: runtime frame pointer removed; static scratch is directly addressed
-# expectexit: 0
-# phase: e2e

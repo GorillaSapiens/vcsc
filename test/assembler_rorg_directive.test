@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/assembler_rorg_directive.pl @REPO@ @TMP@
-# phase: e2e
-# expectexit: 0
-# expectstdout: assembler rorg directive passed
-# expectstderrexact:

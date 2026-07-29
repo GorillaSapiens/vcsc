@@ -1,3 +1,0 @@
-# runner: perl @TEST_ROOT@/runtime_workspace_split.pl @REPO@ @TMP@
-# expectexit: 0
-# expectstdout: runtime workspace reduced: mul/div/rem stay at the 8-byte startup baseline

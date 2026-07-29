@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 8
+# expectstdout: vcs_faithful_legacy_example ok: faithful legacy static example uses the faithful legacy renderer with 264-line frames and exact sprites
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

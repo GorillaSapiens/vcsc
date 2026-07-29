@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 10
+# expectstdout: vcs_ode_to_joy_cartridge ok
+# expectexit: 0
+
 
 use strict;
 use warnings;

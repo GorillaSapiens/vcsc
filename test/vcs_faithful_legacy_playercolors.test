@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_faithful_legacy_playercolors.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 3
-# expectstdout: vcs_faithful_legacy_playercolors ok: template matches repaired 264-line retained-source audit
-# expectexit: 0

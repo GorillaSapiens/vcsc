@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_poison_debug_score.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 45
-# expectstdout: vcs_poison_debug_score ok
-# expectexit: 0

@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 30
+# expectexit: 0
+# expectstdout: unicode identifier mangle tests passed
+# expectstderrexact:
+
 use strict;
 use warnings;
 use utf8;

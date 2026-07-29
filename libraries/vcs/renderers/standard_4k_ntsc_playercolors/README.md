@@ -178,9 +178,9 @@ The visible loop replaces the two missile-update slots with balanced legal
 loads and `COLUP0`/`COLUP1` writes. The final row is precomputed during VBLANK.
 Both ENAM registers are cleared before the visible field and never enabled.
 
-`test/vcs_standard_playercolors.test` verifies the predecessor profile against
+`test/vcs_standard_playercolors.pl` verifies the predecessor profile against
 private golden cartridges under `test/fixtures/vcs_examples/`.
-`test/vcs_faithful_legacy_example.test` certifies the public example under
+`test/vcs_faithful_legacy_example.pl` certifies the public example under
 `examples/02_faithful_legacy_playercolors/` against the independently built
 pristine BASIC 1.9 ROM; it does not certify this component profile. Public
 componentized examples are grouped under `examples/03_player_color_192/` and

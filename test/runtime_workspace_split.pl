@@ -1,4 +1,8 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# expectexit: 0
+# expectstdout: runtime workspace reduced: mul/div/rem stay at the 8-byte startup baseline
+
 use strict;
 use warnings;
 use File::Spec;

@@ -1,5 +1,0 @@
-# runner: perl @TEST_ROOT@/vcs_poison_player_color_handoff.pl @REPO@ @TMP@
-# phase: e2e
-# timeout: 90
-# expectstdout: poison player-color handoff ok: hostile score composition preserves P0/P1/BL positions and pixel endpoints
-# expectexit: 0

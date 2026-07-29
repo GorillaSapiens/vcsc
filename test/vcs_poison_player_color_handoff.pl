@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 90
+# expectstdout: poison player-color handoff ok: hostile score composition preserves P0/P1/BL positions and pixel endpoints
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);

@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/assembler_importzp_relocation.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: importzp modes and external relocation addends preserved
-# expectexit: 0

@@ -1,4 +1,10 @@
 #!/usr/bin/env perl
+# runner: perl @FILE@ @VCSC_CC1@ @TEST_ROOT@
+# phase: compile
+# timeout: 20
+# expectexit: 0
+# expectstdout: template inline asm codegen tests passed
+
 use strict;
 use warnings;
 use File::Temp qw(tempdir);

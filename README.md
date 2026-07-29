@@ -205,7 +205,7 @@ or `-nostdlib`.
 ## Testing
 
 `make test` runs the unified [`test/test.pl`](test/test.pl) harness. It covers
-compiler-only `.c26` tests and linked/simulated or generic `.test` regressions,
+compiler-only `.c26` tests, self-contained `.pl` drivers, and generic `.test` regressions,
 continues after failures, and prints a consolidated summary.
 
 Run selected tests directly from `test/`, for example:
@@ -214,7 +214,7 @@ Run selected tests directly from `test/`, for example:
 cd test
 ./test.pl inline_function_codegen_test.c26
 ./test.pl --compile-only default_parameter_direct_cycle_error_test.c26
-./test.pl --e2e-only vcs_standard_playercolors.test
+./test.pl --e2e-only vcs_standard_playercolors.pl
 ```
 
 See [`test/README.md`](test/README.md) for test headers, placeholders, fixture

@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/linker_index_range.pl @REPO@ @TMP@
-# phase: e2e
-# expectstdout: linker enforces explicit indexed-access page windows
-# expectexit: 0

@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: importzp modes and external relocation addends preserved
+# expectexit: 0
+
 
 use strict;
 use warnings;

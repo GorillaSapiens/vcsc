@@ -1,4 +1,0 @@
-# runner: perl @TEST_ROOT@/vcsc_branding.pl @REPO@
-# expectstdout: VCSC hard rename and documentation branding ok
-# expectexit: 0
-# phase: e2e

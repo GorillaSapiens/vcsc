@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# expectstdout: vcs_standard_renderer_contract ok
+# expectexit: 0
+
 
 use strict;
 use warnings;

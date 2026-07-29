@@ -1,1 +1,0 @@
-# runner: perl @TEST_ROOT@/linker_branch_metadata.pl @REPO@ @TMP@

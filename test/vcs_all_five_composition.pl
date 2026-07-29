@@ -1,4 +1,10 @@
 #!/usr/bin/perl
+# runner: perl @FILE@ @REPO@ @TMP@
+# phase: e2e
+# timeout: 8
+# expectstdout: vcs_all_five_composition ok
+# expectexit: 0
+
 use strict;
 use warnings;
 use Cwd qw(abs_path);
