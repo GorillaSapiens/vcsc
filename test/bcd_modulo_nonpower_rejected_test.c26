@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: operator '%' is not supported for packed-BCD values
+include "machine_6502.c26"
+bcd16_t a;
+void main(void) { a := a % 25; }

@@ -25,6 +25,10 @@ bool integer_value_fits_type(long long value, const ASTNode *type);
 bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst_decl,
                                      const ASTNode *src_type, const ASTNode *src_decl,
                                      const ASTNode *src_expr);
+bool bcd_power_of_ten_constant_expr(const ASTNode *expr, int *decimal_digits_out);
+bool classify_bcd_power_of_ten_binary_expr(const ASTNode *expr, Context *ctx,
+                                           const ASTNode **value_expr_out,
+                                           int *decimal_digits_out);
 void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx);
 bool same_named_value_type(const ASTNode *lhs_type, const ASTNode *lhs_decl,
                            const ASTNode *rhs_type, const ASTNode *rhs_decl);

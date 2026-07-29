@@ -245,6 +245,82 @@ bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst
    return false;
 }
 
+//! @brief Recognize a positive integer constant power of ten and return its decimal shift.
+bool bcd_power_of_ten_constant_expr(const ASTNode *expr, int *decimal_digits_out) {
+   long long value;
+   int decimal_digits = 0;
+
+   if (!expr_is_integer_constant_expr(expr, &value) || value <= 0) {
+      return false;
+   }
+   while (value > 1 && value % 10 == 0) {
+      value /= 10;
+      decimal_digits++;
+   }
+   if (value != 1) {
+      return false;
+   }
+   if (decimal_digits_out) {
+      *decimal_digits_out = decimal_digits;
+   }
+   return true;
+}
+
+//! @brief Classify BCD multiply/divide/remainder by a constant decimal power.
+bool classify_bcd_power_of_ten_binary_expr(const ASTNode *expr, Context *ctx,
+                                           const ASTNode **value_expr_out,
+                                           int *decimal_digits_out) {
+   const ASTNode *lhs;
+   const ASTNode *rhs;
+   const ASTNode *lhs_type;
+   const ASTNode *rhs_type;
+   const ASTNode *lhs_decl;
+   const ASTNode *rhs_decl;
+   bool lhs_bcd;
+   bool rhs_bcd;
+   int decimal_digits;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 ||
+       (strcmp(expr->name, "*") && strcmp(expr->name, "/") && strcmp(expr->name, "%"))) {
+      return false;
+   }
+
+   lhs = unwrap_expr_node(expr->children[0]);
+   rhs = unwrap_expr_node(expr->children[1]);
+   lhs_type = expr_value_type((ASTNode *) lhs, ctx);
+   rhs_type = expr_value_type((ASTNode *) rhs, ctx);
+   lhs_decl = expr_value_declarator((ASTNode *) lhs, ctx);
+   rhs_decl = expr_value_declarator((ASTNode *) rhs, ctx);
+   lhs_bcd = type_is_bcd_integer(lhs_type) &&
+             (!lhs_decl || declarator_is_plain_value(lhs_decl));
+   rhs_bcd = type_is_bcd_integer(rhs_type) &&
+             (!rhs_decl || declarator_is_plain_value(rhs_decl));
+
+   if (lhs_bcd && bcd_power_of_ten_constant_expr(rhs, &decimal_digits)) {
+      if (value_expr_out) {
+         *value_expr_out = lhs;
+      }
+      if (decimal_digits_out) {
+         *decimal_digits_out = decimal_digits;
+      }
+      return true;
+   }
+
+   if (!strcmp(expr->name, "*") && rhs_bcd &&
+       bcd_power_of_ten_constant_expr(lhs, &decimal_digits)) {
+      if (value_expr_out) {
+         *value_expr_out = rhs;
+      }
+      if (decimal_digits_out) {
+         *decimal_digits_out = decimal_digits;
+      }
+      return true;
+   }
+
+   return false;
+}
+
 //! @brief Reject operations that would treat packed BCD as ordinary binary integers.
 void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx) {
    const ASTNode *lhs_type;
@@ -312,6 +388,10 @@ void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx) {
    }
 
    if (!strcmp(expr->name, "&&") || !strcmp(expr->name, "||")) {
+      return;
+   }
+
+   if (classify_bcd_power_of_ten_binary_expr(expr, ctx, NULL, NULL)) {
       return;
    }
 

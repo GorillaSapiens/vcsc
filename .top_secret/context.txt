@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260728_170804.tar.gz
+    vcsc.20260729_033205.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -106,6 +106,12 @@ Settled final-language decisions
 
   The BCD types store two decimal digits per byte in little-endian digit-pair
   order and have numeric ranges 0..99, 0..9999, 0..999999, and 0..99999999.
+  BCD `*`, `/`, `%`, `*=`, `/=`, and `%=` are supported only when the decimal
+  factor or divisor is a positive integer constant expression equal to `10^n`
+  (`1` is `10^0`). Multiplication accepts the constant on either side;
+  division and remainder require it on the right. Lowering uses whole-byte
+  moves for even powers and four-bit shifts plus `$0f` masks for odd powers,
+  never the general multiply/divide runtime helpers and never decimal mode.
 
 * `int`, `char`, and `bool` are ordinary identifiers rather than built-in or
   reserved type names. Programs may introduce them as transparent typedef
@@ -6090,3 +6096,31 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   suite passes 317/317. A broad end-to-end run reached 154/190 with no failures
   before the outer command window expired; all path-sensitive VCS tests were
   then run directly and passed.
+
+
+2026-07-28 21:22:49 PDT, lower BCD decimal-power multiplication division and remainder inline
+* Added packed-BCD `*`, `/`, `%`, `*=`, `/=`, and `%=` support for positive
+  integer constant expressions exactly equal to powers of ten across `bcd8_t`,
+  `bcd16_t`, `bcd24_t`, and `bcd32_t`. Multiplication also accepts the constant
+  on the left; division and remainder keep the conventional constant-right
+  form. Other BCD multiply/divide/remainder operands remain rejected.
+* Added a shared decimal-power classifier and inline packed-digit lowering.
+  Even decimal shifts become byte moves and clears. Odd shifts use four `ASL`
+  or `LSR` instructions with `$0f` masks and nibble joins. No `_mul8`..`_mul32`
+  or `_div8`..`_div32` helper is selected, and generated code does not execute
+  `SED` for these operations.
+* Defined fixed-width behavior explicitly: multiplication drops high digits,
+  division drops low digits, and remainder retains the low N decimal digits.
+  Powers at least as wide as the type therefore produce zero for multiply and
+  divide, while modulo returns the original value. `10^0` acts as identity for
+  multiply/divide and produces zero remainder.
+* Added `test/bcd_power_of_ten_codegen_test.c26` and
+  `test/e2e_bcd_power_of_ten_verify.c26`, covering every stock BCD width,
+  odd/even powers, reversed multiplication, constant-expression powers,
+  static folding, overflow/truncation boundaries, and compound assignment.
+  Added focused non-power rejection tests for division, remainder, and compound
+  multiplication. Updated compiler/ABI/test documentation.
+* Passed 321/321 compile tests. The end-to-end/generic suite passed all 191
+  tests; the first 170 were observed passing before the runner command hit the
+  execution ceiling, and the remaining 21 were rerun explicitly and passed.
+  No files were removed; `.top_secret/remove.txt` is unchanged.

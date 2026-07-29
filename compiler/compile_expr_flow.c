@@ -975,8 +975,14 @@ void compile_expr(ASTNode *node, Context *ctx) {
       const ASTNode *literal_type = literal_annotation_type(rhs);
       bool constant_without_bcd_type = expr_is_integer_constant_expr(rhs, NULL) &&
                                        (!literal_type || !type_is_bcd_integer(literal_type));
+      bool bcd_decimal_power_compound = false;
       const ASTNode *rhs_type = NULL;
       const ASTNode *rhs_decl = NULL;
+
+      if (op && type_is_bcd_integer(dst->type) &&
+          (!strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%="))) {
+         bcd_decimal_power_compound = bcd_power_of_ten_constant_expr(rhs, NULL);
+      }
 
       if (type_is_bcd_integer(dst->type) || !constant_without_bcd_type) {
          rhs_type = expr_value_type(rhs, ctx);
@@ -995,7 +1001,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
       if (op && strcmp(op, ":=") &&
           (type_is_bcd_integer(dst->type) || type_is_bcd_integer(rhs_type)) &&
-          strcmp(op, "+=") && strcmp(op, "-=")) {
+          strcmp(op, "+=") && strcmp(op, "-=") && !bcd_decimal_power_compound) {
          error_user("[%s:%d.%d] compound operator '%s' is not supported for packed-BCD values",
                     node->file, node->line, node->column, op);
       }
@@ -1067,6 +1073,44 @@ void compile_expr(ASTNode *node, Context *ctx) {
    if (!rhs) {
       error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
       return;
+   }
+
+   if (type_is_bcd_integer(dst->type) &&
+       (!strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%="))) {
+      int decimal_digits;
+
+      if (bcd_power_of_ten_constant_expr(rhs, &decimal_digits)) {
+         int value_size = dst->size;
+         int result_offset = value_size;
+         FlowFixedScratch scratch;
+
+         if (value_size <= 0) {
+            error_user("[%s:%d.%d] invalid packed-BCD compound assignment width",
+                       node->file, node->line, node->column);
+            return;
+         }
+
+         flow_fixed_scratch_prepare(ctx, value_size * 2, &scratch);
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_activate(ctx, &scratch);
+         emit_bcd_power_of_ten_scratch(op, result_offset, 0, value_size,
+                                       decimal_digits);
+         flow_fixed_scratch_deactivate(ctx, &scratch);
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol,
+                                         result_offset, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_finish(&scratch);
+         return;
+      }
    }
 
 

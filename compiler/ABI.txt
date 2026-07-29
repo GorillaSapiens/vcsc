@@ -96,9 +96,11 @@ register contracts, but ordinary VCSC calls do not.
 
 The decimal-mode flag is not part of the call ABI. Startup executes CLD, and
 compiler-generated packed-BCD addition/subtraction emits a local SED/CLD pair
-around only its ADC/SBC chain. Compiled code therefore enters and leaves normal
-expression and call boundaries with decimal mode clear. Inline assembly that
-sets decimal mode must clear it before returning control to generated code.
+around only its ADC/SBC chain. Packed-BCD multiplication, division, and
+remainder by a constant power of ten use inline byte/nibble moves, shifts, and
+masks and do not set decimal mode. Compiled code therefore enters and leaves
+normal expression and call boundaries with decimal mode clear. Inline assembly
+that sets decimal mode must clear it before returning control to generated code.
 
 NOTE: If a special-case wrapper needs to preserve both A and P, and wants P
 exactly as it was, it must pull P last:

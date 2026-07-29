@@ -303,6 +303,113 @@ void emit_copy_scratch_to_scratch(int dst_offset, int src_offset, int size) {
    }
 }
 
+//! @brief Store one scratch byte or zero into another scratch byte.
+static void emit_bcd_copy_or_zero_byte(int dst_offset, int src_offset, bool have_source) {
+   if (have_source) {
+      emit(&es_code, "    ldy #%d\n", src_offset);
+      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+   }
+   else {
+      emit(&es_code, "    lda #0\n");
+   }
+   emit(&es_code, "    ldy #%d\n", dst_offset);
+   emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+}
+
+//! @brief Shift packed BCD by a constant decimal power using only loads, shifts, and masks.
+void emit_bcd_power_of_ten_scratch(const char *op, int dst_offset, int src_offset,
+                                   int size, int decimal_digits) {
+   int byte_digits;
+   bool odd;
+   char opcode;
+
+   if (!op || size <= 0 || decimal_digits < 0) {
+      return;
+   }
+   opcode = op[0];
+   if (opcode != '*' && opcode != '/' && opcode != '%') {
+      return;
+   }
+
+   byte_digits = decimal_digits / 2;
+   odd = (decimal_digits & 1) != 0;
+
+   if (opcode == '%') {
+      for (int i = 0; i < size; i++) {
+         if (i < byte_digits) {
+            emit_bcd_copy_or_zero_byte(dst_offset + i, src_offset + i, true);
+         }
+         else if (odd && i == byte_digits && i < size) {
+            emit(&es_code, "    ldy #%d\n", src_offset + i);
+            emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+            emit(&es_code, "    and #$0f\n");
+            emit(&es_code, "    ldy #%d\n", dst_offset + i);
+            emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+         }
+         else {
+            emit_bcd_copy_or_zero_byte(dst_offset + i, 0, false);
+         }
+      }
+      return;
+   }
+
+   if (!odd) {
+      for (int i = 0; i < size; i++) {
+         int source_index = opcode == '*' ? i - byte_digits : i + byte_digits;
+         bool have_source = source_index >= 0 && source_index < size;
+         emit_bcd_copy_or_zero_byte(dst_offset + i,
+                                    src_offset + (have_source ? source_index : 0),
+                                    have_source);
+      }
+      return;
+   }
+
+   for (int i = 0; i < size; i++) {
+      int low_source;
+      int high_source;
+      bool have_low;
+      bool have_high;
+
+      if (opcode == '*') {
+         low_source = i - byte_digits - 1;
+         high_source = i - byte_digits;
+      }
+      else {
+         low_source = i + byte_digits;
+         high_source = i + byte_digits + 1;
+      }
+      have_low = low_source >= 0 && low_source < size;
+      have_high = high_source >= 0 && high_source < size;
+
+      if (have_low) {
+         emit(&es_code, "    ldy #%d\n", src_offset + low_source);
+         emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+         emit(&es_code, "    lsr\n");
+         emit(&es_code, "    lsr\n");
+         emit(&es_code, "    lsr\n");
+         emit(&es_code, "    lsr\n");
+      }
+      else {
+         emit(&es_code, "    lda #0\n");
+      }
+      emit(&es_code, "    ldy #%d\n", dst_offset + i);
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+
+      if (have_high) {
+         emit(&es_code, "    ldy #%d\n", src_offset + high_source);
+         emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+         emit(&es_code, "    and #$0f\n");
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    ldy #%d\n", dst_offset + i);
+         emit(&es_code, "    ora %s,y\n", compiler_scratch_active_symbol());
+         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      }
+   }
+}
+
 //! @brief Handle expr byte index logic for compiler operator lowering.
 static int expr_byte_index(const ASTNode *type, int size, int i) {
    (void) type;
@@ -936,6 +1043,64 @@ unary_not_done:
       emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
       expr_fixed_scratch_finish(&scratch);
       return true;
+   }
+
+
+   {
+      const ASTNode *bcd_value_expr = NULL;
+      int decimal_digits = 0;
+
+      if (classify_bcd_power_of_ten_binary_expr(expr, ctx, &bcd_value_expr,
+                                                &decimal_digits)) {
+         const ASTNode *op_type = expr_value_type((ASTNode *) bcd_value_expr, ctx);
+         int op_size = op_type ? type_size_from_node(op_type) : 0;
+         int value_offset = 0;
+         int result_offset;
+         int out_offset;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0) {
+            return false;
+         }
+         if (op_size <= 0) {
+            op_size = expr_value_size((ASTNode *) bcd_value_expr, ctx);
+         }
+         if (op_size <= 0) {
+            op_size = dst->size;
+         }
+         if (op_size <= 0 || !op_type || !type_is_bcd_integer(op_type)) {
+            return false;
+         }
+
+         result_offset = op_size;
+         out_offset = op_size * 2;
+         value_tmp = (ContextEntry){
+            .name = "$bcd_value",
+            .type = op_type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = value_offset,
+            .size = op_size
+         };
+
+         expr_fixed_scratch_begin(ctx, op_size * 2 + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) bcd_value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         emit_bcd_power_of_ten_scratch(expr->name, result_offset, value_offset,
+                                       op_size, decimal_digits);
+         emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                              result_offset, op_size, op_type);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size, dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
    }
 
 

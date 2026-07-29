@@ -313,13 +313,30 @@ BCD `$42` in a `bcd8_t` destination.
 
 Supported BCD operations are assignment, same-representation widening or
 truncation, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`, comparisons,
-truth tests, logical operators, and `switch` comparison. Arithmetic wraps at
-the destination width. The compiler brackets only the decimal `ADC`/`SBC` chain
-with `SED` and `CLD`, so generated code leaves decimal mode clear.
+truth tests, logical operators, and `switch` comparison. Multiplication,
+division, and remainder are additionally supported when the decimal factor or
+divisor is a positive integer constant expression exactly equal to `10^n`,
+including `1` as `10^0`. Multiplication accepts the constant on either side;
+division and remainder require it on the right. The compound forms `*=`, `/=`,
+and `%=` follow the same rule.
+
+These decimal-power operations are packed-digit moves, not general BCD
+arithmetic. Even powers move whole bytes; odd powers use four accumulator
+shifts plus `$0f` masks to join adjacent nibbles. They emit no multiply/divide
+runtime helper and never enter decimal mode. Multiplication discards digits
+shifted past the destination width, division discards shifted-off low digits,
+and remainder retains only the low `n` decimal digits. Thus, for example,
+`bcd16_t` value `1234` produces `2340` for `* 10`, `123` for `/ 10`, and `34`
+for `% 100`.
+
+Addition and subtraction wrap at the destination width. The compiler brackets
+only their decimal `ADC`/`SBC` chains with `SED` and `CLD`, so generated code
+leaves decimal mode clear.
 
 Runtime conversion between binary and BCD variables is not implemented. BCD
-multiplication, division, remainder, shifts, bitwise operations, unary minus,
-signedness shortcut casts, and BCD bitfields are rejected.
+multiplication, division, or remainder with any other operand, along with BCD
+shifts, bitwise operations, unary minus, signedness shortcut casts, and BCD
+bitfields, is rejected.
 
 ## Declarations and storage
 
@@ -641,9 +658,11 @@ One- through four-byte copies, fills, integer extension, negation, comparison,
 and bitwise operations are emitted inline. Variable shifts call width-specific
 8-, 16-, 24-, or 32-bit helpers. Multiplication and division/remainder likewise
 select fixed-width helpers that use the already-live compiler expression
-scratch for operands and results. All scalar helper families stay at the
-eight-byte runtime baseline and own no private BSS. Objects wider than four
-bytes may use the aggregate byte-copy/fill helpers.
+scratch for operands and results. Packed-BCD multiplication, division, and
+remainder by constant powers of ten are the exception: they lower inline to
+whole-byte moves or four-bit shifts and masks. All scalar helper families stay
+at the eight-byte runtime baseline and own no private BSS. Objects wider than
+four bytes may use the aggregate byte-copy/fill helpers.
 
 Compiler expression scratch is part of the owning function activation. It is
 pooled by nesting depth during compilation, then overlaid with mutually

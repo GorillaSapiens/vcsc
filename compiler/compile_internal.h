@@ -134,6 +134,8 @@ void build_activation_storage_segment(char *buf, size_t bufsize,
                                       const char *base_segment);
 const char *next_label(const char *prefix);
 void emit_copy_scratch_to_scratch(int dst_offset, int src_offset, int size);
+void emit_bcd_power_of_ten_scratch(const char *op, int dst_offset, int src_offset,
+                                   int size, int decimal_digits);
 void emit_prepare_scratch_ptr(int ptrno, int offset);
 void emit_add_scratch_to_ptr(int ptrno, int src_offset, int src_size);
 void emit_load_address_to_ptr(int ptrno, const char *symbol, int addend);

@@ -102,6 +102,14 @@ mixed visual/conventional digits, underscores, wider values, preprocessor use,
 and runtime values. Companion rejection tests cover bad digits, malformed
 underscores, and width overflow after normalization.
 
+`bcd_power_of_ten_codegen_test.c26` and
+`e2e_bcd_power_of_ten_verify.c26` cover inline packed-BCD `*`, `/`, `%`, `*=`,
+`/=`, and `%=` lowering for constant powers of ten across `bcd8_t` through
+`bcd32_t`. They lock odd-nibble shifts and masks, even whole-byte moves,
+constant-expression divisors, reversed multiplication, width overflow/truncation,
+and the absence of general multiply/divide helpers or decimal-mode entry.
+Companion rejection tests keep non-power-of-ten operands unsupported.
+
 `vcs_standard_renderer_contract.test` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-renderer module. It checks the
 80-byte mandatory state span, the required ROM playfield, the documented
