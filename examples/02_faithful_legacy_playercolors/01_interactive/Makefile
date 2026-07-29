@@ -3,8 +3,8 @@ VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 PROFILE := $(VCS_DIR)/renderers/faithful_legacy_playercolors
 
-TARGET := faithful_legacy_playercolors.bin
-SOURCE := faithful_legacy_playercolors.c26
+TARGET := faithful_legacy_playercolors_interactive.bin
+SOURCE := faithful_legacy_playercolors_interactive.c26
 
 all: $(TARGET)
 

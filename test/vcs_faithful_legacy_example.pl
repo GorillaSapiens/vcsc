@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 8
-# expectstdout: vcs_faithful_legacy_example ok: faithful legacy static example uses the faithful legacy renderer with 264-line frames and exact sprites
+# expectstdout: vcs_faithful_legacy_example ok: faithful legacy interactive example starts with 264-line frames and exact sprites
 # expectexit: 0
 
 use strict;
@@ -43,23 +43,23 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
 my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
-my $source=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_static faithful_legacy_playercolors.c26));
+my $source=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_interactive faithful_legacy_playercolors_interactive.c26));
 my $bin=File::Spec->catfile($tmp,'faithful_legacy_playercolors.bin');
 my $map=File::Spec->catfile($tmp,'faithful_legacy_playercolors.map');
 
 my $text=read_file($source);
 require_re($text,qr/^include "color_ntsc\.c26"$/m,
-   'faithful legacy static example does not use named NTSC colors');
+   'faithful legacy interactive example does not use named NTSC colors');
 require_re($text,qr/^include "playfield\.c26"$/m,
-   'faithful legacy static example does not use visual playfield rows');
+   'faithful legacy interactive example does not use visual playfield rows');
 require_re($text,qr/template "renderers\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
-   'faithful legacy static example does not use the oracle-backed faithful legacy renderer');
+   'faithful legacy interactive example does not use the oracle-backed faithful legacy renderer');
 require_re($text,qr/^uint8_t legacy_playfield\[48\]/m,
-   'faithful legacy static example playfield is not RAM-backed');
+   'faithful legacy interactive example playfield is not RAM-backed');
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
-@pfrows==12 or die "faithful legacy static example has ".scalar(@pfrows)." playfield rows, expected 12\n";
+@pfrows==12 or die "faithful legacy interactive example has ".scalar(@pfrows)." playfield rows, expected 12\n";
 my @visual=$text =~ /0b[.X]{8}(?![.X])/g;
-@visual>=16 or die "faithful legacy static example lacks sixteen visual sprite rows\n";
+@visual>=16 or die "faithful legacy interactive example lacks sixteen visual sprite rows\n";
 for my $name (qw(
    VCS_NTSC_GRAY_92 VCS_NTSC_GOLDENROD VCS_NTSC_SANDY_BROWN
    VCS_NTSC_LIGHT_CORAL VCS_NTSC_ORCHID VCS_NTSC_VIOLET
@@ -67,14 +67,14 @@ for my $name (qw(
    VCS_NTSC_SKY_BLUE_2 VCS_NTSC_SKY_BLUE VCS_NTSC_AQUAMARINE
    VCS_NTSC_PALE_GREEN
 )) {
-   $text =~ /\b\Q$name\E\b/ or die "faithful legacy static example does not use $name\n";
+   $text =~ /\b\Q$name\E\b/ or die "faithful legacy interactive example does not use $name\n";
 }
 
 my($rc,$sig,$out,$err)=capture(
    $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$source,'-o',$bin);
-$rc==0 && !$sig or die "faithful legacy static example build failed\n$out$err";
-without_usage($out) eq '' && $err eq '' or die "faithful legacy static example build wrote output\n$out$err";
-length(read_file($bin))==4096 or die "faithful legacy static example did not produce a 4096-byte ROM\n";
+$rc==0 && !$sig or die "faithful legacy interactive example build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "faithful legacy interactive example build wrote output\n$out$err";
+length(read_file($bin))==4096 or die "faithful legacy interactive example did not produce a 4096-byte ROM\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -88,9 +88,9 @@ $rc==0 && !$sig or die "oracle comparator build failed\n$out$err";
 $out eq '' && $err eq '' or die "oracle comparator build wrote output\n$out$err";
 
 ($rc,$sig,$out,$err)=capture($harness,$bin,'264','--sprites');
-$rc==0 && !$sig or die "faithful legacy static example faithful sprite/frame check failed\n$out$err";
+$rc==0 && !$sig or die "faithful legacy interactive example faithful sprite/frame check failed\n$out$err";
 $out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n"
    or die "unexpected faithful sprite/frame output: $out";
 $err eq '' or die "faithful sprite/frame stderr: $err";
 
-print "vcs_faithful_legacy_example ok: faithful legacy static example uses the faithful legacy renderer with 264-line frames and exact sprites\n";
+print "vcs_faithful_legacy_example ok: faithful legacy interactive example starts with 264-line frames and exact sprites\n";

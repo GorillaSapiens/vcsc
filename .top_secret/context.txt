@@ -6178,3 +6178,56 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   expired, the remaining 21 passed explicitly, and the subsequently tightened
   direct-Perl selection smoke test passed on its own. Source-tree hygiene and
   direct selection of migrated `.pl` tests also pass.
+
+2026-07-29 12:17:07 PDT, collapse public renderer examples into four interactive diagnostics
+-------------------------------------------------------------------------------------------
+* Replace the ten separate faithful-legacy, 192-line static/X/X+Y, and 181-line
+  score-above/score-below static/X/X+Y example leaves with exactly four public
+  cartridges:
+
+      examples/02_faithful_legacy_playercolors/01_interactive/
+      examples/03_player_color_192/01_interactive/
+      examples/04_player_color_181/01_score_above/01_interactive/
+      examples/04_player_color_181/02_score_below/01_interactive/
+
+* Preserve each renderer's former static certification positions. All four
+  start P0/P1/Ball at X=44/108/78; P1 and Ball start at Y=42/45, P0 starts at
+  Y=78 in the faithful legacy profile and Y=70 in the modern profiles.
+* Add selected-object state. The active-low console SELECT switch advances
+  once per press through P0, P1, and Ball; a release latch prevents held-switch
+  repetition. The left joystick moves the selected object by one horizontal
+  pixel or one renderer Y unit per frame and clamps X to 0..159. The 192-line
+  Y range is 0..95; the faithful legacy and scored 181-line ranges are 0..87.
+  These public player-color profiles do not expose independently movable M0 or
+  M1 objects, and the READMEs state that explicitly.
+* For the faithful legacy and both 181-line scored examples, add selected-digit
+  state indexed from ones through hundred-thousands. Right-joystick left/right
+  selects a more-/less-significant digit only after horizontal release;
+  up/down adds/subtracts the selected 10^n weight. Three six-byte ROM tables
+  supply the packed-BCD byte weights, and short SED/ADC or SED/SBC sequences
+  update the three-byte score without consuming a bcd24_t RAM temporary.
+* Make RESET execute `jmp ($fffc)`, so it enters through the exact address held
+  by the cartridge reset vector and reinitializes the complete scene and both
+  selection latches. Normal interactive frames retain the renderer's exact
+  264-line legacy or 262-line modern period; the reset transition itself may be
+  longer while initialization reruns.
+* Replace the old example matrix with a 6502 input harness that drives SWCHA and
+  SWCHB. It verifies initial positions, one-unit motion in all directions,
+  selection cycling and held-switch suppression, X/Y endpoint clamps, score
+  digit move-and-release behavior, decimal increments/decrements, ordinary
+  frame timing, and reset-state restoration for all four examples. Retain the
+  exact initial-raster checks for the legacy and 192-line profiles and teach all
+  older harnesses to present idle console inputs.
+* Update recursive example discovery, staged installcheck paths, root/VCS/test
+  documentation, renderer-group and leaf READMEs, and record the 40 retired
+  leaf files in `.top_secret/remove.txt`.
+* Final linked footprints: faithful legacy ROM 2961 bytes and RAM 126/128;
+  scoreless 192-line ROM 2557 bytes and RAM 102/128 in its leaf build; each
+  scored 181-line ROM 3628 bytes and RAM 122/128. Staged stack sizing reports
+  106 RAM bytes for the 192-line cartridge.
+* Verification: all four leaf Makefiles build; recursive editable-example
+  discovery, exact legacy/192 initial-raster tests, source-tree hygiene,
+  branding, and the interactive control harness pass. Compile-only tests pass
+  325/325. All 193 end-to-end/generic tests are accounted for and pass; the
+  first 157 passed before the outer runner ceiling and the renderer-heavy tail
+  passed in explicit chunks. Staged `make installcheck` passes.

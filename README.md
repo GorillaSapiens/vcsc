@@ -153,9 +153,9 @@ The user-facing examples are deliberately editable and are grouped by renderer
 rather than kept in one global numbered list:
 
 - [`01_basic`](examples/01_basic/) — standalone cartridges and reusable display components
-- [`02_faithful_legacy_playercolors`](examples/02_faithful_legacy_playercolors/) — faithful retained legacy compatibility profile
-- [`03_player_color_192`](examples/03_player_color_192/) — scoreless full-height 192-line P0/P1/Ball renderer examples
-- [`04_player_color_181`](examples/04_player_color_181/) — 181-line P0/P1/Ball gameplay composed with an 11-line score above or below
+- [`02_faithful_legacy_playercolors`](examples/02_faithful_legacy_playercolors/) — faithful retained legacy interactive compatibility diagnostic
+- [`03_player_color_192`](examples/03_player_color_192/) — scoreless full-height 192-line interactive P0/P1/Ball diagnostic
+- [`04_player_color_181`](examples/04_player_color_181/) — interactive 181-line P0/P1/Ball gameplay composed with an 11-line score above or below
 
 Numbers restart inside each renderer and layout directory. They are local,
 append-only presentation identifiers rather than global example IDs. See

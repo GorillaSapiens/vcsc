@@ -61,7 +61,7 @@ for my $entry (@examples) {
    my @extra;
    if ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
-   } elsif ($file eq 'faithful_legacy_playercolors.c26') {
+   } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
    }
    -f $source or die "missing editable example $source\n";

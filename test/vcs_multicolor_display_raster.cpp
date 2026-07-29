@@ -166,6 +166,8 @@ int main(int argc, char **argv) {
    const uint16_t p1_colors = parse_u16(argv[7]);
 
    std::memset(memory_image, 0, sizeof(memory_image));
+   memory_image[0x0280] = 0xff;
+   memory_image[0x0282] = 0xff;
    std::ifstream rom(argv[1], std::ios::binary);
    if (!rom) fail("cannot open ROM");
    rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);

@@ -160,12 +160,12 @@ the checked static cartridge leaves 30 RIOT bytes unallocated.
 
 Public componentized examples now live under renderer-specific paths:
 
-- `examples/03_player_color_192/` contains the full-height static,
-  horizontal-motion, and two-axis-motion examples.
-- `examples/04_player_color_181/01_score_above/` contains the score-above
-  static, horizontal-motion, and two-axis-motion examples.
+- `examples/03_player_color_192/` contains one full-height interactive
+  P0/P1/Ball positioning diagnostic.
+- `examples/04_player_color_181/01_score_above/` contains one interactive
+  score-above positioning and score-editing diagnostic.
 - `examples/04_player_color_181/02_score_below/` contains the corresponding
-  score-below examples.
+  score-below diagnostic.
 
 Linked size is checked by the build and install tests but is not a stable public
 contract. The faithful legacy example is maintained separately under
@@ -184,9 +184,9 @@ private golden cartridges under `test/fixtures/vcs_examples/`.
 `examples/02_faithful_legacy_playercolors/` against the independently built
 pristine BASIC 1.9 ROM; it does not certify this component profile. Public
 componentized examples are grouped under `examples/03_player_color_192/` and
-`examples/04_player_color_181/`; their maintained static profiles have direct
-raster certification, while the dynamic variants add build, frame, and motion
-coverage for the same renderer implementations.
+`examples/04_player_color_181/`; each maintained interactive diagnostic has
+initial-raster certification plus emulated switch, joystick, endpoint, score,
+and reset coverage.
 
 It verifies:
 
@@ -201,9 +201,10 @@ It verifies:
 - 320 frames of full-range asynchronous P0/P1/BL horizontal positioning,
   including RESP cycles and HMxx values.
 
-The human-facing componentized multicolor matrix is grouped under
-`examples/03_player_color_192/` and `examples/04_player_color_181/`. Static
-examples for both profiles have direct display certification. Exact regressions
+The human-facing componentized multicolor diagnostics are grouped under
+`examples/03_player_color_192/` and `examples/04_player_color_181/`. Their
+initial scenes have direct display certification and their controls run under
+emulation. Exact regressions
 for the predecessor profile remain under
 `test/fixtures/vcs_examples/07_playercolor_static` and
 `test/fixtures/vcs_examples/08_playercolor_motion`.

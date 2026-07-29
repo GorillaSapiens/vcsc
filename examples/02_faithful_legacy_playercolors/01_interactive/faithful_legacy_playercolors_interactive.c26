@@ -1,0 +1,287 @@
+include "vcs.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+
+template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+
+uint8_t legacy_playfield[48] := {
+   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
+   VCS_PLAYFIELD_ROW(0bX......X...X..........X.X......X),
+   VCS_PLAYFIELD_ROW(0bX...X..X.....X....X.....X..X...X),
+   VCS_PLAYFIELD_ROW(0bX......X..XX........XX..X......X),
+   VCS_PLAYFIELD_ROW(0bX.X....X......X..X......X....X.X),
+   VCS_PLAYFIELD_ROW(0bX......X...XX......XX...X......X),
+   VCS_PLAYFIELD_ROW(0bX..X...X.X............X.X...X..X),
+   VCS_PLAYFIELD_ROW(0bX......X....X......X....X......X),
+   VCS_PLAYFIELD_ROW(0bX....X.X.......XX.......X.X....X),
+   VCS_PLAYFIELD_ROW(0bX......X.XX..........XX.X......X),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
+   VCS_PLAYFIELD_ROW(0b................................)
+};
+
+page const uint8_t p0g[8] := {
+   legacy_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};
+
+page const uint8_t p1g[8] := {
+   legacy_SPRITE_GLYPH(
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..
+   )
+};
+
+page const uint8_t p0c[8] := {
+   legacy_SPRITE_ROWS(
+      VCS_NTSC_SANDY_BROWN,
+      VCS_NTSC_LIGHT_CORAL,
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_SKY_BLUE
+   )
+};
+
+page const uint8_t p1c[8] := {
+   legacy_SPRITE_ROWS(
+      VCS_NTSC_PALE_GREEN,
+      VCS_NTSC_AQUAMARINE,
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_ORCHID
+   )
+};
+
+
+alias OBJECT_MAX_Y 87
+alias SELECTED_PLAYER0 0
+alias SELECTED_PLAYER1 1
+alias SELECTED_BALL    2
+alias SELECTED_OBJECT_COUNT 3
+
+uint8_t selected_object := SELECTED_PLAYER0;
+uint8_t select_switch_ready := 1;
+uint8_t selected_score_digit := 0;
+uint8_t score_horizontal_ready := 1;
+
+// Decimal digit weights, indexed from ones through hundred-thousands.
+page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
+page const uint8_t score_digit_middle[6] := { 0x00, 0x00, 0x01, 0x10, 0x00, 0x00 };
+page const uint8_t score_digit_high[6] := { 0x00, 0x00, 0x00, 0x00, 0x01, 0x10 };
+
+inline void update_object_selection(void) {
+   if (SWCHB & 0x02) {
+      select_switch_ready := 1;
+   }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object >= SELECTED_OBJECT_COUNT) {
+            selected_object := SELECTED_PLAYER0;
+         }
+         select_switch_ready := 0;
+      }
+   }
+}
+
+inline void move_selected_object(void) {
+   if (!(SWCHA & 0x40)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (legacy_PLAYER0_X > 0) { legacy_PLAYER0_X--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (legacy_PLAYER1_X > 0) { legacy_PLAYER1_X--; }
+            break;
+         default:
+            if (legacy_BALL_X > 0) { legacy_BALL_X--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (legacy_PLAYER0_X < 159) { legacy_PLAYER0_X++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (legacy_PLAYER1_X < 159) { legacy_PLAYER1_X++; }
+               break;
+            default:
+               if (legacy_BALL_X < 159) { legacy_BALL_X++; }
+         }
+      }
+   }
+
+   if (!(SWCHA & 0x10)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (legacy_player0_y > 0) { legacy_player0_y--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (legacy_player1_y > 0) { legacy_player1_y--; }
+            break;
+         default:
+            if (legacy_ball_y > 0) { legacy_ball_y--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (legacy_player0_y < OBJECT_MAX_Y) { legacy_player0_y++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (legacy_player1_y < OBJECT_MAX_Y) { legacy_player1_y++; }
+               break;
+            default:
+               if (legacy_ball_y < OBJECT_MAX_Y) { legacy_ball_y++; }
+         }
+      }
+   }
+}
+
+inline void add_selected_score_digit(void) {
+   asm sed;
+   asm clc;
+   asm ldy selected_score_digit;
+   asm lda legacy_score;
+   asm adc score_digit_low,y;
+   asm sta legacy_score;
+   asm lda legacy_score+1;
+   asm adc score_digit_middle,y;
+   asm sta legacy_score+1;
+   asm lda legacy_score+2;
+   asm adc score_digit_high,y;
+   asm sta legacy_score+2;
+   asm cld;
+}
+
+inline void subtract_selected_score_digit(void) {
+   asm sed;
+   asm sec;
+   asm ldy selected_score_digit;
+   asm lda legacy_score;
+   asm sbc score_digit_low,y;
+   asm sta legacy_score;
+   asm lda legacy_score+1;
+   asm sbc score_digit_middle,y;
+   asm sta legacy_score+1;
+   asm lda legacy_score+2;
+   asm sbc score_digit_high,y;
+   asm sta legacy_score+2;
+   asm cld;
+}
+
+inline void update_score_controls(void) {
+   if ((SWCHA & 0x0c) == 0x0c) {
+      score_horizontal_ready := 1;
+   }
+   else {
+      if (score_horizontal_ready) {
+         if (!(SWCHA & 0x04)) {
+            selected_score_digit++;
+            if (selected_score_digit >= 6) {
+               selected_score_digit := 0;
+            }
+         }
+         else {
+            if (!(SWCHA & 0x08)) {
+               if (selected_score_digit == 0) {
+                  selected_score_digit := 5;
+               }
+               else {
+                  selected_score_digit--;
+               }
+            }
+         }
+         score_horizontal_ready := 0;
+      }
+   }
+
+   if (!(SWCHA & 0x01)) {
+      add_selected_score_digit();
+   }
+   else {
+      if (!(SWCHA & 0x02)) {
+         subtract_selected_score_digit();
+      }
+   }
+}
+
+inline void update_controls(void) {
+   if (!(SWCHB & 0x01)) {
+      asm jmp ($fffc);
+   }
+   update_object_selection();
+   move_selected_object();
+   update_score_controls();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
+
+   legacy_PLAYER0_X := 44;
+   legacy_PLAYER1_X := 108;
+   legacy_BALL_X := 78;
+   legacy_object_x[2] := 0;
+   legacy_object_x[3] := 0;
+
+   legacy_player0_y := 78;
+   legacy_player1_y := 42;
+   legacy_ball_y := 45;
+
+   legacy_player0_graphics := p0g;
+   legacy_player1_graphics := p1g;
+   legacy_player0_height := 7;
+   legacy_player1_height := 7;
+   legacy_ball_height := 3;
+
+   legacy_missile0_height := 0;
+   legacy_missile1_height := 0;
+   legacy_missile0_y := 0;
+   legacy_missile1_y := 0;
+
+   legacy_player0_colors := p0c;
+   legacy_player1_colors := p1c;
+
+   legacy_score[0] := 0x21;
+   legacy_score[1] := 0x07;
+   legacy_score[2] := 0x21;
+   legacy_score_color := VCS_NTSC_GRAY_92;
+   legacy_playfield_position := 8;
+
+   VBLANK := 2;
+   TIM64T := 0;
+
+   while (1) {
+      COLUPF := VCS_NTSC_GOLDENROD;
+      CTRLPF := 0x21;
+      NUSIZ0 := 0x20;
+      NUSIZ1 := 0x20;
+      legacy_drawscreen();
+      update_controls();
+   }
+}

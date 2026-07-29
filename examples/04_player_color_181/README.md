@@ -16,16 +16,13 @@ with independent page-contained player-color tables; M0 and M1 are absent. The
 remaining eleven visible lines are supplied by the independent
 `six_glyph_component.c26` score, producing a complete 192-line visible field.
 
-The score temporarily owns P0 and P1. A component handoff between the score and
-gameplay callbacks restores the canonical entry phase, and the renderer's setup
-lines re-establish player position, fine motion, NUSIZ, and graphics without
-exposing a malformed playfield scanline. The same renderer is used whether the
-score is above or below gameplay.
+Each layout now has one interactive diagnostic rather than separate static,
+horizontal-motion, and two-axis-motion cartridges.
 
-| Layout | Draw order |
-|---|---|
-| [`01_score_above`](01_score_above/) | score, handoff, gameplay |
-| [`02_score_below`](02_score_below/) | gameplay, handoff, score |
+| Layout | Draw order | Diagnostic |
+|---|---|---|
+| [`01_score_above`](01_score_above/) | score, handoff, gameplay | P0/P1/Ball motion and six-digit score editing |
+| [`02_score_below`](02_score_below/) | gameplay, handoff, score | P0/P1/Ball motion and six-digit score editing |
 
 For the complete resource and timing contract, see
 [`libraries/vcs/renderers/player_color_181/README.md`](../../libraries/vcs/renderers/player_color_181/README.md).

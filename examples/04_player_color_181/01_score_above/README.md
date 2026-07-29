@@ -7,12 +7,10 @@
 
 # Score above gameplay
 
-These examples draw the 11-line six-glyph score first, call
-`vcs_ntsc_component_handoff()`, then draw the 181-line `player_color_181`
+The interactive example draws the 11-line six-glyph score first, calls
+`vcs_ntsc_component_handoff()`, then draws the 181-line `player_color_181`
 gameplay component. The combined visible field is exactly 192 lines.
 
-| No. | Example | Motion |
+| No. | Example | Purpose |
 |---:|---|---|
-| 01 | [`static`](01_static/) | None |
-| 02 | [`dynamic_x`](02_dynamic_x/) | Asynchronous horizontal P0, P1, and Ball motion |
-| 03 | [`dynamic_xy`](03_dynamic_xy/) | Asynchronous horizontal and vertical P0, P1, and Ball motion |
+| 01 | [`interactive`](01_interactive/) | Full-range P0/P1/Ball positioning and per-digit score editing |

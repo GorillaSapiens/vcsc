@@ -33,9 +33,9 @@ Files:
 - `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
 - `../../examples/README.md` ... renderer-grouped public example index
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
-- `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy compatibility example
-- `../../examples/03_player_color_192/` ... full-height scoreless player-color examples
-- `../../examples/04_player_color_181/` ... score-above and score-below 181-line player-color compositions
+- `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic
+- `../../examples/03_player_color_192/` ... full-height scoreless interactive player-color diagnostic
+- `../../examples/04_player_color_181/` ... interactive score-above and score-below 181-line player-color diagnostics
 
 ## NTSC color matching
 

@@ -251,6 +251,8 @@ int main(int argc,char **argv) {
                                std::array<uint8_t,3>{{89,89,89}};
 
    std::memset(memory_image,0,sizeof(memory_image));
+   memory_image[0x0280] = 0xff;
+   memory_image[0x0282] = 0xff;
    std::ifstream rom(argv[2],std::ios::binary);
    if (!rom) fail("could not open ROM");
    rom.read(reinterpret_cast<char *>(memory_image+kRomBase),kRomSize);

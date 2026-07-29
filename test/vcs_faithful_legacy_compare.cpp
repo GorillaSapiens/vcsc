@@ -53,6 +53,8 @@ public:
    explicit TraceMachine(const char *path) : cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
       std::memset(memory_, 0, sizeof(memory_));
+      memory_[0x0280] = 0xff;
+      memory_[0x0282] = 0xff;
       std::ifstream rom(path, std::ios::binary);
       if (!rom) fail("could not open ROM");
       rom.read(reinterpret_cast<char *>(memory_ + kRomBase), kRomSize);
