@@ -1,0 +1,36 @@
+// vcsc-cc1 -I .
+// forbidasm: jsr _mul
+// forbidasm: jsr _div
+include "machine_6502.c26"
+
+uint8_t u8;
+uint16_t u16;
+int8_t s8;
+
+uint8_t touch(void) {
+   u8++;
+   return u8;
+}
+
+void main(void) {
+   u8 := touch() * 0;
+   u8 := 0 * touch();
+   u8 := touch() * 1;
+   u8 := 1 * touch();
+   u8 := touch() / 1;
+   u8 := touch() % 1;
+   u8 := touch() / 256;
+   u8 := touch() % 256;
+
+   u8 *= 0;
+   u8 *= 1;
+   u8 /= 1;
+   u8 %= 1;
+   u8 /= 256;
+   u8 %= 256;
+
+   u16 := u16 / 65536;
+   u16 := u16 % 65536;
+   s8 := s8 / 129;
+   s8 := s8 % 129;
+}

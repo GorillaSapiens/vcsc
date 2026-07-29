@@ -245,6 +245,290 @@ bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst
    return false;
 }
 
+//! @brief Return whether a positive constant exceeds every value of an integer type.
+static bool positive_constant_exceeds_integer_type(long long value, const ASTNode *type) {
+   int size;
+   int bits;
+   unsigned long long limit;
+
+   if (value <= 0 || !type || !type_is_promotable_integer(type)) {
+      return false;
+   }
+   size = type_size_from_node(type);
+   if (size <= 0) {
+      return false;
+   }
+   if (type_is_bcd_integer(type)) {
+      return (unsigned long long) value > bcd_max_value_for_size(size);
+   }
+   bits = size * 8;
+   if (type_is_signed_integer(type)) {
+      if (bits >= 63) {
+         return false;
+      }
+      limit = 1ULL << (bits - 1);
+      return (unsigned long long) value > limit;
+   }
+   if (bits >= 63) {
+      return false;
+   }
+   limit = (1ULL << bits) - 1ULL;
+   return (unsigned long long) value > limit;
+}
+
+//! @brief Classify integer identities, annihilators, and oversized divisors.
+bool classify_trivial_integer_binary_expr(const ASTNode *expr, Context *ctx,
+                                          const ASTNode **value_expr_out,
+                                          bool *copy_value_out) {
+   const ASTNode *lhs;
+   const ASTNode *rhs;
+   const ASTNode *value_expr = NULL;
+   const ASTNode *value_type;
+   const ASTNode *value_decl;
+   long long lhs_value = 0;
+   long long rhs_value = 0;
+   bool lhs_constant;
+   bool rhs_constant;
+   bool copy_value = false;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 ||
+       (strcmp(expr->name, "*") && strcmp(expr->name, "/") && strcmp(expr->name, "%"))) {
+      return false;
+   }
+   lhs = unwrap_expr_node(expr->children[0]);
+   rhs = unwrap_expr_node(expr->children[1]);
+   lhs_constant = expr_is_integer_constant_expr(lhs, &lhs_value);
+   rhs_constant = expr_is_integer_constant_expr(rhs, &rhs_value);
+
+   if (!strcmp(expr->name, "*")) {
+      if (rhs_constant && (rhs_value == 0 || rhs_value == 1)) {
+         value_expr = lhs;
+         copy_value = rhs_value == 1;
+      }
+      else if (lhs_constant && (lhs_value == 0 || lhs_value == 1)) {
+         value_expr = rhs;
+         copy_value = lhs_value == 1;
+      }
+   }
+   else if (rhs_constant && rhs_value == 1) {
+      value_expr = lhs;
+      copy_value = !strcmp(expr->name, "/");
+   }
+   else if (rhs_constant && rhs_value > 0) {
+      value_type = expr_value_type((ASTNode *) lhs, ctx);
+      value_decl = expr_value_declarator((ASTNode *) lhs, ctx);
+      if (type_is_promotable_integer(value_type) &&
+          (!value_decl || declarator_is_plain_value(value_decl)) &&
+          positive_constant_exceeds_integer_type(rhs_value, value_type)) {
+         value_expr = lhs;
+         copy_value = !strcmp(expr->name, "%");
+      }
+   }
+
+   if (!value_expr) {
+      return false;
+   }
+   value_type = expr_value_type((ASTNode *) value_expr, ctx);
+   value_decl = expr_value_declarator((ASTNode *) value_expr, ctx);
+   if (!type_is_promotable_integer(value_type) ||
+       (value_decl && !declarator_is_plain_value(value_decl))) {
+      return false;
+   }
+   if (value_expr_out) {
+      *value_expr_out = value_expr;
+   }
+   if (copy_value_out) {
+      *copy_value_out = copy_value;
+   }
+   return true;
+}
+
+//! @brief Classify the compound-assignment forms of trivial integer operations.
+bool classify_trivial_integer_compound(const char *op, const ASTNode *lhs_type,
+                                       const ASTNode *lhs_decl,
+                                       const ASTNode *rhs_expr,
+                                       bool *copy_value_out) {
+   long long value;
+   bool copy_value;
+
+   if (!op || !lhs_type || !type_is_promotable_integer(lhs_type) ||
+       (lhs_decl && !declarator_is_plain_value(lhs_decl)) ||
+       !expr_is_integer_constant_expr(rhs_expr, &value)) {
+      return false;
+   }
+   if (!strcmp(op, "*=") && (value == 0 || value == 1)) {
+      copy_value = value == 1;
+   }
+   else if ((!strcmp(op, "/=") || !strcmp(op, "%=")) && value == 1) {
+      copy_value = !strcmp(op, "/=");
+   }
+   else if ((!strcmp(op, "/=") || !strcmp(op, "%=")) && value > 0 &&
+            positive_constant_exceeds_integer_type(value, lhs_type)) {
+      copy_value = !strcmp(op, "%=");
+   }
+   else {
+      return false;
+   }
+   if (copy_value_out) {
+      *copy_value_out = copy_value;
+   }
+   return true;
+}
+
+//! @brief Recognize the cheap packed-BCD remainder divisors two and five.
+bool bcd_small_remainder_constant_expr(const ASTNode *expr, int *divisor_out) {
+   long long value;
+
+   if (!expr_is_integer_constant_expr(expr, &value) || (value != 2 && value != 5)) {
+      return false;
+   }
+   if (divisor_out) {
+      *divisor_out = (int) value;
+   }
+   return true;
+}
+
+//! @brief Classify packed-BCD remainder by two or five.
+bool classify_bcd_small_remainder_binary_expr(const ASTNode *expr, Context *ctx,
+                                              const ASTNode **value_expr_out,
+                                              int *divisor_out) {
+   const ASTNode *lhs;
+   const ASTNode *rhs;
+   const ASTNode *lhs_type;
+   const ASTNode *lhs_decl;
+   int divisor;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 || strcmp(expr->name, "%")) {
+      return false;
+   }
+   lhs = unwrap_expr_node(expr->children[0]);
+   rhs = unwrap_expr_node(expr->children[1]);
+   lhs_type = expr_value_type((ASTNode *) lhs, ctx);
+   lhs_decl = expr_value_declarator((ASTNode *) lhs, ctx);
+   if (!type_is_bcd_integer(lhs_type) ||
+       (lhs_decl && !declarator_is_plain_value(lhs_decl)) ||
+       !bcd_small_remainder_constant_expr(rhs, &divisor)) {
+      return false;
+   }
+   if (value_expr_out) {
+      *value_expr_out = lhs;
+   }
+   if (divisor_out) {
+      *divisor_out = divisor;
+   }
+   return true;
+}
+
+//! @brief Recognize a two-term decimal shift/add or shift/subtract multiplier.
+bool bcd_cheap_multiplier_constant_expr(const ASTNode *expr, int *power_a_out,
+                                        int *power_b_out, bool *subtract_out) {
+   long long value;
+   unsigned long long powers[10];
+   int best_a = -1;
+   int best_b = -1;
+   int best_cost = 0x7fffffff;
+   bool best_subtract = false;
+
+   if (!expr_is_integer_constant_expr(expr, &value) || value <= 1) {
+      return false;
+   }
+   powers[0] = 1ULL;
+   for (int i = 1; i < 10; i++) {
+      powers[i] = powers[i - 1] * 10ULL;
+   }
+   for (int a = 0; a < 10; a++) {
+      for (int b = 0; b < 10; b++) {
+         int cost = a + b;
+         unsigned long long wanted = (unsigned long long) value;
+         if (powers[a] + powers[b] == wanted && cost < best_cost) {
+            best_a = a;
+            best_b = b;
+            best_cost = cost;
+            best_subtract = false;
+         }
+         if (powers[a] > powers[b] && powers[a] - powers[b] == wanted && cost < best_cost) {
+            best_a = a;
+            best_b = b;
+            best_cost = cost;
+            best_subtract = true;
+         }
+      }
+   }
+   if (best_a < 0) {
+      return false;
+   }
+   if (power_a_out) {
+      *power_a_out = best_a;
+   }
+   if (power_b_out) {
+      *power_b_out = best_b;
+   }
+   if (subtract_out) {
+      *subtract_out = best_subtract;
+   }
+   return true;
+}
+
+//! @brief Classify cheap packed-BCD multiplication by a two-term decimal constant.
+bool classify_bcd_cheap_constant_multiply_binary_expr(const ASTNode *expr, Context *ctx,
+                                                      const ASTNode **value_expr_out,
+                                                      int *power_a_out,
+                                                      int *power_b_out,
+                                                      bool *subtract_out) {
+   const ASTNode *lhs;
+   const ASTNode *rhs;
+   const ASTNode *value_expr = NULL;
+   const ASTNode *constant_expr = NULL;
+   const ASTNode *value_type;
+   const ASTNode *value_decl;
+   long long constant_value;
+   int power_a;
+   int power_b;
+   bool subtract;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 || strcmp(expr->name, "*")) {
+      return false;
+   }
+   lhs = unwrap_expr_node(expr->children[0]);
+   rhs = unwrap_expr_node(expr->children[1]);
+   if (expr_is_integer_constant_expr(rhs, NULL)) {
+      value_expr = lhs;
+      constant_expr = rhs;
+   }
+   else if (expr_is_integer_constant_expr(lhs, NULL)) {
+      value_expr = rhs;
+      constant_expr = lhs;
+   }
+   if (!value_expr || !constant_expr ||
+       !bcd_cheap_multiplier_constant_expr(constant_expr, &power_a, &power_b, &subtract) ||
+       !expr_is_integer_constant_expr(constant_expr, &constant_value)) {
+      return false;
+   }
+   value_type = expr_value_type((ASTNode *) value_expr, ctx);
+   value_decl = expr_value_declarator((ASTNode *) value_expr, ctx);
+   if (!type_is_bcd_integer(value_type) ||
+       (value_decl && !declarator_is_plain_value(value_decl)) ||
+       !integer_value_fits_type(constant_value, value_type)) {
+      return false;
+   }
+   if (value_expr_out) {
+      *value_expr_out = value_expr;
+   }
+   if (power_a_out) {
+      *power_a_out = power_a;
+   }
+   if (power_b_out) {
+      *power_b_out = power_b;
+   }
+   if (subtract_out) {
+      *subtract_out = subtract;
+   }
+   return true;
+}
+
 //! @brief Recognize a positive integer constant power of ten and return its decimal shift.
 bool bcd_power_of_ten_constant_expr(const ASTNode *expr, int *decimal_digits_out) {
    long long value;
@@ -391,7 +675,10 @@ void require_valid_bcd_operator_expr(ASTNode *expr, Context *ctx) {
       return;
    }
 
-   if (classify_bcd_power_of_ten_binary_expr(expr, ctx, NULL, NULL)) {
+   if (classify_trivial_integer_binary_expr(expr, ctx, NULL, NULL) ||
+       classify_bcd_power_of_ten_binary_expr(expr, ctx, NULL, NULL) ||
+       classify_bcd_small_remainder_binary_expr(expr, ctx, NULL, NULL) ||
+       classify_bcd_cheap_constant_multiply_binary_expr(expr, ctx, NULL, NULL, NULL, NULL)) {
       return;
    }
 

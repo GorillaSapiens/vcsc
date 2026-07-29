@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: cheap_product:
+// expectasm: 	.byte $24
+// expectasm: small_remainder:
+// expectasm: 	.byte $02
+// expectasm: shifted_product:
+// expectasm: 	.byte $88, $11
+include "machine_6502.c26"
+
+bcd8_t cheap_product := 12`bcd8_t * 2;
+bcd8_t small_remainder := 97`bcd8_t % 5;
+bcd16_t shifted_product := 12`bcd16_t * 99;

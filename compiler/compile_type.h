@@ -26,6 +26,24 @@ bool bcd_implicit_conversion_allowed(const ASTNode *dst_type, const ASTNode *dst
                                      const ASTNode *src_type, const ASTNode *src_decl,
                                      const ASTNode *src_expr);
 bool bcd_power_of_ten_constant_expr(const ASTNode *expr, int *decimal_digits_out);
+bool classify_trivial_integer_binary_expr(const ASTNode *expr, Context *ctx,
+                                          const ASTNode **value_expr_out,
+                                          bool *copy_value_out);
+bool classify_trivial_integer_compound(const char *op, const ASTNode *lhs_type,
+                                       const ASTNode *lhs_decl,
+                                       const ASTNode *rhs_expr,
+                                       bool *copy_value_out);
+bool bcd_small_remainder_constant_expr(const ASTNode *expr, int *divisor_out);
+bool classify_bcd_small_remainder_binary_expr(const ASTNode *expr, Context *ctx,
+                                              const ASTNode **value_expr_out,
+                                              int *divisor_out);
+bool bcd_cheap_multiplier_constant_expr(const ASTNode *expr, int *power_a_out,
+                                        int *power_b_out, bool *subtract_out);
+bool classify_bcd_cheap_constant_multiply_binary_expr(const ASTNode *expr, Context *ctx,
+                                                      const ASTNode **value_expr_out,
+                                                      int *power_a_out,
+                                                      int *power_b_out,
+                                                      bool *subtract_out);
 bool classify_bcd_power_of_ten_binary_expr(const ASTNode *expr, Context *ctx,
                                            const ASTNode **value_expr_out,
                                            int *decimal_digits_out);

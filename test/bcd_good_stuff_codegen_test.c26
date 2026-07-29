@@ -1,0 +1,38 @@
+// vcsc-cc1 -I .
+// expectasm: cmp #5
+// expectasm: and #$01
+// expectasm: sed
+// expectasm: adc
+// expectasm: sbc
+// forbidasm: jsr _mul
+// forbidasm: jsr _div
+include "machine_6502.c26"
+
+bcd8_t a8;
+bcd16_t a16;
+bcd24_t a24;
+bcd32_t a32;
+
+void main(void) {
+   a8 := a8 * 0;
+   a8 := a8 % 2;
+   a8 := a8 % 5;
+   a8 := a8 * 20;
+
+   a16 := a16 * 2;
+   a16 := 9 * a16;
+   a16 := a16 * 11;
+   a16 := a16 * 99;
+   a16 := a16 * 101;
+
+   a24 := (a24 / 100) * 100;
+   a24 := (a24 / 100) % 1000;
+   a24 := (a24 % 1000) * 100;
+   a24 := a24 - (a24 % 100);
+   a24 := a24 * 99;
+
+   a32 := a32 * 101;
+   a32 *= 11;
+   a32 %= 2;
+   a32 %= 5;
+}

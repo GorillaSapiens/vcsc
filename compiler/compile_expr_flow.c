@@ -975,13 +975,26 @@ void compile_expr(ASTNode *node, Context *ctx) {
       const ASTNode *literal_type = literal_annotation_type(rhs);
       bool constant_without_bcd_type = expr_is_integer_constant_expr(rhs, NULL) &&
                                        (!literal_type || !type_is_bcd_integer(literal_type));
-      bool bcd_decimal_power_compound = false;
+      bool bcd_special_compound = false;
       const ASTNode *rhs_type = NULL;
       const ASTNode *rhs_decl = NULL;
 
       if (op && type_is_bcd_integer(dst->type) &&
           (!strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%="))) {
-         bcd_decimal_power_compound = bcd_power_of_ten_constant_expr(rhs, NULL);
+         bool copy_value;
+         long long multiplier;
+         bool cheap_multiplier =
+            !strcmp(op, "*=") &&
+            bcd_cheap_multiplier_constant_expr(rhs, NULL, NULL, NULL) &&
+            expr_is_integer_constant_expr(rhs, &multiplier) &&
+            integer_value_fits_type(multiplier, dst->type);
+
+         bcd_special_compound =
+            classify_trivial_integer_compound(op, dst->type, dst->declarator,
+                                              rhs, &copy_value) ||
+            bcd_power_of_ten_constant_expr(rhs, NULL) ||
+            (!strcmp(op, "%=") && bcd_small_remainder_constant_expr(rhs, NULL)) ||
+            cheap_multiplier;
       }
 
       if (type_is_bcd_integer(dst->type) || !constant_without_bcd_type) {
@@ -993,7 +1006,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
          error_user("[%s:%d.%d] packed-BCD bitfields are not supported",
                     node->file, node->line, node->column);
       }
-      if ((type_is_bcd_integer(dst->type) || rhs_type) &&
+      if (!bcd_special_compound &&
+          (type_is_bcd_integer(dst->type) || rhs_type) &&
           !bcd_implicit_conversion_allowed(dst->type, dst->declarator,
                                            rhs_type, rhs_decl, rhs)) {
          error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
@@ -1001,7 +1015,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
       if (op && strcmp(op, ":=") &&
           (type_is_bcd_integer(dst->type) || type_is_bcd_integer(rhs_type)) &&
-          strcmp(op, "+=") && strcmp(op, "-=") && !bcd_decimal_power_compound) {
+          strcmp(op, "+=") && strcmp(op, "-=") && !bcd_special_compound) {
          error_user("[%s:%d.%d] compound operator '%s' is not supported for packed-BCD values",
                     node->file, node->line, node->column, op);
       }
@@ -1075,6 +1089,52 @@ void compile_expr(ASTNode *node, Context *ctx) {
       return;
    }
 
+   {
+      bool copy_value = false;
+
+      if (classify_trivial_integer_compound(op, dst->type, dst->declarator,
+                                              rhs, &copy_value)) {
+         int value_size = dst->size;
+         int result_offset = value_size;
+         FlowFixedScratch scratch;
+
+         if (value_size <= 0) {
+            error_user("[%s:%d.%d] invalid compound assignment width",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_prepare(ctx, value_size * 2, &scratch);
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_activate(ctx, &scratch);
+         if (copy_value) {
+            emit_copy_scratch_to_scratch(result_offset, 0, value_size);
+         }
+         else {
+            unsigned char *zeroes = (unsigned char *) calloc(value_size, 1);
+            if (!zeroes) {
+               error_unreachable("out of memory");
+            }
+            emit_store_immediate_to_scratch(result_offset, zeroes, value_size);
+            free(zeroes);
+         }
+         flow_fixed_scratch_deactivate(ctx, &scratch);
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol,
+                                         result_offset, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_finish(&scratch);
+         return;
+      }
+   }
+
    if (type_is_bcd_integer(dst->type) &&
        (!strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%="))) {
       int decimal_digits;
@@ -1113,6 +1173,84 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
    }
 
+
+   if (type_is_bcd_integer(dst->type) && !strcmp(op, "%=")) {
+      int divisor;
+
+      if (bcd_small_remainder_constant_expr(rhs, &divisor)) {
+         int value_size = dst->size;
+         int result_offset = value_size;
+         FlowFixedScratch scratch;
+
+         flow_fixed_scratch_prepare(ctx, value_size * 2, &scratch);
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_activate(ctx, &scratch);
+         emit_bcd_small_remainder_scratch(result_offset, 0, value_size, divisor);
+         flow_fixed_scratch_deactivate(ctx, &scratch);
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol,
+                                         result_offset, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_finish(&scratch);
+         return;
+      }
+   }
+
+   if (type_is_bcd_integer(dst->type) && !strcmp(op, "*=")) {
+      int power_a;
+      int power_b;
+      bool subtract;
+      long long multiplier;
+
+      if (bcd_cheap_multiplier_constant_expr(rhs, &power_a, &power_b,
+                                             &subtract) &&
+          expr_is_integer_constant_expr(rhs, &multiplier) &&
+          integer_value_fits_type(multiplier, dst->type)) {
+         int value_size = dst->size;
+         int term_a_offset = value_size;
+         int term_b_offset = value_size * 2;
+         FlowFixedScratch scratch;
+
+         flow_fixed_scratch_prepare(ctx, value_size * 3, &scratch);
+         if (!emit_copy_lvalue_to_symbol(ctx, scratch.symbol, 0, &lv, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_activate(ctx, &scratch);
+         emit_bcd_power_of_ten_scratch("*", term_a_offset, 0,
+                                       value_size, power_a);
+         emit_bcd_power_of_ten_scratch("*", term_b_offset, 0,
+                                       value_size, power_b);
+         if (subtract) {
+            emit_sub_scratch_from_scratch(dst->type, term_a_offset,
+                                          term_b_offset, value_size);
+         }
+         else {
+            emit_add_scratch_to_scratch(dst->type, term_a_offset,
+                                        term_b_offset, value_size);
+         }
+         flow_fixed_scratch_deactivate(ctx, &scratch);
+         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch.symbol,
+                                         term_a_offset, value_size)) {
+            flow_fixed_scratch_finish(&scratch);
+            error_user("[%s:%d.%d] invalid compound assignment target",
+                       node->file, node->line, node->column);
+            return;
+         }
+         flow_fixed_scratch_finish(&scratch);
+         return;
+      }
+   }
 
    if (!strcmp(op, "+=") || !strcmp(op, "-=") || !strcmp(op, "&=") || !strcmp(op, "|=") ||
        !strcmp(op, "^=") || !strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%=") ||

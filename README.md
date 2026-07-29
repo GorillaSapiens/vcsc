@@ -117,7 +117,9 @@ See each component README for the complete command line and format contracts.
 
 The language is intentionally smaller and more explicit than C:
 
-- fixed-width signed, unsigned, and packed-BCD integer types up to 32 bits;
+- fixed-width signed, unsigned, and packed-BCD integer types up to 32 bits,
+  including inline constant identities, oversized-divisor folds, and compact
+  decimal-digit BCD arithmetic forms;
 - static, non-reentrant function activations;
 - no direct or mutual recursion;
 - directly named call targets rather than function pointers;

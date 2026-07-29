@@ -6124,3 +6124,32 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests; the first 170 were observed passing before the runner command hit the
   execution ceiling, and the remaining 21 were rerun explicitly and passed.
   No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-28 22:22:07 PDT, add cheap integer and packed-BCD constant arithmetic optimizations
+--------------------------------------------------------------------------------------------
+* Add general fixed-width integer lowering for multiplication by zero or one,
+  division by one, remainder by one, and division/remainder by a positive
+  constant larger than every possible left-operand value. Apply the same rules
+  to compound assignments while evaluating operands and lvalues exactly once.
+* Add packed-BCD remainder by two and five using only low-digit masks and one
+  conditional subtract. Add multiplication by constants expressible as
+  `10^a + 10^b` or `10^a - 10^b`, provided the multiplier fits the BCD type;
+  form two decimal-shifted copies and combine them with one scoped decimal add
+  or subtract instead of selecting a general multiplication helper.
+* Fuse chains of packed-BCD multiplication, division, and remainder by powers
+  of ten into one contiguous digit-window copy. Also fuse
+  `x - (x % 10^n)` for ordinary variables while deliberately retaining both
+  evaluations for calls, indirect expressions, and hardware references.
+* Keep unsupported general BCD multiplication, division, and remainder
+  rejected. Add an explicit rejection boundary for cheap-form multipliers that
+  do not fit the destination BCD type, such as `bcd8_t *= 101`.
+* Add compile-time assembly-shape checks and simulator verification covering
+  zero/one identities, signed and unsigned oversized-divisor boundaries,
+  side-effect preservation, all four BCD widths, `% 2`, `% 5`, decimal
+  wraparound, compound forms, two-term multipliers, digit extraction,
+  repositioning, and truncation. Update root, compiler, ABI, and test
+  documentation.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic
+  tests are accounted for and pass; the first 172 passed before the outer
+  command window expired, and the remaining 21 passed when run explicitly.
+  No files were removed; `.top_secret/remove.txt` is unchanged.

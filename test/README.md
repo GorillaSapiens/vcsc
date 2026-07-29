@@ -108,7 +108,18 @@ underscores, and width overflow after normalization.
 `bcd32_t`. They lock odd-nibble shifts and masks, even whole-byte moves,
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
-Companion rejection tests keep non-power-of-ten operands unsupported.
+
+`integer_trivial_codegen_test.c26` and
+`e2e_integer_trivial_optimizations_verify.c26` cover zero/one identities,
+annihilators, positive oversized divisors, compound assignments, signed and
+unsigned boundaries, and preservation of operand evaluation. The matching BCD
+coverage in `bcd_good_stuff_codegen_test.c26`,
+`bcd_good_stuff_static_codegen_test.c26`, and
+`e2e_bcd_good_stuff_verify.c26` covers `% 2`, `% 5`, two-term decimal
+shift/add/subtract multipliers, fused digit extraction/repositioning, truncation,
+wraparound, compound forms, and function-call evaluation counts. Companion
+rejection tests retain unsupported general constants such as multiplication by
+`3`, division by `20`, and remainder by `25`.
 
 `vcs_standard_renderer_contract.test` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-renderer module. It checks the

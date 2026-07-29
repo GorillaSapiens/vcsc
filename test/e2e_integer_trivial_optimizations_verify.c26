@@ -1,0 +1,68 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+uint8_t calls;
+uint8_t source;
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t touch(void) {
+   calls++;
+   return source;
+}
+
+void main(void) {
+   uint8_t u8;
+   uint16_t u16;
+   int8_t s8;
+
+   calls := 0;
+   source := 37;
+   if (touch() * 0 != 0 || calls != 1) { fail(1); }
+   if (0 * touch() != 0 || calls != 2) { fail(2); }
+   if (touch() * 1 != 37 || calls != 3) { fail(3); }
+   if (1 * touch() != 37 || calls != 4) { fail(4); }
+   if (touch() / 1 != 37 || calls != 5) { fail(5); }
+   if (touch() % 1 != 0 || calls != 6) { fail(6); }
+   if (touch() / 256 != 0 || calls != 7) { fail(7); }
+   if (touch() % 256 != 37 || calls != 8) { fail(8); }
+
+   u8 := 93;
+   u8 *= 0;
+   if (u8 != 0) { fail(9); }
+   u8 := 93;
+   u8 *= 1;
+   if (u8 != 93) { fail(10); }
+   u8 /= 1;
+   if (u8 != 93) { fail(11); }
+   u8 %= 1;
+   if (u8 != 0) { fail(12); }
+   u8 := 93;
+   u8 /= 256;
+   if (u8 != 0) { fail(13); }
+   u8 := 93;
+   u8 %= 256;
+   if (u8 != 93) { fail(14); }
+
+   u16 := 54321;
+   if (u16 / 65536 != 0) { fail(15); }
+   if (u16 % 65536 != 54321) { fail(16); }
+
+   s8 := -128;
+   if (s8 / 129 != 0 || s8 % 129 != -128) { fail(17); }
+   s8 := 127;
+   if (s8 / 129 != 0 || s8 % 129 != 127) { fail(18); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

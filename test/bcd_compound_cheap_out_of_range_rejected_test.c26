@@ -2,5 +2,5 @@
 // expectfail
 // expecterr: compound operator '*=' is not supported for packed-BCD values
 include "machine_6502.c26"
-bcd16_t a;
-void main(void) { a *= 3; }
+bcd8_t a;
+void main(void) { a *= 101; }

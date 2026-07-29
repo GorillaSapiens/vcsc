@@ -1,0 +1,82 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+uint8_t bcd_calls;
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+bcd16_t touch_bcd(void) {
+   bcd_calls++;
+   return 1234;
+}
+
+void main(void) {
+   bcd8_t a8;
+   bcd16_t a16;
+   bcd24_t a24;
+   bcd32_t a32;
+
+   a8 := 97;
+   if (a8 * 0 != 0) { fail(1); }
+   if (a8 % 2 != 1 || a8 % 5 != 2) { fail(2); }
+   a8 %= 2;
+   if (a8 != 1) { fail(3); }
+   a8 := 98;
+   a8 %= 5;
+   if (a8 != 3) { fail(4); }
+
+   a16 := 1234;
+   if (a16 * 2 != 2468) { fail(5); }
+   if (2 * a16 != 2468) { fail(6); }
+   if (a16 * 9 != 1106) { fail(7); }
+   if (a16 * 11 != 3574) { fail(8); }
+   if (a16 * 99 != 2166) { fail(9); }
+   if (a16 * 101 != 4634) { fail(10); }
+   a16 := 9999;
+   if (a16 * 2 != 9998 || a16 * 9 != 9991) { fail(11); }
+   a16 := 1234;
+   a16 *= 11;
+   if (a16 != 3574) { fail(12); }
+   a16 *= 99;
+   if (a16 != 3826) { fail(13); }
+
+   a24 := 123456;
+   if ((a24 / 100) * 100 != 123400) { fail(14); }
+   if ((a24 / 100) % 1000 != 234) { fail(15); }
+   if ((a24 % 1000) * 100 != 45600) { fail(16); }
+   if (a24 - (a24 % 100) != 123400) { fail(17); }
+
+   a32 := 87654321;
+   if ((a32 / 1000) * 100 != 8765400) { fail(18); }
+   if ((a32 / 100) % 10000 != 6543) { fail(19); }
+   if ((a32 % 100000) * 1000 != 54321000) { fail(20); }
+   if (a32 - (a32 % 10000) != 87650000) { fail(21); }
+   a32 %= 5;
+   if (a32 != 1) { fail(22); }
+
+   bcd_calls := 0;
+   if ((touch_bcd() / 100) * 100 != 1200 || bcd_calls != 1) { fail(23); }
+   if (touch_bcd() - (touch_bcd() % 100) != 1200 || bcd_calls != 3) { fail(24); }
+
+   a8 := 97;
+   if (a8 * 2 != 94 || a8 * 20 != 40) { fail(25); }
+   a16 := 1234;
+   if (a16 % 2 != 0 || a16 % 5 != 4) { fail(26); }
+   a24 := 123456;
+   if (a24 * 99 != 222144 || a24 % 2 != 0 || a24 % 5 != 1) { fail(27); }
+   a32 := 87654321;
+   if (a32 * 101 != 53086421 || a32 % 2 != 1 || a32 % 5 != 1) { fail(28); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

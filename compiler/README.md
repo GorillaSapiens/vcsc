@@ -313,21 +313,43 @@ BCD `$42` in a `bcd8_t` destination.
 
 Supported BCD operations are assignment, same-representation widening or
 truncation, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`, comparisons,
-truth tests, logical operators, and `switch` comparison. Multiplication,
-division, and remainder are additionally supported when the decimal factor or
-divisor is a positive integer constant expression exactly equal to `10^n`,
-including `1` as `10^0`. Multiplication accepts the constant on either side;
-division and remainder require it on the right. The compound forms `*=`, `/=`,
-and `%=` follow the same rule.
+truth tests, logical operators, and `switch` comparison. Several constant
+multiply/divide/remainder forms also lower inline:
 
-These decimal-power operations are packed-digit moves, not general BCD
-arithmetic. Even powers move whole bytes; odd powers use four accumulator
-shifts plus `$0f` masks to join adjacent nibbles. They emit no multiply/divide
-runtime helper and never enter decimal mode. Multiplication discards digits
-shifted past the destination width, division discards shifted-off low digits,
-and remainder retains only the low `n` decimal digits. Thus, for example,
-`bcd16_t` value `1234` produces `2340` for `* 10`, `123` for `/ 10`, and `34`
-for `% 100`.
+- multiplication, division, and remainder by a positive constant expression
+  exactly equal to `10^n`, including `1` as `10^0`;
+- remainder by `2` or `5`, determined entirely from the lowest decimal digit;
+- multiplication by a constant expressible as the sum or positive difference
+  of two decimal powers, `10^a + 10^b` or `10^a - 10^b`, provided that the
+  constant fits the BCD type. Examples include `2`, `9`, `11`, `20`, `99`, and
+  `101`.
+
+Multiplication accepts the constant on either side. Division and remainder
+require it on the right. The compound forms `*=`, `/=`, and `%=` support the
+same applicable constants. Other BCD multiplication, division, and remainder
+remain rejected rather than silently selecting a general arithmetic helper.
+
+Decimal-power operations are packed-digit moves, not general BCD arithmetic.
+Even powers move whole bytes; odd powers use four accumulator shifts plus
+masks to join adjacent nibbles. Multiplication discards digits shifted past the
+destination width, division discards shifted-off low digits, and remainder
+retains only the low `n` decimal digits. Thus, for example, `bcd16_t` value
+`1234` produces `2340` for `* 10`, `123` for `/ 10`, and `34` for `% 100`.
+Remainder by `2` is a low-bit mask; remainder by `5` masks the lowest digit and
+conditionally subtracts five.
+
+Cheap constant multiplication forms shifted copies and combines them with one
+packed-BCD addition or subtraction. For example, `x * 9` is lowered as
+`x * 10 - x`, while `x * 101` is `x * 100 + x`. These forms use one tightly
+scoped `SED`/`CLD` pair around the final decimal add/subtract but never call a
+multiply helper.
+
+Chains of decimal-power operations are fused into one contiguous digit-window
+copy. Expressions such as `(x / 100) * 100`, `(x / 100) % 1000`, and
+`(x % 1000) * 100` therefore avoid intermediate BCD temporaries. The equivalent
+truncation spelling `x - (x % 100)` is fused when `x` is an ordinary variable;
+function calls, indirect values, and absolute hardware refs retain their full
+source evaluation behavior.
 
 Addition and subtraction wrap at the destination width. The compiler brackets
 only their decimal `ADC`/`SBC` chains with `SED` and `CLD`, so generated code
@@ -658,11 +680,15 @@ One- through four-byte copies, fills, integer extension, negation, comparison,
 and bitwise operations are emitted inline. Variable shifts call width-specific
 8-, 16-, 24-, or 32-bit helpers. Multiplication and division/remainder likewise
 select fixed-width helpers that use the already-live compiler expression
-scratch for operands and results. Packed-BCD multiplication, division, and
-remainder by constant powers of ten are the exception: they lower inline to
-whole-byte moves or four-bit shifts and masks. All scalar helper families stay
-at the eight-byte runtime baseline and own no private BSS. Objects wider than
-four bytes may use the aggregate byte-copy/fill helpers.
+scratch for operands and results. Compile-time identities and annihilators are
+removed before helper selection: multiplication by zero or one, division by
+one, remainder by one, and division/remainder by a positive constant larger
+than every possible left operand value lower to evaluation plus a copy or zero.
+Operand side effects are preserved. Packed-BCD decimal-power operations,
+remainder by two or five, cheap two-decimal-term constant multiplication, and
+fused digit-window expressions also lower inline. All scalar helper families
+stay at the eight-byte runtime baseline and own no private BSS. Objects wider
+than four bytes may use the aggregate byte-copy/fill helpers.
 
 Compiler expression scratch is part of the owning function activation. It is
 pooled by nesting depth during compilation, then overlaid with mutually

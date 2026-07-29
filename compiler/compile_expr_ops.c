@@ -410,6 +410,245 @@ void emit_bcd_power_of_ten_scratch(const char *op, int dst_offset, int src_offse
    }
 }
 
+//! @brief Copy one contiguous packed-BCD digit window to a new position.
+static void emit_bcd_digit_window_scratch(int dst_offset, int src_offset, int size,
+                                          int src_digit, int dst_digit,
+                                          int digit_count) {
+   int total_digits = size * 2;
+
+   if (size <= 0) {
+      return;
+   }
+   for (int byte = 0; byte < size; byte++) {
+      int dst_low_digit = byte * 2;
+      int dst_high_digit = dst_low_digit + 1;
+      int src_low_digit = -1;
+      int src_high_digit = -1;
+
+      if (dst_low_digit >= dst_digit && dst_low_digit < dst_digit + digit_count) {
+         src_low_digit = src_digit + (dst_low_digit - dst_digit);
+      }
+      if (dst_high_digit >= dst_digit && dst_high_digit < dst_digit + digit_count) {
+         src_high_digit = src_digit + (dst_high_digit - dst_digit);
+      }
+      if (src_low_digit < 0 || src_low_digit >= total_digits) {
+         src_low_digit = -1;
+      }
+      if (src_high_digit < 0 || src_high_digit >= total_digits) {
+         src_high_digit = -1;
+      }
+
+      if (src_low_digit >= 0) {
+         emit(&es_code, "    ldy #%d\n", src_offset + src_low_digit / 2);
+         emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+         if (src_low_digit & 1) {
+            emit(&es_code, "    lsr\n");
+            emit(&es_code, "    lsr\n");
+            emit(&es_code, "    lsr\n");
+            emit(&es_code, "    lsr\n");
+         }
+         else {
+            emit(&es_code, "    and #$0f\n");
+         }
+      }
+      else {
+         emit(&es_code, "    lda #0\n");
+      }
+      emit(&es_code, "    ldy #%d\n", dst_offset + byte);
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+
+      if (src_high_digit >= 0) {
+         emit(&es_code, "    ldy #%d\n", src_offset + src_high_digit / 2);
+         emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+         if (src_high_digit & 1) {
+            emit(&es_code, "    and #$f0\n");
+         }
+         else {
+            emit(&es_code, "    and #$0f\n");
+            emit(&es_code, "    asl\n");
+            emit(&es_code, "    asl\n");
+            emit(&es_code, "    asl\n");
+            emit(&es_code, "    asl\n");
+         }
+         emit(&es_code, "    ldy #%d\n", dst_offset + byte);
+         emit(&es_code, "    ora %s,y\n", compiler_scratch_active_symbol());
+         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      }
+   }
+}
+
+//! @brief Lower packed-BCD remainder by two or five from the lowest decimal digit.
+void emit_bcd_small_remainder_scratch(int dst_offset, int src_offset,
+                                      int size, int divisor) {
+   const char *done_label = NULL;
+
+   if (size <= 0 || (divisor != 2 && divisor != 5)) {
+      return;
+   }
+   emit(&es_code, "    ldy #%d\n", src_offset);
+   emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+   emit(&es_code, "    and #$0f\n");
+   if (divisor == 2) {
+      emit(&es_code, "    and #$01\n");
+   }
+   else {
+      done_label = next_label("bcd_mod5_done");
+      emit(&es_code, "    cmp #5\n");
+      emit(&es_code, "    bcc %s\n", done_label);
+      emit(&es_code, "    sbc #5\n");
+      emit(&es_code, "%s:\n", done_label);
+   }
+   emit(&es_code, "    ldy #%d\n", dst_offset);
+   emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+   for (int i = 1; i < size; i++) {
+      emit_bcd_copy_or_zero_byte(dst_offset + i, 0, false);
+   }
+   free((void *) done_label);
+}
+
+typedef struct BcdDigitTransform {
+   const ASTNode *value_expr;
+   const ASTNode *type;
+   int size;
+   int src_digit;
+   int dst_digit;
+   int digit_count;
+   int operation_count;
+   bool truncation_subtract;
+} BcdDigitTransform;
+
+//! @brief Initialize a packed-BCD transform from an arbitrary value expression.
+static bool init_bcd_digit_transform(const ASTNode *expr, Context *ctx,
+                                     BcdDigitTransform *out) {
+   const ASTNode *type;
+   const ASTNode *decl;
+   int size;
+
+   expr = unwrap_expr_node(expr);
+   type = expr_value_type((ASTNode *) expr, ctx);
+   decl = expr_value_declarator((ASTNode *) expr, ctx);
+   size = type ? type_size_from_node(type) : 0;
+   if (!expr || !type_is_bcd_integer(type) || size <= 0 ||
+       (decl && !declarator_is_plain_value(decl))) {
+      return false;
+   }
+   *out = (BcdDigitTransform){
+      .value_expr = expr,
+      .type = type,
+      .size = size,
+      .src_digit = 0,
+      .dst_digit = 0,
+      .digit_count = size * 2,
+      .operation_count = 0,
+      .truncation_subtract = false
+   };
+   return true;
+}
+
+//! @brief Apply one decimal-power operation to a packed-BCD digit transform.
+static void apply_bcd_digit_transform(BcdDigitTransform *transform,
+                                      char opcode, int decimal_digits) {
+   int total_digits = transform->size * 2;
+
+   if (decimal_digits < 0) {
+      transform->digit_count = 0;
+      return;
+   }
+   if (opcode == '*') {
+      transform->dst_digit += decimal_digits;
+      if (transform->dst_digit >= total_digits) {
+         transform->digit_count = 0;
+      }
+      else if (transform->digit_count > total_digits - transform->dst_digit) {
+         transform->digit_count = total_digits - transform->dst_digit;
+      }
+   }
+   else if (opcode == '/') {
+      if (decimal_digits <= transform->dst_digit) {
+         transform->dst_digit -= decimal_digits;
+      }
+      else {
+         int removed = decimal_digits - transform->dst_digit;
+         transform->src_digit += removed;
+         transform->digit_count -= removed;
+         transform->dst_digit = 0;
+      }
+      if (transform->digit_count < 0 || transform->src_digit >= total_digits) {
+         transform->digit_count = 0;
+      }
+      else if (transform->digit_count > total_digits - transform->src_digit) {
+         transform->digit_count = total_digits - transform->src_digit;
+      }
+   }
+   else if (opcode == '%') {
+      if (transform->dst_digit >= decimal_digits) {
+         transform->digit_count = 0;
+      }
+      else if (transform->digit_count > decimal_digits - transform->dst_digit) {
+         transform->digit_count = decimal_digits - transform->dst_digit;
+      }
+   }
+   transform->operation_count++;
+}
+
+//! @brief Recursively classify a chain of packed-BCD decimal digit operations.
+static bool classify_bcd_digit_transform_chain(const ASTNode *expr, Context *ctx,
+                                               BcdDigitTransform *out,
+                                               bool allow_plain_value) {
+   const ASTNode *value_expr = NULL;
+   int decimal_digits;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr) {
+      return false;
+   }
+   if (classify_bcd_power_of_ten_binary_expr(expr, ctx, &value_expr,
+                                             &decimal_digits)) {
+      if (!classify_bcd_digit_transform_chain(value_expr, ctx, out, true)) {
+         return false;
+      }
+      apply_bcd_digit_transform(out, expr->name[0], decimal_digits);
+      return true;
+   }
+   if (!strcmp(expr->name, "-") && expr->count == 2) {
+      const ASTNode *rhs = unwrap_expr_node(expr->children[1]);
+      const ASTNode *rhs_value = NULL;
+      LValueRef lhs_lvalue;
+      if (rhs && !strcmp(rhs->name, "%") &&
+          classify_bcd_power_of_ten_binary_expr(rhs, ctx, &rhs_value,
+                                                &decimal_digits) &&
+          expression_tree_equal(unwrap_expr_node(expr->children[0]), rhs_value) &&
+          expr_bare_identifier_name(expr->children[0]) &&
+          resolve_lvalue(ctx, expr->children[0], &lhs_lvalue) &&
+          !lhs_lvalue.is_absolute_ref && !lhs_lvalue.indirect &&
+          !lhs_lvalue.needs_runtime_address &&
+          init_bcd_digit_transform(expr->children[0], ctx, out)) {
+         int total_digits = out->size * 2;
+         if (decimal_digits >= total_digits) {
+            out->digit_count = 0;
+         }
+         else {
+            out->src_digit = decimal_digits;
+            out->dst_digit = decimal_digits;
+            out->digit_count = total_digits - decimal_digits;
+         }
+         out->operation_count = 1;
+         out->truncation_subtract = true;
+         return true;
+      }
+   }
+   return allow_plain_value && init_bcd_digit_transform(expr, ctx, out);
+}
+
+//! @brief Classify only profitable multi-operation or truncation packed-BCD transforms.
+static bool classify_fused_bcd_digit_transform(const ASTNode *expr, Context *ctx,
+                                               BcdDigitTransform *out) {
+   if (!classify_bcd_digit_transform_chain(expr, ctx, out, false)) {
+      return false;
+   }
+   return out->operation_count >= 2 || out->truncation_subtract;
+}
+
 //! @brief Handle expr byte index logic for compiler operator lowering.
 static int expr_byte_index(const ASTNode *type, int size, int i) {
    (void) type;
@@ -781,6 +1020,50 @@ unary_not_done:
       return true;
    }
 
+   {
+      BcdDigitTransform transform;
+
+      if (!strcmp(expr->name, "-") &&
+          classify_fused_bcd_digit_transform(expr, ctx, &transform) &&
+          transform.truncation_subtract) {
+         int result_offset = transform.size;
+         int out_offset = transform.size * 2;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0) {
+            return false;
+         }
+         value_tmp = (ContextEntry){
+            .name = "$bcd_truncate_value",
+            .type = transform.type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = transform.size
+         };
+         expr_fixed_scratch_begin(ctx, transform.size * 2 + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) transform.value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         emit_bcd_digit_window_scratch(result_offset, 0, transform.size,
+                                       transform.src_digit, transform.dst_digit,
+                                       transform.digit_count);
+         emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                              result_offset, transform.size,
+                                              transform.type);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size,
+                                   dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
+   }
+
    if (expr->count == 2 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-"))) {
       const ASTNode *rhs = unwrap_expr_node(expr->children[1]);
       const ASTNode *lhs_type = NULL;
@@ -1045,6 +1328,211 @@ unary_not_done:
       return true;
    }
 
+
+   {
+      const ASTNode *value_expr = NULL;
+      bool copy_value = false;
+
+      if (classify_trivial_integer_binary_expr(expr, ctx, &value_expr,
+                                               &copy_value)) {
+         const ASTNode *value_type = expr_value_type((ASTNode *) value_expr, ctx);
+         int value_size = value_type ? type_size_from_node(value_type) : 0;
+         int out_offset;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0) {
+            return false;
+         }
+         if (value_size <= 0) {
+            value_size = expr_value_size((ASTNode *) value_expr, ctx);
+         }
+         if (value_size <= 0 || !value_type) {
+            return false;
+         }
+         out_offset = value_size;
+         value_tmp = (ContextEntry){
+            .name = "$trivial_value",
+            .type = value_type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = value_size
+         };
+         expr_fixed_scratch_begin(ctx, value_size + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         if (copy_value) {
+            emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                                 0, value_size, value_type);
+         }
+         else {
+            unsigned char *zeroes = (unsigned char *) calloc(dst->size, 1);
+            if (!zeroes) {
+               error_unreachable("out of memory");
+            }
+            emit_store_immediate_to_scratch(out_offset, zeroes, dst->size);
+            free(zeroes);
+         }
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size,
+                                   dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
+   }
+
+   {
+      BcdDigitTransform transform;
+
+      if (classify_fused_bcd_digit_transform(expr, ctx, &transform)) {
+         int result_offset = transform.size;
+         int out_offset = transform.size * 2;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0) {
+            return false;
+         }
+         value_tmp = (ContextEntry){
+            .name = "$bcd_window_value",
+            .type = transform.type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = transform.size
+         };
+         expr_fixed_scratch_begin(ctx, transform.size * 2 + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) transform.value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         emit_bcd_digit_window_scratch(result_offset, 0, transform.size,
+                                       transform.src_digit, transform.dst_digit,
+                                       transform.digit_count);
+         emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                              result_offset, transform.size,
+                                              transform.type);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size,
+                                   dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
+   }
+
+   {
+      const ASTNode *bcd_value_expr = NULL;
+      int divisor = 0;
+
+      if (classify_bcd_small_remainder_binary_expr(expr, ctx, &bcd_value_expr,
+                                                   &divisor)) {
+         const ASTNode *op_type = expr_value_type((ASTNode *) bcd_value_expr, ctx);
+         int op_size = op_type ? type_size_from_node(op_type) : 0;
+         int result_offset;
+         int out_offset;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0 || op_size <= 0) {
+            return false;
+         }
+         result_offset = op_size;
+         out_offset = op_size * 2;
+         value_tmp = (ContextEntry){
+            .name = "$bcd_remainder_value",
+            .type = op_type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = op_size
+         };
+         expr_fixed_scratch_begin(ctx, op_size * 2 + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) bcd_value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         emit_bcd_small_remainder_scratch(result_offset, 0, op_size, divisor);
+         emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                              result_offset, op_size, op_type);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size,
+                                   dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
+   }
+
+   {
+      const ASTNode *bcd_value_expr = NULL;
+      int power_a = 0;
+      int power_b = 0;
+      bool subtract = false;
+
+      if (classify_bcd_cheap_constant_multiply_binary_expr(expr, ctx,
+                                                           &bcd_value_expr,
+                                                           &power_a, &power_b,
+                                                           &subtract)) {
+         const ASTNode *op_type = expr_value_type((ASTNode *) bcd_value_expr, ctx);
+         int op_size = op_type ? type_size_from_node(op_type) : 0;
+         int term_a_offset;
+         int term_b_offset;
+         int out_offset;
+         ContextEntry value_tmp;
+         ExprFixedScratch scratch;
+
+         if (!dst || dst->size <= 0 || op_size <= 0) {
+            return false;
+         }
+         term_a_offset = op_size;
+         term_b_offset = op_size * 2;
+         out_offset = op_size * 3;
+         value_tmp = (ContextEntry){
+            .name = "$bcd_multiplier_value",
+            .type = op_type,
+            .declarator = NULL,
+            .is_static = false,
+            .is_zeropage = false,
+            .is_global = false,
+            .target_typed = true,
+            .offset = 0,
+            .size = op_size
+         };
+         expr_fixed_scratch_begin(ctx, op_size * 3 + dst->size, &scratch);
+         if (!compile_expr_to_slot((ASTNode *) bcd_value_expr, ctx, &value_tmp)) {
+            expr_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         emit_bcd_power_of_ten_scratch("*", term_a_offset, 0, op_size, power_a);
+         emit_bcd_power_of_ten_scratch("*", term_b_offset, 0, op_size, power_b);
+         if (subtract) {
+            emit_sub_scratch_from_scratch(op_type, term_a_offset,
+                                          term_b_offset, op_size);
+         }
+         else {
+            emit_add_scratch_to_scratch(op_type, term_a_offset,
+                                        term_b_offset, op_size);
+         }
+         emit_copy_scratch_to_scratch_convert(out_offset, dst->size, dst->type,
+                                              term_a_offset, op_size, op_type);
+         expr_fixed_scratch_deactivate(ctx, &scratch);
+         emit_fixed_scratch_result(ctx, &scratch, out_offset, dst->size,
+                                   dst->type, dst);
+         expr_fixed_scratch_finish(&scratch);
+         return true;
+      }
+   }
 
    {
       const ASTNode *bcd_value_expr = NULL;
