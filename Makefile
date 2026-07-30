@@ -379,7 +379,10 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
 	for spec in \
 	  04_player_color_181/01_score_above/01_interactive/player_color_181_score_above_interactive \
-	  04_player_color_181/02_score_below/01_interactive/player_color_181_score_below_interactive; do \
+	  04_player_color_181/02_score_below/01_interactive/player_color_181_score_below_interactive \
+	  05_all_five_192/01_interactive/all_five_192_interactive \
+	  06_all_five_181/01_score_above/01_interactive/all_five_181_score_above_interactive \
+	  06_all_five_181/02_score_below/01_interactive/all_five_181_score_below_interactive; do \
 	  stem=$${spec##*/}; dir=$${spec%/*}; \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
 	    "$(CURDIR)/examples/$$dir/$$stem.c26" \

@@ -180,6 +180,16 @@ left-to-right packed-BCD digit order used by the eleven-line score components.
 The legacy and
 192-line initial scenes retain their separate exact sprite/raster checks.
 
+`vcs_all_five_interactive_examples.pl` builds the three public all-five
+interactive cartridges: scoreless 192-line, 181-line score-above, and 181-line
+score-below. Its 6502 harness cycles through P0, P1, M0, M1, and Ball, verifies
+one-pixel and one-scanline movement for every object, clamps all endpoints,
+checks held-SELECT suppression and reset-vector restoration, and applies the
+same twentieth-frame/two-matching-sample score-control contract used by the
+player-color diagnostics. The scored examples pack object selection, the
+SELECT latch, score-digit selection, joystick history, and sample countdown
+into two bytes; the test decodes and validates that packed state directly.
+
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte
 public interfaces, 74-byte and 78-byte total RAM contracts, official-opcode

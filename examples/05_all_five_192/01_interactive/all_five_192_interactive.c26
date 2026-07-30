@@ -1,0 +1,189 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+
+page const uint8_t game_playfield[48] := {
+   VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
+   VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
+   VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
+   VCS_PLAYFIELD_ROW(0b...X...._......X._........_..X.....),
+   VCS_PLAYFIELD_ROW(0b....X..._.......X_........_...X....),
+   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...),
+   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
+   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
+   VCS_PLAYFIELD_ROW(0b........_X......._...X...._.......X),
+   VCS_PLAYFIELD_ROW(0b........_.X......_....X..._......X.),
+   VCS_PLAYFIELD_ROW(0b........_..X....._.....X.._.....X..),
+   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...)
+};
+
+template "renderers/all_five_192/all_five_192.c26" as game
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX.X..XX,
+      0bXX..X.XX,
+      0bXX...XXX,
+      0bXX....XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(
+      0bXXXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXXXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXX....XX,
+      0bXXXXXXX.
+   )
+};
+
+alias OBJECT_MAX_Y 95
+alias SELECTED_PLAYER0  0
+alias SELECTED_PLAYER1  1
+alias SELECTED_MISSILE0 2
+alias SELECTED_MISSILE1 3
+alias SELECTED_BALL     4
+alias SELECTED_OBJECT_COUNT 5
+
+uint8_t selected_object := SELECTED_PLAYER0;
+uint8_t select_switch_ready := 1;
+
+inline void update_object_selection(void) {
+   if (SWCHB & 0x02) {
+      select_switch_ready := 1;
+   }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object >= SELECTED_OBJECT_COUNT) {
+            selected_object := SELECTED_PLAYER0;
+         }
+         select_switch_ready := 0;
+      }
+   }
+}
+
+inline void move_selected_object(void) {
+   asm .importzp _vcsc_ptr0;
+   asm lda selected_object;
+   asm and #$07;
+   asm tax;
+
+   asm lda SWCHA;
+   asm and #$40;
+   asm bne @not_left;
+   asm lda.zx game_object_x,x;
+   asm beq @vertical;
+   asm sec;
+   asm sbc #1;
+   asm sta.zx game_object_x,x;
+   asm jmp @vertical;
+
+   asm @not_left:;
+   asm lda SWCHA;
+   asm and #$80;
+   asm bne @vertical;
+   asm lda.zx game_object_x,x;
+   asm cmp #159;
+   asm bcs @vertical;
+   asm clc;
+   asm adc #1;
+   asm sta.zx game_object_x,x;
+
+   asm @vertical:;
+   asm lda @object_y_addresses,x;
+   asm sta _vcsc_ptr0;
+   asm lda #0;
+   asm sta _vcsc_ptr0+1;
+   asm ldy #0;
+   asm lda SWCHA;
+   asm and #$10;
+   asm bne @not_up;
+   asm lda.iy (_vcsc_ptr0),y;
+   asm beq @done;
+   asm sec;
+   asm sbc #1;
+   asm sta.iy (_vcsc_ptr0),y;
+   asm jmp @done;
+
+   asm @not_up:;
+   asm lda SWCHA;
+   asm and #$20;
+   asm bne @done;
+   asm lda.iy (_vcsc_ptr0),y;
+   asm cmp #95;
+   asm bcs @done;
+   asm clc;
+   asm adc #1;
+   asm sta.iy (_vcsc_ptr0),y;
+   asm @done:;
+   asm jmp @addresses_done;
+   asm @object_y_addresses:;
+   asm .byte game_player0_y,game_player1_y,game_missile0_y,game_missile1_y,game_ball_y;
+   asm @addresses_done:;
+}
+
+inline void update_controls(void) {
+   if (!(SWCHB & 0x01)) {
+      asm jmp ($fffc);
+   }
+   update_object_selection();
+   move_selected_object();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   COLUBK := VCS_NTSC_MEDIUM_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
+
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 80;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+
+   game_player0_y := 18;
+   game_player1_y := 78;
+   game_missile0_y := 34;
+   game_missile1_y := 62;
+   game_ball_y := 48;
+
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   game_player0_color := VCS_NTSC_SKY_BLUE;
+   game_player1_color := VCS_NTSC_ORCHID;
+   game_playfield_position := 8;
+
+   game_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      update_controls();
+      vcs_ntsc_end_overscan();
+   }
+}

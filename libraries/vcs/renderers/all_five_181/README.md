@@ -87,3 +87,7 @@ score-below composition. Emulator tests require:
 
 A gameplay-only link contains no score state, score pointers, or font. The
 independent score contributes only its own separately measured resources.
+
+## Public diagnostics
+
+[`examples/06_all_five_181/`](../../../../examples/06_all_five_181/) contains score-above and score-below interactive cartridges. SELECT cycles through all five TIA objects, the left joystick moves the selected object through its full coordinate range, and the filtered right joystick edits the independent six-digit score. The examples pack their control state into two bytes so the full composition remains comfortably inside the VCS's 128 bytes of RAM.

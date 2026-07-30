@@ -6508,3 +6508,33 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   toolchain builds every maintained component and example; after the outer
   command ceiling interrupted the monolithic `make installcheck` near its end,
   the remaining checks completed successfully against the same staging tree.
+
+2026-07-30 14:55:11 PDT, add public all-five interactive renderer diagnostics
+
+* Add a scoreless `examples/05_all_five_192/01_interactive/` cartridge and
+  score-above/score-below `examples/06_all_five_181/` cartridges based on the
+  rebuilt official all-five renderers. Each diagnostic starts from the proven
+  static five-object scene and lets SELECT cycle P0, P1, M0, M1, and Ball;
+  the left joystick moves the selected object one pixel or logical scanline per
+  frame across the complete public X/Y range. RESET jumps through `$fffc`.
+* Preserve the established scored-diagnostic right-joystick contract: sample
+  once every twenty frames, require two consecutive matching samples, repeat a
+  held direction at the sample cadence, edit the selected decimal `10^n`, and
+  add `$10` to the score color on accepted horizontal digit changes.
+* Keep the scored all-five cartridges within physical VCS RAM by packing the
+  selected object and sample countdown into `object_control_state`, and packing
+  joystick history, selected score digit, and the SELECT-release latch into
+  `score_control_state`. Both 181-line examples link at 116 used RAM bytes; the
+  192-line example uses 105.
+* Add `vcs_all_five_interactive_examples.pl` and its 6502 harness to build all
+  three cartridges and verify exact 262-line frames, all-five selection and
+  movement, endpoint clamps, filtered score controls, score-color changes, and
+  reset-state restoration. Update the example index, VCS support documentation,
+  renderer READMEs, and test documentation for the new public examples.
+* Extend staged installation checks so the installed compiler and VCS library
+  rebuild all three new diagnostics alongside the existing player-color ones.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 196 end-to-end/generic
+  tests are accounted for and pass in explicit chunks after the outer command
+  window expired during the renderer tail. The staged installed toolchain also
+  builds all five maintained interactive diagnostics as 4096-byte cartridges.

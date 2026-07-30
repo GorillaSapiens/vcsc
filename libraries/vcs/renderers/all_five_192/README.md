@@ -69,3 +69,7 @@ Maintained emulator tests require:
 - official opcodes only
 - exact RAM, page-placement, and stack contracts
 - successful source-tree and staged-installed builds
+
+## Public diagnostic
+
+[`examples/05_all_five_192/01_interactive/`](../../../../examples/05_all_five_192/01_interactive/) provides a complete interactive cartridge. SELECT cycles through P0, P1, M0, M1, and Ball; the left joystick moves the selected object one pixel or logical scanline per frame through the full public coordinate range; RESET restores the initial scene through the cartridge reset vector.
