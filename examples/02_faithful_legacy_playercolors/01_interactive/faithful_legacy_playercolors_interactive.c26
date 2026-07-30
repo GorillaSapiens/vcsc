@@ -85,7 +85,8 @@ alias SELECTED_OBJECT_COUNT 3
 uint8_t selected_object := SELECTED_PLAYER0;
 uint8_t select_switch_ready := 1;
 uint8_t selected_score_digit := 0;
-uint8_t right_joystick_state := 0x9f;
+uint8_t right_joystick_countdown := 19;
+uint8_t right_joystick_previous := 0x0f;
 
 // Decimal digit weights, indexed from ones through hundred-thousands.
 page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
@@ -164,22 +165,17 @@ inline void move_selected_object(void) {
 }
 
 inline void update_score_controls(void) {
-   // High nibble: frames until the next sample. Low nibble: previous sample.
-   asm lda right_joystick_state;
-   asm and #$f0;
+   // Sample once every twenty frames and require two matching samples.
+   asm lda right_joystick_countdown;
    asm beq @sample;
-   asm lda right_joystick_state;
-   asm sec;
-   asm sbc #$10;
-   asm sta right_joystick_state;
+   asm dec right_joystick_countdown;
    asm jmp @done;
 
    asm @sample:;
    asm lda SWCHA;
    asm and #$0f;
    asm tax;
-   asm eor right_joystick_state;
-   asm and #$0f;
+   asm eor right_joystick_previous;
    asm bne @record;
 
    // A stable horizontal sample selects a digit and advances the score hue.
@@ -253,9 +249,9 @@ inline void update_score_controls(void) {
    asm cld;
 
    asm @record:;
-   asm txa;
-   asm ora #$90;
-   asm sta right_joystick_state;
+   asm stx right_joystick_previous;
+   asm lda #19;
+   asm sta right_joystick_countdown;
    asm @done:;
 }
 

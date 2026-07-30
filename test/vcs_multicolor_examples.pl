@@ -99,10 +99,12 @@ for my $case (@cases) {
    if (defined $case->{score}) {
       $text =~ /uint8_t selected_score_digit := 0;/
          or die "$dir does not start with the ones digit selected\n";
-      $text =~ /uint8_t right_joystick_state := 0x9f;/
-         && $text =~ /asm sbc #\$10;/
-         && $text =~ /asm eor right_joystick_state;/
-         or die "$dir lacks tenth-frame two-sample right-joystick filtering\n";
+      $text =~ /uint8_t right_joystick_countdown := 19;/
+         && $text =~ /uint8_t right_joystick_previous := 0x0f;/
+         && $text =~ /asm dec right_joystick_countdown;/
+         && $text =~ /asm eor right_joystick_previous;/
+         && $text =~ /asm lda #19;\s*asm sta right_joystick_countdown;/s
+         or die "$dir lacks twentieth-frame two-sample right-joystick filtering\n";
       $text =~ /asm adc #\$10;.*?asm sta \Q$case->{color}\E;/s
          or die "$dir does not advance score color when the selected digit changes\n";
       $text =~ /score_digit_low/ && $text =~ /score_digit_middle/ && $text =~ /score_digit_high/
@@ -125,9 +127,9 @@ for my $case (@cases) {
       map_zp($map,'select_switch_ready'),
    );
    if (defined $case->{score}) {
-      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_state'),map_zp($map,$case->{color});
+      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),map_zp($map,'right_joystick_previous'),map_zp($map,$case->{color});
    } else {
-      push @args,qw(none none none none);
+      push @args,qw(none none none none none);
    }
    ($rc,$sig,$out,$err)=capture($harness,@args);
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";

@@ -6436,3 +6436,22 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   manuals so the front page remains useful without becoming a second copy of
   every subsystem reference.
 * No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-30 10:43:36 PDT, slow interactive score-control sampling to twenty frames
+---------------------------------------------------------------------------------
+* Change the right-joystick score controls in the faithful legacy and both scored
+  181-line interactive diagnostics to sample SWCHA once every twenty frames while
+  retaining the requirement for two consecutive matching samples before an action.
+  Initial qualification therefore takes forty frames, and a held stable direction
+  repeats every twenty frames.
+* Replace the former one-byte nibble-packed ten-frame state with separate
+  `right_joystick_countdown` and `right_joystick_previous` bytes. Initialize the
+  countdown to 19 and the previous sample to neutral (`0x0f`); RESET restores both
+  through the existing reset-vector path.
+* Update the interactive emulator harness, structural checks, leaf READMEs, and test
+  documentation for the forty-frame qualification and twenty-frame repeat cadence.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: the focused four-cartridge interactive harness passes. The full
+  compile-only suite passes 331/331. All 195 end-to-end/generic tests are
+  accounted for and pass; the first 174 passed before the outer command ceiling
+  and the remaining 21 passed explicitly.

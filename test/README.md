@@ -172,7 +172,7 @@ the complete cartridge retains its 262-line frame period.
 cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
 181-line score-below. Its 6502 harness presents idle/pressed console inputs and
 checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoint
-clamps, tenth-frame right-joystick sampling, two-consecutive-sample filtering,
+clamps, twentieth-frame right-joystick sampling, two-consecutive-sample filtering,
 held-input repetition at the sample cadence, selected-digit score-color cycling,
 decimal `10^n` score changes, exact normal frame periods, and reset-vector state
 restoration. It also requires the faithful demo to opt into the same human

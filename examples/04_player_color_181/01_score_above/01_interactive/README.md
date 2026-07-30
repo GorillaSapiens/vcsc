@@ -30,9 +30,9 @@ The renderer's Y range is 0 through 87.
 
 ### Score controls
 
-- **Right joystick:** sampled only once every tenth frame. A direction must be
+- **Right joystick:** sampled only once every twentieth frame. A direction must be
   present in two consecutive samples before it acts; a held stable direction
-  then repeats at the ten-frame sample cadence.
+  then repeats at the twenty-frame sample cadence.
 - **Right joystick left/right:** select the next more-/less-significant score
   digit. Each accepted digit change also adds `$10` to the score color, cycling
   the TIA hue while preserving luminance.
