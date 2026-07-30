@@ -89,6 +89,9 @@ void useless() {
 
    int16_t a := 5 | 6;
    a := 5 & 6;
+   uint8_t discard_byte := 0;
+   discard_byte := _;
+   _ := discard_byte + 1;
    a := 5 ^ 6;
    a := 8 ? 2 : 4;
    a ^= 12;

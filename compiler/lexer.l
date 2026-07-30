@@ -2236,6 +2236,7 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
 "..."           { LEX_ERROR_HERE("variadic declarations are not supported"); }
 "$exactops"     { LEX_ERROR_HERE("$exactops is not supported"); }
 "$$"            return DOLLAR_DOLLAR;
+"_"             return DISCARD;
 
 {FLAG} {
    yylval.str = strdup(yytext);

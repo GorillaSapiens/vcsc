@@ -22,6 +22,7 @@ listed tersely at the end of this document.
 The largest differences from C are:
 
 - Assignment uses `:=`; `=` is not the assignment operator.
+- A lone underscore (`_`) is the discard token, not an identifier.
 - Braces are required for `if`, `else`, `while`, `do`, and `for` bodies.
 - Integer and pointer types are declared by the target support source. There
   are no implicit `char`, `short`, `int`, `long`, or `bool` types.
@@ -590,6 +591,22 @@ are errors. Signed right shift is arithmetic; unsigned right shift is logical.
 
 `sizeof(type)` and `sizeof(expression)` produce `int16_t` and do not evaluate an
 expression operand for side effects.
+
+A lone underscore is a discard token usable only in simple assignment:
+
+```vcsc
+WSYNC := _;       // emit the one-byte store using whatever is already in A
+_ := update();    // evaluate update() and discard its result
+_ := value + 1;   // evaluate the expression only for its effects
+```
+
+Assignment *from* `_` requires a one-byte, non-bitfield lvalue. It generates no
+source-value load or conversion; a direct absolute register such as `WSYNC`
+therefore lowers to a single `STA`. Assignment *to* `_` evaluates the right-hand
+expression normally and creates no destination object. Both forms are value-less
+and are intended as expression statements, not operands in larger expressions.
+Identifiers containing underscores remain ordinary identifiers; only the exact
+one-character spelling `_` is reserved.
 
 Runtime division or remainder by a known positive power of two greater than one
 emits a performance warning. The compiler does not silently replace the

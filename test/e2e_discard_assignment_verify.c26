@@ -1,0 +1,43 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+
+include "machine_6502.c26"
+
+ref uint8_t discard_probe@0x80;
+uint8_t calls;
+uint8_t value;
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t touch(void) {
+   calls++;
+   value += 3;
+   return value;
+}
+
+void main(void) {
+   calls := 0;
+   value := 4;
+
+   asm lda #$5a;
+   discard_probe := _;
+   if (discard_probe != 0x5a) { fail(1); }
+
+   _ := touch();
+   if (calls != 1 || value != 7) { fail(2); }
+
+   _ := (value := 19);
+   if (value != 19) { fail(3); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

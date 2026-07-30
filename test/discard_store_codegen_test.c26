@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: sta  $02
+// forbidasm: lda
+// forbidasm: __vcsc_object$_
+
+include "machine_6502.c26"
+
+ref uint8_t WSYNC@[none/0x02];
+
+void discard_store_test(void) {
+   WSYNC := _;
+}

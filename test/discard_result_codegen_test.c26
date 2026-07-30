@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// expectasm: jsr discard_side_effect
+// expectasm: adc
+// expectasm: .export _ordinary_identifier
+// expectasm: .export ordinary_identifier_
+
+include "machine_6502.c26"
+
+uint8_t discard_count;
+uint8_t _ordinary_identifier;
+uint8_t ordinary_identifier_;
+
+void discard_side_effect(void) {
+   discard_count++;
+}
+
+void discard_result_test(void) {
+   _ := discard_side_effect();
+   _ := discard_count + 1;
+}

@@ -110,6 +110,14 @@ underscores, and width overflow after normalization.
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
 
+`discard_store_codegen_test.c26` and `discard_result_codegen_test.c26`
+cover the dedicated lone-underscore discard token. It locks direct `WSYNC := _` lowering to a bare `STA`, verifies
+that `_ := expression` preserves calls and other evaluation, and confirms that
+longer identifiers containing underscores remain ordinary names. Companion
+rejection tests require assignment-from-discard targets to be one-byte,
+non-bitfield lvalues. `e2e_discard_assignment_verify.c26` verifies the bare-A
+store and discarded-expression side effects in the simulator.
+
 `integer_trivial_codegen_test.c26` and
 `e2e_integer_trivial_optimizations_verify.c26` cover zero/one identities,
 annihilators, positive oversized divisors, compound assignments, signed and

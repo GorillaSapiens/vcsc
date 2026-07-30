@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: assignment from discard '_' requires a one-byte non-bitfield target
+
+include "machine_6502.c26"
+
+struct discard_bits {
+   uint8_t bit:1;
+};
+
+discard_bits bits;
+
+void discard_bitfield_test(void) {
+   bits.bit := _;
+}

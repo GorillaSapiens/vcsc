@@ -126,6 +126,9 @@ int16_t main(int16_t argc, int8_t **argv) {
    int16_t arg2[12] := { 1, 2, 3, };
 
    ia := ib;
+   uint8_t discard_byte := 0;
+   discard_byte := _;
+   _ := discard_byte + 1;
    ib += ia;
    ib -= ia;
    ib *= ia;

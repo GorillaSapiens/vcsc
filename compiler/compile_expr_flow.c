@@ -884,6 +884,73 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    return true;
 }
 
+//! @brief Store the current accumulator into a one-byte lvalue without producing a source value.
+static bool compile_discard_store_assignment(Context *ctx, ASTNode *node) {
+   LValueRef lv;
+   ContextEntry entry;
+   char symbol[256];
+
+   if (!node || strcmp(node->name, "discard_store") || node->count != 1 ||
+       !resolve_lvalue(ctx, node->children[0], &lv)) {
+      return false;
+   }
+
+   emit_lvalue_semantic_use(ctx, &lv, "write");
+   if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
+      error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+                 node->file, node->line, node->column,
+                 lv.name ? lv.name : "<unnamed>");
+      return true;
+   }
+   if (lv.size != 1 || lv.is_bitfield) {
+      error_user("[%s:%d.%d] assignment from discard '_' requires a one-byte non-bitfield target",
+                 node->file, node->line, node->column);
+      return true;
+   }
+
+   if (lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address) {
+      emit_store_a_to_expr_address(lv.write_expr, lv.offset);
+      return true;
+   }
+
+   if (!lv.indirect && !lv.needs_runtime_address &&
+       (lv.is_static || lv.is_zeropage || lv.is_global)) {
+      char expr_buf[256];
+      const char *formatted;
+      entry = (ContextEntry){ .name = lv.name, .type = lv.type,
+         .declarator = lv.declarator, .is_static = lv.is_static,
+         .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
+         .offset = lv.offset, .size = lv.size };
+      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+         return false;
+      }
+      formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+      if (lv.offset == 0) {
+         emit(&es_code, lv.is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+      }
+      else {
+         emit(&es_code, lv.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
+              formatted, lv.offset);
+      }
+      return true;
+   }
+
+   if (!lv.indirect && !lv.needs_runtime_address &&
+       !lv.is_static && !lv.is_zeropage && !lv.is_global &&
+       lv.offset >= 0 && lv.offset <= 255) {
+      emit(&es_code, "    ldy #%d\n", lv.offset);
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      return true;
+   }
+
+   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_WRITE)) {
+      return false;
+   }
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    sta (ptr0),y\n");
+   return true;
+}
+
 //! @brief Lower expr from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_expr(ASTNode *node, Context *ctx) {
    if (!node || is_empty(node)) {
@@ -895,6 +962,19 @@ void compile_expr(ASTNode *node, Context *ctx) {
    if (expr_is_plain_void_cast(node)) {
       if (node->count > 1) {
          compile_expr(node->children[1], ctx);
+      }
+      return;
+   }
+
+   if (!strcmp(node->name, "discard_result") && node->count == 1) {
+      compile_expr(node->children[0], ctx);
+      return;
+   }
+
+   if (!strcmp(node->name, "discard_store")) {
+      if (!compile_discard_store_assignment(ctx, node)) {
+         error_user("[%s:%d.%d] invalid discard assignment target",
+                    node->file, node->line, node->column);
       }
       return;
    }

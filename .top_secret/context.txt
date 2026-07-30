@@ -6366,3 +6366,26 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Record the two renamed warning-test paths in `.top_secret/remove.txt`.
 * Verification: all four focused address-binding errors pass and the full
   compile-only suite passes 327/327.
+
+2026-07-29 20:12:44 PDT, add the lone-underscore discard token
+------------------------------------------------------------
+* Have the lexer return a dedicated `DISCARD` token for the exact one-character
+  spelling `_`; longer identifiers containing underscores remain ordinary
+  identifiers.
+* Add value-less simple-assignment forms in both directions. `lvalue := _`
+  performs no source load or conversion and stores whatever byte is already in
+  A; a direct one-byte absolute register such as `WSYNC` therefore lowers to
+  one bare `STA`. `_ := expression` evaluates the expression normally for
+  calls, assignments, and other effects without creating a destination object.
+* Restrict assignment from discard to one-byte, non-bitfield lvalues. Reject
+  wider and bitfield targets rather than inventing ambiguous multibyte or
+  read-modify-write semantics. Both discard forms are intended as value-less
+  expression statements rather than operands in larger expressions.
+* Add direct-codegen, lexer-distinction, rejection, parser-coverage, and generic
+  simulator regressions. Update the root language summary, compiler reference,
+  and test documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 194 end-to-end/generic
+  tests are accounted for and pass; the first 173 passed before the outer
+  command ceiling and the complete 36-test VCS tail passed explicitly. Staged
+  `make installcheck` also passes.

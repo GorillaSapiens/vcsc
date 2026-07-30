@@ -125,6 +125,8 @@ The language is intentionally smaller and more explicit than C:
 - directly named call targets rather than function pointers;
 - memory-backed parameters and return objects;
 - VCS-specific memory regions, hardware bindings, and inline assembly;
+- a dedicated lone-underscore discard token for bare hardware stores and
+  explicit evaluation-without-a-result;
 - link-time activation overlay and call-graph-based hardware-stack sizing.
 
 Cycle-counted display renderers remain separately assembled code. VCSC source is

@@ -76,6 +76,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token DEFAULT
 %token DIV_ASSIGN
 %token DOLLAR_DOLLAR
+%token DISCARD
 %token DO
 %token ELSE
 %token ENUM
@@ -597,6 +598,8 @@ conditional_expr:
 assign_expr:
     conditional_expr                              { COVER; $$ = MAKE_NODE($1); }
   | lvalue ASSIGN initializer                     { COVER; $$ = MAKE_NODE(make_identifier_leaf(":="), $1, $3); }
+  | lvalue ASSIGN DISCARD                         { COVER; $$ = MAKE_NAMED_NODE("discard_store", $1); }
+  | DISCARD ASSIGN assign_expr                    { COVER; $$ = MAKE_NAMED_NODE("discard_result", $3); }
   | lvalue ADD_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("+="), $1, $3); }
   | lvalue SUB_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("-="), $1, $3); }
   | lvalue MUL_ASSIGN assign_expr                 { COVER; $$ = MAKE_NODE(make_identifier_leaf("*="), $1, $3); }
