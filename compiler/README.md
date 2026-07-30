@@ -449,8 +449,11 @@ ref uint16_t split@[0x100/0x180];
 
 `@address` is shorthand for `@[address/address]`. Loads use the read address;
 stores use the write address. Reading a write-only ref, writing a read-only ref,
-or taking the address of a split-address ref is rejected. The address terms are
-single integer literals or identifiers, not arbitrary expressions.
+or taking the address of a split-address ref is rejected. An address binding with
+no usable side (`@none` or `@[none/none]`) is rejected even on a non-`ref`
+declaration rather than being ignored as a meaningless placement annotation.
+The address terms are single integer literals or identifiers, not arbitrary
+expressions.
 
 ## Functions and calls
 

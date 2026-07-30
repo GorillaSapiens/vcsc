@@ -265,10 +265,15 @@ static bool address_spec_has_write(const ASTNode *node) {
 }
 
 //! @brief Report address spec without ref diagnostics with the location/context expected by compile toplevel callers.
-static void warn_address_spec_without_ref(const ASTNode *node, const char *name) {
+static void diagnose_address_spec_without_ref(const ASTNode *node, const char *name) {
    if (!node) {
       error_unreachable("internal error: !node in %s %s:%d\n",
          __func__, __FILE__, __LINE__);
+      return;
+   }
+   if (!address_spec_has_read(node) && !address_spec_has_write(node)) {
+      error_user("[%s:%d.%d] '@' on non-ref declaration '%s' cannot use none for both read and write address",
+         node->file, node->line, node->column, name ? name : "?");
       return;
    }
    warning("[%s:%d.%d] '@' on non-ref declaration '%s' is ignored",
@@ -868,7 +873,7 @@ void compile_global_decl_item(ASTNode *node) {
    }
 
    if (addrspec != NULL && !is_ref) {
-      warn_address_spec_without_ref(node, name);
+      diagnose_address_spec_without_ref(addrspec, name);
    }
 
    if (is_ref && !is_absolute_ref) {

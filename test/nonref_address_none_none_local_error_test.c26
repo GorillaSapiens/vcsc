@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: '@' on non-ref declaration 'foo' cannot use none for both read and write address
+include "machine_6502.c26"
+
+void main(void) {
+   uint8_t foo@[none/none];
+}

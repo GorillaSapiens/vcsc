@@ -413,7 +413,15 @@ decl_subitem:
   | declarator opt_bitfield_width '@' INTEGER
                                              { COVER; $$ = MAKE_NODE(append_decl_bitfield($1, $2), MAKE_NAMED_NODE("rw_addr_spec", make_integer_leaf($4), make_integer_leaf($4))); }
   | declarator opt_bitfield_width '@' IDENTIFIER
-                                             { COVER; $$ = MAKE_NODE(append_decl_bitfield($1, $2), MAKE_NAMED_NODE("rw_addr_spec", make_identifier_leaf($4), make_identifier_leaf($4))); }
+                                             {
+                                                COVER;
+                                                if (!strcmp($4, "none")) {
+                                                   $$ = MAKE_NODE(append_decl_bitfield($1, $2), MAKE_NAMED_NODE("rw_addr_spec", make_empty_leaf(), make_empty_leaf()));
+                                                }
+                                                else {
+                                                   $$ = MAKE_NODE(append_decl_bitfield($1, $2), MAKE_NAMED_NODE("rw_addr_spec", make_identifier_leaf($4), make_identifier_leaf($4)));
+                                                }
+                                             }
   | declarator opt_bitfield_width '@' '[' decl_addr_term '/' decl_addr_term ']'
                                              { COVER; $$ = MAKE_NODE(append_decl_bitfield($1, $2), MAKE_NAMED_NODE("rw_addr_spec", $5, $7)); }
   ;

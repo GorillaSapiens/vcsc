@@ -6339,3 +6339,16 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: 325/325 compile-only tests and all 193 end-to-end/generic tests
   pass. Focused faithful renderer, faithful example, and interactive matrix tests
   pass. Staged `make installcheck` passes.
+
+2026-07-29 19:30:08 PDT, reject empty address bindings on non-ref declarations
+-----------------------------------------------------------------------------
+* Treat shorthand `@none` as the same empty read/write address specification as
+  `@[none/none]` instead of parsing `none` as an ordinary address identifier.
+* Reject both `uint8_t foo@none` and `uint8_t foo@[none/none]` on non-`ref`
+  declarations with a hard diagnostic. Preserve the existing compatibility
+  behavior for meaningful non-`ref` address annotations such as `@0x10`, which
+  still warn that the ignored `@` annotation has no effect.
+* Add file-scope shorthand and block-scope split-form regression tests and
+  document the degenerate-address rejection in `compiler/README.md`.
+* Verification: the four focused address-binding diagnostics pass and the full
+  compile-only suite passes 327/327.
