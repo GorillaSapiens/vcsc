@@ -1,6 +1,6 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: '@' on non-ref declaration 'foo' cannot use none for both read and write address
+// expecterr: '@' address binding on declaration 'foo' requires 'ref'
 include "machine_6502.c26"
 
 void main(void) {

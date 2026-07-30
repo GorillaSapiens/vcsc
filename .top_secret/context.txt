@@ -6352,3 +6352,17 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   document the degenerate-address rejection in `compiler/README.md`.
 * Verification: the four focused address-binding diagnostics pass and the full
   compile-only suite passes 327/327.
+
+2026-07-29 19:48:37 PDT, require ref for every address binding
+--------------------------------------------------------------
+* Reject every `@...` address binding on a non-`ref` declaration with a hard
+  diagnostic that tells the programmer to add `ref`; this includes `@0x10`,
+  split read/write bindings, `@none`, and `@[none/none]`.
+* Replace the former global and local compatibility-warning regressions with
+  explicit requires-`ref` error tests, and update the existing empty-binding
+  tests to expect the same general diagnostic.
+* Document that `@...` is exclusively an absolute-`ref` binding, never an
+  advisory placement annotation for an ordinary allocated object.
+* Record the two renamed warning-test paths in `.top_secret/remove.txt`.
+* Verification: all four focused address-binding errors pass and the full
+  compile-only suite passes 327/327.

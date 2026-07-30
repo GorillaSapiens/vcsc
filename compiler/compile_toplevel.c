@@ -264,19 +264,14 @@ static bool address_spec_has_write(const ASTNode *node) {
    return address_spec_write_expr(node) != NULL;
 }
 
-//! @brief Report address spec without ref diagnostics with the location/context expected by compile toplevel callers.
+//! @brief Reject an address binding on a declaration that is not a ref.
 static void diagnose_address_spec_without_ref(const ASTNode *node, const char *name) {
    if (!node) {
       error_unreachable("internal error: !node in %s %s:%d\n",
          __func__, __FILE__, __LINE__);
       return;
    }
-   if (!address_spec_has_read(node) && !address_spec_has_write(node)) {
-      error_user("[%s:%d.%d] '@' on non-ref declaration '%s' cannot use none for both read and write address",
-         node->file, node->line, node->column, name ? name : "?");
-      return;
-   }
-   warning("[%s:%d.%d] '@' on non-ref declaration '%s' is ignored",
+   error_user("[%s:%d.%d] '@' address binding on declaration '%s' requires 'ref'",
       node->file, node->line, node->column, name ? name : "?");
 }
 
