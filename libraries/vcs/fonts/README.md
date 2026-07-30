@@ -8,7 +8,7 @@
 # VCS score fonts
 
 This directory contains eight 8x8 score-font families converted to readable
-VCSC source. Every pixel row is written on its own line using visual binary
+VCSC source, plus one special six-slice VCSC logo table. Every pixel row is written on its own line using visual binary
 notation: `.` is a clear pixel and `X` is a set pixel.
 
 Each family has two modules:
@@ -17,9 +17,11 @@ Each family has two modules:
 - `*_hex.c26` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
   128-byte array.
 
-Include exactly one font module in a translation unit. Every module defines the
-common table symbol `score_font`, which is the interface expected by score renderers.
-Each font module uses the VCSC `page` declaration modifier, so the linker
+Include exactly one conventional `*_decimal.c26` or `*_hex.c26` family module
+in a translation unit. Every family module defines the common table symbol
+`score_font`, which is the interface expected by score renderers. The special
+`logo_font.c26` table uses its own `logo_font` symbol and may coexist with one
+conventional family. Each table uses the VCSC `page` declaration modifier, so the linker
 places the complete table anywhere it fits within one 256-byte page. This is a timing requirement: `(score_font + digit * 8),Y`
 gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
 
@@ -33,6 +35,16 @@ gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
 | Retroputer | `retroputer_decimal.c26` | `retroputer_hex.c26` | Squared computer-terminal style |
 | Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
+
+
+## VCSC logo slices
+
+`logo_font.c26` defines six 8x8 glyph cells named `logo_font`. Glyphs `0`
+through `5` are consecutive slices of one 48-pixel-wide VCSC mark rather than
+ordinary digits. A six-glyph component can display the mark by using the fixed
+packed-BCD value `012345` and directing its six glyph pointers to `logo_font`.
+The eighth row in every cell is blank; the visible mark itself is seven pixels
+tall.
 
 ## Selecting a font
 

@@ -6262,3 +6262,29 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   expired and the remaining 21 passed explicitly. Focused source-tree hygiene,
   software-stack inventory, branding, and interactive renderer tests pass. Staged
   `make installcheck` passes with the new mutable-color component installed.
+
+2026-07-29 17:34:00 PDT, add the VCSC logo to the fingerprint example
+------------------------------------------------------------------------
+* Include `libraries/vcs/fonts/logo_font.c26` in the fingerprint cartridge and
+  instantiate a second `six_glyph_component.c26` lifecycle component named
+  `logo`. Keep its packed-BCD score fixed at `012345` (`logo_score := 12345`),
+  then redirect its six glyph pointers to the six consecutive logo-font slices.
+* Correct the previously unused logo font to the standard score-component shape:
+  six page-contained 8-byte glyph cells, with the original seven visible rows
+  followed by one blank row. Rename its private reversal alias so it can coexist
+  with the ordinary hexadecimal font in one translation unit.
+* Preserve the fingerprint's calibrated raw-scanline-131 entry. After its
+  eleven-line component, wait 79 calibrated blank lines and enter the logo on
+  raw scanline 221, so the logo component consumes the final eleven lines of the
+  192-line visible field without changing the 262-line frame period.
+* Extend the fingerprint regression to verify both component instances, both
+  page-contained font tables in linked ROM, the fixed `012345` logo value, the
+  six redirected pointers, and calibrated component entries at raw scanlines
+  131 and 221. Refresh the reviewed Stella 7.0 reference capture to include the
+  bottom logo and update example, font, VCS-library, and test documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic tests
+  are accounted for and pass; the first 172 passed before the outer command window
+  expired and the remaining 21 passed explicitly. Focused fingerprint, font-catalog,
+  example-build, six-digit-score, six-glyph-component, and source-tree-hygiene tests
+  pass. Staged `make installcheck` passes.

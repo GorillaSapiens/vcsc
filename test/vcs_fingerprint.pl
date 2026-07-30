@@ -78,6 +78,7 @@ my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 04_fingerp
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
 my $font=File::Spec->catfile($vcs,'fonts','default_hex.c26');
+my $logo_font=File::Spec->catfile($vcs,'fonts','logo_font.c26');
 my $bin=File::Spec->catfile($tmp,'fingerprint.bin');
 my $map=File::Spec->catfile($tmp,'fingerprint.map');
 my $asm=File::Spec->catfile($tmp,'fingerprint.s26');
@@ -103,7 +104,7 @@ for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "fingerprint vector outs
 
 my $map_text=read_file($map);
 require_re($map_text,qr/\bfingerprint\b/, 'map is missing fingerprint state');
-for my $symbol (qw(display_score display_pointers display_row display_delayed)) {
+for my $symbol (qw(display_score display_pointers display_row display_delayed logo_score logo_pointers logo_row logo_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"map is missing $symbol");
 }
 require_re($map_text,qr/\bprobe_accumulator\b/, 'map is missing probe accumulator');
@@ -118,33 +119,51 @@ for my $i (0..127) {
    $rom_font[$i]==$font[$i]
       or die sprintf("font byte %d is %02x, expected %02x\n",$i,$rom_font[$i],$font[$i]);
 }
+my $logo_font_addr;
+if ($map_text =~ /\$([Ff][0-9A-Fa-f]{3})\s+logo_font/) { $logo_font_addr=hex($1); }
+elsif ($map_text =~ /logo_font\s+\$([Ff][0-9A-Fa-f]{3})/) { $logo_font_addr=hex($1); }
+else { die "map is missing logo_font\n"; }
+my @logo_font=parse_font(read_file($logo_font),'logo_font',48);
+my @rom_logo_font=unpack('C48',substr($rom,$logo_font_addr-0xf000,48));
+for my $i (0..47) {
+   $rom_logo_font[$i]==$logo_font[$i]
+      or die sprintf("logo font byte %d is %02x, expected %02x\n",$i,$rom_logo_font[$i],$logo_font[$i]);
+}
 
 my $source=read_file($src);
 sha256_hex(read_file($reference)) eq
-   'a1d92669507ed85b80666648bfb5db05aa686fb37f57711c6222367f5c494314'
+   'daa0cdd5052899102c62570dd0399273d77eee0c88668dcbe311b52a3c157f32'
    or die "reviewed fingerprint Stella reference PNG changed\n";
 my $component_text=read_file($component);
 my $frame_text=read_file($frame);
 require_re($source,qr/include\s+"fonts\/default_hex\.c26"/,
            'fingerprint fixture does not select the default hex font');
+require_re($source,qr/include\s+"fonts\/logo_font\.c26"/,
+           'fingerprint fixture does not include the logo font');
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'fingerprint fixture no longer uses the shared NTSC scheduler');
 require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+display/,
-           'fingerprint fixture no longer instantiates the reusable display component');
+           'fingerprint fixture no longer instantiates the reusable fingerprint component');
+require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+logo/,
+           'fingerprint fixture no longer instantiates the reusable logo component');
 $source !~ /six_glyph_display\.c26/
    or die "fingerprint fixture still includes the legacy display module\n";
 require_re($source,qr/display_score\s*:=\s*0.*?asm lda fingerprint;.*?asm sta display_score;.*?asm lda fingerprint\+1;.*?asm sta display_score\+1;.*?asm lda fingerprint\+2;.*?asm sta display_score\+2;/s,
            'fingerprint bytes are no longer copied raw into the component score storage');
+require_re($source,qr/logo_score\s*:=\s*12345\s*;/,
+           'logo is no longer driven by the fixed six-glyph value 012345');
+require_re($source,qr/inline\s+void\s+load_logo_pointers\s*\(void\).*?lda #<logo_font;.*?sta logo_pointers;.*?adc #\$08;.*?sta logo_pointers\+10;.*?lda #>logo_font;.*?sta logo_pointers\+11;/s,
+           'logo pointers are no longer redirected to the six logo-font slices');
 for my $phase (qw(init vblank draw overscan)) {
    require_re($component_text,qr/require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/,
               "component is missing required $phase lifecycle");
 }
-require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?vcs_ntsc_end_vblank\(\)/s,
-           'display vblank lifecycle is not inside the scheduler-owned budget');
-require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?display_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
-           'fingerprint display lost predecessor visible-line placement');
-require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?display_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
-           'display overscan lifecycle is not inside the scheduler-owned budget');
+require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?logo_vblank\(\).*?load_logo_pointers\(\).*?vcs_ntsc_end_vblank\(\)/s,
+           'both display vblank lifecycles are not inside the scheduler-owned budget');
+require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?display_draw\(\).*?vcs_ntsc_wait_component_scanlines\(79\).*?logo_draw\(\)/s,
+           'fingerprint or bottom-logo visible placement changed');
+require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?display_overscan\(\).*?logo_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
+           'both display overscan lifecycles are not inside the scheduler-owned budget');
 require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
            'scheduler no longer declares a 262-line NTSC frame');
 require_re($source,qr/uint24_t\s+fingerprint\s*;/,
@@ -193,8 +212,9 @@ for my $spec (@generated_specs) {
 my $arr_count=()=$generated =~ /^ARR #\$/img;
 $arr_count==4 or die "generated assembly has $arr_count named ARR probes, expected 4\n";
 
-$generated !~ /\bjsr\s+display_(?:init|vblank|draw|overscan)\b/
-   or die "display lifecycle unexpectedly emitted callable boundaries\n";
+$generated !~ /jsr\s+(?:display|logo)_(?:init|vblank|draw|overscan)/
+   or die "display lifecycle unexpectedly emitted callable boundaries
+";
 require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
@@ -241,11 +261,11 @@ my $entry_exe=File::Spec->catfile($tmp,'vcs_six_glyph_standalone_entry');
    '-I'.$mos_dir,$entry_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$entry_exe);
 die "standalone-entry harness build failed\n$out$err" if $exit || $sig;
 die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $err ne '';
-($exit,$sig,$out,$err)=run_capture($entry_exe,$bin);
+($exit,$sig,$out,$err)=run_capture($entry_exe,$bin,'221');
 die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
 require_re($out,
-   qr/^vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n$/,
-   'fingerprint display did not enter the six-glyph component at its calibrated phase');
+   qr/^vcs_six_glyph_standalone_entry ok: calibrated lines 131 and 221 entries and 262-line frames\n$/,
+   'fingerprint and logo displays did not enter at their calibrated phases');
 $err eq '' or die "standalone-entry harness stderr: $err";
 
 print "vcs_fingerprint ok\n";

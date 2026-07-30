@@ -184,24 +184,40 @@ void require_event(const std::vector<Event> &events, uint64_t line, uint64_t cyc
 }
 } // namespace
 
+void require_component_entry(const std::vector<Event> &events, uint64_t line) {
+   require_event(events, line, 0, kNusiz0, 0x03, "NUSIZ0");
+   require_event(events, line, 3, kNusiz1, 0x03, "NUSIZ1");
+   require_event(events, line, 8, kColup0, 0x0E, "COLUP0");
+   require_event(events, line, 11, kColup1, 0x0E, "COLUP1");
+   require_event(events, line, 14, kHmclr, 0x0E, "HMCLR");
+   require_event(events, line, 19, kHmp0, 0x80, "HMP0");
+   require_event(events, line, 24, kHmp1, 0x90, "HMP1");
+   require_event(events, line, 29, kResp0, 0x90, "RESP0");
+   require_event(events, line, 32, kResp1, 0x90, "RESP1");
+   require_event(events, line, 71, kHmove, 0x90, "HMOVE");
+}
+
 int main(int argc, char **argv) {
-   if (argc != 2) {
-      std::fprintf(stderr, "usage: %s ROM.bin\n", argv[0]);
+   if (argc != 2 && argc != 3) {
+      std::fprintf(stderr, "usage: %s ROM.bin [SECOND_ENTRY_LINE]\n", argv[0]);
       return 2;
    }
    Machine machine(argv[1]);
    machine.run();
    const std::vector<Event> &events = machine.events();
-   require_event(events, 131, 0, kNusiz0, 0x03, "NUSIZ0");
-   require_event(events, 131, 3, kNusiz1, 0x03, "NUSIZ1");
-   require_event(events, 131, 8, kColup0, 0x0E, "COLUP0");
-   require_event(events, 131, 11, kColup1, 0x0E, "COLUP1");
-   require_event(events, 131, 14, kHmclr, 0x0E, "HMCLR");
-   require_event(events, 131, 19, kHmp0, 0x80, "HMP0");
-   require_event(events, 131, 24, kHmp1, 0x90, "HMP1");
-   require_event(events, 131, 29, kResp0, 0x90, "RESP0");
-   require_event(events, 131, 32, kResp1, 0x90, "RESP1");
-   require_event(events, 131, 71, kHmove, 0x90, "HMOVE");
-   std::printf("vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n");
+   require_component_entry(events, 131);
+   if (argc == 3) {
+      char *end = nullptr;
+      const unsigned long line = std::strtoul(argv[2], &end, 0);
+      if (!end || *end != '\0') {
+         std::fprintf(stderr, "bad second entry line: %s\n", argv[2]);
+         return 2;
+      }
+      require_component_entry(events, line);
+      std::printf("vcs_six_glyph_standalone_entry ok: calibrated lines 131 and %lu entries and 262-line frames\n", line);
+   }
+   else {
+      std::printf("vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n");
+   }
    return 0;
 }

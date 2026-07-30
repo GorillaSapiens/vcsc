@@ -152,6 +152,13 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
+`vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
+CRC and unstable-ARR probe contract, checks both page-contained font tables in
+ROM, and locks the two six-glyph entries at raw scanlines 131 and 221. The
+second component uses fixed packed BCD `012345` with its pointers redirected to
+the six VCSC-logo slices, so the logo consumes the final eleven visible lines
+without changing the 262-line frame period.
+
 `vcs_multicolor_examples.pl` builds the four public interactive renderer
 cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
 181-line score-below. Its 6502 harness presents idle/pressed console inputs and

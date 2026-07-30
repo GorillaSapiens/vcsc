@@ -31,7 +31,7 @@ Files:
 - `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
 - `renderers/standard_4k_ntsc/` ... all-five-object solid-color standard-renderer profile
 - `renderers/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
-- `fonts/` ... eight shared 8x8 score-font families, each in decimal and hexadecimal VCSC variants
+- `fonts/` ... eight shared 8x8 score-font families plus the six-slice `logo_font.c26` VCSC mark
 - `../../examples/README.md` ... renderer-grouped public example index
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic

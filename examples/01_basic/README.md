@@ -15,8 +15,9 @@ and the lifecycle-component model in small, independently understandable steps.
 | 01 | [`blank_screen`](01_blank_screen/) | Inline 262-line NTSC frame with a constant background |
 | 02 | [`ode_to_joy`](02_ode_to_joy/) | Inline frame scheduler plus TIA audio updates during overscan |
 | 03 | [`score`](03_score/) | `frame_ntsc.c26` composed with the 11-line `six_glyph_component.c26` |
-| 04 | [`fingerprint`](04_fingerprint/) | The same frame and score components displaying a computed hexadecimal value |
+| 04 | [`fingerprint`](04_fingerprint/) | Two six-glyph components displaying a computed hexadecimal value and the fixed `012345` VCSC logo |
 
 The score and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call
-the six-glyph component at its calibrated entry phase.
+each six-glyph component at its calibrated entry phase. The fingerprint example
+also demonstrates reusing score digits as six slices of a wider logo.
