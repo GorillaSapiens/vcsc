@@ -171,7 +171,25 @@ require void TEMPLATE_drawscreen(void) {
 
 
 
-   // set score pointers
+   // Set score pointers. The retained renderer's native storage order is
+   // left-to-right byte order, unlike VCSC's little-endian packed-BCD types.
+   // Keep that exact legacy order by default for the oracle-backed baseline.
+   // The public interactive diagnostic opts into human packed-BCD order so its
+   // digit-selection controls match the modern eleven-line components.
+#ifdef VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER
+   asm lax TEMPLATE_score;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+5;
+   asm stx TEMPLATE_pointer_workspace+2;
+   asm lax TEMPLATE_score+1;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+4;
+   asm stx TEMPLATE_pointer_workspace+1;
+   asm lax TEMPLATE_score+2;
+   asm jsr @scorepointerset;
+   asm sty TEMPLATE_pointer_workspace+3;
+   asm stx TEMPLATE_pointer_workspace;
+#else
    asm lax TEMPLATE_score+2;
    asm jsr @scorepointerset;
    asm sty TEMPLATE_pointer_workspace+5;
@@ -184,6 +202,7 @@ require void TEMPLATE_drawscreen(void) {
    asm jsr @scorepointerset;
    asm sty TEMPLATE_pointer_workspace+3;
    asm stx TEMPLATE_pointer_workspace;
+#endif
 
    asm @vblk:;
    // run possible vblank bB code

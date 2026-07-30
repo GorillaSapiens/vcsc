@@ -167,7 +167,9 @@ checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoin
 clamps, tenth-frame right-joystick sampling, two-consecutive-sample filtering,
 held-input repetition at the sample cadence, selected-digit score-color cycling,
 decimal `10^n` score changes, exact normal frame periods, and reset-vector state
-restoration. The legacy and
+restoration. It also requires the faithful demo to opt into the same human
+left-to-right packed-BCD digit order used by the eleven-line score components.
+The legacy and
 192-line initial scenes retain their separate exact sprite/raster checks.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge

@@ -80,6 +80,10 @@ for my $case (@cases) {
       or die "$dir exposes missiles absent from the public player-color profile\n";
    if ($profile eq 'legacy') {
       $text =~ /faithful_legacy_playercolors/ or die "$dir does not use the faithful legacy renderer\n";
+      $text =~ /alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1/
+         or die "$dir does not opt into human left-to-right packed-BCD score order\n";
+      $text =~ /legacy_score\[0\]\s*:=\s*0x56;.*?legacy_score\[1\]\s*:=\s*0x34;.*?legacy_score\[2\]\s*:=\s*0x12;/s
+         or die "$dir does not initialize visible score 123456 in little-endian packed BCD\n";
    } elsif ($profile eq '192') {
       $text =~ /player_color_192/ or die "$dir does not use player_color_192\n";
       $text !~ /six_glyph_component|selected_score_digit|score_draw/

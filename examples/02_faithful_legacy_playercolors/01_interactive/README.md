@@ -12,7 +12,7 @@ The cartridge starts at the retained static certification scene:
 - P0 at `(44, 78)`
 - P1 at `(108, 42)`
 - Ball at `(78, 45)`
-- score `210721`
+- score `123456`
 
 ## Controls
 
@@ -31,9 +31,12 @@ objects.
 - **Right joystick:** sampled only once every tenth frame. A direction must be
   present in two consecutive samples before it acts; a held stable direction
   then repeats at the ten-frame sample cadence.
-- **Right joystick left/right:** select the next more-/less-significant score
-  digit. Each accepted digit change also adds `$10` to the score color, cycling
-  the TIA hue while preserving luminance.
+- **Right joystick left/right:** select the next digit visually to the left or
+  right. The score uses the same conventional left-to-right significance order
+  as the eleven-line score components: the hundred-thousands digit is at the
+  far left and the ones digit is at the far right. Each accepted digit change
+  also adds `$10` to the score color, cycling the TIA hue while preserving
+  luminance.
 - **Right joystick up/down:** add/subtract that digit's decimal weight
   (`10^n`). Carries and borrows may change neighboring digits.
 

@@ -107,6 +107,8 @@ for my $mnemonic (qw(dcp lax sbx asr)) {
 }
 $template_text =~ /require void TEMPLATE_drawscreen\(void\)/
    or die "faithful port is not exposed through the template instance\n";
+$template_text =~ /#ifdef VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER.*?asm lax TEMPLATE_score;.*?asm lax TEMPLATE_score\+1;.*?asm lax TEMPLATE_score\+2;.*?#else.*?asm lax TEMPLATE_score\+2;.*?asm lax TEMPLATE_score\+1;.*?asm lax TEMPLATE_score;.*?#endif/s
+   or die "faithful port lost its optional human-order score adapter or default retained order\n";
 $template_text =~ /alias TEMPLATE_player0_color_latch TEMPLATE_object_x\[2\]/
    or die "faithful port lost player0colorstore/missile0x alias\n";
 $template_text =~ /union TEMPLATE_player0_color_alias/ &&

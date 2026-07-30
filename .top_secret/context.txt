@@ -6318,3 +6318,24 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   font-catalog, example-build, six-glyph-component, source-tree-hygiene, and
   software-stack-inventory tests pass. Staged `make installcheck` passes using
   the supplied locally unpacked Bison/Flex packages.
+
+
+2026-07-29 19:14:00 PDT, normalize faithful interactive score digit order
+----------------------------------------------------------------------------
+* Preserve the retained faithful legacy renderer's historical score-byte order by
+  default so the pristine oracle and exact legacy behavior remain unchanged.
+* Add the object-like alias `VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER` to opt into
+  normal VCSC packed-BCD display order: the most-significant digit pair appears
+  at the left and the least-significant digit pair appears at the right.
+* Enable that adapter in the public faithful interactive example. Initialize its
+  ordinary little-endian packed-BCD score as `$56,$34,$12`, displaying `123456`,
+  so right-joystick LEFT/RIGHT now selects visually adjacent digits in the same
+  intuitive order used by the eleven-line score components. Decimal `10^n`
+  increments and decrements therefore affect the digit at the selected position.
+* Update renderer, example, and test documentation and strengthen regressions to
+  require the opt-in adapter, standard packed-BCD initialization, and preservation
+  of the historical default renderer branch.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 325/325 compile-only tests and all 193 end-to-end/generic tests
+  pass. Focused faithful renderer, faithful example, and interactive matrix tests
+  pass. Staged `make installcheck` passes.

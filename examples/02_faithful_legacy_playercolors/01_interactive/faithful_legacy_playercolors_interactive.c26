@@ -2,6 +2,10 @@ include "vcs.c26"
 include "color_ntsc.c26"
 include "playfield.c26"
 
+// Present legacy_score in the same human left-to-right order as bcd24_t and
+// the eleven-line score components, while leaving the renderer's default
+// retained-source ordering untouched for oracle fixtures.
+alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1
 template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 
 uint8_t legacy_playfield[48] := {
@@ -295,9 +299,10 @@ void main(void) {
    legacy_player0_colors := p0c;
    legacy_player1_colors := p1c;
 
-   legacy_score[0] := 0x21;
-   legacy_score[1] := 0x07;
-   legacy_score[2] := 0x21;
+   // Standard little-endian packed BCD for the visible value 123456.
+   legacy_score[0] := 0x56;
+   legacy_score[1] := 0x34;
+   legacy_score[2] := 0x12;
    legacy_score_color := VCS_NTSC_GRAY_92;
    legacy_playfield_position := 8;
 
