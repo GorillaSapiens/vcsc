@@ -1,5 +1,8 @@
 *.bin
+*.cfg
 *.hex
+*.lst
 *.map
 *.o26
-*.s26~
+*.s26
+*.sym

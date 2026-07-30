@@ -7,18 +7,20 @@
 
 # VCSC Toolchain
 
-`vcsc` is a brutally pared-down C-like compiler and toolchain for the Atari
-2600/VCS. It targets the 6507, the TIA/RIOT memory model, and tiny cartridge
-programs rather than general-purpose 6502 systems.
+`vcsc` is a deliberately small C-like compiler and complete development
+toolchain for the Atari 2600/VCS. It targets the 6507 processor, the TIA/RIOT
+memory model, and tiny cartridge programs rather than general-purpose 6502
+systems.
 
 VCSC began as an Atari-focused specialization of the broader
 [N project](https://github.com/GorillaSapiens/n), but this repository is a
 standalone toolchain. It does not preserve the parent project's source,
 object, runtime, or ABI compatibility.
 
-The public command is `vcsc`. It drives the compiler front end (`vcsc-cc1`),
-assembler (`vcsc-as`), linker (`vcsc-ld`), archiver (`vcsc-ar`), and stock
-runtime. `vcsc-sim` is the matching 6502 simulator used by the test suite.
+The public command is `vcsc`. It coordinates the compiler, assembler, linker,
+runtime library, and target support files needed to turn VCSC source into an
+Atari 2600 cartridge image. Separate low-level tools remain available for
+people who want to inspect or control individual stages.
 
 Canonical file suffixes are:
 
@@ -26,9 +28,32 @@ Canonical file suffixes are:
 - `.s26` — VCSC assembler source
 - `.o26` — relocatable object
 - `.l26` — object library/archive
+- `.bin` — linked cartridge image
 
 The object and archive formats are VCSC-specific. Renamed artifacts from the
 parent toolchain are rejected rather than accepted by accident.
+
+## What is included
+
+The repository contains:
+
+- a C-like compiler designed around fixed-width data and constrained hardware;
+- a 6502/6507 assembler;
+- a whole-program linker with VCS memory-layout support;
+- an object-library archiver;
+- a high-level build driver;
+- a matching simulator used by the regression suite;
+- a small runtime library;
+- Atari 2600 bindings, reusable display and audio support, and maintained
+  renderer implementations;
+- editable example cartridges and an automated test suite.
+
+The normal build flow is:
+
+```text
+.c26 source -> compiler -> .s26 assembly -> assembler -> .o26 objects
+            -> linker + runtime/support libraries -> .bin cartridge
+```
 
 ## Building
 
@@ -52,139 +77,87 @@ make unit          # compile-only tests
 make e2e           # linked/simulated and generic tests
 make sieve         # quick driver smoke build
 make installcheck  # staged installed-toolchain validation
-make docs           # Doxygen output under doxygen/
+make docs          # Doxygen output under doxygen/
 make clean
 ```
 
 ## Quick start
 
-Build the first cartridge through the high-level driver:
+Build the blank-screen example through the high-level driver:
 
 ```sh
 ./driver/vcsc -I libraries/vcs \
   examples/01_basic/01_blank_screen/blank_screen.c26 \
-  -o solid_color.bin
+  -o blank_screen.bin
 ```
 
-The result is a 4096-byte unbanked VCS cartridge image. Load it in Stella or
-another compatible emulator.
+The result is a 4096-byte unbanked VCS cartridge image suitable for Stella or
+compatible hardware and emulators. A successful link also produces debugger
+and layout information beside the cartridge image; see the linker documentation
+for those outputs and their naming controls.
 
-The same build performed one stage at a time is:
+Most users should begin with the high-level driver and the examples. The
+individual stage tools are useful when debugging generated assembly, creating
+reusable object libraries, or integrating separately assembled code.
 
-```sh
-./compiler/vcsc-cc1 -quiet -I libraries/vcs \
-  examples/01_basic/01_blank_screen/blank_screen.c26 \
-  -o solid_color.s26 \
-  -dumpbase solid_color.c26 -dumpbase-ext .c26 -dumpdir ./
+## Toolchain components
 
-./assembler/vcsc-as -I libraries/runtime \
-  -o solid_color.o26 solid_color.s26
+- [`driver/`](driver/) — the `vcsc` front end that coordinates compilation,
+  assembly, and linking.
+- [`compiler/`](compiler/) — the VCSC language implementation and generated-code
+  model.
+- [`assembler/`](assembler/) — 6502/6507 assembly, object generation, and opcode
+  configuration.
+- [`linker/`](linker/) — whole-program selection, memory placement, stack sizing,
+  cartridge output, and debugger metadata.
+- [`archiver/`](archiver/) — creation and maintenance of `.l26` object libraries.
+- [`simulator/`](simulator/) — the execution engine used by automated tests.
+- [`libraries/runtime/`](libraries/runtime/) — startup and runtime support linked
+  into cartridge programs as needed.
+- [`libraries/vcs/`](libraries/vcs/) — Atari 2600 hardware definitions and
+  reusable target-side support.
 
-./linker/vcsc-ld -T libraries/vcs/vcs_4k.cfg \
-  -o solid_color.bin \
-  solid_color.o26 libraries/runtime/libvcsc.l26
-```
+Each directory has its own README describing its command-line interface,
+formats, implementation contracts, and specialized features.
 
-The linker prints final cartridge-ROM usage and writes same-stem `.map`,
-`.sym`, `.lst`, and DiStella `.cfg` sidecars after a successful link. Stella
-uses the latter three when its debugger opens. `-Map`, `-Sym`, `-List`, and
-`-Cfg` rename them; corresponding `--no-*` options suppress them.
+## Language and execution model
 
-## Tool overview
+The language is intentionally smaller and more explicit than C. Its design is
+shaped by the Atari 2600 rather than by hosted-computer conventions:
 
-The command-line tools follow GCC/binutils conventions where practical:
-
-- `vcsc` drives compile, assemble, and link stages; supports `-c`, `-S`, `-I`,
-  `-L`, `-l`, `-T`, linker-sidecar naming, and stage-specific `-Wc`, `-Wa`, and
-  `-Wl` options.
-- `vcsc-cc1` compiles one `.c26` input and normally writes `.s26` assembly;
-  `-fno-peephole` emits the unpeepholed compiler assembly for inspection, while
-  inline assembly remains opaque in either mode.
-- `vcsc-as` assembles `.s26` or retained/imported `.asm` source. Official NMOS
-  6502/6507 opcodes are the default; `--illegals` deliberately enables named
-  unofficial opcodes for silicon experiments such as the fingerprint example.
-  Relative branches may use `.same`, `.cross`, or explicit `.flex` suffixes to
-  communicate page-cycle placement requirements to the linker.
-- `vcsc-ld` requires a linker script when used directly, performs whole-program
-  activation and hardware-stack sizing, places page-sensitive objects, reports
-  used/free ROM and RAM with the hardware-stack share, and writes Intel HEX or
-  flat `.bin` output plus debugger sidecars.
-- `vcsc-ar` creates and updates `.l26` archives using GNU-`ar`-style operation
-  strings such as `rcs`.
-- `vcsc-sim` executes linked test programs and provides tracing and host-dispatch
-  calls for regression tests.
-
-See each component README for the complete command line and format contracts.
-
-## Language and runtime model
-
-The language is intentionally smaller and more explicit than C:
-
-- fixed-width signed, unsigned, and packed-BCD integer types up to 32 bits,
-  including inline constant identities, oversized-divisor folds, and compact
-  decimal-digit BCD arithmetic forms;
+- fixed-width integer and packed-decimal types;
 - static, non-reentrant function activations;
 - no direct or mutual recursion;
 - directly named call targets rather than function pointers;
-- memory-backed parameters and return objects;
-- VCS-specific memory regions, hardware bindings, and inline assembly;
-- a dedicated lone-underscore discard token for bare hardware stores and
-  explicit evaluation-without-a-result;
-- link-time activation overlay and call-graph-based hardware-stack sizing.
+- explicit hardware references, memory regions, and inline assembly;
+- whole-program memory overlay and hardware-stack sizing;
+- predictable integration with cycle-counted assembly components.
 
-Cycle-counted display renderers remain separately assembled code. VCSC source is
-best used for setup, VBLANK/overscan game logic, state updates, score handling,
-and other work outside the visible scanline schedule.
+VCSC is well suited to initialization, game-state updates, controller handling,
+score logic, VBLANK and overscan work, and orchestration of display components.
+Cycle-critical visible-scanline code remains separately assembled where exact
+instruction timing matters.
 
-## VCS support and examples
+See [`compiler/README.md`](compiler/README.md) for the language reference and
+[`compiler/ABI.txt`](compiler/ABI.txt) for the calling and data-layout contract.
 
-[`libraries/vcs/`](libraries/vcs/) contains TIA/RIOT bindings, the stock 4K
-linker layout, shared NTSC frame primitives, audio aliases, named NTSC colors,
-score fonts, centered/left/right six-glyph displays, and two maintained NTSC renderer
-profiles. The compile-time `__builtin_ntsc_rgb(r, g, b)` matcher selects the
-nearest meaningful NTSC TIA byte from ordinary RGB components with no runtime
-cost.
-The installed `poison_debug_score` component provides a deterministic hostile
-11-line score-profile predecessor for finding hidden TIA-state coupling while
-the componentized renderers pass the 22i4b correctness gate.
+## Atari 2600 support
 
-The maintained renderer profiles are:
+[`libraries/vcs/`](libraries/vcs/) provides the target definitions and reusable
+support needed by cartridge programs, including hardware bindings, linker
+configuration, frame support, display resources, and maintained renderer
+families. The library README is the catalog and integration guide for those
+pieces.
 
-- `standard_4k_ntsc` — P0, P1, M0, M1, and Ball with solid TIA color groups;
-- `standard_4k_ntsc_playercolors` — P0, P1, and Ball with independent per-row
-  player colors and no missiles.
-
-The user-facing examples are deliberately editable and are grouped by renderer
-rather than kept in one global numbered list:
-
-- [`01_basic`](examples/01_basic/) — standalone cartridges and reusable display components
-- [`02_faithful_legacy_playercolors`](examples/02_faithful_legacy_playercolors/) — faithful retained legacy interactive compatibility diagnostic
-- [`03_player_color_192`](examples/03_player_color_192/) — scoreless full-height 192-line interactive P0/P1/Ball diagnostic
-- [`04_player_color_181`](examples/04_player_color_181/) — interactive 181-line P0/P1/Ball gameplay composed with an 11-line score above or below
-
-Numbers restart inside each renderer and layout directory. They are local,
-append-only presentation identifiers rather than global example IDs. See
-[`examples/README.md`](examples/README.md) and the README in each renderer group
-for the complete hierarchy and renderer contract.
-
-The faithful legacy example remains the independently audited compatibility
-baseline. The static `player_color_192` example is certified against its source
-playfield and Stella output. Both static `player_color_181` score placements are
-likewise source-to-Stella certified, including their entry and terminal
-scanlines. Dynamic examples exercise the same renderer implementations while
-adding asynchronous horizontal or two-axis P0/P1/Ball motion.
-
-Example 04 intentionally needs unofficial-opcode mode:
-
-```sh
-./driver/vcsc -I libraries/vcs -Wa,--illegals \
-  examples/01_basic/04_fingerprint/fingerprint.c26 \
-  -o fingerprint.bin
-```
+The examples are intentionally editable demonstrations rather than frozen test
+fixtures. They range from small standalone cartridges to interactive renderer
+diagnostics and are organized by purpose and renderer family. See
+[`examples/README.md`](examples/README.md) for the current hierarchy and build
+instructions.
 
 ## Installing and packaging
 
-The default prefix is `/opt/vcsc`:
+The default installation prefix is `/opt/vcsc`:
 
 ```sh
 make install
@@ -193,25 +166,21 @@ make uninstall
 make package
 ```
 
-The installed layout contains:
+The installed tree contains the command-line tools, runtime library, assembler
+configuration, and Atari 2600 support files. The driver locates sibling tools
+and shared data relative to the common installation prefix, while still
+supporting in-tree development builds.
 
-- `$(PREFIX)/bin/` — all six command-line tools;
-- `$(PREFIX)/lib/` — `libvcsc.l26`;
-- `$(PREFIX)/include/` — `vcsc-runtime.inc`;
-- `$(PREFIX)/share/cfg/` — assembler opcode tables;
-- `$(PREFIX)/share/vcs/` — VCS bindings, fonts, renderers, linker configuration,
-  and retained legacy-renderer conversion references.
-
-The driver first recognizes the built source-tree layout. When installed, it
-finds sibling tools and data relative to the common prefix. It uses the bundled
-4K VCS linker script and runtime archive by default unless overridden with `-T`
-or `-nostdlib`.
+See [`driver/README.md`](driver/README.md) and
+[`libraries/runtime/README.md`](libraries/runtime/README.md) for installed
+search paths and runtime details.
 
 ## Testing
 
-`make test` runs the unified [`test/test.pl`](test/test.pl) harness. It covers
-compiler-only `.c26` tests, self-contained `.pl` drivers, and generic `.test` regressions,
-continues after failures, and prints a consolidated summary.
+`make test` runs the unified [`test/test.pl`](test/test.pl) harness. The suite
+covers compiler diagnostics and code generation, assembler and linker behavior,
+linked-program execution, target-library integration, renderer timing, and
+source-tree hygiene.
 
 Run selected tests directly from `test/`, for example:
 
@@ -222,22 +191,26 @@ cd test
 ./test.pl --e2e-only vcs_standard_playercolors.pl
 ```
 
-See [`test/README.md`](test/README.md) for test headers, placeholders, fixture
-rules, and runner behavior.
+See [`test/README.md`](test/README.md) for test metadata, fixtures, filtering,
+and runner behavior.
 
 ## Documentation
 
 Documentation is organized by responsibility:
 
 - [`compiler/README.md`](compiler/README.md) — language and generated-code model
+- [`compiler/ABI.txt`](compiler/ABI.txt) — ABI and data-layout contract
 - [`driver/README.md`](driver/README.md) — high-level build driver
 - [`assembler/README.md`](assembler/README.md) — syntax, opcodes, directives, and objects
 - [`linker/README.md`](linker/README.md) — scripts, placement, stack sizing, and outputs
 - [`archiver/README.md`](archiver/README.md) — `.l26` archive operations and format
 - [`simulator/README.md`](simulator/README.md) — execution, tracing, and host calls
-- [`libraries/runtime/README.md`](libraries/runtime/README.md) — runtime archive construction and ABI
-- [`libraries/vcs/README.md`](libraries/vcs/README.md) — target bindings, renderers, fonts, and examples
+- [`libraries/runtime/README.md`](libraries/runtime/README.md) — runtime archive construction
+- [`libraries/vcs/README.md`](libraries/vcs/README.md) — target bindings and reusable VCS support
+- [`examples/README.md`](examples/README.md) — example organization and renderer demonstrations
 - [`test/README.md`](test/README.md) — unified test harness
+
+Doxygen input is also available through `make docs`.
 
 ## Licensing
 

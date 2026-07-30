@@ -6421,3 +6421,18 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   command ceiling, the first 14 VCS-tail tests passed in a second chunk, and
   the remaining 22 passed in two explicit chunks. Staged `make installcheck`
   passes with the installed toolchain.
+
+2026-07-30 09:27:00 PDT, refocus the top-level README on the whole toolchain
+----------------------------------------------------------------------------
+* Rewrite the repository front page as a broad introduction to VCSC's purpose,
+  build flow, major tools, language model, target support, examples, installation,
+  testing, and documentation map.
+* Remove duplicated low-level descriptions of compiler builtins, debugger-sidecar
+  switches, assembler annotations, individual renderer profiles, diagnostic
+  components, and example-specific behavior from the top-level README. Keep those
+  details in the compiler, assembler, linker, VCS-library, renderer, and example
+  READMEs that own them.
+* Preserve a short quick-start path and links to the authoritative lower-level
+  manuals so the front page remains useful without becoming a second copy of
+  every subsystem reference.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
