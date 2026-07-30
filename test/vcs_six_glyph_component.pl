@@ -23,7 +23,7 @@ sub read_file {
    my($p)=@_; open(my $f,'<:raw',$p) or die "read $p: $!\n";
    local $/; my $d=<$f>; close($f); return defined($d)?$d:'';
 }
-sub without_usage { my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//; return $s; }
+sub without_usage { my($s)=@_; $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $s; }
 sub symbol_addr {
    my($map,$name)=@_;
    return hex($1) if $map =~ /\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/;

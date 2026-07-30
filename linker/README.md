@@ -225,12 +225,12 @@ is a source-located warning and the link continues. This metadata path also
 handles true-inline calls and optimized-away object accesses that leave no
 ordinary relocation.
 
-## ROM/RAM usage and map file
+## Memory usage and map file
 
-After every successful link, `vcsc-ld` prints both `CARTRIDGE ROM USAGE` and
-`RAM USAGE` summaries. Every cartridge MEMORY region used as the load target of
-a read-only or initialized-data segment is reported separately with occupied
-bytes, free bytes, and percentages. ROM counts come from the final output
+After every successful link, `vcsc-ld` prints one `MEMORY USAGE` summary.
+Every MEMORY region is reported on its own line. Cartridge regions used as the
+load target of a read-only or initialized-data segment include occupied bytes,
+free bytes, and percentages. ROM counts come from the final output
 occupancy bitmap after relocation and linker-generated tables are written:
 alignment holes remain free, while initializer tables and vectors count as used.
 
@@ -247,12 +247,12 @@ success summary.
 For example, a 128-byte VCS RAM region might report:
 
 ```text
-RAM USAGE
+MEMORY USAGE
+  ROM        used=2515 bytes (61.40%) free=1581 bytes (38.60%)
   RAM        used=19 bytes (14.84%) free=109 bytes (85.16%) objects=13 bytes hardware-stack=6 bytes
 ```
 
-When you request a map file, `vcsc-ld` writes the same ROM and RAM usage
-sections plus:
+When you request a map file, `vcsc-ld` writes the same unified memory-usage section plus:
 - effective memory regions after any call-graph stack reservation
 - object placement
 - the selected call-stack region, graph depth, byte reserve, and physical range

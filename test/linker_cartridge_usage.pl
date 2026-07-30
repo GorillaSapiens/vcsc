@@ -99,10 +99,9 @@ my ($exit, $sig, $out, $err) = run_capture(
 $exit == 0 && !$sig or die "sparse link failed\n$out$err";
 $err eq '' or die "sparse link wrote stderr:\n$err";
 $out eq <<'EXPECTED' or die "wrong sparse usage report:\n$out";
-CARTRIDGE ROM USAGE
+MEMORY USAGE
   AUXROM     used=1 bytes (6.25%) free=15 bytes (93.75%)
   ROM        used=20 bytes (0.49%) free=4076 bytes (99.51%)
-RAM USAGE
   ZEROPAGE   used=0 bytes (0.00%) free=256 bytes (100.00%) objects=0 bytes hardware-stack=0 bytes
   RAM        used=0 bytes (0.00%) free=128 bytes (100.00%) objects=0 bytes hardware-stack=0 bytes
 EXPECTED
@@ -110,10 +109,8 @@ EXPECTED
 my $map = slurp($sparse_map);
 $map =~ /ALIGNED\s+load=\$F010\s+size=\$0001/
    or die "sparse fixture did not retain its deliberate ROM hole\n$map";
-$map =~ /CARTRIDGE ROM USAGE\n  AUXROM\s+used=1 bytes \(6\.25%\) free=15 bytes \(93\.75%\)\n  ROM\s+used=20 bytes \(0\.49%\) free=4076 bytes \(99\.51%\)/
-   or die "map cartridge usage section missing or wrong\n$map";
-$map =~ /RAM USAGE\n  ZEROPAGE\s+used=0 bytes \(0\.00%\) free=256 bytes \(100\.00%\) objects=0 bytes hardware-stack=0 bytes\n  RAM\s+used=0 bytes \(0\.00%\) free=128 bytes \(100\.00%\) objects=0 bytes hardware-stack=0 bytes/
-   or die "map RAM usage section missing or wrong\n$map";
+$map =~ /MEMORY USAGE\n  AUXROM\s+used=1 bytes \(6\.25%\) free=15 bytes \(93\.75%\)\n  ROM\s+used=20 bytes \(0\.49%\) free=4076 bytes \(99\.51%\)\n  ZEROPAGE\s+used=0 bytes \(0\.00%\) free=256 bytes \(100\.00%\) objects=0 bytes hardware-stack=0 bytes\n  RAM\s+used=0 bytes \(0\.00%\) free=128 bytes \(100\.00%\) objects=0 bytes hardware-stack=0 bytes/
+   or die "map memory usage section missing or wrong\n$map";
 
 my $full_src = File::Spec->catfile($tmp, 'full.s26');
 my $full_obj = File::Spec->catfile($tmp, 'full.o26');
@@ -150,9 +147,8 @@ require_assemble($as, $full_src, $full_obj);
 $exit == 0 && !$sig or die "full link failed\n$out$err";
 $err eq '' or die "full link wrote stderr:\n$err";
 $out eq <<'EXPECTED' or die "wrong full usage report:\n$out";
-CARTRIDGE ROM USAGE
+MEMORY USAGE
   ROM        used=4096 bytes (100.00%) free=0 bytes (0.00%)
-RAM USAGE
   ZEROPAGE   used=0 bytes (0.00%) free=256 bytes (100.00%) objects=0 bytes hardware-stack=0 bytes
   RAM        used=0 bytes (0.00%) free=128 bytes (100.00%) objects=0 bytes hardware-stack=0 bytes
 EXPECTED

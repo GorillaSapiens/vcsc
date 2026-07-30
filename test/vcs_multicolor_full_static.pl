@@ -25,7 +25,7 @@ sub read_file {
    local $/; my $d=<$f>; close($f); return defined($d)?$d:'';
 }
 sub without_usage {
-   my($s)=@_; $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//; return $s;
+   my($s)=@_; $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $s;
 }
 sub require_re { my($s,$re,$why)=@_; $s =~ $re or die "$why\n"; }
 sub map_zp {

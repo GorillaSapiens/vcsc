@@ -26,7 +26,7 @@ sub read_file {
 }
 sub without_usage {
    my($s)=@_;
-   $s =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//;
+   $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//;
    return $s;
 }
 sub map_zp {

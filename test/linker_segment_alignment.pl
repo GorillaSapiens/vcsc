@@ -15,7 +15,7 @@ use Symbol qw(gensym);
 
 sub without_cartridge_usage {
    my ($out) = @_;
-   $out =~ s/\ACARTRIDGE ROM USAGE\n(?:  [^\n]+\n)+RAM USAGE\n(?:  [^\n]+\n)+//;
+   $out =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//;
    return $out;
 }
 

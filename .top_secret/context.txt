@@ -6455,3 +6455,17 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   compile-only suite passes 331/331. All 195 end-to-end/generic tests are
   accounted for and pass; the first 174 passed before the outer command ceiling
   and the remaining 21 passed explicitly.
+
+2026-07-30 11:03:00 PDT, unify the linker memory-usage report
+----------------------------------------------------------------
+* Replace the separate `CARTRIDGE ROM USAGE` and `RAM USAGE` headings with one
+  `MEMORY USAGE` heading. List cartridge, vector, zero-page, stack, and writable
+  RAM regions together in linker-script order while preserving each region's
+  existing occupancy details.
+* Make the map file use the same unified section and update the linker manual and
+  all output-normalization and exact-output regressions for the new format.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the first 174 completed before the outer
+  command ceiling and the remaining 21 passed explicitly. Staged
+  `make installcheck` also passes.

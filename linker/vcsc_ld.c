@@ -3079,10 +3079,8 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
    }
 
-   fprintf(fp, "\nCARTRIDGE ROM USAGE\n");
+   fprintf(fp, "\nMEMORY USAGE\n");
    write_cartridge_rom_usage(fp, cfg, used, "  ");
-
-   fprintf(fp, "\nRAM USAGE\n");
    write_ram_usage(fp, cfg, in, layout, "  ");
 
    fprintf(fp, "\nOBJECTS\n");
@@ -3722,9 +3720,8 @@ int main(int argc, char **argv)
                           &layout, image, used);
    write_stella_config_file(cfg_output.enabled ? cfg_output.path : NULL,
                             &cfg, &inputs, used);
-   puts("CARTRIDGE ROM USAGE");
+   puts("MEMORY USAGE");
    write_cartridge_rom_usage(stdout, &cfg, used, "  ");
-   puts("RAM USAGE");
    write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
 
    free(image);
