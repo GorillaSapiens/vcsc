@@ -7,10 +7,11 @@
 
 # Maintained gameplay-renderer component conversion baseline
 
-This file freezes the starting point and retirement gates for roadmap task 22i.
-It also records completed lifecycle profiles as they satisfy those gates. The
-working monolithic profiles remain installed until every required replacement
-has emulator and map evidence strong enough to retire them.
+This file freezes the starting point, selected replacement profiles, and
+retirement gates for converting the maintained monolithic gameplay renderers
+into reusable lifecycle components. The working monolithic profiles remain
+installed until every required replacement has emulator and map evidence strong
+enough to retire them.
 
 ## Profiles in scope
 
@@ -114,105 +115,88 @@ reduced gameplay schedule. The extraction regression must lock that internal
 choice; neither this contract nor an application may disguise the missing
 11 lines as scheduler padding.
 
-## Completed official all-five 181-line profile
+## Official all-five 181-line score-composable profile
 
-`renderers/all_five_181/all_five_181.c26` is the official-opcode, score-composable
-P0/P1/M0/M1/BL lifecycle component. It publishes an exact 181-line visible
-contract and requires a page-contained 44-byte, eleven-row playfield supplied by
-the application. Its measured implementation retains eleven 16-line gameplay
-rows and accounts for the remaining setup and cleanup scanlines inside the
-component; the application does not provide hidden padding.
+`renderers/all_five_181/all_five_181.c26` is the official-opcode
+P0/P1/M0/M1/BL lifecycle component. Its visible raster is derived from the
+proven `player_color_181` pipeline rather than from the older all-five
+monolith. The two timed slots formerly used for per-row P0/P1 color loads now
+update M1 and M0, so the players use independent solid colors for the complete
+frame.
 
-The extracted component owns no score, font, score pointers, VSYNC, VBLANK, or
-RIOT timer state. Its exact map contract is:
+The component requires a page-contained 44-byte, eleven-row playfield and owns
+no score, font, score pointers, VSYNC, VBLANK, or RIOT timer state. Its exact
+map contract is:
 
 | Resource | Bytes |
 | --- | ---: |
-| public gameplay state | 19 |
-| private workspace and masks | 50 |
-| total component RAM | 69 |
+| public gameplay state | 23 |
+| private workspace and masks | 51 |
+| total component RAM | 74 |
 | application playfield ROM | 44 |
 
-The six former score-pointer workspace bytes are gone, and removing the unused
-final-row scratch entry reduces the object-mask array from 44 to 43 bytes. The
-remaining six-byte workspace is gameplay-only. The standard linker profile's
-four-byte hidden call-stack allowance covers the inline VBLANK preparation
-subroutine.
+The private span contains seven workspace bytes, one playfield-position byte,
+and 43 object-mask bytes. Public state includes all five X coordinates, complete
+Y/height state, P0/P1 graphics pointers and heights, independent P0/P1 NUSIZ
+values, and independent solid P0/P1 colors.
 
-Emulator regressions lock a stable 262-line scheduler frame when the application
-reserves the independent score's eleven visible lines, strict intended-pixel
-playfield checks across all eleven 16-line rows, alternating left-half writes at
-8/28 and 24/31 with right-half writes at 38/45, and visible object counts P0=7, P1=7, M0=6, M1=8, BL=4. Source inspection rejects score/font
-imports, frame/timer ownership, and unofficial opcodes, while map inspection
-locks RAM, page placement, and stack depth. All four lifecycle requirements have
-component-specific omission diagnostics.
+Static and asynchronous-motion fixtures compose the component with the
+independent six-glyph score in both visible orders. Adjacent visible components
+use `vcs_ntsc_component_handoff()`, and `draw()` restores the P0/P1 positioning,
+NUSIZ, and colors needed after a score has owned the players. Emulator evidence
+locks stable 262-line frames, all eleven rows and every one of their 160 pixels,
+visible activity from all five objects, complete 0..159 asynchronous X motion,
+restored application Y state, and a clean score region.
 
-Static and asynchronous-motion fixtures now compose this component with the
-independent six-glyph score in both visible orders. Emulator evidence locks the
-exact line split (40..220 gameplay and 221..231 score, or 40..50 score and
-51..231 gameplay), stable 262-line frames, complete score/all-five activity,
-360-frame full-range X motion, and restored application Y state. Map evidence
-measures 69 gameplay bytes plus 17 independent score bytes and separately proves
-that a gameplay-only link contains no score state or font.
-
-That motion evidence exposed and fixed an extraction error: M0 had only an
-88-line VBLANK bias in the shortened profile because the predecessor's final-row
-DEC was removed. Reconstruction now adds 88 rather than 89, restoring the exact
-application M0 Y coordinate at the lifecycle boundary.
-
-## Completed unofficial all-five 181-line matched profile
+## Unofficial all-five 181-line matched profile
 
 `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` is the
 separately named experimental twin of the official 181-line component. It has
-the same lifecycle API, 19-byte public state, 50-byte private state, 69-byte
-total RAM layout, 44-byte playfield contract, and score-above/score-below
-application fixtures. It must be assembled with `-Wa,--illegals`.
+the same lifecycle API, 23-byte public state, 51-byte private state, 74-byte
+total RAM layout, 44-byte playfield contract, solid player colors, and
+score-above/score-below fixtures. It must be assembled with `-Wa,--illegals`.
 
-Only reviewed stable/common NMOS forms are present. Four `AXS #252` sites
-replace row-index `TXA`/`ADC`/`TAX` idioms, with one-byte NOP padding retaining
-the official sequences' exact byte and cycle counts. Three zero-page unofficial
-NOPs (`$04`) replace dead-flag `BIT $00` padding after the PF1 staging repair; both forms are two bytes and
-three cycles. No silicon-sensitive or unstable opcode is used.
+Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
+(`$04`) used as exact-size, exact-cycle dead-flag padding during VBLANK
+positioning. There are no retained AXS substitutions and no silicon-sensitive
+or unstable opcodes.
 
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   1421
-unofficial linked ROM bytes: 1421
+official linked ROM bytes:   2081
+unofficial linked ROM bytes: 2081
 signed saving:                  0
 ```
 
-This zero-byte result is intentional evidence, not a failed optimization.
-Removing the compensating NOPs would shrink code only by changing lifecycle or
-visible-renderer cycle boundaries. Pairwise emulator comparison locks every
-visible TIA write and 42 stable 262-line frames for the smoke, both static score
-orders, and both moving score orders. The existing 360-frame motion oracle also
-locks full-range asynchronous object movement and Y-coordinate preservation for
-both unofficial score orders. Map evidence requires every RAM symbol to retain
-the official address.
+The zero-byte result is intentional evidence. Pairwise emulator comparison
+locks every visible TIA write and stable frame for the smoke, static score
+orders, and moving score orders. Map evidence requires every RAM symbol to
+retain the official address.
 
-## Completed official all-five 192-line scoreless profile
+## Official all-five 192-line scoreless profile
 
 `renderers/all_five_192/all_five_192.c26` is the distinct official-opcode,
-full-height P0/P1/M0/M1/BL lifecycle component. It owns the complete 192-line
-visible gameplay field, takes a page-contained 48-byte/twelve-row playfield,
-and cannot be combined with the eleven-line score inside the standard visible
-region. The predecessor's twelfth-row path is retained, and the final gameplay
-state is held through the lines that the 181-line profile assigns to the score.
+full-height P0/P1/M0/M1/BL lifecycle component. Its twelve-row visible raster
+is derived from the proven `player_color_192` pipeline. As in the 181-line
+profile, the missile updates occupy the former per-row color slots, so P0 and
+P1 use independent solid colors.
 
-Its exact map contract is 19 public bytes plus 51 private bytes: six gameplay
-workspace bytes, one playfield-position byte, and the complete 44-byte object
-mask array, for 70 bytes total. It links no score state, score pointers, or font.
-`draw()` clears visible TIA state at its final boundary; `overscan()` restores
-application-visible Y coordinates after the application asserts VBLANK.
+The component owns the complete 192-line visible gameplay field, takes a
+page-contained 48-byte/twelve-row playfield, and cannot be combined with the
+independent eleven-line score inside the standard visible region. It owns no
+score state, score pointers, or font.
 
-Regression evidence locks stable 262-line frames, 48-byte hard-page playfield
-placement, official mnemonics only, the inherited cycle-24/31/38/45 playfield
-phases, visible all-five output, exact lifecycle diagnostics, and source plus
-staged-installed builds. The matched unofficial 181-line profile is complete with a measured zero-byte saving.
+Its exact map contract is 23 public bytes plus 55 private bytes: six workspace
+bytes, one playfield-position byte, and 48 object-mask bytes, for 78 bytes total.
+All five objects are positioned during VBLANK. `draw()` renders twelve uniform
+16-line rows; `overscan()` clears visible TIA state and restores the
+application-visible Y coordinates.
 
-The predecessor monolith remains installed until the player-color family and
-final retirement gates are complete.
+Regression evidence locks stable 262-line frames, all twelve rows and all 160
+pixels on every scanline, visible output from all five objects, official
+mnemonics only, exact RAM/page/stack contracts, and source plus staged-installed
+builds.
 
 ## Stop-ship row-boundary raster repair
 
@@ -226,9 +210,9 @@ Real Stella screenshots then exposed a second all-five defect: on the following
 row-entry line PF1/PF2 were still established too late for a clean edge. The
 all-five profiles now stage the next row's left PF1 byte in dead workspace and
 write the left PF1/PF2 pair at cycles 21/28 while retaining the right pair at
-38/45. The official and unofficial 181-line twins remain byte- and raster-
-matched; the staged path leaves three, rather than four, `$04` NOP sites in the
-unofficial twin.
+38/45. The official and unofficial 181-line twins remain byte- and raster-matched.
+The rebuilt unofficial twin retains one reviewed `$04` NOP as exact-cycle
+padding outside the visible raster.
 
 The 181-line all-five and player-color profiles also preserve the final row
 through a WSYNC boundary before clearing visible TIA state. The player-color

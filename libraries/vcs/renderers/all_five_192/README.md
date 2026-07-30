@@ -5,23 +5,67 @@
    \_/  \___||___/ \___|
 ```
 
-# Official all-five 192-line scoreless component
+# Official-opcode all-five 192-line component
 
-`all_five_192.c26` is the full-height official-opcode P0/P1/M0/M1/BL
-lifecycle component. It uses the predecessor's full-height twelfth-row path and holds its final
-state through the eleven lines otherwise reserved for a score, for exactly 192
-visible scanlines and owns no score state, font, VSYNC, VBLANK, or RIOT timer.
+`all_five_192.c26` is the full-height scoreless P0/P1/M0/M1/BL gameplay
+component. Its twelve-row visible pipeline is derived from the proven
+`player_color_192` renderer. The two timed slots formerly used for per-row
+P0/P1 color loads now update M1 and M0, so P0 and P1 retain independent
+**solid colors for the complete frame**.
 
-Instantiate it after defining a page-contained 48-byte `INSTANCE_playfield`:
+Instantiate it after defining a page-contained 48-byte playfield:
 
-```c
+```vcsc
+include "vcs.c26"
+include "frame_ntsc.c26"
+
 template "renderers/all_five_192/all_five_192.c26" as game
+
+page const uint8_t game_playfield[48] := {
+   /* twelve rows, four bytes per row */
+};
 ```
 
-The profile is intentionally distinct from `all_five_181`: it cannot share the
-standard 192-line visible field with the eleven-line score. `draw()` clears TIA
-gameplay state at the final boundary; `overscan()` restores application-visible
-Y coordinates after the application has asserted VBLANK.
+The component draws exactly 192 visible gameplay scanlines as twelve uniform
+16-line rows. It is deliberately scoreless; an eleven-line score cannot also
+fit inside the standard 192-line visible field.
 
-RAM contract: 19 public bytes plus 51 private bytes, 70 bytes total. The
-application supplies the 48-byte playfield and player graphics in ROM.
+The scheduler owns VSYNC, VBLANK, timer deadlines, and the complete frame loop.
+`game_vblank()` prepares the object masks and positions all five objects while
+output is blanked. `game_draw()` renders the complete visible field, and
+`game_overscan()` clears gameplay state and restores the application-visible Y
+coordinates.
+
+## Interface and resources
+
+Public state includes X coordinates for all five objects, their Y/height state,
+P0/P1 graphics pointers and heights, independent P0/P1 NUSIZ values, and
+independent solid P0/P1 colors.
+
+Machine-readable contracts publish:
+
+- `game_VISIBLE_SCANLINES := 192`
+- `game_VBLANK_MAX_CYCLES := 1800`
+- `game_OVERSCAN_MAX_CYCLES := 66`
+- `game_PUBLIC_RAM_BYTES := 23`
+- `game_PRIVATE_RAM_BYTES := 55`
+- `game_MODULE_RAM_BYTES := 78`
+- `game_WORKSPACE_BYTES := 6`
+- `game_PLAYFIELD_BYTES := 48`
+- `game_PLAYFIELD_ROWS := 12`
+
+Private storage consists of six workspace bytes, one playfield-position byte,
+and 48 object-mask bytes. The application supplies the playfield and player
+graphics in ROM. The implementation uses only official NMOS 6502/6507 opcodes.
+
+## Verified behavior
+
+Maintained emulator tests require:
+
+- stable 262-line NTSC frames
+- all twelve playfield rows, all sixteen scanlines per row, and all 160 pixels
+- visible P0, P1, M0, M1, and Ball activity
+- correct VBLANK positioning and lifecycle restoration
+- official opcodes only
+- exact RAM, page-placement, and stack contracts
+- successful source-tree and staged-installed builds

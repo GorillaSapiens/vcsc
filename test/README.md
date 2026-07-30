@@ -180,6 +180,22 @@ left-to-right packed-BCD digit order used by the eleven-line score components.
 The legacy and
 192-line initial scenes retain their separate exact sprite/raster checks.
 
+`vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
+components derived from the proven player-color rasters. They lock the 23-byte
+public interfaces, 74-byte and 78-byte total RAM contracts, official-opcode
+policy, solid P0/P1 colors, all-five enable activity, exact 181/192 visible-line
+contracts, and every playfield pixel across all eleven or twelve 16-line rows.
+
+`vcs_all_five_composition.pl` builds static and asynchronous score-above and
+score-below cartridges around the 181-line component. It requires explicit
+component handoff, stable 262-line frames, complete five-object activity, clean
+score regions, full-range object motion, and restored application Y state.
+
+`vcs_all_five_181_unofficial.pl` compares the official renderer with its
+separately named unofficial twin. It requires identical RAM addresses and
+visible TIA traces, one reviewed zero-page unofficial NOP, no AXS sites, and
+the measured 2081/2081-byte zero-saving result.
+
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
 harness. The motion update runs only through a

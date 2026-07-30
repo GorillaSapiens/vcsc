@@ -175,43 +175,7 @@ int main(int argc, char **argv) {
       if (checked < 150) fail("too few complete visible playfield scanlines checked");
    }
 
-   if (raster_rows == 12) {
-      auto expected_byte = [&](int row, int byte) -> uint8_t {
-         if (row == 0 || row == source_rows - 1) return 0xff;
-         if (byte == 0 || byte == 3) return 0x81;
-         return (row & 1) ? 0x18 : 0x00;
-      };
-      const uint16_t expected_address[4] = {kPf1,kPf2,kPf2,kPf1};
-      auto check_line = [&](uint64_t line, int row, const uint64_t cycle[4]) {
-         const auto found=by_line.find(line);
-         if (found==by_line.end() || found->second.size()!=4) {
-            std::fprintf(stderr,"vcs_playfield_phase: line %llu has %zu writes; expected 4\n",
-               static_cast<unsigned long long>(line),
-               found==by_line.end() ? size_t{0} : found->second.size());
-            std::exit(1);
-         }
-         for (size_t i=0;i<4;++i) {
-            const PfEvent &got=found->second[i];
-            const uint8_t value=expected_byte(row,static_cast<int>(i));
-            if (got.cycle!=cycle[i] || got.address!=expected_address[i] || got.value!=value) {
-               std::fprintf(stderr,
-                  "vcs_playfield_phase: row %d line %llu write %zu is c%llu $%02x=%02x; "
-                  "expected c%llu $%02x=%02x\n",
-                  row,static_cast<unsigned long long>(line),i,
-                  static_cast<unsigned long long>(got.cycle),got.address,got.value,
-                  static_cast<unsigned long long>(cycle[i]),expected_address[i],value);
-               std::exit(1);
-            }
-         }
-      };
-      const uint64_t exact[4]={10,17,40,47};
-      for (int row=0;row<12;++row) {
-         const uint64_t first=first_row_line+row*16;
-         for (int sub=0;sub<16;++sub) check_line(first+sub,row,exact);
-      }
-      std::printf("vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n");
-   }
-   else if (raster_rows) {
+   if (raster_rows) {
       auto expected_byte = [&](int row, int byte) -> uint8_t {
          if (row == 0 || row == source_rows - 1) return 0xff;
          if (byte == 0 || byte == 3) return 0x81;

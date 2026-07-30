@@ -5,26 +5,30 @@
    \_/  \___||___/ \___|
 ```
 
-All-five 181-line unofficial-opcode component
-=============================================
+# All-five 181-line unofficial-opcode component
 
 `all_five_181_unofficial.c26` is the separately named experimental twin of
-`../all_five_181/all_five_181.c26`. It has the same lifecycle API, public and
-private RAM layout, 181-line gameplay contract, object behavior, and score
-composition rules. Build cartridges that instantiate it with
+`../all_five_181/all_five_181.c26`. It has the same lifecycle API, 23-byte
+public state, 51-byte private state, 74-byte total RAM contract, 44-byte
+playfield contract, solid player colors, five-object behavior, and score-above
+or score-below composition rules. Assemble cartridges that instantiate it with
 `-Wa,--illegals`.
 
-Only reviewed stable/common NMOS 6502/6507 forms are used:
+Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
+(`$04`) replaces a same-size, same-cycle dead-flag padding instruction during
+VBLANK positioning. The visible renderer otherwise follows the official source
+and schedule exactly. No silicon-sensitive or unstable opcode is used.
 
-* `AXS #252` replaces each `TXA` / optional `CLC` / `ADC #4` / `TAX` row-index
-  idiom. One-byte NOP padding retains the official sequence's exact byte count
-  and cycle count. A is dead and the following `CPX` or load replaces flags.
-* one zero-page unofficial `NOP` (`$04`) remains where it replaces `BIT CXM0P`
-  with dead flags outside the corrected draw path. The draw routine now matches
-  the official component's horizontal-blank PF1 restoration exactly.
+The maintained smoke links measure:
 
-These substitutions deliberately preserve every cycle boundary. They produce
-**zero linked-byte savings** in the maintained smoke cartridge: both official
-and unofficial links use 1421 ROM bytes. This is a valid result; removing the
-compensating NOPs would save bytes only by shifting visible writes or lifecycle
-boundaries and therefore would not be an equivalent renderer.
+```text
+official linked ROM bytes:   2081
+unofficial linked ROM bytes: 2081
+signed saving:                  0
+```
+
+The zero-byte result is intentional. Removing compensating instructions would
+save bytes only by changing visible-write or lifecycle timing and would no
+longer be an equivalent renderer. Pairwise emulator tests require identical
+visible TIA traces, object behavior, score composition, RAM addresses, and
+stable 262-line frames for the official and unofficial cartridges.

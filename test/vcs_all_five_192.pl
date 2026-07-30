@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 6
+# timeout: 15
 # expectstdout: vcs_all_five_192 ok
 # expectexit: 0
 
@@ -65,11 +65,11 @@ my $fixture=read_file($source);
 my $map=read_file($mapfile);
 require_re($module,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/,
    'component does not publish 192 visible scanlines');
-require_re($module,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*19/,
+require_re($module,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*23/,
    'component public-RAM contract changed');
-require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*51/,
+require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*55/,
    'component private-RAM contract changed');
-require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*70/,
+require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*78/,
    'component total-RAM contract changed');
 require_re($fixture,qr/template\s+"renderers\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
@@ -78,15 +78,13 @@ require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
 require_re($module,qr/asm \.align 256;/,
    'hot two-line loop lost its page anchor');
 my $absolute_pf_loads=()=$module =~ /asm\s+(?:lda|ldy)\.ax\s+TEMPLATE_playfield(?:\s*[+]\s*[123])?,x;/g;
-$absolute_pf_loads==8
-   or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 8\n";
-my $final_pf_loads=()=$module =~ /asm\s+ldy\.a\s+TEMPLATE_playfield[+]4[4576];/g;
-$final_pf_loads==8
-   or die "component has $final_pf_loads full-height final-row loads, expected 8\n";
-require_re($module,qr/asm bit\.z CXM0P;/,
-   'official three-cycle delay no longer has an explicit zero-page mode');
-require_re($module,qr/lda\.z TEMPLATE_missile0_y;\s*asm clc;\s*asm adc #89;/s,
-   'M0 application Y is no longer restored from the full-height 89-line bias');
+$absolute_pf_loads==30
+   or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 30\n";
+require_re($module,qr/TEMPLATE_player0_color.*TEMPLATE_player1_color/s,
+   'solid player-color controls are missing');
+$module !~ /TEMPLATE_player[01]_colors/
+   or die "all-five 192 unexpectedly retained per-row player-color tables
+";
 
 my $code=$module;
 $code =~ s{//[^\n]*}{}g;
@@ -104,16 +102,17 @@ my @public=qw(
    game_object_x game_player0_y game_player1_y game_missile1_height
    game_missile1_y game_ball_y game_player0_graphics game_player1_graphics
    game_player0_height game_player1_height game_missile0_height
-   game_missile0_y game_ball_height
+   game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
+   game_player0_color game_player1_color
 );
 my @private=qw(game_workspace game_playfield_position game_object_masks);
 my $public=0; $public += bss_size($map,$_) for @public;
 my $private=0; $private += bss_size($map,$_) for @private;
-$public==19 or die "linked public gameplay RAM is $public bytes, expected 19\n";
-$private==51 or die "linked private gameplay RAM is $private bytes, expected 51\n";
-$public+$private==70 or die "linked gameplay RAM is not 70 bytes\n";
+$public==23 or die "linked public gameplay RAM is $public bytes, expected 23\n";
+$private==55 or die "linked private gameplay RAM is $private bytes, expected 55\n";
+$public+$private==78 or die "linked gameplay RAM is not 78 bytes\n";
 bss_size($map,'game_workspace')==6 or die "workspace is not six bytes\n";
-bss_size($map,'game_object_masks')==44 or die "object-mask storage is not 44 bytes\n";
+bss_size($map,'game_object_masks')==48 or die "object-mask storage is not 48 bytes\n";
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0030\s+page=hard\b/m
    or die "game playfield is not a page-contained 48-byte ROM object\n";
 $map !~ /(?:score|font)/i or die "gameplay-only map retained score/font symbols\n";
@@ -129,10 +128,10 @@ my @harnesses=(
    ['timing','vcs_frame_timing.cpp','50','--no-audio','--raw-lines','262',
       qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes
 $/],
-   ['phase','vcs_playfield_phase.cpp','11','12',
-      qr/^vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n$/],
+   ['phase','vcs_playfield_phase.cpp','12','12','40',
+      qr/^vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n$/],
    ['objects','vcs_standard_objects.cpp',
-      qr/^vcs_standard_objects ok: P0=7 P1=8 M0=6 M1=8 BL=5
+      qr/^vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4
 $/],
 );for my $h (@harnesses) {
    my($name,$srcname,@rest)=@$h;

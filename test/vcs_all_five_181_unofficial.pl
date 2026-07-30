@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_all_five_181_unofficial ok: official=1421 unofficial=1421 saving=0
+# expectstdout: vcs_all_five_181_unofficial ok: official=2081 unofficial=2081 saving=0
 # expectexit: 0
 
 use strict;
@@ -60,7 +60,7 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1421 or die "official smoke now uses $official_used bytes, expected 1421\n";
+$official_used==2081 or die "official smoke now uses $official_used bytes, expected 2081\n";
 $unofficial_used==$official_used
    or die "linked bytes differ: official=$official_used unofficial=$unofficial_used\n";
 
@@ -68,7 +68,8 @@ my @ram_symbols=qw(
    game_object_x game_player0_y game_player1_y game_missile1_height
    game_missile1_y game_ball_y game_player0_graphics game_player1_graphics
    game_player0_height game_player1_height game_missile0_height
-   game_missile0_y game_ball_height game_workspace game_playfield_position
+   game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
+   game_player0_color game_player1_color game_workspace game_playfield_position
    game_object_masks
 );
 for my $name (@ram_symbols) {
@@ -87,7 +88,7 @@ $out eq '' && $err eq '' or die "unofficial assembly generation wrote output\n$o
 my $text=read_file($asm);
 my $axs=()=$text =~ /^\s*axs\s+#252\s*$/gmi;
 my $nopzp=()=$text =~ /^\s*nop\.z\s+\$00\s*$/gmi;
-$axs==4 or die "expected four AXS sites, found $axs\n";
+$axs==0 or die "expected no AXS sites, found $axs\n";
 $nopzp==1 or die "expected one unofficial zero-page NOP site, found $nopzp\n";
 my $other=$text;
 $other =~ s/^\s*axs\s+#252\s*$//gmi;

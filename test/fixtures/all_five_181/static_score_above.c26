@@ -26,18 +26,16 @@ page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00)
 };
 
-void configure_game_frame(void) {
-   COLUPF := 0x2e;
-   COLUP0 := 0x0e;
-   COLUP1 := 0xc8;
-   CTRLPF := 0x21;
-   NUSIZ0 := 0x20;
-   NUSIZ1 := 0x20;
-}
 
 void initialize_scene(void) {
    VBLANK := 2;
    COLUBK := 0x84;
+   COLUPF := 0x2e;
+   CTRLPF := 0x21;
+   game_player0_color := 0x0e;
+   game_player1_color := 0xc8;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
    game_PLAYER0_X := 20;
    game_PLAYER1_X := 130;
    game_MISSILE0_X := 50;
@@ -70,7 +68,7 @@ void main(void) {
       score_vblank();
       vcs_ntsc_end_vblank();
       score_draw();
-      configure_game_frame();
+      vcs_ntsc_component_handoff();
       game_draw();
       vcs_ntsc_begin_overscan();
       game_overscan();

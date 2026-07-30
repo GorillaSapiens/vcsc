@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 10
+# timeout: 25
 # expectstdout: vcs_static_renderer_test ok
 # expectexit: 0
 

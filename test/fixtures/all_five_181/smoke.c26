@@ -29,9 +29,13 @@ void main(void) {
    COLUPF := 0x2e;
    COLUP0 := 0x0e;
    COLUP1 := 0xc8;
+   game_player0_color := 0x0e;
+   game_player1_color := 0xc8;
    CTRLPF := 0x21;
    NUSIZ0 := 0x20;
    NUSIZ1 := 0x20;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
    game_PLAYER0_X := 20;
    game_PLAYER1_X := 130;
    game_MISSILE0_X := 50;

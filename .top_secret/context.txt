@@ -6469,3 +6469,42 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the first 174 completed before the outer
   command ceiling and the remaining 21 passed explicitly. Staged
   `make installcheck` also passes.
+
+2026-07-30 14:08:34 PDT, rebuild the all-five components from proven player-color rasters
+------------------------------------------------------------------------------------------
+* Replace the official 181-line and 192-line all-five visible pipelines with
+  derivatives of the known-good `player_color_181` and `player_color_192`
+  pipelines, adding timed M0 and M1 mask/enable updates while preserving the
+  complete P0/P1/Ball raster and every playfield row.
+* Use independent solid P0/P1 colors in the five-object components. The two
+  per-row color-load slots in the player-color pipelines are the exact cycle
+  slots needed for M1 and M0; retaining per-row colors would break the proven
+  official-opcode schedule.
+* Expand the public interface of both official all-five components with
+  independent P0/P1 NUSIZ and solid-color bytes. The 181-line component now
+  uses 23 public + 51 private = 74 RAM bytes with seven workspace and 43 mask
+  bytes; the 192-line component uses 23 public + 55 private = 78 RAM bytes with
+  six workspace and 48 mask bytes.
+* Preserve score-above and score-below composition for the 181-line component.
+  It positions M0/M1/Ball during VBLANK, restores P0/P1 state at visible entry,
+  and uses the explicit visible-component handoff between gameplay and score.
+  The 192-line scoreless component positions all five objects during VBLANK.
+* Rebuild the separately named unofficial 181-line twin from the new official
+  source. It now retains one reviewed zero-page unofficial NOP, no AXS sites,
+  the same 74-byte RAM layout, and the same 2081-byte linked ROM footprint as
+  the official smoke cartridge.
+* Strengthen the all-five regressions to reconstruct all 160 playfield pixels
+  on all sixteen scanlines of every one of the eleven or twelve rows, while
+  retaining exact frame, object-activity, score-composition, lifecycle, map,
+  and official/unofficial trace checks. Increase several renderer-test timeout
+  budgets to match their measured clean-build runtimes without relaxing any
+  behavioral assertion.
+* Update renderer source comments, lower-level READMEs, the component-conversion
+  baseline, unofficial-opcode history, VCS-library index, and test manual for
+  the new lineage, solid-color tradeoff, RAM contracts, and measured byte result.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass in explicit chunks. The staged installed
+  toolchain builds every maintained component and example; after the outer
+  command ceiling interrupted the monolithic `make installcheck` near its end,
+  the remaining checks completed successfully against the same staging tree.

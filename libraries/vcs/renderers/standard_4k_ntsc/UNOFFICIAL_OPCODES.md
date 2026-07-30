@@ -8,9 +8,9 @@
 Standard 4K NTSC unofficial-opcode classification
 =================================================
 
-This document began as the task-20o inventory taken before legalizing the
-normalized standard renderer. After task 20r removed the final source sites and
-task 20s added a final linked-byte gate, the empty generated TSV and its one-use
+This document records the unofficial-opcode inventory made while legalizing
+the normalized standard renderer. The final source sites were replaced, a
+linked-byte gate was added, and the empty generated inventory plus its one-use
 generator were retired. **No unofficial source sites remain** in this profile.
 
 Historical classification vocabulary
@@ -26,11 +26,11 @@ Historical classification vocabulary
   NMOS parts or operating conditions.
 
 No silicon-sensitive or unstable opcode was ever retained by this selected
-profile. Tasks 20p and 20q removed the stable/common `LAX` and `DCP` sites.
-Task 20r removed the last three forms below.
+profile. Earlier cleanup removed the stable/common `LAX` and `DCP` sites.
+The final legalization pass removed the last three forms below.
 
-Task-20r legal replacements
----------------------------
+Legal replacements
+------------------
 
 | Removed form | Legal replacement | Cycle treatment | Flags and bus effects |
 |---|---|---|---|
@@ -49,42 +49,33 @@ a negative control introduced through raw `op4B`.
 The regression now scans the maintained source directly and separately verifies
 the final linked executable bytes.
 
-Completed all-five component byte comparison
---------------------------------------------
+All-five component byte comparison
+----------------------------------
 
-Roadmap task 22i brings back the separately named unofficial-opcode
-**181-line gameplay component** as a completed experiment. It is not a reversal of the
-official predecessor policy and it is not selected by a hidden build alias.
-The official and unofficial components must expose the same lifecycle API,
-consume the same RAM, draw the same 181 scanlines, produce the same visible TIA
-writes and object positions, and pass the same static/motion cartridges. Only
-reviewed stable/common NMOS forms may be used.
+The separately named unofficial-opcode **181-line all-five gameplay
+component** is an apples-to-apples experiment, not a hidden build alias. The
+official and unofficial components expose the same lifecycle API, consume the
+same RAM, draw the same 181 scanlines, produce the same visible TIA writes and
+object positions, and pass the same static and motion cartridges. Only reviewed
+stable/common NMOS forms are eligible.
 
-The comparison reports linked executable bytes for otherwise identical
-cartridges:
+The rebuilt unofficial twin retains one zero-page unofficial NOP (`$04`) as an
+exact-size, exact-cycle replacement for dead-flag padding during VBLANK
+positioning. It retains no AXS substitutions and no silicon-sensitive or
+unstable opcodes.
+
+The maintained smoke cartridge measures:
 
 ```text
-official linked ROM bytes
-unofficial linked ROM bytes
-signed byte difference
+official linked ROM bytes:   2081
+unofficial linked ROM bytes: 2081
+signed byte difference:         0
 ```
 
-No saving is assumed. A zero-byte result, growth caused by padding/alignment, or
-rejection of a candidate whose timing cannot be matched is a successful and
-publishable outcome.
-
-
-Measured result
----------------
-
-The matched `all_five_181_unofficial` component uses four stable/common
-`AXS #252` sites and three stable/common zero-page NOP (`$04`) sites.
-The row-boundary PF1 preload replaced the fourth `$04` site with an ordinary
-two-cycle NOP while preserving the matched raster. Compensating NOPs preserve
-every official cycle boundary. The maintained smoke
-cartridge measures 1421 linked ROM bytes for both components: **0 bytes saved**.
-Pairwise static/motion raster tests and the 360-frame motion oracle enforce the
-claimed equivalence.
+The zero-byte result is intentional evidence, not a failed optimization.
+Compensating instruction sizes preserve the official lifecycle and visible
+cycle boundaries. Pairwise static/motion raster tests require identical visible
+TIA traces, RAM addresses, object behavior, and stable 262-line frames.
 
 Completed player-color component byte comparison
 ------------------------------------------------

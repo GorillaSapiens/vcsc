@@ -55,7 +55,7 @@ for my $mode (qw(static motion)) {
       without_usage($out) eq '' && $err eq '' or die "$key build wrote output\n$out$err";
       -s $bin == 4096 or die "$key is not a 4K ROM\n";
       my $source=read_file($src);
-      $source =~ /game_draw\(\);\s*score_draw\(\);/s xor
+      $source =~ /game_draw\(\);.*score_draw\(\);/s xor
       $source =~ /score_draw\(\);.*game_draw\(\);/s
          or die "$key does not contain exactly one explicit draw order\n";
       my $map=read_file($mapfile);
@@ -64,10 +64,11 @@ for my $mode (qw(static motion)) {
          game_object_x game_player0_y game_player1_y game_missile1_height
          game_missile1_y game_ball_y game_player0_graphics game_player1_graphics
          game_player0_height game_player1_height game_missile0_height
-         game_missile0_y game_ball_height game_workspace game_playfield_position
+         game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
+         game_player0_color game_player1_color game_workspace game_playfield_position
          game_object_masks
       );
-      $game_ram==69 or die "$key game RAM is $game_ram, expected 69\n";
+      $game_ram==74 or die "$key game RAM is $game_ram, expected 74\n";
       my $score_ram=0;
       $score_ram += object_size($map,$_) for qw(score_score score_pointers score_row score_delayed);
       $score_ram==17 or die "$key score RAM is $score_ram, expected 17\n";
@@ -97,7 +98,7 @@ $rc==0 && !$sig or die "composition harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "composition harness build wrote output\n$out$err";
 
 # Build the strict intended-pixel oracle too. The score-above layout starts the
-# first gameplay row at frame line 54; score-below starts it at line 43.
+# first complete gameplay row at frame line 55; score-below starts it at line 44.
 my $raster_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my $raster_exe=File::Spec->catfile($tmp,'vcs_all_five_composition_raster');
 ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$raster_src,@mos_input,'-o',$raster_exe);
@@ -106,7 +107,7 @@ $out eq '' && $err eq '' or die "raster harness build wrote output\n$out$err";
 for my $order (qw(above below)) {
    my $key="static_score_${order}";
    my($bin)=@{$built{$key}};
-   my $first=$order eq 'above' ? 54 : 43;
+   my $first=$order eq 'above' ? 55 : 44;
    ($rc,$sig,$out,$err)=capture($raster_exe,$bin,'11','11',$first);
    $rc==0 && !$sig or die "$key raster failed\n$out$err";
    $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
