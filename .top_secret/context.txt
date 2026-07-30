@@ -6231,3 +6231,34 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   325/325. All 193 end-to-end/generic tests are accounted for and pass; the
   first 157 passed before the outer runner ceiling and the renderer-heavy tail
   passed in explicit chunks. Staged `make installcheck` passes.
+
+2026-07-29 17:29:09 PDT, filter interactive score controls and cycle digit-selection color
+--------------------------------------------------------------------------------------
+* Change the right-joystick controls in all three scored interactive diagnostics to
+  sample SWCHA only once every ten frames. Pack the ten-frame countdown into the
+  high nibble of `right_joystick_state` and the previous sampled joystick position
+  into its low nibble, so the filter costs only one RAM byte.
+* Require two consecutive ten-frame samples with the same joystick position before
+  applying any horizontal or vertical action. A held direction then repeats at the
+  ten-frame sample cadence; changing direction requires a fresh pair of matching
+  samples. Neutral and unstable samples produce no score or digit-selection change.
+* Add `$10` to the score color whenever a qualified horizontal sample changes the
+  selected digit. Vertical score increments/decrements do not change the color.
+  RESET restores the neutral filter state, selected digit, score, and initial gray
+  color through the existing reset-vector jump.
+* Add `libraries/vcs/six_glyph_color_component.c26`, a mutable-color twin of the
+  fixed-white six-glyph component. Preserve its exact eleven-scanline contract and
+  horizontal positioning phase by loading the application color only after RESP0
+  and RESP1. Keep the original fixed-color component unchanged for existing tight
+  compositions, and install/uninstall/check the new component with the normal VCS
+  library payload.
+* Extend the interactive emulator harness to verify the 20-frame initial
+  qualification delay, ten-frame held-repeat cadence, direction-change
+  requalification, qualified horizontal color steps, vertical score edits without
+  color changes, and reset restoration. Update leaf, renderer-group, VCS-library,
+  and test documentation.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic tests
+  are accounted for and pass; the first 172 passed before the outer command window
+  expired and the remaining 21 passed explicitly. Focused source-tree hygiene,
+  software-stack inventory, branding, and interactive renderer tests pass. Staged
+  `make installcheck` passes with the new mutable-color component installed.

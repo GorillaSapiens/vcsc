@@ -30,10 +30,13 @@ The renderer's Y range is 0 through 87.
 
 ### Score controls
 
+- **Right joystick:** sampled only once every tenth frame. A direction must be
+  present in two consecutive samples before it acts; a held stable direction
+  then repeats at the ten-frame sample cadence.
 - **Right joystick left/right:** select the next more-/less-significant score
-  digit. The stick must return horizontally to center before another selection
-  is accepted.
+  digit. Each accepted digit change also adds `$10` to the score color, cycling
+  the TIA hue while preserving luminance.
 - **Right joystick up/down:** add/subtract that digit's decimal weight
-  (`10^n`) once per frame. Carries and borrows may change neighboring digits.
+  (`10^n`). Carries and borrows may change neighboring digits.
 
 Build with `make`. The result is `player_color_181_score_below_interactive.bin`.

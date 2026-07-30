@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 30
-# expectstdout: vcs_multicolor_examples ok: four interactive renderer examples pass build, frame, controls, score-selection, endpoint, and reset checks
+# expectstdout: vcs_multicolor_examples ok: four interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, and reset checks
 # expectexit: 0
 
 use strict;
@@ -25,26 +25,31 @@ $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($t
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $legacy_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
+my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_color_component.c26'));
+$color_component =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
+   && $color_component =~ /asm sta RESP0;\s*asm sta RESP1;\s*asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
+   && $color_component =~ /asm sta NUSIZ1;.*?(?:asm nop;\s*){4}asm sta HMCLR;/s
+   or die "mutable-color score component lost its color or positioning contract\n";
 my @cases=(
  {
    dir=>'02_faithful_legacy_playercolors/01_interactive',
    stem=>'faithful_legacy_playercolors_interactive', profile=>'legacy', prefix=>'legacy',
-   score=>'legacy_score', extra=>['-Wa,--illegals','-T',$legacy_cfg],
+   score=>'legacy_score', color=>'legacy_score_color', extra=>['-Wa,--illegals','-T',$legacy_cfg],
  },
  {
    dir=>'03_player_color_192/01_interactive',
    stem=>'player_color_192_interactive', profile=>'192', prefix=>'game',
-   score=>undef, extra=>[],
+   score=>undef, color=>undef, extra=>[],
  },
  {
    dir=>'04_player_color_181/01_score_above/01_interactive',
    stem=>'player_color_181_score_above_interactive', profile=>'above', prefix=>'game',
-   score=>'score_score', extra=>[],
+   score=>'score_score', color=>'score_color', extra=>[],
  },
  {
    dir=>'04_player_color_181/02_score_below/01_interactive',
    stem=>'player_color_181_score_below_interactive', profile=>'below', prefix=>'game',
-   score=>'score_score', extra=>[],
+   score=>'score_score', color=>'score_color', extra=>[],
  },
 );
 
@@ -80,7 +85,7 @@ for my $case (@cases) {
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
          or die "$dir unexpectedly contains score controls\n";
    } else {
-      $text =~ /player_color_181/ && $text =~ /six_glyph_component/
+      $text =~ /player_color_181/ && $text =~ /six_glyph_color_component/
          or die "$dir lacks 181-line renderer plus score composition\n";
       my $score=index($text,'score_draw();'); my $game=index($text,'game_draw();');
       $score>=0 && $game>=0 or die "$dir lacks component draws\n";
@@ -90,8 +95,12 @@ for my $case (@cases) {
    if (defined $case->{score}) {
       $text =~ /uint8_t selected_score_digit := 0;/
          or die "$dir does not start with the ones digit selected\n";
-      $text =~ /score_horizontal_ready/ && $text =~ /\(SWCHA & 0x0c\) == 0x0c/
-         or die "$dir lacks move-and-release horizontal score selection\n";
+      $text =~ /uint8_t right_joystick_state := 0x9f;/
+         && $text =~ /asm sbc #\$10;/
+         && $text =~ /asm eor right_joystick_state;/
+         or die "$dir lacks tenth-frame two-sample right-joystick filtering\n";
+      $text =~ /asm adc #\$10;.*?asm sta \Q$case->{color}\E;/s
+         or die "$dir does not advance score color when the selected digit changes\n";
       $text =~ /score_digit_low/ && $text =~ /score_digit_middle/ && $text =~ /score_digit_high/
          or die "$dir lacks decimal 10^n score weights\n";
    }
@@ -112,9 +121,9 @@ for my $case (@cases) {
       map_zp($map,'select_switch_ready'),
    );
    if (defined $case->{score}) {
-      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'score_horizontal_ready');
+      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_state'),map_zp($map,$case->{color});
    } else {
-      push @args,qw(none none none);
+      push @args,qw(none none none none);
    }
    ($rc,$sig,$out,$err)=capture($harness,@args);
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";
@@ -122,4 +131,4 @@ for my $case (@cases) {
       or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: four interactive renderer examples pass build, frame, controls, score-selection, endpoint, and reset checks\n";
+print "vcs_multicolor_examples ok: four interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, and reset checks\n";

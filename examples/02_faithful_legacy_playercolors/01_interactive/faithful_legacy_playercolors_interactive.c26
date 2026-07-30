@@ -81,7 +81,7 @@ alias SELECTED_OBJECT_COUNT 3
 uint8_t selected_object := SELECTED_PLAYER0;
 uint8_t select_switch_ready := 1;
 uint8_t selected_score_digit := 0;
-uint8_t score_horizontal_ready := 1;
+uint8_t right_joystick_state := 0x9f;
 
 // Decimal digit weights, indexed from ones through hundred-thousands.
 page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
@@ -159,7 +159,62 @@ inline void move_selected_object(void) {
    }
 }
 
-inline void add_selected_score_digit(void) {
+inline void update_score_controls(void) {
+   // High nibble: frames until the next sample. Low nibble: previous sample.
+   asm lda right_joystick_state;
+   asm and #$f0;
+   asm beq @sample;
+   asm lda right_joystick_state;
+   asm sec;
+   asm sbc #$10;
+   asm sta right_joystick_state;
+   asm jmp @done;
+
+   asm @sample:;
+   asm lda SWCHA;
+   asm and #$0f;
+   asm tax;
+   asm eor right_joystick_state;
+   asm and #$0f;
+   asm bne @record;
+
+   // A stable horizontal sample selects a digit and advances the score hue.
+   asm txa;
+   asm and #$04;
+   asm bne @not_left;
+   asm inc selected_score_digit;
+   asm lda selected_score_digit;
+   asm cmp #6;
+   asm bcc @left_color;
+   asm lda #0;
+   asm sta selected_score_digit;
+   asm @left_color:;
+   asm lda legacy_score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta legacy_score_color;
+   asm jmp @vertical;
+
+   asm @not_left:;
+   asm txa;
+   asm and #$08;
+   asm bne @vertical;
+   asm lda selected_score_digit;
+   asm bne @decrement_digit;
+   asm lda #6;
+   asm sta selected_score_digit;
+   asm @decrement_digit:;
+   asm dec selected_score_digit;
+   asm lda legacy_score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta legacy_score_color;
+
+   // A stable vertical sample changes the currently selected decimal weight.
+   asm @vertical:;
+   asm txa;
+   asm and #$01;
+   asm bne @not_up;
    asm sed;
    asm clc;
    asm ldy selected_score_digit;
@@ -173,9 +228,12 @@ inline void add_selected_score_digit(void) {
    asm adc score_digit_high,y;
    asm sta legacy_score+2;
    asm cld;
-}
+   asm jmp @record;
 
-inline void subtract_selected_score_digit(void) {
+   asm @not_up:;
+   asm txa;
+   asm and #$02;
+   asm bne @record;
    asm sed;
    asm sec;
    asm ldy selected_score_digit;
@@ -189,42 +247,12 @@ inline void subtract_selected_score_digit(void) {
    asm sbc score_digit_high,y;
    asm sta legacy_score+2;
    asm cld;
-}
 
-inline void update_score_controls(void) {
-   if ((SWCHA & 0x0c) == 0x0c) {
-      score_horizontal_ready := 1;
-   }
-   else {
-      if (score_horizontal_ready) {
-         if (!(SWCHA & 0x04)) {
-            selected_score_digit++;
-            if (selected_score_digit >= 6) {
-               selected_score_digit := 0;
-            }
-         }
-         else {
-            if (!(SWCHA & 0x08)) {
-               if (selected_score_digit == 0) {
-                  selected_score_digit := 5;
-               }
-               else {
-                  selected_score_digit--;
-               }
-            }
-         }
-         score_horizontal_ready := 0;
-      }
-   }
-
-   if (!(SWCHA & 0x01)) {
-      add_selected_score_digit();
-   }
-   else {
-      if (!(SWCHA & 0x02)) {
-         subtract_selected_score_digit();
-      }
-   }
+   asm @record:;
+   asm txa;
+   asm ora #$90;
+   asm sta right_joystick_state;
+   asm @done:;
 }
 
 inline void update_controls(void) {

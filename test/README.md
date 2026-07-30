@@ -156,8 +156,10 @@ all former `DCP` families even when the static scene exits before the P0/M0 half
 cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
 181-line score-below. Its 6502 harness presents idle/pressed console inputs and
 checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoint
-clamps, move-and-release score-digit selection, decimal `10^n` score changes,
-exact normal frame periods, and reset-vector state restoration. The legacy and
+clamps, tenth-frame right-joystick sampling, two-consecutive-sample filtering,
+held-input repetition at the sample cadence, selected-digit score-color cycling,
+decimal `10^n` score changes, exact normal frame periods, and reset-vector state
+restoration. The legacy and
 192-line initial scenes retain their separate exact sprite/raster checks.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge

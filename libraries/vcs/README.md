@@ -19,7 +19,8 @@ Files:
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display
+- `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display with fixed bright-white color
+- `six_glyph_color_component.c26` ... timing-compatible mutable-color twin used by interactive score diagnostics
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline plus the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `renderers/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component for composition with an independent eleven-line score
 - `renderers/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line all-five component; measured zero-byte saving

@@ -14,7 +14,7 @@ The renderer draws exactly 181 gameplay lines using eleven playfield rows of
 sixteen scanlines plus its score-safe visible handoff. It draws P0, P1, and Ball
 with independent page-contained player-color tables; M0 and M1 are absent. The
 remaining eleven visible lines are supplied by the independent
-`six_glyph_component.c26` score, producing a complete 192-line visible field.
+`six_glyph_color_component.c26` score, producing a complete 192-line visible field.
 
 Each layout now has one interactive diagnostic rather than separate static,
 horizontal-motion, and two-axis-motion cartridges.

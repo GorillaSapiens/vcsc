@@ -1,0 +1,190 @@
+// Reusable centered six-glyph TIA display component with mutable color.
+//
+// This is the variable-color twin of six_glyph_component.c26. It preserves
+// the same eleven-line entry/exit and horizontal-positioning contract while
+// adding one application-visible TEMPLATE_color byte.
+//
+// Instantiate this source with:
+//
+//     template "six_glyph_color_component.c26" as score1
+//
+// Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
+// must define the shared page-contained score_font table.  Each instance owns
+// its score, six 16-bit glyph pointers, row counter, and delayed glyph byte.
+//
+// Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
+// VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
+// of the following line. Use vcs_ntsc_component_handoff() before an adjacent
+// visible component. It owns P0/P1 graphics, colors, VDEL, NUSIZ, horizontal
+// motion, and
+// RESP0/RESP1 while drawing. It may leave all of that P0/P1 state clobbered.
+// It preserves playfield, missile, and Ball state, flushes GRP0/GRP1, and
+// disables player VDEL before returning. It never touches VSYNC, VBLANK, the RIOT timer, or collision
+// latches.  A/X/Y and arithmetic flags are clobbered; hardware stack depth is
+// unchanged at lifecycle boundaries.
+
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_VBLANK_MAX_CYCLES := 260,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0
+};
+
+recommend bcd24_t TEMPLATE_score := 0;
+uint8_t TEMPLATE_pointers[12];
+uint8_t TEMPLATE_row;
+uint8_t TEMPLATE_delayed;
+recommend uint8_t TEMPLATE_color := 0x0e;
+
+static inline void TEMPLATE_prepare_pointers(void) {
+   // Build six complete 16-bit pointers in human digit order. Packed BCD is
+   // little-endian, so score+2 supplies digits 1/2 and score supplies 5/6.
+   asm lda TEMPLATE_score+2;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+1;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+2;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+3;
+
+   asm lda TEMPLATE_score+1;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+4;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+5;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+6;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+7;
+
+   asm lda TEMPLATE_score;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+8;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+9;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+10;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+11;
+}
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Line one re-establishes the score's fixed P0/P1 geometry every time it is
+   // invoked. This makes both score-above and score-below composition legal.
+   asm lda #$03;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   // Preserve the original eight-cycle positioning phase. The mutable color
+   // is loaded only after RESP0/RESP1, where its extra cycle cannot move the
+   // score horizontally.
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm sta HMCLR;
+   asm lda #$80;
+   asm sta HMP0;
+   asm lda #$90;
+   asm sta HMP1;
+   asm nop;
+   asm sta RESP0;
+   asm sta RESP1;
+   asm lda TEMPLATE_color;
+   asm sta COLUP0;
+   asm sta COLUP1;
+   asm sta WSYNC;
+
+   // Line two applies motion, flushes both current/delayed player latches, and
+   // enters the canonical eight-row 48-pixel glyph schedule.
+   asm sta HMOVE;
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   // The four NOPs retain the original eight-cycle pre-row color phase; the
+   // color registers were loaded at the end of the positioning scanline.
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   VDELP0 := 1;
+   VDELP1 := 1;
+   TEMPLATE_row := 7;
+
+   asm @TEMPLATE_draw_loop:;
+   asm ldy TEMPLATE_row;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   asm dec TEMPLATE_row;
+   asm bpl.same @TEMPLATE_draw_loop;
+
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+   WSYNC := 0;
+}
+
+require inline void TEMPLATE_overscan(void) {
+}
