@@ -57,8 +57,9 @@ include "fonts/default_decimal.c26"
 
 For hexadecimal output, include the corresponding `*_hex.c26` module and
 use digit values in the range `0..15`; packed BCD naturally supplies only
-`0..9`. Example 04 selects `default_hex.c26` to display a binary 24-bit
-processor fingerprint as six hexadecimal digits.
+`0..9`. Example 04 selects `whimsey_hex.c26` to display a binary 24-bit
+processor fingerprint as six hexadecimal digits, while two edge-justified
+components redirect their pointers to `logo_font.c26`.
 
 The arrays are stored in the row order consumed by the score renderer, but source
 rows are written top-to-bottom. `VCS_FONT_GLYPH` performs the reversal at

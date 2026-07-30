@@ -2,11 +2,12 @@
 //
 // Four unstable ARR-immediate probes produce accumulator and masked NVZC
 // results. VCSC feeds those eight bytes through CRC-24/OPENPGP and displays
-// the resulting 24-bit fingerprint as six hexadecimal digits.
+// the resulting 24-bit fingerprint in Whimsey hexadecimal, between fixed VCSC
+// logos at the upper-right and lower-left edges.
 
 include "vcs.c26"
 include "frame_ntsc.c26"
-include "fonts/default_hex.c26"
+include "fonts/whimsey_hex.c26"
 include "fonts/logo_font.c26"
 
 alias BACKGROUND_COLOR 0x84
@@ -17,7 +18,8 @@ uint24_t fingerprint;
 
 #ifndef FINGERPRINT_SELFTEST
 template "six_glyph_component.c26" as display
-template "six_glyph_component.c26" as logo
+template "six_glyph_right_component.c26" as upper_logo
+template "six_glyph_left_component.c26" as lower_logo
 #endif
 
 // ARR is an unstable unofficial NMOS 6502/6507 opcode. The example enables
@@ -130,32 +132,44 @@ inline void load_display_fingerprint(void) {
 #endif
 
 #ifndef FINGERPRINT_SELFTEST
-// The reusable component normally derives pointers from score_font. The logo
-// uses the fixed packed-BCD value 012345, then redirects those six glyph
-// pointers to the corresponding slices in logo_font.
+// The reusable components normally derive pointers from score_font. Both logos
+// use the fixed packed-BCD value 012345, then redirect their six glyph pointers
+// to the corresponding slices in logo_font.
 inline void load_logo_pointers(void) {
    // logo_font is page-contained, so all six pointers share one high byte.
    asm lda #<logo_font;
-   asm sta logo_pointers;
+   asm sta upper_logo_pointers;
+   asm sta lower_logo_pointers;
    asm clc;
    asm adc #$08;
-   asm sta logo_pointers+2;
+   asm sta upper_logo_pointers+2;
+   asm sta lower_logo_pointers+2;
    asm adc #$08;
-   asm sta logo_pointers+4;
+   asm sta upper_logo_pointers+4;
+   asm sta lower_logo_pointers+4;
    asm adc #$08;
-   asm sta logo_pointers+6;
+   asm sta upper_logo_pointers+6;
+   asm sta lower_logo_pointers+6;
    asm adc #$08;
-   asm sta logo_pointers+8;
+   asm sta upper_logo_pointers+8;
+   asm sta lower_logo_pointers+8;
    asm adc #$08;
-   asm sta logo_pointers+10;
+   asm sta upper_logo_pointers+10;
+   asm sta lower_logo_pointers+10;
 
    asm lda #>logo_font;
-   asm sta logo_pointers+1;
-   asm sta logo_pointers+3;
-   asm sta logo_pointers+5;
-   asm sta logo_pointers+7;
-   asm sta logo_pointers+9;
-   asm sta logo_pointers+11;
+   asm sta upper_logo_pointers+1;
+   asm sta lower_logo_pointers+1;
+   asm sta upper_logo_pointers+3;
+   asm sta lower_logo_pointers+3;
+   asm sta upper_logo_pointers+5;
+   asm sta lower_logo_pointers+5;
+   asm sta upper_logo_pointers+7;
+   asm sta lower_logo_pointers+7;
+   asm sta upper_logo_pointers+9;
+   asm sta lower_logo_pointers+9;
+   asm sta upper_logo_pointers+11;
+   asm sta lower_logo_pointers+11;
 }
 #endif
 
@@ -198,9 +212,11 @@ void main(void) {
 
    compute_fingerprint();
    load_display_fingerprint();
-   logo_score := 12345; // Leading zero makes the fixed six-glyph value 012345.
+   upper_logo_score := 12345; // Leading zero makes the fixed six-glyph value 012345.
+   lower_logo_score := 12345;
    display_init();
-   logo_init();
+   upper_logo_init();
+   lower_logo_init();
    load_logo_pointers();
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
@@ -209,20 +225,21 @@ void main(void) {
 
       vcs_ntsc_begin_vblank();
       display_vblank();
-      logo_vblank();
+      upper_logo_vblank();
+      lower_logo_vblank();
       load_logo_pointers();
       vcs_ntsc_end_vblank();
 
-      // Preserve the fingerprint's absolute placement and put the fixed
-      // 012345 logo component against the bottom of the 192-line field.
-      vcs_ntsc_wait_component_scanlines(91);
+      upper_logo_draw();
+      vcs_ntsc_wait_component_scanlines(80);
       display_draw();
       vcs_ntsc_wait_component_scanlines(79);
-      logo_draw();
+      lower_logo_draw();
 
       vcs_ntsc_begin_overscan();
       display_overscan();
-      logo_overscan();
+      upper_logo_overscan();
+      lower_logo_overscan();
       vcs_ntsc_end_overscan();
    }
 }

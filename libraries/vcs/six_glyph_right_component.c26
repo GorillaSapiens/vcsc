@@ -1,0 +1,379 @@
+// Reusable right-justified six-glyph TIA display component.
+//
+// Instantiate this source with:
+//
+//     template "six_glyph_right_component.c26" as score1
+//
+// Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
+// must define the shared page-contained score_font table.  Each instance owns
+// its score, six 16-bit glyph pointers, and delayed glyph byte.
+//
+// Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
+// VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
+// of the following line. Use vcs_ntsc_component_handoff() before an adjacent
+// visible component. It owns P0/P1 graphics, colors, VDEL, NUSIZ, horizontal
+// motion, and
+// RESP0/RESP1 while drawing. It may leave all of that P0/P1 state clobbered.
+// It preserves playfield, missile, and Ball state, flushes GRP0/GRP1, and
+// disables player VDEL before returning. It never touches VSYNC, VBLANK, the RIOT timer, or collision
+// latches.  A/X/Y and arithmetic flags are clobbered; hardware stack depth is
+// unchanged at lifecycle boundaries.
+
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_VBLANK_MAX_CYCLES := 260,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0
+};
+
+recommend bcd24_t TEMPLATE_score := 0;
+uint8_t TEMPLATE_pointers[12];
+uint8_t TEMPLATE_delayed;
+
+static inline void TEMPLATE_prepare_pointers(void) {
+   // Build six complete 16-bit pointers in human digit order. Packed BCD is
+   // little-endian, so score+2 supplies digits 1/2 and score supplies 5/6.
+   asm lda TEMPLATE_score+2;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+1;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+2;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+3;
+
+   asm lda TEMPLATE_score+1;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+4;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+5;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+6;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+7;
+
+   asm lda TEMPLATE_score;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+8;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+9;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+10;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+11;
+}
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_prepare_pointers();
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Position P0 at x=112 and P1 at x=120, so the final P1 copy ends at
+   // x=159. These calibrated fine-motion values compensate for the eleven-NOP
+   // coarse-position delay and consecutive RESP strobes.
+   asm lda #$03;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm lda #$0e;
+   asm sta COLUP0;
+   asm sta COLUP1;
+   asm sta HMCLR;
+   asm lda #$c0;
+   asm sta HMP0;
+   asm lda #$d0;
+   asm sta HMP1;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm sta RESP0;
+   asm sta RESP1;
+   asm sta WSYNC;
+
+   // Apply motion, clear both player pipelines, enable VDEL, and preload the
+   // first glyph. The eight visible rows are unrolled so row-to-row setup can
+   // straddle the scanline boundary while the four late writes remain inside
+   // the narrow copy-update windows at the right edge.
+   asm sta HMOVE;
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm lda #$0e;
+   asm sta COLUP0;
+   asm sta COLUP1;
+   asm lda #1;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm ldy #7;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+
+   // Glyph row 1: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 2: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #6;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 3: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #5;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 4: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #4;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 5: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #3;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 6: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #2;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 7: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #1;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+
+   // Glyph row 8: TIA write events land at CPU cycles 55, 58, 61, and 64.
+   asm ldy #0;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm bit TEMPLATE_delayed;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$a),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   asm sta WSYNC;
+
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta WSYNC;
+}
+
+require inline void TEMPLATE_overscan(void) {
+}

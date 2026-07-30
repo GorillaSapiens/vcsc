@@ -135,7 +135,7 @@ and other work outside the visible scanline schedule.
 
 [`libraries/vcs/`](libraries/vcs/) contains TIA/RIOT bindings, the stock 4K
 linker layout, shared NTSC frame primitives, audio aliases, named NTSC colors,
-score fonts, the shared six-glyph display, and two maintained NTSC renderer
+score fonts, centered/left/right six-glyph displays, and two maintained NTSC renderer
 profiles. The compile-time `__builtin_ntsc_rgb(r, g, b)` matcher selects the
 nearest meaningful NTSC TIA byte from ordinary RGB components with no runtime
 cost.

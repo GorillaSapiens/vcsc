@@ -76,8 +76,10 @@ my $ex=File::Spec->catdir($repo,'test','fixtures','vcs_examples','04_fingerprint
 my $src=File::Spec->catfile($ex,'golden.c26');
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 04_fingerprint reference_stella_7.0.png));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
+my $left_component=File::Spec->catfile($vcs,'six_glyph_left_component.c26');
+my $right_component=File::Spec->catfile($vcs,'six_glyph_right_component.c26');
 my $frame=File::Spec->catfile($vcs,'frame_ntsc.c26');
-my $font=File::Spec->catfile($vcs,'fonts','default_hex.c26');
+my $font=File::Spec->catfile($vcs,'fonts','whimsey_hex.c26');
 my $logo_font=File::Spec->catfile($vcs,'fonts','logo_font.c26');
 my $bin=File::Spec->catfile($tmp,'fingerprint.bin');
 my $map=File::Spec->catfile($tmp,'fingerprint.map');
@@ -104,7 +106,7 @@ for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "fingerprint vector outs
 
 my $map_text=read_file($map);
 require_re($map_text,qr/\bfingerprint\b/, 'map is missing fingerprint state');
-for my $symbol (qw(display_score display_pointers display_row display_delayed logo_score logo_pointers logo_row logo_delayed)) {
+for my $symbol (qw(display_score display_pointers display_row display_delayed upper_logo_score upper_logo_pointers upper_logo_delayed lower_logo_score lower_logo_pointers lower_logo_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"map is missing $symbol");
 }
 require_re($map_text,qr/\bprobe_accumulator\b/, 'map is missing probe accumulator');
@@ -132,38 +134,46 @@ for my $i (0..47) {
 
 my $source=read_file($src);
 sha256_hex(read_file($reference)) eq
-   'daa0cdd5052899102c62570dd0399273d77eee0c88668dcbe311b52a3c157f32'
+   '08d628fb0bc9d6a47db6791221bd79d830dc9ca0a29bd4b2562e86cbf094e586'
    or die "reviewed fingerprint Stella reference PNG changed\n";
 my $component_text=read_file($component);
 my $frame_text=read_file($frame);
-require_re($source,qr/include\s+"fonts\/default_hex\.c26"/,
-           'fingerprint fixture does not select the default hex font');
+require_re($source,qr/include\s+"fonts\/whimsey_hex\.c26"/,
+           'fingerprint fixture does not select the Whimsey hex font');
 require_re($source,qr/include\s+"fonts\/logo_font\.c26"/,
            'fingerprint fixture does not include the logo font');
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'fingerprint fixture no longer uses the shared NTSC scheduler');
 require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+display/,
            'fingerprint fixture no longer instantiates the reusable fingerprint component');
-require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+logo/,
-           'fingerprint fixture no longer instantiates the reusable logo component');
+require_re($source,qr/template\s+"six_glyph_right_component\.c26"\s+as\s+upper_logo/,
+           'fingerprint fixture no longer instantiates the right-justified upper logo');
+require_re($source,qr/template\s+"six_glyph_left_component\.c26"\s+as\s+lower_logo/,
+           'fingerprint fixture no longer instantiates the left-justified lower logo');
 $source !~ /six_glyph_display\.c26/
    or die "fingerprint fixture still includes the legacy display module\n";
 require_re($source,qr/display_score\s*:=\s*0.*?asm lda fingerprint;.*?asm sta display_score;.*?asm lda fingerprint\+1;.*?asm sta display_score\+1;.*?asm lda fingerprint\+2;.*?asm sta display_score\+2;/s,
            'fingerprint bytes are no longer copied raw into the component score storage');
-require_re($source,qr/logo_score\s*:=\s*12345\s*;/,
-           'logo is no longer driven by the fixed six-glyph value 012345');
-require_re($source,qr/inline\s+void\s+load_logo_pointers\s*\(void\).*?lda #<logo_font;.*?sta logo_pointers;.*?adc #\$08;.*?sta logo_pointers\+10;.*?lda #>logo_font;.*?sta logo_pointers\+11;/s,
-           'logo pointers are no longer redirected to the six logo-font slices');
-for my $phase (qw(init vblank draw overscan)) {
-   require_re($component_text,qr/require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/,
-              "component is missing required $phase lifecycle");
+require_re($source,qr/upper_logo_score\s*:=\s*12345\s*;.*?lower_logo_score\s*:=\s*12345\s*;/s,
+           'both logos are no longer driven by the fixed six-glyph value 012345');
+require_re($source,qr/inline\s+void\s+load_logo_pointers\s*\(void\).*?lda #<logo_font;.*?sta upper_logo_pointers;.*?sta lower_logo_pointers;.*?adc #\$08;.*?sta upper_logo_pointers\+10;.*?sta lower_logo_pointers\+10;.*?lda #>logo_font;.*?sta upper_logo_pointers\+11;.*?sta lower_logo_pointers\+11;/s,
+           'both logo pointer sets are no longer redirected to the six logo-font slices');
+for my $pair ([$component,'centered'],[$left_component,'left'],[$right_component,'right']) {
+   my ($path,$name)=@$pair;
+   my $text=read_file($path);
+   for my $phase (qw(init vblank draw overscan)) {
+      require_re($text,qr/require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/,
+                 "$name component is missing required $phase lifecycle");
+   }
+   require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/,
+              "$name component no longer declares eleven visible scanlines");
 }
-require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?logo_vblank\(\).*?load_logo_pointers\(\).*?vcs_ntsc_end_vblank\(\)/s,
-           'both display vblank lifecycles are not inside the scheduler-owned budget');
-require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?display_draw\(\).*?vcs_ntsc_wait_component_scanlines\(79\).*?logo_draw\(\)/s,
-           'fingerprint or bottom-logo visible placement changed');
-require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?display_overscan\(\).*?logo_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
-           'both display overscan lifecycles are not inside the scheduler-owned budget');
+require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?upper_logo_vblank\(\).*?lower_logo_vblank\(\).*?load_logo_pointers\(\).*?vcs_ntsc_end_vblank\(\)/s,
+           'all three display vblank lifecycles are not inside the scheduler-owned budget');
+require_re($source,qr/upper_logo_draw\(\).*?vcs_ntsc_wait_component_scanlines\(80\).*?display_draw\(\).*?vcs_ntsc_wait_component_scanlines\(79\).*?lower_logo_draw\(\)/s,
+           'upper logo, centered fingerprint, or lower logo visible placement changed');
+require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?display_overscan\(\).*?upper_logo_overscan\(\).*?lower_logo_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
+           'all three display overscan lifecycles are not inside the scheduler-owned budget');
 require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
            'scheduler no longer declares a 262-line NTSC frame');
 require_re($source,qr/uint24_t\s+fingerprint\s*;/,
@@ -212,13 +222,17 @@ for my $spec (@generated_specs) {
 my $arr_count=()=$generated =~ /^ARR #\$/img;
 $arr_count==4 or die "generated assembly has $arr_count named ARR probes, expected 4\n";
 
-$generated !~ /jsr\s+(?:display|logo)_(?:init|vblank|draw|overscan)/
+$generated !~ /\bjsr\s+(?:display|upper_logo|lower_logo)_(?:init|vblank|draw|overscan)\b/
    or die "display lifecycle unexpectedly emitted callable boundaries
 ";
 require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
-require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
-           'component per-draw horizontal positioning sequence changed');
+require_re($generated,qr/begin inline expansion upper_logo_draw.*?lda #\$c0\s+sta \$20\s+lda #\$d0\s+sta \$21(?:\s+nop){11}\s+sta \$10\s+sta \$11/s,
+           'right-justified component positioning sequence changed');
+require_re($generated,qr/begin inline expansion display_draw.*?lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11/s,
+           'centered component positioning sequence changed');
+require_re($generated,qr/begin inline expansion lower_logo_draw.*?nop\s+nop\s+sta \$10\s+sta \$11.*?lda #\$30\s+sta \$20\s+lda #\$b0\s+sta \$21/s,
+           'left-justified component positioning sequence changed');
 my ($loop)=$generated =~ /(\@inline_\d+_asm_display_draw_loop:.*?bpl\.same \@inline_\d+_asm_display_draw_loop)/s;
 defined($loop) or die "generated assembly is missing the instantiated display row loop\n";
 $loop !~ /\bjsr\b/ or die "timed fingerprint row loop contains a call\n";
@@ -261,11 +275,11 @@ my $entry_exe=File::Spec->catfile($tmp,'vcs_six_glyph_standalone_entry');
    '-I'.$mos_dir,$entry_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$entry_exe);
 die "standalone-entry harness build failed\n$out$err" if $exit || $sig;
 die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $err ne '';
-($exit,$sig,$out,$err)=run_capture($entry_exe,$bin,'221');
+($exit,$sig,$out,$err)=run_capture($entry_exe,$bin,'fingerprint');
 die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
 require_re($out,
-   qr/^vcs_six_glyph_standalone_entry ok: calibrated lines 131 and 221 entries and 262-line frames\n$/,
-   'fingerprint and logo displays did not enter at their calibrated phases');
+   qr/^vcs_six_glyph_standalone_entry ok: right 40, centered 131, left 221 entries and 262-line frames\n$/,
+   'fingerprint and both logos did not enter at their calibrated phases');
 $err eq '' or die "standalone-entry harness stderr: $err";
 
 print "vcs_fingerprint ok\n";

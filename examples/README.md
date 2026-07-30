@@ -33,7 +33,7 @@ the shared timing, resource, and composition contracts.
 
 | Group | Renderer or architecture | Public diagnostic |
 |---|---|---|
-| [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, score, silicon fingerprint with bottom VCSC logo |
+| [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, score, silicon fingerprint with upper-right and lower-left VCSC logos |
 | [`02_faithful_legacy_playercolors`](02_faithful_legacy_playercolors/) | Faithful retained legacy player-color renderer | Interactive P0/P1/Ball motion and integrated score editing |
 | [`03_player_color_192`](03_player_color_192/) | Official-opcode, scoreless 192-line P0/P1/Ball renderer | Interactive full-range P0/P1/Ball motion |
 | [`04_player_color_181`](04_player_color_181/) | Official-opcode 181-line P0/P1/Ball renderer composed with an 11-line score | Interactive score-above and score-below layouts |

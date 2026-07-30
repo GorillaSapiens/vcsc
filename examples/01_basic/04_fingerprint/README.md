@@ -7,44 +7,48 @@
 
 # 6507 silicon fingerprint
 
-`01_basic/04_fingerprint` runs four deliberately unstable unofficial `ARR`-immediate
-probes, feeds each probe's accumulator result and masked `NVZC` flags through
-CRC-24/OPENPGP, and displays the resulting 24-bit value as six hexadecimal
-digits. A second six-glyph component at the bottom displays the VCSC logo from
-`fonts/logo_font.c26` by treating its six slices as the fixed score `012345`.
+`01_basic/04_fingerprint` runs four deliberately unstable unofficial
+`ARR`-immediate probes, feeds each probe's accumulator result and masked `NVZC`
+flags through CRC-24/OPENPGP, and displays the resulting 24-bit value as six
+hexadecimal digits in the middle of the screen. The hexadecimal display uses
+`fonts/whimsey_hex.c26`.
+
+Two more eleven-line six-glyph components display the fixed `012345` VCSC logo:
+
+- `six_glyph_right_component.c26` places it at the upper-right edge;
+- `six_glyph_left_component.c26` places it at the lower-left edge.
+
+The logo components first build the ordinary packed-BCD `012345` pointers, then
+redirect those six pointers to the consecutive slices in `fonts/logo_font.c26`.
+The three component instances own separate state and may therefore coexist in
+one cartridge.
 
 The fingerprint is computed once at startup. The processor-sensitive probes are
 small inline-assembly blocks using the readable unofficial `ARR` mnemonic. The
-Makefile passes `-Wa,--illegals` deliberately, and each `ARR` source line
-documents the exact two emitted bytes. Everything else is VCSC: CRC-24, 24-bit state, frame composition, colors, and
-display control. The application instantiates `six_glyph_component.c26` twice
-inside `frame_ntsc.c26`; the score example uses that same component, so their
-RESP/GRP timing cannot diverge. The fingerprint instance uses the shared
-hexadecimal font. Its three fingerprint bytes are copied verbatim into the
-component's score storage so all six hexadecimal nibbles, including A through F,
-retain their raw values. The logo instance stores packed BCD `012345`, then
-redirects the six generated glyph pointers to the six page-contained slices in
-`logo_font`.
+Makefile passes `-Wa,--illegals` deliberately, and each `ARR` source line records
+the exact two emitted bytes. Everything else is VCSC: CRC-24, 24-bit state,
+frame composition, colors, and display control. The fingerprint bytes are copied
+verbatim into the centered component's packed score storage, so hexadecimal
+nibbles A through F retain their raw values.
 
 ## Visible placement
 
-The fingerprint follows a 91-line blank gap, so the example uses
-`vcs_ntsc_wait_component_scanlines(91)` rather than the generic WSYNC loop. The
-component-aware helper completes the final blank line at the calibrated phase
-required by `display_draw()`. After the fingerprint's eleven scanlines, a
-79-line calibrated blank gap leads to `logo_draw()` on raw scanline 221. Its
-own eleven-line contract therefore occupies the final eleven lines of the
-192-line visible field.
+The 192-line visible field is composed exactly as follows:
 
-The reviewed Stella 7.0 capture, including the bottom logo, is kept as
-`test/fixtures/vcs_examples/04_fingerprint/reference_stella_7.0.png`.
-
-The two displays use separate shared font modules:
-
-```vcsc
-include "fonts/default_hex.c26"
-include "fonts/logo_font.c26"
+```text
+raw  40.. 50   right-justified upper logo       11 lines
+raw  51..130   calibrated blank gap             80 lines
+raw 131..141   centered Whimsey fingerprint     11 lines
+raw 142..220   calibrated blank gap             79 lines
+raw 221..231   left-justified lower logo         11 lines
 ```
+
+The upper logo's 48-pixel group occupies X=112..159. The lower logo occupies
+X=0..47. The centered fingerprint retains the existing X=56..103 placement.
+All three components preserve the exact 262-line NTSC frame.
+
+The reviewed Stella 7.0 capture is kept as
+`test/fixtures/vcs_examples/04_fingerprint/reference_stella_7.0.png`.
 
 A real NMOS 6507 may produce a fingerprint specific to its silicon behavior.
 Emulators necessarily implement a model of unstable unofficial-opcode behavior,

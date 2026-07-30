@@ -39,6 +39,8 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances.c26));
 my $reverse_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances_reversed.c26));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
+my $left_component=File::Spec->catfile($vcs,'six_glyph_left_component.c26');
+my $right_component=File::Spec->catfile($vcs,'six_glyph_right_component.c26');
 my $bin=File::Spec->catfile($tmp,'six_glyph_component.bin');
 my $reverse_bin=File::Spec->catfile($tmp,'six_glyph_component_reversed.bin');
 my $mapfile=File::Spec->catfile($tmp,'six_glyph_component.map');
@@ -64,14 +66,26 @@ for my $suffix (qw(score pointers row delayed)) {
    $upper != $lower or die "upper_$suffix and lower_$suffix share storage\n";
 }
 my $source=read_file($component);
-$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/
-   or die "component visible scanline contract is not 11\n";
-for my $phase (qw(init vblank draw overscan)) {
-   $source =~ /require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/
-      or die "component is missing required TEMPLATE_$phase lifecycle declaration\n";
+for my $variant ([$component,'centered'],[$left_component,'left'],[$right_component,'right']) {
+   my ($path,$name)=@$variant;
+   my $text=read_file($path);
+   $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/
+      or die "$name component visible scanline contract is not 11\n";
+   for my $phase (qw(init vblank draw overscan)) {
+      $text =~ /require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/
+         or die "$name component is missing required TEMPLATE_$phase lifecycle declaration\n";
+   }
+   $text !~ /\b(?:VSYNC|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT)\b\s*:=/
+      or die "$name component takes ownership of scheduler hardware\n";
+   $text !~ /\b(?:lax|sax|dcp|isc|rla|rra|slo|sre)\b/i
+      or die "$name component uses an unofficial opcode\n";
 }
-$source !~ /\b(?:VSYNC|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT)\b\s*:=/
-   or die "component takes ownership of scheduler hardware\n";
+my $left_source=read_file($left_component);
+my $right_source=read_file($right_component);
+$left_source =~ /Position P0 at x=0 and P1 at x=8/
+   or die "left component no longer documents its exact X range\n";
+$right_source =~ /Position P0 at x=112 and P1 at x=120/
+   or die "right component no longer documents its exact X range\n";
 
 my $generated=read_file($asm);
 for my $label (qw(upper lower)) {

@@ -153,11 +153,12 @@ It also checks the five exact final-row bytes precomputed during VBLANK, coverin
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
-CRC and unstable-ARR probe contract, checks both page-contained font tables in
-ROM, and locks the two six-glyph entries at raw scanlines 131 and 221. The
-second component uses fixed packed BCD `012345` with its pointers redirected to
-the six VCSC-logo slices, so the logo consumes the final eleven visible lines
-without changing the 262-line frame period.
+CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
+ROM, and locks three six-glyph entries: right-justified at raw scanline 40,
+centered at 131, and left-justified at 221. Both edge components use fixed
+packed BCD `012345` with their pointers redirected to the six VCSC-logo slices.
+The harness locks the separate RESP/HMOVE phases and late GRP-write windows while
+the complete cartridge retains its 262-line frame period.
 
 `vcs_multicolor_examples.pl` builds the four public interactive renderer
 cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
