@@ -21,7 +21,11 @@ Supported options:
 - `-o FILE` ... write Intel HEX output, or a flat binary when `FILE` ends in `.bin` (default: `a.hex`)
 - `-T FILE` ... use `FILE` as the linker config/script
 - `--script=FILE` ... same as `-T FILE`
-- `-Map FILE` or `-Map=FILE` ... write a linker map file
+- `-Map FILE`, `-Map=FILE`, or `--map=FILE` ... rename the linker map
+- `-Sym FILE`, `-Sym=FILE`, or `--sym=FILE` ... rename the Stella/DASM symbol file
+- `-List FILE`, `-List=FILE`, or `--list=FILE` ... rename the Stella/DASM list file
+- `-Cfg FILE`, `-Cfg=FILE`, or `--cfg=FILE` ... rename the Stella/DiStella config file
+- `--no-map`, `--no-sym`, `--no-list`, `--no-cfg` ... suppress an individual sidecar
 - `-h`, `--help` ... show usage
 - `-v`, `--version` ... print the linker name
 
@@ -58,7 +62,26 @@ The linker also accepts this positional form:
   - `__reset`
   - `__irqbrk`
 - generates linker-defined startup symbols for initialized data and BSS
-- optionally writes a map file
+- writes same-stem `.map`, `.sym`, `.lst`, and `.cfg` sidecars by default
+
+## Debugger sidecars
+
+For `game.bin`, a successful link normally writes `game.map`, `game.sym`,
+`game.lst`, and `game.cfg` beside it. Stella automatically consumes the latter
+three when its debugger opens. The symbol file contains final ROM and RAM
+addresses. The list file is a final linked-byte listing with DASM-compatible
+RAM constant rows. The DiStella config classifies known executable layouts as
+`CODE` and all other occupied bytes as `DATA`; font, graphics, color, and audio
+ranges can be refined later with Stella's debugger.
+
+The `.map` file is VCSC's fuller layout/usage report; Stella does not consume
+it. VCSC deliberately does not create a ROM-specific `.script`, because Stella
+uses that file for user-owned breakpoints, traps, watches, and debugger setup.
+
+If the default same-stem `.cfg` name is already the linker script itself, the
+linker preserves that input file and omits only the generated DiStella config.
+Use `-Cfg OTHER_FILE` when a separate name is useful. Explicit output-name
+collisions are errors.
 
 Selection starts from the root symbols `__reset`, `__nmi`, and `__irqbrk`.
 From there, `vcsc-ld` repeatedly scans inputs to satisfy unresolved imports, pulling in only the object files that define needed symbols, until no new objects are selected.

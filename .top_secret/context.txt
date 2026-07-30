@@ -6389,3 +6389,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the first 173 passed before the outer
   command ceiling and the complete 36-test VCS tail passed explicitly. Staged
   `make installcheck` also passes.
+
+2026-07-29 22:33:50 PDT, generate Stella debugger sidecars by default
+------------------------------------------------------------------------
+* Make every successful `vcsc-ld` link derive and write same-stem `.map`,
+  `.sym`, `.lst`, and `.cfg` files from the primary output name. The `.sym`
+  file uses the two-column DASM symbol form accepted by Stella, the `.lst`
+  file records final linked bytes plus DASM-compatible RAM constant rows, and
+  the DiStella `.cfg` marks known executable layouts as `CODE` and all other
+  occupied cartridge bytes as `DATA`.
+* Add linker and high-level driver naming options `-Map`/`--map`,
+  `-Sym`/`--sym`, `-List`/`--list`, and `-Cfg`/`--cfg`, including joined `=`
+  forms, plus `--no-map`, `--no-sym`, `--no-list`, and `--no-cfg` suppression.
+  A later explicit name re-enables an output after its disable switch.
+* Protect output files from collisions. In particular, when a same-stem linker
+  script already occupies the default Stella `.cfg` path, preserve the input
+  script and omit only that generated sidecar; explicitly naming the linker
+  script as the Stella output is an error. Reject sidecars that collide with
+  the ROM or with one another.
+* Do not generate Stella's ROM-specific `.script`: it stores user-owned
+  breakpoints, traps, watches, and debugger setup and must not be overwritten
+  by a link. The VCSC `.map` remains a richer linker report rather than a file
+  consumed by Stella.
+* Add `linker_stella_sidecars.pl` coverage for default files, file contents,
+  renamed files, disabled files, driver passthrough, same-stem config
+  preservation, and explicit collision rejection. Update linker, driver, root,
+  Doxygen, test, and example-cleanup documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the first 159 passed before the outer
+  command ceiling, the first 14 VCS-tail tests passed in a second chunk, and
+  the remaining 22 passed in two explicit chunks. Staged `make installcheck`
+  passes with the installed toolchain.

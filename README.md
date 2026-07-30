@@ -85,15 +85,18 @@ The same build performed one stage at a time is:
   solid_color.o26 libraries/runtime/libvcsc.l26
 ```
 
-The linker prints final cartridge-ROM usage after a successful link and can
-also write a detailed map with `-Map`.
+The linker prints final cartridge-ROM usage and writes same-stem `.map`,
+`.sym`, `.lst`, and DiStella `.cfg` sidecars after a successful link. Stella
+uses the latter three when its debugger opens. `-Map`, `-Sym`, `-List`, and
+`-Cfg` rename them; corresponding `--no-*` options suppress them.
 
 ## Tool overview
 
 The command-line tools follow GCC/binutils conventions where practical:
 
 - `vcsc` drives compile, assemble, and link stages; supports `-c`, `-S`, `-I`,
-  `-L`, `-l`, `-T`, `-Map`, and stage-specific `-Wc`, `-Wa`, and `-Wl` options.
+  `-L`, `-l`, `-T`, linker-sidecar naming, and stage-specific `-Wc`, `-Wa`, and
+  `-Wl` options.
 - `vcsc-cc1` compiles one `.c26` input and normally writes `.s26` assembly;
   `-fno-peephole` emits the unpeepholed compiler assembly for inspection, while
   inline assembly remains opaque in either mode.
@@ -105,7 +108,7 @@ The command-line tools follow GCC/binutils conventions where practical:
 - `vcsc-ld` requires a linker script when used directly, performs whole-program
   activation and hardware-stack sizing, places page-sensitive objects, reports
   used/free ROM and RAM with the hardware-stack share, and writes Intel HEX or
-  flat `.bin` output.
+  flat `.bin` output plus debugger sidecars.
 - `vcsc-ar` creates and updates `.l26` archives using GNU-`ar`-style operation
   strings such as `rcs`.
 - `vcsc-sim` executes linked test programs and provides tracing and host-dispatch

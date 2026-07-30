@@ -9,6 +9,6 @@ fingerprint.bin: fingerprint.c26 $(VCS_DIR)/fonts/whimsey_hex.c26 $(VCS_DIR)/fon
 	@test `wc -c < $@` -eq 4096
 
 clean:
-	rm -f fingerprint.bin fingerprint.hex fingerprint.map fingerprint.s26
+	rm -f fingerprint.bin fingerprint.hex fingerprint.map fingerprint.s26 fingerprint.sym fingerprint.lst fingerprint.cfg
 
 .PHONY: all clean

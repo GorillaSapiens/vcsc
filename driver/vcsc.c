@@ -57,6 +57,13 @@ typedef struct {
    const char *output;
    const char *link_script;
    const char *map_path;
+   const char *sym_path;
+   const char *list_path;
+   const char *cfg_path;
+   bool no_map;
+   bool no_sym;
+   bool no_list;
+   bool no_cfg;
    strvec_t include_dirs;
    strvec_t lib_dirs;
    strvec_t libs;
@@ -339,7 +346,14 @@ static void usage(FILE *fp)
       "  -lNAME               Link archive NAME (tries libNAME.l26 then NAME.l26)\n"
       "  -nostdlib            Do not link default runtime libraries automatically\n"
       "  -T FILE              Pass FILE to vcsc-ld as the linker script/config\n"
-      "  -Map FILE            Write linker map to FILE\n"
+      "  -Map FILE            Name the linker map (default: OUTPUT stem + .map)\n"
+      "  -Sym FILE            Name the Stella symbol file (default: .sym)\n"
+      "  -List FILE           Name the Stella list file (default: .lst)\n"
+      "  -Cfg FILE            Name the Stella/DiStella config file (default: .cfg)\n"
+      "  --no-map             Do not write the default linker map\n"
+      "  --no-sym             Do not write the default Stella symbol file\n"
+      "  --no-list            Do not write the default Stella list file\n"
+      "  --no-cfg             Do not write the default Stella config file\n"
       "  -v                   Print subordinate commands before running them\n"
       "  -###                 Print subordinate commands but do not run them\n"
       "  -Wc,ARG,...          Pass comma-split args to vcsc-cc1\n"
@@ -828,10 +842,79 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
          if (++i >= argc)
             die("missing argument for -Map");
          opt->map_path = argv[i];
+         opt->no_map = false;
          continue;
       }
       if (strncmp(arg, "-Map=", 5) == 0) {
          opt->map_path = arg + 5;
+         opt->no_map = false;
+         continue;
+      }
+      if (strcmp(arg, "--map") == 0 || strcmp(arg, "-Sym") == 0 ||
+          strcmp(arg, "--sym") == 0 || strcmp(arg, "-List") == 0 ||
+          strcmp(arg, "--list") == 0 || strcmp(arg, "-Cfg") == 0 ||
+          strcmp(arg, "--cfg") == 0) {
+         const char *option = arg;
+         const char *value;
+         if (++i >= argc)
+            die("missing argument for %s", option);
+         value = argv[i];
+         if (strcmp(option, "--map") == 0) {
+            opt->map_path = value;
+            opt->no_map = false;
+         }
+         else if (strcmp(option, "-Sym") == 0 || strcmp(option, "--sym") == 0) {
+            opt->sym_path = value;
+            opt->no_sym = false;
+         }
+         else if (strcmp(option, "-List") == 0 || strcmp(option, "--list") == 0) {
+            opt->list_path = value;
+            opt->no_list = false;
+         }
+         else {
+            opt->cfg_path = value;
+            opt->no_cfg = false;
+         }
+         continue;
+      }
+      if (strncmp(arg, "--map=", 6) == 0) {
+         opt->map_path = arg + 6;
+         opt->no_map = false;
+         continue;
+      }
+      if (strncmp(arg, "-Sym=", 5) == 0 || strncmp(arg, "--sym=", 6) == 0) {
+         opt->sym_path = arg + (arg[1] == '-' ? 6 : 5);
+         opt->no_sym = false;
+         continue;
+      }
+      if (strncmp(arg, "-List=", 6) == 0 || strncmp(arg, "--list=", 7) == 0) {
+         opt->list_path = arg + (arg[1] == '-' ? 7 : 6);
+         opt->no_list = false;
+         continue;
+      }
+      if (strncmp(arg, "-Cfg=", 5) == 0 || strncmp(arg, "--cfg=", 6) == 0) {
+         opt->cfg_path = arg + (arg[1] == '-' ? 6 : 5);
+         opt->no_cfg = false;
+         continue;
+      }
+      if (strcmp(arg, "--no-map") == 0) {
+         opt->map_path = NULL;
+         opt->no_map = true;
+         continue;
+      }
+      if (strcmp(arg, "--no-sym") == 0) {
+         opt->sym_path = NULL;
+         opt->no_sym = true;
+         continue;
+      }
+      if (strcmp(arg, "--no-list") == 0) {
+         opt->list_path = NULL;
+         opt->no_list = true;
+         continue;
+      }
+      if (strcmp(arg, "--no-cfg") == 0) {
+         opt->cfg_path = NULL;
+         opt->no_cfg = true;
          continue;
       }
       if (strcmp(arg, "-fpeephole") == 0 || strcmp(arg, "-fno-peephole") == 0) {
@@ -1041,9 +1124,29 @@ static void run_ld(const char *ld_path, const driver_options_t *opt,
    strvec_push(&cmd, opt->output ? opt->output : "a.hex");
    strvec_push(&cmd, "-T");
    strvec_push(&cmd, link_script);
-   if (opt->map_path) {
+   if (opt->no_map)
+      strvec_push(&cmd, "--no-map");
+   else if (opt->map_path) {
       strvec_push(&cmd, "-Map");
       strvec_push(&cmd, opt->map_path);
+   }
+   if (opt->no_sym)
+      strvec_push(&cmd, "--no-sym");
+   else if (opt->sym_path) {
+      strvec_push(&cmd, "-Sym");
+      strvec_push(&cmd, opt->sym_path);
+   }
+   if (opt->no_list)
+      strvec_push(&cmd, "--no-list");
+   else if (opt->list_path) {
+      strvec_push(&cmd, "-List");
+      strvec_push(&cmd, opt->list_path);
+   }
+   if (opt->no_cfg)
+      strvec_push(&cmd, "--no-cfg");
+   else if (opt->cfg_path) {
+      strvec_push(&cmd, "-Cfg");
+      strvec_push(&cmd, opt->cfg_path);
    }
    for (i = 0; i < opt->ld_extra.count; ++i)
       strvec_push(&cmd, opt->ld_extra.items[i]);

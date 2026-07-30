@@ -9,6 +9,6 @@ score.bin: score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/six_glyph_c
 	@test `wc -c < $@` -eq 4096
 
 clean:
-	rm -f score.bin score.hex score.map score.s26
+	rm -f score.bin score.hex score.map score.s26 score.sym score.lst score.cfg
 
 .PHONY: all clean

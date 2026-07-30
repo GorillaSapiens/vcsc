@@ -30,6 +30,20 @@ static void usage(FILE *fp)
       "  --script=FILE        Same as -T FILE\n"
       "  -Map FILE            Write linker map to FILE\n"
       "  -Map=FILE            Same as -Map FILE\n"
+      "  --map=FILE           Same as -Map FILE\n"
+      "  -Sym FILE            Write Stella/DASM symbol file to FILE\n"
+      "  -Sym=FILE            Same as -Sym FILE\n"
+      "  --sym=FILE           Same as -Sym FILE\n"
+      "  -List FILE           Write Stella/DASM list file to FILE\n"
+      "  -List=FILE           Same as -List FILE\n"
+      "  --list=FILE          Same as -List FILE\n"
+      "  -Cfg FILE            Write Stella/DiStella config file to FILE\n"
+      "  -Cfg=FILE            Same as -Cfg FILE\n"
+      "  --cfg=FILE           Same as -Cfg FILE\n"
+      "  --no-map             Do not write the default linker map\n"
+      "  --no-sym             Do not write the default Stella symbol file\n"
+      "  --no-list            Do not write the default Stella list file\n"
+      "  --no-cfg             Do not write the default Stella config file\n"
       "  -h, --help           Show this help text\n"
       "  -v, --version        Show linker version\n"
       "  -V                   Show generated version string\n"
@@ -46,6 +60,56 @@ static int ends_with(const char *s, const char *suffix)
    if (slen < tlen)
       return 0;
    return strcmp(s + slen - tlen, suffix) == 0;
+}
+
+//! One optional linker sidecar output, either default-named, explicitly named, or disabled.
+typedef struct {
+   const char *path;
+   int enabled;
+   int explicit_path;
+   char *owned_default;
+} sidecar_option_t;
+
+//! @brief Derive a same-stem sidecar path from the primary linker output.
+static char *sidecar_path_from_output(const char *output, const char *suffix)
+{
+   const char *slash = strrchr(output, '/');
+   const char *base = slash ? slash + 1 : output;
+   const char *dot = strrchr(base, '.');
+   size_t stem_len = dot ? (size_t)(dot - output) : strlen(output);
+   size_t suffix_len = strlen(suffix);
+   char *path = (char *)xmalloc(stem_len + suffix_len + 1);
+
+   memcpy(path, output, stem_len);
+   memcpy(path + stem_len, suffix, suffix_len + 1);
+   return path;
+}
+
+//! @brief Finish one sidecar option by deriving its default path when enabled.
+static void finalize_sidecar_option(sidecar_option_t *option,
+                                    const char *output,
+                                    const char *suffix)
+{
+   if (!option->enabled || option->path)
+      return;
+   option->owned_default = sidecar_path_from_output(output, suffix);
+   option->path = option->owned_default;
+}
+
+//! @brief Set an explicitly named sidecar output, re-enabling it after --no-*.
+static void set_sidecar_path(sidecar_option_t *option, const char *path)
+{
+   option->path = path;
+   option->enabled = 1;
+   option->explicit_path = 1;
+}
+
+//! @brief Disable one sidecar output, allowing a later explicit name to re-enable it.
+static void disable_sidecar(sidecar_option_t *option)
+{
+   option->path = NULL;
+   option->enabled = 0;
+   option->explicit_path = 0;
 }
 
 //! @brief Handle str ieq logic for linker layout and image writer.
@@ -3120,6 +3184,270 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fclose(fp);
 }
 
+//! @brief Compare global-symbol pointers alphabetically for Stella/DASM output.
+static int compare_global_symbol_names(const void *lhs, const void *rhs)
+{
+   const global_symbol_t *const *a = (const global_symbol_t *const *)lhs;
+   const global_symbol_t *const *b = (const global_symbol_t *const *)rhs;
+   return strcmp((*a)->name, (*b)->name);
+}
+
+//! @brief Write the simple two-column DASM symbol format accepted by Stella.
+static void write_stella_symbol_file(const char *path, const layout_t *layout)
+{
+   const global_symbol_t **symbols;
+   FILE *fp;
+   size_t i;
+
+   if (!path)
+      return;
+   fp = fopen(path, "w");
+   if (!fp) {
+      fprintf(stderr, "vcsc-ld: cannot create '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+
+   symbols = (const global_symbol_t **)xmalloc(
+      (layout->global_count ? layout->global_count : 1) * sizeof(*symbols));
+   for (i = 0; i < layout->global_count; ++i)
+      symbols[i] = &layout->globals[i];
+   qsort(symbols, layout->global_count, sizeof(*symbols), compare_global_symbol_names);
+
+   fprintf(fp, "--- Symbol List (sorted by symbol)\n");
+   for (i = 0; i < layout->global_count; ++i)
+      fprintf(fp, "%-32s %04x\n", symbols[i]->name, symbols[i]->addr);
+   fprintf(fp, "--- End of Symbol List.\n");
+
+   free(symbols);
+   if (fclose(fp) != 0) {
+      fprintf(stderr, "vcsc-ld: close failed for '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+}
+
+//! @brief Return the first linked symbol at an address for human-readable list annotations.
+static const char *symbol_at_address(const layout_t *layout, uint16_t addr)
+{
+   size_t i;
+   for (i = 0; i < layout->global_count; ++i) {
+      if (layout->globals[i].addr == addr)
+         return layout->globals[i].name;
+   }
+   return NULL;
+}
+
+//! @brief Write a DASM-shaped linked-byte listing accepted by Stella's list loader.
+static void write_stella_list_file(const char *path,
+                                   const layout_t *layout,
+                                   const uint8_t *image,
+                                   const uint8_t *used)
+{
+   FILE *fp;
+   unsigned line = 1;
+   size_t i;
+   uint32_t addr = 0;
+
+   if (!path)
+      return;
+   fp = fopen(path, "w");
+   if (!fp) {
+      fprintf(stderr, "vcsc-ld: cannot create '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+
+   fprintf(fp, "------- VCSC linked image listing\n");
+   fprintf(fp, "------- RAM symbols use DASM constant rows; ROM rows show final bytes.\n");
+
+   /* Stella's DASM-list parser recognizes RAM constants from columns beginning
+      at offset 20 in the form "high low NAME =". */
+   for (i = 0; i < layout->global_count; ++i) {
+      const global_symbol_t *symbol = &layout->globals[i];
+      if ((symbol->addr & 0x1000u) != 0)
+         continue;
+      fprintf(fp, "%5u %04x          %02x %02x %s =\n",
+              line++, symbol->addr,
+              (unsigned)((symbol->addr >> 8) & 0xffu),
+              (unsigned)(symbol->addr & 0xffu),
+              symbol->name);
+   }
+
+   while (addr < 65536u) {
+      unsigned count = 0;
+      const char *label;
+      uint32_t start;
+
+      while (addr < 65536u && !used[addr])
+         addr++;
+      if (addr >= 65536u)
+         break;
+      start = addr;
+      fprintf(fp, "%5u %04x ", line++, (unsigned)start);
+      while (addr < 65536u && used[addr] && count < 8) {
+         fprintf(fp, "%02x ", image[addr]);
+         addr++;
+         count++;
+      }
+      while (count++ < 8)
+         fputs("   ", fp);
+      label = symbol_at_address(layout, (uint16_t)start);
+      if (label)
+         fprintf(fp, "; %s", label);
+      fputc('\n', fp);
+   }
+
+   if (fclose(fp) != 0) {
+      fprintf(stderr, "vcsc-ld: close failed for '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+}
+
+//! @brief Return whether a segment spelling denotes executable bytes.
+static int segment_name_is_code(const char *name)
+{
+   char upper[MAX_NAME];
+   size_t i;
+
+   if (!name)
+      return 0;
+   for (i = 0; name[i] && i + 1 < sizeof(upper); ++i)
+      upper[i] = (char)toupper((unsigned char)name[i]);
+   upper[i] = '\0';
+   if (strstr(upper, "RODATA") || strstr(upper, "VECTOR") || strstr(upper, "DATA"))
+      return 0;
+   return strstr(upper, "CODE") != NULL || strstr(upper, "STARTUP") != NULL;
+}
+
+//! @brief Classify one ROM-resident object layout for a generated DiStella config.
+static int layout_image_is_code(const linker_config_t *cfg, const object_layout_t *layout)
+{
+   const segment_rule_t *rule = find_layout_segment_rule(cfg, layout->name, NULL);
+
+   if (segment_name_is_code(layout->name))
+      return 1;
+   if (rule && segment_name_is_code(rule->name))
+      return 1;
+   if (rule && (str_ieq(rule->name, "RODATA") || str_ieq(rule->name, "VECTORS") ||
+                str_ieq(rule->name, "DATA")))
+      return 0;
+   return layout->segid == O26_SEG_TEXT && layout->image_segid == O26_SEG_TEXT;
+}
+
+//! @brief Write CODE/DATA ranges for Stella's DiStella disassembler.
+static void write_stella_config_file(const char *path,
+                                     const linker_config_t *cfg,
+                                     const input_set_t *in,
+                                     const uint8_t *used)
+{
+   uint8_t *kind;
+   FILE *fp;
+   size_t i;
+   uint32_t addr;
+
+   if (!path)
+      return;
+   fp = fopen(path, "w");
+   if (!fp) {
+      fprintf(stderr, "vcsc-ld: cannot create '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+
+   kind = (uint8_t *)xcalloc(65536, 1);
+   for (addr = 0; addr < 65536u; ++addr) {
+      if (used[addr])
+         kind[addr] = 2; /* DATA is the safe fallback for generated tables/vectors. */
+   }
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *layout = &obj->layouts[j];
+         uint32_t end;
+         uint8_t value;
+
+         if (!layout->size ||
+             (layout->image_segid != O26_SEG_TEXT && layout->image_segid != O26_SEG_DATA))
+            continue;
+         end = (uint32_t)layout->load_addr + layout->size;
+         value = layout_image_is_code(cfg, layout) ? 1 : 2;
+         for (addr = layout->load_addr; addr < end && addr < 65536u; ++addr) {
+            if (used[addr])
+               kind[addr] = value;
+         }
+      }
+   }
+
+   fputs("// Generated by vcsc-ld. Refine GFX/COL/AUD ranges in Stella if needed.\n", fp);
+   addr = 0;
+   while (addr < 65536u) {
+      uint8_t value;
+      uint32_t start;
+      uint32_t end;
+
+      while (addr < 65536u && kind[addr] == 0)
+         addr++;
+      if (addr >= 65536u)
+         break;
+      start = addr;
+      value = kind[addr];
+      while (addr + 1 < 65536u && kind[addr + 1] == value)
+         addr++;
+      end = addr;
+      fprintf(fp, "%s %04x %04x\n", value == 1 ? "CODE" : "DATA",
+              (unsigned)start, (unsigned)end);
+      addr++;
+   }
+
+   free(kind);
+   if (fclose(fp) != 0) {
+      fprintf(stderr, "vcsc-ld: close failed for '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+}
+
+//! @brief Reject output-name collisions which would overwrite the ROM or another sidecar.
+static void validate_sidecar_paths(const char *output,
+                                   const char *linker_cfg,
+                                   sidecar_option_t *map,
+                                   sidecar_option_t *sym,
+                                   sidecar_option_t *list,
+                                   sidecar_option_t *cfg)
+{
+   sidecar_option_t *options[] = { map, sym, list, cfg };
+   const char *names[] = { "map", "symbol", "list", "config" };
+   size_t i, j;
+
+   /* A same-stem linker script can legitimately occupy the default .cfg name.
+      Never destroy it. An explicit collision is instead a command-line error. */
+   if (cfg->enabled && cfg->path && linker_cfg && strcmp(cfg->path, linker_cfg) == 0) {
+      if (cfg->explicit_path) {
+         fprintf(stderr, "vcsc-ld: Stella config output '%s' would overwrite linker script/config\n",
+                 cfg->path);
+         exit(1);
+      }
+      cfg->enabled = 0;
+      cfg->path = NULL;
+   }
+
+   for (i = 0; i < ARRAY_LEN(options); ++i) {
+      if (!options[i]->enabled || !options[i]->path)
+         continue;
+      if (strcmp(options[i]->path, output) == 0) {
+         fprintf(stderr, "vcsc-ld: %s output '%s' would overwrite primary output\n",
+                 names[i], options[i]->path);
+         exit(1);
+      }
+      for (j = i + 1; j < ARRAY_LEN(options); ++j) {
+         if (!options[j]->enabled || !options[j]->path)
+            continue;
+         if (strcmp(options[i]->path, options[j]->path) == 0) {
+            fprintf(stderr, "vcsc-ld: %s and %s outputs both name '%s'\n",
+                    names[i], names[j], options[i]->path);
+            exit(1);
+         }
+      }
+   }
+}
+
 //! @brief Entry point for the linker command; parses arguments, runs the requested pipeline, and returns process status.
 int main(int argc, char **argv)
 {
@@ -3129,7 +3457,10 @@ int main(int argc, char **argv)
    const char *cfg_path = NULL;
    const char *compat_hex_path = NULL;
    const char *hex_path = "a.hex";
-   const char *map_path = NULL;
+   sidecar_option_t map_output = { NULL, 1, 0, NULL };
+   sidecar_option_t sym_output = { NULL, 1, 0, NULL };
+   sidecar_option_t list_output = { NULL, 1, 0, NULL };
+   sidecar_option_t cfg_output = { NULL, 1, 0, NULL };
    linker_config_t cfg;
    input_set_t inputs;
    layout_t layout;
@@ -3205,11 +3536,87 @@ int main(int argc, char **argv)
                fprintf(stderr, "vcsc-ld: missing argument for -Map\n");
                return 1;
             }
-            map_path = argv[argi];
+            set_sidecar_path(&map_output, argv[argi]);
             continue;
          }
          if (strncmp(arg, "-Map=", 5) == 0) {
-            map_path = arg + 5;
+            set_sidecar_path(&map_output, arg + 5);
+            continue;
+         }
+         if (strcmp(arg, "--map") == 0) {
+            if (++argi >= argc) {
+               fprintf(stderr, "vcsc-ld: missing argument for --map\n");
+               return 1;
+            }
+            set_sidecar_path(&map_output, argv[argi]);
+            continue;
+         }
+         if (strncmp(arg, "--map=", 6) == 0) {
+            set_sidecar_path(&map_output, arg + 6);
+            continue;
+         }
+         if (strcmp(arg, "-Sym") == 0 || strcmp(arg, "--sym") == 0) {
+            if (++argi >= argc) {
+               fprintf(stderr, "vcsc-ld: missing argument for %s\n", arg);
+               return 1;
+            }
+            set_sidecar_path(&sym_output, argv[argi]);
+            continue;
+         }
+         if (strncmp(arg, "-Sym=", 5) == 0) {
+            set_sidecar_path(&sym_output, arg + 5);
+            continue;
+         }
+         if (strncmp(arg, "--sym=", 6) == 0) {
+            set_sidecar_path(&sym_output, arg + 6);
+            continue;
+         }
+         if (strcmp(arg, "-List") == 0 || strcmp(arg, "--list") == 0) {
+            if (++argi >= argc) {
+               fprintf(stderr, "vcsc-ld: missing argument for %s\n", arg);
+               return 1;
+            }
+            set_sidecar_path(&list_output, argv[argi]);
+            continue;
+         }
+         if (strncmp(arg, "-List=", 6) == 0) {
+            set_sidecar_path(&list_output, arg + 6);
+            continue;
+         }
+         if (strncmp(arg, "--list=", 7) == 0) {
+            set_sidecar_path(&list_output, arg + 7);
+            continue;
+         }
+         if (strcmp(arg, "-Cfg") == 0 || strcmp(arg, "--cfg") == 0) {
+            if (++argi >= argc) {
+               fprintf(stderr, "vcsc-ld: missing argument for %s\n", arg);
+               return 1;
+            }
+            set_sidecar_path(&cfg_output, argv[argi]);
+            continue;
+         }
+         if (strncmp(arg, "-Cfg=", 5) == 0) {
+            set_sidecar_path(&cfg_output, arg + 5);
+            continue;
+         }
+         if (strncmp(arg, "--cfg=", 6) == 0) {
+            set_sidecar_path(&cfg_output, arg + 6);
+            continue;
+         }
+         if (strcmp(arg, "--no-map") == 0) {
+            disable_sidecar(&map_output);
+            continue;
+         }
+         if (strcmp(arg, "--no-sym") == 0) {
+            disable_sidecar(&sym_output);
+            continue;
+         }
+         if (strcmp(arg, "--no-list") == 0) {
+            disable_sidecar(&list_output);
+            continue;
+         }
+         if (strcmp(arg, "--no-cfg") == 0) {
+            disable_sidecar(&cfg_output);
             continue;
          }
 
@@ -3255,8 +3662,8 @@ int main(int argc, char **argv)
          continue;
       }
 
-      if (compat_hex_path != NULL && map_path == NULL) {
-         map_path = arg;
+      if (compat_hex_path != NULL && !map_output.explicit_path) {
+         set_sidecar_path(&map_output, arg);
          continue;
       }
 
@@ -3266,6 +3673,13 @@ int main(int argc, char **argv)
 
    if (compat_hex_path != NULL)
       hex_path = compat_hex_path;
+
+   finalize_sidecar_option(&map_output, hex_path, ".map");
+   finalize_sidecar_option(&sym_output, hex_path, ".sym");
+   finalize_sidecar_option(&list_output, hex_path, ".lst");
+   finalize_sidecar_option(&cfg_output, hex_path, ".cfg");
+   validate_sidecar_paths(hex_path, cfg_path,
+                          &map_output, &sym_output, &list_output, &cfg_output);
 
    if (inputs.cmd_object_count == 0 && inputs.archive_count == 0) {
       fprintf(stderr, "vcsc-ld: no input objects or archives\n");
@@ -3301,7 +3715,13 @@ int main(int argc, char **argv)
       write_flat_binary(hex_path, image, used);
    else
       write_intel_hex(hex_path, image, used);
-   write_map_file(map_path, &cfg, &inputs, &layout, used);
+   write_map_file(map_output.enabled ? map_output.path : NULL,
+                  &cfg, &inputs, &layout, used);
+   write_stella_symbol_file(sym_output.enabled ? sym_output.path : NULL, &layout);
+   write_stella_list_file(list_output.enabled ? list_output.path : NULL,
+                          &layout, image, used);
+   write_stella_config_file(cfg_output.enabled ? cfg_output.path : NULL,
+                            &cfg, &inputs, used);
    puts("CARTRIDGE ROM USAGE");
    write_cartridge_rom_usage(stdout, &cfg, used, "  ");
    puts("RAM USAGE");
@@ -3309,6 +3729,10 @@ int main(int argc, char **argv)
 
    free(image);
    free(used);
+   free(map_output.owned_default);
+   free(sym_output.owned_default);
+   free(list_output.owned_default);
+   free(cfg_output.owned_default);
 
    for (i = 0; i < inputs.object_count; ++i)
       free_object(&inputs.objects[i]);

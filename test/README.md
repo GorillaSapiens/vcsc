@@ -322,3 +322,12 @@ three cases. It also deliberately records the remaining stop-ship gap: the
 score-above path still performs gameplay positioning before the poison renderer
 and has no post-score RESP/HMxx/HMOVE restoration. This is a diagnostic probe,
 not the unfinished full object-pixel oracle.
+
+## Stella linker sidecars
+
+`linker_stella_sidecars.pl` verifies that every successful link normally emits
+same-stem `.map`, `.sym`, `.lst`, and DiStella `.cfg` files. It checks final ROM
+and RAM symbols, DASM-compatible list rows, generated CODE/DATA ranges, custom
+output names, per-sidecar disable switches, high-level driver passthrough, and
+protection against overwriting a same-stem linker script. ROM-specific Stella
+`.script` files remain user-owned and are intentionally not generated.

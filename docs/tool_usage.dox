@@ -19,8 +19,10 @@
 //! - `vcsc-as` assembles source into relocatable `.o26` objects or Intel HEX.
 //! - `vcsc-ar` bundles `.o26` objects into `.l26` archives for lazy linking.
 //! - `vcsc-ld` links objects and archives, lays out memory, resolves relocations,
-//!   emits Intel HEX, reports occupied/free cartridge ROM space, and optionally
-//!   writes a map file containing the same usage summary.
+//!   emits Intel HEX or flat binary, reports occupied/free cartridge ROM space,
+//!   and writes same-stem `.map`, Stella `.sym`/`.lst`, and DiStella `.cfg`
+//!   sidecars. `-Map`, `-Sym`, `-List`, and `-Cfg` rename them; matching
+//!   `--no-*` switches suppress them.
 //! - `vcsc-sim` can run an emitted HEX image for smoke and regression checks.
 //!
 //! @section tool_usage_examples Examples

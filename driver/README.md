@@ -18,13 +18,17 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `-c` to stop after producing `.o26`
 - `-S` to stop after producing assembly
 - `-I`, `-L`, and `-l` in the usual GCC style
-- `-T` and `-Map` passthrough for the linker
+- `-T`, `-Map`, `-Sym`, `-List`, and `-Cfg` passthrough for the linker
+- `--no-map`, `--no-sym`, `--no-list`, and `--no-cfg` sidecar suppression
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
 - `-fno-peephole` to disable compiler assembly peephole rewrites, and `-fpeephole` to re-enable them
 - `-v` and `-###` to print the subordinate commands
 
 When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is
 supplied and links `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
+Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
+`.cfg` files by default. The naming and suppression options above are forwarded
+directly to `vcsc-ld`.
 
 ## What it requires
 
