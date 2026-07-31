@@ -6640,3 +6640,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
   tests pass (174 completed before the monolithic command ceiling, then the
   remaining 23 passed explicitly). Staged `make installcheck` also passes.
+
+2026-07-30 22:27:35 PDT, add public examples for both unofficial 181-line renderers
+----------------------------------------------------------------------------------
+* Confirm that the separately named `player_color_181_unofficial` and
+  `all_five_181_unofficial` renderers are the reviewed stable/common-NMOS
+  unofficial-opcode twins of the official 181-line renderers. They are not
+  hidden build modes; cartridges select them by their explicit template paths
+  and must pass `-Wa,--illegals`.
+* Add `examples/07_player_color_181_unofficial/` with direct interactive
+  score-above and score-below twins of the official P0/P1/Ball examples. Add
+  `examples/08_all_five_181_unofficial/` with direct interactive score-above and
+  score-below twins exposing P0/P1/M0/M1/Ball. Keep the source, target, template,
+  and directory names explicit about the unofficial renderer in every case.
+* Give every new leaf its own Makefile and README. The Makefiles name the
+  unofficial renderer dependency and pass `-Wa,--illegals`; the examples retain
+  the official twins' controls, initial scenes, score composition, reset path,
+  and complete 192-line visible field.
+* Extend the player-color and all-five interactive example matrices to execute
+  both unofficial score orders under the existing frame, control, score,
+  endpoint, motion, and reset harnesses. Update the recursively discovered
+  example-build test so unofficial example names automatically select the
+  assembler's unofficial-opcode table.
+* Extend staged installation checks to build all four new cartridges against
+  the installed renderer files. Refresh the public example index and VCS and
+  renderer documentation to list groups 05 through 08 and make the official
+  versus unofficial opcode policy visible.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 174
+  before its outer command ceiling and the remaining 23 passed explicitly.
+  Both expanded interactive example matrices and the recursive example build
+  pass directly. Staged `make installcheck` also passes.

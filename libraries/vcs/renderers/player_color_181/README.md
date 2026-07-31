@@ -110,3 +110,7 @@ test/fixtures/player_color_181/reference_score_above_stella_7.0.png
 The image is hash-locked by the regression. It confirms the centered score,
 playfield, both multicolor players, and Ball coexist without the red poison
 background or obvious first-row corruption.
+
+Public score-above and score-below examples live under
+`examples/04_player_color_181/`; the separately named unofficial-opcode twins
+live under `examples/07_player_color_181_unofficial/`.

@@ -95,3 +95,7 @@ score-below composition. Emulator tests require:
 
 A gameplay-only link contains no score state, score pointers, or font. The
 independent score contributes only its own separately measured resources.
+
+Public score-above and score-below examples live under
+`examples/06_all_five_181/`; the separately named unofficial-opcode twins live
+under `examples/08_all_five_181_unofficial/`.

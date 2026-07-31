@@ -385,6 +385,17 @@ installcheck: tools
 	    "$(CURDIR)/examples/$$dir/$$stem.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$stem.bin"` -eq 4096; \
+	done; \
+	for spec in \
+	  07_player_color_181_unofficial/01_score_above/01_interactive/player_color_181_unofficial_score_above_interactive \
+	  07_player_color_181_unofficial/02_score_below/01_interactive/player_color_181_unofficial_score_below_interactive \
+	  08_all_five_181_unofficial/01_score_above/01_interactive/all_five_181_unofficial_score_above_interactive \
+	  08_all_five_181_unofficial/02_score_below/01_interactive/all_five_181_unofficial_score_below_interactive; do \
+	  stem=$${spec##*/}; dir=$${spec%/*}; \
+	  "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	    "$(CURDIR)/examples/$$dir/$$stem.c26" \
+	    -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
+	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$stem.bin"` -eq 4096; \
 	done
 	rm -rf $(INSTALLCHECK_STAGING)
 

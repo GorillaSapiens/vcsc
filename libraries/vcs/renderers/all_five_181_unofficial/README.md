@@ -33,3 +33,7 @@ longer be an equivalent renderer. Pairwise emulator tests require identical
 visible TIA traces, object behavior, score composition, RAM addresses, and
 stable 262-line frames, including horizontal-blank P1 and missile handoffs,
 for the official and unofficial cartridges.
+
+Public score-above and score-below five-object examples live under
+`examples/08_all_five_181_unofficial/`. They are direct twins of the official
+examples and keep `-Wa,--illegals` visible in each Makefile.

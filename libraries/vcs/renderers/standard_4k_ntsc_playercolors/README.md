@@ -160,12 +160,13 @@ the checked static cartridge leaves 30 RIOT bytes unallocated.
 
 Public componentized examples now live under renderer-specific paths:
 
-- `examples/03_player_color_192/` contains one full-height interactive
+- `examples/03_player_color_192/` contains one full-height official-opcode
   P0/P1/Ball positioning diagnostic.
-- `examples/04_player_color_181/01_score_above/` contains one interactive
-  score-above positioning and score-editing diagnostic.
-- `examples/04_player_color_181/02_score_below/` contains the corresponding
-  score-below diagnostic.
+- `examples/04_player_color_181/` contains the official-opcode score-above and
+  score-below positioning and score-editing diagnostics.
+- `examples/07_player_color_181_unofficial/` contains direct unofficial-opcode
+  twins of those two 181-line diagnostics; their Makefiles pass
+  `-Wa,--illegals` explicitly.
 
 Linked size is checked by the build and install tests but is not a stable public
 contract. The faithful legacy example is maintained separately under
@@ -183,8 +184,9 @@ private golden cartridges under `test/fixtures/vcs_examples/`.
 `test/vcs_faithful_legacy_example.pl` certifies the public example under
 `examples/02_faithful_legacy_playercolors/` against the independently built
 pristine BASIC 1.9 ROM; it does not certify this component profile. Public
-componentized examples are grouped under `examples/03_player_color_192/` and
-`examples/04_player_color_181/`; each maintained interactive diagnostic has
+componentized examples are grouped under `examples/03_player_color_192/`,
+`examples/04_player_color_181/`, and
+`examples/07_player_color_181_unofficial/`; each maintained interactive diagnostic has
 initial-raster certification plus emulated switch, joystick, endpoint, score,
 and reset coverage.
 
@@ -202,7 +204,8 @@ It verifies:
   including RESP cycles and HMxx values.
 
 The human-facing componentized multicolor diagnostics are grouped under
-`examples/03_player_color_192/` and `examples/04_player_color_181/`. Their
+`examples/03_player_color_192/`, `examples/04_player_color_181/`, and
+`examples/07_player_color_181_unofficial/`. Their
 initial scenes have direct display certification and their controls run under
 emulation. Exact regressions
 for the predecessor profile remain under

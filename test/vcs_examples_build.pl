@@ -63,6 +63,8 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
+   } elsif ($file =~ /_unofficial_.*\.c26\z/) {
+      push @extra,'-Wa,--illegals';
    }
    -f $source or die "missing editable example $source\n";
    my @cmd=($driver,'-I',$vcs,'-Map',$map,@extra);

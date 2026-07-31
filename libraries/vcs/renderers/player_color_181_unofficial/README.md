@@ -26,3 +26,7 @@ measured saving of two bytes.
 
 This profile is explicit rather than selected by an alias so opcode policy is
 obvious from the template filename.
+
+Public score-above and score-below application examples live under
+`examples/07_player_color_181_unofficial/`. They are direct twins of the
+official examples and keep `-Wa,--illegals` visible in each Makefile.

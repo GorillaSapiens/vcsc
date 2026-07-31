@@ -38,7 +38,11 @@ Files:
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic
 - `../../examples/03_player_color_192/` ... full-height scoreless interactive player-color diagnostic
-- `../../examples/04_player_color_181/` ... interactive score-above and score-below 181-line player-color diagnostics
+- `../../examples/04_player_color_181/` ... official-opcode interactive score-above and score-below 181-line player-color diagnostics
+- `../../examples/05_all_five_192/` ... official-opcode full-height all-five interactive diagnostic
+- `../../examples/06_all_five_181/` ... official-opcode interactive score-above and score-below 181-line all-five diagnostics
+- `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode player-color examples, built explicitly with `-Wa,--illegals`
+- `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode all-five examples, built explicitly with `-Wa,--illegals`
 
 ## NTSC color matching
 
