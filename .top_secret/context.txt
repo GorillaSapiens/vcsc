@@ -6727,3 +6727,31 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   exact 4096-byte ROMs and render clean diagonal playfields in Stella. Staged
   `make installcheck` also passes.
 
+
+2026-07-31 12:00:36 PDT, repair only the all-five 192-line playfield schedule
+--------------------------------------------------------------------------------
+* Limit renderer implementation changes to
+  `libraries/vcs/renderers/all_five_192/all_five_192.c26`; leave every 181-line
+  official and unofficial renderer unchanged.
+* Replace the incorrect single target-cycle model with a physical circular
+  schedule.  The first visible line and every ordinary reflected half now
+  commit PF2/PF1 at physical cycles 48/55.  P1 keeps the delayed Ball value in
+  A while Y writes the reflected playfield; the following P0 half recovers the
+  added cycle after its beam-critical writes so each pair remains 152 cycles.
+* Reorder each row-transition path independently.  The three new-row lines now
+  reach reflected PF2/PF1 at 48/55.  On the old-row boundary, PF1 uses its broad
+  safe window at cycle 45 and PF2 uses its narrow handoff at cycle 48; writing
+  PF1 first also preserves the total transition timing.  The terminal line now
+  uses physical cycles 48/55 and lets WSYNC absorb the removed padding.
+* Correct the 192-line timing regression instead of weakening the shared
+  181-line profile.  Add an `all-five-192` profile that measures physical
+  scanline-relative phases, accepts the intentional PF1-before-PF2 boundary
+  handoff, and retains the existing `all-five` profile for both 181 renderers.
+* Verify the public all-five 192 cartridge visually in Stella with all five
+  objects present: the four playfield diagonals are clean, and the two short
+  horizontal marks and center square are the intended missiles and Ball.  An
+  object-suppressed diagnostic rendering also shows a clean playfield.
+* Verification: 334/334 compile-only tests pass.  The combined run passed its
+  first 161/197 end-to-end/generic tests before the outer 300-second command
+  ceiling; focused `vcs_all_five_192.pl`, all-five interactive examples,
+  multicolor examples, and player-color 192 tests all pass.
