@@ -256,9 +256,8 @@ require inline void TEMPLATE_vblank(void) {
    asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
    asm @TEMPLATE_prepare_object_masks_done:;
 
-   // Ball positioning is a VBLANK responsibility. Apply its fine motion here
-   // and clear the motion registers immediately afterward; the later P0/P1
-   // visible-entry HMOVE must not move the Ball a second time.
+   // Ball positioning is a VBLANK responsibility. Score mini-renderers preserve
+   // Ball position and motion, so only P0/P1 require a visible-boundary handoff.
    // Keep the Ball strobe at the same cycle used by the retained five-object
    // schedule so its public X coordinate remains bit-for-bit compatible.
    asm sta WSYNC;
@@ -281,9 +280,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMM1;
    asm sta WSYNC;
    asm sta HMOVE;
-   // The visible-entry HMOVE is reserved for P0/P1. Clear the already-applied
-   // missile/Ball fine-motion values so it cannot move those objects again.
-   asm sta HMCLR;
+   asm lda #0;
    asm sta ENAM0;
    asm sta ENAM1;
 

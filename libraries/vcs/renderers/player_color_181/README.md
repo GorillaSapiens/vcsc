@@ -69,10 +69,8 @@ stale player graphics, and enters the timed raster. During gameplay, each P1
 row is staged in private workspace and committed through GRP1 during horizontal
 blanking. Because vertical delay is active, that same safe commit transfers the
 pending P0 and Ball graphics before the visible right edge. Ball positioning
-remains a VBLANK responsibility. Its fine motion is applied once there and then
-cleared before the later P0/P1 visible-entry HMOVE, so score-above, score-below,
-and scoreless composition all produce the same Ball X coordinate. Score-profile
-components preserve the established Ball, missile, and playfield geometry.
+remains a VBLANK responsibility; score-profile components preserve Ball,
+missile, and playfield geometry.
 
 The handoff uses a page-contained 160-entry packed position table. Each entry
 contains the HMxx high nibble and the five-cycle coarse-loop count. This keeps

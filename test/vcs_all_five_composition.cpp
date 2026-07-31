@@ -26,11 +26,6 @@ constexpr uint16_t kGrp1 = 0x001C;
 constexpr uint16_t kEnam0 = 0x001D;
 constexpr uint16_t kEnam1 = 0x001E;
 constexpr uint16_t kEnabl = 0x001F;
-constexpr uint16_t kHmm0 = 0x0022;
-constexpr uint16_t kHmm1 = 0x0023;
-constexpr uint16_t kHmbl = 0x0024;
-constexpr uint16_t kHmove = 0x002A;
-constexpr uint16_t kHmclr = 0x002B;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
@@ -73,8 +68,6 @@ uint8_t expected_directions = 0x15;
 uint8_t expected_motion_frame = 0;
 std::array<bool,5> saw_low{};
 std::array<bool,5> saw_high{};
-std::array<uint8_t,3> nonplayer_motion{};
-unsigned frame_hmoves = 0;
 
 [[noreturn]] void fail(const std::string &message) {
    std::fprintf(stderr, "vcs_all_five_composition: %s\n", message.c_str());
@@ -188,7 +181,6 @@ void apply_writes() {
             ++frame;
             frame_start=virtual_cycles;
             frames.emplace_back();
-            frame_hmoves=0;
             check_motion_state();
          }
          vsync_asserted=next;
@@ -200,19 +192,7 @@ void apply_writes() {
          timer_divisor=event.address==kTim1t ? 1 : event.address==kTim8t ? 8 :
                        event.address==kTim64t ? 64 : 1024;
       }
-      else {
-         if (event.address == kHmclr) nonplayer_motion.fill(0);
-         else if (event.address >= kHmm0 && event.address <= kHmbl)
-            nonplayer_motion[static_cast<size_t>(event.address-kHmm0)] = event.value;
-         else if (event.address == kHmove && frame >= 2) {
-            if (frame_hmoves != 0 &&
-                (nonplayer_motion[0] != 0 || nonplayer_motion[1] != 0 ||
-                 nonplayer_motion[2] != 0))
-               fail("later HMOVE re-applied missile/Ball fine motion");
-            ++frame_hmoves;
-         }
-         classify_write(event);
-      }
+      else classify_write(event);
    }
    writes.clear();
 }

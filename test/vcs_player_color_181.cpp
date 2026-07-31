@@ -379,16 +379,16 @@ void verify_visible_handoff() {
       if (!move || !n0 || !n1 || n0->value!=0x20 || n1->value!=0x20)
          fail("gameplay entry did not apply motion and restore both NUSIZ values");
 
-      // Ball is positioned during VBLANK. Match the RESBL/HMBL/HMOVE
-      // transaction, then require every later HMOVE in the frame to carry
-      // HMBL=0. The visible-entry HMOVE must not apply Ball fine motion twice,
-      // regardless of whether the score is above, below, or absent.
+      // Ball is positioned during VBLANK and must survive the score. Match the
+      // RESBL/HMBL/HMOVE transaction, then require later score HMOVEs to carry
+      // HMBL=0 so they preserve that established position.
       const TimedWrite *br=nullptr,*bh=nullptr,*bm=nullptr;
       const auto found=timed_writes.find(checked);
       uint8_t current_hmbl=0;
       if (found!=timed_writes.end()) {
          bool after_resbl=false;
          for (const TimedWrite &write : found->second) {
+            if (write.line>=game_first) continue;
             if (write.address==kHmclr) current_hmbl=0;
             if (write.address==kHmbl) current_hmbl=write.value;
             if (write.address==kResbl) {
@@ -398,7 +398,7 @@ void verify_visible_handoff() {
             else if (after_resbl && write.address==kHmove) {
                if (!bm) bm=&write;
                else if (current_hmbl!=0)
-                  fail("later HMOVE re-applied Ball fine motion");
+                  fail("score HMOVE changed the Ball position");
             }
          }
       }

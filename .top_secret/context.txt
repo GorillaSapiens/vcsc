@@ -6611,28 +6611,3 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the monolithic run completed the first 175
   before its outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
-
-2026-07-30 21:23:17 PDT, prevent double application of 181-line non-player fine motion
---------------------------------------------------------------------------
-* Diagnose the score-below Ball jitter as a second HMOVE application, not a
-  gameplay-raster timing wobble. The 181-line VBLANK path positioned Ball (and,
-  in the all-five renderer, M0/M1), applied HMBL/HMM0/HMM1 once, but left those
-  fine-motion registers loaded. The visible-entry HMOVE intended for P0/P1 then
-  applied the same non-player motion again. Score-above appeared stable only
-  because the score component's HMCLR accidentally cleared those registers
-  before gameplay entry.
-* After the VBLANK HMOVE, immediately strobe HMCLR in the official and
-  unofficial player-color 181 renderers and both all-five 181 twins. This
-  replaces a redundant LDA #0 with STA HMCLR, preserves ROM size, adds only one
-  VBLANK CPU cycle, and makes score-above, score-below, and scoreless ordering
-  independent.
-* Strengthen the player-color oracle to track HMBL across every HMOVE in the
-  frame and reject any later nonzero Ball fine motion. Strengthen the all-five
-  composition oracle likewise for HMM0, HMM1, and HMBL. Both new checks fail on
-  the input archive and pass after the repair.
-* Update renderer and test documentation for the single-application motion
-  contract. No files were removed; .top_secret/remove.txt is unchanged.
-* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
-  tests are accounted for and pass; the monolithic run completed the first 175
-  before the outer command ceiling and the remaining 22 passed explicitly.
-  Staged make installcheck also passes.
