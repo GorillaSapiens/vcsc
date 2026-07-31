@@ -15,6 +15,7 @@ constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint16_t kVsync = 0x0000;
+constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kGrp0 = 0x001B;
 constexpr uint16_t kGrp1 = 0x001C;
@@ -33,6 +34,8 @@ uint64_t virtual_cycles = 0;
 uint64_t cpu_cycles = 0;
 std::vector<WriteEvent> writes;
 bool vsync_asserted = false;
+bool vblank_asserted = true;
+uint64_t visible_first_line = 0;
 int frame = -1;
 bool timer_active = false;
 uint64_t timer_start = 0;
@@ -43,6 +46,10 @@ unsigned grp1_nonzero = 0;
 unsigned missile0_enabled = 0;
 unsigned missile1_enabled = 0;
 unsigned ball_enabled = 0;
+bool require_hblank = false;
+bool require_all_five = true;
+bool missile0_state = false;
+bool missile1_state = false;
 
 [[noreturn]] void fail(const char *message) {
    std::fprintf(stderr, "vcs_standard_objects: %s\n", message);
@@ -75,6 +82,10 @@ void apply_writes() {
          if (next && !vsync_asserted) ++frame;
          vsync_asserted = next;
       }
+      else if (event.address == kVblank) {
+         vblank_asserted = (event.value & 2) != 0;
+         if (!vblank_asserted) visible_first_line = virtual_cycles / kCyclesPerScanline;
+      }
       else if (event.address >= kTim1t && event.address <= kT1024t) {
          timer_active = true;
          timer_start = virtual_cycles;
@@ -84,10 +95,34 @@ void apply_writes() {
                          event.address == kTim64t ? 64 : 1024;
       }
       else if (frame == 2) {
+         const bool p1 = event.address == kGrp1 && event.value != 0;
+         const bool m0 = event.address == kEnam0 && (event.value & 2);
+         const bool m1 = event.address == kEnam1 && (event.value & 2);
+         bool timed_object_commit = event.address == kGrp0 || event.address == kGrp1;
+         if (event.address == kEnam0) {
+            const bool next = (event.value & 2) != 0;
+            timed_object_commit = next != missile0_state;
+            missile0_state = next;
+         }
+         if (event.address == kEnam1) {
+            const bool next = (event.value & 2) != 0;
+            timed_object_commit = next != missile1_state;
+            missile1_state = next;
+         }
+         const uint64_t line = virtual_cycles / kCyclesPerScanline;
+         if (require_hblank && !vblank_asserted &&
+             line >= visible_first_line + 3 && timed_object_commit &&
+             virtual_cycles % kCyclesPerScanline >= 23) {
+            std::fprintf(stderr,
+               "vcs_standard_objects: visible object commit $%02X=%02X at beam cycle %llu\n",
+               event.address,event.value,
+               static_cast<unsigned long long>(virtual_cycles % kCyclesPerScanline));
+            std::exit(1);
+         }
          if (event.address == kGrp0 && event.value != 0) ++grp0_nonzero;
-         if (event.address == kGrp1 && event.value != 0) ++grp1_nonzero;
-         if (event.address == kEnam0 && (event.value & 2)) ++missile0_enabled;
-         if (event.address == kEnam1 && (event.value & 2)) ++missile1_enabled;
+         if (p1) ++grp1_nonzero;
+         if (m0) ++missile0_enabled;
+         if (m1) ++missile1_enabled;
          if (event.address == kEnabl && (event.value & 2)) ++ball_enabled;
       }
    }
@@ -96,9 +131,19 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 2) {
-      std::fprintf(stderr, "usage: %s ROM.bin\n", argv[0]);
+   if (argc != 2 && argc != 3) {
+      std::fprintf(stderr, "usage: %s ROM.bin [--hblank|--players-hblank]\n", argv[0]);
       return 2;
+   }
+   if (argc == 3) {
+      if (std::strcmp(argv[2],"--hblank") == 0) {
+         require_hblank = true;
+      }
+      else if (std::strcmp(argv[2],"--players-hblank") == 0) {
+         require_hblank = true;
+         require_all_five = false;
+      }
+      else fail("unknown option");
    }
    std::memset(memory_image, 0, sizeof(memory_image));
    std::ifstream rom(argv[1], std::ios::binary);
@@ -119,12 +164,15 @@ int main(int argc, char **argv) {
    if (frame < 3) fail("instruction limit reached before three frames");
    if (grp0_nonzero < 4) fail("P0 graphics were not emitted");
    if (grp1_nonzero < 4) fail("P1 graphics were not emitted");
-   if (missile0_enabled < 2) fail("M0 was never visibly enabled");
-   if (missile1_enabled < 2) fail("M1 was never visibly enabled");
+   if (require_all_five && missile0_enabled < 2) fail("M0 was never visibly enabled");
+   if (require_all_five && missile1_enabled < 2) fail("M1 was never visibly enabled");
    if (ball_enabled < 2) fail("ball was never visibly enabled");
 
-   std::printf("vcs_standard_objects ok: P0=%u P1=%u M0=%u M1=%u BL=%u\n",
-               grp0_nonzero, grp1_nonzero, missile0_enabled,
-               missile1_enabled, ball_enabled);
+   if (require_all_five)
+      std::printf("vcs_standard_objects ok: P0=%u P1=%u M0=%u M1=%u BL=%u\n",
+                  grp0_nonzero, grp1_nonzero, missile0_enabled,
+                  missile1_enabled, ball_enabled);
+   else
+      std::printf("vcs_player_extreme_right ok: checkerboard P0/P1 commits remain in HBLANK\n");
    return 0;
 }

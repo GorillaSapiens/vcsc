@@ -6509,32 +6509,62 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   command ceiling interrupted the monolithic `make installcheck` near its end,
   the remaining checks completed successfully against the same staging tree.
 
-2026-07-30 14:55:11 PDT, add public all-five interactive renderer diagnostics
+2026-07-30 17:56:34 PDT, eliminate modern-renderer right-edge object tearing
+-----------------------------------------------------------------------------
+* Leave the faithful legacy renderer unchanged; its retained display schedule
+  does not exhibit the reported right-edge one-scanline tear.
+* Repair the official 181-line and 192-line player-color components by staging
+  each pending P1 graphics byte in existing workspace and committing `GRP1`
+  during horizontal blanking. With `VDELP0` and `VDELBL` active, that safe
+  write also transfers the pending P0 and Ball graphics before the beam reaches
+  the visible right edge instead of exposing the next row in the final pixels
+  of the preceding scanline.
+* Remove the now-redundant private P0 color latch. The 181-line player-color
+  contract becomes 13 public + 51 private = 64 bytes; the 192-line contract
+  becomes 13 public + 56 private = 69 bytes. Update the matched unofficial
+  181-line twin from the repaired official source while retaining only its two
+  reviewed AXS sites and one zero-page unofficial NOP.
+* Apply the same scanline-boundary pipeline to the official 181-line and
+  192-line all-five components and the unofficial 181-line twin. Carry M0 and
+  M1 enable state across the boundary and commit `ENAM0`, `ENAM1`, and nonzero
+  `GRP1` values during horizontal blanking without changing the proven
+  playfield phases or total scanline schedule.
+* Strengthen the player-color trace oracles to reject nonzero gameplay `GRP1`
+  writes after horizontal blanking. Add the equivalent optional guard to the
+  all-five object harness for nonzero `GRP1` and active `ENAM0`/`ENAM1` writes,
+  including X=159 endpoint fixtures. Update RAM, ROM, renderer, conversion, and
+  test documentation for the repaired schedules and measured contracts.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before its outer command ceiling and the remaining 20 passed explicitly.
+  Staged `make installcheck` also passes. The legacy renderer and its tests are
+  unchanged.
 
-* Add a scoreless `examples/05_all_five_192/01_interactive/` cartridge and
-  score-above/score-below `examples/06_all_five_181/` cartridges based on the
-  rebuilt official all-five renderers. Each diagnostic starts from the proven
-  static five-object scene and lets SELECT cycle P0, P1, M0, M1, and Ball;
-  the left joystick moves the selected object one pixel or logical scanline per
-  frame across the complete public X/Y range. RESET jumps through `$fffc`.
-* Preserve the established scored-diagnostic right-joystick contract: sample
-  once every twenty frames, require two consecutive matching samples, repeat a
-  held direction at the sample cadence, edit the selected decimal `10^n`, and
-  add `$10` to the score color on accepted horizontal digit changes.
-* Keep the scored all-five cartridges within physical VCS RAM by packing the
-  selected object and sample countdown into `object_control_state`, and packing
-  joystick history, selected score digit, and the SELECT-release latch into
-  `score_control_state`. Both 181-line examples link at 116 used RAM bytes; the
-  192-line example uses 105.
-* Add `vcs_all_five_interactive_examples.pl` and its 6502 harness to build all
-  three cartridges and verify exact 262-line frames, all-five selection and
-  movement, endpoint clamps, filtered score controls, score-color changes, and
-  reset-state restoration. Update the example index, VCS support documentation,
-  renderer READMEs, and test documentation for the new public examples.
-* Extend staged installation checks so the installed compiler and VCS library
-  rebuild all three new diagnostics alongside the existing player-color ones.
+2026-07-30 18:58:00 PDT, close the extreme-right checkerboard tear
+------------------------------------------------------------------
+* Leave the faithful legacy renderer unchanged; the defect remains confined to
+  the modern 181-line and 192-line pipelines and their all-five descendants.
+* Correct the incomplete prior repair. Carry each pending P0 graphics byte and
+  color-table index across the scanline boundary, then commit both during
+  horizontal blanking. Move the compensating two-cycle pad to after the right
+  playfield writes so their proven phases remain unchanged. At row boundaries,
+  move the existing Ball-mask shift ahead of both active and inactive GRP1
+  writes, preserving the carry and total transition cycle count while forcing
+  even zero GRP1 transfers into horizontal blanking.
+* Apply the corresponding safe-boundary schedule to the official 181/192
+  all-five renderers and the unofficial 181-line twins. Require effective
+  missile enable-state changes, as well as all player graphics transfers, to
+  occur before the visible beam.
+* Add an explicit X=159 regression using alternating $AA/$55 checkerboard
+  players for both modern player-color heights. This exposes the one-bit row
+  swap that solid or nearly solid glyphs conceal. Strengthen the all-five
+  harness to reject late P0/P1 transfers and actual M0/M1 state changes, not
+  merely nonzero writes.
+* Keep the original 40/47 right-playfield phases, exact 181/192 visible heights,
+  per-row player colors, 262-line frames, and public/private RAM contracts.
 * No files were removed; `.top_secret/remove.txt` is unchanged.
 * Verification: 331/331 compile-only tests pass. All 196 end-to-end/generic
-  tests are accounted for and pass in explicit chunks after the outer command
-  window expired during the renderer tail. The staged installed toolchain also
-  builds all five maintained interactive diagnostics as 4096-byte cartridges.
+  tests are accounted for and pass; the monolithic run completed the first 174
+  before the outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.

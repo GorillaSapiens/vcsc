@@ -56,7 +56,10 @@ Machine-readable contracts publish:
 
 Private storage consists of six workspace bytes, one playfield-position byte,
 and 48 object-mask bytes. The application supplies the playfield and player
-graphics in ROM. The implementation uses only official NMOS 6502/6507 opcodes.
+graphics in ROM. The implementation uses only official NMOS 6502/6507
+opcodes. P1 graphics and both missile-enable updates are pipelined across the
+scanline boundary and committed during horizontal blanking, so objects at the
+right edge cannot expose the next row early.
 
 ## Verified behavior
 
@@ -65,11 +68,9 @@ Maintained emulator tests require:
 - stable 262-line NTSC frames
 - all twelve playfield rows, all sixteen scanlines per row, and all 160 pixels
 - visible P0, P1, M0, M1, and Ball activity
+- HBLANK-only P0/P1 handoffs and effective missile-state changes, including
+  right-edge positions
 - correct VBLANK positioning and lifecycle restoration
 - official opcodes only
 - exact RAM, page-placement, and stack contracts
 - successful source-tree and staged-installed builds
-
-## Public diagnostic
-
-[`examples/05_all_five_192/01_interactive/`](../../../../examples/05_all_five_192/01_interactive/) provides a complete interactive cartridge. SELECT cycles through P0, P1, M0, M1, and Ball; the left joystick moves the selected object one pixel or logical scanline per frame through the full public coordinate range; RESET restores the initial scene through the cartridge reset vector.

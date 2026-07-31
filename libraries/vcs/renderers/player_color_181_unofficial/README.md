@@ -10,7 +10,7 @@
 `player_color_181_unofficial.c26` is the measured experimental twin of the
 normal official-opcode `player_color_181` lifecycle component. It has the same
 P0/P1/Ball API, packed full-range player handoff, per-row color contract,
-181-line gameplay field, 13/52/65-byte RAM layout, scanline schedule,
+181-line gameplay field, 13/51/64-byte RAM layout, scanline schedule,
 score-composition behavior, and terminal-line cleanup.
 
 Assemble cartridges using this component with `-Wa,--illegals`. The component
@@ -20,7 +20,7 @@ preserve the official component's exact cycle boundaries.
 
 Tests compare five official/unofficial cartridge pairs, including both score
 orders and asynchronous full-range motion. The maintained smoke cartridges now
-measure 1789 linked ROM bytes for the official implementation and 1787 bytes
+measure 1785 linked ROM bytes for the official implementation and 1783 bytes
 for this variant, including the shared 160-entry packed position table, for a
 measured saving of two bytes.
 

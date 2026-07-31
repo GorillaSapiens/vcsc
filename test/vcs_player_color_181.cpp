@@ -51,6 +51,7 @@ struct WriteEvent { uint16_t address; uint8_t value; };
 struct TimedWrite {
    uint64_t line;
    uint64_t cycle;
+   uint64_t beam_cycle;
    uint16_t address;
    uint8_t value;
 };
@@ -287,7 +288,8 @@ void apply_writes() {
                const uint64_t line = relative / kCyclesPerScanline;
                if (line < 232) {
                   timed_writes[frame].push_back(
-                     {line, relative % kCyclesPerScanline, event.address, event.value});
+                     {line, relative % kCyclesPerScanline,
+                      virtual_cycles % kCyclesPerScanline,event.address,event.value});
                }
             }
          }
@@ -506,14 +508,32 @@ void expect_color_write(int raster_frame, uint16_t address, uint64_t line,
    }
 }
 
+void verify_player_handoffs() {
+   const uint64_t game_first = score_order == ScoreOrder::Above ? 51 : 40;
+   const uint64_t game_last = game_first + 181;
+   for (const auto &frame_events : timed_writes) {
+      if (frame_events.first < 2) continue;
+      for (const TimedWrite &write : frame_events.second) {
+         if ((write.address==kGrp0 || write.address==kGrp1) &&
+             write.line>=game_first+3 && write.line<game_last && write.beam_cycle>=23) {
+            std::fprintf(stderr,
+               "vcs_player_color_181: player-graphics handoff at frame %d line %llu beam cycle %llu reaches visible pixels\n",
+               frame_events.first,static_cast<unsigned long long>(write.line),
+               static_cast<unsigned long long>(write.beam_cycle));
+            std::exit(1);
+         }
+      }
+   }
+}
+
 void verify_raster() {
    if (terminal_mode != TerminalMode::None) {
       const std::array<uint8_t,8> p0{{0xae,0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e}};
       const std::array<uint8_t,8> p1{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
       expect_lines(2,kGrp0,{202,204,206,208,210,212,214,216},"terminal P0");
       const std::vector<uint64_t> p1_lines = terminal_mode == TerminalMode::Lines181
-         ? std::vector<uint64_t>{203,205,207,209,211,213,215,217}
-         : std::vector<uint64_t>{205,207,209,211,213,215,217,219};
+         ? std::vector<uint64_t>{203,205,208,210,212,214,216,218}
+         : std::vector<uint64_t>{206,208,210,212,214,216,218,220};
       expect_lines(2,kGrp1,p1_lines,"terminal P1");
       if (terminal_mode == TerminalMode::Lines181)
          expect_lines(2,kEnabl,{213,215,217},"terminal BL");
@@ -531,14 +551,14 @@ void verify_raster() {
    for (int checked = first; checked <= last; ++checked) {
       if (motion_mode) {
          expect_lines(checked, kGrp0, shifted({60,62,64,66,68,70,72,74}, offset), "motion P0");
-         expect_lines(checked, kGrp1, shifted({183,185,187,189,191,193,195,197}, offset), "motion P1");
+         expect_lines(checked, kGrp1, shifted({184,186,187,189,192,194,196,198}, offset), "motion P1");
          expect_lines(checked, kEnabl, shifted({133,135,137,140}, offset), "motion BL");
          expect_colors(checked, kColup0, 63 + offset, 17, p0_colors, "motion P0 colors");
          expect_colors(checked, kColup1, 183 + offset, 11, p1_colors, "motion P1 colors");
       }
       else {
          expect_lines(checked, kGrp0, shifted({164,166,168,170,172,174,176,178}, offset), "static P0");
-         expect_lines(checked, kGrp1, shifted({111,113,115,117,119,121,123,125}, offset), "static P1");
+         expect_lines(checked, kGrp1, shifted({112,114,116,118,120,122,123,125}, offset), "static P1");
          expect_lines(checked, kEnabl, shifted({127,129,131,133}, offset), "static BL");
          expect_colors(checked, kColup0, 167 + offset, 17, p0_colors, "static P0 colors");
          expect_colors(checked, kColup1, 111 + offset, 11, p1_colors, "static P1 colors");
@@ -656,6 +676,7 @@ int main(int argc, char **argv) {
    if (!poison_score && (missile0_enabled || missile1_enabled))
       fail("missile enable became active");
    verify_visible_handoff();
+   verify_player_handoffs();
    verify_raster();
    verify_composition();
    if (motion_mode) {

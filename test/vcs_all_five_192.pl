@@ -130,7 +130,7 @@ my @harnesses=(
 $/],
    ['phase','vcs_playfield_phase.cpp','12','12','40',
       qr/^vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n$/],
-   ['objects','vcs_standard_objects.cpp',
+   ['objects','vcs_standard_objects.cpp','--hblank',
       qr/^vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4
 $/],
 );for my $h (@harnesses) {

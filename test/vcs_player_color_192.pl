@@ -79,8 +79,8 @@ require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/, 'visible-line contra
 require_re($text,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*48/, 'playfield-byte contract changed');
 require_re($text,qr/TEMPLATE_PLAYFIELD_ROWS\s*:=\s*12/, 'playfield-row contract changed');
 require_re($text,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*13/, 'public-RAM contract changed');
-require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*57/, 'private-RAM contract changed');
-require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*70/, 'module-RAM contract changed');
+require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*56/, 'private-RAM contract changed');
+require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*69/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
 require_re($text,qr/cpx #44.*?beq \@terminalrenderer/s,
@@ -108,12 +108,12 @@ for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graph
 my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
    game_player0_graphics=>2,game_player1_graphics=>2,game_player0_height=>1,
    game_player1_height=>1,game_ball_height=>1,game_workspace=>5,
-   game_playfield_position=>1,game_object_masks=>48,game_player0_latch=>1);
+   game_playfield_position=>1,game_object_masks=>48);
 my $sum=0;
 for my $name (sort keys %sizes) {
    my $got=bss_size($map,$name); $got==$sizes{$name} or die "$name is $got bytes; expected $sizes{$name}\n"; $sum += $got;
 }
-$sum==70 or die "component BSS totals $sum bytes; expected 70\n";
+$sum==69 or die "component BSS totals $sum bytes; expected 69\n";
 $map !~ /\bgame_(?:score|score_color|missile0|missile1)\b/ or die "forbidden score/missile state linked\n";
 $map !~ /(?:score|font)/i or die "score/font symbols linked\n";
 

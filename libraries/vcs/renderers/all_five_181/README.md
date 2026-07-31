@@ -70,7 +70,9 @@ Machine-readable contracts publish:
 
 Private storage consists of seven workspace bytes, one playfield-position byte,
 and 43 object-mask bytes. The implementation uses only official NMOS
-6502/6507 opcodes.
+6502/6507 opcodes. P1 graphics and both missile-enable updates are pipelined
+across scanline boundaries and committed during horizontal blanking, preventing
+the next object row from leaking into the visible right edge.
 
 ## Verified behavior
 
@@ -80,6 +82,8 @@ score-below composition. Emulator tests require:
 - stable 262-line NTSC frames
 - all eleven playfield rows, all sixteen scanlines per row, and all 160 pixels
 - visible P0, P1, M0, M1, and Ball activity
+- HBLANK-only P0/P1 handoffs and effective missile-state changes, including
+  X=159
 - full-range asynchronous X motion, including X=0 and X=159
 - preservation of application-visible Y coordinates across the lifecycle
 - no playfield, missile, or Ball leakage into the score region
@@ -87,7 +91,3 @@ score-below composition. Emulator tests require:
 
 A gameplay-only link contains no score state, score pointers, or font. The
 independent score contributes only its own separately measured resources.
-
-## Public diagnostics
-
-[`examples/06_all_five_181/`](../../../../examples/06_all_five_181/) contains score-above and score-below interactive cartridges. SELECT cycles through all five TIA objects, the left joystick moves the selected object through its full coordinate range, and the filtered right joystick edits the independent six-digit score. The examples pack their control state into two bytes so the full composition remains comfortably inside the VCS's 128 bytes of RAM.

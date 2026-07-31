@@ -33,8 +33,8 @@ player handoff records.
 Resource contract:
 
 - public gameplay RAM: 13 bytes
-- private RAM: 52 bytes
-- total component RAM: 65 bytes
+- private RAM: 51 bytes
+- total component RAM: 64 bytes
 - private positioning ROM: 176 bytes
 - application playfield ROM: 44 bytes
 - application color ROM: 8 bytes per player
@@ -65,9 +65,12 @@ score_draw();
 The score component owns P0/P1 while it draws. The first two gameplay setup
 lines therefore re-establish P1 and P0 coarse position and fine motion. The
 third setup line applies HMOVE, restores both application NUSIZ values, clears
-stale player graphics, and enters the timed raster. Ball positioning remains a
-VBLANK responsibility; score-profile components preserve Ball, missile, and
-playfield geometry.
+stale player graphics, and enters the timed raster. During gameplay, each P1
+row is staged in private workspace and committed through GRP1 during horizontal
+blanking. Because vertical delay is active, that same safe commit transfers the
+pending P0 and Ball graphics before the visible right edge. Ball positioning
+remains a VBLANK responsibility; score-profile components preserve Ball,
+missile, and playfield geometry.
 
 The handoff uses a page-contained 160-entry packed position table. Each entry
 contains the HMxx high nibble and the five-cycle coarse-loop count. This keeps
@@ -80,9 +83,13 @@ per-row color writes, terminal gameplay lines, stable 262-line frames, and
 disjoint eleven-line score plus 181-line gameplay regions. The poison debug
 score supplies hostile P0/P1 position, size, reflection, delay, graphics, and
 motion state; the resulting gameplay raster and object positions remain
-identical.
+identical. The trace oracle rejects every gameplay GRP0 or GRP1 handoff, including zero
+GRP1 transfers, that lands after horizontal blanking. A dedicated alternating
+checkerboard fixture places both players at X=159, covering the subtle bit-row
+swap that solid glyphs can hide at the extreme right edge and the earlier tear that
+late graphics writes can cause.
 
-A composed link measures 65 bytes of gameplay RAM plus 17 bytes for the
+A composed link measures 64 bytes of gameplay RAM plus 17 bytes for the
 production score. A poison composition adds one byte for its caller-selected
 background handoff. A gameplay-only link contains no score state or font.
 

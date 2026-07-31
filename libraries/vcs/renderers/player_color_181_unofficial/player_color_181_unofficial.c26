@@ -24,9 +24,9 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_ROWS := 11,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
    TEMPLATE_WORKSPACE_BYTES := 5,
-   TEMPLATE_PRIVATE_RAM_BYTES := 52,
+   TEMPLATE_PRIVATE_RAM_BYTES := 51,
    TEMPLATE_PUBLIC_RAM_BYTES := 13,
-   TEMPLATE_MODULE_RAM_BYTES := 65
+   TEMPLATE_MODULE_RAM_BYTES := 64
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -83,7 +83,6 @@ uint8_t TEMPLATE_ball_height;
 uint8_t TEMPLATE_workspace[5];
 uint8_t TEMPLATE_playfield_position;
 uint8_t TEMPLATE_object_masks[43];
-uint8_t TEMPLATE_player0_latch;
 
 require inline void TEMPLATE_init(void) {
 }
@@ -368,7 +367,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    asm ldy #0;
    asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.z TEMPLATE_player0_latch;
+   asm sta.z TEMPLATE_workspace + 3;
    asm sta COLUP0;
    // End the visible setup line with the playfield still cleared.  Priming
    // only PF1/PF2 here exposed a malformed half-initialized row before the
@@ -379,7 +378,7 @@ require inline void TEMPLATE_draw(void) {
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
-   asm lda.z TEMPLATE_player0_latch;
+   asm lda.z TEMPLATE_workspace + 3;
    asm sta COLUP0;
    asm nop;
    asm lda.ax TEMPLATE_playfield,x;
@@ -396,6 +395,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   // Fund the ten-cycle HBLANK graphics/color commit without moving either
+   // right-playfield write.
+   asm nop;
    asm bcs @first_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @first_continueP0;
@@ -404,17 +406,20 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @first_continueP0:;
-   asm sta.a GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.a TEMPLATE_player0_latch;
+   // Carry the selected P0 graphics byte in A and its color-table index in Y
+   // across the pair boundary; DEC/branch do not disturb either register.
    asm dec.z TEMPLATE_workspace;
    asm jmp @continuerenderer;
 
    asm @kerloop:;
    asm @continuerenderer:;
+   // Commit P0 graphics and its matching row color during horizontal blank.
+   // The matching two-cycle pad lives after the preceding right-playfield
+   // writes, preserving both their phases and the exact 152-cycle pair.
+   asm sta GRP0;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
    asm @continuerenderer2:;
-   // P1 half.  Update Ball before the display writes, then leave a three-cycle
-   // gap between the left and right halves of the asymmetric playfield.
    asm lda #1;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
@@ -441,11 +446,14 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @continueP1:;
-   asm sta GRP1;
+   // Stage P1 until the next horizontal blank.  Writing GRP1 then updates the
+   // immediate P1 graphics and transfers the delayed P0/Ball graphics before
+   // the beam reaches the visible right edge.
+   asm sta.z TEMPLATE_workspace + 3;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
-   asm lda.z TEMPLATE_player0_latch;
-   asm sta COLUP0;
+   asm lda.z TEMPLATE_workspace + 3;
+   asm sta GRP1;
 
    asm @p0renderer:;
    // P0 half.  Move eleven cycles of P0 bookkeeping ahead of the playfield
@@ -465,6 +473,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   asm nop;
    asm bcs @skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @continueP0;
@@ -473,11 +482,16 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @continueP0:;
-   asm sta.a GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.a TEMPLATE_player0_latch;
+   // Carry the selected P0 graphics byte in A and its color-table index in Y
+   // across the pair boundary; DEC/branch do not disturb either register.
    asm dec.z TEMPLATE_workspace;
    asm bne.same @continuerenderer;
+   // The row-ending fallthrough uses the same ten-cycle commit.  Its matching
+   // pad already ran after the right-playfield writes, so GRP0 reaches the next
+   // horizontal blank without changing the row-transition phase.
+   asm sta GRP0;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
 
    // The sixteenth line of a row is a P1 half.  Draw the old row one last time,
    // advance X in the gap between the left and right playfield writes, and then
@@ -509,15 +523,20 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
+   // GRP1 transfers delayed P0 as well as changing P1.  Shift the Ball mask
+   // before either GRP1 write: this moves both the zero and graphics commits
+   // into horizontal blank without changing the row-transition cycle count.
    asm bcc @transition_activeP1;
    // The inactive and active paths are both eleven cycles.  The absolute STY
    // supplies the otherwise impossible one-cycle pad while also leaving Y=0
    // for the color lookup below.
    asm ldy #0;
+   asm lsr.zx TEMPLATE_object_masks-4,x;
    asm sty.a GRP1;
-   asm bcs @transition_continueP1;
+   asm jmp @transition_continueP1;
    asm @transition_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm lsr.zx TEMPLATE_object_masks-4,x;
    asm sta GRP1;
    asm @transition_continueP1:;
    // Preserve the P1 color in A before the playfield loads reuse Y.  The Ball
@@ -525,7 +544,6 @@ require inline void TEMPLATE_draw(void) {
    // four playfield writes at cycles 10, 17, 40, and 47, installs the correct
    // P1 color, and still enables the Ball well before its horizontal position.
    asm lda.ay TEMPLATE_player1_colors,y;
-   asm lsr.zx TEMPLATE_object_masks-4,x;
 
    // First P0 half after a row transition.  Its four playfield writes must land
    // at the same phases as every steady scanline.
@@ -544,8 +562,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    // Save the decremented P0 index only after the beam-critical writes.  The
-   // absolute store also restores the one cycle saved by the balanced P1 path,
-   // keeping the following scanlines on the same phase.
+   // absolute store also preserves the established row-transition phase.
    asm sty.a TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm bcs @transition_skipP0;
@@ -622,9 +639,6 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @transition_follow_continueP0:;
-   asm sta GRP0;
-   asm lda.ay TEMPLATE_player0_colors,y;
-   asm sta.z TEMPLATE_player0_latch;
    asm dec.z TEMPLATE_workspace;
    asm bne @continuerenderer;
    asm jmp @altrenderer;

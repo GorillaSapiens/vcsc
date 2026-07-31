@@ -108,7 +108,7 @@ require_re($unofficial,qr/same lifecycle API.*same RAM.*same 181 scanlines/s,
    'unofficial-opcode comparison is not constrained to an apples-to-apples profile');
 require_re($unofficial,qr/zero-byte result is intentional evidence.*not a failed optimization/si,
    'unofficial-opcode comparison incorrectly assumes a saving');
-require_re($doc,qr/official linked ROM bytes:\s+2081.*unofficial linked ROM bytes:\s+2081.*signed saving:\s+0/s,
+require_re($doc,qr/official linked ROM bytes:\s+2087.*unofficial linked ROM bytes:\s+2087.*signed saving:\s+0/s,
    'component conversion document lost the measured zero-byte result');
 require_re($doc,qr/one reviewed stable\/common NMOS form.*zero-page unofficial NOP.*no retained AXS/si,
    'component conversion document lost the current unofficial opcode set');

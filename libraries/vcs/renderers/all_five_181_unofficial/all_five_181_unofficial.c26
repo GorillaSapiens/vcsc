@@ -463,17 +463,27 @@ require inline void TEMPLATE_draw(void) {
    asm @first_drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @first_continueP0:;
-   asm sta GRP0;
+   // Preserve the selected P0 byte in A and the M0 bit in carry until the
+   // common horizontal-blank entry.  Seven pad cycles replace the redundant
+   // early ENAM0 materialization without changing the raster phase.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
-   asm lda #1;
-   asm adc #0;
-   asm sta ENAM0;
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
    asm dec.z TEMPLATE_workspace;
    asm jmp @continuerenderer;
 
    asm .align 256;
    asm @kerloop:;
    asm @continuerenderer:;
+   // P0 remains in A across the M0-mask shift and pair counter.  Commit it in
+   // horizontal blank before an extreme-right player can fetch the next row.
+   asm sta GRP0;
+   // M0 was shifted at the end of the preceding P0 half.  Commit it before
+   // the beam enters the visible region.
+   asm lda #1;
+   asm adc #0;
+   asm sta ENAM0;
    asm @continuerenderer2:;
    // P1 half.  Update Ball before the display writes, then leave a three-cycle
    // gap between the left and right halves of the asymmetric playfield.
@@ -503,8 +513,11 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm bit.z TEMPLATE_object_masks + 19;
    asm @continueP1:;
-   asm sta GRP1;
+   // Shift M1 first, then carry the selected P1 byte and M1 carry through the
+   // scanline boundary.  Both visible objects are committed in the following
+   // horizontal blank without changing the pair's cycle count.
    asm lsr.zx TEMPLATE_object_masks + 1,x;
+   asm sta GRP1;
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
@@ -532,13 +545,16 @@ require inline void TEMPLATE_draw(void) {
    asm @drawP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @continueP0:;
-   asm sta GRP0;
+   // Carry both the P0 graphics byte in A and the M0 enable bit in C across
+   // DEC/BNE; neither instruction changes A or C.
+   // The next P1 half materializes ENAM0 during horizontal blanking.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
+   asm dec.z TEMPLATE_workspace;
+   asm bne @continuerenderer;
+   asm sta GRP0;
    asm lda #1;
    asm adc #0;
    asm sta ENAM0;
-   asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
 
    // The sixteenth line of a row is a P1 half.  Draw the old row one last time,
    // advance X in the gap between the left and right playfield writes, and then
@@ -568,20 +584,19 @@ require inline void TEMPLATE_draw(void) {
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
    asm bcc @transition_activeP1;
-   // The inactive and active paths are both eleven cycles. The absolute STY
-   // supplies the otherwise impossible one-cycle pad and leaves Y=0 for the
-   // following missile-mask update.
+   // Shift M1 before GRP1.  The memory shift preserves A/Y, moves both the
+   // active and zero GRP1 writes into horizontal blank, and leaves carry ready
+   // for the common ENAM1 materialization without changing total timing.
    asm ldy #0;
+   asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm sty.a GRP1;
-   asm bcs @transition_continueP1;
+   asm jmp @transition_continueP1;
    asm @transition_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm lsr.zx TEMPLATE_object_masks + 1,x;
    asm sta GRP1;
    asm @transition_continueP1:;
-   // Shift the M1 mask into carry and materialize ENAM1. The following Ball
-   // mask shift seeds carry for the next half-scanline. These two timed updates
-   // occupy the slots used by the player-color renderer's row-color loads.
-   asm lsr.zx TEMPLATE_object_masks + 1,x;
+   // Materialize M1, then shift the Ball mask for the next half-scanline.
    asm lda #1;
    asm adc #0;
    asm sta ENAM1;
@@ -615,14 +630,15 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_continueP0:;
    asm sta GRP0;
    asm lsr.zx TEMPLATE_object_masks + 2,x;
-   asm lda #1;
-   asm adc #0;
-   asm sta ENAM0;
 
    // Fall directly into the first P1 half.  The remaining-pair counter is set
    // after the four display writes so this line reaches the same safe phases as
    // the steady lines without changing the total pair length.
    asm @transition_firstP1:;
+   // Commit the M0 carry left by the transition P0 half.
+   asm lda #1;
+   asm adc #0;
+   asm sta ENAM0;
    asm lda #1;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
@@ -674,13 +690,13 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_activeP0:;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm @transition_follow_continueP0:;
-   asm sta GRP0;
    asm lsr.zx TEMPLATE_object_masks + 2,x;
+   asm dec.z TEMPLATE_workspace;
+   asm bne @continuerenderer;
+   asm sta GRP0;
    asm lda #1;
    asm adc #0;
    asm sta ENAM0;
-   asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its

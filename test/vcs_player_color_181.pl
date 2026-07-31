@@ -70,8 +70,8 @@ my $text=read_file($module);
 my $map=read_file($mapfile);
 require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/, 'visible-line contract changed');
 require_re($text,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*13/, 'public-RAM contract changed');
-require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*52/, 'private-RAM contract changed');
-require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*65/, 'module-RAM contract changed');
+require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*51/, 'private-RAM contract changed');
+require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*64/, 'module-RAM contract changed');
 for my $bad (qw(score font VSYNC VBLANK TIM64T INTIM TIMINT)) {
    $text !~ /^\s*asm\s+.*\b\Q$bad\E\b/im or die "component owns forbidden $bad resource\n";
 }
@@ -81,12 +81,12 @@ for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graph
 my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
    game_player0_graphics=>2,game_player1_graphics=>2,game_player0_height=>1,
    game_player1_height=>1,game_ball_height=>1,game_workspace=>5,
-   game_playfield_position=>1,game_object_masks=>43,game_player0_latch=>1);
+   game_playfield_position=>1,game_object_masks=>43);
 my $sum=0;
 for my $name (sort keys %sizes) {
    my $got=bss_size($map,$name); $got==$sizes{$name} or die "$name is $got bytes; expected $sizes{$name}\n"; $sum += $got;
 }
-$sum==65 or die "component BSS totals $sum bytes; expected 65\n";
+$sum==64 or die "component BSS totals $sum bytes; expected 64\n";
 $map !~ /\bgame_(?:score|score_color|missile0|missile1)\b/ or die "forbidden score/missile state linked\n";
 
 my $cxx=$ENV{CXX} || 'c++';

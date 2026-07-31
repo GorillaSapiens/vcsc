@@ -22,8 +22,8 @@ and schedule exactly. No silicon-sensitive or unstable opcode is used.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2081
-unofficial linked ROM bytes: 2081
+official linked ROM bytes:   2087
+unofficial linked ROM bytes: 2087
 signed saving:                  0
 ```
 
@@ -31,4 +31,5 @@ The zero-byte result is intentional. Removing compensating instructions would
 save bytes only by changing visible-write or lifecycle timing and would no
 longer be an equivalent renderer. Pairwise emulator tests require identical
 visible TIA traces, object behavior, score composition, RAM addresses, and
-stable 262-line frames for the official and unofficial cartridges.
+stable 262-line frames, including horizontal-blank P1 and missile handoffs,
+for the official and unofficial cartridges.

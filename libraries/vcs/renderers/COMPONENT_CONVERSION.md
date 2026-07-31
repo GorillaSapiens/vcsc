@@ -164,8 +164,8 @@ or unstable opcodes.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2081
-unofficial linked ROM bytes: 2081
+official linked ROM bytes:   2087
+unofficial linked ROM bytes: 2087
 signed saving:                  0
 ```
 
@@ -272,7 +272,7 @@ Static and asynchronous-motion composition fixtures now cover both explicit
 orders: score above gameplay and score below gameplay. The emulator evidence
 locks 181+11=192 visible lines, stable 262-line frames, disjoint score/gameplay
 activity, exact P0/P1 color rows, disabled missiles, and full X=0..159 traversal
-for P0, P1, and Ball over 320 frames. Composed maps retain separate 65-byte
+for P0, P1, and Ball over 320 frames. Composed maps retain separate 64-byte
 gameplay and 17-byte score allocations; a gameplay-only map contains no score
 state or font.
 
@@ -281,7 +281,7 @@ state or font.
 
 `renderers/player_color_181_unofficial/player_color_181_unofficial.c26` is the
 separately named stable/common-NMOS twin of the official score-composable
-player-color component. It keeps the same lifecycle API, exact 13/52/65-byte
+player-color component. It keeps the same lifecycle API, exact 13/51/64-byte
 RAM map, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
 score orders, and static/motion fixtures. It must be assembled with
 `-Wa,--illegals`.
@@ -291,8 +291,8 @@ site survived equivalence testing. The other two tempting `AXS` substitutions
 were rejected because they changed live flag behavior and prevented complete
 frames. Compensating official NOPs retain every accepted site's cycle boundary.
 After the terminal-row cleanup repair, the maintained smoke cartridges measure
-1605 linked ROM bytes for both official and unofficial components: **0 bytes
-saved**. Five pairwise raster/timing
+1785 linked ROM bytes for the official component and 1783 bytes for the
+unofficial component: **2 bytes saved**. Five pairwise raster/timing
 comparisons plus the existing 320-frame composition oracle enforce that result.
 
 ## Official player-color 192-line scoreless profile
@@ -308,7 +308,7 @@ The full-height component has one uniform two-line raster loop for all twelve
 rows. P0, P1, and Ball are positioned entirely during VBLANK; staged row-zero
 state enters the visible field at the same half-row phase used by every later
 row. The obsolete terminal pipeline and its 160-byte position table were
-removed. Its measured RAM contract is 13 public plus 57 private bytes, 70 total,
+removed. Its measured RAM contract is 13 public plus 56 private bytes, 69 total,
 and its only position helper is a page-contained 16-byte divide-by-15 table.
 Missiles remain unavailable; score/font and scheduler-owned frame/timer state
 remain absent. The maintained trace regression locks exact 262-line frames,
