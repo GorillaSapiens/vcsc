@@ -69,6 +69,106 @@ included in the published maximum-cycle budget. Only the scheduler may wait on
 or read the timer, write VBLANK, or issue the final phase-transition WSYNC.
 `init()`, `vblank()`, and `overscan()` must not hide frame padding.
 
+## Measured visible-component handoff
+
+Every maintained visible component publishes the same machine-readable timing
+fields in its `TEMPLATE_contract` enum:
+
+| Field | Meaning |
+| --- | --- |
+| `TEMPLATE_DRAW_ENTRY_CYCLE` | Physical CPU cycle at which `draw()` begins on its first owned scanline. |
+| `TEMPLATE_DRAW_RETURN_CYCLE` | Physical CPU cycle at which `draw()` returns on the line after its last owned scanline. |
+| `TEMPLATE_DRAW_COMPLETE_SCANLINES` | Number of complete visible scanlines owned by `draw()`. |
+| `TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES` / `TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES` | Any partial scanline ownership outside those complete lines. Both are zero for every maintained component. |
+| `TEMPLATE_DRAW_TERMINAL_WSYNC` | Whether `draw()` itself executes the WSYNC that closes its final line. |
+| `TEMPLATE_DRAW_HMOVE_COUNT` | Number of HMOVE strobes executed inside `draw()`, excluding `vblank()`. |
+| `TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE` | Whether another visible component may start on the return line after the three-cycle bridge. |
+
+The values are measured against the 6502/TIA execution traces used by the
+composition, poison-state, frame-timing, and pixel-oracle regressions. They are
+not inferred from a count of source statements. The common contract is:
+
+- `vcs_ntsc_end_vblank()` starts the first component at physical CPU cycle 3;
+- every maintained `draw()` owns only complete scanlines and performs its own
+  terminal WSYNC;
+- every `draw()` returns at physical cycle 0 of the following line;
+- `vcs_ntsc_component_handoff()` is the single three-cycle `BIT.z CXM0P`
+  bridge, so a composable successor begins at cycle 3 of that same return line;
+- the 192-line profiles set `SUCCESSOR_ON_RETURN_LINE` to zero because they
+  already consume the complete standard visible field. Their cycle-zero return
+  exists so the scheduler can assert VBLANK immediately, not so another visible
+  component can be appended.
+
+| Component family | Complete lines | Entry / return | Partial entry / exit | Terminal WSYNC | HMOVE in `draw()` | Successor on return line |
+| --- | ---: | --- | --- | --- | ---: | --- |
+| centered, mutable-color, left, and right six-glyph displays | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| official/unofficial `player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| `player_color_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+
+### TIA ownership and exit state
+
+The scheduler supplies VBLANK clear and the documented entry phase. No visible
+component writes VSYNC, VBLANK, a RIOT timer, or audio registers. A/X/Y and
+arithmetic flags are always clobbered; lifecycle calls leave hardware-stack
+depth unchanged.
+
+**Production six-glyph displays.** These establish and clobber `NUSIZ0/1`,
+`COLUP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the P0/P1 graphics latches;
+they strobe `HMCLR`, `HMOVE`, and `WSYNC`. They require no incoming P0/P1 TIA
+state. On return, `GRP0=0`, `GRP1=0`, both delayed player latches have been
+flushed by the final GRP0/GRP1/GRP0 sequence, and `VDELP0=VDELP1=0`. Player
+position, size, color, and motion state remains clobbered. `PF0/1/2`,
+`CTRLPF`, `COLUPF`, `COLUBK`, M0/M1, Ball, collision latches, and audio state are
+guaranteed untouched.
+
+**Poison debug score.** This deliberately clobbers every score-owned P0/P1
+surface: `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`,
+`VDELP0/1`, and the graphics latches. It also paints `COLUBK` while active,
+then restores `TEMPLATE_exit_background`. Before its HMOVE it establishes
+`HMM0=HMM1=HMBL=0`, so preserved M0/M1/Ball geometry is not moved. On return
+`GRP0=GRP1=0`, delayed player latches are flushed, and `VDELP0=VDELP1=0`; the
+hostile player size, reflection, position, color, and motion values intentionally
+remain. Playfield, missile/Ball enables and widths, collision latches, and
+scheduler state are untouched.
+
+**181-line player-color gameplay.** `vblank()` must first prepare object masks,
+Ball position, playfield state, and the constant-time P0/P1 handoff records.
+`draw()` then establishes/clobbers `NUSIZ0/1`, `COLUP0/1`, `HMP0/1`,
+`RESP0/1`, `VDELP0/1`, `VDELBL`, `GRP0/1`, `ENABL`, and `PF0/1/2`; it strobes
+`HMCLR`, `HMOVE`, `CXCLR`, and `WSYNC`. M0/M1 are not rendered and are cleared
+on exit. The final complete cleanup line guarantees `PF0=PF1=PF2=0`,
+`GRP0=GRP1=0`, `ENAM0=ENAM1=ENABL=0`, and
+`VDELP0=VDELP1=VDELBL=0`; HM motion registers are cleared by `HMCLR`. Player
+position, size, and final colors remain clobbered. `CTRLPF`, `COLUPF`,
+`COLUBK`, reflection, audio, and scheduler state are untouched.
+
+**181-line all-five gameplay.** The entry requirements and exit guarantees are
+the same as the player-color family, but `vblank()` additionally prepares M0,
+M1, and Ball positioning and `draw()` owns `ENAM0`, `ENAM1`, and `ENABL` while
+visible. The final cleanup line guarantees all five object outputs and all three
+playfield registers are zero. P0/P1 geometry, NUSIZ, solid colors, and motion
+state are clobbered; application object coordinates remain ordinary RAM state
+and are restored by `overscan()` where documented.
+
+**192-line player-color gameplay.** `vblank()` owns all object positioning,
+HMOVE, NUSIZ/VDEL setup, the first left-playfield half, and the staged first
+P1/Ball state. `draw()` requires that prepared TIA/RAM state and writes
+`PF1/2`, `GRP0/1`, `COLUP0/1`, `ENABL`, and `WSYNC`. It performs no HMOVE and
+returns immediately after the terminal WSYNC with those display registers
+clobbered rather than blanked. The scheduler must assert VBLANK immediately;
+`overscan()` then guarantees `PF0/1/2`, `GRP0/1`, `ENAM0/1`, `ENABL`, and all
+VDEL bits are zero and strobes `HMCLR`.
+
+**192-line all-five gameplay.** Its prepared-entry and deferred-cleanup contract
+matches the 192-line player-color profile. The visible draw additionally owns
+`ENAM0` and `ENAM1`; P0/P1 colors and geometry were established by `vblank()`.
+It returns with the final visible TIA state still active, so only the scheduler's
+immediate VBLANK transition is legal. `overscan()` performs the same complete
+playfield/object/VDEL cleanup and HMCLR strobe.
+
 ## Selected visible-profile matrix
 
 The conversion no longer leaves the shorter composition profile open-ended.

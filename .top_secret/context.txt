@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260731_150336.tar.gz
+    vcsc.20260731_232146.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -718,8 +718,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b2 — define and publish the measured visible-component
-handoff contract for every maintained draw routine.
+Current next action: 22i4b4 — complete the repeatable-template composition
+proof for centered score placement, multiple instances, hostile predecessors,
+and every score-composable gameplay renderer.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1691,7 +1692,7 @@ handoff contract for every maintained draw routine.
                                                                           remains separately locked by 22i4b1b1
                                                                           and 22i4b1b2. Close 22i4b1b and 22i4b1.
 
-                                         [ ] 22i4b2. Define and publish a measured
+                                         [x] 22i4b2. Define and publish a measured
                                                     visible-component handoff contract.
                                                     For each draw routine record its
                                                     required entry cycle/range, exact
@@ -1714,6 +1715,13 @@ handoff contract for every maintained draw routine.
                                                         cycle-3 entry/cycle-zero return contract
                                                         with `vcs_ntsc_component_handoff()` and
                                                         verify both composition orders.
+                                                    [x] Publish common machine-readable draw
+                                                        entry/return, whole/partial-line,
+                                                        terminal-WSYNC, HMOVE-count, and successor
+                                                        fields for all eleven maintained visible
+                                                        components. Lock the fields against source
+                                                        structure and document complete TIA input,
+                                                        clobber, preservation, and exit guarantees.
 
                                          [x] 22i4b3. Repair the centered six-glyph
                                                     score so every draw is independent
@@ -7034,3 +7042,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   claim that the full per-scanline object oracle remained unfinished. No
   compiler or renderer source changes are made in this slice.
 
+2026-07-31 16:41:34 PDT, publish measured visible-component handoff contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b2. The next unfinished roadmap item is 22i4b4,
+  the repeatable-template composition proof.
+* Add common machine-readable fields to all eleven maintained visible template
+  components: physical draw entry and return cycles, complete and partial
+  scanline ownership, terminal-WSYNC ownership, draw-time HMOVE count, and
+  whether a successor may begin on the return line. The four six-glyph
+  displays, poison score, official/unofficial 181-line player-color and
+  all-five profiles, and both official 192-line profiles now publish one
+  consistent contract.
+* Expand `libraries/vcs/renderers/COMPONENT_CONVERSION.md` with the measured
+  cycle-3 entry/cycle-zero return table and complete per-family TIA required,
+  established, clobbered, preserved, and guaranteed-exit state. Distinguish the
+  composable 11/181-line profiles from the full-field 192-line profiles, whose
+  cycle-zero return is reserved for the scheduler's immediate VBLANK transition.
+* Add `vcs_visible_component_handoff.pl`. It locks every published value,
+  cross-checks HMOVE counts against the actual draw bodies, requires each
+  terminal WSYNC, rejects scheduler/audio ownership, verifies the single
+  three-cycle `BIT.z CXM0P` bridge, and requires the installed ownership table.
+* Make the existing two-centered-score fixtures use the calibrated blank-gap
+  helper and explicit component handoff. Both independent instances retain
+  distinct values, run in both draw orders, enter at raw scanlines 125 and 136,
+  and preserve exact 262-line frames. This is useful progress on 22i4b4, but the
+  parent remains open pending the full exact-pixel/arbitrary-placement and
+  hostile/gameplay predecessor matrix.
+* Update the VCS and test catalogs. No renderer instruction schedule, compiler,
+  public example, or removal-ledger entry changes.
+* Verification: 334/334 compile-only tests pass. All 198 end-to-end/generic
+  tests pass across a split run: the first 173 passed before the outer timeout,
+  and the remaining 25 passed explicitly. Focused component, composition,
+  baseline, and new handoff regressions also pass.

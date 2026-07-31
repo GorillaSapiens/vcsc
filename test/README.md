@@ -173,6 +173,11 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
+`vcs_six_glyph_component.pl` now also builds two independent centered score
+instances with distinct values in both draw orders. The pair fixtures use the
+calibrated blank-gap helper and the explicit three-cycle handoff; execution locks
+both entries at raw scanlines 125 and 136 and retains exact 262-line frames.
+
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,
@@ -371,6 +376,13 @@ combined used bytes, and physical free bytes exactly.
 component, checks zero instance RAM, all intended hostile TIA writes, exactly
 11 WSYNC stores, the red-background sentinel, prohibited frame/timer ownership,
 and stable 262-line standalone scheduling.
+
+`vcs_visible_component_handoff.pl` locks the machine-readable draw-entry,
+return, whole/partial-line, terminal-WSYNC, HMOVE-count, and successor-on-return-
+line fields for all eleven maintained visible components. It cross-checks each
+published HMOVE count against the actual draw body, requires the final WSYNC,
+rejects scheduler/audio ownership, verifies the three-cycle bridge, and requires
+the complete TIA ownership/exit-state table in the installed conversion report.
 
 
 `vcs_poison_player_color_handoff.pl` composes the poison debug score above

@@ -16,8 +16,18 @@
 // the boundary after the 192nd visible line; overscan() clears gameplay state
 // and restores application Y values.
 
+// The machine-readable visible handoff fields below are defined in
+// renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := 192,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := 192,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := 0,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 0,
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 66,
    TEMPLATE_OBJECT_COUNT := 5,

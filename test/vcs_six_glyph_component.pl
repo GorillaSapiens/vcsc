@@ -82,6 +82,17 @@ for my $variant ([$component,'centered'],[$left_component,'left'],[$right_compon
 }
 my $left_source=read_file($left_component);
 my $right_source=read_file($right_component);
+my $pair_source=read_file($src);
+my $pair_reverse_source=read_file($reverse_src);
+for my $pair ([$pair_source,'normal'],[$pair_reverse_source,'reversed']) {
+   my($text,$name)=@$pair;
+   $text =~ /upper_score\s*:=\s*123456/ && $text =~ /lower_score\s*:=\s*654321/
+      or die "$name pair lost distinct score values\n";
+   $text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*85\s*\)/
+      or die "$name pair does not calibrate its first component entry\n";
+   $text =~ /_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*\w+_draw\(\);/s
+      or die "$name pair lacks the measured three-cycle component handoff\n";
+}
 $left_source =~ /Position P0 at x=0 and P1 at x=8/
    or die "left component no longer documents its exact X range\n";
 $right_source =~ /Position P0 at x=112 and P1 at x=120/
@@ -111,6 +122,20 @@ for my $case ([normal => $bin], [reversed => $reverse_bin]) {
    $out =~ /vcs_frame_timing ok: 47 frames at 262 lines/
       or die "unexpected $name timing output: $out";
    $err eq '' or die "$name timing harness stderr: $err";
+}
+
+my $entry_src=File::Spec->catfile($repo,qw(test vcs_six_glyph_standalone_entry.cpp));
+my $entry_exe=File::Spec->catfile($tmp,'vcs_six_glyph_pair_entry');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$entry_src,@mos_input,'-o',$entry_exe);
+$rc==0 && !$sig or die "pair-entry harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "pair-entry harness build wrote output\n$out$err";
+for my $case ([normal => $bin], [reversed => $reverse_bin]) {
+   my($name,$rom)=@$case;
+   ($rc,$sig,$out,$err)=capture($entry_exe,$rom,'125','136');
+   $rc==0 && !$sig or die "$name pair-entry contract failed\n$out$err";
+   $out eq "vcs_six_glyph_standalone_entry ok: calibrated lines 125 and 136 entries and 262-line frames\n"
+      or die "unexpected $name pair-entry output: $out";
+   $err eq '' or die "$name pair-entry stderr: $err";
 }
 
 # Every lifecycle function is a component contract, not merely a convention.

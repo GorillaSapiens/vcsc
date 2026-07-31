@@ -246,8 +246,8 @@ void require_left_component_entry(const std::vector<Event> &events, uint64_t lin
 }
 
 int main(int argc, char **argv) {
-   if (argc != 2 && argc != 3) {
-      std::fprintf(stderr, "usage: %s ROM.bin [fingerprint|SECOND_ENTRY_LINE]\n", argv[0]);
+   if (argc != 2 && argc != 3 && argc != 4) {
+      std::fprintf(stderr, "usage: %s ROM.bin [fingerprint|SECOND_ENTRY_LINE|FIRST_ENTRY_LINE SECOND_ENTRY_LINE]\n", argv[0]);
       return 2;
    }
    Machine machine(argv[1]);
@@ -261,19 +261,38 @@ int main(int argc, char **argv) {
       return 0;
    }
 
-   require_component_entry(events, 131);
-   if (argc == 3) {
+   unsigned long first = 131;
+   unsigned long second = 0;
+   if (argc == 4) {
       char *end = nullptr;
-      const unsigned long line = std::strtoul(argv[2], &end, 0);
+      first = std::strtoul(argv[2], &end, 0);
+      if (!end || *end != '\0') {
+         std::fprintf(stderr, "bad first entry line: %s\n", argv[2]);
+         return 2;
+      }
+      end = nullptr;
+      second = std::strtoul(argv[3], &end, 0);
+      if (!end || *end != '\0') {
+         std::fprintf(stderr, "bad second entry line: %s\n", argv[3]);
+         return 2;
+      }
+   }
+   else if (argc == 3) {
+      char *end = nullptr;
+      second = std::strtoul(argv[2], &end, 0);
       if (!end || *end != '\0') {
          std::fprintf(stderr, "bad second entry line: %s\n", argv[2]);
          return 2;
       }
-      require_component_entry(events, line);
-      std::printf("vcs_six_glyph_standalone_entry ok: calibrated lines 131 and %lu entries and 262-line frames\n", line);
+   }
+
+   require_component_entry(events, first);
+   if (second) {
+      require_component_entry(events, second);
+      std::printf("vcs_six_glyph_standalone_entry ok: calibrated lines %lu and %lu entries and 262-line frames\n", first, second);
    }
    else {
-      std::printf("vcs_six_glyph_standalone_entry ok: calibrated line 131 entry and 262-line frames\n");
+      std::printf("vcs_six_glyph_standalone_entry ok: calibrated line %lu entry and 262-line frames\n", first);
    }
    return 0;
 }

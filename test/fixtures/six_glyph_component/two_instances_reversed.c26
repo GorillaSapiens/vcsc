@@ -29,8 +29,9 @@ void main(void) {
       lower_vblank();
       vcs_ntsc_end_vblank();
 
-      vcs_ntsc_wait_scanlines(85);
+      vcs_ntsc_wait_component_scanlines(85);
       lower_draw();
+      vcs_ntsc_component_handoff();
       upper_draw();
       vcs_ntsc_wait_scanlines(85);
 
