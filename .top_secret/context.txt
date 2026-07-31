@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260729_033205.tar.gz
+    vcsc.20260731_202400.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -68,12 +68,20 @@ Example hierarchy policy
       examples/01_basic/
       examples/02_faithful_legacy_playercolors/
       examples/03_player_color_192/
-      examples/04_player_color_181/01_score_above/
-      examples/04_player_color_181/02_score_below/
+      examples/04_player_color_181/
+      examples/05_all_five_192/
+      examples/06_all_five_181/
+      examples/07_player_color_181_unofficial/
+      examples/08_all_five_181_unofficial/
 
+* The current tree contains fifteen public leaf cartridges: four basic
+  examples, one faithful legacy diagnostic, one 192-line player-color
+  diagnostic, two official 181-line player-color score layouts, one 192-line
+  all-five diagnostic, two official 181-line all-five score layouts, and four
+  matched unofficial 181-line score-layout examples.
 * Every leaf directory contains exactly one editable `.c26` cartridge, one
   Makefile, and one README. Renderer and layout directories have READMEs that
-  document the shared timing, resource, and composition contracts.
+  document the shared timing, resource, opcode, and composition contracts.
 * Tests must not assume examples are exactly one directory below `examples/`.
   The general build test discovers leaf `.c26` files recursively. Tests that
   validate a specific renderer matrix may keep explicit nested case metadata.
@@ -687,11 +695,11 @@ Result: passed.
 
 Compile suite:
 
-    317 passed, 0 failed, 317 total
+    334 passed, 0 failed, 334 total
 
 End-to-end/generic suite:
 
-    190 passed, 0 failed, 190 total
+    197 passed, 0 failed, 197 total
 
 Staged install check:
 
@@ -707,7 +715,11 @@ diagnostic, while retained generic e2e tests use `test/generic_6502.cfg`.
 
 Immediate TODO
 --------------
-The first unfinished item is the default next action.
+The first unfinished leaf item is the default next action. Parent items remain
+unchecked until every child is complete.
+
+Current next action: 22i4b1b — finish the full P0/P1/M0/M1/Ball pixel oracle,
+including endpoint positions and every transition and terminal line.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1505,21 +1517,23 @@ The first unfinished item is the default next action.
                               stack, collision, opcode, multiple-instance, and linked-
                               byte contracts.
 
-                              [x] 22i4a. Migrate the former examples 05 through 08
-                                         (now 06 through 09) from the monoliths to the
-                                         nominal official 181-line components and add
-                                         the former example 09 (now 10) using the
-                                         official 192-line all-five component with
-                                         simultaneous P0 X/Y motion. Treat examples
-                                         05 through 08 as provisional until 22i4b:
-                                         their moving score raster may currently be
-                                         accidental inheritance of gameplay NUSIZ
-                                         and P0/P1 position state, not a valid score-
-                                         component feature.
+                              [x] 22i4a. Migrate the maintained gameplay
+                                         examples from monolithic renderers to the
+                                         explicit lifecycle-component families. The
+                                         current renderer-grouped public tree includes
+                                         official 181-line score-above/score-below and
+                                         official 192-line scoreless examples for both
+                                         player-color and all-five profiles, plus
+                                         matched public unofficial 181-line examples.
+                                         The centered score now establishes its own
+                                         P0/P1 state on every draw, so the old
+                                         provisional inherited-state warning no longer
+                                         applies.
 
                               [ ] 22i4b. STOP-SHIP correctness gate for every visible
-                                         component already present. This work is next.
-                                         Do not begin tasks 23 through 25 and do not
+                                         component already present. The next unfinished
+                                         leaf is 22i4b1b. Do not begin tasks 23 through
+                                         25 and do not
                                          retire either predecessor until all 22i4b
                                          substeps pass from both source and staged
                                          installed toolchains.
@@ -1596,45 +1610,27 @@ The first unfinished item is the default next action.
                                                     intended playfield pixel across all
                                                     rows and especially each first row
                                                     scanline.
-                                                    [ ] 22i4b1a. Finish ordinary and
+                                                    [x] 22i4b1a. Finish ordinary and
                                                                terminal playfield correctness.
-                                                               Earlier evidence was insufficient:
-                                                               removing the inherited PF1/PF2
-                                                               clears preserved the old row but
-                                                               did not by itself prove the next
-                                                               row's first line or component
-                                                               boundaries on real TIA timing.
-                                                               [x] Replace the transition-line
-                                                                   clears in all six components.
-                                                               [x] Repair all-five ordinary rows
-                                                                   with a strict source-bitmap oracle:
-                                                                   restore staged PF1 at cycle 8
-                                                                   during horizontal blank, retain
-                                                                   PF2/right writes at 28/38/45,
-                                                                   verify all 28,160 intended pixels
-                                                                   across eleven 16-line rows, and
-                                                                   screenshot example 05 in Stella.
-                                                               [x] Keep the all-five visible setup
-                                                                   line wholly blank instead of writing
-                                                                   the first PF1 byte late on that line.
-                                                                   Restore the staged byte on the first
-                                                                   real row and prove exact pixels for
-                                                                   both score-above and score-below
-                                                                   compositions used by examples 05/06.
-                                                               [x] Move both official/unofficial
-                                                                   181-line terminal cleanups past
-                                                                   the visible-row boundary while
-                                                                   preserving exact 181-line timing.
-                                                               [x] Repair the player-color first-row
-                                                                   entry without corrupting per-line
-                                                                   color timing; prove P0/P1/BL
-                                                                   positioning for every X=0..159.
-                                                               [x] Capture and review Stella 7.0
-                                                                   screenshots for score-above first-row
-                                                                   and 192-line terminal-band fixtures.
-                                                               [x] Prove the 192-line special twelfth-row
-                                                                   entry/exit paths with terminal P0/P1
-                                                                   color and Ball-raster evidence.
+                                                               All six maintained gameplay
+                                                               components now have measured
+                                                               physical modulo-76 schedules and
+                                                               pixel evidence for setup, ordinary,
+                                                               row-transition, and terminal lines.
+                                                               The player-color family retains its
+                                                               proven per-row-color schedule. The
+                                                               corrected all-five family uses the
+                                                               verified circular schedule: ordinary
+                                                               reflected PF2/PF1 writes complete at
+                                                               cycles 48/55, and row boundaries use
+                                                               PF1 at cycle 45 followed by PF2 at
+                                                               cycle 48. Both official 181-line score
+                                                               orders, the official 192-line profile,
+                                                               and the matched unofficial 181-line
+                                                               score orders render clean playfields
+                                                               in Stella. Obsolete earlier target
+                                                               cycles and transition-clearing recipes
+                                                               are removed from the roadmap.
                                                     [ ] 22i4b1b. Finish the full player/object
                                                                pixel oracle for P0/P1/M0/M1/Ball,
                                                                including endpoint positions and
@@ -1665,7 +1661,7 @@ The first unfinished item is the default next action.
                                                         with `vcs_ntsc_component_handoff()` and
                                                         verify both composition orders.
 
-                                         [ ] 22i4b3. Repair the centered six-glyph
+                                         [x] 22i4b3. Repair the centered six-glyph
                                                     score so every draw is independent
                                                     of arbitrary incoming TIA state.
                                                     `init()` initializes instance RAM;
@@ -1746,15 +1742,18 @@ The first unfinished item is the default next action.
                                          progression and complete the remaining score-
                                          composition matrix before beginning task 23.
 
-                                         [x] 22i4c0. Rebuild `examples/` as thirteen
-                                                    canonical cartridges: blank screen,
-                                                    Ode to Joy, centered score,
-                                                    fingerprint, then a 3x3 multicolor
-                                                    P0+P1+Ball matrix crossing full/
-                                                    score-above/score-below with static,
-                                                    X-only motion, and X+Y motion. Keep
-                                                    five-object demonstrations private
-                                                    until task 23 actually begins.
+                                         [x] 22i4c0. Establish the renderer-grouped
+                                                    fifteen-cartridge public baseline:
+                                                    four basic examples; faithful legacy,
+                                                    player-color 192, and all-five 192
+                                                    interactive diagnostics; official
+                                                    score-above/score-below 181-line
+                                                    examples for both gameplay families;
+                                                    and matched unofficial 181-line
+                                                    examples. The former thirteen-example
+                                                    flat matrix and its rule keeping
+                                                    five-object examples private are
+                                                    obsolete and removed.
 
                                          [ ] 22i4c1. After the left/right two-plus-two
                                                     score component exists, add its
@@ -6815,3 +6814,26 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   the remaining 23 run explicitly. The focused unofficial pair, official 181,
   renderer-baseline, and five public all-five interactive-example tests pass.
   Staged `make installcheck` also passes.
+
+2026-07-31 13:39:35 PDT, reconcile the roadmap after renderer repairs
+-------------------------------------------------------------------------------
+* Review the Immediate TODO against the current source tree, public examples,
+  renderer documentation, focused regressions, and the completed July 31
+  all-five schedule repairs.
+* Mark 22i4b1a complete. All six maintained gameplay components now have
+  ordinary, row-transition, setup, and terminal playfield correctness evidence;
+  remove the superseded all-five target cycles and transition recipes from the
+  live roadmap.
+* Mark 22i4b3 complete because the centered six-glyph score now establishes its
+  P0/P1 state on every draw and has hostile-state plus both-order composition
+  evidence while retaining its eleven-line contract.
+* Replace the obsolete thirteen-cartridge/private-all-five example milestone
+  with the actual renderer-grouped fifteen-cartridge public baseline. Remove the
+  old provisional inherited-score-state warning from completed task 22i4a.
+* Keep 22i4b, 22i4b1, 22i4b2, 22i4b4 through 22i4b6, 22i4c, and 22i4d open.
+  The next unfinished leaf item is 22i4b1b: complete the full player/object pixel
+  oracle for P0, P1, M0, M1, and Ball, including endpoints and every transition
+  and terminal line.
+* Refresh the active archive name, example hierarchy summary, and current
+  334/334 compile-only and 197/197 end-to-end totals. No source, test, renderer,
+  example, or removal-ledger files change in this documentation-only pass.
