@@ -1856,6 +1856,66 @@ including endpoint positions and every transition and terminal line.
         which renderers/components are portable unchanged, require a SECAM palette,
         or are intentionally unavailable.
 
+[ ] 34. Add a public animated-sprites example that changes player bitmap frames at
+        runtime rather than merely moving a static glyph. Exercise at least one
+        multi-frame animation for each player, preserve renderer timing, document
+        source-row ordering and frame-rate control, and verify the expected frame
+        sequence and pixels under Stella from the staged installed toolchain.
+
+[ ] 35. Add first-class support for two paddle controllers on one controller port.
+        Define a stable VCSC API for the two analog paddle positions and both paddle
+        fire buttons, own the required dump/charge timing explicitly, document
+        scheduler interaction and calibration/range behavior, and add emulator-backed
+        tests plus a small input example.
+
+[ ] 36. Extend paddle support to four simultaneous paddle controllers across both
+        controller ports. Keep the two-paddle API usable as a strict subset, expose
+        four independent positions and buttons, prove that sampling all four stays
+        within the declared frame-phase budget, and add tests and an example that
+        distinguish every channel.
+
+[ ] 37. Add keypad-controller support for a keypad connected to either the left or
+        right controller port. Implement explicit matrix scanning without disturbing
+        the other port, report all twelve keys with stable press/release semantics,
+        document electrical direction and timing ownership, and add left-port and
+        right-port emulator-backed fixtures plus a public example.
+
+[ ] 38. Add support for Atari Indy 500 driving controllers. Decode quadrature motion
+        and fire buttons for either port, preserve direction across wraparound and
+        rapid transitions, define per-frame accumulation/reset semantics, and add
+        emulator-backed tests plus an example that exercises one and two controllers.
+
+[ ] 39. Add a public diagnostic cartridge that exercises and reports the supported
+        console switches, controller types, TIA objects, playfield, colors, collisions,
+        and audio. Keep the displayed results unambiguous, include deterministic
+        self-test screens where practical, document required controller hookups, and
+        verify every screen or mode with staged-toolchain and emulator-backed tests.
+
+[ ] 40. Add a small Pong-like two-player example game using paddle controllers.
+        Include independent paddle input, ball motion, paddle and boundary collision,
+        serving/reset behavior, score display, and a complete playable frame loop.
+        Use original code and graphics, document the renderer/controller composition,
+        and cover deterministic gameplay transitions with emulator-backed tests.
+
+[ ] 41. Add a small two-player joystick tank-duel example in the spirit of Combat.
+        Include independent movement and facing, projectile firing, arena/playfield
+        collision, hit/reset or scoring behavior, and a complete playable frame loop.
+        Use original code and graphics, document object allocation and input mapping,
+        and add deterministic emulator-backed gameplay tests.
+
+[ ] 42. Add playfield-color support as an explicit renderer capability. Define
+        whether colors are global, per logical row, or both; schedule every COLUPF
+        write against the beam; preserve existing renderer output when unused; expose
+        a clear application data/API contract; and add static, motion, transition,
+        installation, and pixel/color-oracle coverage for each supported profile.
+
+[ ] 43. Add a public side-scroller/platform example. Demonstrate animated player
+        sprites, horizontal world scrolling, platform/playfield collision, jumping
+        and gravity, camera/world-state separation, and at least one collectible,
+        hazard, or goal. Use original assets, stay within a documented RAM/ROM/frame
+        budget, and add deterministic emulator-backed tests for scrolling, collision,
+        animation, and completion/reset behavior.
+
 Inline assembly absolute-ref rules
 ----------------------------------
 Inline assembly remains single-line and mostly opaque, but source-level
@@ -1945,17 +2005,18 @@ output cartridge-ROM usage reporting, and task 20v added the first stack-safe
 gameplay integration boundary. Task 21 added the separate P0+P1+BL per-logical-
 row player-color profile with no missiles.
 
-Task 22 is next: add the `require`/`recommend` use-contract metadata and
-`template "file.c26" as instance` source-instantiation system specified in
-`TEMPLATE.md`, then prove the lifecycle contract with two independent six-glyph
-display instances. Task 23 is the explicitly optional all-five-object player-
-color profile. Tasks 24 and 25 add widely spaced and left/right dual-score six-
-glyph display variants. Task 26 records the resulting renderer- and score-display-
-authoring process as a HOWTO. The former task 20w multisprite placeholder has
-been removed from task 20 and expanded into tasks 27 through 30: multisprite
-contract and normalization, minimal unbanked integration, general 8K+
-bankswitching, and Superchip support. Task 31 adds measured fixed-point inlining
-of single-call-site internal functions.
+Task 22 remains the active roadmap family: finish the current correctness and
+composition gates before beginning tasks 23 through 25. Task 23 is the explicitly
+optional all-five-object player-color profile. Tasks 24 and 25 add widely spaced
+and left/right dual-score six-glyph display variants. Task 26 records the resulting
+renderer- and score-display-authoring process as a HOWTO. The former task 20w
+multisprite placeholder has been removed from task 20 and expanded into tasks 27
+through 30: multisprite contract and normalization, minimal unbanked integration,
+general 8K+ bankswitching, and Superchip support. Task 31 adds measured fixed-point
+inlining of single-call-site internal functions. Tasks 32 and 33 add native PAL
+and SECAM target families. Tasks 34 through 43 add animated-sprite and game
+examples, paddle/keypad/driving-controller support, a diagnostic cartridge,
+playfield colors, and a side-scroller/platform example.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
   assembly. Current integrations declare known hidden use explicitly through
@@ -6837,3 +6898,19 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Refresh the active archive name, example hierarchy summary, and current
   334/334 compile-only and 197/197 end-to-end totals. No source, test, renderer,
   example, or removal-ledger files change in this documentation-only pass.
+
+2026-07-31 14:41:51 PDT, expand controller and gameplay-example roadmap
+-------------------------------------------------------------------------------
+* Add ten separate roadmap items without changing the current next action
+  22i4b1b or weakening the existing stop-ship renderer gate.
+* Add a public animated-sprites example; two-paddle and four-paddle controller
+  support; keypad support on either port; Indy 500 driving-controller support;
+  and a public diagnostic cartridge.
+* Add playable Pong-like paddle and joystick tank-duel examples, explicit
+  playfield-color support, and a side-scroller/platform example with animation,
+  scrolling, collision, and deterministic emulator-backed coverage.
+* Number the new work as tasks 34 through 43 after the existing NTSC/PAL/SECAM,
+  multisprite, bankswitching, Superchip, and inlining roadmap items. No source,
+  test, renderer, example, or removal-ledger files change in this documentation-
+  only pass.
+
