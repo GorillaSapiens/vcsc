@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260731_202400.tar.gz
+    vcsc.20260731_150336.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -718,8 +718,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b1b — finish the full P0/P1/M0/M1/Ball pixel oracle,
-including endpoint positions and every transition and terminal line.
+Current next action: 22i4b1b2 — extend the object-pixel oracle to the scoreless
+all-five 192-line profile, including both horizontal endpoints.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1636,6 +1636,33 @@ including endpoint positions and every transition and terminal line.
                                                                including endpoint positions and
                                                                every transition/terminal line,
                                                                before 22i4b1 is complete.
+                                                               [x] 22i4b1b1. Lock all-five 181-line
+                                                                          horizontal endpoint
+                                                                          positioning and clipping.
+                                                                          For both score orders and
+                                                                          both official/opcode-policy
+                                                                          variants, trace every P0/P1
+                                                                          visible-handoff RESP/HMxx
+                                                                          transaction and every M0/M1/
+                                                                          Ball VBLANK RESP/HMxx/HMOVE
+                                                                          transaction across all 360
+                                                                          asynchronous-motion frames.
+                                                                          Require all five objects to
+                                                                          reach X=0 and X=159 and check
+                                                                          their clipped 160-pixel spans
+                                                                          using the fixture's player
+                                                                          glyphs, four-clock missiles,
+                                                                          and four-clock Ball.
+                                                               [ ] 22i4b1b2. Extend the same independent
+                                                                          endpoint-position and clipped-
+                                                                          pixel evidence to the scoreless
+                                                                          all-five 192-line profile.
+                                                               [ ] 22i4b1b3. Complete pixel-accurate
+                                                                          P0/P1/M0/M1/Ball reconstruction
+                                                                          on every ordinary, setup, row-
+                                                                          transition, and terminal line
+                                                                          for every maintained profile;
+                                                                          then close 22i4b1b.
 
                                          [ ] 22i4b2. Define and publish a measured
                                                     visible-component handoff contract.
@@ -6914,3 +6941,24 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   test, renderer, example, or removal-ledger files change in this documentation-
   only pass.
 
+
+2026-07-31 15:03:36 PDT, add all-five 181 object endpoint oracle slice
+-------------------------------------------------------------------------------
+* Split the remaining 22i4b1b stop-ship object-pixel work into three ordered,
+  independently finishable slices. Mark 22i4b1b1 complete and make the
+  scoreless all-five 192-line endpoint slice 22i4b1b2 the next action.
+* Extend `vcs_all_five_composition.cpp` to retain frame-relative TIA writes and
+  prove the actual horizontal-position transactions used by both official and
+  unofficial 181-line all-five renderers in score-above and score-below order.
+  P0/P1 must match their visible-handoff RESP/HMxx schedule; M0/M1/Ball must
+  match their VBLANK RESP/HMxx/HMOVE schedule.
+* Run the asynchronous fixtures for 360 frames, require every object to reach
+  X=0 and X=159, and check clipped 160-pixel spans for the fixtures' normal-
+  width player glyphs, four-clock missiles, and four-clock Ball. This closes
+  only the 181-line endpoint slice; full per-scanline transition and terminal
+  object reconstruction remains open.
+* Update the test catalog. No renderer, compiler, example, or removal-ledger
+  file changes are made.
+* Verification: 334/334 compile-only tests pass. The focused official
+  `vcs_all_five_composition.pl` and unofficial `vcs_all_five_181_unofficial.pl`
+  regressions pass, including both score orders and all 360 motion frames.

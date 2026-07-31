@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -21,11 +22,20 @@ constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kPf1 = 0x000E;
 constexpr uint16_t kPf2 = 0x000F;
+constexpr uint16_t kNusiz0 = 0x0004;
+constexpr uint16_t kNusiz1 = 0x0005;
+constexpr uint16_t kResp0 = 0x0010;
+constexpr uint16_t kResp1 = 0x0011;
+constexpr uint16_t kResm0 = 0x0012;
+constexpr uint16_t kResm1 = 0x0013;
+constexpr uint16_t kResbl = 0x0014;
 constexpr uint16_t kGrp0 = 0x001B;
 constexpr uint16_t kGrp1 = 0x001C;
 constexpr uint16_t kEnam0 = 0x001D;
 constexpr uint16_t kEnam1 = 0x001E;
 constexpr uint16_t kEnabl = 0x001F;
+constexpr uint16_t kHmp0 = 0x0020;
+constexpr uint16_t kHmp1 = 0x0021;
 constexpr uint16_t kHmm0 = 0x0022;
 constexpr uint16_t kHmm1 = 0x0023;
 constexpr uint16_t kHmbl = 0x0024;
@@ -38,7 +48,16 @@ constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
 constexpr int kMotionFrames = 360;
 
+enum Object : size_t { P0, P1, M0, M1, BL, ObjectCount };
+
 struct WriteEvent { uint16_t address; uint8_t value; };
+struct TimedWrite {
+   uint64_t line;
+   uint64_t cycle;
+   uint64_t beam_cycle;
+   uint16_t address;
+   uint8_t value;
+};
 struct FrameStats {
    std::vector<unsigned> vblank_two_lines;
    int vblank_clear_line = -1;
@@ -63,6 +82,8 @@ uint16_t timer_divisor = 1;
 uint8_t timer_loaded = 0;
 std::vector<uint64_t> frame_periods;
 std::vector<FrameStats> frames;
+std::map<int,std::vector<TimedWrite>> timed_writes;
+std::map<int,std::array<uint8_t,ObjectCount>> frame_x;
 bool score_above = false;
 bool motion_mode = false;
 uint8_t object_x_zp = 0;
@@ -148,6 +169,7 @@ void check_motion_state() {
    if (memory_image[motion_frame_zp] != expected_motion_frame)
       fail("motion frame counter did not advance exactly once per frame");
    advance_expected();
+   frame_x[frame]=expected_x;
 }
 
 void classify_write(const WriteEvent &event) {
@@ -178,6 +200,14 @@ void classify_write(const WriteEvent &event) {
 
 void apply_writes() {
    for (const WriteEvent &event : writes) {
+      if (frame >= 0 && frame < (motion_mode ? kMotionFrames : 12) &&
+          event.address != kWsync && event.address != kVsync) {
+         const uint64_t relative=virtual_cycles-frame_start;
+         timed_writes[frame].push_back({relative/kCyclesPerLine,
+                                        relative%kCyclesPerLine,
+                                        virtual_cycles%kCyclesPerLine,
+                                        event.address,event.value});
+      }
       if (event.address == kWsync) {
          const uint64_t within = virtual_cycles % kCyclesPerLine;
          virtual_cycles += within ? kCyclesPerLine-within : kCyclesPerLine;
@@ -227,6 +257,135 @@ void apply_writes() {
    writes.clear();
 }
 
+
+uint8_t expected_hmp(uint8_t x) {
+   static constexpr std::array<uint8_t,16> table{{
+      0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
+      0x00,0xF0,0xE0,0xD0,0xC0,0xB0,0xA0,0x90
+   }};
+   int remainder=x;
+   do remainder-=15; while (remainder>=0);
+   return table[static_cast<size_t>(16+remainder)];
+}
+int expected_resp_cycle(uint8_t x) {
+   return 18+5*(static_cast<int>(x)/15+1);
+}
+uint8_t expected_handoff_hmp(uint8_t x) {
+   const int remainder=x%15;
+   const int steps=x/15+1+(remainder>=13 ? 1 : 0);
+   const int signed_motion=15*steps-11-x;
+   return static_cast<uint8_t>((signed_motion&15)<<4);
+}
+int expected_handoff_resp_cycle(uint8_t x) {
+   const int remainder=x%15;
+   const int steps=x/15+1+(remainder>=13 ? 1 : 0);
+   return 9+5*steps;
+}
+std::array<uint8_t,ObjectCount> desired_x_for_frame(int checked) {
+   if (!motion_mode) return {{20,130,50,110,80}};
+   const auto found=frame_x.find(checked);
+   if (found==frame_x.end()) fail("missing desired-position frame");
+   return found->second;
+}
+const TimedWrite *find_write(int checked,uint16_t address,uint64_t first_line,
+                             uint64_t last_line) {
+   const auto found=timed_writes.find(checked);
+   if (found==timed_writes.end()) return nullptr;
+   for (const TimedWrite &write:found->second)
+      if (write.address==address && write.line>=first_line && write.line<=last_line)
+         return &write;
+   return nullptr;
+}
+void verify_object_positioning_and_endpoints() {
+   const uint64_t game_first=score_above ? 51 : 40;
+   const int last=motion_mode ? kMotionFrames-1 : 11;
+   for (int checked=2;checked<=last;++checked) {
+      const auto x=desired_x_for_frame(checked);
+      const auto found=timed_writes.find(checked);
+      if (found==timed_writes.end()) fail("missing object-position trace");
+
+      // P0/P1 are deliberately re-positioned after the score component has
+      // finished.  Verify the visible-entry transaction rather than accepting
+      // the public RAM value as proof of where the TIA will draw them.
+      for (Object object:std::array<Object,2>{{P0,P1}}) {
+         const uint64_t line=game_first+(object==P0 ? 1 : 0);
+         const uint16_t resp=static_cast<uint16_t>(kResp0+object);
+         const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
+         const TimedWrite *rw=find_write(checked,resp,line,line);
+         const TimedWrite *hw=nullptr;
+         if (rw) {
+            for (const TimedWrite &write:found->second) {
+               if (write.address!=hmp) continue;
+               if (write.line<rw->line || (write.line==rw->line && write.cycle<rw->cycle))
+                  hw=&write;
+            }
+         }
+         if (!rw || !hw || static_cast<int>(rw->cycle)!=expected_handoff_resp_cycle(x[object]) ||
+             (hw->value&0xf0)!=expected_handoff_hmp(x[object])) {
+            std::fprintf(stderr,
+               "vcs_all_five_composition: frame %d P%zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
+               checked,static_cast<size_t>(object),x[object],
+               rw ? static_cast<long long>(rw->cycle) : -1LL,
+               expected_handoff_resp_cycle(x[object]),hw ? hw->value : 0xff,
+               expected_handoff_hmp(x[object]));
+            std::exit(1);
+         }
+      }
+
+      // M0/M1/Ball keep their VBLANK positioning.  Match each RESP/HM pair
+      // before visible drawing, then require the common HMOVE transaction.
+      for (Object object:std::array<Object,3>{{M0,M1,BL}}) {
+         const uint16_t resp=static_cast<uint16_t>(kResp0+object);
+         const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
+         const TimedWrite *rw=nullptr,*hw=nullptr;
+         for (const TimedWrite &write:found->second) {
+            if (write.line>=40) break;
+            if (write.address==resp) { rw=&write; hw=nullptr; }
+            else if (rw && !hw && write.address==hmp) hw=&write;
+         }
+         if (!rw || !hw || static_cast<int>(rw->beam_cycle)!=expected_resp_cycle(x[object]) ||
+             hw->value!=expected_hmp(x[object])) {
+            std::fprintf(stderr,
+               "vcs_all_five_composition: frame %d object %zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
+               checked,static_cast<size_t>(object),x[object],
+               rw ? static_cast<long long>(rw->beam_cycle) : -1LL,
+               expected_resp_cycle(x[object]),hw ? hw->value : 0xff,
+               expected_hmp(x[object]));
+            std::exit(1);
+         }
+      }
+      bool saw_hmove=false;
+      for (const TimedWrite &write:found->second)
+         if (write.line<40 && write.address==kHmove) { saw_hmove=true; break; }
+      if (!saw_hmove) fail("VBLANK object positioning omitted HMOVE");
+
+      // Convert the proven TIA positions into clipped visible pixels.  The
+      // diagnostic fixtures use normal-width players with top rows $3c/$7c,
+      // four-clock missiles, and a four-clock Ball.
+      const std::array<uint8_t,2> glyph{{0x3c,0x7c}};
+      for (Object object:std::array<Object,2>{{P0,P1}}) {
+         unsigned actual=0;
+         for (unsigned pixel=0;pixel<160;++pixel) {
+            if (pixel<x[object] || pixel>=static_cast<unsigned>(x[object])+8) continue;
+            const unsigned bit=7-(pixel-x[object]);
+            if ((glyph[object]>>bit)&1u) ++actual;
+         }
+         unsigned expected=0;
+         for (unsigned bit=0;bit<8;++bit)
+            if ((glyph[object]&(0x80u>>bit)) && static_cast<unsigned>(x[object])+bit<160)
+               ++expected;
+         if (actual!=expected) fail("player endpoint pixel clipping mismatch");
+      }
+      for (Object object:std::array<Object,3>{{M0,M1,BL}}) {
+         const unsigned expected=x[object]<=156 ? 4u : 160u-x[object];
+         unsigned actual=0;
+         for (unsigned pixel=0;pixel<160;++pixel)
+            if (pixel>=x[object] && pixel<static_cast<unsigned>(x[object])+4) ++actual;
+         if (actual!=expected) fail("missile/Ball endpoint pixel clipping mismatch");
+      }
+   }
+}
+
 void verify_frames() {
    const int needed = motion_mode ? kMotionFrames : 12;
    if (frame < needed) fail("instruction limit reached before enough frames");
@@ -247,6 +406,7 @@ void verify_frames() {
       for (size_t i=0;i<5;++i)
          if (!saw_low[i] || !saw_high[i]) fail("a moving object failed to reach both X endpoints");
    }
+   verify_object_positioning_and_endpoints();
 }
 } // namespace
 

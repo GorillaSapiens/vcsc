@@ -218,7 +218,11 @@ score-below cartridges around the 181-line component. It requires explicit
 component handoff, stable 262-line frames, complete five-object activity, clean
 score regions, full-range object motion, restored application Y state, no
 immediate `HMCLR` after the non-player HMOVE, and zero M0/M1/Ball fine-motion
-values at every later HMOVE.
+values at every later HMOVE. Its endpoint slice now verifies the observed
+RESP/HMxx/HMOVE positioning transactions for P0, P1, M0, M1, and Ball in all
+360 motion frames, then checks the clipped 160-pixel spans at both horizontal
+endpoints for the fixture's player glyphs, four-clock missiles, and four-clock
+Ball. The full per-scanline object-pixel oracle remains a later stop-ship slice.
 
 `vcs_all_five_181_unofficial.pl` checks the separately named unofficial twin
 against the corrected official schedule. It requires identical RAM addresses,
