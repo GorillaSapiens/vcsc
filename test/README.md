@@ -211,7 +211,12 @@ to cycles 17/24/45/52 on both alternating scanline halves and bounds every
 row-transition write, so a two-cycle P1/P0 reflected-half mismatch cannot hide
 behind the byte-level raster model. They also reject every late P0/P1 transfer
 and every effective M0/M1 enable-state change after horizontal blanking,
-covering the same extreme-right row-tearing failure for all five objects.
+covering the same extreme-right row-tearing failure for all five objects. The
+192-line regression additionally runs a 360-frame asynchronous fixture through
+the independent endpoint oracle: all five VBLANK RESP/HMxx/HMOVE transactions
+must match the requested X coordinates, every object must reach X=0 and X=159,
+and the clipped player, four-clock missile, and four-clock Ball spans must be
+correct at both edges.
 
 `vcs_all_five_composition.pl` builds static and asynchronous score-above and
 score-below cartridges around the 181-line component. It requires explicit

@@ -1,5 +1,5 @@
 //! @file vcs_all_five_composition.cpp
-//! @brief Prove 181-line all-five gameplay composes above/below an 11-line score.
+//! @brief Verify all-five composition and horizontal object positioning.
 
 #include <array>
 #include <cstdint>
@@ -85,6 +85,7 @@ std::vector<FrameStats> frames;
 std::map<int,std::vector<TimedWrite>> timed_writes;
 std::map<int,std::array<uint8_t,ObjectCount>> frame_x;
 bool score_above = false;
+bool scoreless = false;
 bool motion_mode = false;
 uint8_t object_x_zp = 0;
 std::array<uint8_t,5> y_zp{};
@@ -184,9 +185,9 @@ void classify_write(const WriteEvent &event) {
    }
    const unsigned score_first = score_above ? 40 : 221;
    const unsigned score_last = score_first + 11;
-   const unsigned game_first = score_above ? 51 : 40;
-   const unsigned game_last = game_first + 181;
-   const bool in_score = line >= score_first && line < score_last;
+   const unsigned game_first = scoreless ? 40 : score_above ? 51 : 40;
+   const unsigned game_last = game_first + (scoreless ? 192 : 181);
+   const bool in_score = !scoreless && line >= score_first && line < score_last;
    const bool in_game = line >= game_first && line < game_last;
    if (!in_score && !in_game) return;
    unsigned *pf = in_score ? &stats.score_pf : &stats.game_pf;
@@ -297,44 +298,51 @@ const TimedWrite *find_write(int checked,uint16_t address,uint64_t first_line,
    return nullptr;
 }
 void verify_object_positioning_and_endpoints() {
-   const uint64_t game_first=score_above ? 51 : 40;
+   const uint64_t game_first=scoreless ? 40 : score_above ? 51 : 40;
    const int last=motion_mode ? kMotionFrames-1 : 11;
    for (int checked=2;checked<=last;++checked) {
       const auto x=desired_x_for_frame(checked);
       const auto found=timed_writes.find(checked);
       if (found==timed_writes.end()) fail("missing object-position trace");
 
-      // P0/P1 are deliberately re-positioned after the score component has
-      // finished.  Verify the visible-entry transaction rather than accepting
-      // the public RAM value as proof of where the TIA will draw them.
-      for (Object object:std::array<Object,2>{{P0,P1}}) {
-         const uint64_t line=game_first+(object==P0 ? 1 : 0);
-         const uint16_t resp=static_cast<uint16_t>(kResp0+object);
-         const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
-         const TimedWrite *rw=find_write(checked,resp,line,line);
-         const TimedWrite *hw=nullptr;
-         if (rw) {
-            for (const TimedWrite &write:found->second) {
-               if (write.address!=hmp) continue;
-               if (write.line<rw->line || (write.line==rw->line && write.cycle<rw->cycle))
-                  hw=&write;
+      if (!scoreless) {
+         // In the 181-line composition P0/P1 are deliberately re-positioned
+         // after the score component. Verify that visible-entry transaction.
+         for (Object object:std::array<Object,2>{{P0,P1}}) {
+            const uint64_t line=game_first+(object==P0 ? 1 : 0);
+            const uint16_t resp=static_cast<uint16_t>(kResp0+object);
+            const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
+            const TimedWrite *rw=find_write(checked,resp,line,line);
+            const TimedWrite *hw=nullptr;
+            if (rw) {
+               for (const TimedWrite &write:found->second) {
+                  if (write.address!=hmp) continue;
+                  if (write.line<rw->line ||
+                      (write.line==rw->line && write.cycle<rw->cycle)) hw=&write;
+               }
             }
-         }
-         if (!rw || !hw || static_cast<int>(rw->cycle)!=expected_handoff_resp_cycle(x[object]) ||
-             (hw->value&0xf0)!=expected_handoff_hmp(x[object])) {
-            std::fprintf(stderr,
-               "vcs_all_five_composition: frame %d P%zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
-               checked,static_cast<size_t>(object),x[object],
-               rw ? static_cast<long long>(rw->cycle) : -1LL,
-               expected_handoff_resp_cycle(x[object]),hw ? hw->value : 0xff,
-               expected_handoff_hmp(x[object]));
-            std::exit(1);
+            if (!rw || !hw ||
+                static_cast<int>(rw->cycle)!=expected_handoff_resp_cycle(x[object]) ||
+                (hw->value&0xf0)!=expected_handoff_hmp(x[object])) {
+               std::fprintf(stderr,
+                  "vcs_all_five_composition: frame %d P%zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
+                  checked,static_cast<size_t>(object),x[object],
+                  rw ? static_cast<long long>(rw->cycle) : -1LL,
+                  expected_handoff_resp_cycle(x[object]),hw ? hw->value : 0xff,
+                  expected_handoff_hmp(x[object]));
+               std::exit(1);
+            }
          }
       }
 
-      // M0/M1/Ball keep their VBLANK positioning.  Match each RESP/HM pair
-      // before visible drawing, then require the common HMOVE transaction.
-      for (Object object:std::array<Object,3>{{M0,M1,BL}}) {
+      // The scoreless 192-line renderer positions all five objects in VBLANK;
+      // the 181-line composition keeps that path for M0/M1/Ball only.
+      const std::array<Object,5> all_objects{{P0,P1,M0,M1,BL}};
+      const std::array<Object,3> nonplayers{{M0,M1,BL}};
+      const Object *first=scoreless ? all_objects.data() : nonplayers.data();
+      const size_t count=scoreless ? all_objects.size() : nonplayers.size();
+      for (size_t index=0;index<count;++index) {
+         const Object object=first[index];
          const uint16_t resp=static_cast<uint16_t>(kResp0+object);
          const uint16_t hmp=static_cast<uint16_t>(kHmp0+object);
          const TimedWrite *rw=nullptr,*hw=nullptr;
@@ -399,8 +407,11 @@ void verify_frames() {
       if (!saw_overscan) fail("181+11 composition does not end on line 232");
       if (s.game_pf < 100) fail("game region did not emit the playfield");
       if (s.game_grp < 8 || s.game_objects < 8) fail("game region did not emit all-five object activity");
-      if (s.score_grp < 16) fail("score region did not emit six-glyph player activity");
-      if (s.score_pf != 0 || s.score_objects != 0) fail("score region leaked gameplay PF/missile/ball activity");
+      if (!scoreless) {
+         if (s.score_grp < 16) fail("score region did not emit six-glyph player activity");
+         if (s.score_pf != 0 || s.score_objects != 0)
+            fail("score region leaked gameplay PF/missile/ball activity");
+      }
    }
    if (motion_mode) {
       for (size_t i=0;i<5;++i)
@@ -412,11 +423,13 @@ void verify_frames() {
 
 int main(int argc,char **argv) {
    if (argc != 4 && argc != 11) {
-      std::fprintf(stderr,"usage: %s ROM above|below static|motion [object_x p0_y p1_y m0_y m1_y ball_y motion_frame]\n",argv[0]);
+      std::fprintf(stderr,"usage: %s ROM above|below|none static|motion [object_x p0_y p1_y m0_y m1_y ball_y motion_frame]\n",argv[0]);
       return 2;
    }
+   scoreless = std::strcmp(argv[2],"none")==0;
    score_above = std::strcmp(argv[2],"above")==0;
-   if (!score_above && std::strcmp(argv[2],"below")!=0) fail("bad score order");
+   if (!scoreless && !score_above && std::strcmp(argv[2],"below")!=0)
+      fail("bad score order");
    motion_mode = std::strcmp(argv[3],"motion")==0;
    if (!motion_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
    if (motion_mode) {

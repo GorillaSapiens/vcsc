@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 15
+# timeout: 30
 # expectstdout: vcs_all_five_192 ok
 # expectexit: 0
 
@@ -37,6 +37,14 @@ sub bss_size {
       or die "map is missing BSS object $name\n";
    return hex($1);
 }
+sub map_symbol {
+   my($map,$name)=@_;
+   $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m
+      or die "map is missing $name\n";
+   my $value=hex($1);
+   $value <= 0xff or die "$name is not zero page\n";
+   return $value;
+}
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
@@ -52,6 +60,9 @@ my $source=File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26));
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'all_five_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'all_five_192.map');
+my $motion_source=File::Spec->catfile($repo,qw(test fixtures all_five_192 motion.c26));
+my $motion_bin=File::Spec->catfile($tmp,'all_five_192_motion.bin');
+my $motion_mapfile=File::Spec->catfile($tmp,'all_five_192_motion.map');
 
 my($rc,$sig,$out,$err)=capture(
    $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
@@ -59,6 +70,14 @@ $rc==0 && !$sig or die "all-five 192 build failed\n$out$err";
 without_usage($out) eq '' && $err eq ''
    or die "all-five 192 build wrote output\n$out$err";
 -s $bin == 4096 or die "all-five 192 cartridge is not exactly 4096 bytes\n";
+
+($rc,$sig,$out,$err)=capture(
+   $driver,'-I',$vcs,'-T',$cfg,'-Map',$motion_mapfile,$motion_source,'-o',$motion_bin);
+$rc==0 && !$sig or die "all-five 192 motion build failed\n$out$err";
+without_usage($out) eq '' && $err eq ''
+   or die "all-five 192 motion build wrote output\n$out$err";
+-s $motion_bin == 4096
+   or die "all-five 192 motion cartridge is not exactly 4096 bytes\n";
 
 my $module=read_file($component);
 my $fixture=read_file($source);
@@ -147,6 +166,32 @@ $/],
    $out =~ $expect or die "unexpected $name output: $out";
    $err eq '' or die "$name harness stderr: $err";
 }
+
+# Prove the scoreless renderer's actual VBLANK horizontal-positioning
+# transactions and clipped endpoint pixels across 360 asynchronous frames.
+my $motion_map=read_file($motion_mapfile);
+my $endpoint_exe=File::Spec->catfile($tmp,'all_five_192_endpoints');
+my $endpoint_src=File::Spec->catfile($repo,'test','vcs_all_five_composition.cpp');
+($rc,$sig,$out,$err)=capture(
+   $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+   $endpoint_src,@mos_input,'-o',$endpoint_exe);
+$rc==0 && !$sig or die "endpoint harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "endpoint harness build wrote output\n$out$err";
+my @endpoint_args=(
+   map_symbol($motion_map,'game_object_x'),
+   map_symbol($motion_map,'game_player0_y'),
+   map_symbol($motion_map,'game_player1_y'),
+   map_symbol($motion_map,'game_missile0_y'),
+   map_symbol($motion_map,'game_missile1_y'),
+   map_symbol($motion_map,'game_ball_y'),
+   map_symbol($motion_map,'motion_frame'),
+);
+($rc,$sig,$out,$err)=capture(
+   $endpoint_exe,$motion_bin,'none','motion',@endpoint_args);
+$rc==0 && !$sig or die "endpoint harness failed\n$out$err";
+$out eq "vcs_all_five_composition motion none ok\n"
+   or die "unexpected endpoint output: $out";
+$err eq '' or die "endpoint harness stderr: $err";
 
 # The template's four lifecycle phases remain mandatory. Omit each call from an
 # otherwise valid cartridge and require the component-specific link diagnostic.

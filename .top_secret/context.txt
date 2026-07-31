@@ -718,8 +718,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b1b2 — extend the object-pixel oracle to the scoreless
-all-five 192-line profile, including both horizontal endpoints.
+Current next action: 22i4b1b3 — complete per-scanline P0/P1/M0/M1/Ball pixel
+reconstruction for every maintained setup, ordinary, transition, and terminal path.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1653,10 +1653,17 @@ all-five 192-line profile, including both horizontal endpoints.
                                                                           using the fixture's player
                                                                           glyphs, four-clock missiles,
                                                                           and four-clock Ball.
-                                                               [ ] 22i4b1b2. Extend the same independent
+                                                               [x] 22i4b1b2. Extend the same independent
                                                                           endpoint-position and clipped-
                                                                           pixel evidence to the scoreless
-                                                                          all-five 192-line profile.
+                                                                          all-five 192-line profile. A
+                                                                          purpose-built 360-frame fixture
+                                                                          verifies all five VBLANK RESP/
+                                                                          HMxx/HMOVE transactions, requires
+                                                                          X=0 and X=159 for every object,
+                                                                          and checks clipped normal-width
+                                                                          player glyphs plus four-clock
+                                                                          missiles and Ball at both edges.
                                                                [ ] 22i4b1b3. Complete pixel-accurate
                                                                           P0/P1/M0/M1/Ball reconstruction
                                                                           on every ordinary, setup, row-
@@ -6962,3 +6969,25 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: 334/334 compile-only tests pass. The focused official
   `vcs_all_five_composition.pl` and unofficial `vcs_all_five_181_unofficial.pl`
   regressions pass, including both score orders and all 360 motion frames.
+
+2026-07-31 15:26:11 PDT, add all-five 192 object endpoint oracle slice
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22i4b1b2 and make 22i4b1b3 the next unfinished leaf.
+* Add `test/fixtures/all_five_192/motion.c26`, a scoreless 192-line diagnostic
+  cartridge that moves P0, P1, M0, M1, and Ball asynchronously through the full
+  X=0..159 range while retaining fixed Y coordinates and recognizable player
+  glyphs.
+* Generalize `vcs_all_five_composition.cpp` with a scoreless mode. The 192-line
+  path independently verifies all five VBLANK RESP/HMxx/HMOVE transactions,
+  rather than using the 181-line post-score P0/P1 handoff path, and retains the
+  same clipped-pixel endpoint checks for normal-width players, four-clock
+  missiles, and a four-clock Ball.
+* Extend `vcs_all_five_192.pl` to build the motion fixture, run 360 frames, require
+  every object to reach both horizontal endpoints, and reject any mismatch in
+  the requested TIA positioning transaction or clipped visible span. Update the
+  test catalog.
+* No compiler, renderer, public example, or removal-ledger files change.
+* Verification: the focused `vcs_all_five_192.pl` regression passes. The normal
+  root build reached and passed all 334 compile-only tests and the first 170 of
+  197 end-to-end tests before the outer command timeout; the focused changed
+  regression was then rerun separately and passed.
