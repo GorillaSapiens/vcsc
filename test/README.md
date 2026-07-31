@@ -124,8 +124,12 @@ store and discarded-expression side effects in the simulator.
 simple assignment forwards the converted right-hand value instead of reading
 the destination back. The VCS case covers two- and three-target write-only TIA
 chains plus a split read/write `ref`, and forbids reads from every inner
-register. `e2e_assign_expr_verify.c26` also checks that narrowing happens once
-at the inner target and that the narrowed value is what the outer target sees.
+register. It also requires direct byte chains to contain neither compiler
+scratch nor Y traffic. `assignment_chain_shared_scratch_codegen_test.c26`
+requires a wider three-target chain to use one shared value slot and direct
+symbol stores rather than nested scratch objects or pointer setup.
+`e2e_assign_expr_verify.c26` also checks that narrowing happens once at the
+inner target and that the narrowed value is what the outer target sees.
 
 `integer_trivial_codegen_test.c26` and
 `e2e_integer_trivial_optimizations_verify.c26` cover zero/one identities,

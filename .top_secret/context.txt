@@ -6672,3 +6672,28 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   before its outer command ceiling and the remaining 23 passed explicitly.
   Both expanded interactive example matrices and the recursive example build
   pass directly. Staged `make installcheck` also passes.
+
+2026-07-30 23:05:13 PDT, eliminate nested scratch from chained assignments
+--------------------------------------------------------------------------
+* Replace recursive simple-assignment-chain lowering with a flattened path.
+  The rightmost expression is evaluated once, then one converted value is
+  stored from the innermost target outward. Wider/general chains use one shared
+  fixed scratch object for the whole chain instead of allocating and copying
+  through one scratch object per assignment level.
+* Add an accumulator-only fast path for discarded chains whose targets and
+  source are directly addressable one-byte values. Constants are loaded once
+  into A and direct lvalue sources are loaded once; each following STA preserves
+  A for the next target. The reported TIA chains now contain no compiler scratch,
+  no Y setup, and no destination readback.
+* Add shared direct-byte lvalue load/store helpers and a preserved-symbol-to-
+  lvalue copy helper so assignment lowering uses direct fixed-symbol accesses
+  rather than unnecessary ptr0/ptr1 setup.
+* Tighten the write-only TIA chain regression to reject all compiler scratch and
+  Y instructions. Add a wider three-target regression that requires one shared
+  scratch object and rejects nested scratch and pointer setup. Update compiler
+  and test documentation for both lowering paths.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the combined run completed 174 before its
+  outer command ceiling and the remaining 23 passed explicitly. Staged
+  `make installcheck` also passes.

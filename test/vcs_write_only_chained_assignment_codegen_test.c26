@@ -14,6 +14,8 @@
 // forbidasm: lda  $06
 // forbidasm: lda  $07
 // forbidasm: lda  $10
+// forbidasm: __vcsc_scratch_
+// forbidasm: ldy
 
 include "vcs.c26"
 

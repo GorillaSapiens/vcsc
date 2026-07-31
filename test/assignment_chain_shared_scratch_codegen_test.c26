@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$03
+// expectasmordered: sta third,y
+// expectasmordered: sta second,y
+// expectasmordered: sta first,y
+// forbidasm: __vcsc_scratch_1
+// forbidasm: ptr0
+// forbidasm: ptr1
+
+include "machine_6502.c26"
+
+uint16_t first;
+uint16_t second;
+uint16_t third;
+
+void main(void) {
+   first := second := third := 3;
+}

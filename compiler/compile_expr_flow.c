@@ -798,23 +798,7 @@ static bool compile_direct_byte_lvalue_to_absolute_ref(Context *ctx,
 //! @brief Store a fixed assignment value into a simple absolute ref without pointer setup.
 static bool emit_fixed_assignment_value_to_lvalue(Context *ctx, const LValueRef *dst,
                                                   const char *symbol, int size) {
-   if (!dst || !symbol || size <= 0) {
-      return false;
-   }
-   if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
-       !dst->needs_runtime_address) {
-      if (!dst->write_expr || !*dst->write_expr) {
-         return false;
-      }
-      emit_lvalue_semantic_use(ctx, dst, "write");
-      for (int i = 0; i < size; i++) {
-         emit(&es_code, "    ldy #%d\n", i);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
-      }
-      return true;
-   }
-   return emit_copy_symbol_to_lvalue(ctx, dst, symbol, 0, size);
+   return emit_copy_preserved_symbol_to_lvalue(ctx, dst, symbol, size);
 }
 
 //! @brief Lower a discarded one-byte increment/decrement without result scratch.
@@ -903,6 +887,217 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
    if (bcd) emit(&es_code, "    cld\n");
    emit(&es_code, "    sta (ptr0),y\n");
+   return true;
+}
+
+#define DIRECT_BYTE_ASSIGN_CHAIN_MAX 64
+
+//! @brief Return whether one assignment in a direct byte chain preserves A unchanged.
+static bool direct_byte_assignment_preserves_a(const LValueRef *dst,
+                                               const ASTNode *src_type,
+                                               const ASTNode *src_declarator,
+                                               ASTNode *rhs) {
+   if (!dst || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+       dst->needs_runtime_address || declarator_pointer_depth(dst->declarator) > 0) {
+      return false;
+   }
+   if (!(dst->is_absolute_ref || dst->is_static || dst->is_zeropage || dst->is_global)) {
+      return false;
+   }
+   if (dst->is_absolute_ref && (!dst->write_expr || !*dst->write_expr)) {
+      return false;
+   }
+   return bcd_implicit_conversion_allowed(dst->type, dst->declarator,
+                                          src_type, src_declarator, rhs);
+}
+
+//! @brief Lower a discarded right-associated byte assignment chain through A.
+//!
+//! Stores run from the innermost target outward, and every accepted conversion
+//! is a one-byte representation-preserving conversion.  STA therefore forwards
+//! the assigned value for the next target without any compiler scratch or Y
+//! traffic.
+static bool compile_discarded_direct_byte_assignment_chain(Context *ctx,
+                                                            ASTNode *node) {
+   LValueRef targets[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *assignments[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *cursor = (ASTNode *) unwrap_expr_node(node);
+   ASTNode *rhs;
+   LValueRef source;
+   InitConstValue constant = {0};
+   unsigned char encoded = 0;
+   const ASTNode *src_type = NULL;
+   const ASTNode *src_declarator = NULL;
+   int count = 0;
+   bool source_is_lvalue = false;
+
+   while (cursor && !strcmp(cursor->name, "assign_expr") && cursor->count == 3) {
+      const char *op = cursor->children[0] ? cursor->children[0]->strval : NULL;
+      ASTNode *next_rhs = cursor->children[2];
+
+      if ((op && strcmp(op, ":=")) || initializer_is_list(unwrap_expr_node(next_rhs)) ||
+          count >= DIRECT_BYTE_ASSIGN_CHAIN_MAX ||
+          !resolve_lvalue(ctx, cursor->children[1], &targets[count])) {
+         return false;
+      }
+      assignments[count++] = cursor;
+      cursor = (ASTNode *) unwrap_expr_node(next_rhs);
+   }
+
+   if (count < 2 || !cursor) {
+      return false;
+   }
+   rhs = cursor;
+
+   if (eval_constant_initializer_expr(rhs, &constant) && constant.kind == INIT_CONST_INT &&
+       integer_value_fits_type(constant.i, targets[count - 1].type) &&
+       encode_integer_initializer_value(constant.i, &encoded, 1,
+                                        targets[count - 1].type)) {
+      src_type = literal_annotation_type(rhs);
+      src_declarator = NULL;
+   }
+   else if (resolve_ref_argument_lvalue(ctx, rhs, &source) && source.size == 1 &&
+            !source.is_bitfield && !source.indirect && !source.needs_runtime_address &&
+            (source.is_absolute_ref || source.is_static || source.is_zeropage ||
+             source.is_global) &&
+            (!source.is_absolute_ref || (source.read_expr && *source.read_expr))) {
+      source_is_lvalue = true;
+      src_type = source.type;
+      src_declarator = source.declarator;
+   }
+   else {
+      return false;
+   }
+
+   for (int i = count - 1; i >= 0; i--) {
+      if (!direct_byte_assignment_preserves_a(&targets[i], src_type, src_declarator,
+                                              i == count - 1 ? rhs : assignments[i + 1])) {
+         return false;
+      }
+      src_type = targets[i].type;
+      src_declarator = targets[i].declarator;
+   }
+
+   if (source_is_lvalue) {
+      emit_lvalue_semantic_use(ctx, &source, "read");
+      if (!emit_load_direct_byte_lvalue_to_a(ctx, &source)) {
+         return false;
+      }
+   }
+   else {
+      emit(&es_code, "    lda #$%02x\n", encoded);
+   }
+
+   for (int i = count - 1; i >= 0; i--) {
+      emit_lvalue_semantic_use(ctx, &targets[i], "write");
+      if (!emit_store_a_to_direct_byte_lvalue(ctx, &targets[i])) {
+         return false;
+      }
+   }
+   return true;
+}
+
+//! @brief Lower a discarded simple assignment chain through one shared scratch value.
+static bool compile_discarded_simple_assignment_chain(Context *ctx, ASTNode *node) {
+   LValueRef targets[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *assignments[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *cursor = (ASTNode *) unwrap_expr_node(node);
+   ASTNode *rhs;
+   int sizes[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   int count = 0;
+   int max_size = 0;
+   int current_size;
+   const ASTNode *current_type;
+   FlowFixedScratch scratch;
+   ContextEntry value;
+
+   while (cursor && !strcmp(cursor->name, "assign_expr") && cursor->count == 3) {
+      const char *op = cursor->children[0] ? cursor->children[0]->strval : NULL;
+      ASTNode *next_rhs = cursor->children[2];
+      int value_size;
+
+      if ((op && strcmp(op, ":=")) || initializer_is_list(unwrap_expr_node(next_rhs)) ||
+          count >= DIRECT_BYTE_ASSIGN_CHAIN_MAX ||
+          !resolve_lvalue(ctx, cursor->children[1], &targets[count]) ||
+          targets[count].is_bitfield) {
+         return false;
+      }
+      if (targets[count].is_absolute_ref &&
+          (!targets[count].write_expr || !*targets[count].write_expr)) {
+         error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+                    cursor->file ? cursor->file : "<unknown>", cursor->line,
+                    cursor->column,
+                    targets[count].name ? targets[count].name : "<unnamed>");
+      }
+      value_size = targets[count].size;
+      if (value_size <= 0) {
+         value_size = declarator_storage_size(targets[count].type,
+                                               targets[count].declarator);
+      }
+      if (value_size <= 0) {
+         value_size = type_size_from_node(targets[count].type);
+      }
+      if (value_size <= 0) {
+         return false;
+      }
+      sizes[count] = value_size;
+      if (value_size > max_size) {
+         max_size = value_size;
+      }
+      assignments[count++] = cursor;
+      cursor = (ASTNode *) unwrap_expr_node(next_rhs);
+   }
+
+   if (count < 2 || !cursor) {
+      return false;
+   }
+   rhs = cursor;
+
+   for (int i = count - 2; i >= 0; i--) {
+      if (!bcd_implicit_conversion_allowed(targets[i].type,
+                                           targets[i].declarator,
+                                           targets[i + 1].type,
+                                           targets[i + 1].declarator,
+                                           assignments[i + 1])) {
+         error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                    assignments[i]->file ? assignments[i]->file : "<unknown>",
+                    assignments[i]->line, assignments[i]->column);
+      }
+   }
+
+   flow_fixed_scratch_prepare(ctx, max_size, &scratch);
+   flow_fixed_scratch_activate(ctx, &scratch);
+   value = (ContextEntry){ .name = "$assign_chain", .type = targets[count - 1].type,
+                           .declarator = targets[count - 1].declarator,
+                           .is_static = false, .is_zeropage = false,
+                           .is_global = false, .target_typed = true,
+                           .offset = 0, .size = sizes[count - 1] };
+   if (!compile_expr_to_slot(rhs, ctx, &value)) {
+      flow_fixed_scratch_abort(ctx, &scratch);
+      return false;
+   }
+   flow_fixed_scratch_deactivate(ctx, &scratch);
+
+   current_size = sizes[count - 1];
+   current_type = targets[count - 1].type;
+   for (int i = count - 1; i >= 0; i--) {
+      if (i != count - 1) {
+         flow_fixed_scratch_activate(ctx, &scratch);
+         emit_copy_scratch_to_scratch_convert(0, sizes[i], targets[i].type,
+                                              0, current_size, current_type);
+         flow_fixed_scratch_deactivate(ctx, &scratch);
+         current_size = sizes[i];
+         current_type = targets[i].type;
+      }
+      emit_lvalue_semantic_use(ctx, &targets[i], "write");
+      if (!emit_fixed_assignment_value_to_lvalue(ctx, &targets[i], scratch.symbol,
+                                                 current_size)) {
+         flow_fixed_scratch_finish(&scratch);
+         return false;
+      }
+   }
+
+   flow_fixed_scratch_finish(&scratch);
    return true;
 }
 
@@ -1026,6 +1221,13 @@ void compile_expr(ASTNode *node, Context *ctx) {
          return;
       }
       compiler_scratch_release(&scratch);
+      return;
+   }
+
+   if (compile_discarded_direct_byte_assignment_chain(ctx, node)) {
+      return;
+   }
+   if (compile_discarded_simple_assignment_chain(ctx, node)) {
       return;
    }
 

@@ -44,6 +44,138 @@ static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
    return lv && lv->is_absolute_ref && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address;
 }
 
+//! @brief Load one directly addressable byte lvalue into A without scratch or pointer setup.
+bool emit_load_direct_byte_lvalue_to_a(Context *ctx, const LValueRef *src) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!src || src->size != 1 || src->is_bitfield || src->indirect ||
+       src->needs_runtime_address) {
+      return false;
+   }
+
+   if (src->is_absolute_ref) {
+      if (!src->read_expr || !*src->read_expr) {
+         return false;
+      }
+      emit_load_a_from_expr_address(src->read_expr, src->offset);
+      return true;
+   }
+
+   if (!(src->is_static || src->is_zeropage || src->is_global)) {
+      return false;
+   }
+
+   entry = (ContextEntry){ .name = src->name, .type = src->type,
+      .declarator = src->declarator, .is_static = src->is_static,
+      .is_zeropage = src->is_zeropage, .is_global = src->is_global,
+      .offset = src->offset, .size = src->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+      return false;
+   }
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (src->offset == 0) {
+      emit(&es_code, src->is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
+   }
+   else {
+      emit(&es_code, src->is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n",
+           formatted, src->offset);
+   }
+   return true;
+}
+
+//! @brief Store A into one directly addressable byte lvalue without scratch or pointer setup.
+bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!dst || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+       dst->needs_runtime_address) {
+      return false;
+   }
+
+   if (dst->is_absolute_ref) {
+      if (!dst->write_expr || !*dst->write_expr) {
+         return false;
+      }
+      emit_store_a_to_expr_address(dst->write_expr, dst->offset);
+      return true;
+   }
+
+   if (!(dst->is_static || dst->is_zeropage || dst->is_global)) {
+      return false;
+   }
+
+   entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+      .declarator = dst->declarator, .is_static = dst->is_static,
+      .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+      .offset = dst->offset, .size = dst->size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+      return false;
+   }
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   if (dst->offset == 0) {
+      emit(&es_code, dst->is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+   }
+   else {
+      emit(&es_code, dst->is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
+           formatted, dst->offset);
+   }
+   return true;
+}
+
+//! @brief Copy an already converted fixed-symbol value to an lvalue without readback.
+bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
+                                          const char *symbol, int size) {
+   ContextEntry entry;
+   char dst_symbol[256];
+
+   if (!dst || !symbol || size <= 0) {
+      return false;
+   }
+
+   if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
+       !dst->needs_runtime_address) {
+      if (!dst->write_expr || !*dst->write_expr) {
+         return false;
+      }
+      for (int i = 0; i < size; i++) {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
+      }
+      return true;
+   }
+
+   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
+       (dst->is_static || dst->is_zeropage || dst->is_global)) {
+      entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+         .declarator = dst->declarator, .is_static = dst->is_static,
+         .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+         .offset = dst->offset, .size = dst->size };
+      if (!entry_symbol_name(ctx, &entry, dst_symbol, sizeof(dst_symbol))) {
+         return false;
+      }
+      emit_copy_symbol_to_symbol_convert_offset(dst_symbol, dst->offset, size,
+                                                dst->type, symbol, 0, size,
+                                                dst->type);
+      return true;
+   }
+
+   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
+       !dst->is_static && !dst->is_zeropage && !dst->is_global) {
+      emit_copy_symbol_to_scratch_convert_offset(dst->offset, size, dst->type,
+                                                 symbol, 0, size, dst->type);
+      return true;
+   }
+
+   return emit_copy_symbol_to_lvalue(ctx, dst, symbol, 0, size);
+}
+
 //! @brief Find aggregate member info in compiler lvalue lowering tables without transferring ownership.
 bool find_aggregate_member_info(const ASTNode *type, const char *member, AggregateMemberInfo *out) {
    const ASTNode *agg;

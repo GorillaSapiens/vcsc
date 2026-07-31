@@ -597,7 +597,11 @@ conversion to the left-hand type. Chained assignments preserve and forward that
 converted value; the compiler does not store the inner assignment and then read
 its destination back. This matters for memory-mapped `ref` objects: write-only
 and split read/write registers may be used in a chain without an illegal or
-semantically different read from the register.
+semantically different read from the register. A discarded chain of directly
+addressable one-byte targets is lowered through A: the right-hand value is
+loaded once and each `STA` forwards it to the next target, with no compiler
+scratch and no Y setup. Wider or otherwise general simple chains use one shared
+value slot for the whole chain rather than one nested slot per assignment.
 
 A lone underscore is a discard token usable only in simple assignment:
 

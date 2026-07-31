@@ -87,49 +87,120 @@ static void emit_slot_fixed_scratch_result(Context *ctx, const SlotFixedScratch 
 //! @brief Store a preserved assignment value into its lvalue without forcing a readback.
 static bool emit_preserved_assignment_value(Context *ctx, const LValueRef *dst,
                                             const char *symbol, int size) {
-   ContextEntry entry;
-   char dst_symbol[256];
+   return emit_copy_preserved_symbol_to_lvalue(ctx, dst, symbol, size);
+}
 
-   if (!dst || !symbol || size <= 0) {
+#define SIMPLE_ASSIGN_CHAIN_MAX 64
+
+//! @brief Lower a right-associated simple assignment chain with one shared value slot.
+//!
+//! The old recursive lowering leased one scratch object for every nesting level
+//! and copied the value outward through all of them.  Flattening the chain keeps
+//! one converted value live, stores it to each lvalue from inside to outside,
+//! and converts that same slot in place when adjacent target types differ.
+static bool compile_simple_assignment_chain_to_slot(ASTNode *expr, Context *ctx,
+                                                    ContextEntry *dst) {
+   LValueRef targets[SIMPLE_ASSIGN_CHAIN_MAX];
+   ASTNode *assignments[SIMPLE_ASSIGN_CHAIN_MAX];
+   ASTNode *cursor = (ASTNode *) unwrap_expr_node(expr);
+   ASTNode *rhs;
+   SlotFixedScratch scratch;
+   ContextEntry value;
+   int sizes[SIMPLE_ASSIGN_CHAIN_MAX];
+   int count = 0;
+   int max_size = 0;
+   int current_size;
+   const ASTNode *current_type;
+
+   while (cursor && !strcmp(cursor->name, "assign_expr") && cursor->count == 3) {
+      const char *op = cursor->children[0] ? cursor->children[0]->strval : NULL;
+      ASTNode *next_rhs = cursor->children[2];
+      int value_size;
+
+      if ((op && strcmp(op, ":=")) || initializer_is_list(unwrap_expr_node(next_rhs)) ||
+          count >= SIMPLE_ASSIGN_CHAIN_MAX ||
+          !resolve_lvalue(ctx, cursor->children[1], &targets[count]) ||
+          targets[count].is_bitfield) {
+         return false;
+      }
+      if (targets[count].is_absolute_ref &&
+          (!targets[count].write_expr || !*targets[count].write_expr)) {
+         error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+                    cursor->file ? cursor->file : "<unknown>", cursor->line,
+                    cursor->column,
+                    targets[count].name ? targets[count].name : "<unnamed>");
+      }
+
+      value_size = targets[count].size;
+      if (value_size <= 0) {
+         value_size = declarator_storage_size(targets[count].type,
+                                               targets[count].declarator);
+      }
+      if (value_size <= 0) {
+         value_size = type_size_from_node(targets[count].type);
+      }
+      if (value_size <= 0) {
+         return false;
+      }
+      sizes[count] = value_size;
+      if (value_size > max_size) {
+         max_size = value_size;
+      }
+      assignments[count++] = cursor;
+      cursor = (ASTNode *) unwrap_expr_node(next_rhs);
+   }
+
+   if (count < 2 || !cursor) {
       return false;
    }
-   if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
-       !dst->needs_runtime_address) {
-      if (!dst->write_expr || !*dst->write_expr) {
+   rhs = cursor;
+
+   for (int i = count - 2; i >= 0; i--) {
+      if (!bcd_implicit_conversion_allowed(targets[i].type,
+                                           targets[i].declarator,
+                                           targets[i + 1].type,
+                                           targets[i + 1].declarator,
+                                           assignments[i + 1])) {
+         error_user("[%s:%d.%d] packed-BCD and binary integer values cannot be mixed implicitly",
+                    assignments[i]->file ? assignments[i]->file : "<unknown>",
+                    assignments[i]->line, assignments[i]->column);
+      }
+   }
+
+   slot_fixed_scratch_begin(ctx, max_size, &scratch);
+   value = (ContextEntry){ .name = "$assign_chain", .type = targets[count - 1].type,
+                           .declarator = targets[count - 1].declarator,
+                           .is_static = false, .is_zeropage = false,
+                           .is_global = false, .target_typed = true,
+                           .offset = 0, .size = sizes[count - 1] };
+   if (!compile_expr_to_slot(rhs, ctx, &value)) {
+      slot_fixed_scratch_abort(ctx, &scratch);
+      return false;
+   }
+   slot_fixed_scratch_deactivate(ctx, &scratch);
+
+   current_size = sizes[count - 1];
+   current_type = targets[count - 1].type;
+   for (int i = count - 1; i >= 0; i--) {
+      if (i != count - 1) {
+         compiler_scratch_activate(ctx, &scratch);
+         emit_copy_scratch_to_scratch_convert(0, sizes[i], targets[i].type,
+                                              0, current_size, current_type);
+         compiler_scratch_deactivate(ctx, &scratch);
+         current_size = sizes[i];
+         current_type = targets[i].type;
+      }
+      emit_lvalue_semantic_use(ctx, &targets[i], "write");
+      if (!emit_preserved_assignment_value(ctx, &targets[i], scratch.symbol,
+                                           current_size)) {
+         slot_fixed_scratch_finish(&scratch);
          return false;
       }
-      emit_lvalue_semantic_use(ctx, dst, "write");
-      for (int i = 0; i < size; i++) {
-         emit(&es_code, "    ldy #%d\n", i);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
-      }
-      return true;
    }
 
-   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
-       (dst->is_static || dst->is_zeropage || dst->is_global)) {
-      emit_lvalue_semantic_use(ctx, dst, "write");
-      entry = (ContextEntry){ .name = dst->name, .type = dst->type,
-         .declarator = dst->declarator, .is_static = dst->is_static,
-         .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
-         .offset = dst->offset, .size = dst->size };
-      if (!entry_symbol_name(ctx, &entry, dst_symbol, sizeof(dst_symbol))) {
-         return false;
-      }
-      emit_copy_symbol_to_symbol_convert_offset(dst_symbol, dst->offset, size, dst->type,
-                                                symbol, 0, size, dst->type);
-      return true;
-   }
-
-   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
-       !dst->is_static && !dst->is_zeropage && !dst->is_global) {
-      emit_copy_symbol_to_scratch_convert_offset(dst->offset, size, dst->type,
-                                                 symbol, 0, size, dst->type);
-      return true;
-   }
-
-   return emit_copy_symbol_to_lvalue(ctx, dst, symbol, 0, size);
+   emit_slot_fixed_scratch_result(ctx, &scratch, 0, current_size, current_type, dst);
+   slot_fixed_scratch_finish(&scratch);
+   return true;
 }
 
 //! @brief Return lvalue base identifier node data used by compile expr slot; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -398,6 +469,10 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       ASTNode *rhs = expr->children[2];
       int load_size;
 
+      if (compile_simple_assignment_chain_to_slot(expr, ctx, dst)) {
+         return true;
+      }
+
       if (!resolve_lvalue(ctx, expr->children[1], &lv)) {
          error_unresolved_assignment_target(ctx, expr->children[1], expr);
       }
@@ -441,6 +516,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             return false;
          }
          slot_fixed_scratch_deactivate(ctx, &scratch);
+         emit_lvalue_semantic_use(ctx, &lv, "write");
          if (!emit_preserved_assignment_value(ctx, &lv, scratch.symbol, value_size)) {
             slot_fixed_scratch_finish(&scratch);
             return false;

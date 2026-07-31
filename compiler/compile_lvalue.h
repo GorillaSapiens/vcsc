@@ -22,6 +22,10 @@ void emit_store_ptr_to_scratch(int dst_offset, int ptrno, int size);
 bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size);
 void emit_lvalue_semantic_use(Context *ctx, const LValueRef *lv, const char *kind);
 bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode mode);
+bool emit_load_direct_byte_lvalue_to_a(Context *ctx, const LValueRef *src);
+bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst);
+bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
+                                          const char *symbol, int size);
 bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size);
 bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset, const LValueRef *src, int size);
 bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *symbol, int symbol_offset, int size);
