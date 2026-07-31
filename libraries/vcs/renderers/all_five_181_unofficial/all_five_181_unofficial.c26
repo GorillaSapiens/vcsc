@@ -336,14 +336,17 @@ require inline void TEMPLATE_vblank(void) {
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
 
-   // The score handoff will install P0/P1 motion. Preserve the missile/ball
-   // values, apply them together, and start with both missiles disabled.
+   // The score handoff will install P0/P1 motion. Apply the missile/Ball
+   // values together, then clear them so the visible-entry HMOVE cannot apply
+   // the same fine motion a second time. Start with both missiles disabled.
    asm lda #0;
    asm sta HMP0;
    asm sta HMP1;
    asm sta WSYNC;
    asm sta HMOVE;
-   asm lda #0;
+   // The visible-entry HMOVE is reserved for P0/P1. Clear the already-applied
+   // missile/Ball fine-motion values so it cannot move those objects again.
+   asm sta HMCLR;
    asm sta ENAM0;
    asm sta ENAM1;
 

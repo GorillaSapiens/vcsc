@@ -35,10 +35,12 @@ an independent eleven-line six-glyph score above or below it:
 
 The scheduler owns VSYNC, VBLANK, timer deadlines, visible-component order,
 and the complete frame loop. `game_vblank()` prepares masks and positions M0,
-M1, and Ball while output is blanked. `game_draw()` restores P0/P1 positioning,
-NUSIZ, and solid colors at its visible entry, so it is safe after a score
-component has used the players. Adjacent visible components must be separated
-with `vcs_ntsc_component_handoff()`.
+M1, and Ball while output is blanked. After applying their fine motion it clears
+the non-player motion registers, preventing the later P0/P1 entry HMOVE from
+moving M0, M1, or Ball a second time. `game_draw()` restores P0/P1 positioning,
+NUSIZ, and solid colors at its visible entry, so it is safe before or after a
+score component has used the players. Adjacent visible components must be
+separated with `vcs_ntsc_component_handoff()`.
 
 ## Interface and resources
 
@@ -85,6 +87,7 @@ score-below composition. Emulator tests require:
 - HBLANK-only P0/P1 handoffs and effective missile-state changes, including
   X=159
 - full-range asynchronous X motion, including X=0 and X=159
+- exactly one fine-motion application per frame for M0, M1, and Ball
 - preservation of application-visible Y coordinates across the lifecycle
 - no playfield, missile, or Ball leakage into the score region
 - official opcodes only and the exact RAM/page/stack contract
