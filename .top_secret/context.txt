@@ -6596,3 +6596,18 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the monolithic run completed the first 175
   before the outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
+
+2026-07-30 20:59:05 PDT, diagnose misspelled targets inside chained assignments
+-------------------------------------------------------------------------------
+* Preserve the specific unresolved-identifier diagnostic when an assignment is
+  itself being compiled as the value of an enclosing expression. A misspelled
+  target inside a chain now reports `unknown identifier '<name>'` at that target
+  instead of allowing the failure to bubble out as the misleading outer
+  `invalid assignment value` diagnostic.
+* Add a VCS regression using the reported `COULUP1` misspelling inside
+  `HMCLR := COULUP1 := COLUP0 := 0x0e;`.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before its outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.

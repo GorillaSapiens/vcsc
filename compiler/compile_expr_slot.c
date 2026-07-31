@@ -270,6 +270,20 @@ static void error_unknown_identifier_node(const ASTNode *idnode, const ASTNode *
    error_user("[%s:%d.%d] unknown identifier '%s'", file, line, column, ident ? ident : "<unknown>");
 }
 
+//! @brief Report an unresolved assignment target while preserving the most specific identifier diagnostic.
+static void error_unresolved_assignment_target(Context *ctx, ASTNode *target, ASTNode *fallback) {
+   const ASTNode *idnode = expr_lvalue_base_identifier_node(target);
+   const char *ident = idnode ? idnode->strval : NULL;
+
+   if (ident && !ctx_lookup(ctx, ident) && !global_decl_lookup(ident)) {
+      error_unknown_identifier_node(idnode, target, ident);
+   }
+   error_user("[%s:%d.%d] invalid assignment target",
+         target && target->file ? target->file : (fallback && fallback->file ? fallback->file : "<unknown>"),
+         target ? target->line : (fallback ? fallback->line : 0),
+         target ? target->column : (fallback ? fallback->column : 0));
+}
+
 //! @brief Handle sizeof operand size logic for compile expr slot.
 static int sizeof_operand_size(const ASTNode *operand, Context *ctx) {
    operand = unwrap_expr_node(operand);
@@ -385,7 +399,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       int load_size;
 
       if (!resolve_lvalue(ctx, expr->children[1], &lv)) {
-         return false;
+         error_unresolved_assignment_target(ctx, expr->children[1], expr);
       }
 
       /* A simple assignment expression has the converted value written to its

@@ -1,0 +1,9 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: unknown_identifier_chained_assignment_error_test.c26:8.20] unknown identifier 'COULUP1'
+
+include "vcs.c26"
+
+void main(void) {
+   HMCLR := COULUP1 := COLUP0 := 0x0e;
+}
