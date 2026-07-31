@@ -55,9 +55,8 @@ All-five component byte comparison
 The separately named unofficial-opcode **181-line all-five gameplay
 component** is an explicit experiment, not a hidden build alias. The official
 and unofficial components expose the same lifecycle API, consume the same RAM,
-and draw the same 181 scanlines. Their visible schedules are now tested
-independently because the corrected circular schedule has been applied only to
-the official renderer. Only reviewed stable/common NMOS forms are eligible.
+draw the same 181 scanlines, and now share the same corrected circular physical
+schedule. Only reviewed stable/common NMOS forms are eligible.
 
 The rebuilt unofficial twin retains one zero-page unofficial NOP (`$04`) as an
 exact-size, exact-cycle replacement for dead-flag padding during VBLANK
@@ -68,14 +67,13 @@ The maintained smoke cartridge measures:
 
 ```text
 official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2092
-signed byte difference:          2
+unofficial linked ROM bytes: 2090
+signed byte difference:          0
 ```
 
-The size difference reflects the independently scheduled official renderer,
-not an unofficial-opcode optimization result. Static and motion tests still
-require matching public RAM addresses, application-visible object behavior,
-score composition, and stable 262-line frames.
+Static and motion tests require pairwise visible TIA-event identity for both
+score orders, matching public RAM addresses, full-range application-visible
+object behavior, score composition, and stable 262-line frames.
 
 Completed player-color component byte comparison
 ------------------------------------------------

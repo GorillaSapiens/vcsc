@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_all_five_181_unofficial ok: official=2090 unofficial=2092 delta=2
+# expectstdout: vcs_all_five_181_unofficial ok: official=2090 unofficial=2090 delta=0
 # expectexit: 0
 
 use strict;
@@ -61,8 +61,8 @@ for my $case (@cases) {
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
 $official_used==2090 or die "official smoke now uses $official_used bytes, expected 2090\n";
-$unofficial_used==2092 or die "unofficial smoke now uses $unofficial_used bytes, expected 2092\n";
-$unofficial_used-$official_used==2
+$unofficial_used==2090 or die "unofficial smoke now uses $unofficial_used bytes, expected 2090\n";
+$unofficial_used-$official_used==0
    or die "unexpected size delta: official=$official_used unofficial=$unofficial_used\n";
 
 my @ram_symbols=qw(
@@ -105,11 +105,27 @@ my $phase=File::Spec->catfile($tmp,'all_five_181_unofficial_phase');
 ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
    File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp)),@mos_input,'-o',$phase);
 $rc==0 && !$sig or die "phase harness build failed\n$out$err";
-($rc,$sig,$out,$err)=capture($phase,$built{smoke}{unofficial}[0],qw(11 11 44 all-five));
+($rc,$sig,$out,$err)=capture($phase,$built{smoke}{unofficial}[0],qw(11 11 44 all-five-181-official));
 $rc==0 && !$sig or die "unofficial phase harness failed\n$out$err";
 $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
    or die "unexpected unofficial phase output: $out";
 $err eq '' or die "unofficial phase stderr: $err";
+
+# The unofficial twin differs only by one reviewed dead-flag padding opcode, so
+# every visible TIA event and stable frame must remain identical to the official
+# renderer for all static and motion compositions.
+my $compare=File::Spec->catfile($tmp,'all_five_181_unofficial_pair_compare');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+   File::Spec->catfile($repo,qw(test vcs_visible_trace_compare.cpp)),@mos_input,'-o',$compare);
+$rc==0 && !$sig or die "pair comparator build failed\n$out$err";
+for my $case (@cases) {
+   ($rc,$sig,$out,$err)=capture($compare,$built{$case}{official}[0],
+      $built{$case}{unofficial}[0],'262','262');
+   $rc==0 && !$sig or die "$case pair comparison failed\n$out$err";
+   $out =~ /^vcs_visible_trace_compare ok: \d+ events and 42 stable frames per ROM\n$/
+      or die "unexpected $case comparison output: $out";
+   $err eq '' or die "$case pair comparison stderr: $err";
+}
 
 # Reuse the 360-frame endpoint/state oracle for both unofficial motion orders.
 my $composition=File::Spec->catfile($tmp,'all_five_181_unofficial_composition');
@@ -131,4 +147,4 @@ for my $order (qw(above below)) {
    $err eq '' or die "$case motion stderr: $err";
 }
 
-print "vcs_all_five_181_unofficial ok: official=$official_used unofficial=$unofficial_used delta=2\n";
+print "vcs_all_five_181_unofficial ok: official=$official_used unofficial=$unofficial_used delta=0\n";

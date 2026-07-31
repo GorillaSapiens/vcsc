@@ -6786,3 +6786,32 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass across the completed 174-test run plus the
   remaining 23 run explicitly; the one standard phase expectation exposed by
   the corrected physical-cycle tracer was updated and rerun successfully.
+
+2026-07-31 13:23:09 PDT, repair unofficial all-five 181-line playfield schedule
+--------------------------------------------------------------------------------
+* Use the corrected official `all_five_181` renderer as the exact schedule base
+  for `all_five_181_unofficial`. The unofficial source now differs only in its
+  component identity/path comments and one reviewed stable/common NMOS
+  `NOP.z $00` replacing a same-size, same-cycle dead-flag `BIT.z CXM0P` during
+  VBLANK positioning.
+* Apply the official physical circular raster schedule to the unofficial first
+  visible line, ordinary two-line loop, row-transition paths, and terminal
+  line. Score-above and score-below cartridges now have the same playfield and
+  object timing as their official counterparts while every ordinary pair
+  remains exactly 152 CPU cycles.
+* Change the unofficial regression to use the corrected
+  `all-five-181-official` physical-cycle profile and compare all five official
+  and unofficial smoke/static/motion cartridge pairs for exact visible TIA
+  event and stable-frame identity. Continue to require one zero-page
+  unofficial NOP, no AXS sites, matching RAM addresses, and full-range motion
+  behavior.
+* The maintained smoke links now both use 2090 ROM bytes, for a signed
+  unofficial-minus-official difference of zero. Update renderer, opcode-policy,
+  component-conversion, VCS, example, and test documentation plus their baseline
+  assertions.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass across the completed first 174-test run plus
+  the remaining 23 run explicitly. The focused unofficial pair, official 181,
+  renderer-baseline, and five public all-five interactive-example tests pass.
+  Staged `make installcheck` also passes.

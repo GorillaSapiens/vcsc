@@ -165,14 +165,15 @@ The maintained smoke links measure:
 
 ```text
 official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2092
-signed byte difference:          2
+unofficial linked ROM bytes: 2090
+signed byte difference:          0
 ```
 
-The official renderer now uses the corrected circular physical playfield
-schedule while the unofficial renderer remains on its older schedule. They are
-therefore tested independently rather than by pairwise visible-trace identity.
-Map evidence still requires every RAM symbol to retain the official address.
+The unofficial renderer now shares the corrected circular physical playfield
+schedule exactly. Pairwise emulator comparison requires every visible TIA event
+and stable frame to match across smoke, static score-above/score-below, and
+motion score-above/score-below cartridges. Map evidence also requires every RAM
+symbol to retain the official address.
 
 ## Official all-five 192-line scoreless profile
 

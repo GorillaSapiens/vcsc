@@ -20,5 +20,5 @@ score-below diagnostics.
 | [`01_score_above`](01_score_above/) | score, handoff, gameplay | Five-object motion and six-digit score editing |
 | [`02_score_below`](02_score_below/) | gameplay, handoff, score | Five-object motion and six-digit score editing |
 
-For the opcode inventory and measured zero-byte result, see
+For the opcode inventory and measured zero-byte difference, see
 [`libraries/vcs/renderers/all_five_181_unofficial/README.md`](../../libraries/vcs/renderers/all_five_181_unofficial/README.md).

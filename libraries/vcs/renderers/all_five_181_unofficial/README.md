@@ -16,22 +16,23 @@ or score-below composition rules. Assemble cartridges that instantiate it with
 
 Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
 (`$04`) replaces a same-size, same-cycle dead-flag padding instruction during
-VBLANK positioning. No silicon-sensitive or unstable opcode is used. The
-unofficial renderer remains on its older visible schedule; the corrected
-physical modulo-76 schedule is currently confined to the official renderer.
+VBLANK positioning. No silicon-sensitive or unstable opcode is used. Every
+other instruction and every physical modulo-76 write phase now matches the
+corrected official renderer.
 
 The maintained smoke links measure:
 
 ```text
 official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2092
-signed byte difference:          2
+unofficial linked ROM bytes: 2090
+signed byte difference:          0
 ```
 
-The two components retain identical lifecycle and RAM contracts, but they are
-not currently raster-identical. Tests validate each renderer independently and
-continue to require the same application-visible object behavior, score
-composition, RAM addresses, reviewed opcode set, and stable 262-line frames.
+Tests compare all five official/unofficial cartridge pairs byte-for-byte at the
+visible TIA-event level, including score above, score below, static state, and
+asynchronous motion. They also require identical RAM addresses, the single
+reviewed unofficial opcode, stable 262-line frames, and the corrected playfield
+schedule in both variants.
 
 Public score-above and score-below five-object examples live under
 `examples/08_all_five_181_unofficial/`. They are application-level counterparts to the official
