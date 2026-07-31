@@ -22,8 +22,8 @@ and schedule exactly. No silicon-sensitive or unstable opcode is used.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2087
-unofficial linked ROM bytes: 2087
+official linked ROM bytes:   2092
+unofficial linked ROM bytes: 2092
 signed saving:                  0
 ```
 

@@ -332,8 +332,9 @@ require inline void TEMPLATE_vblank(void) {
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
 
-   // The score handoff will install P0/P1 motion. Preserve the missile/ball
-   // values, apply them together, and start with both missiles disabled.
+   // The score handoff will install P0/P1 motion. Apply the M0/M1/Ball fine
+   // motion together here, then clear those registers later after HMOVE has
+   // completed. Start with both missiles disabled.
    asm lda #0;
    asm sta HMP0;
    asm sta HMP1;
@@ -352,6 +353,14 @@ require inline void TEMPLATE_vblank(void) {
    asm ldx.z TEMPLATE_object_x + 1;
    asm lda.ax TEMPLATE_player_position_table,x;
    asm sta.z TEMPLATE_workspace + 4;
+
+   // The M0/M1/Ball HMOVE above has long since completed. Clear those three
+   // motion registers individually now, rather than strobing HMCLR immediately
+   // after HMOVE, so the later P0/P1 visible-entry HMOVE cannot move them again.
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
 
    // Prepare the row counter and private Y state while output is blanked.
    // Ball setup remains on the third visible handoff line so this callback

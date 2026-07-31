@@ -20,7 +20,7 @@ preserve the official component's exact cycle boundaries.
 
 Tests compare five official/unofficial cartridge pairs, including both score
 orders and asynchronous full-range motion. The maintained smoke cartridges now
-measure 1785 linked ROM bytes for the official implementation and 1783 bytes
+measure 1783 linked ROM bytes for the official implementation and 1781 bytes
 for this variant, including the shared 160-entry packed position table, for a
 measured saving of two bytes.
 

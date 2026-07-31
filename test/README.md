@@ -191,7 +191,9 @@ The legacy and
 
 `vcs_player_color_181.pl` and `vcs_player_color_192.pl` require every gameplay
 GRP0 and GRP1 handoff, including zero GRP1 transfers, to occur during horizontal
-blanking. `vcs_player_extreme_right.pl` builds both heights with alternating
+blanking. The 181-line oracle also rejects both failure modes in the Ball
+positioning sequence: an immediate `HMCLR` that interrupts the first HMOVE, and
+a later HMOVE reached while `HMBL` is still nonzero. `vcs_player_extreme_right.pl` builds both heights with alternating
 $AA/$55 checkerboard players at X=159; that pattern exposes the one-bit row swap
 that solid glyphs hide at the extreme right edge.
 
@@ -207,12 +209,14 @@ row-tearing failure for all five objects.
 `vcs_all_five_composition.pl` builds static and asynchronous score-above and
 score-below cartridges around the 181-line component. It requires explicit
 component handoff, stable 262-line frames, complete five-object activity, clean
-score regions, full-range object motion, and restored application Y state.
+score regions, full-range object motion, restored application Y state, no
+immediate `HMCLR` after the non-player HMOVE, and zero M0/M1/Ball fine-motion
+values at every later HMOVE.
 
 `vcs_all_five_181_unofficial.pl` compares the official renderer with its
 separately named unofficial twin. It requires identical RAM addresses and
 visible TIA traces, one reviewed zero-page unofficial NOP, no AXS sites, and
-the measured 2087/2087-byte zero-saving result.
+the measured 2092/2092-byte zero-saving result.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502

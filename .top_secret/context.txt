@@ -6611,3 +6611,32 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the monolithic run completed the first 175
   before its outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
+
+2026-07-30 22:03:14 PDT, repair 181-line non-player motion without aborting HMOVE
+---------------------------------------------------------------------------------
+* Revert the incorrect immediate-HMCLR repair. On real TIA hardware, strobing
+  HMCLR immediately after HMOVE interrupts the motion transaction that is still
+  in progress, which reduced M0/M1/Ball movement to broken coarse jumps or left
+  objects effectively stuck.
+* Keep the original VBLANK positioning HMOVE intact. After enough unrelated
+  VBLANK work has elapsed for that transaction to complete, clear HMBL directly
+  in both player-color 181 renderers, and clear HMM0, HMM1, and HMBL directly in
+  both all-five 181 renderers. The later visible-entry HMOVE now moves only P0
+  and P1, without reapplying non-player fine motion and without disturbing the
+  first HMOVE.
+* Strengthen the player-color and all-five composition oracles to reject both
+  bad sequences: an HMCLR within eight CPU cycles of the first non-player HMOVE,
+  and any later HMOVE reached while a non-player fine-motion register is still
+  nonzero.
+* Validate the hardware-visible result with headless Stella 7.0 slow-motion
+  diagnostics. The original score-below code advanced M0/M1/Ball in repeated
+  two-pixel steps with 15-pixel backward jumps at coarse boundaries; the
+  immediate-HMCLR version left them stuck in coarse 15-pixel positions. The new
+  code advances all three objects smoothly one pixel at a time in both score
+  orders. The player-color Ball shows the same corrected one-pixel sequence.
+* Update renderer and test documentation and the measured player-color
+  official/unofficial smoke sizes (1783/1781 bytes). No files were removed;
+  .top_secret/remove.txt is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests pass (174 completed before the monolithic command ceiling, then the
+  remaining 23 passed explicitly). Staged `make installcheck` also passes.

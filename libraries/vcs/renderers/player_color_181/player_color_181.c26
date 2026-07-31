@@ -256,8 +256,9 @@ require inline void TEMPLATE_vblank(void) {
    asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
    asm @TEMPLATE_prepare_object_masks_done:;
 
-   // Ball positioning is a VBLANK responsibility. Score mini-renderers preserve
-   // Ball position and motion, so only P0/P1 require a visible-boundary handoff.
+   // Ball positioning is a VBLANK responsibility. Apply its fine motion here;
+   // after that HMOVE has completed, HMBL is cleared later in this callback so
+   // only P0/P1 move at the visible-boundary HMOVE.
    // Keep the Ball strobe at the same cycle used by the retained five-object
    // schedule so its public X coordinate remains bit-for-bit compatible.
    asm sta WSYNC;
@@ -293,6 +294,12 @@ require inline void TEMPLATE_vblank(void) {
    asm ldx.z TEMPLATE_object_x + 1;
    asm lda.ax TEMPLATE_player_position_table,x;
    asm sta.z TEMPLATE_workspace + 4;
+
+   // The Ball HMOVE above has long since completed. Clear only HMBL now,
+   // rather than strobing HMCLR immediately after HMOVE, so the later P0/P1
+   // visible-entry HMOVE cannot move the Ball a second time.
+   asm lda #0;
+   asm sta HMBL;
 
    // Prepare the row counter and private Y state while output is blanked.
    // Ball and initial player color installation remain on the third visible

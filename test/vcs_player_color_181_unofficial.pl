@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_player_color_181_unofficial ok: official=1779 unofficial=1777 saving=2
+# expectstdout: vcs_player_color_181_unofficial ok: official=1783 unofficial=1781 saving=2
 # expectexit: 0
 
 use strict;
@@ -60,8 +60,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1779 or die "official smoke now uses $official_used bytes, expected 1779\n";
-$unofficial_used==1777 or die "unofficial smoke now uses $unofficial_used bytes, expected 1777\n";
+$official_used==1783 or die "official smoke now uses $official_used bytes, expected 1783\n";
+$unofficial_used==1781 or die "unofficial smoke now uses $unofficial_used bytes, expected 1781\n";
 $official_used-$unofficial_used==2
    or die "unexpected savings: official=$official_used unofficial=$unofficial_used\n";
 
