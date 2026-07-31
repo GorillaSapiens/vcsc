@@ -592,6 +592,13 @@ are errors. Signed right shift is arithmetic; unsigned right shift is logical.
 `sizeof(type)` and `sizeof(expression)` produce `int16_t` and do not evaluate an
 expression operand for side effects.
 
+A simple assignment expression has the value of its right-hand side after
+conversion to the left-hand type. Chained assignments preserve and forward that
+converted value; the compiler does not store the inner assignment and then read
+its destination back. This matters for memory-mapped `ref` objects: write-only
+and split read/write registers may be used in a chain without an illegal or
+semantically different read from the register.
+
 A lone underscore is a discard token usable only in simple assignment:
 
 ```vcsc

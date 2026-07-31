@@ -118,6 +118,15 @@ rejection tests require assignment-from-discard targets to be one-byte,
 non-bitfield lvalues. `e2e_discard_assignment_verify.c26` verifies the bare-A
 store and discarded-expression side effects in the simulator.
 
+`assign_expr_value_codegen_test.c26`,
+`assign_expr_condition_codegen_test.c26`, and
+`vcs_write_only_chained_assignment_codegen_test.c26` verify that a valued
+simple assignment forwards the converted right-hand value instead of reading
+the destination back. The VCS case covers two- and three-target write-only TIA
+chains plus a split read/write `ref`, and forbids reads from every inner
+register. `e2e_assign_expr_verify.c26` also checks that narrowing happens once
+at the inner target and that the narrowed value is what the outer target sees.
+
 `integer_trivial_codegen_test.c26` and
 `e2e_integer_trivial_optimizations_verify.c26` cover zero/one identities,
 annihilators, positive oversized divisors, compound assignments, signed and

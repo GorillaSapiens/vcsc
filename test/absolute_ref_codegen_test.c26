@@ -3,7 +3,8 @@
 // expectasm: sta  $80
 // forbidasm: lda #<{$80 + 0}
 // expectasm: lda  $100
-// expectasm: lda #<{$180 + 0}
+// expectasm: sta  $180
+// forbidasm: lda #<{$180 + 0}
 
 include "machine_6502.c26"
 

@@ -1,8 +1,8 @@
 // vcsc-cc1 -I .
 // expectasmordered: sta a?,y
-// expectasmordered: lda #<{a? + 0}
 // expectasmordered: ora __vcsc_scratch_
 // expectasmordered: beq @if_false_
+// forbidasm: lda #<{a? + 0}
 
 include "machine_6502.c26"
 

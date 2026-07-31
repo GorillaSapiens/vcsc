@@ -1,0 +1,27 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasmordered: lda #$03
+// expectasmordered: sta  $04
+// expectasmordered: sta  $05
+// expectasmordered: lda #$0e
+// expectasmordered: sta  $06
+// expectasmordered: sta  $07
+// expectasmordered: sta  $2B
+// expectasmordered: lda #$5a
+// expectasmordered: sta  $20
+// expectasmordered: sta  $21
+// forbidasm: lda  $04
+// forbidasm: lda  $05
+// forbidasm: lda  $06
+// forbidasm: lda  $07
+// forbidasm: lda  $10
+
+include "vcs.c26"
+
+ref uint8_t split_register@[0x10/0x20];
+ref uint8_t split_sink@[none/0x21];
+
+void main(void) {
+   NUSIZ1 := NUSIZ0 := 3;
+   HMCLR := COLUP1 := COLUP0 := 0x0e;
+   split_sink := split_register := 0x5a;
+}

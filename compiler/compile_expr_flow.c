@@ -795,6 +795,28 @@ static bool compile_direct_byte_lvalue_to_absolute_ref(Context *ctx,
    return true;
 }
 
+//! @brief Store a fixed assignment value into a simple absolute ref without pointer setup.
+static bool emit_fixed_assignment_value_to_lvalue(Context *ctx, const LValueRef *dst,
+                                                  const char *symbol, int size) {
+   if (!dst || !symbol || size <= 0) {
+      return false;
+   }
+   if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
+       !dst->needs_runtime_address) {
+      if (!dst->write_expr || !*dst->write_expr) {
+         return false;
+      }
+      emit_lvalue_semantic_use(ctx, dst, "write");
+      for (int i = 0; i < size; i++) {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
+      }
+      return true;
+   }
+   return emit_copy_symbol_to_lvalue(ctx, dst, symbol, 0, size);
+}
+
 //! @brief Lower a discarded one-byte increment/decrement without result scratch.
 static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    LValueRef lv;
@@ -1150,7 +1172,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
          }
-         if (!emit_copy_symbol_to_lvalue(ctx, &lv, scratch_sym, 0, tmp_size)) {
+         if (!emit_fixed_assignment_value_to_lvalue(ctx, &lv, scratch_sym, tmp_size)) {
             compiler_scratch_release(&scratch);
             error_user("[%s:%d.%d] invalid assignment target", node->file, node->line, node->column);
             return;

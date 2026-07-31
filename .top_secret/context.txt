@@ -6568,3 +6568,31 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the monolithic run completed the first 174
   before the outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
+
+2026-07-30 20:41:43 PDT, preserve chained-assignment values without rereading lvalues
+--------------------------------------------------------------------------
+* Correct simple assignment-expression lowering so the compiler evaluates the
+  right-hand side once into storage typed for the left-hand side, writes that
+  converted value to the lvalue, and forwards the same value to the enclosing
+  expression. Chained assignments no longer implement their value by reading
+  the just-written destination back.
+* Add direct preserved-value stores for simple absolute refs in both ordinary
+  and fixed-scratch assignment paths. This permits chains through write-only
+  VCS registers and split read/write refs while retaining the existing
+  read-only-ref diagnostics. Bitfield and braced assignment paths keep their
+  specialized handling.
+* Add a VCS regression covering chains through NUSIZ0, NUSIZ1, COLUP0, COLUP1,
+  HMCLR, and a synthetic split read/write ref, with explicit prohibitions on
+  reading any write-only or wrong-side address. Tighten existing assignment
+  and absolute-ref code-generation tests to reject destination readback and
+  unnecessary pointer setup.
+* Extend the runtime assignment-expression test with a narrowing chain to
+  verify that the outer assignment receives the value after conversion to the
+  inner lvalue type, rather than the unconverted source value.
+* Document assignment-expression value forwarding in the compiler and test
+  manuals.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 332/332 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before the outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.

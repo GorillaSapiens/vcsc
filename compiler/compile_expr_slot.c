@@ -84,6 +84,54 @@ static void emit_slot_fixed_scratch_result(Context *ctx, const SlotFixedScratch 
    }
 }
 
+//! @brief Store a preserved assignment value into its lvalue without forcing a readback.
+static bool emit_preserved_assignment_value(Context *ctx, const LValueRef *dst,
+                                            const char *symbol, int size) {
+   ContextEntry entry;
+   char dst_symbol[256];
+
+   if (!dst || !symbol || size <= 0) {
+      return false;
+   }
+   if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
+       !dst->needs_runtime_address) {
+      if (!dst->write_expr || !*dst->write_expr) {
+         return false;
+      }
+      emit_lvalue_semantic_use(ctx, dst, "write");
+      for (int i = 0; i < size; i++) {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
+      }
+      return true;
+   }
+
+   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
+       (dst->is_static || dst->is_zeropage || dst->is_global)) {
+      emit_lvalue_semantic_use(ctx, dst, "write");
+      entry = (ContextEntry){ .name = dst->name, .type = dst->type,
+         .declarator = dst->declarator, .is_static = dst->is_static,
+         .is_zeropage = dst->is_zeropage, .is_global = dst->is_global,
+         .offset = dst->offset, .size = dst->size };
+      if (!entry_symbol_name(ctx, &entry, dst_symbol, sizeof(dst_symbol))) {
+         return false;
+      }
+      emit_copy_symbol_to_symbol_convert_offset(dst_symbol, dst->offset, size, dst->type,
+                                                symbol, 0, size, dst->type);
+      return true;
+   }
+
+   if (!dst->is_bitfield && !dst->indirect && !dst->needs_runtime_address &&
+       !dst->is_static && !dst->is_zeropage && !dst->is_global) {
+      emit_copy_symbol_to_scratch_convert_offset(dst->offset, size, dst->type,
+                                                 symbol, 0, size, dst->type);
+      return true;
+   }
+
+   return emit_copy_symbol_to_lvalue(ctx, dst, symbol, 0, size);
+}
+
 //! @brief Return lvalue base identifier node data used by compile expr slot; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *lvalue_base_identifier_node(ASTNode *base) {
    if (!base) {
@@ -332,12 +380,63 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
 
    if (!strcmp(expr->name, "assign_expr") && expr->count == 3) {
       LValueRef lv;
+      const char *op = expr->children[0] ? expr->children[0]->strval : NULL;
+      ASTNode *rhs = expr->children[2];
       int load_size;
 
-      compile_expr(expr, ctx);
       if (!resolve_lvalue(ctx, expr->children[1], &lv)) {
          return false;
       }
+
+      /* A simple assignment expression has the converted value written to its
+       * left operand.  Preserve that value while it is still in compiler
+       * scratch instead of storing it and then reading the lvalue back.  The
+       * readback is both unnecessary and invalid for write-only absolute refs
+       * such as TIA registers.  Bitfields retain the store/readback path below
+       * because their expression value must reflect width truncation and signed
+       * extension performed by the bitfield accessors. */
+      if ((!op || !strcmp(op, ":=")) && !lv.is_bitfield &&
+          !initializer_is_list(unwrap_expr_node(rhs))) {
+         SlotFixedScratch scratch;
+         ContextEntry value;
+         int value_size = lv.size;
+
+         if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
+            error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+                       expr->file ? expr->file : "<unknown>", expr->line, expr->column,
+                       lv.name ? lv.name : "<unnamed>");
+         }
+         if (value_size <= 0) {
+            value_size = declarator_storage_size(lv.type, lv.declarator);
+         }
+         if (value_size <= 0) {
+            value_size = type_size_from_node(lv.type);
+         }
+         if (value_size <= 0) {
+            return false;
+         }
+
+         slot_fixed_scratch_begin(ctx, value_size, &scratch);
+         value = (ContextEntry){ .name = "$assign", .type = lv.type,
+                                 .declarator = lv.declarator,
+                                 .is_static = false, .is_zeropage = false,
+                                 .is_global = false, .target_typed = true,
+                                 .offset = 0, .size = value_size };
+         if (!compile_expr_to_slot(rhs, ctx, &value)) {
+            slot_fixed_scratch_abort(ctx, &scratch);
+            return false;
+         }
+         slot_fixed_scratch_deactivate(ctx, &scratch);
+         if (!emit_preserved_assignment_value(ctx, &lv, scratch.symbol, value_size)) {
+            slot_fixed_scratch_finish(&scratch);
+            return false;
+         }
+         emit_slot_fixed_scratch_result(ctx, &scratch, 0, value_size, lv.type, dst);
+         slot_fixed_scratch_finish(&scratch);
+         return true;
+      }
+
+      compile_expr(expr, ctx);
 
       load_size = lv.size < dst->size ? lv.size : dst->size;
       if (load_size <= 0) {

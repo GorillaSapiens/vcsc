@@ -14,6 +14,9 @@ void main(void) {
    int16_t a := 0;
    int16_t b := 0;
    int16_t c := 0;
+   uint8_t narrow := 0;
+   uint16_t widened := 0;
+   uint16_t wide_source := 0x123;
 
    if (a := 4) {
       c := c + a;
@@ -37,6 +40,11 @@ void main(void) {
 
    if (c != 10) {
       asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff;
+   }
+
+   widened := narrow := wide_source;
+   if (!(narrow == 0x23 && widened == 0x23)) {
+      asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff;
    }
 
    pass();
