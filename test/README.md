@@ -227,13 +227,17 @@ values at every later HMOVE. Its endpoint slice now verifies the observed
 RESP/HMxx/HMOVE positioning transactions for P0, P1, M0, M1, and Ball in all
 360 motion frames, then checks the clipped 160-pixel spans at both horizontal
 endpoints for the fixture's player glyphs, four-clock missiles, and four-clock
-Ball. The full per-scanline object-pixel oracle remains a later stop-ship slice.
+Ball. The same harness now models GRP0/GRP1 delayed transfers, delayed Ball
+latching, immediate missile enables, NUSIZ/CTRLPF widths, and physical
+color-clock write timing. It compares all five object layers at every visible
+pixel on the setup line and all 181 gameplay lines in both score orders.
 
 `vcs_all_five_181_unofficial.pl` checks the separately named unofficial twin
 against the corrected official schedule. It requires identical RAM addresses,
 one reviewed zero-page unofficial NOP, no AXS sites, the same physical
 modulo-76 playfield profile, pairwise visible-trace identity for all five static
-and motion compositions, and the measured 2090/2090-byte result.
+and motion compositions, direct per-pixel object-raster checks for both static
+score orders, and the measured 2090/2090-byte result.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
@@ -373,10 +377,11 @@ and stable 262-line standalone scheduling.
 and below the 181-line player-color component and leaves the 192-line scoreless
 component under hostile state from the previous overscan. It requires stable
 262-line scheduling and the existing P0/P1/Ball register/color raster in all
-three cases. It also deliberately records the remaining stop-ship gap: the
-score-above path still performs gameplay positioning before the poison renderer
-and has no post-score RESP/HMxx/HMOVE restoration. This is a diagnostic probe,
-not the unfinished full object-pixel oracle.
+three cases. The player-color 181/192 harnesses now add a full physical-scanline
+object model: delayed P0/Ball transfers, immediate P1, forbidden missiles,
+NUSIZ/CTRLPF widths, setup lines, every gameplay line, and terminal paths are
+compared pixel by pixel. Official and unofficial 181-line score compositions
+run the same model directly.
 
 ## Stella linker sidecars
 

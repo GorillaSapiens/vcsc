@@ -127,12 +127,24 @@ for my $case (@cases) {
    $err eq '' or die "$case pair comparison stderr: $err";
 }
 
-# Reuse the 360-frame endpoint/state oracle for both unofficial motion orders.
+# Reuse the independent object-pixel/endpoint oracle directly on the unofficial
+# twin too; visible-trace identity is useful corroboration, not a substitute for
+# running the raster model against both maintained opcode-policy variants.
 my $composition=File::Spec->catfile($tmp,'all_five_181_unofficial_composition');
 ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
    File::Spec->catfile($repo,qw(test vcs_all_five_composition.cpp)),@mos_input,'-o',$composition);
 $rc==0 && !$sig or die "composition harness build failed\n$out$err";
 for my $order (qw(above below)) {
+   my $static_case="static_score_$order";
+   ($rc,$sig,$out,$err)=capture($composition,$built{$static_case}{unofficial}[0],
+      $order,'static');
+   $rc==0 && !$sig or die "$static_case unofficial object raster failed
+$out$err";
+   $out eq "vcs_all_five_composition static $order ok
+"
+      or die "unexpected $static_case raster output: $out";
+   $err eq '' or die "$static_case raster stderr: $err";
+
    my $case="motion_score_$order";
    my $map=$built{$case}{unofficial}[1];
    my @addresses=map { sprintf('0x%02x',map_symbol($map,$_)) } qw(

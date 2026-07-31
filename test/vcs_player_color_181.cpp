@@ -24,6 +24,9 @@ constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kPf0 = 0x000D;
 constexpr uint16_t kPf1 = 0x000E;
 constexpr uint16_t kPf2 = 0x000F;
+constexpr uint16_t kCtrlpf = 0x000A;
+constexpr uint16_t kRefp0 = 0x000B;
+constexpr uint16_t kRefp1 = 0x000C;
 constexpr uint16_t kColup0 = 0x0006;
 constexpr uint16_t kColup1 = 0x0007;
 constexpr uint16_t kResp0 = 0x0010;
@@ -37,6 +40,9 @@ constexpr uint16_t kHmp0 = 0x0020;
 constexpr uint16_t kHmbl = 0x0024;
 constexpr uint16_t kHmove = 0x002A;
 constexpr uint16_t kHmclr = 0x002B;
+constexpr uint16_t kVdelp0 = 0x0025;
+constexpr uint16_t kVdelp1 = 0x0026;
+constexpr uint16_t kVdelbl = 0x0027;
 constexpr uint16_t kNusiz0 = 0x0004;
 constexpr uint16_t kNusiz1 = 0x0005;
 constexpr uint16_t kIntim = 0x0284;
@@ -574,6 +580,143 @@ void verify_raster() {
    }
 }
 
+
+struct ObjectRasterState {
+   uint8_t grp0_new=0,grp0_display=0;
+   uint8_t grp1_new=0,grp1_display=0;
+   uint8_t enabl_new=0,enabl_display=0;
+   uint8_t enam0=0,enam1=0;
+   uint8_t nusiz0=0,nusiz1=0;
+   uint8_t ctrlpf=0x21,refp0=0,refp1=0;
+   bool vdelp0=false,vdelp1=false,vdelbl=false;
+};
+void apply_object_write(ObjectRasterState &state,const TimedWrite &write) {
+   switch (write.address) {
+      case kGrp0:
+         state.grp0_new=write.value;
+         if (!state.vdelp0) state.grp0_display=write.value;
+         state.grp1_display=state.grp1_new;
+         break;
+      case kGrp1:
+         state.grp1_new=write.value;
+         if (!state.vdelp1) state.grp1_display=write.value;
+         state.grp0_display=state.grp0_new;
+         state.enabl_display=state.enabl_new;
+         break;
+      case kEnabl:
+         state.enabl_new=write.value;
+         if (!state.vdelbl) state.enabl_display=write.value;
+         break;
+      case kEnam0: state.enam0=write.value; break;
+      case kEnam1: state.enam1=write.value; break;
+      case kNusiz0: state.nusiz0=write.value; break;
+      case kNusiz1: state.nusiz1=write.value; break;
+      case kCtrlpf: state.ctrlpf=write.value; break;
+      case kRefp0: state.refp0=write.value; break;
+      case kRefp1: state.refp1=write.value; break;
+      case kVdelp0: state.vdelp0=(write.value&1)!=0; break;
+      case kVdelp1: state.vdelp1=(write.value&1)!=0; break;
+      case kVdelbl: state.vdelbl=(write.value&1)!=0; break;
+      default: break;
+   }
+}
+bool player_pixel(uint8_t graphics,uint8_t nusiz,uint8_t refp,unsigned origin,unsigned pixel) {
+   if (graphics==0) return false;
+   if ((nusiz&7)!=0) fail("pixel fixture lost single-copy player mode");
+   if (pixel<origin || pixel>=origin+8) return false;
+   unsigned bit=pixel-origin;
+   if ((refp&8)==0) bit=7-bit;
+   return ((graphics>>bit)&1)!=0;
+}
+bool span_pixel(bool enabled,unsigned origin,unsigned width,unsigned pixel) {
+   return enabled && pixel>=origin && pixel<origin+width;
+}
+uint8_t expected_display_value(const std::array<uint8_t,8> &values,int first,int line) {
+   if (line<first || line>=first+16) return 0;
+   return values[static_cast<size_t>((line-first)/2)];
+}
+void verify_object_pixel_raster() {
+   if (motion_mode) return;
+   const auto found=timed_writes.find(2);
+   if (found==timed_writes.end() || found->second.empty()) fail("missing object pixel trace");
+   const auto &trace=found->second;
+   const std::array<uint8_t,8> p0=score_order==ScoreOrder::None
+      ? std::array<uint8_t,8>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}}
+      : std::array<uint8_t,8>{{0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e}};
+   const std::array<uint8_t,8> p1=score_order==ScoreOrder::None
+      ? std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}}
+      : std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe}};
+   int p0_first=165,p1_first=112,ball_first=127,ball_lines=8;
+   int game_first=score_order==ScoreOrder::Above ? 51 : 40;
+   int game_lines=181;
+   if (terminal_mode==TerminalMode::Lines181) {
+      p0_first=203; p1_first=204; ball_first=213; ball_lines=7;
+      game_first=40;
+   }
+   else if (terminal_mode==TerminalMode::Lines192) {
+      // This mode is retained for the 192-line compatibility fixture; its
+      // dedicated 192-line harness performs the authoritative pixel check.
+      return;
+   }
+   else if (score_order==ScoreOrder::Above) {
+      p0_first+=11; p1_first+=11; ball_first+=11;
+   }
+   const int first_checked=game_first-1;
+   const int last_checked=game_first+game_lines-1;
+   const std::array<unsigned,3> x{{44,108,78}};
+   const uint64_t phase=(trace.front().beam_cycle+kCyclesPerScanline-trace.front().cycle)%kCyclesPerScanline;
+   ObjectRasterState state;
+   size_t next=0;
+   uint64_t checked=0;
+   for (int physical_line=0;physical_line<=last_checked;++physical_line) {
+      std::vector<TimedWrite> events;
+      while (next<trace.size()) {
+         const TimedWrite &write=trace[next];
+         const uint64_t line=write.line+((write.cycle+phase)>=kCyclesPerScanline ? 1 : 0);
+         if (line>static_cast<uint64_t>(physical_line)) break;
+         if (line==static_cast<uint64_t>(physical_line)) events.push_back(write);
+         ++next;
+      }
+      size_t event=0;
+      for (unsigned pixel=0;pixel<160;++pixel) {
+         const uint64_t color_clock=68+pixel;
+         while (event<events.size() && events[event].beam_cycle*3<=color_clock)
+            apply_object_write(state,events[event++]);
+         if (physical_line<first_checked) continue;
+         const bool in_game=physical_line>=game_first && physical_line<=last_checked;
+         const uint8_t want0=in_game ? expected_display_value(p0,p0_first,physical_line) : 0;
+         const uint8_t want1=in_game ? expected_display_value(p1,p1_first,physical_line) : 0;
+         const bool want_ball=in_game && physical_line>=ball_first && physical_line<ball_first+ball_lines;
+         const unsigned ball_width=1u<<((state.ctrlpf>>4)&3);
+         const std::array<bool,5> actual{{
+            player_pixel(state.grp0_display,state.nusiz0,state.refp0,x[0],pixel),
+            player_pixel(state.grp1_display,state.nusiz1,state.refp1,x[1],pixel),
+            span_pixel((state.enam0&2)!=0,0,1,pixel),
+            span_pixel((state.enam1&2)!=0,0,1,pixel),
+            span_pixel((state.enabl_display&2)!=0,x[2],ball_width,pixel)
+         }};
+         const std::array<bool,5> expected{{
+            player_pixel(want0,0,0,x[0],pixel),
+            player_pixel(want1,0,0,x[1],pixel),
+            false,false,
+            span_pixel(want_ball,x[2],4,pixel)
+         }};
+         for (size_t object=0;object<actual.size();++object) {
+            ++checked;
+            if (actual[object]!=expected[object]) {
+               std::fprintf(stderr,
+                  "vcs_player_color_181: object raster mismatch line %d x=%u object=%zu actual=%u expected=%u\n",
+                  physical_line,pixel,object,actual[object],expected[object]);
+               std::exit(1);
+            }
+         }
+      }
+      while (event<events.size()) apply_object_write(state,events[event++]);
+   }
+   const uint64_t expected_count=static_cast<uint64_t>(game_lines+1)*160*5;
+   if (checked!=expected_count) fail("object raster checked the wrong pixel count");
+}
+
 void verify_composition() {
    if (score_order == ScoreOrder::None) return;
    const int last = motion_mode ? 8 : 3;
@@ -686,6 +829,7 @@ int main(int argc, char **argv) {
    verify_visible_handoff();
    verify_player_handoffs();
    verify_raster();
+   verify_object_pixel_raster();
    verify_composition();
    if (motion_mode) {
       for (size_t i = 0; i < 3; ++i) {

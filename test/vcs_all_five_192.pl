@@ -177,6 +177,14 @@ my $endpoint_src=File::Spec->catfile($repo,'test','vcs_all_five_composition.cpp'
    $endpoint_src,@mos_input,'-o',$endpoint_exe);
 $rc==0 && !$sig or die "endpoint harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "endpoint harness build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($endpoint_exe,$bin,'none','static');
+$rc==0 && !$sig or die "static object-pixel raster failed
+$out$err";
+$out eq "vcs_all_five_composition static none ok
+"
+   or die "unexpected static object-pixel output: $out";
+$err eq '' or die "static object-pixel stderr: $err";
+
 my @endpoint_args=(
    map_symbol($motion_map,'game_object_x'),
    map_symbol($motion_map,'game_player0_y'),

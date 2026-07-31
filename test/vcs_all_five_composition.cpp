@@ -22,6 +22,9 @@ constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kPf1 = 0x000E;
 constexpr uint16_t kPf2 = 0x000F;
+constexpr uint16_t kCtrlpf = 0x000A;
+constexpr uint16_t kRefp0 = 0x000B;
+constexpr uint16_t kRefp1 = 0x000C;
 constexpr uint16_t kNusiz0 = 0x0004;
 constexpr uint16_t kNusiz1 = 0x0005;
 constexpr uint16_t kResp0 = 0x0010;
@@ -41,6 +44,9 @@ constexpr uint16_t kHmm1 = 0x0023;
 constexpr uint16_t kHmbl = 0x0024;
 constexpr uint16_t kHmove = 0x002A;
 constexpr uint16_t kHmclr = 0x002B;
+constexpr uint16_t kVdelp0 = 0x0025;
+constexpr uint16_t kVdelp1 = 0x0026;
+constexpr uint16_t kVdelbl = 0x0027;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
@@ -394,6 +400,167 @@ void verify_object_positioning_and_endpoints() {
    }
 }
 
+
+struct ObjectRasterState {
+   uint8_t grp0_new = 0;
+   uint8_t grp0_display = 0;
+   uint8_t grp1_new = 0;
+   uint8_t grp1_display = 0;
+   uint8_t enam0 = 0;
+   uint8_t enam1 = 0;
+   uint8_t enabl_new = 0;
+   uint8_t enabl_display = 0;
+   uint8_t nusiz0 = 0;
+   uint8_t nusiz1 = 0;
+   uint8_t ctrlpf = 0;
+   uint8_t refp0 = 0;
+   uint8_t refp1 = 0;
+   bool vdelp0 = false;
+   bool vdelp1 = false;
+   bool vdelbl = false;
+};
+
+void apply_object_write(ObjectRasterState &state,const TimedWrite &write) {
+   switch (write.address) {
+      case kGrp0:
+         state.grp0_new=write.value;
+         if (!state.vdelp0) state.grp0_display=write.value;
+         // A GRP0 write transfers P1's delayed value.
+         state.grp1_display=state.grp1_new;
+         break;
+      case kGrp1:
+         state.grp1_new=write.value;
+         if (!state.vdelp1) state.grp1_display=write.value;
+         // A GRP1 write transfers P0 and Ball delayed values.
+         state.grp0_display=state.grp0_new;
+         state.enabl_display=state.enabl_new;
+         break;
+      case kEnam0: state.enam0=write.value; break;
+      case kEnam1: state.enam1=write.value; break;
+      case kEnabl:
+         state.enabl_new=write.value;
+         if (!state.vdelbl) state.enabl_display=write.value;
+         break;
+      case kNusiz0: state.nusiz0=write.value; break;
+      case kNusiz1: state.nusiz1=write.value; break;
+      case kCtrlpf: state.ctrlpf=write.value; break;
+      case kRefp0: state.refp0=write.value; break;
+      case kRefp1: state.refp1=write.value; break;
+      case kVdelp0: state.vdelp0=(write.value&1)!=0; break;
+      case kVdelp1: state.vdelp1=(write.value&1)!=0; break;
+      case kVdelbl: state.vdelbl=(write.value&1)!=0; break;
+      default: break;
+   }
+}
+
+bool player_pixel(uint8_t graphics,uint8_t nusiz,uint8_t refp,unsigned origin,unsigned pixel) {
+   if (graphics==0) return false;
+   // The diagnostic fixtures deliberately use the single-copy, normal-width
+   // player mode. Reject a renderer that silently changes that contract rather
+   // than teaching this oracle to accept a different scene.
+   if ((nusiz&7)!=0) fail("object raster fixture lost single-copy player mode");
+   if (pixel<origin || pixel>=origin+8) return false;
+   unsigned bit=pixel-origin;
+   if ((refp&8)==0) bit=7-bit;
+   return ((graphics>>bit)&1)!=0;
+}
+
+bool span_pixel(bool enabled,unsigned origin,unsigned width,unsigned pixel) {
+   return enabled && pixel>=origin && pixel<origin+width;
+}
+
+uint8_t expected_player_value(Object object,int relative_line) {
+   static constexpr std::array<uint8_t,7> p0{{0x3c,0x66,0x66,0x7e,0x66,0x66,0x66}};
+   static constexpr std::array<uint8_t,7> p1{{0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c}};
+   const int first=object==P0 ? 22 : 144;
+   if (relative_line<first || relative_line>=first+14) return 0;
+   return (object==P0 ? p0 : p1)[static_cast<size_t>((relative_line-first)/2)];
+}
+
+bool expected_enable(Object object,int relative_line) {
+   int first=0,lines=0;
+   switch (object) {
+      case M0: first=59; lines=12; break;
+      case M1: first=110; lines=16; break;
+      case BL: first=92; lines=8; break;
+      default: return false;
+   }
+   if (!scoreless) first+=2;
+   return relative_line>=first && relative_line<first+lines;
+}
+
+void verify_static_object_pixel_raster() {
+   if (motion_mode) return;
+   const int checked=2;
+   const auto found=timed_writes.find(checked);
+   if (found==timed_writes.end() || found->second.empty()) fail("missing static object raster trace");
+   const auto &trace=found->second;
+   const uint64_t phase=(trace.front().beam_cycle+kCyclesPerLine-trace.front().cycle)%kCyclesPerLine;
+   const int game_first=scoreless ? 40 : score_above ? 51 : 40;
+   const int game_lines=scoreless ? 192 : 181;
+   const int first_checked=game_first-1; // setup/boundary line must remain blank
+   const int last_checked=game_first+game_lines-1;
+   const std::array<unsigned,ObjectCount> x{{20,130,50,110,80}};
+
+   ObjectRasterState state;
+   // CTRLPF is application-owned and is initialized once before the frame loop.
+   state.ctrlpf=0x21;
+   size_t next=0;
+   uint64_t checked_pixels=0;
+   for (int physical_line=0;physical_line<=last_checked;++physical_line) {
+      std::vector<TimedWrite> line_writes;
+      while (next<trace.size()) {
+         const TimedWrite &write=trace[next];
+         const uint64_t line=write.line+((write.cycle+phase)>=kCyclesPerLine ? 1 : 0);
+         if (line>static_cast<uint64_t>(physical_line)) break;
+         if (line==static_cast<uint64_t>(physical_line)) line_writes.push_back(write);
+         ++next;
+      }
+      size_t event=0;
+      for (unsigned pixel=0;pixel<160;++pixel) {
+         const uint64_t color_clock=68+pixel;
+         while (event<line_writes.size() && line_writes[event].beam_cycle*3<=color_clock)
+            apply_object_write(state,line_writes[event++]);
+
+         if (physical_line<first_checked) continue;
+         const int relative=physical_line-game_first;
+         const bool in_game=relative>=0 && relative<game_lines;
+         const uint8_t p0=in_game ? expected_player_value(P0,relative) : 0;
+         const uint8_t p1=in_game ? expected_player_value(P1,relative) : 0;
+         const unsigned m0_width=1u<<((state.nusiz0>>4)&3);
+         const unsigned m1_width=1u<<((state.nusiz1>>4)&3);
+         const unsigned ball_width=1u<<((state.ctrlpf>>4)&3);
+         const std::array<bool,ObjectCount> actual{{
+            player_pixel(state.grp0_display,state.nusiz0,state.refp0,x[P0],pixel),
+            player_pixel(state.grp1_display,state.nusiz1,state.refp1,x[P1],pixel),
+            span_pixel((state.enam0&2)!=0,x[M0],m0_width,pixel),
+            span_pixel((state.enam1&2)!=0,x[M1],m1_width,pixel),
+            span_pixel((state.enabl_display&2)!=0,x[BL],ball_width,pixel)
+         }};
+         const std::array<bool,ObjectCount> expected{{
+            in_game && player_pixel(p0,0,0,x[P0],pixel),
+            in_game && player_pixel(p1,0,0,x[P1],pixel),
+            in_game && span_pixel(expected_enable(M0,relative),x[M0],4,pixel),
+            in_game && span_pixel(expected_enable(M1,relative),x[M1],4,pixel),
+            in_game && span_pixel(expected_enable(BL,relative),x[BL],4,pixel)
+         }};
+         for (size_t object=0;object<ObjectCount;++object) {
+            ++checked_pixels;
+            if (actual[object]!=expected[object]) {
+               std::fprintf(stderr,
+                  "vcs_all_five_composition: object raster mismatch %s line %d (relative %d) x=%u object=%zu actual=%u expected=%u\n",
+                  scoreless ? "none" : score_above ? "above" : "below",
+                  physical_line,relative,pixel,object,actual[object],expected[object]);
+               std::exit(1);
+            }
+         }
+      }
+      while (event<line_writes.size()) apply_object_write(state,line_writes[event++]);
+   }
+   const uint64_t expected_count=static_cast<uint64_t>(game_lines+1)*160*ObjectCount;
+   if (checked_pixels!=expected_count) fail("object raster checked the wrong pixel count");
+}
+
 void verify_frames() {
    const int needed = motion_mode ? kMotionFrames : 12;
    if (frame < needed) fail("instruction limit reached before enough frames");
@@ -418,6 +585,7 @@ void verify_frames() {
          if (!saw_low[i] || !saw_high[i]) fail("a moving object failed to reach both X endpoints");
    }
    verify_object_positioning_and_endpoints();
+   verify_static_object_pixel_raster();
 }
 } // namespace
 

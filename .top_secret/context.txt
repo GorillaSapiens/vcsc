@@ -718,8 +718,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b1b3 — complete per-scanline P0/P1/M0/M1/Ball pixel
-reconstruction for every maintained setup, ordinary, transition, and terminal path.
+Current next action: 22i4b2 — define and publish the measured visible-component
+handoff contract for every maintained draw routine.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1597,7 +1597,7 @@ reconstruction for every maintained setup, ordinary, transition, and terminal pa
                                                     be combined into one untraceable
                                                     conversion.
 
-                                         [ ] 22i4b1. Add a pixel-accurate TIA raster
+                                         [x] 22i4b1. Add a pixel-accurate TIA raster
                                                     oracle for playfield and player
                                                     output, not merely register-write
                                                     counts. Reproduce and fix the bad
@@ -1631,7 +1631,7 @@ reconstruction for every maintained setup, ordinary, transition, and terminal pa
                                                                in Stella. Obsolete earlier target
                                                                cycles and transition-clearing recipes
                                                                are removed from the roadmap.
-                                                    [ ] 22i4b1b. Finish the full player/object
+                                                    [x] 22i4b1b. Finish the full player/object
                                                                pixel oracle for P0/P1/M0/M1/Ball,
                                                                including endpoint positions and
                                                                every transition/terminal line,
@@ -1664,12 +1664,32 @@ reconstruction for every maintained setup, ordinary, transition, and terminal pa
                                                                           and checks clipped normal-width
                                                                           player glyphs plus four-clock
                                                                           missiles and Ball at both edges.
-                                                               [ ] 22i4b1b3. Complete pixel-accurate
+                                                               [x] 22i4b1b3. Complete pixel-accurate
                                                                           P0/P1/M0/M1/Ball reconstruction
                                                                           on every ordinary, setup, row-
                                                                           transition, and terminal line
-                                                                          for every maintained profile;
-                                                                          then close 22i4b1b.
+                                                                          for every maintained profile.
+                                                                          The independent physical-scanline
+                                                                          model now tracks GRP0/GRP1 delayed
+                                                                          transfers, VDELP0/VDELP1/VDELBL,
+                                                                          immediate missile enables, NUSIZ
+                                                                          and CTRLPF widths, reflection state,
+                                                                          and write completion at TIA color-
+                                                                          clock resolution. It compares all
+                                                                          five object layers at every pixel on
+                                                                          the setup line and every gameplay
+                                                                          line for official all-five 181/192,
+                                                                          the unofficial all-five 181 twin,
+                                                                          official player-color 181/192, and
+                                                                          the unofficial player-color 181 twin.
+                                                                          Static score-above/score-below,
+                                                                          scoreless, terminal-181, and terminal-
+                                                                          192 fixtures cover ordinary, every
+                                                                          row transition, and terminal paths;
+                                                                          M0/M1 are required blank in the
+                                                                          player-color profiles. Endpoint motion
+                                                                          remains separately locked by 22i4b1b1
+                                                                          and 22i4b1b2. Close 22i4b1b and 22i4b1.
 
                                          [ ] 22i4b2. Define and publish a measured
                                                     visible-component handoff contract.
@@ -6991,3 +7011,26 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   root build reached and passed all 334 compile-only tests and the first 170 of
   197 end-to-end tests before the outer command timeout; the focused changed
   regression was then rerun separately and passed.
+2026-07-31 16:19:57 PDT, complete full object-pixel raster oracle
+------------------------------------------------------------------------
+* Complete roadmap task 22i4b1b3 and close 22i4b1b plus parent 22i4b1.
+  The next unfinished leaf is 22i4b2, the measured visible-component handoff
+  contract.
+* Extend `test/vcs_all_five_composition.cpp` from endpoint positioning into an
+  independent physical-scanline TIA object model. It maps frame-relative writes
+  onto modulo-76 physical lines, applies GRP0/GRP1 delayed transfers, delayed
+  Ball state, immediate missile enables, NUSIZ/CTRLPF widths, reflection, and
+  color-clock write timing, then compares P0/P1/M0/M1/Ball at every pixel on the
+  setup line and all 181 or 192 gameplay lines.
+* Run that all-five model directly for official 181 score-above/score-below,
+  official scoreless 192, and both unofficial 181 static score orders. Preserve
+  the existing 360-frame endpoint/motion checks.
+* Extend the player-color 181 and 192 harnesses with the same object-latch model.
+  Check P0, P1, Ball, and required-blank M0/M1 at every pixel across setup, all
+  ordinary and row-transition scanlines, terminal-181, and terminal-192 paths.
+  Run official and unofficial 181 score compositions directly rather than
+  relying only on visible-trace identity.
+* Update `test/README.md` to describe the completed oracle and remove the stale
+  claim that the full per-scanline object oracle remained unfinished. No
+  compiler or renderer source changes are made in this slice.
+
