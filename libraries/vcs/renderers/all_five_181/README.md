@@ -84,8 +84,9 @@ score-below composition. Emulator tests require:
 
 - stable 262-line NTSC frames
 - all eleven playfield rows, all sixteen scanlines per row, and all 160 pixels
-- identical steady reflected-playfield write phases on the alternating P1 and
-  P0 scanlines (PF1/PF2/PF2/PF1 at cycles 17/24/45/52)
+- a physical modulo-76 playfield schedule: ordinary reflected PF2/PF1 writes
+  at cycles 48/55; steady left PF1/PF2 writes at 25/32 or 26/33; and row
+  boundaries at PF1/PF2/PF1/PF2 cycles 22/29/45/48
 - visible P0, P1, M0, M1, and Ball activity
 - HBLANK-only P0/P1 handoffs and effective missile-state changes, including
   X=159
@@ -99,5 +100,5 @@ A gameplay-only link contains no score state, score pointers, or font. The
 independent score contributes only its own separately measured resources.
 
 Public score-above and score-below examples live under
-`examples/06_all_five_181/`; the separately named unofficial-opcode twins live
+`examples/06_all_five_181/`; the separately named unofficial-opcode counterparts live
 under `examples/08_all_five_181_unofficial/`.

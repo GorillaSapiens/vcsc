@@ -458,6 +458,7 @@ require inline void TEMPLATE_draw(void) {
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm bit.z CXM0P;
+   asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
@@ -473,7 +474,6 @@ require inline void TEMPLATE_draw(void) {
    // early ENAM0 materialization without changing the raster phase.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm bit.z CXM0P;
-   asm nop;
    asm nop;
    asm dec.z TEMPLATE_workspace;
    asm jmp @continuerenderer;
@@ -499,16 +499,12 @@ require inline void TEMPLATE_draw(void) {
    asm sty PF2;
    asm lsr.zx TEMPLATE_object_masks,x;
    asm adc #0;
+   asm ldy.ax TEMPLATE_playfield+2,x;
+   asm sty.a PF2;
+   asm ldy.ax TEMPLATE_playfield+3,x;
+   asm sty PF1;
    asm sta ENABL;
    asm ldy.z TEMPLATE_player1_y;
-   // P1 does not consume Y until after the reflected playfield writes.
-   // Defer DEY by two cycles so the P1 half lands PF2/PF1 at the same
-   // 45/52 phases as the following P0 half instead of alternating 47/54
-   // and 45/52 on successive scanlines.
-   asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
-   asm lda.ax TEMPLATE_playfield+3,x;
-   asm sta PF1;
    asm dey;
    asm @goback:;
    asm @startrenderer:;
@@ -541,13 +537,13 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
-   asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   asm sty.z TEMPLATE_player0_y;
+   asm nop;
    asm bcc @drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @continueP0;
@@ -581,10 +577,11 @@ require inline void TEMPLATE_draw(void) {
    // right half.
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
-   // Install the old row's reflected bytes before reusing A to advance X.
-   // The preceding CPX left carry clear on every nonterminal row.
-   asm sty.a PF2;
+   // PF1's broad update window opens before PF2's narrow reflected handoff.
+   // Commit PF1 first at cycle 45, then PF2 at cycle 48. The two zero-page
+   // stores save one cycle, which the following transition PF2 store restores.
    asm sta PF1;
+   asm sty PF2;
    asm txa;
    asm adc #4;
    asm tax;
@@ -620,12 +617,12 @@ require inline void TEMPLATE_draw(void) {
    asm lda #1;
    asm adc #0;
    asm sta ENABL;
-   asm ldy.z TEMPLATE_player0_y;
-   asm dey;
    asm lda.ax TEMPLATE_playfield+2,x;
-   asm sta PF2;
+   asm sta.a PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   asm ldy.z TEMPLATE_player0_y;
+   asm dey;
    // Save the decremented P0 index only after the beam-critical writes.  The
    // absolute store also restores the one cycle saved by the balanced P1 path,
    // keeping the following scanlines on the same phase.
@@ -656,11 +653,11 @@ require inline void TEMPLATE_draw(void) {
    asm lsr.zx TEMPLATE_object_masks,x;
    asm adc #0;
    asm sta ENABL;
-   asm lda #7;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm sty PF2;
    asm ldy.ax TEMPLATE_playfield+3,x;
    asm sty PF1;
+   asm lda #7;
    asm sta.z TEMPLATE_workspace;
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
@@ -687,12 +684,12 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
-   asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   asm sty.z TEMPLATE_player0_y;
    asm bcc @transition_follow_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @transition_follow_continueP0;
@@ -715,9 +712,9 @@ require inline void TEMPLATE_draw(void) {
    asm @terminalrenderer:;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
-   asm bit.z CXM0P;
-   asm nop;
-   asm sty PF2;
+   // The final reflected pair uses the same 48/55 physical phases as the
+   // body. WSYNC absorbs the four cycles removed from the old late schedule.
+   asm sty.a PF2;
    asm bit.z CXM0P;
    asm sta.a PF1;
    asm sta WSYNC;

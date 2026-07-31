@@ -87,9 +87,9 @@ void apply_writes() {
                          event.address == kTim64t ? 64 : 1024;
       }
       else if (frame == 2 && (event.address == kPf1 || event.address == kPf2)) {
-         const uint64_t relative = virtual_cycles - frame_start;
-         pf_events.push_back({relative / kCyclesPerScanline,
-                              relative % kCyclesPerScanline,
+         pf_events.push_back({virtual_cycles / kCyclesPerScanline -
+                                 frame_start / kCyclesPerScanline,
+                              virtual_cycles % kCyclesPerScanline,
                               event.address, event.value});
       }
    }
@@ -110,7 +110,11 @@ int main(int argc, char **argv) {
       static_cast<uint64_t>(std::strtoull(argv[4], nullptr, 0)) : 43;
    const bool all_five_profile = argc == 6 && std::strcmp(argv[5], "all-five") == 0;
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
-   if (argc == 6 && !all_five_profile && !all_five_192_profile)
+   const bool all_five_181_official_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-181-official") == 0;
+   const bool all_five_fixed_profile = all_five_192_profile ||
+                                       all_five_181_official_profile;
+   if (argc == 6 && !all_five_profile && !all_five_fixed_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
       fail("checked raster row count must be 11 or 12");
@@ -147,20 +151,20 @@ int main(int argc, char **argv) {
          const auto found = by_line.find(line);
          if (found == by_line.end() || found->second.size() != 4) continue;
          const uint64_t first_cycle = found->second[0].cycle;
-         const bool staged_left = first_cycle == 21 && found->second[1].cycle == 28;
-         const bool early_left = first_cycle == 22 && found->second[1].cycle == 29;
-         const bool steady_left = first_cycle == 24 && found->second[1].cycle == 31;
+         const bool staged_left = first_cycle == 24 && found->second[1].cycle == 31;
+         const bool early_left = first_cycle == 25 && found->second[1].cycle == 32;
+         const bool steady_left = first_cycle == 27 && found->second[1].cycle == 34;
          if (!staged_left && !early_left && !steady_left) {
             std::fprintf(stderr,
                "vcs_playfield_phase: line %llu left writes are cycles %llu/%llu; "
-               "expected 21/28, 22/29, or 24/31\n",
+               "expected 24/31, 25/32, or 27/34\n",
                static_cast<unsigned long long>(line),
                static_cast<unsigned long long>(found->second[0].cycle),
                static_cast<unsigned long long>(found->second[1].cycle));
             return 1;
          }
          const uint64_t expected_cycles[] = {
-            first_cycle, found->second[1].cycle, 38, 45
+            first_cycle, found->second[1].cycle, 41, 48
          };
          for (size_t i = 0; i < 4; ++i) {
             if (found->second[i].cycle != expected_cycles[i] ||
@@ -181,7 +185,7 @@ int main(int argc, char **argv) {
       if (checked < 150) fail("too few complete visible playfield scanlines checked");
    }
 
-   if (raster_rows && all_five_192_profile) {
+   if (raster_rows && all_five_fixed_profile) {
       size_t steady_lines = 0;
       for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
@@ -189,7 +193,7 @@ int main(int argc, char **argv) {
             const auto found = by_line.find(line);
             if (found == by_line.end() || found->second.size() != 4) {
                std::fprintf(stderr,
-                  "vcs_playfield_phase: all-five-192 row %d line %d has %zu PF writes; expected 4\n",
+                  "vcs_playfield_phase: all-five fixed row %d line %d has %zu PF writes; expected 4\n",
                   row, subline,
                   found == by_line.end() ? size_t{0} : found->second.size());
                return 1;
@@ -197,12 +201,12 @@ int main(int argc, char **argv) {
 
             if (subline == 15 && row + 1 < raster_rows) {
                const uint16_t addresses[] = {kPf1, kPf2, kPf1, kPf2};
-               const uint64_t cycles[] = {14, 21, 37, 40};
+               const uint64_t cycles[] = {22, 29, 45, 48};
                for (size_t i = 0; i < 4; ++i) {
                   if (found->second[i].address != addresses[i] ||
                       found->second[i].cycle != cycles[i]) {
                      std::fprintf(stderr,
-                        "vcs_playfield_phase: all-five-192 boundary row %d write %zu is "
+                        "vcs_playfield_phase: all-five fixed boundary row %d write %zu is "
                         "reg $%02x cycle %llu; expected reg $%02x cycle %llu\n",
                         row, i, found->second[i].address,
                         static_cast<unsigned long long>(found->second[i].cycle),
@@ -217,24 +221,24 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < 4; ++i) {
                if (found->second[i].address != addresses[i]) {
                   std::fprintf(stderr,
-                     "vcs_playfield_phase: all-five-192 row %d line %d write %zu is "
+                     "vcs_playfield_phase: all-five fixed row %d line %d write %zu is "
                      "reg $%02x; expected reg $%02x\n",
                      row, subline, i, found->second[i].address, addresses[i]);
                   return 1;
                }
             }
-            if (found->second[2].cycle != 40 || found->second[3].cycle != 47) {
+            if (found->second[2].cycle != 48 || found->second[3].cycle != 55) {
                std::fprintf(stderr,
-                  "vcs_playfield_phase: all-five-192 row %d line %d reflected writes "
-                  "are cycles %llu/%llu; expected 40/47\n",
+                  "vcs_playfield_phase: all-five fixed row %d line %d reflected writes "
+                  "are cycles %llu/%llu; expected 48/55\n",
                   row, subline,
                   static_cast<unsigned long long>(found->second[2].cycle),
                   static_cast<unsigned long long>(found->second[3].cycle));
                return 1;
             }
-            if (found->second[0].cycle > 18 || found->second[1].cycle > 25) {
+            if (found->second[0].cycle > 27 || found->second[1].cycle > 38) {
                std::fprintf(stderr,
-                  "vcs_playfield_phase: all-five-192 row %d line %d left writes "
+                  "vcs_playfield_phase: all-five fixed row %d line %d left writes "
                   "are too late at cycles %llu/%llu\n",
                   row, subline,
                   static_cast<unsigned long long>(found->second[0].cycle),
@@ -245,14 +249,14 @@ int main(int argc, char **argv) {
             const bool steady = (row == 0 && subline >= 1 && subline <= 14) ||
                                 (row > 0 && subline >= 3 && subline <= 14);
             if (steady) {
-               const bool p0_phase = found->second[0].cycle == 17 &&
-                                     found->second[1].cycle == 24;
-               const bool p1_phase = found->second[0].cycle == 18 &&
-                                     found->second[1].cycle == 25;
+               const bool p0_phase = found->second[0].cycle == 25 &&
+                                     found->second[1].cycle == 32;
+               const bool p1_phase = found->second[0].cycle == 26 &&
+                                     found->second[1].cycle == 33;
                if (!p0_phase && !p1_phase) {
                   std::fprintf(stderr,
-                     "vcs_playfield_phase: all-five-192 steady row %d line %d left "
-                     "writes are cycles %llu/%llu; expected 17/24 or 18/25\n",
+                     "vcs_playfield_phase: all-five fixed steady row %d line %d left "
+                     "writes are cycles %llu/%llu; expected 25/32 or 26/33\n",
                      row, subline,
                      static_cast<unsigned long long>(found->second[0].cycle),
                      static_cast<unsigned long long>(found->second[1].cycle));
@@ -263,12 +267,12 @@ int main(int argc, char **argv) {
          }
       }
       if (steady_lines < 100)
-         fail("too few all-five-192 steady scanlines checked");
+         fail("too few all-five fixed steady scanlines checked");
    }
 
    if (raster_rows && all_five_profile) {
       const uint16_t expected_addresses[] = {kPf1, kPf2, kPf2, kPf1};
-      const uint64_t maximum_cycles[] = {19, 26, 45, 52};
+      const uint64_t maximum_cycles[] = {27, 34, 53, 60};
       size_t steady_lines = 0;
       for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
@@ -305,7 +309,7 @@ int main(int argc, char **argv) {
             const bool steady = (row == 0 && subline >= 1 && subline <= 14) ||
                                 (row > 0 && subline >= 3 && subline <= 14);
             if (steady) {
-               const uint64_t expected_cycles[] = {17, 24, 45, 52};
+               const uint64_t expected_cycles[] = {25, 32, 53, 60};
                for (size_t i = 0; i < 4; ++i) {
                   if (found->second[i].cycle != expected_cycles[i]) {
                      std::fprintf(stderr,
@@ -407,7 +411,7 @@ int main(int argc, char **argv) {
       std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
                   raster_rows);
    } else {
-      std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 21/28, 22/29, or 24/31,38,45\n", checked);
+      std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24/31, 25/32, or 27/34,41,48\n", checked);
    }
    return 0;
 }

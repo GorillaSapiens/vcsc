@@ -130,7 +130,7 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 my @harnesses=(
    ['scheduler','vcs_frame_ntsc_scheduler.cpp','normal','none',
       qr/^vcs_frame_ntsc_scheduler normal ok\n$/],
-   ['phase','vcs_playfield_phase.cpp','11','11','44','all-five',
+   ['phase','vcs_playfield_phase.cpp','11','11','44','all-five-181-official',
       qr/^vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n$/],
    ['objects','vcs_standard_objects.cpp','--hblank',
       qr/^vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4\n$/],

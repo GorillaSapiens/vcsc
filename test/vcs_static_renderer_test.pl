@@ -199,7 +199,7 @@ without_cartridge_usage($out) eq '' or die "playfield-phase harness build wrote 
 ($exit,$sig,$out,$err)=run_capture($phase_exe,$bin);
 $exit == 0 && !$sig
    or die "playfield-phase verification failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";
-$out =~ /^vcs_playfield_phase ok: \d+ scanlines at cycles 21\/28, 22\/29, or 24\/31,38,45\n$/
+$out =~ /^vcs_playfield_phase ok: \d+ scanlines at cycles 24\/31, 25\/32, or 27\/34,41,48\n$/
    or die "unexpected playfield-phase output:\n$out";
 $err eq '' or die "playfield-phase verifier wrote stderr:\n$err";
 

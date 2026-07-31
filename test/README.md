@@ -220,10 +220,10 @@ score regions, full-range object motion, restored application Y state, no
 immediate `HMCLR` after the non-player HMOVE, and zero M0/M1/Ball fine-motion
 values at every later HMOVE.
 
-`vcs_all_five_181_unofficial.pl` compares the official renderer with its
-separately named unofficial twin. It requires identical RAM addresses and
-visible TIA traces, one reviewed zero-page unofficial NOP, no AXS sites, and
-the measured 2092/2092-byte zero-saving result.
+`vcs_all_five_181_unofficial.pl` checks the separately named unofficial
+counterpart independently from the corrected official schedule. It requires
+identical RAM addresses, one reviewed zero-page unofficial NOP, no AXS sites,
+its bounded legacy playfield schedule, and the measured 2090/2092-byte result.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502

@@ -148,10 +148,10 @@ locks stable 262-line frames, all eleven rows and every one of their 160 pixels,
 visible activity from all five objects, complete 0..159 asynchronous X motion,
 restored application Y state, and a clean score region.
 
-## Unofficial all-five 181-line matched profile
+## Unofficial all-five 181-line counterpart
 
 `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` is the
-separately named experimental twin of the official 181-line component. It has
+separately named experimental counterpart to the official 181-line component. It has
 the same lifecycle API, 23-byte public state, 51-byte private state, 74-byte
 total RAM layout, 44-byte playfield contract, solid player colors, and
 score-above/score-below fixtures. It must be assembled with `-Wa,--illegals`.
@@ -164,15 +164,15 @@ or unstable opcodes.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2087
-unofficial linked ROM bytes: 2087
-signed saving:                  0
+official linked ROM bytes:   2090
+unofficial linked ROM bytes: 2092
+signed byte difference:          2
 ```
 
-The zero-byte result is intentional evidence. Pairwise emulator comparison
-locks every visible TIA write and stable frame for the smoke, static score
-orders, and moving score orders. Map evidence requires every RAM symbol to
-retain the official address.
+The official renderer now uses the corrected circular physical playfield
+schedule while the unofficial renderer remains on its older schedule. They are
+therefore tested independently rather than by pairwise visible-trace identity.
+Map evidence still requires every RAM symbol to retain the official address.
 
 ## Official all-five 192-line scoreless profile
 

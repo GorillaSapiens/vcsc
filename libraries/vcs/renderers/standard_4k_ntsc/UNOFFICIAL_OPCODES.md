@@ -53,11 +53,11 @@ All-five component byte comparison
 ----------------------------------
 
 The separately named unofficial-opcode **181-line all-five gameplay
-component** is an apples-to-apples experiment, not a hidden build alias. The
-official and unofficial components expose the same lifecycle API, consume the
-same RAM, draw the same 181 scanlines, produce the same visible TIA writes and
-object positions, and pass the same static and motion cartridges. Only reviewed
-stable/common NMOS forms are eligible.
+component** is an explicit experiment, not a hidden build alias. The official
+and unofficial components expose the same lifecycle API, consume the same RAM,
+and draw the same 181 scanlines. Their visible schedules are now tested
+independently because the corrected circular schedule has been applied only to
+the official renderer. Only reviewed stable/common NMOS forms are eligible.
 
 The rebuilt unofficial twin retains one zero-page unofficial NOP (`$04`) as an
 exact-size, exact-cycle replacement for dead-flag padding during VBLANK
@@ -67,15 +67,15 @@ unstable opcodes.
 The maintained smoke cartridge measures:
 
 ```text
-official linked ROM bytes:   2081
-unofficial linked ROM bytes: 2081
-signed byte difference:         0
+official linked ROM bytes:   2090
+unofficial linked ROM bytes: 2092
+signed byte difference:          2
 ```
 
-The zero-byte result is intentional evidence, not a failed optimization.
-Compensating instruction sizes preserve the official lifecycle and visible
-cycle boundaries. Pairwise static/motion raster tests require identical visible
-TIA traces, RAM addresses, object behavior, and stable 262-line frames.
+The size difference reflects the independently scheduled official renderer,
+not an unofficial-opcode optimization result. Static and motion tests still
+require matching public RAM addresses, application-visible object behavior,
+score composition, and stable 262-line frames.
 
 Completed player-color component byte comparison
 ------------------------------------------------

@@ -6755,3 +6755,34 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   first 161/197 end-to-end/generic tests before the outer 300-second command
   ceiling; focused `vcs_all_five_192.pl`, all-five interactive examples,
   multicolor examples, and player-color 192 tests all pass.
+
+2026-07-31 13:02:09 PDT, repair official all-five 181-line playfield schedule
+--------------------------------------------------------------------------------
+* Use the verified `vcsc.20260731_120110` all-five 192-line renderer as the
+  timing model and change only the official 181-line renderer implementation.
+  `all_five_181_unofficial.c26` remains byte-for-byte unchanged.
+* Rebalance the official renderer's first visible line, ordinary two-line loop,
+  row-transition paths, and terminal line around the physical circular raster
+  schedule. Ordinary reflected PF2/PF1 writes now complete at cycles 48/55;
+  row boundaries use PF1 at cycle 45 followed by PF2 at cycle 48. Every ordinary
+  pair remains exactly 152 CPU cycles, and the object handoffs retain their
+  required windows.
+* Add a dedicated `all-five-181-official` timing profile and use it for both
+  score-above and score-below official examples. Keep the older `all-five`
+  profile for the untouched unofficial renderer and test it independently
+  rather than requiring official/unofficial visible traces to be identical.
+* Correct `vcs_playfield_phase.cpp` to record physical cycle modulo 76 instead
+  of cycle relative to VSYNC assertion. Update the standard-renderer regression
+  to its corresponding physical phases; this changes the measurement, not the
+  standard renderer.
+* Update renderer, opcode-policy, component-conversion, VCS, and test
+  documentation to describe the official fixed schedule and the still-separate
+  unofficial implementation.
+* Verify the official 181-line score-above and score-below cartridges visually
+  in Stella: both show clean diagonal playfields with both players, both
+  missiles, and the Ball intact.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass across the completed 174-test run plus the
+  remaining 23 run explicitly; the one standard phase expectation exposed by
+  the corrected physical-cycle tracer was updated and rerun successfully.
