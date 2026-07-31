@@ -84,6 +84,8 @@ score-below composition. Emulator tests require:
 
 - stable 262-line NTSC frames
 - all eleven playfield rows, all sixteen scanlines per row, and all 160 pixels
+- identical steady reflected-playfield write phases on the alternating P1 and
+  P0 scanlines (PF1/PF2/PF2/PF1 at cycles 17/24/45/52)
 - visible P0, P1, M0, M1, and Ball activity
 - HBLANK-only P0/P1 handoffs and effective missile-state changes, including
   X=159

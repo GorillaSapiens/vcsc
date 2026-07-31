@@ -6697,3 +6697,33 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests are accounted for and pass; the combined run completed 174 before its
   outer command ceiling and the remaining 23 passed explicitly. Staged
   `make installcheck` also passes.
+
+2026-07-31 07:55:12 PDT, repair alternating all-five playfield phase
+------------------------------------------------------------------------
+* Diagnose the shredded playfield in every all-five renderer as a two-cycle
+  phase mismatch inside the steady two-scanline loop. The P1 half decremented Y
+  before writing the reflected PF2/PF1 pair, placing those writes at cycles
+  47/54, while the following P0 half wrote them at 45/52. The alternating phase
+  visibly tore the right half even though the old byte-level raster oracle
+  happened to accept it.
+* Move the P1 DEY after the reflected PF2/PF1 stores in `all_five_192`,
+  `all_five_181`, and `all_five_181_unofficial`. This is an instruction reorder,
+  not padding: total two-line timing, player/missile/Ball handoffs, opcode
+  policy, ROM size, RAM layout, and lifecycle behavior remain unchanged.
+* Extend `vcs_playfield_phase.cpp` with an explicit `all-five` timing profile.
+  It requires four ordered PF writes on every gameplay scanline, bounds all
+  row-transition schedules, and locks every steady P1 and P0 line to
+  PF1/PF2/PF2/PF1 cycles 17/24/45/52. Prove the regression rejects the original
+  renderer at its first old cycle-47 reflected PF2 write.
+* Verify the repaired 192-line renderer visually in Stella: the previously
+  shredded gold playfield becomes a clean diagonal raster while the separate
+  missile and Ball lines remain intact. The 181 official and unofficial
+  renderers produce the same corrected phase and retain their exact visible TIA
+  equivalence.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests pass (the monolithic run completed 171 before its command ceiling; the
+  remaining 26 passed explicitly). All five public all-five examples rebuild to
+  exact 4096-byte ROMs and render clean diagonal playfields in Stella. Staged
+  `make installcheck` also passes.
+

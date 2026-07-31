@@ -505,11 +505,15 @@ require inline void TEMPLATE_draw(void) {
    asm adc #0;
    asm sta ENABL;
    asm ldy.z TEMPLATE_player1_y;
-   asm dey;
+   // P1 does not consume Y until after the reflected playfield writes.
+   // Defer DEY by two cycles so the P1 half lands PF2/PF1 at the same
+   // 45/52 phases as the following P0 half instead of alternating 47/54
+   // and 45/52 on successive scanlines.
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
+   asm dey;
    asm @goback:;
    asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;

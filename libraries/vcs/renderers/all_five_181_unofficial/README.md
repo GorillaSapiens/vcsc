@@ -31,7 +31,8 @@ The zero-byte result is intentional. Removing compensating instructions would
 save bytes only by changing visible-write or lifecycle timing and would no
 longer be an equivalent renderer. Pairwise emulator tests require identical
 visible TIA traces, object behavior, score composition, RAM addresses, and
-stable 262-line frames, including horizontal-blank P1 and missile handoffs,
+stable 262-line frames, including the official renderer's cycle-identical
+17/24/45/52 steady playfield phase and horizontal-blank P1 and missile handoffs,
 for the official and unofficial cartridges.
 
 Public score-above and score-below five-object examples live under

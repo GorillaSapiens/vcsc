@@ -98,14 +98,18 @@ void apply_writes() {
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc < 2 || argc > 5) {
-      std::fprintf(stderr, "usage: %s ROM.bin [checked_rows [source_rows [first_row_line]]]\n", argv[0]);
+   if (argc < 2 || argc > 6) {
+      std::fprintf(stderr,
+         "usage: %s ROM.bin [checked_rows [source_rows [first_row_line [profile]]]]\n",
+         argv[0]);
       return 2;
    }
    const int raster_rows = argc >= 3 ? std::atoi(argv[2]) : 0;
    const int source_rows = argc >= 4 ? std::atoi(argv[3]) : raster_rows;
-   const uint64_t first_row_line = argc == 5 ?
+   const uint64_t first_row_line = argc >= 5 ?
       static_cast<uint64_t>(std::strtoull(argv[4], nullptr, 0)) : 43;
+   const bool all_five_profile = argc == 6 && std::strcmp(argv[5], "all-five") == 0;
+   if (argc == 6 && !all_five_profile) fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
       fail("checked raster row count must be 11 or 12");
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
@@ -173,6 +177,64 @@ int main(int argc, char **argv) {
          ++checked;
       }
       if (checked < 150) fail("too few complete visible playfield scanlines checked");
+   }
+
+   if (raster_rows && all_five_profile) {
+      const uint16_t expected_addresses[] = {kPf1, kPf2, kPf2, kPf1};
+      const uint64_t maximum_cycles[] = {19, 26, 45, 52};
+      size_t steady_lines = 0;
+      for (int row = 0; row < raster_rows; ++row) {
+         for (int subline = 0; subline < 16; ++subline) {
+            const uint64_t line = first_row_line + row * 16 + subline;
+            const auto found = by_line.find(line);
+            if (found == by_line.end() || found->second.size() != 4) {
+               std::fprintf(stderr,
+                  "vcs_playfield_phase: all-five row %d line %d has %zu PF writes; expected 4\n",
+                  row, subline,
+                  found == by_line.end() ? size_t{0} : found->second.size());
+               return 1;
+            }
+            for (size_t i = 0; i < 4; ++i) {
+               const PfEvent &event = found->second[i];
+               if (event.address != expected_addresses[i] ||
+                   event.cycle > maximum_cycles[i]) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: all-five row %d line %d write %zu is "
+                     "reg $%02x cycle %llu; expected reg $%02x no later than cycle %llu\n",
+                     row, subline, i, event.address,
+                     static_cast<unsigned long long>(event.cycle),
+                     expected_addresses[i],
+                     static_cast<unsigned long long>(maximum_cycles[i]));
+                  return 1;
+               }
+            }
+
+            // The row-transition prologue deliberately uses several balanced
+            // schedules.  Away from that prologue, both P1 and P0 scanlines
+            // must use one identical reflected-half phase.  The old all-five
+            // loop alternated 47/54 on P1 lines with 45/52 on P0 lines, which
+            // shredded the playfield even though the byte-level raster model
+            // still happened to pass.
+            const bool steady = (row == 0 && subline >= 1 && subline <= 14) ||
+                                (row > 0 && subline >= 3 && subline <= 14);
+            if (steady) {
+               const uint64_t expected_cycles[] = {17, 24, 45, 52};
+               for (size_t i = 0; i < 4; ++i) {
+                  if (found->second[i].cycle != expected_cycles[i]) {
+                     std::fprintf(stderr,
+                        "vcs_playfield_phase: all-five steady row %d line %d "
+                        "write %zu is cycle %llu; expected %llu\n",
+                        row, subline, i,
+                        static_cast<unsigned long long>(found->second[i].cycle),
+                        static_cast<unsigned long long>(expected_cycles[i]));
+                     return 1;
+                  }
+               }
+               ++steady_lines;
+            }
+         }
+      }
+      if (steady_lines < 100) fail("too few all-five steady scanlines checked");
    }
 
    if (raster_rows) {

@@ -206,9 +206,12 @@ components derived from the proven player-color rasters. They lock the 23-byte
 public interfaces, 74-byte and 78-byte total RAM contracts, official-opcode
 policy, solid P0/P1 colors, all-five enable activity, exact 181/192 visible-line
 contracts, and every playfield pixel across all eleven or twelve 16-line
-rows. They also reject every late P0/P1 transfer and every effective M0/M1
-enable-state change after horizontal blanking, covering the same extreme-right
-row-tearing failure for all five objects.
+rows. The all-five timing profile also locks the steady PF1/PF2/PF2/PF1 writes
+to cycles 17/24/45/52 on both alternating scanline halves and bounds every
+row-transition write, so a two-cycle P1/P0 reflected-half mismatch cannot hide
+behind the byte-level raster model. They also reject every late P0/P1 transfer
+and every effective M0/M1 enable-state change after horizontal blanking,
+covering the same extreme-right row-tearing failure for all five objects.
 
 `vcs_all_five_composition.pl` builds static and asynchronous score-above and
 score-below cartridges around the 181-line component. It requires explicit
