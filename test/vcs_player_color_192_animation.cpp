@@ -41,7 +41,8 @@ struct Addresses {
    uint8_t sprite0, sprite1, animation_frame, animation_clock;
    uint8_t pause_animation, select_ready, fire_ready, object_x;
    uint8_t p0_pointer, p1_pointer;
-   uint16_t frames, p0_colors, p1_colors;
+   std::array<uint16_t,4> frame_pages{};
+   uint16_t p0_colors=0, p1_colors=0;
 };
 struct Write { uint16_t address; uint8_t value; };
 struct TimedWrite { uint64_t line, cycle, beam_cycle; uint16_t address; uint8_t value; };
@@ -223,23 +224,28 @@ void verify_pixels(const Capture &c,size_t index) {
    }
    if (checked!=static_cast<uint64_t>(232-39)*160*2) fail("wrong pixel count");
 }
+uint16_t frame_pointer(uint8_t sprite,uint8_t animation_frame) {
+   if (sprite>=30 || animation_frame>=4) fail("invalid sprite/frame selector");
+   const uint16_t page=address.frame_pages[sprite/8];
+   return static_cast<uint16_t>(page+(sprite&7)*32+animation_frame*8);
+}
 void verify_state(const Capture &c,size_t f) {
    const uint8_t position=static_cast<uint8_t>(f%160);
-   const uint8_t pair=static_cast<uint8_t>(((f/160)*2)%8);
+   const uint8_t pair=static_cast<uint8_t>(((f/160)*2)%30);
    const uint8_t anim=static_cast<uint8_t>((position/8)%4);
    if (c.sprite0!=pair || c.sprite1!=pair+1 || c.animation_frame!=anim ||
        c.animation_clock!=position%8 || c.player0_x!=position || c.player1_x!=position)
       fail("automatic moving-animation sequence mismatch at frame "+std::to_string(f));
-   const uint16_t want0=static_cast<uint16_t>(address.frames+c.sprite0*32+c.animation_frame*8);
-   const uint16_t want1=static_cast<uint16_t>(address.frames+c.sprite1*32+c.animation_frame*8);
+   const uint16_t want0=frame_pointer(c.sprite0,c.animation_frame);
+   const uint16_t want1=frame_pointer(c.sprite1,c.animation_frame);
    if (c.p0_pointer!=want0 || c.p1_pointer!=want1) fail("graphics pointer sequence mismatch");
    if (c.pause) fail("gallery unexpectedly paused");
 }
 } // namespace
 
 int main(int argc,char **argv) {
-   if (argc!=15) {
-      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames p0colors p1colors\n",argv[0]);
+   if (argc!=18) {
+      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames0 frames1 frames2 frames3 p0colors p1colors\n",argv[0]);
       return 2;
    }
    address.sprite0=parse_number(argv[2],255); address.sprite1=parse_number(argv[3],255);
@@ -247,8 +253,10 @@ int main(int argc,char **argv) {
    address.pause_animation=parse_number(argv[6],255); address.select_ready=parse_number(argv[7],255);
    address.fire_ready=parse_number(argv[8],255); address.object_x=parse_number(argv[9],254);
    address.p0_pointer=parse_number(argv[10],254); address.p1_pointer=parse_number(argv[11],254);
-   address.frames=parse_number(argv[12],65535); address.p0_colors=parse_number(argv[13],65535);
-   address.p1_colors=parse_number(argv[14],65535);
+   for (size_t i=0;i<address.frame_pages.size();++i)
+      address.frame_pages[i]=parse_number(argv[12+i],65535);
+   address.p0_colors=parse_number(argv[16],65535);
+   address.p1_colors=parse_number(argv[17],65535);
 
    std::memset(memory_image,0,sizeof(memory_image));
    memory_image[0x0280]=0xff;
@@ -259,51 +267,65 @@ int main(int argc,char **argv) {
 
    mos6502 cpu(read_bus,write_bus,clock_cycle);
    cpu.Reset();
-   run_until_frames(cpu,641);
-   for (size_t f=0;f<640;++f) {
+
+   constexpr size_t kAutomaticFrames=15*160;
+   run_until_frames(cpu,kAutomaticFrames+1);
+   for (size_t f=0;f<kAutomaticFrames;++f) {
       if (f>=2 && frames[f].period!=262*kCyclesPerLine) fail("frame is not exactly 262 lines");
       verify_state(frames[f],f);
       if (f>=8 && ((f%8)==0 || (f%160)==159)) verify_pixels(frames[f],f);
    }
+   if (frames[kAutomaticFrames].sprite0!=0 || frames[kAutomaticFrames].sprite1!=1 ||
+       frames[kAutomaticFrames].player0_x!=0 || frames[kAutomaticFrames].player1_x!=0)
+      fail("automatic gallery did not wrap all fifteen pairs back to the first pair");
+
+   size_t next=kAutomaticFrames+1;
 
    // Game Select advances one pair, restarts at the left edge, and does not autorepeat.
    swchb=0xfd;
-   run_until_frames(cpu,642);
-   if (frames[641].sprite0!=2 || frames[641].sprite1!=3 || frames[641].animation_frame!=0 ||
-       frames[641].player0_x!=0 || frames[641].player1_x!=0)
+   run_until_frames(cpu,next+1);
+   if (frames[next].sprite0!=2 || frames[next].sprite1!=3 || frames[next].animation_frame!=0 ||
+       frames[next].player0_x!=0 || frames[next].player1_x!=0)
       fail("Game Select did not advance one pair at the left edge");
-   run_until_frames(cpu,643);
-   if (frames[642].sprite0!=2 || frames[642].sprite1!=3 ||
-       frames[642].player0_x!=1 || frames[642].player1_x!=1)
+   ++next;
+   run_until_frames(cpu,next+1);
+   if (frames[next].sprite0!=2 || frames[next].sprite1!=3 ||
+       frames[next].player0_x!=1 || frames[next].player1_x!=1)
       fail("held Game Select autorepeated or stopped motion");
+   ++next;
    swchb=0xff;
-   run_until_frames(cpu,644);
+   run_until_frames(cpu,next+1);
+   ++next;
    swchb=0xfd;
-   run_until_frames(cpu,645);
-   if (frames[644].sprite0!=4 || frames[644].sprite1!=5 ||
-       frames[644].player0_x!=0 || frames[644].player1_x!=0)
+   run_until_frames(cpu,next+1);
+   if (frames[next].sprite0!=4 || frames[next].sprite1!=5 ||
+       frames[next].player0_x!=0 || frames[next].player1_x!=0)
       fail("second Game Select press did not advance at the left edge");
+   ++next;
    swchb=0xff;
 
    // Left fire pauses both movement and frame animation once per press.
    inpt4=0x00;
-   run_until_frames(cpu,646);
-   const uint8_t paused_frame=frames[645].animation_frame;
-   const uint8_t paused_clock=frames[645].animation_clock;
-   const uint8_t paused_x=frames[645].player0_x;
-   if (!frames[645].pause) fail("left fire did not pause animation");
-   run_until_frames(cpu,654);
-   for (size_t f=646;f<654;++f)
+   run_until_frames(cpu,next+1);
+   const uint8_t paused_frame=frames[next].animation_frame;
+   const uint8_t paused_clock=frames[next].animation_clock;
+   const uint8_t paused_x=frames[next].player0_x;
+   if (!frames[next].pause) fail("left fire did not pause animation");
+   ++next;
+   run_until_frames(cpu,next+8);
+   for (size_t f=next;f<next+8;++f)
       if (!frames[f].pause || frames[f].animation_frame!=paused_frame ||
           frames[f].animation_clock!=paused_clock || frames[f].player0_x!=paused_x ||
           frames[f].player1_x!=paused_x)
          fail("paused animation moved or held fire retriggered");
+   next+=8;
    inpt4=0x80;
-   run_until_frames(cpu,655);
+   run_until_frames(cpu,next+1);
+   ++next;
    inpt4=0x00;
-   run_until_frames(cpu,656);
-   if (frames[655].pause) fail("second left-fire press did not resume animation");
+   run_until_frames(cpu,next+1);
+   if (frames[next].pause) fail("second left-fire press did not resume animation");
 
-   std::puts("vcs_player_color_192_animation ok: eight four-frame sprites traverse left-to-right in four pairs, wrap to a new pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls");
+   std::puts("vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, wrap to the first pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls");
    return 0;
 }

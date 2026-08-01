@@ -1,13 +1,14 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 30
+# timeout: 45
 # expectstdout: vcs_player_color_192_animation_test ok
 # expectexit: 0
 
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
@@ -52,24 +53,32 @@ my $source=File::Spec->catfile($dir,'player_color_192_animated_sprites.c26');
 my $license=File::Spec->catfile($dir,'ASSET_LICENSE.md');
 my $bin=File::Spec->catfile($tmp,'player_color_192_animated_sprites.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192_animated_sprites.map');
-my $text=read_file($source);
+my $source_text=read_file($source);
 my $license_text=read_file($license);
 
-for my $name (qw(running_man dog cat t_rex worm orange_hopper blue_hopper helicube)) {
-   $text =~ /\/\/\s*\Q$name\E\b/ or die "animated gallery missing $name\n";
+for my $set (0..29) {
+   my $first=1+$set*4;
+   my $last=$first+3;
+   my $label=sprintf('source_set_%02d_sprites_%03d_%03d',$set,$first,$last);
+   $source_text =~ /\/\/\s*\Q$label\E\b/
+      or die "animated gallery missing source set $set ($first-$last)\n";
 }
-my $glyph_count=()=$text =~ /\bgame_SPRITE_GLYPH\s*\(/g;
-$glyph_count==32 or die "animated gallery has $glyph_count frames; expected 32\n";
-$text =~ /page\s+const\s+uint8_t\s+sprite_frames\[256\]/
-   or die "animation frames are no longer one aligned 256-byte table\n";
-$text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n";
-$text =~ /alias\s+RIGHT_EDGE\s+159/ or die "animation right-edge endpoint changed\n";
-$text =~ /game_PLAYER0_X\s*:=\s*0/ && $text =~ /game_PLAYER1_X\s*:=\s*0/
+my $glyph_count=()=$source_text =~ /\bgame_SPRITE_GLYPH\s*\(/g;
+$glyph_count==120 or die "animated gallery has $glyph_count frames; expected 120\n";
+for my $page (0..3) {
+   $source_text =~ /page\s+const\s+uint8_t\s+sprite_frames_\Q$page\E\[256\]/
+      or die "animation frame hard page $page is missing\n";
+}
+$source_text =~ /alias\s+SPRITE_COUNT\s+30/
+   or die "animation set count changed\n";
+$source_text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n";
+$source_text =~ /alias\s+RIGHT_EDGE\s+159/ or die "animation right-edge endpoint changed\n";
+$source_text =~ /game_PLAYER0_X\s*:=\s*0/ && $source_text =~ /game_PLAYER1_X\s*:=\s*0/
    or die "animated sprites no longer start at the left edge\n";
-$text =~ /if\s*\(game_PLAYER0_X\s*>=\s*RIGHT_EDGE\)/
+$source_text =~ /if\s*\(game_PLAYER0_X\s*>=\s*RIGHT_EDGE\)/
    or die "right-edge wrap control missing\n";
-$text =~ /if\s*\(SWCHB\s*&\s*0x02\)/ or die "Game Select edge control missing\n";
-$text =~ /if\s*\(INPT4\s*&\s*0x80\)/ or die "left-fire pause control missing\n";
+$source_text =~ /if\s*\(SWCHB\s*&\s*0x02\)/ or die "Game Select edge control missing\n";
+$source_text =~ /if\s*\(INPT4\s*&\s*0x80\)/ or die "left-fire pause control missing\n";
 $license_text =~ /Quick/ && $license_text =~ /CC BY-NC-SA 4\.0/
    or die "animated artwork attribution/license missing\n";
 
@@ -78,8 +87,27 @@ $rc==0 && !$sig or die "animated gallery build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote output\n$out$err";
 -s $bin == 4096 or die "animated gallery ROM is not 4096 bytes\n";
 my $map=read_file($mapfile);
-$map =~ /RODATA\.__vcsc_object\$sprite_frames\s+load=\$[0-9A-Fa-f]{4}.*size=\$0100.*page=hard/
-   or die "sprite_frames lost its 256-byte hard-page placement\n";
+my @frame_names=map { "sprite_frames_$_" } 0..3;
+for my $name (@frame_names) {
+   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}.*size=\$0100.*page=hard/
+      or die "$name lost its 256-byte hard-page placement\n";
+   (map_value($map,$name)&0xff)==0
+      or die "$name no longer starts at low byte zero\n";
+}
+
+# Pin the exact one-bit occupancy extracted from PICO-8 source sprites 1..120.
+my $rom=read_file($bin);
+my $asset_bytes='';
+for my $name (@frame_names) {
+   my $base=map_value($map,$name);
+   $base>=0xf000 && $base<=0xff00 or die "$name is outside the cartridge ROM\n";
+   $asset_bytes .= substr($rom,$base-0xf000,256);
+}
+sha256_hex(substr($asset_bytes,0,960)) eq
+   '7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb'
+   or die "animated source-sprite occupancy changed\n";
+substr($asset_bytes,960,64) eq ("\0" x 64)
+   or die "final sprite hard-page padding is not zero\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -95,11 +123,11 @@ $out eq '' && $err eq '' or die "animation harness build wrote output\n$out$err"
 my @zp_args=map { zp_arg($map,$_) }
    qw(sprite0 sprite1 animation_frame animation_clock pause_animation select_ready fire_ready game_object_x game_player0_graphics game_player1_graphics);
 my @symbol_args=map { symbol_arg($map,$_) }
-   qw(sprite_frames game_player0_colors game_player1_colors);
+   (@frame_names,qw(game_player0_colors game_player1_colors));
 my @args=(@zp_args,@symbol_args);
 ($rc,$sig,$out,$err)=capture($harness,$bin,@args);
 $rc==0 && !$sig or die "animated gallery emulator proof failed\n$out$err";
-$out eq "vcs_player_color_192_animation ok: eight four-frame sprites traverse left-to-right in four pairs, wrap to a new pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls\n"
+$out eq "vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, wrap to the first pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls\n"
    or die "unexpected animation harness output: $out";
 $err eq '' or die "animation harness stderr: $err";
 

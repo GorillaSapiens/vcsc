@@ -2008,24 +2008,31 @@ than ship a fragile schedule if the hardware budget does not close.
         Completed 2026-08-01 out of roadmap order while task 23 remains next:
 
         * Add `examples/03_player_color_192/02_animated_sprites/`, using the
-          official-opcode 192-line player-color renderer and one aligned 256-byte
-          graphics table containing eight named four-frame 8x8 animation sets.
+          official-opcode 192-line player-color renderer and all 30 consecutive
+          four-frame animation sets from PICO-8 source sprites 1 through 120.
+          Preserve exact one-bit occupancy: source color 0 is transparent and
+          every nonzero source color is opaque, including the source's blank
+          sprite-16 frame.
         * Display two sets simultaneously on separate vertical lanes, starting
           both at X=0 and moving them right one pixel per NTSC frame. Hold each
           animation frame for eight NTSC frames; after the X=159 frame, restart at
-          X=0 with the next pair. Game Select advances a pair and restarts at X=0;
-          left fire pauses/resumes motion and animation with edge-triggered controls.
-        * Change only player graphics pointers at runtime; preserve exact 262-line
-          frames, the 192-line visible renderer, row-color-table use, and 20 free
-          RIOT RAM bytes. Document highest-index-to-zero source-row storage.
+          X=0 with the next of 15 pairs. Game Select advances a pair and restarts
+          at X=0; left fire pauses/resumes motion and animation with edge-triggered
+          controls.
+        * Store the 960 frame bytes in four aligned 256-byte hard pages, padding
+          the final page with 64 zero bytes. Change only player graphics pointers
+          at runtime; preserve exact 262-line frames, the 192-line visible
+          renderer, row-color-table use, and 16 free RIOT RAM bytes. Document
+          highest-index-to-zero source-row storage.
         * Treat the adapted artwork conservatively under Quick's stated CC
           BY-NC-SA 4.0 license rather than the public-domain description supplied
           with the request. Install explicit attribution and asset-license notes.
-        * Add an emulator oracle covering four complete 160-frame traversals,
+        * Add an emulator oracle covering all 15 complete 160-frame traversals,
           exact P0/P1 pixels at every animation step and right-edge endpoint,
-          pointer selection, row-color-table use, controls, and frame period. Build
-          the public cartridge with the staged installed toolchain and inspect its
-          animated output under Stella 7.0.
+          pointer selection across all four hard pages, row-color-table use,
+          controls, and frame period. Pin the exact extracted 960-byte occupancy
+          with SHA-256, verify the final-page padding, build with the staged
+          installed toolchain, and inspect the animated output under Stella 7.0.
 
 [ ] 35. Add first-class support for two paddle controllers on one controller port.
         Define a stable VCSC API for the two analog paddle positions and both paddle
@@ -7428,3 +7435,38 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
   pass across deterministic splits. Staged make installcheck passes. A cartridge
   built from the final source was run and visually inspected under Stella 7.0.
+
+2026-08-01 11:51:09 PDT, complete animated gallery from the supplied PICO-8 cartridge
+-------------------------------------------------------------------------------
+* Decode the supplied `42374.p8.png` cartridge using PICO-8's low-bit
+  `AA RR GG BB` byte ordering and replace the eight hand-drawn approximations
+  with exact one-bit occupancy from every animated source frame. Preserve
+  PICO-8 sprites 1 through 120 in their original sequential order as 30
+  four-frame sets. Source color 0 is transparent and every nonzero color is
+  opaque; the otherwise blank source sprite 16 remains an intentional blank
+  animation frame rather than being omitted or invented.
+* Expand the gallery from four pairs to 15. P0/P1 still begin at X=0, move right
+  one pixel per NTSC frame, hold each bitmap for eight frames, clip through
+  X=159, and switch to the next pair on the following frame. After source sets
+  28/29, automatic traversal wraps to sets 0/1. Select and fire retain their
+  edge-triggered next-pair and pause/resume behavior.
+* Store the 960 frame bytes in four hard-page-aligned 256-byte objects. Sets are
+  selected by the low three bits within a page and by explicit page-high
+  selection for indices 0-7, 8-15, 16-23, and 24-29; the final 64 bytes after
+  source sprite 120 are zero padding. The exact 960 stored bytes have SHA-256
+  `7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb`.
+  Final cartridge usage is 3,868 ROM bytes and 112 RIOT RAM bytes, leaving
+  222 ROM bytes and 16 RAM bytes free.
+* Strengthen `vcs_player_color_192_animation.pl/.cpp` to require all 30 source
+  set labels and 120 glyphs, exact hard-page placement, low-byte-zero alignment,
+  the exact extracted 960-byte SHA-256 occupancy, zero final-page padding, every
+  pointer selection, all 2,400 automatic gallery frames, exact pixels, X=159
+  clipping, full wrap, row-color-table use, controls, and 262-line periods.
+  Update the example catalogs, example README, asset attribution, and test
+  documentation to match the complete source-derived gallery.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic
+  tests pass across the completed first 122-test run, the next 54-test run, and
+  the final 26-test run. The focused animation test and staged
+  `make installcheck` pass. A cartridge built by the staged installed toolchain
+  is byte-identical to the direct build and was run and visually inspected under
+  Stella 7.0.

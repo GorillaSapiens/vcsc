@@ -243,12 +243,14 @@ $AA/$55 checkerboard players at X=159; that pattern exposes the one-bit row swap
 that solid glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
-checks its eight attributed four-frame sets and aligned 256-byte graphics table,
-and drives an emulator oracle through four complete 160-frame left-to-right
-traversals plus Select and pause controls. The oracle locks X=0 entry, one-pixel-
-per-frame motion, X=159 clipping and wrap to a new pair, exact player pixels,
-graphics-pointer selection, permitted row-color-table values, and 262-line frame
-periods.
+checks all 30 attributed four-frame source sets, pins the exact 960-byte one-bit
+occupancy extracted from PICO-8 sprites 1 through 120, and verifies four aligned
+256-byte graphics pages including the final zero padding. Its emulator oracle
+drives all 15 complete 160-frame left-to-right traversals plus Select and pause
+controls. The oracle locks X=0 entry, one-pixel-per-frame motion, X=159 clipping,
+wrap through every pair back to the first pair, exact player pixels, graphics-
+pointer selection across all four hard pages, permitted row-color-table values,
+and 262-line frame periods.
 
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte
