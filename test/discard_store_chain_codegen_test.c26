@@ -1,0 +1,15 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasmordered: sta  $10
+// expectasmordered: sta  $11
+// expectasmordered: sta  $02
+// forbidasm: lda
+// forbidasm: ldy
+// forbidasm: pha
+// forbidasm: pla
+// forbidasm: __vcsc_scratch_
+
+include "vcs.c26"
+
+void discard_store_chain_test(void) {
+   WSYNC := RESP1 := RESP0 := _;
+}

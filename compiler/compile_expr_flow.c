@@ -1101,70 +1101,168 @@ static bool compile_discarded_simple_assignment_chain(Context *ctx, ASTNode *nod
    return true;
 }
 
+//! @brief Validate one assignment-from-discard target.
+static bool validate_discard_store_lvalue(const ASTNode *site, const LValueRef *lv,
+                                          bool *valid) {
+   if (valid) {
+      *valid = false;
+   }
+   if (!site || !lv || !valid) {
+      return false;
+   }
+   if (lv->is_absolute_ref && (!lv->write_expr || !*lv->write_expr)) {
+      error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+                 site->file, site->line, site->column,
+                 lv->name ? lv->name : "<unnamed>");
+      return true;
+   }
+   if (lv->size != 1 || lv->is_bitfield) {
+      error_user("[%s:%d.%d] assignment from discard '_' requires a one-byte non-bitfield target",
+                 site->file, site->line, site->column);
+      return true;
+   }
+   *valid = true;
+   return true;
+}
+
+//! @brief Store the current accumulator into one validated discard target while preserving A.
+static bool emit_discard_store_lvalue(Context *ctx, const LValueRef *lv) {
+   ContextEntry entry;
+   char symbol[256];
+
+   if (!ctx || !lv) {
+      return false;
+   }
+
+   if (lv->is_absolute_ref && !lv->indirect && !lv->needs_runtime_address) {
+      emit_lvalue_semantic_use(ctx, lv, "write");
+      emit_store_a_to_expr_address(lv->write_expr, lv->offset);
+      return true;
+   }
+
+   if (!lv->indirect && !lv->needs_runtime_address &&
+       (lv->is_static || lv->is_zeropage || lv->is_global)) {
+      char expr_buf[256];
+      const char *formatted;
+      emit_lvalue_semantic_use(ctx, lv, "write");
+      entry = (ContextEntry){ .name = lv->name, .type = lv->type,
+         .declarator = lv->declarator, .is_static = lv->is_static,
+         .is_zeropage = lv->is_zeropage, .is_global = lv->is_global,
+         .offset = lv->offset, .size = lv->size };
+      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+         return false;
+      }
+      formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+      if (lv->offset == 0) {
+         emit(&es_code, lv->is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+      }
+      else {
+         emit(&es_code, lv->is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
+              formatted, lv->offset);
+      }
+      return true;
+   }
+
+   if (!lv->indirect && !lv->needs_runtime_address &&
+       !lv->is_static && !lv->is_zeropage && !lv->is_global &&
+       lv->offset >= 0 && lv->offset <= 255) {
+      emit_lvalue_semantic_use(ctx, lv, "write");
+      emit(&es_code, "    ldy #%d\n", lv->offset);
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      return true;
+   }
+
+   if (!emit_prepare_lvalue_ptr(ctx, lv, LVALUE_ACCESS_WRITE)) {
+      return false;
+   }
+   emit(&es_code, "    ldy #0\n");
+   emit(&es_code, "    sta (ptr0),y\n");
+   return true;
+}
+
+//! @brief Return whether discard-store lowering leaves the accumulator unchanged.
+static bool discard_store_lvalue_preserves_a(const LValueRef *lv) {
+   if (!lv || lv->size != 1 || lv->is_bitfield || lv->indirect ||
+       lv->needs_runtime_address) {
+      return false;
+   }
+   if (lv->is_absolute_ref) {
+      return lv->write_expr && *lv->write_expr;
+   }
+   if (lv->is_static || lv->is_zeropage || lv->is_global) {
+      return true;
+   }
+   return lv->offset >= 0 && lv->offset <= 255;
+}
+
 //! @brief Store the current accumulator into a one-byte lvalue without producing a source value.
 static bool compile_discard_store_assignment(Context *ctx, ASTNode *node) {
    LValueRef lv;
-   ContextEntry entry;
-   char symbol[256];
+   bool valid;
 
    if (!node || strcmp(node->name, "discard_store") || node->count != 1 ||
        !resolve_lvalue(ctx, node->children[0], &lv)) {
       return false;
    }
-
-   emit_lvalue_semantic_use(ctx, &lv, "write");
-   if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
-      error_user("[%s:%d.%d] absolute ref '%s' is read-only",
-                 node->file, node->line, node->column,
-                 lv.name ? lv.name : "<unnamed>");
-      return true;
-   }
-   if (lv.size != 1 || lv.is_bitfield) {
-      error_user("[%s:%d.%d] assignment from discard '_' requires a one-byte non-bitfield target",
-                 node->file, node->line, node->column);
-      return true;
-   }
-
-   if (lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address) {
-      emit_store_a_to_expr_address(lv.write_expr, lv.offset);
-      return true;
-   }
-
-   if (!lv.indirect && !lv.needs_runtime_address &&
-       (lv.is_static || lv.is_zeropage || lv.is_global)) {
-      char expr_buf[256];
-      const char *formatted;
-      entry = (ContextEntry){ .name = lv.name, .type = lv.type,
-         .declarator = lv.declarator, .is_static = lv.is_static,
-         .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
-         .offset = lv.offset, .size = lv.size };
-      if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
-         return false;
-      }
-      formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
-      if (lv.offset == 0) {
-         emit(&es_code, lv.is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
-      }
-      else {
-         emit(&es_code, lv.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-              formatted, lv.offset);
-      }
-      return true;
-   }
-
-   if (!lv.indirect && !lv.needs_runtime_address &&
-       !lv.is_static && !lv.is_zeropage && !lv.is_global &&
-       lv.offset >= 0 && lv.offset <= 255) {
-      emit(&es_code, "    ldy #%d\n", lv.offset);
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
-      return true;
-   }
-
-   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_WRITE)) {
+   if (!validate_discard_store_lvalue(node, &lv, &valid)) {
       return false;
    }
-   emit(&es_code, "    ldy #0\n");
-   emit(&es_code, "    sta (ptr0),y\n");
+   return !valid || emit_discard_store_lvalue(ctx, &lv);
+}
+
+//! @brief Lower a right-associated assignment chain whose terminal source is discard '_'.
+//!
+//! Every target receives the accumulator value that existed on entry. Stores run
+//! from the innermost target outward, matching ordinary chained-assignment order,
+//! but the terminal discard deliberately produces no expression value.
+static bool compile_discard_store_chain(Context *ctx, ASTNode *node) {
+   LValueRef targets[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *sites[DIRECT_BYTE_ASSIGN_CHAIN_MAX];
+   ASTNode *cursor = (ASTNode *) unwrap_expr_node(node);
+   int count = 0;
+
+   while (cursor && !strcmp(cursor->name, "assign_expr") && cursor->count == 3) {
+      const char *op = cursor->children[0] ? cursor->children[0]->strval : NULL;
+      ASTNode *next_rhs = cursor->children[2];
+
+      if ((op && strcmp(op, ":=")) ||
+          initializer_is_list(unwrap_expr_node(next_rhs)) ||
+          count >= DIRECT_BYTE_ASSIGN_CHAIN_MAX - 1 ||
+          !resolve_lvalue(ctx, cursor->children[1], &targets[count])) {
+         return false;
+      }
+      sites[count] = cursor;
+      count++;
+      cursor = (ASTNode *) unwrap_expr_node(next_rhs);
+   }
+
+   if (count < 1 || !cursor || strcmp(cursor->name, "discard_store") ||
+       cursor->count != 1 ||
+       !resolve_lvalue(ctx, cursor->children[0], &targets[count])) {
+      return false;
+   }
+   sites[count] = cursor;
+   count++;
+
+   for (int i = 0; i < count; i++) {
+      bool valid;
+      if (!validate_discard_store_lvalue(sites[i], &targets[i], &valid)) {
+         return false;
+      }
+      if (!valid) {
+         return true;
+      }
+      if (!discard_store_lvalue_preserves_a(&targets[i])) {
+         error_user("[%s:%d.%d] chained assignment from discard '_' requires directly addressable one-byte targets",
+                    sites[i]->file, sites[i]->line, sites[i]->column);
+         return true;
+      }
+   }
+   for (int i = count - 1; i >= 0; i--) {
+      if (!emit_discard_store_lvalue(ctx, &targets[i])) {
+         return false;
+      }
+   }
    return true;
 }
 
@@ -1224,6 +1322,9 @@ void compile_expr(ASTNode *node, Context *ctx) {
       return;
    }
 
+   if (compile_discard_store_chain(ctx, node)) {
+      return;
+   }
    if (compile_discarded_direct_byte_assignment_chain(ctx, node)) {
       return;
    }

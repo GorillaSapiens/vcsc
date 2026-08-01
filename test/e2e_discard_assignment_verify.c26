@@ -4,6 +4,8 @@
 include "machine_6502.c26"
 
 ref uint8_t discard_probe@0x80;
+ref uint8_t discard_probe1@0x81;
+ref uint8_t discard_probe2@0x82;
 uint8_t calls;
 uint8_t value;
 
@@ -27,8 +29,9 @@ void main(void) {
    value := 4;
 
    asm lda #$5a;
-   discard_probe := _;
-   if (discard_probe != 0x5a) { fail(1); }
+   discard_probe2 := discard_probe1 := discard_probe := _;
+   if (discard_probe != 0x5a || discard_probe1 != 0x5a ||
+       discard_probe2 != 0x5a) { fail(1); }
 
    _ := touch();
    if (calls != 1 || value != 7) { fail(2); }

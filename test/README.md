@@ -110,13 +110,17 @@ underscores, and width overflow after normalization.
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
 
-`discard_store_codegen_test.c26` and `discard_result_codegen_test.c26`
-cover the dedicated lone-underscore discard token. It locks direct `WSYNC := _` lowering to a bare `STA`, verifies
-that `_ := expression` preserves calls and other evaluation, and confirms that
-longer identifiers containing underscores remain ordinary names. Companion
-rejection tests require assignment-from-discard targets to be one-byte,
-non-bitfield lvalues. `e2e_discard_assignment_verify.c26` verifies the bare-A
-store and discarded-expression side effects in the simulator.
+`discard_store_codegen_test.c26`, `discard_store_chain_codegen_test.c26`,
+and `discard_result_codegen_test.c26` cover the dedicated lone-underscore
+discard token. They lock direct `WSYNC := _` lowering to a bare `STA`, require
+`WSYNC := RESP1 := RESP0 := _` to emit three ordered stores with no load,
+scratch, or Y traffic, verify that `_ := expression` preserves calls and other
+evaluation, and confirm that longer identifiers containing underscores remain
+ordinary names. Companion rejection tests require assignment-from-discard
+targets to be one-byte non-bitfield lvalues and require chained targets to be
+directly addressable so every store preserves A without hidden stack traffic.
+`e2e_discard_assignment_verify.c26` verifies that one incoming A value reaches
+all three targets and that discarded-expression side effects remain intact.
 
 `assign_expr_value_codegen_test.c26`,
 `assign_expr_condition_codegen_test.c26`, and

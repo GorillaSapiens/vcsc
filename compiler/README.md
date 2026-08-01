@@ -606,18 +606,23 @@ value slot for the whole chain rather than one nested slot per assignment.
 A lone underscore is a discard token usable only in simple assignment:
 
 ```vcsc
-WSYNC := _;       // emit the one-byte store using whatever is already in A
-_ := update();    // evaluate update() and discard its result
-_ := value + 1;   // evaluate the expression only for its effects
+WSYNC := _;                       // store whatever is already in A
+WSYNC := RESP1 := RESP0 := _;    // store that same A value, inner to outer
+_ := update();                    // evaluate update() and discard its result
+_ := value + 1;                   // evaluate the expression only for its effects
 ```
 
-Assignment *from* `_` requires a one-byte, non-bitfield lvalue. It generates no
-source-value load or conversion; a direct absolute register such as `WSYNC`
-therefore lowers to a single `STA`. Assignment *to* `_` evaluates the right-hand
-expression normally and creates no destination object. Both forms are value-less
-and are intended as expression statements, not operands in larger expressions.
-Identifiers containing underscores remain ordinary identifiers; only the exact
-one-character spelling `_` is reserved.
+Assignment *from* `_` requires one-byte, non-bitfield lvalues. It generates no
+source-value load or conversion. A direct absolute register such as `WSYNC`
+therefore lowers to one `STA`; a right-associated chain ending in `_` emits its
+stores from the innermost target outward while preserving the accumulator value.
+Such chains require directly addressable targets, so pointer setup cannot destroy
+the raw accumulator source. Direct TIA-register chains require no register
+readback, compiler scratch, hardware-stack traffic, or Y setup. Assignment *to* `_` evaluates the right-hand expression normally and
+creates no destination object. Both forms are value-less and are intended as
+expression statements, not operands in larger expressions. Identifiers
+containing underscores remain ordinary identifiers; only the exact one-character
+spelling `_` is reserved.
 
 Runtime division or remainder by a known positive power of two greater than one
 emits a performance warning. The compiler does not silently replace the

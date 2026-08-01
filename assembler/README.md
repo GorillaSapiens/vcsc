@@ -35,6 +35,8 @@ It can operate in two primary modes:
 
 Listing and map output can be requested alongside either mode.
 
+See [`DESIGN_NOTES.md`](DESIGN_NOTES.md) for retained assembler design decisions,
+including conditional-branch length and page-timing policy.
 
 ## Symbol names and local labels
 
