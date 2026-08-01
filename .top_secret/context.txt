@@ -7331,3 +7331,38 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   through 201 all passed with no failures. Focused public matrix, all-five,
   two-plus-two raster, and interactive-control regressions pass. Staged
   `make installcheck` also passes, including all 40 public matrix cartridges.
+
+2026-08-01 00:00:40 PDT, unresolved forced-long conditional-branch policy
+-------------------------------------------------------------------------------
+* Record an unresolved assembler-language decision: determine whether VCSC should
+  expose forced-long conditional branches even when the destination is close
+  enough for a normal two-byte relative branch. A synthesized long conditional
+  branch uses the inverse relative condition to skip an absolute JMP. For an
+  original condition that is true, the long sequence takes five cycles; for an
+  original condition that is false, the inverse skip takes three cycles when it
+  stays on-page or four cycles when it crosses a page.
+* Distinguish branch length policy from page/timing policy. A short conditional
+  has two concrete timing forms: 2/3 cycles for false/true when its taken path
+  stays on-page, and 2/4 when it crosses. A synthesized long conditional has two
+  more concrete timing forms: 3/5 when its internal inverse skip stays on-page,
+  and 4/5 when that skip crosses. Thus there are four concrete emitted timing
+  outcomes: 2/3, 2/4, 3/5, and 4/5.
+* The discussion identified seven possible source-level policies: forced short
+  same-page (`.same`), forced short crossing (`.cross`), forced short with either
+  page relationship (proposed `.short`), forced long with an on-page internal
+  skip (tentatively `.longsame`), forced long with a crossing internal skip
+  (tentatively `.longcross`), forced long with either skip relationship
+  (tentatively `.long`), and fully flexible short-or-long selection (`.flex`,
+  with a bare conditional branch remaining equivalent). Keep every annotation a
+  single suffix; do not use stacked spellings such as `.long.same`.
+* `.same` and `.cross` remain hard short-branch contracts and may not relax into
+  the long sequence. `.flex` does not guarantee a short branch. The proposed
+  `.short` would fill the presently missing policy of requiring a relative branch
+  while leaving its page relationship unconstrained.
+* Do not implement the three forced-long forms yet. Decide first whether their
+  benefits—stable timing, deliberate path balancing, and a stable five-byte code
+  footprint even when a relative target is in range—justify the extra syntax,
+  linker constraints, documentation, and tests. The tentative names and all
+  seven-policy model remain design notes, not accepted language behavior.
+* No source, test, roadmap, removal-ledger, or documentation files change in this
+  entry; only `.top_secret/context.txt` is updated.
