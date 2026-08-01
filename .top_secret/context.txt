@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260801_215355.tar.gz
+    vcsc.20260801_220615.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7615,9 +7615,9 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Emit each declared physical bank as one exact 4096-byte unit in ascending
   logical-address order, so F8/F6/F4 files begin with the lowest logical bank
   and end with BANK0. Preserve the stock unbanked `vcs_4k.cfg` image
-  byte-for-byte. This revision initially paired selector hotspots with logical
-  bank names in reverse order; the 15:02 correction below supersedes that
-  mapping while retaining the logical-address and file-order model.
+  byte-for-byte. Selector validation distinguishes VCSC logical bank names from
+  physical/file chunk indices: BANK0 uses `$1FF9` for F8/F6 and `$1FFB` for F4,
+  while later VCSC BANK names work downward through the selector range.
 * Reserve every mapper hotspot at its low-twelve-bit offset in every physical
   bank. Any ordinary code/data segment whose allocatable region covers a
   selector byte is now a cfg error, even if the selector nominally chooses a
@@ -7644,9 +7644,11 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   generic tests. The focused 17-test linker/placement/hygiene set and staged
   `make installcheck` also pass.
 
-2026-08-01 15:02:47 PDT, correct F8 F6 and F4 hotspot-to-bank ordering
--------------------------------------------------------------------------------
-* Correct the full-window mapper convention without changing logical bank
+2026-08-01 15:02:47 PDT, attempt hotspot reversal (incorrect; superseded at 15:44)
+----------------------------------------------------------------------------------------
+* This entry records an incorrect change which confused VCSC logical BANKn names
+  with physical/file bank indices.  The 15:44:41 entry below supersedes it.
+* The attempted change altered the full-window mapper convention without changing logical bank
   addresses or physical file order. BANK0 remains the `$F000-$FFFF` logical
   bank and the final 4K chunk in the cartridge file, but hardware selector
   hotspots now increase with bank number: F8 uses `$1FF8+$bank`, F6 uses
@@ -7661,9 +7663,38 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   F4 ordering, NMI vector fetches at `$1FFA/$1FFB` select BANK6 and BANK7;
   identical vector bytes still yield a deterministic word, and the common
   bridge then explicitly selects BANK0 through `$1FF4`.
-* Verification: the toolchain builds with the staged Bison/Flex packages. All
-  341 compile-only tests and all 205 end-to-end/generic tests pass; the latter
-  completed as the initial 162-test run plus deterministic 27-test and 16-test
-  tails after outer command-window limits. The focused banked-image, per-bank
-  reset-bridge, and source-tree-hygiene tests pass for corrected F8, F6, and F4
-  mappings.
+* Verification at the time passed, but the tests encoded the same mistaken
+  logical-name/physical-index assumption and therefore did not establish that
+  the mapping was correct.
+
+2026-08-01 15:44:41 PDT, restore physical file hotspot order and disambiguate bank identities
+----------------------------------------------------------------------------------------------
+* Supersede the 15:02 hotspot reversal.  That change confused VCSC's logical
+  `BANKn` names with zero-based physical/file bank indices.  For F8/F6/F4, the
+  first mapper hotspot selects the first 4K chunk on disk and subsequent
+  hotspots select subsequent chunks.  Because VCSC writes banks in ascending
+  logical-address order and names the `$F000` home bank BANK0, VCSC BANK0 is the
+  final file chunk and uses the final hotspot in the mapper range.
+* Restore and lock the complete mappings: F8 `$1FF8 -> file chunk 0 / BANK1`
+  and `$1FF9 -> file chunk 1 / BANK0`; F6 `$1FF6..$1FF9 -> BANK3..BANK0`;
+  F4 `$1FF4..$1FFB -> BANK7..BANK0`.  BANK0 remains at `$F000`, contains
+  `main` and startup, and appears last in the file.
+* Rewrite `.top_secret/bankswitching.txt` and expand `linker/README.md` around
+  three explicitly separate identities: VCSC logical bank name, physical/file
+  chunk index, and mapper selector hotspot.  Add full F8/F6/F4 tables and the
+  formulas `file_index(BANKn)=bank_count-1-n` and
+  `hotspot=first_mapper_hotspot+file_index`.
+* Clarify F4 vector behavior.  The NMI low-byte fetch at `$1FFA` selects file
+  chunk 6 / VCSC BANK1; the high-byte fetch at `$1FFB` selects file chunk 7 /
+  VCSC BANK0.  Identical vector bytes keep the word deterministic, and the
+  vector fetch itself ends with BANK0 selected before the common bridge
+  defensively selects BANK0 again.
+* Express linker validation and reset-bridge tests in terms of physical file
+  index rather than ambiguous bank numbering.  Add explicit mapping assertions,
+  preserve hotspot-reservation coverage, and add a negative test which rejects
+  the accidentally swapped F8 mapping from the 15:02 revision.
+* Verification: the staged Bison/Flex toolchain builds cleanly; all 341
+  compile-only tests pass; all 205 end-to-end/generic tests pass, completed as
+  the initial 162-test run followed by the remaining 43 tests in two deterministic
+  groups after outer command-window limits; focused bank-image/reset/hygiene
+  tests pass; and staged `make installcheck` passes.

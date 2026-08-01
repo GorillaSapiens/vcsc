@@ -176,8 +176,8 @@ CARTRIDGE {
     vectorbridge = $0FE0;
 }
 BANKS {
-    BANK0: start=$F000, size=$1000, hotspot=$1FF8, startup=yes;
-    BANK1: start=$D000, size=$1000, hotspot=$1FF9, startup=no;
+    BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
+    BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
 }
 MEMORY {
     bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
@@ -191,10 +191,39 @@ MEMORY {
 }
 ```
 
-The linker validates the conventional bank count, logical address, selector,
-and BANK0 startup assignment for F8, F6, and F4. Logical bank addresses descend
-from BANK0 at `$F000`, but selector hotspots ascend with bank number: F8 uses
-`$1FF8+$bank`, F6 uses `$1FF6+$bank`, and F4 uses `$1FF4+$bank`.
+The linker treats three identities as separate: the VCSC logical `BANKn`
+name, the zero-based physical/file chunk index, and the mapper selector hotspot.
+Do not read an external phrase such as "bank 0" as VCSC `BANK0` unless it
+explicitly means the `$F000` home-bank namespace.
+
+VCSC writes complete 4K chunks in ascending logical-address order.  Mapper
+hotspots increase with physical/file chunk index, so they run in the opposite
+direction from VCSC logical bank numbers:
+
+```text
+mapper  file index  VCSC bank  linker range  selector
+------  ----------  ---------  ------------  --------
+F8      0           BANK1      $D000-$DFFF   $1FF8
+        1           BANK0      $F000-$FFFF   $1FF9
+
+F6      0           BANK3      $9000-$9FFF   $1FF6
+        1           BANK2      $B000-$BFFF   $1FF7
+        2           BANK1      $D000-$DFFF   $1FF8
+        3           BANK0      $F000-$FFFF   $1FF9
+
+F4      0           BANK7      $1000-$1FFF   $1FF4
+        1           BANK6      $3000-$3FFF   $1FF5
+        2           BANK5      $5000-$5FFF   $1FF6
+        3           BANK4      $7000-$7FFF   $1FF7
+        4           BANK3      $9000-$9FFF   $1FF8
+        5           BANK2      $B000-$BFFF   $1FF9
+        6           BANK1      $D000-$DFFF   $1FFA
+        7           BANK0      $F000-$FFFF   $1FFB
+```
+
+Equivalently, `file_index(BANKn) = bank_count - 1 - n`, and the selector is the
+mapper's first hotspot plus that file index.  The linker validates the complete
+table, including VCSC `BANK0` as the sole startup bank and final file chunk.
 
 Every selector hotspot is reserved at the same low twelve-bit offset in every
 bank. An ordinary `ro` or `data` segment region covering any selector is
@@ -207,14 +236,18 @@ IRQ/BRK entries are copied at that physical offset in every bank. Each entry is
 `BIT BANK0_HOTSPOT; JMP handler`. The final six bytes of every bank contain the
 same vector words, using BANK0's logical mirror of those three entries. This
 makes reset deterministic from every initially selected bank and also makes
-F4's `$1FFA/$1FFB` NMI-vector/selector overlap harmless. The handlers and `main`
-must remain in BANK0.
+F4's `$1FFA/$1FFB` NMI-vector/selector overlap harmless.  In F4, the NMI
+low-byte fetch at `$1FFA` selects physical/file chunk 6 (VCSC BANK1), and the
+high-byte fetch at `$1FFB` selects chunk 7 (VCSC BANK0).  Identical vector bytes
+make the fetched word stable, and the vector fetch ends with BANK0 selected.
+The handlers and `main` must remain in BANK0.
 
 Flat banked output must use `.bin`. The writer emits complete 4096-byte units in
 ascending logical-address order, filling unoccupied bytes with the cartridge
-fill value. Thus F8 writes BANK1 then BANK0, and BANK0 occupies the final 4K of
-the file. The map reports mapper, exact output size, bridge offset/size, each
-bank's selector, startup status, and physical file offset.
+fill value. Thus F8 writes VCSC BANK1 as physical/file chunk 0 and VCSC BANK0 as
+chunk 1.  VCSC BANK0 occupies the final 4K of every F8/F6/F4 image. The map
+reports mapper, exact output size, bridge offset/size, each VCSC bank's selector,
+startup status, and physical file offset.
 
 Bank-aware relocation rejection, cross-bank JMP/JSR trampolines, and automatic
 placement remain later bankswitching roadmap slices. Until those land, a banked

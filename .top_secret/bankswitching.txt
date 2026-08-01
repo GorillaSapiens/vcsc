@@ -33,55 +33,100 @@ lines to the cartridge. A13-A15 do not reach the cartridge. VCSC can therefore
 assign every physical 4K bank a distinct ordinary 16-bit logical range while
 the cartridge sees every one of those ranges as the same $1000-$1FFF window.
 
-Use the established descending logical convention:
+Three bank identities must be kept separate.  Using the bare phrase "bank 0"
+without saying which identity is meant is prohibited in this document and
+should be avoided in diagnostics and user documentation:
 
-    logical bank    linker range
-    ------------    ------------
-    BANK0           $F000-$FFFF
-    BANK1           $D000-$DFFF
-    BANK2           $B000-$BFFF
-    BANK3           $9000-$9FFF
-    BANK4           $7000-$7FFF
-    BANK5           $5000-$5FFF
-    BANK6           $3000-$3FFF
-    BANK7           $1000-$1FFF
+1. VCSC logical bank name
+
+   This is the source/linker namespace.  BANK0 is deliberately the home bank at
+   $F000, BANK1 is at $D000, and so on.  `main`, startup, and the mandatory
+   runtime live in VCSC BANK0.
+
+2. Physical/file bank index
+
+   This is the zero-based 4K chunk number in the emitted cartridge image.
+   Physical/file bank 0 is the first 4096 bytes on disk.  Because VCSC writes
+   banks in ascending logical-address order, physical/file bank 0 is the
+   highest-numbered VCSC logical bank, not VCSC BANK0.  VCSC BANK0 is the last
+   physical/file bank.
+
+3. Mapper selector hotspot
+
+   F8/F6/F4 selectors increase with physical/file bank index.  The first
+   selector chooses the first 4K chunk on disk, the next selector chooses the
+   second chunk, and so forth.  Since VCSC logical bank numbers run in the
+   opposite direction, selector addresses decrease as VCSC BANKn increases.
+
+Use the established descending VCSC logical convention:
+
+    VCSC logical bank    linker range
+    -----------------    ------------
+    BANK0                $F000-$FFFF
+    BANK1                $D000-$DFFF
+    BANK2                $B000-$BFFF
+    BANK3                $9000-$9FFF
+    BANK4                $7000-$7FFF
+    BANK5                $5000-$5FFF
+    BANK6                $3000-$3FFF
+    BANK7                $1000-$1FFF
 
 Equivalently:
 
-    bank_base = $F000 - (bank_number * $2000)
+    logical_base(BANKn) = $F000 - (n * $2000)
 
-F8 uses BANK0 and BANK1. F6 uses BANK0 through BANK3. F4 uses BANK0 through
-BANK7. Ordinary linker symbols and relocations remain 16-bit. No far pointer or
-bank-qualified C pointer is required for this family.
+F8 uses VCSC BANK0 and BANK1. F6 uses BANK0 through BANK3. F4 uses BANK0
+through BANK7. Ordinary linker symbols and relocations remain 16-bit. No far
+pointer or bank-qualified C pointer is required for this family.
 
 The cartridge file is written in ascending logical-address order, beginning
 with the lowest-address bank and ending with the highest-address bank. Therefore
-BANK0 is always the final 4K bank in the file:
+VCSC BANK0 is always the final 4K chunk in the file:
 
-    F8 file order:  BANK1, BANK0
-    F6 file order:  BANK3, BANK2, BANK1, BANK0
-    F4 file order:  BANK7, BANK6, BANK5, BANK4,
-                    BANK3, BANK2, BANK1, BANK0
+    mapper  file index  VCSC bank  linker range  selector hotspot
+    ------  ----------  ---------  ------------  ----------------
+    F8      0           BANK1      $D000-$DFFF   $1FF8
+            1           BANK0      $F000-$FFFF   $1FF9
 
-The linker must emit those banks contiguously without the unused logical gaps
-between $1FFF and $3000, $3FFF and $5000, and so on. File position and logical
-CPU address are separate facts, but file position is deterministic from the
-ascending logical-bank order rather than an arbitrary bank-number ordering.
+    F6      0           BANK3      $9000-$9FFF   $1FF6
+            1           BANK2      $B000-$BFFF   $1FF7
+            2           BANK1      $D000-$DFFF   $1FF8
+            3           BANK0      $F000-$FFFF   $1FF9
 
-For the first public F8/F6/F4 family, BANK0 is the required startup/home bank
-and `main` always resides there. Logical bank addresses descend, but selector
-hotspots follow the hardware's ascending bank-number order:
+    F4      0           BANK7      $1000-$1FFF   $1FF4
+            1           BANK6      $3000-$3FFF   $1FF5
+            2           BANK5      $5000-$5FFF   $1FF6
+            3           BANK4      $7000-$7FFF   $1FF7
+            4           BANK3      $9000-$9FFF   $1FF8
+            5           BANK2      $B000-$BFFF   $1FF9
+            6           BANK1      $D000-$DFFF   $1FFA
+            7           BANK0      $F000-$FFFF   $1FFB
 
-    mapper   BANK0 hotspot   final bank hotspot
-    ------   -------------   ------------------
-    F8       $1FF8           BANK1 $1FF9
-    F6       $1FF6           BANK3 $1FF9
-    F4       $1FF4           BANK7 $1FFB
+The equivalent formulas for these full-window schemes are:
 
-In every family, BANKn uses the first hotspot plus n. The cfg records the
-startup bank and each hotspot explicitly so the linker validates rather than
-guesses the selector. A later mapper family may revisit the startup-bank rule
-as a separate decision.
+    file_index(BANKn) = bank_count - 1 - n
+    hotspot(BANKn)    = first_mapper_hotspot + file_index(BANKn)
+
+where the first mapper hotspot is $1FF8 for F8, $1FF6 for F6, and $1FF4 for
+F4.  Thus the startup/home hotspot is always the last hotspot in the mapper's
+range: $1FF9 for F8 and F6, and $1FFB for F4.
+
+The linker emits those banks contiguously without the unused logical gaps
+between $1FFF and $3000, $3FFF and $5000, and so on. File position, VCSC logical
+address, and selector hotspot are three separate facts. The cfg records all
+three relationships explicitly and the linker validates the complete table
+rather than guessing from a name or relying on declaration order.
+
+This convention also matches the common cartridge layout in which the final
+chunk contains the $F000 home/reset code.  Existing ROMs are not normative for
+VCSC naming: some assemble both physical banks at $F000, some use other mirrors,
+and external documentation may call the first chunk "bank 0".  In VCSC,
+uppercase BANK0 always means the $F000 home bank, never merely the first bytes
+on disk.
+
+For the first public F8/F6/F4 family, VCSC BANK0 is the required startup/home
+bank and `main` always resides there. A later mapper family may revisit the
+startup-bank rule as a separate decision.
 
 Configuration model
 -------------------
@@ -104,8 +149,8 @@ The first implemented cfg spelling uses `CARTRIDGE` and `BANKS` blocks plus a
     }
 
     BANKS {
-        BANK0: start=$F000, size=$1000, hotspot=$1FF8, startup=yes;
-        BANK1: start=$D000, size=$1000, hotspot=$1FF9, startup=no;
+        BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
+        BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
     }
 
     MEMORY {
@@ -120,11 +165,13 @@ The first implemented cfg spelling uses `CARTRIDGE` and `BANKS` blocks plus a
         /* shared RAM regions omitted */
     }
 
-A bank description tells the linker the bank name and logical 16-bit range, the
-mapper family, its selector hotspot, whether it is the startup bank, the full
-physical bank size, and output fill value. `MEMORY` entries subdivide that full
-physical unit into allocatable ROM and non-allocatable holes such as hotspots,
-vectors, and later the common bridge corridor.
+A bank description tells the linker the VCSC logical bank name and 16-bit range,
+its mapper selector hotspot, whether it is the startup bank, and the full 4K
+physical-bank size.  The output writer derives physical/file index from
+ascending logical address, not from the numeric suffix in `BANKn`.  `MEMORY`
+entries subdivide each full physical unit into allocatable ROM and
+non-allocatable holes such as hotspots, vectors, and later the common bridge
+corridor.
 
 The cfg parser rejects unknown blocks and properties. Silently ignoring a
 misspelled bank or hotspot property would create a plausible-looking but dead
@@ -165,10 +212,12 @@ BANK0 before jumping to the ordinary runtime handler. BANK0 runs the same
 sequence; selecting the already selected bank is harmless.
 
 Using one identical vector image is deliberate. F4's $1FFA and $1FFB selector
-hotspots overlap the NMI vector bytes and select BANK6 and BANK7 respectively.
-Identical vector bytes make either old-bank or newly selected-bank read timing
-produce the same word. The second vector fetch leaves BANK7 selected, after
-which the common NMI entry explicitly selects BANK0 before entering `__nmi`.
+hotspots overlap the NMI vector bytes.  Under the table above, the low-byte
+fetch at $1FFA selects physical/file bank 6, which is VCSC BANK1; the high-byte
+fetch at $1FFB then selects physical/file bank 7, which is VCSC BANK0.  Every
+bank contains the same vector bytes, so the word is deterministic despite the
+mid-vector bank changes, and the NMI fetch itself finishes with BANK0 selected.
+The common NMI entry selects BANK0 again defensively before entering `__nmi`.
 RESET and IRQ/BRK follow the same general bridge path, so BRK remains safe even
 though the 6507 package exposes no ordinary NMI/IRQ inputs.
 
@@ -528,9 +577,10 @@ when main roadmap item 29 becomes active.
        * Reject unknown cfg properties, malformed entries, unsupported or
          incomplete F8/F6/F4 bank sets, conflicting banks, overlapping bank
          MEMORY regions, and non-binary banked output.
-       * Validate the hardware selector order independently of descending logical
-         addresses: BANKn uses `$1FF8+n` for F8, `$1FF6+n` for F6, and
-         `$1FF4+n` for F4.
+       * Validate VCSC logical bank name/range, physical file index, and hotspot
+         as three distinct identities.  The first mapper hotspot selects file
+         chunk 0; VCSC BANK0 is the final chunk and therefore uses $1FF9 for
+         F8/F6 and $1FFB for F4.
        * Reserve every selector hotspot at the same physical offset in every
          bank by rejecting any ordinary allocatable segment region which covers
          one; hotspot bytes may not become code or ordinary ROM data.

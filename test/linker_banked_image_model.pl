@@ -94,8 +94,8 @@ CARTRIDGE {
    vectorbridge = \$0FE0;
 }
 BANKS {
-   BANK0: start=\$F000, size=\$1000, hotspot=\$1FF8, startup=yes;
-   BANK1: start=\$D000, size=\$1000, hotspot=\$1FF9, startup=no;
+   BANK0: start=\$F000, size=\$1000, hotspot=\$1FF9, startup=yes;
+   BANK1: start=\$D000, size=\$1000, hotspot=\$1FF8, startup=no;
 }
 MEMORY {
    ZEROPAGE: start=\$0000, size=\$0080, type=rw;
@@ -150,29 +150,40 @@ ord(substr($bank0_vectors, 5, 1)) == 0xFF
 my $map_text = slurp($map);
 $map_text =~ /mapper=F8 output-size=\$00002000 fill=\$A5 vectorbridge=\$FE0 size=\$12/
    or die "map omitted F8 image/bridge metadata\n$map_text";
-$map_text =~ /BANK1\s+start=\$D000.*hotspot=\$1FF9.*file=\$00000000/
+$map_text =~ /BANK1\s+start=\$D000.*hotspot=\$1FF8.*file=\$00000000/
    or die "map did not assign BANK1 physical file offset zero\n$map_text";
-$map_text =~ /BANK0\s+start=\$F000.*hotspot=\$1FF8.*file=\$00001000 startup=yes/
-   or die "map did not put BANK0 last with the conventional F8 BANK0 selector\n$map_text";
+$map_text =~ /BANK0\s+start=\$F000.*hotspot=\$1FF9.*file=\$00001000 startup=yes/
+   or die "map did not put BANK0 last with the conventional F8 selector\n$map_text";
 $map_text =~ /^\s*\$D000\s+placed\b/m
    or die "placed function did not retain its D000 logical address\n$map_text";
 $map_text =~ /^\s*\$F[0-9A-Fa-f]{3}\s+main\b/m
    or die "main did not remain in the BANK0 mirror\n$map_text";
 
 my $unknown_cfg = File::Spec->catfile($tmp, 'unknown.cfg');
-(my $unknown_text = $valid_cfg) =~ s/hotspot=\$1FF9/hotpsot=\$1FF9/;
+(my $unknown_text = $valid_cfg) =~ s/hotspot=\$1FF8/hotpsot=\$1FF8/;
 write_file($unknown_cfg, $unknown_text);
 require_fail('unknown bank property', "unknown BANKS property 'hotpsot'",
              $vcsc, '-I', $include, '-T', $unknown_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'unknown.bin'), $src);
 
+my $swapped_cfg = File::Spec->catfile($tmp, 'swapped-hotspots.cfg');
+my $swapped_text = $valid_cfg;
+$swapped_text =~ s/(BANK0:.*?hotspot=)\$1FF9/${1}\$1FF8/;
+$swapped_text =~ s/(BANK1:.*?hotspot=)\$1FF8/${1}\$1FF9/;
+write_file($swapped_cfg, $swapped_text);
+require_fail('logical bank names confused with file indices',
+             'BANK0 (physical/file chunk 1) must use F8 selector hotspot $1FF9',
+             $vcsc, '-I', $include, '-T', $swapped_cfg,
+             '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'swapped.bin'), $src);
+
 my $hotspot_cfg = File::Spec->catfile($tmp, 'hotspot-overlap.cfg');
 my $hotspot_text = $valid_cfg;
 $hotspot_text =~ s/   BANK1_TAIL: start=\$DFF2, size=\$0008, bank=BANK1;/   bank1_tail: start=\$DFF2, size=\$0008, type=ro, bank=BANK1;/;
 $hotspot_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_tail, type=ro;/;
 write_file($hotspot_cfg, $hotspot_text);
-require_fail('ordinary code over bank hotspot', 'covers reserved bank hotspot $DFF8',
+require_fail('ordinary code over bank hotspot', 'covers reserved bank hotspot $DFF9',
              $vcsc, '-I', $include, '-T', $hotspot_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'hotspot.bin'), $src);

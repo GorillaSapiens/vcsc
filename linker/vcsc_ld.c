@@ -860,16 +860,16 @@ static void validate_linker_config(linker_config_t *cfg)
 
    {
       size_t expected_count = 0;
-      uint16_t first_hotspot = 0;
+      uint16_t first_file_hotspot = 0;
       if (str_ieq(cfg->mapper, "F8")) {
          expected_count = 2;
-         first_hotspot = 0x1FF8u;
+         first_file_hotspot = 0x1FF8u;
       } else if (str_ieq(cfg->mapper, "F6")) {
          expected_count = 4;
-         first_hotspot = 0x1FF6u;
+         first_file_hotspot = 0x1FF6u;
       } else if (str_ieq(cfg->mapper, "F4")) {
          expected_count = 8;
-         first_hotspot = 0x1FF4u;
+         first_file_hotspot = 0x1FF4u;
       } else {
          fprintf(stderr,
                  "vcsc-ld: unsupported full-window mapper '%s'; expected F8, F6, or F4\n",
@@ -884,8 +884,15 @@ static void validate_linker_config(linker_config_t *cfg)
       for (i = 0; i < expected_count; ++i) {
          char expected_name[MAX_NAME];
          const cartridge_bank_t *bank;
+         size_t file_index = expected_count - 1u - i;
          uint16_t expected_start = (uint16_t)(0xF000u - (uint16_t)(i * 0x2000u));
-         uint16_t expected_hotspot = (uint16_t)(first_hotspot + (uint16_t)i);
+         uint16_t expected_hotspot =
+            (uint16_t)(first_file_hotspot + (uint16_t)file_index);
+
+         /* BANKn is VCSC's descending logical namespace.  Mapper hotspots
+            instead increase with zero-based physical/file chunk index.  Since
+            BANK0 is emitted last, its file index is expected_count-1 and it
+            uses the final hotspot in the mapper range. */
          snprintf(expected_name, sizeof(expected_name), "BANK%zu", i);
          bank = find_cartridge_bank(cfg, expected_name);
          if (!bank) {
@@ -901,8 +908,8 @@ static void validate_linker_config(linker_config_t *cfg)
          }
          if (bank->hotspot != expected_hotspot) {
             fprintf(stderr,
-                    "vcsc-ld: %s must use %s selector hotspot $%04X\n",
-                    bank->name, cfg->mapper, expected_hotspot);
+                    "vcsc-ld: %s (physical/file chunk %zu) must use %s selector hotspot $%04X\n",
+                    bank->name, file_index, cfg->mapper, expected_hotspot);
             exit(1);
          }
          if ((i == 0 && !bank->startup) || (i != 0 && bank->startup)) {
