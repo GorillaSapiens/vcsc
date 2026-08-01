@@ -42,6 +42,12 @@ index($bankswitching,'[ ] 2. Add per-bank vectors and same-offset reset bridges.
    or die "bankswitching plan no longer schedules per-bank reset early\n";
 index($bankswitching,'[ ] 11. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
+index($bankswitching,'contain exactly the same bytes in every physical bank')>=0 &&
+index($bankswitching,'JMP  (__bank_target)')>=0
+   or die "bankswitching plan lost the common indirect-JMP trampoline design\n";
+index($bankswitching,'always pinned to BANK0')>=0 &&
+index($bankswitching,'Unpinned layouts are assigned automatically by the linker')>=0
+   or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";
 index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
    or die "bankswitching plan lost Superchip ROM-prefix reservation\n";

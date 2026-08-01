@@ -68,9 +68,10 @@ between $1FFF and $3000, $3FFF and $5000, and so on. File position and logical
 CPU address are separate facts, but file position is deterministic from the
 ascending logical-bank order rather than an arbitrary bank-number ordering.
 
-BANK0 is the default startup/home bank unless a configuration explicitly says
-otherwise. Startup policy and hotspot numbering remain explicit configuration
-facts; the linker must not infer a selector merely from the name BANK0.
+For the first public F8/F6/F4 family, BANK0 is the required startup/home bank
+and `main` always resides there. The cfg still records the startup bank and its
+hotspot explicitly so the linker validates rather than guesses the selector.
+A later mapper family may revisit the startup-bank rule as a separate decision.
 
 Configuration model
 -------------------
@@ -121,14 +122,15 @@ reserve them according to the selected scheme instead of applying one hardcoded
 layout blindly.
 
 Every bank also receives a tiny reset bridge at the same low twelve-bit offset.
-Its reset vector points to the bridge using that bank's logical address. The
-bridge selects the configured startup bank and then continues at the matching
-offset in that bank, where it enters the normal VCSC startup path. BANK0 can use
-the same bridge sequence; selecting the already selected bank is harmless.
+Its reset vector points to the bridge using that bank's logical address. For the
+first public full-window profiles, the bridge selects BANK0 and then continues
+at the matching offset there, where it enters the normal VCSC startup path.
+BANK0 uses the same bridge sequence; selecting the already selected bank is
+harmless.
 
 This gives deterministic startup regardless of which bank happened to be
 selected before the reset vector fetch. The normal DATA/BSS initialization and
-`main` entry remain in the startup bank rather than being duplicated wholesale.
+`main` entry live in BANK0 rather than being duplicated wholesale.
 NMI and IRQ/BRK vector treatment must be defined per mapper and tested even
 though the 6507 package does not expose ordinary IRQ/NMI inputs; BRK still uses
 the IRQ vector.
@@ -149,8 +151,10 @@ References from banked ROM obey these rules:
 * A cross-bank conditional branch is an error.
 * A cross-bank ROM load, address constant relocation, pointer initializer, or
   other data reference is an error.
-* Indirect cross-bank control flow remains unsupported. VCSC already rejects
-  function pointers, so ordinary compiled calls remain visible to the linker.
+* Programmer-authored indirect cross-bank control flow remains unsupported.
+  The linker-generated call/jump machinery may use an indirect JMP internally,
+  but VCSC still rejects function pointers, so ordinary compiled calls remain
+  visible to the linker.
 
 The assembler/object format must identify control-transfer relocations as JSR,
 JMP, or conditional branch. The linker should not infer semantics by peeking at
@@ -164,41 +168,89 @@ symbolic relocations the toolchain can prove.
 
 Cross-bank call and jump bridges
 --------------------------------
-A bank switch takes effect before the next opcode fetch. Generated bridges
-therefore occupy the same low twelve-bit cartridge offset in all participating
-banks.
+The complete linker-generated bridge table must occupy the same low twelve-bit
+cartridge offsets and contain exactly the same bytes in every physical bank.
+It is one common replicated image, not a separately generated per-bank table.
+After a hotspot access changes the selected bank, instruction fetching continues
+at the next byte in the newly selected bank; byte-for-byte identity is therefore
+what makes every continuation safe.
 
-Conceptual cross-bank call from source bank A to target in bank B:
+The 6502 has no indirect JSR instruction, but a normal JSR can call a fixed
+bridge which ultimately performs an indirect JMP. That is the generic
+cross-bank call mechanism. Conceptually:
 
-    source bank A, bridge offset N:
-        BIT  bank_B_hotspot       ; subsequent fetch comes from bank B
+    void jsr_trampoline(uint16_t target) {
+        push_return_address(return_to_callers_bank);
+        select_bank(bank_of(target));
+        asm jmp (target);
+    }
 
-    destination bank B, offset N+3:
-        JSR  target_in_bank_B
-        BIT  bank_A_hotspot       ; subsequent fetch comes from bank A
+The caller's ordinary JSR has already placed its real return address on the
+hardware stack. The trampoline pushes a synthetic return address above it,
+switches to the target bank, and executes JMP through the target pointer. The
+target function's RTS reaches the synthetic return stub. That stub selects the
+caller's bank and executes a second RTS, which consumes the caller's original
+return address.
 
-    source bank A, offset N+9:
+A practical first implementation may reserve one two-byte RIOT RAM pointer such
+as `__bank_target`. A direct cross-bank call is redirected to a generated target
+entry in the common table. The entry stores the target's ordinary 16-bit logical
+address in `__bank_target`, then jumps to an entry associated with the statically
+known source bank:
+
+    generated entry for source BANK0 and target $DABC:
+        LDA  #<$DABC
+        STA  __bank_target
+        LDA  #>$DABC
+        STA  __bank_target+1
+        JMP  jsr_from_bank0
+
+    jsr_from_bank0:
+        LDA  #>(return_to_bank0 - 1)
+        PHA
+        LDA  #<(return_to_bank0 - 1)
+        PHA
+        ; Decode the high bits of __bank_target and select its bank.
+        ...
+        JMP  (__bank_target)
+
+    return_to_bank0:
+        BIT  bank0_hotspot
         RTS
 
-The original call site performs JSR to the source-bank side of this bridge. The
-inner JSR returns to the destination-bank side, which restores the source bank;
-the final RTS then returns to the original caller. Nested cross-bank calls work
-because every bridge restores its statically known source bank.
+The manually pushed address is one less than the return-stub address because
+RTS increments the pulled address. Its logical high bits identify the source
+bank's mirror of the common table. When the destination function returns, the
+destination bank is still selected, but that bank contains the identical return
+stub at the same physical offset. The BIT selects the source bank, and the final
+RTS returns to the original caller.
 
-A cross-bank JMP needs only a source-bank hotspot access followed by a JMP in
-the destination bank at the matching continuation offset. It never restores the
+The destination selector may be chosen by a common decoder using the target's
+logical high bits. The linker may later specialize or fold that decoder for a
+known target, but it must preserve the same indirect-JMP call semantics and the
+single identical replicated table. A target entry can be shared by all call
+sites with the same source bank and target symbol. Nested cross-bank calls work
+because each active call contributes its own synthetic return address.
+
+A cross-bank JMP uses the same target-pointer and destination-selection machinery
+without pushing a synthetic return address:
+
+    void jmp_trampoline(uint16_t target) {
+        select_bank(bank_of(target));
+        asm jmp (target);
+    }
+
+A direct cross-bank JMP is redirected to a generated target entry which fills
+`__bank_target` and enters the common jump dispatcher. It never restores the
 source bank.
 
-The linker may deduplicate call bridges by source bank, destination bank, and
-target symbol. It may similarly deduplicate one-way jump bridges. Every bank
-must reserve a common low-offset bridge corridor large enough for the generated
-paired pieces. Bridge placement must be deterministic and reported in the map.
-Exhausting the corridor is a clear link error.
-
-A cross-bank call keeps one additional hardware-stack return address live while
-the destination function runs. Whole-program hardware-stack sizing must charge
-that edge two additional bytes. The map must show bridge-induced stack cost and
-the final longest weighted call path.
+The linker must reserve the common bridge corridor at the same physical offset
+in every bank, emit one byte-identical table into every bank, place source-bank
+entry points and return stubs within that table, and report its total replicated
+cost. Exhausting the corridor is a clear link error. A cross-bank call keeps one
+additional hardware-stack return address live while the destination function
+runs, so whole-program hardware-stack sizing charges that edge two additional
+bytes and reports the longest weighted path.
 
 Cross-bank data policy
 ----------------------
@@ -212,16 +264,54 @@ Ordinary C pointers stay 16-bit and bank-local for ROM. Taking the address of a
 ROM object in another bank is rejected when represented by a relocation. No
 hidden bank byte is added to pointer objects or function parameters.
 
-Initial bank placement should be explicit and predictable. Do not begin with an
-automatic free-for-all bank packer. The source/object/linker interface needs a
-way to assign a function or ROM object, a whole translation unit, or an input
-segment to a named bank. Unannotated material should go to the configured
-startup bank. Once explicit placement, diagnostics, and map reporting are solid,
-a later optimization may pack unpinned material without changing semantics.
+Bank placement policy
+---------------------
+Programmers need an explicit way to pin functions, ROM objects, translation
+units, or named groups to a bank, but ordinary programs should not require every
+function to be hand-assigned. The intended policy is constrained automatic
+placement:
+
+* `main`, the normal startup path, and mandatory BANK0 runtime material are
+  always pinned to BANK0. A public full-window cfg may not move `main` elsewhere.
+* Source/object metadata may hard-pin a function or ROM object to a named bank
+  and may request that several layouts remain together. The final spelling is
+  deferred, but the constraint must survive into o26 rather than being inferred
+  from source filenames.
+* Unpinned layouts are assigned automatically by the linker.
+* Cross-bank ROM data references are forbidden, so every function and every ROM
+  object it directly reads form hard same-bank constraints. The linker should
+  collapse those constraints into indivisible placement components before
+  packing.
+* Direct call-graph edges are soft constraints. Keeping a caller and callee in
+  one bank avoids a trampoline; cutting the edge is legal and incurs bridge ROM,
+  cycles, and two bytes of live hardware stack while the callee runs.
+* Explicit bank pins constrain the component containing the pinned layout. Two
+  incompatible pins in one hard component are a link error.
+
+The first automatic placer need not solve an expensive global optimization
+problem. It should be deterministic, place hard components without overflow,
+respect all pins, keep the `main` component in BANK0, and use a documented greedy
+cost function which prefers fewer or more heavily weighted cross-bank calls.
+Stable tie-breaking by symbol/object order is more valuable than a clever but
+nondeterministic result. A later heuristic pass may improve packing without
+changing the source contract.
+
+The call graph alone is insufficient: ROM-data edges, hard placement groups,
+assembly/layout constraints, reserved bridge space, and per-bank capacity all
+matter. Conversely, requiring programmers to place everything manually throws
+away whole-program information the linker already has. The hybrid policy keeps
+normal use sane while preserving precise control for timing-critical code,
+fixed architecture, debugging, and reproducible experiments.
+
+A ROM table used by functions in several banks either pulls those functions
+into one hard component, is explicitly duplicated, or causes an unsatisfied
+placement error. The linker must never silently invent a cross-bank data read.
+Functions are not duplicated automatically in the first implementation.
 
 Archive selection remains normal symbol-driven selection. After members are
 selected, every selected layout must have one legal bank placement. The map
-must identify the owning object/archive member for every placement and bridge.
+must identify the owning object/archive member, whether each placement was
+pinned or automatic, its hard component, and every resulting bridge.
 
 Superchip RAM using existing split-address references
 -----------------------------------------------------
@@ -281,10 +371,15 @@ A banked map should report at least:
 * output order, proving that the lowest logical bank is written first and BANK0
   is written last;
 * every per-bank vector and reset bridge;
-* every generated call/jump bridge, its source bank, destination bank, target,
-  logical addresses, and byte cost;
+* the byte-identical common trampoline table, its physical offset, replicated
+  size, reserved target pointer, source entries, return stubs, and destination
+  decoder;
+* every generated call/jump target entry, its source bank, destination bank,
+  target, logical addresses, and byte cost;
 * bridge corridor occupancy;
 * weighted hardware-stack depth including cross-bank call edges;
+* every placement component, its pinned or automatic status, capacity cost,
+  and weighted call edges cut by the placer;
 * every rejected or unresolved cross-bank data relocation with source and
   target symbols;
 * Superchip RAM physical occupancy and read/write aliases when present.
@@ -307,8 +402,9 @@ Execution tests should use the VCSC simulator after it learns the selected
 mapper, plus Stella where appropriate. A minimal diagnostic cartridge should:
 
 * reset correctly no matter which bank is selected initially;
-* enter the configured startup bank;
-* call into every other bank and return correctly;
+* enter BANK0 and call `main` there;
+* call into every other bank through the replicated indirect-JMP trampoline
+  table and return correctly;
 * perform nested cross-bank calls;
 * perform a one-way cross-bank jump;
 * preserve RIOT RAM and, for SC variants, cartridge RAM across switches;
@@ -351,7 +447,7 @@ when main roadmap item 29 becomes active.
        * Emit valid vectors in every selected physical bank.
        * Point each reset vector at that bank's logical mirror of a common bridge
          offset.
-       * Select the configured startup bank and enter the normal startup path.
+       * Select BANK0 and enter the normal startup path containing `main`.
        * Test reset from every possible initial bank before adding ordinary
          cross-bank calls.
        * Reserve mapper hotspots correctly even where they touch vector offsets.
@@ -367,35 +463,46 @@ when main roadmap item 29 becomes active.
          initializers, and low/high/word data relocations with source-located
          diagnostics.
 
-[ ] 4. Generate same-offset cross-bank JMP bridges.
+[ ] 4. Add the byte-identical common trampoline table and cross-bank JMP.
 
-       * Reserve a deterministic common bridge corridor in every bank.
-       * Redirect a cross-bank JMP to its source-side hotspot access and
-         destination-side absolute JMP.
-       * Deduplicate equivalent bridges, report them in the map, and diagnose
-         bridge-corridor exhaustion.
+       * Reserve one deterministic bridge corridor at the same physical offset
+         in every bank and copy exactly the same table bytes into every bank.
+       * Reserve one shared two-byte target pointer or define an equally precise
+         target-passing ABI.
+       * Redirect a direct cross-bank JMP to a generated target entry, select the
+         destination bank, and finish with `JMP (target)`.
+       * Deduplicate equivalent target entries, report replicated and per-entry
+         costs, and diagnose bridge-corridor exhaustion.
 
-[ ] 5. Generate same-offset cross-bank JSR/return bridges.
+[ ] 5. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
 
-       * Redirect direct cross-bank calls through paired source/destination code.
-       * Restore the statically known source bank before the final RTS.
-       * Support nested cross-bank calls.
-       * Add two bytes of weighted hardware-stack cost for every active
-         cross-bank edge and report the longest weighted path.
+       * Redirect a direct cross-bank JSR to a generated target entry in the
+         common replicated table.
+       * Push a synthetic return-stub address for the statically known source
+         bank, select the target bank, and enter the callee with `JMP (target)`.
+       * Restore the caller's bank in the identical common return stub, then RTS
+         through the original call-site return address.
+       * Support nested cross-bank calls and add two bytes of weighted hardware-
+         stack cost for every active cross-bank edge.
 
-[ ] 6. Add explicit function/object/translation-unit bank placement.
+[ ] 6. Add placement constraints and deterministic automatic bank placement.
 
-       * Choose and document one source/object spelling for named-bank affinity.
-       * Place unannotated code and ROM data in the startup bank.
-       * Keep each function and every directly read ROM table in one bank.
-       * Preserve deterministic placement and clear overflow diagnostics.
-       * Do not add automatic bank packing yet.
+       * Pin `main`, startup, and mandatory home-bank runtime material to BANK0.
+       * Choose and document source/object spelling for named-bank affinity and
+         same-bank grouping of functions, ROM objects, and translation units.
+       * Build hard placement components from cross-bank-forbidden ROM-data
+         edges and explicit grouping/pinning constraints.
+       * Automatically place unpinned components with a deterministic greedy
+         call-graph-aware cost function while respecting capacity and pins.
+       * Report pinned versus automatic placement, cut call edges, bridge cost,
+         and clear overflow or contradictory-pin diagnostics.
 
 [ ] 7. Add and certify `vcs_8k_f8.cfg`.
 
        * Build a two-bank diagnostic with BANK1 first and BANK0 last in the file.
-       * Verify reset from either initial bank, cross-bank JMP, cross-bank JSR,
-         nested return, vectors, selector use, map output, and exact 8192-byte
+       * Verify reset from either initial bank, `main` in BANK0, automatic and pinned
+         placement, cross-bank JMP, JSR-to-indirect-JMP calls, nested return,
+         vectors, selector use, map output, and exact 8192-byte
          image size.
 
 [ ] 8. Add F6 and F4 through the same implementation.
@@ -455,14 +562,15 @@ when main roadmap item 29 becomes active.
        * Do not multiply cfg files into every renderer x mapper combination
          without first defining a maintainable composition mechanism.
 
-[ ] 14. Evaluate automatic bank packing as an optional linker optimization.
+[ ] 14. Improve automatic placement heuristics without changing semantics.
 
-       * Pack only unpinned functions/objects after explicit placement is proven.
-       * Keep functions with their directly accessed ROM data.
-       * Minimize bridges and reject unsatisfied placement rather than inventing
-         cross-bank data access.
-       * Preserve deterministic output and allow automatic packing to be
-         disabled.
+       * Measure whether call-frequency weighting, component ordering, or local
+         moves materially reduce bridge count, cycles, and hardware-stack cost.
+       * Keep all explicit pins and hard ROM-data components inviolate.
+       * Preserve deterministic output and offer a diagnostic mode which explains
+         why each component was placed where it was.
+       * Permit a simple-placement mode for debugging and reproducibility; never
+         fall back to invented cross-bank data access.
 
 [ ] 15. Design the next mapper family separately.
 
@@ -479,10 +587,12 @@ The following are not settled by this document:
 * the final cfg property names and punctuation;
 * the source spelling for bank affinity;
 * the exact size/location of the common bridge corridor;
-* whether the startup bank may differ from BANK0 in the first public cfgs;
+* whether non-public or future mapper profiles may use a startup bank other
+  than BANK0 while still keeping public full-window profiles and `main` in BANK0;
 * whether a later split-address allocated object can participate in ordinary
   `ref` parameter passing;
-* whether automatic bank packing is worthwhile after explicit placement.
+* the first deterministic automatic-placement cost function and whether later
+  optimization passes justify their complexity.
 
 Those choices should be made in the roadmap slice that can implement and test
 them, not guessed here and fossilized without evidence.

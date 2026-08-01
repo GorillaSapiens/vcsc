@@ -1963,8 +1963,10 @@ than ship a fragile schedule if the hardware budget does not close.
         `.top_secret/bankswitching.txt`: use descending mirrored logical banks
         with BANK0 at $F000, emit physical banks from lowest logical address to
         highest so BANK0 is last in the file, add per-bank vectors/reset bridges
-        early, reject cross-bank ROM data access, and generate direct JMP/JSR
-        bridges before using banking for any renderer profile.
+        early, keep `main` in BANK0, reject cross-bank ROM data access, use one
+        byte-identical replicated trampoline table with JSR-to-indirect-JMP calls,
+        and combine programmer bank pins with deterministic automatic placement
+        before using banking for any renderer profile.
 
 [ ] 30. Add Superchip cartridge RAM support after ordinary F8/F6/F4 banking is
         stable, following `.top_secret/bankswitching.txt`. Keep code out of the
@@ -7539,3 +7541,32 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: all 337 compile-only tests passed during a clean build. The
   broad end-to-end run passed tests 1 through 122 before the outer command
   window expired. The focused branding and source-tree hygiene tests pass.
+
+2026-08-01 13:45:00 PDT, refine common trampolines and bank placement policy
+-------------------------------------------------------------------------------
+* Replace the earlier per-target paired-JSR bridge plan in
+  `.top_secret/bankswitching.txt` with one byte-identical trampoline table at the
+  same physical offset in every bank. A direct cross-bank call now reaches a
+  generated target entry, records the ordinary 16-bit target, pushes a synthetic
+  source-bank return stub, selects the destination bank, and enters the callee
+  with `JMP (target)`. The callee's RTS reaches the identical return stub, which
+  restores the caller's bank before the original call-site RTS completes.
+* Apply the same target-pointer/destination-selection machinery to one-way JMP
+  transfers without the synthetic return. Keep programmer-authored indirect
+  calls unsupported; the indirect JMP is internal linker/runtime machinery.
+  Retain the two-byte weighted hardware-stack charge for each active cross-bank
+  call and require target entries, source entries, return stubs, and dispatcher
+  bytes to be replicated identically in every physical bank.
+* Choose constrained automatic placement rather than either all-manual placement
+  or a call-graph-only guess. Pin `main`, startup, and mandatory runtime material
+  to BANK0; allow programmers to pin functions, ROM objects, translation units,
+  or same-bank groups; collapse forbidden cross-bank ROM-data edges into hard
+  placement components; and automatically place unpinned components with a
+  deterministic call-graph-aware greedy policy. Reserve later roadmap work for
+  measured heuristic improvements rather than making automatic packing optional.
+* Strengthen the internal source-tree hygiene guard and test-harness notes to
+  retain the identical common trampoline, JSR-to-indirect-JMP, `main`-in-BANK0,
+  and constrained automatic-placement decisions. This remains design-only and
+  changes no compiler, assembler, linker, runtime, cfg, or public documentation.
+* Verification: all 337 compile-only tests pass. The focused source-tree hygiene
+  and hard-rename/branding tests also pass.

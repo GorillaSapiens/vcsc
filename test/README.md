@@ -343,8 +343,10 @@ core README files, and broken relative Markdown links.
 README occupy that internal role, while the obsolete top-level notes and
 software-stack snapshot must remain absent. `source_tree_hygiene.pl` locks the
 bankswitching plan's descending logical-bank convention, lowest-address-first
-file order, early per-bank reset work, `$x100` Superchip ROM boundary, and the
-required automatic Superchip-variable allocation roadmap item.
+file order, early per-bank reset work, byte-identical JSR-to-indirect-JMP
+trampoline table, `main`-in-BANK0 constrained automatic placement, `$x100`
+Superchip ROM boundary, and the required automatic Superchip-variable allocation
+roadmap item.
 
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace
