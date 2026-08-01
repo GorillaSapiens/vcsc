@@ -6,7 +6,7 @@
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
 // must define the shared page-contained score_font table.  Each instance owns
-// its score, six 16-bit glyph pointers, and delayed glyph byte.
+// its score, color, six 16-bit glyph pointers, and delayed glyph byte.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
 // VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
@@ -36,6 +36,7 @@ enum TEMPLATE_contract {
 };
 
 recommend bcd24_t TEMPLATE_score := 0;
+recommend uint8_t TEMPLATE_color := 0x0e;
 uint8_t TEMPLATE_pointers[12];
 uint8_t TEMPLATE_delayed;
 
@@ -124,10 +125,14 @@ require inline void TEMPLATE_draw(void) {
    asm lda #$03;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
-   asm lda #$0e;
-   asm sta COLUP0;
-   asm sta COLUP1;
+   // Clear HMxx and preserve the original positioning phase. The
+   // mutable color is loaded after RESP0/RESP1 so its extra zero-page cycle
+   // cannot move the right-justified score.
    asm sta HMCLR;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
    asm lda #$c0;
    asm sta HMP0;
    asm lda #$d0;
@@ -145,6 +150,9 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm sta RESP0;
    asm sta RESP1;
+   asm lda.z TEMPLATE_color;
+   asm sta COLUP0;
+   asm sta COLUP1;
    asm sta WSYNC;
 
    // Apply motion, clear both player pipelines, enable VDEL, and preload the

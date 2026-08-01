@@ -1,4 +1,4 @@
-// Shared controls for fixed-color centered/left/right six-digit examples.
+// Shared controls for mutable-color left/right six-digit examples.
 // The including source must instantiate the display as `score`.
 
 uint8_t selected_score_digit := 0;
@@ -12,6 +12,7 @@ page const uint8_t score_digit_high[6] := { 0x00, 0x00, 0x00, 0x00, 0x01, 0x10 }
 
 inline void initialize_score_state(void) {
    score_score := 123456;
+   score_color := VCS_NTSC_GRAY_92;
    selected_score_digit := 0;
    right_joystick_countdown := 19;
    right_joystick_previous := 0x0f;
@@ -31,16 +32,21 @@ inline void update_score_controls(void) {
    asm eor right_joystick_previous;
    asm bne @record;
 
-   // A stable horizontal sample chooses the decimal digit.
+   // A stable horizontal sample chooses the decimal digit and advances the hue.
    asm txa;
    asm and #$04;
    asm bne @not_left;
    asm inc selected_score_digit;
    asm lda selected_score_digit;
    asm cmp #6;
-   asm bcc @vertical;
+   asm bcc @left_color;
    asm lda #0;
    asm sta selected_score_digit;
+   asm @left_color:;
+   asm lda score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta score_color;
    asm jmp @vertical;
 
    asm @not_left:;
@@ -53,6 +59,10 @@ inline void update_score_controls(void) {
    asm sta selected_score_digit;
    asm @decrement_digit:;
    asm dec selected_score_digit;
+   asm lda score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta score_color;
 
    // A stable vertical sample changes the selected decimal weight.
    asm @vertical:;

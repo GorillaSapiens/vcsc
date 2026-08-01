@@ -184,7 +184,10 @@ cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
 matrix: four 181-line gameplay families, four production score layouts plus the
 poison diagnostic, and both legal orders. It generates static and moving-game
 fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
-gameplay physical-pixel models on each one. The score oracle locks centered,
+gameplay physical-pixel models on each one. It also builds the 16 real public
+production player-color cartridges and locks their diagonal playfield bytes and
+write cycles, so final-link page placement cannot reintroduce scanline tearing.
+The score oracle locks centered,
 left-, right-, two-plus-two, and poison positioning/ownership schedules at raw
 line 40 or 221; the gameplay oracles lock every object pixel and exact 262-line
 frames. A separate score-only cartridge places centered, left, right, and
@@ -195,10 +198,17 @@ vertical placement.
 score instances with distinct packed-BCD values, colors, and X positions. The
 top pair remains fixed at raw line 40; the bottom pair enters at raw line 221
 and moves only through its own instance position variables. An independent
-6502/TIA oracle checks the calibrated RESP/HMP/HMOVE transactions, compact 4x8
-glyph bytes doubled into exact 16-pixel fields, per-player colors, final-copy
+6502/TIA oracle checks the calibrated RESP/HMP/HMOVE transactions, spaced 3x8
+glyph bytes doubled into exact 12-pixel digits with a two-pixel gap, per-player colors, final-copy
 latching and cleanup, deliberately hostile reflection/VDEL/graphics and
 missile/Ball motion input, all four motion endpoints, and exact 262-line frames.
+
+`vcs_public_score_controls.pl` inventories all 16 public left/right six-digit
+examples and all eight public two-plus-two examples. It runs representative
+left- and right-justified cartridges through the established filtered
+right-joystick control oracle, including hue changes, and drives right fire in a
+two-plus-two cartridge to prove visible field selection plus independent motion
+and packed-BCD changes for both fields.
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in

@@ -24,7 +24,7 @@ Files:
 - `six_glyph_right_component.c26` ... eleven-line fixed-color variant justified at X=112..159
 - `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics, with the same hostile-state-safe reflection reset
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
-- `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each four-bit digit is doubled to eight visible pixels
+- `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline, machine-readable visible-component handoff/TIA ownership table, and the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `renderers/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component, derived from the proven player-color raster and using solid player colors, for composition with an independent eleven-line score
 - `renderers/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin with the same API, RAM contract, and corrected raster schedule
@@ -130,8 +130,8 @@ score_left_x := 32;
 score_right_x := 96;
 ```
 
-Each field is one double-width player containing two packed four-bit decimal
-glyphs. `left_x` supports 0 through 64 and `right_x` supports 32 through 112;
+Each field is one double-width player containing two spaced three-bit decimal
+glyphs. The blank source bit between them becomes a visible two-color-clock gap. `left_x` supports 0 through 64 and `right_x` supports 32 through 112;
 the defaults leave a wide center gap. `vblank()` samples all six public fields,
 so animation must update the score instance's own X variables during overscan.
 The component consumes exactly eleven visible scanlines, owns all P0/P1 state it

@@ -28,6 +28,20 @@ constexpr uint16_t kT1024t = 0x0297;
 struct WriteEvent { uint16_t address; uint8_t value; };
 struct PfEvent { uint64_t line; uint64_t cycle; uint16_t address; uint8_t value; };
 
+constexpr uint8_t kDiagonalPlayfield[11][4] = {
+   {0x82, 0x10, 0x20, 0x41},
+   {0x41, 0x20, 0x10, 0x82},
+   {0x20, 0x41, 0x08, 0x04},
+   {0x10, 0x82, 0x04, 0x08},
+   {0x08, 0x04, 0x82, 0x10},
+   {0x04, 0x08, 0x41, 0x20},
+   {0x02, 0x10, 0x20, 0x41},
+   {0x01, 0x20, 0x10, 0x82},
+   {0x80, 0x41, 0x08, 0x04},
+   {0x40, 0x82, 0x04, 0x08},
+   {0x20, 0x04, 0x82, 0x10},
+};
+
 uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
 uint64_t cpu_cycles = 0;
@@ -112,9 +126,12 @@ int main(int argc, char **argv) {
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-181-official") == 0;
+   const bool diagonal_profile = argc == 6 &&
+      std::strcmp(argv[5], "diagonal") == 0;
    const bool all_five_fixed_profile = all_five_192_profile ||
                                        all_five_181_official_profile;
-   if (argc == 6 && !all_five_profile && !all_five_fixed_profile)
+   if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
+       !diagonal_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
       fail("checked raster row count must be 11 or 12");
@@ -329,7 +346,41 @@ int main(int argc, char **argv) {
    }
 
    if (raster_rows) {
+      if (diagonal_profile) {
+         const uint16_t expected_addresses[] = {kPf1, kPf2, kPf2, kPf1};
+         const uint64_t expected_cycles[] = {18, 25, 48, 55};
+         for (int row = 0; row < raster_rows; ++row) {
+            for (int subline = 0; subline < 16; ++subline) {
+               const uint64_t line = first_row_line + row * 16 + subline;
+               const auto found = by_line.find(line);
+               if (found == by_line.end() || found->second.size() != 4) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: diagonal row %d line %d has %zu PF writes; expected 4\n",
+                     row, subline,
+                     found == by_line.end() ? size_t{0} : found->second.size());
+                  return 1;
+               }
+               for (size_t i = 0; i < 4; ++i) {
+                  const PfEvent &event = found->second[i];
+                  if (event.address != expected_addresses[i] ||
+                      event.cycle != expected_cycles[i] ||
+                      event.value != kDiagonalPlayfield[row][i]) {
+                     std::fprintf(stderr,
+                        "vcs_playfield_phase: diagonal row %d line %d write %zu is "
+                        "reg $%02x value $%02x cycle %llu; expected reg $%02x "
+                        "value $%02x cycle %llu\n",
+                        row, subline, i, event.address, event.value,
+                        static_cast<unsigned long long>(event.cycle),
+                        expected_addresses[i], kDiagonalPlayfield[row][i],
+                        static_cast<unsigned long long>(expected_cycles[i]));
+                     return 1;
+                  }
+               }
+            }
+         }
+      }
       auto expected_byte = [&](int row, int byte) -> uint8_t {
+         if (diagonal_profile) return kDiagonalPlayfield[row][byte];
          if (row == 0 || row == source_rows - 1) return 0xff;
          if (byte == 0 || byte == 3) return 0x81;
          return (row & 1) ? 0x18 : 0x00;
@@ -346,7 +397,7 @@ int main(int argc, char **argv) {
       auto bit = [](uint8_t value, unsigned index) {
          return ((value >> index) & 1u) != 0;
       };
-      if (raster_rows == 11) {
+      if (!diagonal_profile && raster_rows == 11) {
          // The score-composable renderer spends one visible line staging its
          // object pipeline before the eleven complete playfield rows begin.
          // That line must remain background-only; priming just PF1/PF2 there
@@ -378,7 +429,7 @@ int main(int argc, char **argv) {
             }
          }
       }
-      for (int row = 0; row < raster_rows; ++row) {
+      if (!diagonal_profile) for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
             const uint64_t line = first_row_line + row * 16 + subline;
             for (unsigned pixel = 0; pixel < 160; ++pixel) {

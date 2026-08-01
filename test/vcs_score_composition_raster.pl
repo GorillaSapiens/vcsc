@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 180
-# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; mixed score placement also passes
+# timeout: 240
+# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 16 public production player-color cartridges preserve the diagonal playfield; mixed score placement also passes
 # expectexit: 0
 
 use strict;
@@ -44,6 +44,8 @@ sub transform_score {
       my $component=$kind eq 'left' ? 'six_glyph_left_component.c26' : 'six_glyph_right_component.c26';
       $text =~ s/template "six_glyph_component\.c26" as score/template "$component" as score/
          or die "could not install $kind score component\n";
+      $text =~ s/^(\s*score_score := 123456;\n)/$1   score_color := 0x0e;\n/m
+         or die "could not initialize $kind score color\n";
       return $text;
    }
    if ($kind eq 'two-plus-two') {
@@ -84,6 +86,7 @@ my %executables=(
    raster=>[qw(test vcs_score_matrix_raster.cpp)],
    player=>[qw(test vcs_player_color_181.cpp)],
    all_five=>[qw(test vcs_all_five_composition.cpp)],
+   phase=>[qw(test vcs_playfield_phase.cpp)],
 );
 for my $name (sort keys %executables) {
    my $src=File::Spec->catfile($repo,@{$executables{$name}});
@@ -133,6 +136,36 @@ for my $family (@families) {
    }
 }
 $public==40 or die "public matrix has $public entries, expected 40\n";
+
+# Build and raster-check the real public player-color cartridges.  The smaller
+# generated composition fixtures cannot expose page-sensitive branch timing
+# changes caused by the final public link layout.
+my $public_player_checked=0;
+for my $family (grep { $_->{class} eq 'player' } @families) {
+   for my $score (grep { $_->{kind} ne 'poison' } @scores) {
+      for my $order (qw(above below)) {
+         my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
+         my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
+         my $tag=join('_','public',$family->{fixture},$score->{kind},$order);
+         $tag =~ s/-/_/g;
+         my $bin=File::Spec->catfile($tmp,"$tag.bin");
+         my @extra=$family->{illegals} ? ('-Wa,--illegals') : ();
+         my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$leaf,@extra,$sources[0],'-o',$bin);
+         $rc==0 && !$sig or die "$tag build failed\n$out$err";
+         without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
+         -s $bin==4096 or die "$tag is not a 4K cartridge\n";
+
+         my $first_row=$order eq 'above' ? 56 : 45;
+         ($rc,$sig,$out,$err)=capture($executables{phase},$bin,'11','11',$first_row,'diagonal');
+         $rc==0 && !$sig or die "$tag public playfield raster failed\n$out$err";
+         $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
+            or die "unexpected $tag public playfield output: $out";
+         $err eq '' or die "$tag public playfield stderr: $err";
+         ++$public_player_checked;
+      }
+   }
+}
+$public_player_checked==16 or die "checked $public_player_checked public production player-color cartridges, expected 16\n";
 
 my $checked=0;
 for my $family (@families) {
@@ -208,4 +241,4 @@ for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {
    $err eq '' or die "mixed $case->[0] stderr: $err";
 }
 
-print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; mixed score placement also passes\n";
+print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 16 public production player-color cartridges preserve the diagonal playfield; mixed score placement also passes\n";

@@ -17,6 +17,6 @@ P0, P1, M0, M1, and Ball.
 ## Controls
 
 - Game Select cycles the selected gameplay object. The left joystick moves the selected object in X/Y; Game Reset restarts through `$FFFC`.
-- Use the right joystick to select and change decimal digits.
+- Right-joystick left/right selects a decimal digit and advances the score hue; up/down changes that digit.
 
 Build with `make`. The result is `all_five_181_unofficial_right_justified_score_below_interactive.bin`.

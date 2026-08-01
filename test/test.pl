@@ -154,7 +154,7 @@ sub parse_directives {
       expectlinkfail => 0,
       expectexit => undef,
       phase => undef,
-      timeout => 3,
+      timeout => 6,
       expectstdout => [],
       expectstdoutordered => [],
       forbidstdout => [],

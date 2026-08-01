@@ -8,7 +8,7 @@
 // Each instance owns two packed-BCD values, two colors, two horizontal
 // positions, four glyph pointers, and two precomputed positioning controls.
 // P0 draws the left two-digit field and P1 draws the right field. NUSIZ double
-// size turns each packed four-bit digit into an eight-color-clock glyph.
+// size turns each three-bit digit into a six-color-clock glyph, with a visible gap.
 //
 // Horizontal origins are ordinary VCS visible coordinates. The cycle-counted
 // raster supports left_x 0..64 and right_x 32..112; the defaults 32 and 96

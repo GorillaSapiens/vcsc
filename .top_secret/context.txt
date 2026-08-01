@@ -7262,3 +7262,40 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   accounted for: tests 1 through 171 passed before the outer command ceiling,
   and the remaining 29 passed explicitly, for 200/200 total. Staged
   `make installcheck` passes, including all 40 installed-toolchain matrix builds.
+
+2026-07-31 22:23:08 PDT, repair public score controls and final-link playfield timing
+-------------------------------------------------------------------------------
+* Restore the older public six-digit interaction contract for all 16 left- and
+  right-justified score cartridges. The edge-score components now own mutable
+  per-instance colors, and right-joystick left/right both selects the decimal
+  digit and advances the score hue on every accepted movement, including
+  non-wrapping left movement.
+* Make all eight two-plus-two examples visibly and independently controllable.
+  Right fire toggles the selected field once per press, the selected field is
+  shown in the brighter color, horizontal input moves only that field, and
+  vertical input changes only its packed-BCD value. Replace the jammed 4x8
+  glyph packing with spaced 3x8 digits: each digit is six color clocks wide
+  with a two-color-clock inter-digit gap.
+* Fix the damaged lower playfield in the official and unofficial player-color
+  181-line two-plus-two-score-below cartridges. The final public link layout
+  moved `BCS @transition_skipP0` across a ROM page, adding one visible-path
+  cycle during row transitions. Mark every local visible-path conditional
+  branch in both player-color renderers `.same` so layout changes cannot alter
+  their scanline timing.
+* Extend `vcs_score_composition_raster.pl` to build and raster-check the actual
+  final public player-color production cartridges, not only smaller generated
+  fixtures. Add an exact diagonal-playfield phase profile that locks PF write
+  cycles at 18/25/48/55 and demonstrably rejects the pre-fix binary. Add a
+  public-control emulator regression covering all shared edge-score users and
+  proving two-plus-two right-field selection, movement, BCD changes, fire
+  debouncing, and independent return to the left field.
+* Preserve the user's longer harness allowance by changing `test/test.pl`'s
+  default per-test timeout from three to six seconds. Update the fingerprint
+  fixture to initialize the newly mutable logo colors explicitly and recalibrate
+  its score-entry timing expectations. Update public READMEs and VCS/test
+  catalogs for the controls and spaced font.
+* Verification: 334/334 compile-only tests pass. All 201 end-to-end/generic
+  tests are accounted for across the completed split run, including the new
+  public-control regression and final-public-binary playfield check. Staged
+  `make installcheck` also passes, including all 40 installed-toolchain public
+  score/gameplay matrix builds.

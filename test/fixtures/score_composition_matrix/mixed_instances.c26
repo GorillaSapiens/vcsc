@@ -23,7 +23,9 @@ void main(void) {
 
    centered_score := 123456;
    left_score := 123456;
+   left_color := 0x0e;
    right_score := 123456;
+   right_color := 0x0e;
    split_left_score := 12;
    split_right_score := 34;
    split_left_color := 0x0e;

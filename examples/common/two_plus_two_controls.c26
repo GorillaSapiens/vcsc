@@ -9,8 +9,9 @@ uint8_t right_joystick_previous := 0x0f;
 inline void initialize_score_state(void) {
    score_left_score := 12;
    score_right_score := 34;
+   // The selected field is bright; the other field is dimmed.
    score_left_color := VCS_NTSC_GRAY_92;
-   score_right_color := VCS_NTSC_GOLDENROD;
+   score_right_color := 0x26;
    score_left_x := 16;
    score_right_x := 104;
    selected_score_field := 0;
@@ -26,6 +27,14 @@ inline void update_score_field_selection(void) {
    else {
       if (right_score_fire_ready) {
          selected_score_field ^= 1;
+         if (selected_score_field) {
+            score_left_color := 0x06;
+            score_right_color := VCS_NTSC_GOLDENROD;
+         }
+         else {
+            score_left_color := VCS_NTSC_GRAY_92;
+            score_right_color := 0x26;
+         }
          right_score_fire_ready := 0;
       }
    }

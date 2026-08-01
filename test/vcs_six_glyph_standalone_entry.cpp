@@ -214,14 +214,14 @@ void require_component_entry(const std::vector<Event> &events, uint64_t line) {
 void require_right_component_entry(const std::vector<Event> &events, uint64_t line) {
    require_event(events, line, 0, kNusiz0, 0x03, "right NUSIZ0");
    require_event(events, line, 3, kNusiz1, 0x03, "right NUSIZ1");
-   require_event(events, line, 8, kColup0, 0x0E, "right COLUP0");
-   require_event(events, line, 11, kColup1, 0x0E, "right COLUP1");
-   require_event(events, line, 14, kHmclr, 0x0E, "right HMCLR");
+   require_event(events, line, 6, kHmclr, 0x03, "right HMCLR");
    require_event(events, line, 19, kHmp0, 0xC0, "right HMP0");
    require_event(events, line, 24, kHmp1, 0xD0, "right HMP1");
    require_event(events, line, 49, kResp0, 0xD0, "right RESP0");
    require_event(events, line, 52, kResp1, 0xD0, "right RESP1");
-   require_event(events, line, 71, kHmove, 0xD0, "right HMOVE");
+   require_event(events, line, 58, kColup0, 0x0E, "right COLUP0");
+   require_event(events, line, 61, kColup1, 0x0E, "right COLUP1");
+   require_event(events, line, 71, kHmove, 0x0E, "right HMOVE");
    require_address_event(events, line + 2, 55, 0x001C, "right glyph 4");
    require_address_event(events, line + 2, 58, 0x001B, "right glyph 5");
    require_address_event(events, line + 2, 61, 0x001C, "right glyph 6");
@@ -233,11 +233,11 @@ void require_left_component_entry(const std::vector<Event> &events, uint64_t lin
    require_event(events, line, 3, kNusiz1, 0x03, "left NUSIZ1");
    require_event(events, line, 10, kResp0, 0x03, "left RESP0");
    require_event(events, line, 13, kResp1, 0x03, "left RESP1");
-   require_event(events, line, 18, kColup0, 0x0E, "left COLUP0");
-   require_event(events, line, 21, kColup1, 0x0E, "left COLUP1");
-   require_event(events, line, 24, kHmclr, 0x0E, "left HMCLR");
-   require_event(events, line, 29, kHmp0, 0x30, "left HMP0");
-   require_event(events, line, 34, kHmp1, 0xB0, "left HMP1");
+   require_event(events, line, 19, kColup0, 0x0E, "left COLUP0");
+   require_event(events, line, 22, kColup1, 0x0E, "left COLUP1");
+   require_event(events, line, 25, kHmclr, 0x0E, "left HMCLR");
+   require_event(events, line, 30, kHmp0, 0x30, "left HMP0");
+   require_event(events, line, 35, kHmp1, 0xB0, "left HMP1");
    require_event(events, line, 71, kHmove, 0xB0, "left HMOVE");
    require_address_event(events, line + 2, 18, 0x001C, "left glyph 4");
    require_address_event(events, line + 2, 21, 0x001B, "left glyph 5");
