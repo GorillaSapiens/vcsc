@@ -1,0 +1,45 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+template "six_glyph_component.c26" as upper
+template "six_glyph_component.c26" as lower
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := 0x84;
+   VBLANK := 2;
+
+   upper_score := 135790;
+   lower_score := 246801;
+   upper_init();
+   lower_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      upper_vblank();
+      lower_vblank();
+      vcs_ntsc_end_vblank();
+
+      // Visible field begins at raw line 40. Each score is surrounded by a
+      // large blank region and enters at the canonical cycle-three phase.
+      vcs_ntsc_wait_component_scanlines(30);
+      upper_draw();
+      vcs_ntsc_wait_component_scanlines(99);
+      lower_draw();
+      vcs_ntsc_wait_scanlines(41);
+
+      vcs_ntsc_begin_overscan();
+      upper_overscan();
+      lower_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

@@ -11,9 +11,9 @@
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
 // VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
 // of the following line. Use vcs_ntsc_component_handoff() before an adjacent
-// visible component. It owns P0/P1 graphics, colors, VDEL, NUSIZ, horizontal
-// motion, and
-// RESP0/RESP1 while drawing. It may leave all of that P0/P1 state clobbered.
+// visible component. It owns P0/P1 graphics, colors, reflection, VDEL, NUSIZ,
+// horizontal motion, and RESP0/RESP1 while drawing. It may leave all of that
+// P0/P1 state clobbered.
 // It preserves playfield, missile, and Ball state, flushes GRP0/GRP1, and
 // disables player VDEL before returning. It never touches VSYNC, VBLANK, the RIOT timer, or collision
 // latches.  A/X/Y and arithmetic flags are clobbered; hardware stack depth is
@@ -146,9 +146,10 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm sta GRP1;
    asm sta GRP0;
-   asm lda #$0e;
-   asm sta COLUP0;
-   asm sta COLUP1;
+   // Preserve the former eight-cycle color reload while clearing reflection.
+   asm sta REFP0;
+   asm sta REFP1;
+   asm nop;
    asm lda #1;
    asm sta VDELP0;
    asm sta VDELP1;

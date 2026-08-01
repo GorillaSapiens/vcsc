@@ -1,0 +1,44 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+template "renderers/poison_debug_score/poison_debug_score.c26" as poison
+template "six_glyph_color_component.c26" as score
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := 0x84;
+   VBLANK := 2;
+
+   poison_exit_background := 0x84;
+   score_score := 314159;
+   score_color := 0x0e;
+   poison_init();
+   score_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      poison_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(60);
+      poison_draw();
+      vcs_ntsc_component_handoff();
+      score_draw();
+      vcs_ntsc_wait_scanlines(110);
+
+      vcs_ntsc_begin_overscan();
+      poison_overscan();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

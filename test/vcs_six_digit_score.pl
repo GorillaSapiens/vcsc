@@ -145,7 +145,7 @@ require_re($component_text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/,
            'component visible contract is no longer eleven scanlines');
 require_re($component_text,qr/uint8_t\s+TEMPLATE_pointers\s*\[\s*12\s*\]/,
            'component no longer owns six complete glyph pointers');
-require_re($component_text,qr/COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e/s,
+require_re($component_text,qr/(?:COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e|asm\s+lda\s+#\$0e;.*?asm\s+sta\s+COLUP0;.*?asm\s+sta\s+COLUP1;)/s,
            'component is no longer bright white');
 require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
            'scheduler no longer declares a 262-line NTSC frame');

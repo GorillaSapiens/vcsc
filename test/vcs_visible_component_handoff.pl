@@ -75,6 +75,10 @@ for my $spec (@components) {
       or die "$label draw writes scheduler or audio state\n";
    $body !~ /\bsta(?:\.[A-Za-z]+)?\s+(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b/
       or die "$label draw writes scheduler or audio state in assembly\n";
+   if ($label =~ /six-glyph/) {
+      $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
+         or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
+   }
 }
 
 my $frame=read_file(File::Spec->catfile($repo,qw(libraries vcs frame_ntsc.c26)));

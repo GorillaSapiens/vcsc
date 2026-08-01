@@ -181,7 +181,7 @@ require_re($source,qr/uint24_t\s+fingerprint\s*;/,
            'fingerprint is not an ordinary VCSC uint24_t');
 require_re($source,qr/alias\s+BACKGROUND_COLOR\s+0x84/,
            'background is no longer medium blue');
-require_re($component_text,qr/COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e/s,
+require_re($component_text,qr/(?:COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e|asm\s+lda\s+#\$0e;.*?asm\s+sta\s+COLUP0;.*?asm\s+sta\s+COLUP1;)/s,
            'display component is no longer bright white');
 require_re($source,qr/fingerprint\s*\^=\s*\(uint24_t\)value\s*<<\s*16/,
            'CRC input byte is no longer XORed into the high CRC byte in VCSC');

@@ -173,10 +173,18 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
-`vcs_six_glyph_component.pl` now also builds two independent centered score
-instances with distinct values in both draw orders. The pair fixtures use the
-calibrated blank-gap helper and the explicit three-cycle handoff; execution locks
-both entries at raw scanlines 125 and 136 and retains exact 262-line frames.
+`vcs_six_glyph_component.pl` builds independent centered-score instances with
+distinct values in both draw orders, a widely spaced score-only pair at raw
+scanlines 70 and 180, and a centered score immediately after the hostile poison
+component. The exact raster harness decodes all six GRP pipeline bytes on every
+row into 48 logical pixels, locks positioning and boundary cycles, requires the
+cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
+
+`vcs_score_composition_raster.pl` builds the official and unofficial all-five
+and player-color 181-line profiles in both score-above and score-below order.
+All eight cartridges must reproduce the same exact centered 48x8 `123456` raster
+at raw line 40 or 221, including the measured positioning, reflection-reset,
+VDEL, delayed-GRP, cleanup, and frame-timing boundaries.
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
@@ -381,8 +389,10 @@ and stable 262-line standalone scheduling.
 return, whole/partial-line, terminal-WSYNC, HMOVE-count, and successor-on-return-
 line fields for all eleven maintained visible components. It cross-checks each
 published HMOVE count against the actual draw body, requires the final WSYNC,
-rejects scheduler/audio ownership, verifies the three-cycle bridge, and requires
-the complete TIA ownership/exit-state table in the installed conversion report.
+rejects scheduler/audio ownership, verifies the three-cycle bridge, requires every
+production six-glyph component to clear hostile reflection in its preserved
+eight-cycle setup slot, and requires the complete TIA ownership/exit-state table
+in the installed conversion report.
 
 
 `vcs_poison_player_color_handoff.pl` composes the poison debug score above

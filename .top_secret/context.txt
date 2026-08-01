@@ -718,9 +718,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b4 — complete the repeatable-template composition
-proof for centered score placement, multiple instances, hostile predecessors,
-and every score-composable gameplay renderer.
+Current next action: 22i4b5 — add the left/right two-plus-two score component
+with instance-owned values, colors, horizontal positions, and hostile-state-safe
+draw ownership.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1754,7 +1754,7 @@ and every score-composable gameplay renderer.
                                                         positive position/raster evidence in both
                                                         score/gameplay orders.
 
-                                         [ ] 22i4b4. Prove repeatable-template
+                                         [x] 22i4b4. Prove repeatable-template
                                                     composition rather than accidental
                                                     global TIA state. A complete big
                                                     gameplay renderer remains indivisible;
@@ -1769,6 +1769,20 @@ and every score-composable gameplay renderer.
                                                     boundary cycles, and require identical
                                                     score raster after hostile state,
                                                     gameplay, or another score instance.
+
+                                                    Completed 2026-07-31:
+                                                    * Exact 48x8 pixel and boundary-cycle
+                                                      reconstruction covers both centered
+                                                      component variants, two draw orders,
+                                                      widely separated entries, a poison
+                                                      predecessor, and a preceding score.
+                                                    * All four official/unofficial 181-line
+                                                      gameplay families pass score-above and
+                                                      score-below exact-raster checks.
+                                                    * All production six-glyph components
+                                                      clear REFP0/REFP1 in an existing exact
+                                                      eight-cycle setup slot, so hostile
+                                                      reflection cannot leak into glyphs.
 
                                          [ ] 22i4b5. Only after the existing centered
                                                     score and big renderers pass 22i4b1-
@@ -7090,3 +7104,34 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Extend source-tree hygiene coverage so the active roadmap cannot silently
   restore 22i4d and the retained-profile status remains documented. No source,
   renderer schedule, example, fixture, or removal-ledger file changes.
+
+2026-07-31 18:32:07 PDT, complete centered-score composition proof
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b4 and make 22i4b5 the next unfinished leaf.
+* Add `test/vcs_six_glyph_raster.cpp`, an independent centered-score pipeline
+  oracle. It locks the positioning and HMOVE boundary transactions, decodes all
+  six GRP bytes on all eight rows into 48 logical pixels, checks delayed digit-4
+  transfer and cleanup, and requires stable 262-line frames.
+* Add widely spaced two-instance score-only coverage at raw scanlines 70 and
+  180, retain the adjacent normal/reversed pair at 125 and 136, and add fixed-
+  and mutable-color centered scores immediately after `poison_debug_score`.
+  Distinct values prove per-instance storage and both draw orders.
+* Repair a real inherited-state gap in all four production six-glyph components:
+  replace an existing redundant eight-cycle color reload or NOP pad with
+  `STA REFP0`, `STA REFP1`, and `NOP`. The instruction count, positioning phase,
+  visible GRP schedule, scanline count, and ROM-facing lifecycle remain stable.
+* Add `vcs_score_composition_raster.pl`. It builds official and unofficial
+  player-color and all-five 181-line cartridges in both score orders and requires
+  the exact `123456` 48x8 score raster at raw line 40 or 221. This proves the
+  centered score after gameplay as well as before it across all four maintained
+  score-composable big-renderer families.
+* Update the handoff contract and tests so REFP0/REFP1 are explicitly established,
+  clobbered, and zero on score return. Update fixed-color source checks to accept
+  the equivalent assembly-owned color setup. No compiler, gameplay renderer,
+  public example, or removal-ledger files change.
+
+* Verification: 334/334 compile-only tests pass. All 199 end-to-end/generic
+  tests are accounted for across a split run: tests 1 through 163 passed before
+  the outer timeout, and the remaining 36 passed explicitly. Focused score-
+  raster, handoff, renderer-composition, fingerprint, and public-example tests
+  also pass.

@@ -122,11 +122,12 @@ arithmetic flags are always clobbered; lifecycle calls leave hardware-stack
 depth unchanged.
 
 **Production six-glyph displays.** These establish and clobber `NUSIZ0/1`,
-`COLUP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the P0/P1 graphics latches;
-they strobe `HMCLR`, `HMOVE`, and `WSYNC`. They require no incoming P0/P1 TIA
-state. On return, `GRP0=0`, `GRP1=0`, both delayed player latches have been
-flushed by the final GRP0/GRP1/GRP0 sequence, and `VDELP0=VDELP1=0`. Player
-position, size, color, and motion state remains clobbered. `PF0/1/2`,
+`COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the P0/P1 graphics
+latches; they strobe `HMCLR`, `HMOVE`, and `WSYNC`. They require no incoming
+P0/P1 TIA state. On return, `GRP0=0`, `GRP1=0`, both delayed player latches have
+been flushed by the final GRP0/GRP1/GRP0 sequence, and
+`REFP0=REFP1=VDELP0=VDELP1=0`. Player position, size, color, and motion state
+remains clobbered. `PF0/1/2`,
 `CTRLPF`, `COLUPF`, `COLUBK`, M0/M1, Ball, collision latches, and audio state are
 guaranteed untouched.
 

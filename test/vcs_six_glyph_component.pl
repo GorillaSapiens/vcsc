@@ -38,11 +38,17 @@ my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances.c26));
 my $reverse_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances_reversed.c26));
+my $spaced_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component two_instances_spaced.c26));
+my $poison_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component poison_then_centered.c26));
+my $poison_color_src=File::Spec->catfile($repo,qw(test fixtures six_glyph_component poison_then_centered_color.c26));
 my $component=File::Spec->catfile($vcs,'six_glyph_component.c26');
 my $left_component=File::Spec->catfile($vcs,'six_glyph_left_component.c26');
 my $right_component=File::Spec->catfile($vcs,'six_glyph_right_component.c26');
 my $bin=File::Spec->catfile($tmp,'six_glyph_component.bin');
 my $reverse_bin=File::Spec->catfile($tmp,'six_glyph_component_reversed.bin');
+my $spaced_bin=File::Spec->catfile($tmp,'six_glyph_component_spaced.bin');
+my $poison_bin=File::Spec->catfile($tmp,'six_glyph_component_poison.bin');
+my $poison_color_bin=File::Spec->catfile($tmp,'six_glyph_component_poison_color.bin');
 my $mapfile=File::Spec->catfile($tmp,'six_glyph_component.map');
 my $asm=File::Spec->catfile($tmp,'six_glyph_component.s26');
 
@@ -58,6 +64,15 @@ $out eq '' && $err eq '' or die "component compile wrote output\n$out$err";
 $rc==0 && !$sig or die "reversed component build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "reversed component build wrote output\n$out$err";
 -s $reverse_bin == 4096 or die "reversed component ROM is not 4096 bytes\n";
+
+for my $extra ([$spaced_src,$spaced_bin,'spaced'],[$poison_src,$poison_bin,'poison'],
+                  [$poison_color_src,$poison_color_bin,'poison-color']) {
+   my($src_path,$bin_path,$name)=@$extra;
+   ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$src_path,'-o',$bin_path);
+   $rc==0 && !$sig or die "$name component build failed\n$out$err";
+   without_usage($out) eq '' && $err eq '' or die "$name component build wrote output\n$out$err";
+   -s $bin_path == 4096 or die "$name component ROM is not 4096 bytes\n";
+}
 
 my $map=read_file($mapfile);
 for my $suffix (qw(score pointers row delayed)) {
@@ -79,6 +94,8 @@ for my $variant ([$component,'centered'],[$left_component,'left'],[$right_compon
       or die "$name component takes ownership of scheduler hardware\n";
    $text !~ /\b(?:lax|sax|dcp|isc|rla|rra|slo|sre)\b/i
       or die "$name component uses an unofficial opcode\n";
+   $text =~ /asm sta REFP0;\s*asm sta REFP1;\s*asm nop;/s
+      or die "$name component does not reset hostile reflection in the preserved eight-cycle slot\n";
 }
 my $left_source=read_file($left_component);
 my $right_source=read_file($right_component);
@@ -136,6 +153,29 @@ for my $case ([normal => $bin], [reversed => $reverse_bin]) {
    $out eq "vcs_six_glyph_standalone_entry ok: calibrated lines 125 and 136 entries and 262-line frames\n"
       or die "unexpected $name pair-entry output: $out";
    $err eq '' or die "$name pair-entry stderr: $err";
+}
+
+my $raster_src=File::Spec->catfile($repo,qw(test vcs_six_glyph_raster.cpp));
+my $raster_exe=File::Spec->catfile($tmp,'vcs_six_glyph_raster');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
+   '-DILLEGAL_OPCODES','-I',$mos,$raster_src,@mos_input,'-o',$raster_exe);
+$rc==0 && !$sig or die "score-raster harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "score-raster harness build wrote output\n$out$err";
+my @raster_cases=(
+   ['normal',$bin,'125','123456','136','654321',2],
+   ['reversed',$reverse_bin,'125','654321','136','123456',2],
+   ['spaced',$spaced_bin,'70','135790','180','246801',2],
+   ['poison',$poison_bin,'111','908172',1],
+   ['poison-color',$poison_color_bin,'111','314159',1],
+);
+for my $case (@raster_cases) {
+   my($name,$rom,@args)=@$case;
+   my $count=pop @args;
+   ($rc,$sig,$out,$err)=capture($raster_exe,$rom,@args);
+   $rc==0 && !$sig or die "$name exact score raster failed\n$out$err";
+   $out eq "vcs_six_glyph_raster ok: $count exact 48x8 score rasters, hostile reflection reset, and 262-line frames\n"
+      or die "unexpected $name score-raster output: $out";
+   $err eq '' or die "$name score-raster stderr: $err";
 }
 
 # Every lifecycle function is a component contract, not merely a convention.
