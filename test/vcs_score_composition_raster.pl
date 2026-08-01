@@ -1,13 +1,16 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 30
-# expectstdout: vcs_score_composition_raster ok: 8 big-renderer score orders have exact 48x8 pixels and boundary cycles
+# timeout: 180
+# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; mixed score placement also passes
 # expectexit: 0
 
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use File::Basename qw(basename);
+use File::Glob qw(bsd_glob);
+use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -19,11 +22,56 @@ sub capture {
    my $so=slurp_fh($out); my $se=slurp_fh($err); waitpid($pid,0);
    return ($? >> 8,$? & 127,$so,$se);
 }
+sub read_file {
+   my($path)=@_; open(my $fh,'<:raw',$path) or die "read $path: $!\n";
+   local $/; my $d=<$fh>; close($fh); return defined($d)?$d:'';
+}
+sub write_file {
+   my($path,$text)=@_; open(my $fh,'>:raw',$path) or die "write $path: $!\n";
+   print {$fh} $text; close($fh) or die "close $path: $!\n";
+}
 sub without_usage { my($s)=@_; $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $s; }
+sub map_zp {
+   my($map,$name)=@_;
+   $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n";
+   my $value=hex($1); $value<=0xff or die "$name is not in zero page\n";
+   return sprintf('0x%02x',$value);
+}
+sub transform_score {
+   my($text,$kind)=@_;
+   return $text if $kind eq 'center';
+   if ($kind eq 'left' || $kind eq 'right') {
+      my $component=$kind eq 'left' ? 'six_glyph_left_component.c26' : 'six_glyph_right_component.c26';
+      $text =~ s/template "six_glyph_component\.c26" as score/template "$component" as score/
+         or die "could not install $kind score component\n";
+      return $text;
+   }
+   if ($kind eq 'two-plus-two') {
+      $text =~ s/(include "fonts\/default_decimal\.c26"\n)/$1include "two_plus_two_score_support.c26"\n/
+         or die "could not add two-plus-two support\n";
+      $text =~ s/template "six_glyph_component\.c26" as score/template "two_plus_two_score_component.c26" as score/
+         or die "could not install two-plus-two component\n";
+      $text =~ s/^\s*score_score := 123456;\n/   score_left_score := 12;\n   score_right_score := 34;\n   score_left_color := 0x0e;\n   score_right_color := 0x2e;\n   score_left_x := 16;\n   score_right_x := 104;\n/m
+         or die "could not initialize two-plus-two component\n";
+      return $text;
+   }
+   if ($kind eq 'poison') {
+      $text =~ s/template "six_glyph_component\.c26" as score/template "renderers\/poison_debug_score\/poison_debug_score.c26" as score/
+         or die "could not install poison component\n";
+      $text =~ s/^\s*score_score := 123456;\n/   score_exit_background := 0x84;\n/m
+         or die "could not initialize poison component\n";
+      return $text;
+   }
+   die "unknown score kind $kind\n";
+}
 
-my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
+my $repo=shift @ARGV // usage();
+my $tmp=shift @ARGV // usage();
+usage() if @ARGV;
 $repo=abs_path($repo) // die "resolve repo\n";
+make_path($tmp);
 $tmp=abs_path($tmp) // die "resolve tmp\n";
+
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
@@ -31,38 +79,133 @@ my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
-my $raster_src=File::Spec->catfile($repo,qw(test vcs_six_glyph_raster.cpp));
-my $raster=File::Spec->catfile($tmp,'vcs_score_composition_raster');
-my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
-   '-DILLEGAL_OPCODES','-I',$mos,$raster_src,@mos_input,'-o',$raster);
-$rc==0 && !$sig or die "score-raster harness build failed\n$out$err";
-$out eq '' && $err eq '' or die "score-raster harness build wrote output\n$out$err";
+
+my %executables=(
+   raster=>[qw(test vcs_score_matrix_raster.cpp)],
+   player=>[qw(test vcs_player_color_181.cpp)],
+   all_five=>[qw(test vcs_all_five_composition.cpp)],
+);
+for my $name (sort keys %executables) {
+   my $src=File::Spec->catfile($repo,@{$executables{$name}});
+   my $exe=File::Spec->catfile($tmp,"score_matrix_$name");
+   my @warnings=$name eq 'raster' ? ('-Wall','-Wextra','-Werror','-pedantic') : ();
+   my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17',@warnings,'-O2',
+      '-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
+   $rc==0 && !$sig or die "$name harness build failed\n$out$err";
+   $out eq '' && $err eq '' or die "$name harness build wrote output\n$out$err";
+   $executables{$name}=$exe;
+}
 
 my @families=(
-   ['all_five_181',0],
-   ['player_color_181',0],
-   ['all_five_181_unofficial',1],
-   ['player_color_181_unofficial',1],
+   {fixture=>'player_color_181',            example=>'04_player_color_181',            class=>'player',   illegals=>0},
+   {fixture=>'all_five_181',                example=>'06_all_five_181',                class=>'all_five', illegals=>0},
+   {fixture=>'player_color_181_unofficial', example=>'07_player_color_181_unofficial', class=>'player',   illegals=>1},
+   {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
 );
-my $checked=0;
+my @scores=(
+   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 component=>'six_glyph_color_component.c26'},
+   {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  component=>'six_glyph_left_component.c26'},
+   {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', component=>'six_glyph_right_component.c26'},
+   {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    component=>'two_plus_two_score_component.c26'},
+   {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          component=>'renderers/poison_debug_score/poison_debug_score.c26'},
+);
+
+# Lock the complete public 4 x 5 x 2 inventory and its legal draw order.
+my $public=0;
 for my $family (@families) {
-   my($name,$illegals)=@$family;
-   for my $order (qw(above below)) {
-      my $src=File::Spec->catfile($repo,'test','fixtures',$name,"static_score_${order}.c26");
-      my $bin=File::Spec->catfile($tmp,"${name}_${order}.bin");
-      my @extra=$illegals ? ('-Wa,--illegals') : ();
-      ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,@extra,$src,'-o',$bin);
-      $rc==0 && !$sig or die "$name $order build failed\n$out$err";
-      without_usage($out) eq '' && $err eq '' or die "$name $order build wrote output\n$out$err";
-      -s $bin == 4096 or die "$name $order is not a 4K ROM\n";
-      my $entry=$order eq 'above' ? 40 : 221;
-      ($rc,$sig,$out,$err)=capture($raster,$bin,$entry,'123456');
-      $rc==0 && !$sig or die "$name $order score raster failed\n$out$err";
-      $out eq "vcs_six_glyph_raster ok: 1 exact 48x8 score rasters, hostile reflection reset, and 262-line frames\n"
-         or die "unexpected $name $order raster output: $out";
-      $err eq '' or die "$name $order raster stderr: $err";
-      ++$checked;
+   for my $score (@scores) {
+      for my $order (qw(above below)) {
+         my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
+         -d $leaf or die "missing public matrix leaf $leaf\n";
+         my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
+         @sources==1 or die "$leaf has ".scalar(@sources)." editable sources, expected one\n";
+         my $text=read_file($sources[0]);
+         $text =~ /template\s+"\Q$score->{component}\E"\s+as\s+score\b/
+            or die "$sources[0] does not use $score->{component}\n";
+         $text =~ /template\s+"renderers\/\Q$family->{fixture}\E\/\Q$family->{fixture}\E\.c26"\s+as\s+game\b/
+            or die "$sources[0] does not use $family->{fixture}\n";
+         my $expected=$order eq 'above'
+            ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
+            : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;
+         $text =~ $expected or die "$sources[0] has the wrong $order draw order\n";
+         ++$public;
+      }
    }
 }
-$checked==8 or die "checked $checked score compositions, expected 8\n";
-print "vcs_score_composition_raster ok: 8 big-renderer score orders have exact 48x8 pixels and boundary cycles\n";
+$public==40 or die "public matrix has $public entries, expected 40\n";
+
+my $checked=0;
+for my $family (@families) {
+   for my $score (@scores) {
+      for my $order (qw(above below)) {
+         my $entry=$order eq 'above' ? 40 : 221;
+         for my $mode (qw(static motion)) {
+            my $base=File::Spec->catfile($repo,'test','fixtures',$family->{fixture},"${mode}_score_${order}.c26");
+            my $source=transform_score(read_file($base),$score->{kind});
+            my $tag=join('_',$family->{fixture},$score->{kind},$order,$mode);
+            $tag =~ s/-/_/g;
+            my $src=File::Spec->catfile($tmp,"$tag.c26");
+            my $bin=File::Spec->catfile($tmp,"$tag.bin");
+            my $mapfile=File::Spec->catfile($tmp,"$tag.map");
+            write_file($src,$source);
+            my @extra=$family->{illegals} ? ('-Wa,--illegals') : ();
+            my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,@extra,'-Map',$mapfile,$src,'-o',$bin);
+            $rc==0 && !$sig or die "$tag build failed\n$out$err";
+            without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
+            -s $bin==4096 or die "$tag is not a 4K cartridge\n";
+
+            ($rc,$sig,$out,$err)=capture($executables{raster},$bin,$score->{kind},$entry);
+            $rc==0 && !$sig or die "$tag score raster failed\n$out$err";
+            $out eq "vcs_score_matrix_raster $score->{kind} ok: exact score pixels, ownership schedule, and 262-line frames\n"
+               or die "unexpected $tag score-raster output: $out";
+            $err eq '' or die "$tag score-raster stderr: $err";
+
+            my $map=read_file($mapfile);
+            my @args;
+            if ($family->{class} eq 'player') {
+               @args=($executables{player},$mode,$bin,map { map_zp($map,$_) }
+                  qw(game_object_x game_player0_y game_player1_y game_ball_y));
+               push @args,map_zp($map,'motion_directions') if $mode eq 'motion';
+               push @args,$score->{kind} eq 'poison' ? "poison-$order" : $order;
+               ($rc,$sig,$out,$err)=capture(@args);
+               my $label=$score->{kind} eq 'poison' ? "poison-$order" : $order;
+               $rc==0 && !$sig or die "$tag gameplay raster failed\n$out$err";
+               $out eq "vcs_player_color_181 composition $mode $label ok\n"
+                  or die "unexpected $tag gameplay output: $out";
+            }
+            else {
+               @args=($executables{all_five},$bin,$order,$mode);
+               if ($mode eq 'motion') {
+                  push @args,map { map_zp($map,$_) } qw(game_object_x game_player0_y game_player1_y game_missile0_y game_missile1_y game_ball_y motion_frame);
+               }
+               push @args,'poison' if $score->{kind} eq 'poison';
+               ($rc,$sig,$out,$err)=capture(@args);
+               $rc==0 && !$sig or die "$tag gameplay raster failed\n$out$err";
+               $out eq "vcs_all_five_composition $mode $order ok\n"
+                  or die "unexpected $tag gameplay output: $out";
+            }
+            $err eq '' or die "$tag gameplay stderr: $err";
+            ++$checked;
+         }
+      }
+   }
+}
+$checked==80 or die "checked $checked static/motion compositions, expected 80\n";
+
+# A score-only cartridge proves arbitrary placement and four mixed instances;
+# the existing centered and two-plus-two component tests separately cover
+# multiple same-type instances and independent per-instance motion.
+my $mixed_src=File::Spec->catfile($repo,qw(test fixtures score_composition_matrix mixed_instances.c26));
+my $mixed_bin=File::Spec->catfile($tmp,'score_matrix_mixed_instances.bin');
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$mixed_src,'-o',$mixed_bin);
+$rc==0 && !$sig or die "mixed score-instance build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "mixed score-instance build wrote output\n$out$err";
+for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {
+   ($rc,$sig,$out,$err)=capture($executables{raster},$mixed_bin,@$case);
+   $rc==0 && !$sig or die "mixed @$case raster failed\n$out$err";
+   $out eq "vcs_score_matrix_raster $case->[0] ok: exact score pixels, ownership schedule, and 262-line frames\n"
+      or die "unexpected mixed $case->[0] output: $out";
+   $err eq '' or die "mixed $case->[0] stderr: $err";
+}
+
+print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; mixed score placement also passes\n";

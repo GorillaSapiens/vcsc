@@ -34,6 +34,6 @@ asynchronous motion. They also require identical RAM addresses, the single
 reviewed unofficial opcode, stable 262-line frames, and the corrected playfield
 schedule in both variants.
 
-Public score-above and score-below five-object examples live under
+The ten-cartridge public score/poison matrix lives under
 `examples/08_all_five_181_unofficial/`. They are application-level counterparts to the official
 examples and keep `-Wa,--illegals` visible in each Makefile.

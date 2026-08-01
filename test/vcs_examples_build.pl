@@ -44,6 +44,7 @@ find({
    wanted=>sub {
       return unless -f $_ && /\.c26\z/;
       my $source=$File::Find::name;
+      return if $source =~ m{[\/]examples[\/]common[\/]};
       my($vol,$dir,$file)=File::Spec->splitpath($source);
       my $rel=File::Spec->abs2rel($dir,$examples_root);
       push @examples,[$rel,$file];
@@ -67,7 +68,8 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals';
    }
    -f $source or die "missing editable example $source\n";
-   my @cmd=($driver,'-I',$vcs,'-Map',$map,@extra);
+   my $source_dir=File::Spec->catdir($examples_root,$dir);
+   my @cmd=($driver,'-I',$vcs,'-I',$source_dir,'-Map',$map,@extra);
    # Renderer source operands must follow the C source. Move any trailing .s26
    # operand after the example while leaving compiler/linker options in place.
    my @renderer=grep { /\.s26\z/ } @cmd;

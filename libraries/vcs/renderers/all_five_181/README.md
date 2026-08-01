@@ -79,8 +79,9 @@ the next object row from leaking into the visible right edge.
 
 ## Verified behavior
 
-Maintained static and asynchronous-motion cartridges exercise score-above and
-score-below composition. Emulator tests require:
+Maintained static and asynchronous-motion cartridges exercise centered,
+left-justified, right-justified, two-plus-two, and poison components in both
+score-above and score-below order. Emulator tests require:
 
 - stable 262-line NTSC frames
 - all eleven playfield rows, all sixteen scanlines per row, and all 160 pixels
@@ -99,6 +100,6 @@ score-below composition. Emulator tests require:
 A gameplay-only link contains no score state, score pointers, or font. The
 independent score contributes only its own separately measured resources.
 
-Public score-above and score-below examples live under
-`examples/06_all_five_181/`; the separately named, raster-identical
-unofficial-opcode counterparts live under `examples/08_all_five_181_unofficial/`.
+The ten official public compositions live under `examples/06_all_five_181/`;
+the separately named, raster-identical unofficial-opcode matrix lives under
+`examples/08_all_five_181_unofficial/`.

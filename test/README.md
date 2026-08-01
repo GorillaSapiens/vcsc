@@ -180,11 +180,16 @@ component. The exact raster harness decodes all six GRP pipeline bytes on every
 row into 48 logical pixels, locks positioning and boundary cycles, requires the
 cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
 
-`vcs_score_composition_raster.pl` builds the official and unofficial all-five
-and player-color 181-line profiles in both score-above and score-below order.
-All eight cartridges must reproduce the same exact centered 48x8 `123456` raster
-at raw line 40 or 221, including the measured positioning, reflection-reset,
-VDEL, delayed-GRP, cleanup, and frame-timing boundaries.
+`vcs_score_composition_raster.pl` locks the complete public composition
+matrix: four 181-line gameplay families, four production score layouts plus the
+poison diagnostic, and both legal orders. It generates static and moving-game
+fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
+gameplay physical-pixel models on each one. The score oracle locks centered,
+left-, right-, two-plus-two, and poison positioning/ownership schedules at raw
+line 40 or 221; the gameplay oracles lock every object pixel and exact 262-line
+frames. A separate score-only cartridge places centered, left, right, and
+two-plus-two instances at raw lines 50, 80, 110, and 140 to prove mixed arbitrary
+vertical placement.
 
 `vcs_two_plus_two_score.pl` builds two independent left/right two-plus-two
 score instances with distinct packed-BCD values, colors, and X positions. The

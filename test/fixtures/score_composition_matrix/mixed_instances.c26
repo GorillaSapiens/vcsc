@@ -1,0 +1,67 @@
+// Four different score components at independently chosen vertical positions.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+include "two_plus_two_score_support.c26"
+
+template "six_glyph_component.c26" as centered
+template "six_glyph_left_component.c26" as left
+template "six_glyph_right_component.c26" as right
+template "two_plus_two_score_component.c26" as split
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := 0x84;
+   VBLANK := 2;
+
+   centered_score := 123456;
+   left_score := 123456;
+   right_score := 123456;
+   split_left_score := 12;
+   split_right_score := 34;
+   split_left_color := 0x0e;
+   split_right_color := 0x2e;
+   split_left_x := 16;
+   split_right_x := 104;
+
+   centered_init();
+   left_init();
+   right_init();
+   split_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      centered_vblank();
+      left_vblank();
+      right_vblank();
+      split_vblank();
+      vcs_ntsc_end_vblank();
+
+      // Visible field starts at raw line 40. The four independently invoked
+      // components enter at raw lines 50, 80, 110, and 140.
+      vcs_ntsc_wait_component_scanlines(10);
+      centered_draw();
+      vcs_ntsc_wait_component_scanlines(19);
+      left_draw();
+      vcs_ntsc_wait_component_scanlines(19);
+      right_draw();
+      vcs_ntsc_wait_component_scanlines(19);
+      split_draw();
+      vcs_ntsc_wait_scanlines(81);
+
+      vcs_ntsc_begin_overscan();
+      centered_overscan();
+      left_overscan();
+      right_overscan();
+      split_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

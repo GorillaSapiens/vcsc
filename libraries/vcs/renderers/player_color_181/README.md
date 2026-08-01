@@ -64,8 +64,8 @@ score_draw();
 
 The score component owns P0/P1 while it draws. The first two gameplay setup
 lines therefore re-establish P1 and P0 coarse position and fine motion. The
-third setup line applies HMOVE, restores both application NUSIZ values, clears
-stale player graphics, and enters the timed raster. During gameplay, each P1
+third setup line applies HMOVE, restores both application NUSIZ values and normal reflection, clears stale
+player graphics, and enters the timed raster. During gameplay, each P1
 row is staged in private workspace and committed through GRP1 during horizontal
 blanking. Because vertical delay is active, that same safe commit transfers the
 pending P0 and Ball graphics before the visible right edge. Ball positioning
@@ -81,8 +81,8 @@ contains the HMxx high nibble and the five-cycle coarse-loop count. This keeps
 VBLANK time independent of X and keeps both positioning lines inside one
 scanline for every coordinate from 0 through 159.
 
-Maintained static and 320-frame asynchronous-motion fixtures prove both score
-orders, all P0/P1/Ball X coordinates, clipped horizontal pixel endpoints, exact
+Maintained static and 320-frame asynchronous-motion fixtures prove every
+centered, left-justified, right-justified, two-plus-two, and poison score order, all P0/P1/Ball X coordinates, clipped horizontal pixel endpoints, exact
 per-row color writes, terminal gameplay lines, stable 262-line frames, and
 disjoint eleven-line score plus 181-line gameplay regions. The poison debug
 score supplies hostile P0/P1 position, size, reflection, delay, graphics, and
@@ -111,6 +111,6 @@ The image is hash-locked by the regression. It confirms the centered score,
 playfield, both multicolor players, and Ball coexist without the red poison
 background or obvious first-row corruption.
 
-Public score-above and score-below examples live under
-`examples/04_player_color_181/`; the separately named unofficial-opcode twins
-live under `examples/07_player_color_181_unofficial/`.
+The ten official public compositions live under `examples/04_player_color_181/`;
+the separately named unofficial-opcode matrix lives under
+`examples/07_player_color_181_unofficial/`.

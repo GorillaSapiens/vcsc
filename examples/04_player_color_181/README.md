@@ -7,22 +7,27 @@
 
 # `player_color_181` examples
 
-This group demonstrates the official-opcode
-`renderers/player_color_181/player_color_181.c26` lifecycle component.
+This group demonstrates the official-opcode `renderers/player_color_181/player_color_181.c26` lifecycle component. It draws
+181 gameplay scanlines and P0, P1, and Ball; an adjacent eleven-line score-profile
+component completes the 192-line visible field.
 
-The renderer draws exactly 181 gameplay lines using eleven playfield rows of
-sixteen scanlines plus its score-safe visible handoff. It draws P0, P1, and Ball
-with independent page-contained player-color tables; M0 and M1 are absent. The
-remaining eleven visible lines are supplied by the independent
-`six_glyph_color_component.c26` score, producing a complete 192-line visible field.
+The ten public cartridges form the complete score-composition slice for this
+gameplay family: four production score layouts plus the poison diagnostic, each
+above and below gameplay. Each layout has one interactive cartridge rather than
+separate static and motion variants.
 
-Each layout now has one interactive diagnostic rather than separate static,
-horizontal-motion, and two-axis-motion cartridges.
+| Layout | Score profile | Draw order | Diagnostic |
+|---|---|---|---|
+| [`01_score_above`](01_score_above/) | centered mutable-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`02_score_below`](02_score_below/) | centered mutable-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`03_left_justified_score_above`](03_left_justified_score_above/) | left-justified fixed-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`04_left_justified_score_below`](04_left_justified_score_below/) | left-justified fixed-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`05_right_justified_score_above`](05_right_justified_score_above/) | right-justified fixed-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`06_right_justified_score_below`](06_right_justified_score_below/) | right-justified fixed-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`07_two_plus_two_score_above`](07_two_plus_two_score_above/) | independent left/right two-plus-two | score, handoff, gameplay | object motion plus independently movable score fields |
+| [`08_two_plus_two_score_below`](08_two_plus_two_score_below/) | independent left/right two-plus-two | gameplay, handoff, score | object motion plus independently movable score fields |
+| [`09_poison_score_above`](09_poison_score_above/) | hostile poison diagnostic | score, handoff, gameplay | predecessor-state recovery stress |
+| [`10_poison_score_below`](10_poison_score_below/) | hostile poison diagnostic | gameplay, handoff, score | next-frame recovery stress |
 
-| Layout | Draw order | Diagnostic |
-|---|---|---|
-| [`01_score_above`](01_score_above/) | score, handoff, gameplay | P0/P1/Ball motion and six-digit score editing |
-| [`02_score_below`](02_score_below/) | gameplay, handoff, score | P0/P1/Ball motion and six-digit score editing |
-
-For the complete resource and timing contract, see
-[`libraries/vcs/renderers/player_color_181/README.md`](../../libraries/vcs/renderers/player_color_181/README.md).
+The automated matrix builds static and moving-game fixtures for every row and
+checks score pixels, gameplay pixels, handoff state, and exact 262-line frames.

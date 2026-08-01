@@ -718,9 +718,10 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b6 — build the complete N*M*O composition matrix for
-all score-composable gameplay families, both score types, and both legal full-frame
-orders, with public examples and pixel-accurate static/motion coverage.
+Current next action: 23 — investigate a fresh standard renderer that retains
+P0, P1, M0, M1, and Ball while adding per-row P0/P1 colors. Preserve the existing
+profiles, measure the actual RAM/ROM/timing cost, and abandon the variant rather
+than ship a fragile schedule if the hardware budget does not close.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1183,7 +1184,7 @@ orders, with public examples and pixel-accurate static/motion coverage.
         measured RAM/ROM/stack costs. Do not weaken or silently change the
         current all-five-object profile.
 
-[ ] 22. Add parameterized source instantiation and link-time use contracts
+[x] 22. Add parameterized source instantiation and link-time use contracts
         as specified in `TEMPLATE.md`. This is a deliberately small component
         system, not C++-style templates: instantiate one `.c26` source repeatedly
         under controlled symbol prefixes, and let components declare public
@@ -1376,7 +1377,7 @@ orders, with public examples and pixel-accurate static/motion coverage.
                                                    legacy `six_glyph_display.c26`
                                                    module and all install/docs/
                                                    test references to it.
-        [ ] 22i. Convert the remaining maintained display renderers into
+        [x] 22i. Convert the remaining maintained display renderers into
                   composable lifecycle components and remove their embedded
                   `six_glyph_score` ownership. Start with the all-five standard
                   profile and the P0+P1+BL player-color profile. Their component
@@ -1510,7 +1511,7 @@ orders, with public examples and pixel-accurate static/motion coverage.
                                          scoreless player-color component.
                               [x] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
-                  [ ] 22i4. Validate and repair the existing component family and
+                  [x] 22i4. Validate and repair the existing component family and
                               replace the maintained gameplay examples with genuinely
                               self-contained compositions. Keep the two working
                               monolithic predecessors installed as legacy compatibility
@@ -1534,11 +1535,10 @@ orders, with public examples and pixel-accurate static/motion coverage.
                                          provisional inherited-state warning no longer
                                          applies.
 
-                              [ ] 22i4b. STOP-SHIP correctness gate for every visible
-                                         component already present. The next unfinished
-                                         leaf is 22i4b6. Do not begin tasks 23 through
-                                         25 until all 22i4b substeps pass from both
-                                         source and staged installed toolchains.
+                              [x] 22i4b. STOP-SHIP correctness gate for every visible
+                                         component already present. All substeps pass
+                                         from both source and staged installed
+                                         toolchains; tasks 23 through 25 are unblocked.
 
                                          [x] 22i4b0. Establish a truly faithful
                                                     legacy baseline before trusting any
@@ -1827,24 +1827,58 @@ orders, with public examples and pixel-accurate static/motion coverage.
                                                       steady checked frames, and exact 262-line
                                                       frame periods.
 
-                                         [ ] 22i4b6. Build the complete initial
+                                         [x] 22i4b6. Build the complete initial
                                                     composition matrix. For big gameplay
-                                                    compositions, N is the score-composable
-                                                    big-renderer families, M is the two score
-                                                    types (centered six-glyph and left/right
-                                                    two-plus-two), and O is the two legal
-                                                    full-frame orders (top and bottom).
-                                                    Add public examples and automated pixel-
-                                                    accurate fixtures for every N*M*O pair,
-                                                    including static and motion coverage.
-                                                    Separately prove arbitrary vertical
-                                                    placement and two-or-more same/mixed
-                                                    score instances in score-only or other
-                                                    shorter application layouts. Do not
-                                                    split a big gameplay renderer to insert a
-                                                    score in its middle.
+                                                    compositions, N is the four score-
+                                                    composable 181-line gameplay families,
+                                                    M is the four production score profiles
+                                                    (centered six-glyph, left-justified six-
+                                                    glyph, right-justified six-glyph, and
+                                                    left/right two-plus-two), and O is the two
+                                                    legal full-frame orders (top and bottom).
+                                                    The production matrix is therefore
+                                                    4*4*2 = 32 public compositions. Add the
+                                                    poison diagnostic as a separate 4*1*2 = 8
+                                                    stress matrix, for 40 total public
+                                                    gameplay compositions. Require automated
+                                                    pixel-accurate static and motion fixtures
+                                                    for every pair. Separately prove arbitrary
+                                                    vertical placement and two-or-more same/
+                                                    mixed score instances in score-only or
+                                                    shorter application layouts. Do not split
+                                                    a big gameplay renderer to insert a score
+                                                    in its middle.
 
-                              [ ] 22i4c. Maintain a coherent public example
+                                                    Completed 2026-07-31:
+                                                    * Preserve the eight existing centered-
+                                                      score examples and add the missing 32
+                                                      public interactive cartridges: left,
+                                                      right, two-plus-two, and poison above
+                                                      and below each official/unofficial
+                                                      player-color and all-five family.
+                                                    * Build 80 private static/motion fixtures
+                                                      and independently check exact score
+                                                      pixels, colors, setup/cleanup register
+                                                      schedules, gameplay pixels, object
+                                                      motion, component boundaries, and exact
+                                                      262-line frames for all 40 pairings.
+                                                    * Add a mixed score-only fixture placing
+                                                      centered, left, right, and two-plus-two
+                                                      instances at four independent vertical
+                                                      positions. Retain the existing same-type
+                                                      multiple-instance proofs.
+                                                    * Repair a real poison handoff defect:
+                                                      all four 181-line gameplay components
+                                                      now explicitly clear REFP0/REFP1 before
+                                                      visible object output, so hostile
+                                                      reflection cannot mirror an asymmetric
+                                                      gameplay glyph.
+                                                    * Keep each public pairing as one editable
+                                                      interactive cartridge rather than
+                                                      multiplying the tree into separate
+                                                      static, X-motion, and X/Y-motion demos.
+
+                              [x] 22i4c. Maintain a coherent public example
                                          progression and complete the remaining score-
                                          composition matrix before beginning task 23.
 
@@ -1861,20 +1895,25 @@ orders, with public examples and pixel-accurate static/motion coverage.
                                                     five-object examples private are
                                                     obsolete and removed.
 
-                                         [ ] 22i4c1. After the left/right two-plus-two
-                                                    score component exists, add its
-                                                    required public static and moving
-                                                    compositions without disturbing the
-                                                    thirteen-example baseline.
+                                         [x] 22i4c1. Expand the renderer-grouped
+                                                    public tree to the complete 40-cartridge
+                                                    score/gameplay matrix: four production
+                                                    scores and poison, each above and below
+                                                    all four 181-line gameplay families.
+                                                    Keep one interactive cartridge per
+                                                    pairing, with private exact-raster static
+                                                    and motion coverage rather than public
+                                                    example multiplication. Together with the
+                                                    seven non-matrix cartridges, the public
+                                                    tree now contains 47 cartridges.
 
                                          The two predecessor monolithic profiles
                                          remain installed as legacy compatibility and
                                          regression targets. They are not preferred for
                                          new applications and are not a completion gate.
 
-# BLOCKED: tasks 23 through 25 must not begin until the 22i4b correctness gate
-# and 22i4c example matrix are complete. Existing visible renderers and handoff
-# contracts take priority over creating additional display variants.
+# UNBLOCKED 2026-07-31: the 22i4b correctness gate and 22i4c public example
+# matrix are complete. Task 23 is the next unfinished roadmap item.
 
 [ ] 23. If possible, add another standard-renderer variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
@@ -7190,3 +7229,36 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   baseline exposed the newly generalized eleven-line score wording. After updating
   that baseline, it and tests 197 through 200 all passed explicitly. Staged
   `make installcheck` also passes.
+
+2026-07-31 21:08:35 PDT, complete score/gameplay composition matrix
+-------------------------------------------------------------------------------
+* Complete roadmap tasks 22i4b6 and 22i4c1, close parents 22i4b, 22i4c,
+  22i4, 22i, and task 22, and make task 23 the next unfinished roadmap item.
+* Preserve the eight existing centered-score compositions and add 32 public
+  interactive cartridges: left-justified, right-justified, left/right two-plus-
+  two, and poison above and below each official/unofficial player-color and
+  all-five 181-line gameplay family. The public gameplay matrix is 32 production
+  compositions plus eight poison stress compositions; with the seven unrelated
+  cartridges, the public tree now contains 47 editable cartridges.
+* Add shared interactive controls so each public pairing demonstrates motion
+  without multiplying the tree into separate static, horizontal-motion, and
+  two-axis-motion cartridges. Update the recursive example build and staged
+  install check to compile every matrix leaf while keeping common include files
+  out of the standalone-cartridge inventory.
+* Add an independent score-matrix raster oracle and expand
+  `vcs_score_composition_raster.pl` to generate 80 private cartridges: static and
+  moving gameplay for every one of the 40 pairings. Check exact score pixels,
+  colors, setup/cleanup register schedules, gameplay object pixels, motion,
+  component boundaries, and exact 262-line frames. Add a score-only cartridge
+  placing centered, left, right, and two-plus-two instances at four independent
+  vertical positions; retain the earlier multiple same-type instance proofs.
+* Fix a real poison handoff defect exposed by the matrix. All four official and
+  unofficial 181-line gameplay components now explicitly clear REFP0 and REFP1
+  before visible object output, preventing hostile reflected-player state from
+  mirroring asymmetric gameplay glyphs. Update the player-color linked smoke
+  sizes to 1787 official and 1785 unofficial bytes; the measured two-byte saving
+  is unchanged.
+* Verification: 334/334 compile-only tests pass. The end-to-end suite is fully
+  accounted for: tests 1 through 171 passed before the outer command ceiling,
+  and the remaining 29 passed explicitly, for 200/200 total. Staged
+  `make installcheck` passes, including all 40 installed-toolchain matrix builds.

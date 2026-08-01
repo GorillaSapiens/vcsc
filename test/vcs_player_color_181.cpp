@@ -661,7 +661,11 @@ void verify_object_pixel_raster() {
    else if (score_order==ScoreOrder::Above) {
       p0_first+=11; p1_first+=11; ball_first+=11;
    }
-   const int first_checked=game_first-1;
+   // The preceding component owns its final scanline. A full-height score may
+   // legitimately keep pixels active there; gameplay ownership begins at
+   // game_first. Scoreless/terminal fixtures retain the extra blank-boundary
+   // check because no predecessor owns that line.
+   const int first_checked=score_order==ScoreOrder::None ? game_first-1 : game_first;
    const int last_checked=game_first+game_lines-1;
    const std::array<unsigned,3> x{{44,108,78}};
    const uint64_t phase=(trace.front().beam_cycle+kCyclesPerScanline-trace.front().cycle)%kCyclesPerScanline;
@@ -713,7 +717,7 @@ void verify_object_pixel_raster() {
       }
       while (event<events.size()) apply_object_write(state,events[event++]);
    }
-   const uint64_t expected_count=static_cast<uint64_t>(game_lines+1)*160*5;
+   const uint64_t expected_count=static_cast<uint64_t>(last_checked-first_checked+1)*160*5;
    if (checked!=expected_count) fail("object raster checked the wrong pixel count");
 }
 

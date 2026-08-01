@@ -93,6 +93,7 @@ std::map<int,std::array<uint8_t,ObjectCount>> frame_x;
 bool score_above = false;
 bool scoreless = false;
 bool motion_mode = false;
+bool poison_score = false;
 uint8_t object_x_zp = 0;
 std::array<uint8_t,5> y_zp{};
 uint8_t motion_frame_zp = 0;
@@ -498,7 +499,10 @@ void verify_static_object_pixel_raster() {
    const uint64_t phase=(trace.front().beam_cycle+kCyclesPerLine-trace.front().cycle)%kCyclesPerLine;
    const int game_first=scoreless ? 40 : score_above ? 51 : 40;
    const int game_lines=scoreless ? 192 : 181;
-   const int first_checked=game_first-1; // setup/boundary line must remain blank
+   // A preceding score owns its final scanline and may use all of it. Begin
+   // gameplay pixel ownership at game_first; only scoreless fixtures own the
+   // preceding blank boundary.
+   const int first_checked=scoreless ? game_first-1 : game_first;
    const int last_checked=game_first+game_lines-1;
    const std::array<unsigned,ObjectCount> x{{20,130,50,110,80}};
 
@@ -557,7 +561,7 @@ void verify_static_object_pixel_raster() {
       }
       while (event<line_writes.size()) apply_object_write(state,line_writes[event++]);
    }
-   const uint64_t expected_count=static_cast<uint64_t>(game_lines+1)*160*ObjectCount;
+   const uint64_t expected_count=static_cast<uint64_t>(last_checked-first_checked+1)*160*ObjectCount;
    if (checked_pixels!=expected_count) fail("object raster checked the wrong pixel count");
 }
 
@@ -575,7 +579,10 @@ void verify_frames() {
       if (s.game_pf < 100) fail("game region did not emit the playfield");
       if (s.game_grp < 8 || s.game_objects < 8) fail("game region did not emit all-five object activity");
       if (!scoreless) {
-         if (s.score_grp < 16) fail("score region did not emit six-glyph player activity");
+         const unsigned minimum_score_writes = poison_score ? 2u : 16u;
+         if (s.score_grp < minimum_score_writes)
+            fail(poison_score ? "poison score region did not emit hostile player activity"
+                              : "score region did not emit score player activity");
          if (s.score_pf != 0 || s.score_objects != 0)
             fail("score region leaked gameplay PF/missile/ball activity");
       }
@@ -590,8 +597,8 @@ void verify_frames() {
 } // namespace
 
 int main(int argc,char **argv) {
-   if (argc != 4 && argc != 11) {
-      std::fprintf(stderr,"usage: %s ROM above|below|none static|motion [object_x p0_y p1_y m0_y m1_y ball_y motion_frame]\n",argv[0]);
+   if (argc != 4 && argc != 5 && argc != 11 && argc != 12) {
+      std::fprintf(stderr,"usage: %s ROM above|below|none static|motion [object_x p0_y p1_y m0_y m1_y ball_y motion_frame] [score|poison]\n",argv[0]);
       return 2;
    }
    scoreless = std::strcmp(argv[2],"none")==0;
@@ -601,12 +608,16 @@ int main(int argc,char **argv) {
    motion_mode = std::strcmp(argv[3],"motion")==0;
    if (!motion_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
    if (motion_mode) {
-      if (argc != 11) fail("motion mode needs seven zero-page addresses");
+      if (argc != 11 && argc != 12) fail("motion mode needs seven zero-page addresses");
       object_x_zp=parse_zp(argv[4]);
       for (size_t i=0;i<5;++i) y_zp[i]=parse_zp(argv[5+static_cast<int>(i)]);
       motion_frame_zp=parse_zp(argv[10]);
+      if (argc==12) poison_score=std::strcmp(argv[11],"poison")==0;
    }
-   else if (argc != 4) fail("static mode takes no addresses");
+   else {
+      if (argc != 4 && argc != 5) fail("static mode takes only an optional score kind");
+      if (argc==5) poison_score=std::strcmp(argv[4],"poison")==0;
+   }
 
    std::memset(memory_image,0,sizeof(memory_image));
    std::ifstream rom(argv[1],std::ios::binary);

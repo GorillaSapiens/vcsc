@@ -7,21 +7,27 @@
 
 # `player_color_181_unofficial` examples
 
-This group demonstrates the separately named unofficial-opcode
-`renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
-lifecycle component. It has the same P0/P1/Ball API and 181-line score
-composition contract as the official renderer, but uses reviewed stable/common
-NMOS unofficial opcodes. Every leaf Makefile therefore passes
-`-Wa,--illegals` explicitly.
+This group demonstrates the reviewed stable/common NMOS unofficial-opcode `renderers/player_color_181_unofficial/player_color_181_unofficial.c26` lifecycle component. It draws
+181 gameplay scanlines and P0, P1, and Ball; an adjacent eleven-line score-profile
+component completes the 192-line visible field. Every leaf Makefile passes `-Wa,--illegals` explicitly.
 
-The two examples are deliberately direct twins of the official diagnostics so
-their controls and visible behavior can be compared without changing the
-application.
+The ten public cartridges form the complete score-composition slice for this
+gameplay family: four production score layouts plus the poison diagnostic, each
+above and below gameplay. Each layout has one interactive cartridge rather than
+separate static and motion variants.
 
-| Layout | Draw order | Diagnostic |
-|---|---|---|
-| [`01_score_above`](01_score_above/) | score, handoff, gameplay | P0/P1/Ball motion and six-digit score editing |
-| [`02_score_below`](02_score_below/) | gameplay, handoff, score | P0/P1/Ball motion and six-digit score editing |
+| Layout | Score profile | Draw order | Diagnostic |
+|---|---|---|---|
+| [`01_score_above`](01_score_above/) | centered mutable-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`02_score_below`](02_score_below/) | centered mutable-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`03_left_justified_score_above`](03_left_justified_score_above/) | left-justified fixed-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`04_left_justified_score_below`](04_left_justified_score_below/) | left-justified fixed-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`05_right_justified_score_above`](05_right_justified_score_above/) | right-justified fixed-color six-digit | score, handoff, gameplay | object motion and score editing |
+| [`06_right_justified_score_below`](06_right_justified_score_below/) | right-justified fixed-color six-digit | gameplay, handoff, score | object motion and score editing |
+| [`07_two_plus_two_score_above`](07_two_plus_two_score_above/) | independent left/right two-plus-two | score, handoff, gameplay | object motion plus independently movable score fields |
+| [`08_two_plus_two_score_below`](08_two_plus_two_score_below/) | independent left/right two-plus-two | gameplay, handoff, score | object motion plus independently movable score fields |
+| [`09_poison_score_above`](09_poison_score_above/) | hostile poison diagnostic | score, handoff, gameplay | predecessor-state recovery stress |
+| [`10_poison_score_below`](10_poison_score_below/) | hostile poison diagnostic | gameplay, handoff, score | next-frame recovery stress |
 
-For the opcode inventory, resource contract, and measured result, see
-[`libraries/vcs/renderers/player_color_181_unofficial/README.md`](../../libraries/vcs/renderers/player_color_181_unofficial/README.md).
+The automated matrix builds static and moving-game fixtures for every row and
+checks score pixels, gameplay pixels, handoff state, and exact 262-line frames.

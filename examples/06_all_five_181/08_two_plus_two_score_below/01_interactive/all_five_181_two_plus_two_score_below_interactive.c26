@@ -1,0 +1,19 @@
+// Left/right two-plus-two score below all_five_181 interactive diagnostic.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "two_plus_two_score_support.c26"
+
+template "renderers/all_five_181/all_five_181.c26" as game
+template "two_plus_two_score_component.c26" as score
+
+include "../../../common/two_plus_two_controls.c26"
+
+inline void draw_visible_components(void) {
+   game_draw();
+   vcs_ntsc_component_handoff();
+   score_draw();
+}
+
+include "../../../common/all_five_181_interactive_common.c26"

@@ -1,0 +1,18 @@
+// Poison diagnostic score above all_five_181_unofficial interactive diagnostic.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+
+template "renderers/all_five_181_unofficial/all_five_181_unofficial.c26" as game
+template "renderers/poison_debug_score/poison_debug_score.c26" as score
+
+include "../../../common/poison_score_controls.c26"
+
+inline void draw_visible_components(void) {
+   score_draw();
+   vcs_ntsc_component_handoff();
+   game_draw();
+}
+
+include "../../../common/all_five_181_interactive_common.c26"

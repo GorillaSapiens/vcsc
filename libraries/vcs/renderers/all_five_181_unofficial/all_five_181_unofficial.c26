@@ -426,6 +426,10 @@ require inline void TEMPLATE_draw(void) {
    asm sta VDELBL;
    asm sta VDELP0;
    asm ldx #0;
+   // A predecessor owns player reflection while it draws. Re-establish normal
+   // gameplay orientation before any gameplay graphics can become visible.
+   asm stx REFP0;
+   asm stx REFP1;
    asm stx GRP0;
    asm stx GRP1;
    asm stx PF0;

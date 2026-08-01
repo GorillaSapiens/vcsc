@@ -1,0 +1,8 @@
+// Shared no-op controls for the hostile diagnostic score component.
+
+inline void initialize_score_state(void) {
+   score_exit_background := VCS_NTSC_DARK_BLUE;
+}
+
+inline void update_score_controls(void) {
+}

@@ -1,0 +1,19 @@
+// Left-justified six-digit score above player_color_181_unofficial interactive diagnostic.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "fonts/default_decimal.c26"
+
+template "renderers/player_color_181_unofficial/player_color_181_unofficial.c26" as game
+template "six_glyph_left_component.c26" as score
+
+include "../../../common/fixed_six_digit_controls.c26"
+
+inline void draw_visible_components(void) {
+   score_draw();
+   vcs_ntsc_component_handoff();
+   game_draw();
+}
+
+include "../../../common/player_color_181_interactive_common.c26"

@@ -29,8 +29,8 @@ Files:
 - `renderers/all_five_181/` ... official-opcode 181-line P0/P1/M0/M1/BL lifecycle component, derived from the proven player-color raster and using solid player colors, for composition with an independent eleven-line score
 - `renderers/all_five_181_unofficial/` ... matched stable/common-NMOS experimental twin with the same API, RAM contract, and corrected raster schedule
 - `renderers/all_five_192/` ... distinct official-opcode 192-line scoreless P0/P1/M0/M1/BL lifecycle component, derived from the proven player-color raster and using solid player colors
-- `renderers/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors and tested score-above/score-below composition
-- `renderers/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured zero-byte saving
+- `renderers/player_color_181/` ... official-opcode 181-line P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors and tested centered, left-, right-, two-plus-two, and poison composition in both orders
+- `renderers/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured two-byte saving
 - `renderers/player_color_192/` ... distinct official-opcode 192-line scoreless P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
 - `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
 - `renderers/standard_4k_ntsc/` ... legacy monolithic all-five-object solid-color profile retained for compatibility and regression
@@ -40,11 +40,11 @@ Files:
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic
 - `../../examples/03_player_color_192/` ... full-height scoreless interactive player-color diagnostic
-- `../../examples/04_player_color_181/` ... official-opcode interactive score-above and score-below 181-line player-color diagnostics
+- `../../examples/04_player_color_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix for 181-line player-color gameplay
 - `../../examples/05_all_five_192/` ... official-opcode full-height all-five interactive diagnostic
-- `../../examples/06_all_five_181/` ... official-opcode interactive score-above and score-below 181-line all-five diagnostics
-- `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode player-color examples, built explicitly with `-Wa,--illegals`
-- `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode all-five examples, built explicitly with `-Wa,--illegals`
+- `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix for 181-line all-five gameplay
+- `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
+- `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
 
 ## NTSC color matching
 
@@ -160,9 +160,11 @@ Set `poison_exit_background` to the background expected by the following
 component. A following gameplay component must produce the same raster and
 P0/P1/Ball positions after `poison_draw()` as it does after friendly state.
 Failures are intentionally loud and repeatable; the component uses fixed
-patterns rather than random values. The maintained player-color fixtures now
-prove that handoff for both score orders over every X coordinate from 0 through
-159, including clipped horizontal endpoints and terminal gameplay lines.
+patterns rather than random values. The maintained composition matrix now proves hostile-state recovery for all
+four 181-line gameplay families in both score orders. The player-color and
+all-five physical-pixel models cover ordinary and clipped object endpoints; all
+four gameplay components explicitly restore normal player reflection before
+installing gameplay graphics.
 
 ## Target type definitions
 

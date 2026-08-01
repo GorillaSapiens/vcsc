@@ -155,14 +155,14 @@ scheduler state are untouched.
 
 **181-line player-color gameplay.** `vblank()` must first prepare object masks,
 Ball position, playfield state, and the constant-time P0/P1 handoff records.
-`draw()` then establishes/clobbers `NUSIZ0/1`, `COLUP0/1`, `HMP0/1`,
-`RESP0/1`, `VDELP0/1`, `VDELBL`, `GRP0/1`, `ENABL`, and `PF0/1/2`; it strobes
+`draw()` then establishes/clobbers `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`,
+`HMP0/1`, `RESP0/1`, `VDELP0/1`, `VDELBL`, `GRP0/1`, `ENABL`, and `PF0/1/2`; it strobes
 `HMCLR`, `HMOVE`, `CXCLR`, and `WSYNC`. M0/M1 are not rendered and are cleared
 on exit. The final complete cleanup line guarantees `PF0=PF1=PF2=0`,
 `GRP0=GRP1=0`, `ENAM0=ENAM1=ENABL=0`, and
-`VDELP0=VDELP1=VDELBL=0`; HM motion registers are cleared by `HMCLR`. Player
-position, size, and final colors remain clobbered. `CTRLPF`, `COLUPF`,
-`COLUBK`, reflection, audio, and scheduler state are untouched.
+`VDELP0=VDELP1=VDELBL=0` and `REFP0=REFP1=0`; HM motion registers are
+cleared by `HMCLR`. Player position, size, and final colors remain clobbered.
+`CTRLPF`, `COLUPF`, `COLUBK`, audio, and scheduler state are untouched.
 
 **181-line all-five gameplay.** The entry requirements and exit guarantees are
 the same as the player-color family, but `vblank()` additionally prepares M0,
@@ -411,7 +411,7 @@ site survived equivalence testing. The other two tempting `AXS` substitutions
 were rejected because they changed live flag behavior and prevented complete
 frames. Compensating official NOPs retain every accepted site's cycle boundary.
 After the terminal-row cleanup repair, the maintained smoke cartridges measure
-1785 linked ROM bytes for the official component and 1783 bytes for the
+1787 linked ROM bytes for the official component and 1785 bytes for the
 unofficial component: **2 bytes saved**. Five pairwise raster/timing
 comparisons plus the existing 320-frame composition oracle enforce that result.
 

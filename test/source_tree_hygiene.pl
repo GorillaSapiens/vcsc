@@ -54,12 +54,16 @@ index($component_guide,'Retirement of these working profiles is not a completion
 my $context=slurp(File::Spec->catfile($repo,'.top_secret','context.txt'));
 $context !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$context =~ /^Current next action: 22i4b6\b/m
-   or die "roadmap next action is not 22i4b6\n";
+$context =~ /^Current next action: 23\b/m
+   or die "roadmap next action is not task 23\n";
 $context =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";
-$context =~ /^\s*\[ \] 22i4b6\./m
-   or die "composition-matrix roadmap leaf is not open\n";
+$context =~ /^\s*\[x\] 22i4b6\./m
+   or die "composition-matrix roadmap leaf is not complete\n";
+$context =~ /^\s*\[x\] 22i4c1\./m
+   or die "public composition-matrix roadmap leaf is not complete\n";
+$context =~ /^\s*\[x\] 22i4\./m
+   or die "visible-component roadmap gate is not complete\n";
 
 my @markdown;
 find(sub {

@@ -387,24 +387,16 @@ installcheck: tools
 	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
-	for spec in \
-	  04_player_color_181/01_score_above/01_interactive/player_color_181_score_above_interactive \
-	  04_player_color_181/02_score_below/01_interactive/player_color_181_score_below_interactive; do \
-	  stem=$${spec##*/}; dir=$${spec%/*}; \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    "$(CURDIR)/examples/$$dir/$$stem.c26" \
-	    -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
-	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$stem.bin"` -eq 4096; \
-	done; \
-	for spec in \
-	  07_player_color_181_unofficial/01_score_above/01_interactive/player_color_181_unofficial_score_above_interactive \
-	  07_player_color_181_unofficial/02_score_below/01_interactive/player_color_181_unofficial_score_below_interactive \
-	  08_all_five_181_unofficial/01_score_above/01_interactive/all_five_181_unofficial_score_above_interactive \
-	  08_all_five_181_unofficial/02_score_below/01_interactive/all_five_181_unofficial_score_below_interactive; do \
-	  stem=$${spec##*/}; dir=$${spec%/*}; \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	    "$(CURDIR)/examples/$$dir/$$stem.c26" \
-	    -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
+	for src in $$(find \
+	  "$(CURDIR)/examples/04_player_color_181" \
+	  "$(CURDIR)/examples/06_all_five_181" \
+	  "$(CURDIR)/examples/07_player_color_181_unofficial" \
+	  "$(CURDIR)/examples/08_all_five_181_unofficial" \
+	  -path '*/01_interactive/*.c26' -type f | sort); do \
+	  leaf=$$(dirname "$$src"); stem=$$(basename "$$src" .c26); extra=; \
+	  case "$$src" in *_unofficial/*) extra='-Wa,--illegals' ;; esac; \
+	  "$$stage_bin/vcsc" -I "$$stage_vcs" -I "$$leaf" $$extra \
+	    "$$src" -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$stem.bin"` -eq 4096; \
 	done
 	rm -rf $(INSTALLCHECK_STAGING)
