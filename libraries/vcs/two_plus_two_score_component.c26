@@ -1,0 +1,204 @@
+// Reusable left/right two-plus-two score component.
+//
+// Include two_plus_two_score_support.c26 once, then instantiate this source:
+//
+//     include "two_plus_two_score_support.c26"
+//     template "two_plus_two_score_component.c26" as score
+//
+// Each instance owns two packed-BCD values, two colors, two horizontal
+// positions, four glyph pointers, and two precomputed positioning controls.
+// P0 draws the left two-digit field and P1 draws the right field. NUSIZ double
+// size turns each packed four-bit digit into an eight-color-clock glyph.
+//
+// Horizontal origins are ordinary VCS visible coordinates. The cycle-counted
+// raster supports left_x 0..64 and right_x 32..112; the defaults 32 and 96
+// leave a broad center gap. Positions are sampled by TEMPLATE_vblank(), so
+// motion code must update the instance fields explicitly during overscan.
+//
+// Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
+// VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
+// of the following line. Use vcs_ntsc_component_handoff() before an adjacent
+// visible component. It owns P0/P1 graphics, colors, reflection, VDEL, NUSIZ,
+// horizontal motion, and RESP0/RESP1 while drawing. It preserves playfield and
+// missile/Ball display state. Before HMOVE it clears HMM0/HMM1/HMBL so preserved
+// missile/Ball geometry cannot be moved again. It flushes both current/delayed
+// player graphics and disables player VDEL before returning. It never touches VSYNC,
+// VBLANK, the RIOT timer, audio, or collision latches. A/X/Y and arithmetic
+// flags are clobbered; hardware stack depth is unchanged at lifecycle bounds.
+
+// Machine-readable visible handoff fields are defined in
+// renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := 11,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := 1,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1,
+   TEMPLATE_LEFT_X_MIN := 0,
+   TEMPLATE_LEFT_X_MAX := 64,
+   TEMPLATE_RIGHT_X_MIN := 32,
+   TEMPLATE_RIGHT_X_MAX := 112,
+   TEMPLATE_VBLANK_MAX_CYCLES := 220,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0
+};
+
+recommend bcd8_t TEMPLATE_left_score := 0;
+recommend bcd8_t TEMPLATE_right_score := 0;
+recommend uint8_t TEMPLATE_left_color := 0x0e;
+recommend uint8_t TEMPLATE_right_color := 0x0e;
+recommend uint8_t TEMPLATE_left_x := 32;
+recommend uint8_t TEMPLATE_right_x := 96;
+uint8_t TEMPLATE_pointers[8];
+uint8_t TEMPLATE_position_controls[2];
+
+static inline void TEMPLATE_prepare_one_pair(void) {
+   // A contains packed BCD; X receives a copy. Build the tens pointer from the
+   // high-nibble table and the ones pointer from the low-nibble table.
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<vcs_two_plus_two_font_high;
+   asm sta.ay TEMPLATE_pointers,y;
+   asm iny;
+   asm lda #>vcs_two_plus_two_font_high;
+   asm adc #0;
+   asm sta.ay TEMPLATE_pointers,y;
+   asm iny;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<vcs_two_plus_two_font_low;
+   asm sta.ay TEMPLATE_pointers,y;
+   asm iny;
+   asm lda #>vcs_two_plus_two_font_low;
+   asm adc #0;
+   asm sta.ay TEMPLATE_pointers,y;
+   asm iny;
+}
+
+static inline void TEMPLATE_prepare(void) {
+   asm ldy #0;
+   asm lda.z TEMPLATE_left_score;
+   TEMPLATE_prepare_one_pair();
+   asm lda.z TEMPLATE_right_score;
+   TEMPLATE_prepare_one_pair();
+
+   asm ldx.z TEMPLATE_left_x;
+   asm lda.ax vcs_two_plus_two_position_table,x;
+   asm sta.z TEMPLATE_position_controls;
+   asm ldx.z TEMPLATE_right_x;
+   asm lda.ax vcs_two_plus_two_position_table,x;
+   asm sta.z TEMPLATE_position_controls + 1;
+}
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_prepare();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_prepare();
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Line 1: eliminate hostile player graphics, delayed graphics, VDEL, and
+   // reflection before the beam reaches the visible region. Establish this
+   // instance's independent width and colors before either player is moved.
+   asm lda #0;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta REFP0;
+   asm sta REFP1;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm lda #5;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm lda.z TEMPLATE_left_color;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_right_color;
+   asm sta COLUP1;
+   asm sta WSYNC;
+
+   // Line 2: position P0 from the left field's private position control. The
+   // three-cycle BIT makes RESP0 use the calibrated cycle-three table phase.
+   asm ldy.z TEMPLATE_position_controls;
+   asm sty HMP0;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_left_position_loop:;
+   asm dex;
+   asm bne.same @TEMPLATE_left_position_loop;
+   asm sta RESP0;
+   asm sta WSYNC;
+
+   // Line 3: position P1 independently at the identical measured phase.
+   asm ldy.z TEMPLATE_position_controls + 1;
+   asm sty HMP1;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_right_position_loop:;
+   asm dex;
+   asm bne.same @TEMPLATE_right_position_loop;
+   asm sta RESP1;
+   asm sta WSYNC;
+
+   // Rows 1..7. HMOVE applies both preloaded fine-motion values at the start
+   // of the first row. Every following row begins at cycle zero.
+   asm sta HMOVE;
+   asm ldy #7;
+   asm @TEMPLATE_row_loop:;
+   asm lda.iy (TEMPLATE_pointers),y;
+   asm ora.iy (TEMPLATE_pointers + 2),y;
+   asm sta GRP0;
+   asm lda.iy (TEMPLATE_pointers + 4),y;
+   asm ora.iy (TEMPLATE_pointers + 6),y;
+   asm sta GRP1;
+   asm sta WSYNC;
+   asm dey;
+   asm bne.same @TEMPLATE_row_loop;
+
+   // Row 8. Clear P0 only after the latest supported left copy has latched,
+   // then clear P1 and both delayed-transfer latches after the latest supported
+   // right copy has latched. The terminal WSYNC returns at cycle zero with no
+   // player graphics capable of leaking into the successor.
+   asm lda.iy (TEMPLATE_pointers),y;
+   asm ora.iy (TEMPLATE_pointers + 2),y;
+   asm sta GRP0;
+   asm lda.iy (TEMPLATE_pointers + 4),y;
+   asm ora.iy (TEMPLATE_pointers + 6),y;
+   asm sta GRP1;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm lda #0;
+   asm sta GRP0;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm sta GRP1;
+   asm sta GRP0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta WSYNC;
+}
+
+require inline void TEMPLATE_overscan(void) {
+}

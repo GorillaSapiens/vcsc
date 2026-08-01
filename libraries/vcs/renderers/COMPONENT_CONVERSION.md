@@ -108,6 +108,7 @@ not inferred from a count of source statements. The common contract is:
 | Component family | Complete lines | Entry / return | Partial entry / exit | Terminal WSYNC | HMOVE in `draw()` | Successor on return line |
 | --- | ---: | --- | --- | --- | ---: | --- |
 | centered, mutable-color, left, and right six-glyph displays | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| left/right two-plus-two score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official/unofficial `player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
@@ -130,6 +131,17 @@ been flushed by the final GRP0/GRP1/GRP0 sequence, and
 remains clobbered. `PF0/1/2`,
 `CTRLPF`, `COLUPF`, `COLUBK`, M0/M1, Ball, collision latches, and audio state are
 guaranteed untouched.
+
+**Left/right two-plus-two score.** This establishes and clobbers
+`NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the
+P0/P1 graphics latches from instance-owned values, colors, and positions on
+every draw. It accepts left origins 0..64 and right origins 32..112. Before its
+single HMOVE it establishes `HMM0=HMM1=HMBL=0`, so preserved M0/M1/Ball geometry
+cannot be moved by hostile incoming motion state. On return `GRP0=GRP1=0`, both
+delayed player latches have been flushed by the final GRP0/GRP1/GRP0 sequence,
+and `REFP0=REFP1=VDELP0=VDELP1=0`; player geometry, colors, and HMP values remain
+clobbered. `PF0/1/2`, `CTRLPF`, `COLUPF`, `COLUBK`, missile/Ball enables and
+widths, collision latches, audio, and scheduler state are untouched.
 
 **Poison debug score.** This deliberately clobbers every score-owned P0/P1
 surface: `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`,
@@ -183,18 +195,18 @@ Each maintained gameplay family has these explicit products:
 
 | Profile | Gameplay lines | Score ownership | Opcode policy |
 | --- | ---: | --- | --- |
-| score-composable | 181 | none; `main()` must compose the independent 11-line six-glyph component | official 6502/6507 only |
+| score-composable | 181 | none; `main()` must compose one independent 11-line score component | official 6502/6507 only |
 | full-height scoreless | 192 | none; no score fits beside it inside the standard visible field | official 6502/6507 only |
 | score-composable unofficial twin | 181 | none; same application contract as the official 181-line component | reviewed stable/common NMOS unofficial forms allowed |
 
 The ordinary score-bearing application contract is exact:
 
 ```text
-181 gameplay scanlines + 11 six-glyph scanlines = 192 visible scanlines
+181 gameplay scanlines + 11 score scanlines = 192 visible scanlines
 ```
 
 The gameplay component therefore publishes `VISIBLE_SCANLINES := 181`; the
-existing six-glyph component publishes eleven. `main()` must call both draw
+each maintained score component publishes eleven. `main()` must call both draw
 operations and may place the score above or below gameplay. It must not add
 another hidden blank-line allowance or silently crop either component. The
 component implementation owns the complete internal accounting needed to enter

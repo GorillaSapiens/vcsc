@@ -42,6 +42,7 @@ my @components=(
    ['six_glyph_color_component.c26',                                11,1,1,'mutable-color six-glyph'],
    ['six_glyph_left_component.c26',                                 11,1,1,'left six-glyph'],
    ['six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
+   ['two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
    ['renderers/poison_debug_score/poison_debug_score.c26',           11,1,1,'poison score'],
    ['renderers/player_color_181/player_color_181.c26',              181,1,1,'player-color 181'],
    ['renderers/player_color_181_unofficial/player_color_181_unofficial.c26',181,1,1,'player-color 181 unofficial'],
@@ -79,6 +80,12 @@ for my $spec (@components) {
       $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
          or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
    }
+   if ($label eq 'two-plus-two score') {
+      $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+sta\s+HMM0;\s*asm\s+sta\s+HMM1;\s*asm\s+sta\s+HMBL;/s
+         or die "$label does not establish hostile-safe reflection and preserved-object motion\n";
+      $body =~ /sta\s+GRP0;\s*asm\s+sta\s+GRP1;\s*asm\s+sta\s+GRP0;\s*asm\s+sta\s+VDELP0;\s*asm\s+sta\s+VDELP1;/s
+         or die "$label does not flush the hostile player pipelines\n";
+   }
 }
 
 my $frame=read_file(File::Spec->catfile($repo,qw(libraries vcs frame_ntsc.c26)));
@@ -97,6 +104,7 @@ for my $required (
    'TEMPLATE_DRAW_HMOVE_COUNT',
    'TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE',
    'Production six-glyph displays',
+   'Left/right two-plus-two score',
    'Poison debug score',
    '181-line player-color gameplay',
    '181-line all-five gameplay',

@@ -1,0 +1,96 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "two_plus_two_score_support.c26"
+
+template "two_plus_two_score_component.c26" as top
+template "two_plus_two_score_component.c26" as bottom
+
+static uint8_t bottom_left_direction := 1;
+static uint8_t bottom_right_direction := 1;
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := 0x84;
+   VBLANK := 2;
+
+   top_left_score := 12;
+   top_right_score := 34;
+   top_left_color := 0x3e;
+   top_right_color := 0xce;
+   top_left_x := 32;
+   top_right_x := 96;
+
+   bottom_left_score := 56;
+   bottom_right_score := 78;
+   bottom_left_color := 0x6e;
+   bottom_right_color := 0xae;
+   bottom_left_x := 32;
+   bottom_right_x := 80;
+
+   top_init();
+   bottom_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      top_vblank();
+      bottom_vblank();
+
+      // Deliberately poison every player register that can alter the score
+      // raster after both callbacks have prepared their private state.
+      GRP0 := 0xff;
+      GRP1 := 0xff;
+      VDELP0 := 1;
+      VDELP1 := 1;
+      REFP0 := 8;
+      REFP1 := 8;
+      NUSIZ0 := 7;
+      NUSIZ1 := 7;
+      COLUP0 := 0x02;
+      COLUP1 := 0x02;
+      HMP0 := 0x70;
+      HMP1 := 0x70;
+      HMM0 := 0x70;
+      HMM1 := 0x80;
+      HMBL := 0x90;
+
+      vcs_ntsc_end_vblank();
+
+      // Static top fields enter at raw line 40. Bottom fields enter at raw
+      // line 221 and move only through their own score-instance X variables.
+      top_draw();
+      vcs_ntsc_wait_component_scanlines(170);
+      bottom_draw();
+
+      vcs_ntsc_begin_overscan();
+      top_overscan();
+      bottom_overscan();
+
+      if (bottom_left_direction) {
+         bottom_left_x++;
+         if (bottom_left_x == 64) { bottom_left_direction := 0; }
+      }
+      else {
+         bottom_left_x--;
+         if (bottom_left_x == 32) { bottom_left_direction := 1; }
+      }
+
+      if (bottom_right_direction) {
+         bottom_right_x++;
+         bottom_right_x++;
+         if (bottom_right_x == 112) { bottom_right_direction := 0; }
+      }
+      else {
+         bottom_right_x--;
+         bottom_right_x--;
+         if (bottom_right_x == 80) { bottom_right_direction := 1; }
+      }
+
+      vcs_ntsc_end_overscan();
+   }
+}

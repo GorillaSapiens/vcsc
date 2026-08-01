@@ -82,6 +82,8 @@ install-data:
 	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	install -m 0644 libraries/vcs/six_glyph_color_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
+	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
+	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
@@ -168,6 +170,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
@@ -252,6 +256,8 @@ installcheck: tools
 	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_color_component.c26"; \
+	test -f "$$stage_vcs/two_plus_two_score_component.c26"; \
+	test -f "$$stage_vcs/two_plus_two_score_support.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_display.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances.c26" \
@@ -261,6 +267,10 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances_reversed.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/two_plus_two_score/two_instances_motion.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/two_plus_two_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/two_plus_two_score.bin"` -eq 4096; \
 	test -f "$$stage_vcs/playfield.c26"; \
 	test -f "$$stage_vcs/sound_ntsc.c26"; \
 	test -f "$$stage_vcs/renderers/COMPONENT_CONVERSION.md"; \

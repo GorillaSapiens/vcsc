@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260731_234134.tar.gz
+    vcsc.20260801_015619.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -674,13 +674,13 @@ Build environment
 -----------------
 The host lacked bison. Supplied Debian packages were unpacked without root into:
 
-    /mnt/data/vcsc_buildtools
+    /mnt/data/vcsc_debroot
 
 Required environment:
 
-    export PATH=/mnt/data/vcsc_buildtools/usr/bin:$PATH
-    export LD_LIBRARY_PATH=/mnt/data/vcsc_buildtools/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
-    export BISON_PKGDATADIR=/mnt/data/vcsc_buildtools/usr/share/bison
+    export PATH=/mnt/data/vcsc_debroot/usr/bin:$PATH
+    export LD_LIBRARY_PATH=/mnt/data/vcsc_debroot/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+    export BISON_PKGDATADIR=/mnt/data/vcsc_debroot/usr/share/bison
 
 BISON_PKGDATADIR is required because the privately unpacked bison otherwise
 looks under the host /usr/share/bison.
@@ -699,7 +699,7 @@ Compile suite:
 
 End-to-end/generic suite:
 
-    197 passed, 0 failed, 197 total
+    200 passed, 0 failed, 200 total
 
 Staged install check:
 
@@ -718,9 +718,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 22i4b5 — add the left/right two-plus-two score component
-with instance-owned values, colors, horizontal positions, and hostile-state-safe
-draw ownership.
+Current next action: 22i4b6 — build the complete N*M*O composition matrix for
+all score-composable gameplay families, both score types, and both legal full-frame
+orders, with public examples and pixel-accurate static/motion coverage.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1536,7 +1536,7 @@ draw ownership.
 
                               [ ] 22i4b. STOP-SHIP correctness gate for every visible
                                          component already present. The next unfinished
-                                         leaf is 22i4b4. Do not begin tasks 23 through
+                                         leaf is 22i4b6. Do not begin tasks 23 through
                                          25 until all 22i4b substeps pass from both
                                          source and staged installed toolchains.
 
@@ -1784,7 +1784,7 @@ draw ownership.
                                                       eight-cycle setup slot, so hostile
                                                       reflection cannot leak into glyphs.
 
-                                         [ ] 22i4b5. Only after the existing centered
+                                         [x] 22i4b5. Only after the existing centered
                                                     score and big renderers pass 22i4b1-
                                                     22i4b4, add the second required short
                                                     score type: two digits on the left and
@@ -1797,6 +1797,35 @@ draw ownership.
                                                     move the bottom fields explicitly from
                                                     score-instance position variables, not
                                                     by inheriting gameplay positions.
+
+                                                    Completed 2026-07-31:
+                                                    * Add an installed eleven-scanline
+                                                      left/right two-plus-two component with
+                                                      independent packed-BCD values, colors,
+                                                      and horizontal positions per instance.
+                                                      Two instances consume 16 RAM bytes each;
+                                                      compact immutable digit and positioning
+                                                      tables are shared once in ROM.
+                                                    * Every draw flushes the player graphics
+                                                      pipeline, disables delayed/reflected
+                                                      players, establishes both NUSIZ/color/
+                                                      RESP/HMP transactions, and clears hostile
+                                                      HMM0/HMM1/HMBL before its single HMOVE so
+                                                      preserved missile/Ball geometry cannot be
+                                                      displaced by inherited motion state.
+                                                    * Add a private static-top/moving-bottom
+                                                      two-instance cartridge. The bottom fields
+                                                      traverse all four endpoints from their own
+                                                      score-instance X variables rather than any
+                                                      gameplay object positions. Public matrix
+                                                      examples remain intentionally deferred to
+                                                      22i4b6/22i4c1.
+                                                    * Add an independent physical-pixel oracle
+                                                      covering exact doubled 4x8 digits, colors,
+                                                      setup and cleanup writes, both positioning
+                                                      transactions, hostile entry state, all 97
+                                                      steady checked frames, and exact 262-line
+                                                      frame periods.
 
                                          [ ] 22i4b6. Build the complete initial
                                                     composition matrix. For big gameplay
@@ -7135,3 +7164,29 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   the outer timeout, and the remaining 36 passed explicitly. Focused score-
   raster, handoff, renderer-composition, fingerprint, and public-example tests
   also pass.
+2026-07-31 19:26:55 PDT, add left/right two-plus-two score component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b5 and make 22i4b6 the next unfinished leaf.
+* Add installed `two_plus_two_score_component.c26` plus shared compact decimal
+  glyph and horizontal-position tables. Each instance owns independent left/right
+  packed-BCD values, colors, X origins, pointers, and calibrated position controls
+  in 16 RAM bytes; two linked instances share the immutable ROM tables once.
+* Keep the score within the existing eleven-scanline component budget: one hostile-
+  state reset line, two independently positioned player lines, and eight raster
+  rows. The draw path establishes NUSIZ, colors, reflection, vertical delay, player
+  motion/RESP state, and graphics latches every time. It also clears HMM0/HMM1/HMBL
+  before HMOVE so preserved missile/Ball geometry cannot inherit hostile motion.
+* Add a private two-instance fixture with fixed top fields and asynchronously moving
+  bottom fields driven solely by score-instance position variables. Add a physical-
+  pixel oracle that checks exact doubled 4x8 glyphs and colors, setup/cleanup timing,
+  both positioning transactions, hostile incoming state, all motion endpoints, and
+  97 steady 262-line frames. Public N*M*O examples remain the next roadmap slice.
+* Install/uninstall the new modules, compile them through staged `installcheck`, and
+  update the VCS/component/test catalogs plus component baseline and handoff checks.
+  No compiler, gameplay-renderer, public-example, or removal-ledger files change.
+* Verification: 334/334 compile-only tests pass. All 200 end-to-end/generic tests
+  are accounted for across a split run: tests 1 through 161 passed before the first
+  outer timeout; of tests 162 through 196, 34 passed and one stale documentation
+  baseline exposed the newly generalized eleven-line score wording. After updating
+  that baseline, it and tests 197 through 200 all passed explicitly. Staged
+  `make installcheck` also passes.

@@ -186,6 +186,15 @@ All eight cartridges must reproduce the same exact centered 48x8 `123456` raster
 at raw line 40 or 221, including the measured positioning, reflection-reset,
 VDEL, delayed-GRP, cleanup, and frame-timing boundaries.
 
+`vcs_two_plus_two_score.pl` builds two independent left/right two-plus-two
+score instances with distinct packed-BCD values, colors, and X positions. The
+top pair remains fixed at raw line 40; the bottom pair enters at raw line 221
+and moves only through its own instance position variables. An independent
+6502/TIA oracle checks the calibrated RESP/HMP/HMOVE transactions, compact 4x8
+glyph bytes doubled into exact 16-pixel fields, per-player colors, final-copy
+latching and cleanup, deliberately hostile reflection/VDEL/graphics and
+missile/Ball motion input, all four motion endpoints, and exact 262-line frames.
+
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,
@@ -387,7 +396,7 @@ and stable 262-line standalone scheduling.
 
 `vcs_visible_component_handoff.pl` locks the machine-readable draw-entry,
 return, whole/partial-line, terminal-WSYNC, HMOVE-count, and successor-on-return-
-line fields for all eleven maintained visible components. It cross-checks each
+line fields for all twelve maintained visible components. It cross-checks each
 published HMOVE count against the actual draw body, requires the final WSYNC,
 rejects scheduler/audio ownership, verifies the three-cycle bridge, requires every
 production six-glyph component to clear hostile reflection in its preserved

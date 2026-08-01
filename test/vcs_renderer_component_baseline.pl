@@ -80,7 +80,7 @@ for my $p (@profiles) {
       "$p->{dir}: forbidden score-table symbol is undocumented");
 }
 
-require_re($doc,qr/181 gameplay scanlines \+ 11 six-glyph scanlines = 192 visible scanlines/,
+require_re($doc,qr/181 gameplay scanlines \+ 11 score scanlines = 192 visible scanlines/,
    'component conversion document lost the exact score-composable line contract');
 require_re($doc,qr/\| score-composable \| 181 \|/,
    'component conversion document lost the official 181-line profile');
