@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260731_232146.tar.gz
+    vcsc.20260731_234134.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -1418,9 +1418,9 @@ and every score-composable gameplay renderer.
                   gameplay, because positioning was established during init rather
                   than on every draw. The gameplay renderers also visibly appear to
                   render an incorrect first scanline on some playfield rows. Freeze
-                  new display-renderer work and do not retire the predecessor profiles
-                  until task 22i4b repairs and pixel-proves the components already
-                  present. Completed 181+11 tests remain useful historical evidence,
+                  new display-renderer work until task 22i4b repairs and pixel-proves
+                  the components already present. Keep the predecessor profiles as
+                  legacy regression targets. Completed 181+11 tests remain useful historical evidence,
                   but they are not the final composition contract.
 
                   Put exact expected cartridges under `test/fixtures/`, not under
@@ -1441,7 +1441,8 @@ and every score-composable gameplay renderer.
                               forbidden embedded-score symbols, frame-register
                               ownership that must move to the scheduler, the
                               existing 192-line gameplay field, and the evidence
-                              required before either predecessor may be retired.
+                              required before lifecycle components can supersede the
+                              predecessors for new application work.
                   [x] 22i2. Convert and prove the all-five gameplay profile
                               family while preserving the monolithic predecessor
                               and all current regression oracles.
@@ -1509,11 +1510,13 @@ and every score-composable gameplay renderer.
                                          scoreless player-color component.
                               [x] 22i3d. Add the matched 181-line unofficial-opcode
                                          twin and report exact linked-byte savings.
-                  [ ] 22i4. Validate and repair the existing component family,
+                  [ ] 22i4. Validate and repair the existing component family and
                               replace the maintained gameplay examples with genuinely
-                              self-contained compositions, and only then retire the
-                              two monolithic predecessors. Source/install/map/frame
-                              checks alone are not enough: final evidence must include
+                              self-contained compositions. Keep the two working
+                              monolithic predecessors installed as legacy compatibility
+                              and regression profiles; their retirement is not a roadmap
+                              gate. Source/install/map/frame checks alone are not enough:
+                              final evidence must include
                               pixel-accurate raster, entry/exit-cycle, TIA-state,
                               stack, collision, opcode, multiple-instance, and linked-
                               byte contracts.
@@ -1533,11 +1536,9 @@ and every score-composable gameplay renderer.
 
                               [ ] 22i4b. STOP-SHIP correctness gate for every visible
                                          component already present. The next unfinished
-                                         leaf is 22i4b1b. Do not begin tasks 23 through
-                                         25 and do not
-                                         retire either predecessor until all 22i4b
-                                         substeps pass from both source and staged
-                                         installed toolchains.
+                                         leaf is 22i4b4. Do not begin tasks 23 through
+                                         25 until all 22i4b substeps pass from both
+                                         source and staged installed toolchains.
 
                                          [x] 22i4b0. Establish a truly faithful
                                                     legacy baseline before trusting any
@@ -1823,11 +1824,10 @@ and every score-composable gameplay renderer.
                                                     compositions without disturbing the
                                                     thirteen-example baseline.
 
-                              [ ] 22i4d. Retire the two installed predecessor
-                                         monolithic profiles only after the entire
-                                         22i4b/22i4c gate passes, while preserving
-                                         private oracle material still required by
-                                         regression tests.
+                                         The two predecessor monolithic profiles
+                                         remain installed as legacy compatibility and
+                                         regression targets. They are not preferred for
+                                         new applications and are not a completion gate.
 
 # BLOCKED: tasks 23 through 25 must not begin until the 22i4b correctness gate
 # and 22i4c example matrix are complete. Existing visible renderers and handoff
@@ -7074,3 +7074,19 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests pass across a split run: the first 173 passed before the outer timeout,
   and the remaining 25 passed explicitly. Focused component, composition,
   baseline, and new handoff regressions also pass.
+
+
+2026-07-31 18:11:00 PDT, retain legacy monolithic profiles
+--------------------------------------------------------------------------
+* Remove obsolete roadmap item 22i4d. The two installed predecessor
+  monolithic profiles remain useful compatibility and regression targets;
+  deleting working profiles is not required to complete the component roadmap.
+* Update task 22i4 and its stop-ship wording so completion depends on 22i4b and
+  22i4c, not profile retirement. Keep 22i4b4 as the current next action.
+* Label both predecessor READMEs and the VCS catalogs as legacy monolithic
+  profiles retained for compatibility, normalization, linker, timing, and
+  upstream-regression coverage. Recommend explicit lifecycle components for
+  new applications.
+* Extend source-tree hygiene coverage so the active roadmap cannot silently
+  restore 22i4d and the retained-profile status remains documented. No source,
+  renderer schedule, example, fixture, or removal-ledger file changes.

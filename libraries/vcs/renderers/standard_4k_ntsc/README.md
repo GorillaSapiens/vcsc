@@ -7,6 +7,11 @@
 
 # Minimal unbanked 4K NTSC standard-renderer contract
 
+> **Legacy monolithic profile.** This profile remains installed as a stable
+> regression and compatibility target. New applications should use the explicit
+> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
+> is no active roadmap requirement to retire this working profile.
+
 This directory defines the first source-integration contract for the retained
 standard renderer. It is deliberately narrower than “the standard renderer” as a
 whole. It covers one non-reflected, non-banked, non-Superchip NTSC configuration

@@ -31,8 +31,8 @@ Files:
 - `renderers/player_color_181_unofficial/` ... matched stable/common-NMOS experimental twin of the 181-line player-color component; measured zero-byte saving
 - `renderers/player_color_192/` ... distinct official-opcode 192-line scoreless P0/P1/BL lifecycle component with page-contained per-row P0/P1 colors
 - `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
-- `renderers/standard_4k_ntsc/` ... all-five-object solid-color standard-renderer profile
-- `renderers/standard_4k_ntsc_playercolors/` ... separate P0+P1+BL profile with per-logical-row player color tables
+- `renderers/standard_4k_ntsc/` ... legacy monolithic all-five-object solid-color profile retained for compatibility and regression
+- `renderers/standard_4k_ntsc_playercolors/` ... legacy monolithic P0+P1+BL player-color profile retained for compatibility and regression
 - `fonts/` ... eight shared 8x8 score-font families plus the six-slice `logo_font.c26` VCSC mark
 - `../../examples/README.md` ... renderer-grouped public example index
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples

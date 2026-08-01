@@ -7,6 +7,11 @@
 
 # Unbanked 4K NTSC P0+P1+BL per-row-color renderer
 
+> **Legacy monolithic profile.** This profile remains installed as a stable
+> regression and compatibility target. New applications should use the explicit
+> lifecycle components documented in `renderers/COMPONENT_CONVERSION.md`; there
+> is no active roadmap requirement to retire this working profile.
+
 This directory defines a separate standard-renderer profile that restores the
 retained legacy `playercolors` and `player1colors` behavior. It does **not**
 change the existing `standard_4k_ntsc` all-five-object profile.

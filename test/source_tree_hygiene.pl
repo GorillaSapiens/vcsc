@@ -32,6 +32,29 @@ for my $rel (sort keys %readme_heading) {
 index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `instruction.txt`')>=0
    or die ".top_secret/README.md does not document instruction.txt\n";
 
+# The two complete drawscreen profiles remain installed intentionally.  They are
+# legacy compatibility/regression targets, not preferred component APIs and not
+# a deletion milestone in the active roadmap.
+for my $rel (
+   'libraries/vcs/renderers/standard_4k_ntsc/README.md',
+   'libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md',
+) {
+   index(slurp(File::Spec->catfile($repo,split('/', $rel))),
+         '> **Legacy monolithic profile.**')>=0
+      or die "$rel does not identify the retained legacy monolithic profile\n";
+}
+my $vcs_catalog=slurp(File::Spec->catfile($repo,'libraries','vcs','README.md'));
+$vcs_catalog =~ /standard_4k_ntsc\/.*legacy monolithic/s &&
+$vcs_catalog =~ /standard_4k_ntsc_playercolors\/.*legacy monolithic/s
+   or die "VCS catalog does not identify both retained legacy monolithic profiles\n";
+my $component_guide=slurp(File::Spec->catfile(
+   $repo,'libraries','vcs','renderers','COMPONENT_CONVERSION.md'));
+index($component_guide,'Retirement of these working profiles is not a completion')>=0
+   or die "component guide restored retirement as a roadmap gate\n";
+my $context=slurp(File::Spec->catfile($repo,'.top_secret','context.txt'));
+$context !~ /^\s*\[ \]\s+22i4d\./m
+   or die "obsolete active roadmap item 22i4d was restored\n";
+
 my @markdown;
 find(sub {
    return unless -f $_ && /\.md\z/;
