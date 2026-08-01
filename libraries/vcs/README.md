@@ -131,7 +131,7 @@ score_right_x := 96;
 ```
 
 Each field is one double-width player containing two spaced three-bit decimal
-glyphs. The blank source bit between them becomes a visible two-color-clock gap. `left_x` supports 0 through 64 and `right_x` supports 32 through 112;
+glyphs. The blank source bit between them becomes a visible two-color-clock gap. `left_x` supports 0 through 64 and `right_x` supports 32 through 144;
 the defaults leave a wide center gap. `vblank()` samples all six public fields,
 so animation must update the score instance's own X variables during overscan.
 The component consumes exactly eleven visible scanlines, owns all P0/P1 state it

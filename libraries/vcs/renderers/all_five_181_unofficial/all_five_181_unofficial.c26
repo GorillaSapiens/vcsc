@@ -444,7 +444,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @TEMPLATE_first_player1_zero;
+   asm bcs.same @TEMPLATE_first_player1_zero;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @TEMPLATE_first_player1_ready;
    asm @TEMPLATE_first_player1_zero:;
@@ -481,7 +481,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm bcc @first_drawP0;
+   asm bcc.same @first_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @first_continueP0;
    asm @first_drawP0:;
@@ -528,7 +528,7 @@ require inline void TEMPLATE_draw(void) {
    asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @skipP1;
+   asm bcs.same @skipP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @continueP1;
    asm @skipP1:;
@@ -562,7 +562,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm sty.z TEMPLATE_player0_y;
    asm nop;
-   asm bcc @drawP0;
+   asm bcc.same @drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @continueP0;
    asm @drawP0:;
@@ -573,7 +573,7 @@ require inline void TEMPLATE_draw(void) {
    // The next P1 half materializes ENAM0 during horizontal blanking.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm bne.same @continuerenderer;
    asm sta GRP0;
    asm lda #1;
    asm adc #0;
@@ -607,7 +607,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_activeP1;
+   asm bcc.same @transition_activeP1;
    // Shift M1 before GRP1.  The memory shift preserves A/Y, moves both the
    // active and zero GRP1 writes into horizontal blank, and leaves carry ready
    // for the common ENAM1 materialization without changing total timing.
@@ -646,7 +646,7 @@ require inline void TEMPLATE_draw(void) {
    // keeping the following scanlines on the same phase.
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bcc @transition_activeP0;
+   asm bcc.same @transition_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @transition_continueP0;
    asm @transition_activeP0:;
@@ -681,10 +681,10 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_first_activeP1;
+   asm bcc.same @transition_first_activeP1;
    asm ldy #0;
    asm sty.a GRP1;
-   asm bcs @transition_first_doneP1;
+   asm bcs.same @transition_first_doneP1;
    asm @transition_first_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
@@ -708,7 +708,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    asm sty.z TEMPLATE_player0_y;
-   asm bcc @transition_follow_activeP0;
+   asm bcc.same @transition_follow_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @transition_follow_continueP0;
    asm @transition_follow_activeP0:;

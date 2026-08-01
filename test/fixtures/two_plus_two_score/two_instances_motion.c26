@@ -83,7 +83,7 @@ void main(void) {
       if (bottom_right_direction) {
          bottom_right_x++;
          bottom_right_x++;
-         if (bottom_right_x == 112) { bottom_right_direction := 0; }
+         if (bottom_right_x == 144) { bottom_right_direction := 0; }
       }
       else {
          bottom_right_x--;

@@ -41,6 +41,10 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $official_dir=File::Spec->catdir($repo,qw(test fixtures all_five_181));
 my $unofficial_dir=File::Spec->catdir($repo,qw(test fixtures all_five_181_unofficial));
+my $unofficial_component=File::Spec->catfile($vcs,qw(renderers all_five_181_unofficial all_five_181_unofficial.c26));
+my $unofficial_module=read_file($unofficial_component);
+$unofficial_module =~ /asm bne[.]same \@continuerenderer;/
+   or die "unofficial visible loop branch is not constrained to the same ROM page\n";
 my @cases=qw(smoke static_score_above static_score_below motion_score_above motion_score_below);
 my %built;
 for my $case (@cases) {

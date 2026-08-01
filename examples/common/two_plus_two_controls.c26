@@ -87,7 +87,7 @@ inline void update_score_controls(void) {
    asm jmp @vertical;
    asm @move_right_field_right:;
    asm lda score_right_x;
-   asm cmp #112;
+   asm cmp #144;
    asm beq @vertical;
    asm inc score_right_x;
 

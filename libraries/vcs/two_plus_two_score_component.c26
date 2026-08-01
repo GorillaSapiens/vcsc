@@ -11,7 +11,7 @@
 // size turns each three-bit digit into a six-color-clock glyph, with a visible gap.
 //
 // Horizontal origins are ordinary VCS visible coordinates. The cycle-counted
-// raster supports left_x 0..64 and right_x 32..112; the defaults 32 and 96
+// raster supports left_x 0..64 and right_x 32..144; the defaults 32 and 96
 // leave a broad center gap. Positions are sampled by TEMPLATE_vblank(), so
 // motion code must update the instance fields explicitly during overscan.
 //
@@ -41,7 +41,7 @@ enum TEMPLATE_contract {
    TEMPLATE_LEFT_X_MIN := 0,
    TEMPLATE_LEFT_X_MAX := 64,
    TEMPLATE_RIGHT_X_MIN := 32,
-   TEMPLATE_RIGHT_X_MAX := 112,
+   TEMPLATE_RIGHT_X_MAX := 144,
    TEMPLATE_VBLANK_MAX_CYCLES := 220,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 0
 };
@@ -174,9 +174,10 @@ require inline void TEMPLATE_draw(void) {
    asm bne.same @TEMPLATE_row_loop;
 
    // Row 8. Clear P0 only after the latest supported left copy has latched,
-   // then clear P1 and both delayed-transfer latches after the latest supported
-   // right copy has latched. The terminal WSYNC returns at cycle zero with no
-   // player graphics capable of leaking into the successor.
+   // then clear P1 after the X=144 right copy has started. With VDEL disabled
+   // since the setup line, the GRP1 clear also transfers the already-zero GRP0
+   // new latch into its display latch. The terminal WSYNC returns at cycle zero
+   // with no player graphics capable of leaking into the successor.
    asm lda.iy (TEMPLATE_pointers),y;
    asm ora.iy (TEMPLATE_pointers + 2),y;
    asm sta GRP0;
@@ -188,15 +189,15 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z CXM0P;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
+   asm bit.z CXM0P;
    asm lda #0;
    asm sta GRP0;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
    asm sta GRP1;
-   asm sta GRP0;
-   asm sta VDELP0;
-   asm sta VDELP1;
    asm sta WSYNC;
 }
 

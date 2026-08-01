@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 240
-# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 16 public production player-color cartridges preserve the diagonal playfield; mixed score placement also passes
+# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 32 public production cartridges preserve the diagonal playfield; mixed score placement also passes
 # expectexit: 0
 
 use strict;
@@ -137,11 +137,11 @@ for my $family (@families) {
 }
 $public==40 or die "public matrix has $public entries, expected 40\n";
 
-# Build and raster-check the real public player-color cartridges.  The smaller
+# Build and raster-check every real public production cartridge.  The smaller
 # generated composition fixtures cannot expose page-sensitive branch timing
 # changes caused by the final public link layout.
-my $public_player_checked=0;
-for my $family (grep { $_->{class} eq 'player' } @families) {
+my $public_production_checked=0;
+for my $family (@families) {
    for my $score (grep { $_->{kind} ne 'poison' } @scores) {
       for my $order (qw(above below)) {
          my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
@@ -155,17 +155,30 @@ for my $family (grep { $_->{class} eq 'player' } @families) {
          without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
          -s $bin==4096 or die "$tag is not a 4K cartridge\n";
 
-         my $first_row=$order eq 'above' ? 56 : 45;
-         ($rc,$sig,$out,$err)=capture($executables{phase},$bin,'11','11',$first_row,'diagonal');
+         my($first_row,$profile);
+         if ($family->{class} eq 'player') {
+            $first_row=$order eq 'above' ? 56 : 45;
+            $profile='diagonal';
+         }
+         else {
+            # The centered component's first complete gameplay row is one line
+            # earlier than the edge/two-plus-two components in these public
+            # schedules; both layouts still consume the documented visible
+            # component budget and return at the required handoff phase.
+            my $offset=$score->{kind} eq 'center' ? 0 : 1;
+            $first_row=($order eq 'above' ? 55 : 44)+$offset;
+            $profile='all-five-diagonal';
+         }
+         ($rc,$sig,$out,$err)=capture($executables{phase},$bin,'11','11',$first_row,$profile);
          $rc==0 && !$sig or die "$tag public playfield raster failed\n$out$err";
          $out eq "vcs_playfield_raster ok: 11 rows x 16 lines x 160 pixels\n"
             or die "unexpected $tag public playfield output: $out";
          $err eq '' or die "$tag public playfield stderr: $err";
-         ++$public_player_checked;
+         ++$public_production_checked;
       }
    }
 }
-$public_player_checked==16 or die "checked $public_player_checked public production player-color cartridges, expected 16\n";
+$public_production_checked==32 or die "checked $public_production_checked public production cartridges, expected 32\n";
 
 my $checked=0;
 for my $family (@families) {
@@ -241,4 +254,4 @@ for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {
    $err eq '' or die "mixed $case->[0] stderr: $err";
 }
 
-print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 16 public production player-color cartridges preserve the diagonal playfield; mixed score placement also passes\n";
+print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 32 public production cartridges preserve the diagonal playfield; mixed score placement also passes\n";

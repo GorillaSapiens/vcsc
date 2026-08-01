@@ -88,6 +88,22 @@ public:
       advance(kIdle, kFireReleased);
       require(memory_[fire_ready_] == 1, "right-fire release did not re-arm");
 
+      // The selected right field can reach the physical right edge.  Its
+      // sixteen-color-clock doubled glyph spans X=144..159, so 144 is the
+      // largest origin that remains fully visible.
+      memory_[right_x_] = 143;
+      memory_[countdown_] = 19;
+      memory_[previous_] = 0x0f;
+      advance_frames(kRightRight, kFireReleased, 40);
+      require(memory_[right_x_] == 144,
+              "selected right field did not reach the right edge");
+      memory_[countdown_] = 19;
+      memory_[previous_] = 0x0f;
+      advance_frames(kRightRight, kFireReleased, 40);
+      require(memory_[right_x_] == 144,
+              "selected right field moved beyond the right edge");
+      memory_[right_x_] = 104;
+
       // The same two-sample/twentieth-frame filter used by the six-digit examples
       // must move only the selected right field.
       memory_[countdown_] = 19;

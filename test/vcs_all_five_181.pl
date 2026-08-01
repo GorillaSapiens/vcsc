@@ -77,6 +77,16 @@ require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_wait_scanlines\(11\);/s,
    'fixture no longer accounts for 181 gameplay plus 11 score-reserved lines');
 require_re($module,qr/asm \.align 256;/,
    'hot two-line loop lost its page anchor');
+for my $branch (
+   [bcs=>'TEMPLATE_first_player1_zero'], [bcc=>'first_drawP0'],
+   [bcs=>'skipP1'], [bcc=>'drawP0'], [bne=>'continuerenderer'],
+   [bcc=>'transition_activeP1'], [bcc=>'transition_activeP0'],
+   [bcc=>'transition_first_activeP1'], [bcs=>'transition_first_doneP1'],
+   [bcc=>'transition_follow_activeP0'],
+) {
+   require_re($module,qr/asm \Q$branch->[0]\E[.]same \@\Q$branch->[1]\E;/,
+      "visible branch to $branch->[1] is not constrained to the same ROM page");
+}
 my $absolute_pf_loads=()=$module =~ /asm\s+(?:lda|ldy)\.ax\s+TEMPLATE_playfield(?:\s*[+]\s*[123])?,x;/g;
 $absolute_pf_loads==30
    or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 30\n";

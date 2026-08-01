@@ -53,7 +53,7 @@ for my $field (
    [DRAW_COMPLETE_SCANLINES=>11],[DRAW_PARTIAL_ENTRY_CYCLES=>0],
    [DRAW_PARTIAL_EXIT_CYCLES=>0],[DRAW_TERMINAL_WSYNC=>1],
    [DRAW_HMOVE_COUNT=>1],[DRAW_SUCCESSOR_ON_RETURN_LINE=>1],
-   [LEFT_X_MIN=>0],[LEFT_X_MAX=>64],[RIGHT_X_MIN=>32],[RIGHT_X_MAX=>112],
+   [LEFT_X_MIN=>0],[LEFT_X_MAX=>64],[RIGHT_X_MIN=>32],[RIGHT_X_MAX=>144],
 ) {
    my($name,$value)=@$field;
    $source =~ /\bTEMPLATE_\Q$name\E\s*:=\s*\Q$value\E\b/
@@ -71,8 +71,8 @@ $source =~ /asm sta REFP0;\s*asm sta REFP1;\s*asm sta HMM0;\s*asm sta HMM1;\s*as
    or die "component does not clear hostile reflection and preserved-object motion\n";
 $source =~ /asm sta GRP0;\s*asm sta GRP1;\s*asm sta GRP0;\s*asm sta VDELP0;\s*asm sta VDELP1;/s
    or die "component does not flush both hostile player pipelines before drawing\n";
-$source =~ /asm sta GRP0;\s*asm bit\.z CXM0P;.*?asm sta GRP1;\s*asm sta GRP0;\s*asm sta VDELP0;\s*asm sta VDELP1;\s*asm sta WSYNC;\s*\}/s
-   or die "component does not own final-row copy latching and terminal cleanup\n";
+$source =~ /asm sta GRP0;\s*(?:asm bit\.z CXM0P;\s*){5}asm sta GRP1;\s*asm sta WSYNC;\s*\}/s
+   or die "component does not own right-edge final-row latching and terminal cleanup\n";
 
 for my $decl (
    'page const uint8_t vcs_two_plus_two_font_high[80]',

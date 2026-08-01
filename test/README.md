@@ -184,9 +184,9 @@ cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
 matrix: four 181-line gameplay families, four production score layouts plus the
 poison diagnostic, and both legal orders. It generates static and moving-game
 fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
-gameplay physical-pixel models on each one. It also builds the 16 real public
-production player-color cartridges and locks their diagonal playfield bytes and
-write cycles, so final-link page placement cannot reintroduce scanline tearing.
+gameplay physical-pixel models on each one. It also builds all 32 real public production cartridges and locks the
+player-color and all-five diagonal playfield bytes and write cycles, so final-link
+page placement cannot reintroduce scanline tearing.
 The score oracle locks centered,
 left-, right-, two-plus-two, and poison positioning/ownership schedules at raw
 line 40 or 221; the gameplay oracles lock every object pixel and exact 262-line
@@ -207,8 +207,8 @@ missile/Ball motion input, all four motion endpoints, and exact 262-line frames.
 examples and all eight public two-plus-two examples. It runs representative
 left- and right-justified cartridges through the established filtered
 right-joystick control oracle, including hue changes, and drives right fire in a
-two-plus-two cartridge to prove visible field selection plus independent motion
-and packed-BCD changes for both fields.
+two-plus-two cartridge to prove visible field selection, independent motion and
+packed-BCD changes for both fields, and the right field's full X=144 endpoint.
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in

@@ -7299,3 +7299,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   public-control regression and final-public-binary playfield check. Staged
   `make installcheck` also passes, including all 40 installed-toolchain public
   score/gameplay matrix builds.
+
+2026-07-31 23:21:40 PDT, repair all-five final-link timing and right score edge
+-------------------------------------------------------------------------------
+* Fix the damaged playfield in the official all-five 181-line left-justified-
+  score-below and right-justified-score-below public cartridges, plus the
+  corresponding unofficial layouts. Final linking placed the visible-loop
+  `BNE @continuerenderer` across a ROM page, adding one cycle to affected
+  scanlines. Mark every timing-sensitive local visible-path conditional branch
+  in both all-five 181-line renderers `.same`, matching the earlier player-color
+  repair and making an accidental page crossing a link error rather than a
+  silently malformed frame. `.cross` and `.flex` are not appropriate for these
+  constant-cycle visible paths.
+* Extend the exact public-cartridge raster regression from the 16 player-color
+  production compositions to all 32 production score/gameplay compositions.
+  Add an all-five diagonal-playfield profile and lock the final public binaries'
+  PF write values, phases, score pixels, gameplay pixels, motion, and 262-line
+  frames. Source regressions also require the new all-five `.same` annotations.
+* Extend the independently movable right field of the two-plus-two score from
+  X=112 to X=144, where its doubled 16-color-clock glyph ends exactly at visible
+  X=159. Reschedule only the final raster-row cleanup so the far-right P1 copy
+  can latch before GRP1 is cleared while preserving the eleven-scanline component
+  budget and clean exit state. Update shared public controls, all eight public
+  READMEs, installed documentation, motion fixtures, exact cleanup-cycle checks,
+  and the emulator control test. The test now proves movement from X=143 to 144
+  and clamping at the true right-edge endpoint.
+* Preserve task 23 as the next unfinished roadmap item. No compiler-language,
+  removal-ledger, or public-tree structure changes are made in this repair.
+* Verification: 334/334 compile-only tests pass. All 201 end-to-end/generic
+  tests pass across a split run: tests 1 through 159, 160 through 185, and 186
+  through 201 all passed with no failures. Focused public matrix, all-five,
+  two-plus-two raster, and interactive-control regressions pass. Staged
+  `make installcheck` also passes, including all 40 public matrix cartridges.

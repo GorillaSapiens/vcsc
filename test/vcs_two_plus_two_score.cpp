@@ -288,11 +288,8 @@ void verify_schedule(const FrameTrace &frame,uint64_t entry,const InstanceConfig
    }
    require_write(frame,entry+10,9,kGrp0,packed_row(cfg.left_score,7),"left glyph final row");
    require_write(frame,entry+10,22,kGrp1,packed_row(cfg.right_score,7),"right glyph final row");
-   require_write(frame,entry+10,42,kGrp0,0,"final left latch cleanup");
-   require_write(frame,entry+10,54,kGrp1,0,"final right latch cleanup");
-   require_write(frame,entry+10,57,kGrp0,0,"final delayed latch cleanup");
-   require_write(frame,entry+10,60,kVdelp0,0,"final VDELP0 cleanup");
-   require_write(frame,entry+10,63,kVdelp1,0,"final VDELP1 cleanup");
+   require_write(frame,entry+10,45,kGrp0,0,"final left latch cleanup");
+   require_write(frame,entry+10,63,kGrp1,0,"final right-edge latch cleanup");
 
    (void)label;
 }
@@ -438,12 +435,12 @@ void verify_all(const std::vector<FrameTrace> &frames) {
              frame.bottom.left_color!=0x6e || frame.bottom.right_color!=0xae)
             fail("bottom instance values or colors changed");
          if (frame.bottom.left_x<32 || frame.bottom.left_x>64 ||
-             frame.bottom.right_x<80 || frame.bottom.right_x>112)
+             frame.bottom.right_x<80 || frame.bottom.right_x>144)
             fail("bottom instance moved outside its explicit score ranges");
          saw_left_low |= frame.bottom.left_x==32;
          saw_left_high |= frame.bottom.left_x==64;
          saw_right_low |= frame.bottom.right_x==80;
-         saw_right_high |= frame.bottom.right_x==112;
+         saw_right_high |= frame.bottom.right_x==144;
          if (previous_left>=0 && std::abs(static_cast<int>(frame.bottom.left_x)-previous_left)!=1)
             fail("bottom left score position did not move exactly one pixel");
          if (previous_right>=0 && std::abs(static_cast<int>(frame.bottom.right_x)-previous_right)!=2)

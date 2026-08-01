@@ -135,7 +135,7 @@ guaranteed untouched.
 **Left/right two-plus-two score.** This establishes and clobbers
 `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the
 P0/P1 graphics latches from instance-owned values, colors, and positions on
-every draw. It accepts left origins 0..64 and right origins 32..112. Before its
+every draw. It accepts left origins 0..64 and right origins 32..144. Before its
 single HMOVE it establishes `HMM0=HMM1=HMBL=0`, so preserved M0/M1/Ball geometry
 cannot be moved by hostile incoming motion state. On return `GRP0=GRP1=0`, both
 delayed player latches have been flushed by the final GRP0/GRP1/GRP0 sequence,

@@ -126,12 +126,17 @@ int main(int argc, char **argv) {
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-181-official") == 0;
-   const bool diagonal_profile = argc == 6 &&
+   const bool player_diagonal_profile = argc == 6 &&
       std::strcmp(argv[5], "diagonal") == 0;
+   const bool all_five_diagonal_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-diagonal") == 0;
+   const bool diagonal_values_profile = player_diagonal_profile ||
+                                        all_five_diagonal_profile;
    const bool all_five_fixed_profile = all_five_192_profile ||
-                                       all_five_181_official_profile;
+                                       all_five_181_official_profile ||
+                                       all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
-       !diagonal_profile)
+       !player_diagonal_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
       fail("checked raster row count must be 11 or 12");
@@ -346,7 +351,7 @@ int main(int argc, char **argv) {
    }
 
    if (raster_rows) {
-      if (diagonal_profile) {
+      if (player_diagonal_profile) {
          const uint16_t expected_addresses[] = {kPf1, kPf2, kPf2, kPf1};
          const uint64_t expected_cycles[] = {18, 25, 48, 55};
          for (int row = 0; row < raster_rows; ++row) {
@@ -380,7 +385,7 @@ int main(int argc, char **argv) {
          }
       }
       auto expected_byte = [&](int row, int byte) -> uint8_t {
-         if (diagonal_profile) return kDiagonalPlayfield[row][byte];
+         if (diagonal_values_profile) return kDiagonalPlayfield[row][byte];
          if (row == 0 || row == source_rows - 1) return 0xff;
          if (byte == 0 || byte == 3) return 0x81;
          return (row & 1) ? 0x18 : 0x00;
@@ -397,7 +402,7 @@ int main(int argc, char **argv) {
       auto bit = [](uint8_t value, unsigned index) {
          return ((value >> index) & 1u) != 0;
       };
-      if (!diagonal_profile && raster_rows == 11) {
+      if (!diagonal_values_profile && raster_rows == 11) {
          // The score-composable renderer spends one visible line staging its
          // object pipeline before the eleven complete playfield rows begin.
          // That line must remain background-only; priming just PF1/PF2 there
@@ -429,7 +434,7 @@ int main(int argc, char **argv) {
             }
          }
       }
-      if (!diagonal_profile) for (int row = 0; row < raster_rows; ++row) {
+      if (!diagonal_values_profile) for (int row = 0; row < raster_rows; ++row) {
          for (int subline = 0; subline < 16; ++subline) {
             const uint64_t line = first_row_line + row * 16 + subline;
             for (unsigned pixel = 0; pixel < 160; ++pixel) {
