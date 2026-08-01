@@ -107,7 +107,7 @@ regions, inline placement, and explicit nonzero-bank placement of `main`.
 foundation. It uses an F8 test cfg with more than sixteen MEMORY and SEGMENTS
 entries, verifies dynamic cfg storage, strict unknown-property rejection,
 selector-hotspot and generated-vector-corridor reservation in every bank, exact
-8K output, BANK1-before-BANK0 physical order, conventional descending selector
+8K output, BANK1-before-BANK0 physical order, conventional ascending hotspot-to-bank
 assignment, replicated bridge/vector bytes, map file offsets, and byte-for-byte
 preservation of a stock `vcs_4k.cfg` fixture.
 

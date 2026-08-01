@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260801_211533.tar.gz
+    vcsc.20260801_215355.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7615,9 +7615,9 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Emit each declared physical bank as one exact 4096-byte unit in ascending
   logical-address order, so F8/F6/F4 files begin with the lowest logical bank
   and end with BANK0. Preserve the stock unbanked `vcs_4k.cfg` image
-  byte-for-byte. Correct selector validation to the descending logical naming:
-  BANK0 uses `$1FF9` for F8/F6 and `$1FFB` for F4, and later BANK names work
-  downward through the mapper's conventional selector range.
+  byte-for-byte. This revision initially paired selector hotspots with logical
+  bank names in reverse order; the 15:02 correction below supersedes that
+  mapping while retaining the logical-address and file-order model.
 * Reserve every mapper hotspot at its low-twelve-bit offset in every physical
   bank. Any ordinary code/data segment whose allocatable region covers a
   selector byte is now a cfg error, even if the selector nominally chooses a
@@ -7643,3 +7643,27 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   the remainder passes in deterministic groups, for all 205/205 end-to-end and
   generic tests. The focused 17-test linker/placement/hygiene set and staged
   `make installcheck` also pass.
+
+2026-08-01 15:02:47 PDT, correct F8 F6 and F4 hotspot-to-bank ordering
+-------------------------------------------------------------------------------
+* Correct the full-window mapper convention without changing logical bank
+  addresses or physical file order. BANK0 remains the `$F000-$FFFF` logical
+  bank and the final 4K chunk in the cartridge file, but hardware selector
+  hotspots now increase with bank number: F8 uses `$1FF8+$bank`, F6 uses
+  `$1FF6+$bank`, and F4 uses `$1FF4+$bank`. Thus F4 `$1FF4` selects BANK0 and
+  `$1FFB` selects BANK7.
+* Update strict linker validation, generated test cfgs, map expectations,
+  reserved-hotspot diagnostics, linker documentation, the detailed
+  bankswitching plan, and source-tree hygiene assertions. The prior reversed
+  hotspot assignment recorded in the 14:51 entry is superseded by this
+  correction.
+* Keep the byte-identical per-bank vectors and reset bridges. Under corrected
+  F4 ordering, NMI vector fetches at `$1FFA/$1FFB` select BANK6 and BANK7;
+  identical vector bytes still yield a deterministic word, and the common
+  bridge then explicitly selects BANK0 through `$1FF4`.
+* Verification: the toolchain builds with the staged Bison/Flex packages. All
+  341 compile-only tests and all 205 end-to-end/generic tests pass; the latter
+  completed as the initial 162-test run plus deterministic 27-test and 16-test
+  tails after outer command-window limits. The focused banked-image, per-bank
+  reset-bridge, and source-tree-hygiene tests pass for corrected F8, F6, and F4
+  mappings.

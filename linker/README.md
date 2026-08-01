@@ -176,8 +176,8 @@ CARTRIDGE {
     vectorbridge = $0FE0;
 }
 BANKS {
-    BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
-    BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
+    BANK0: start=$F000, size=$1000, hotspot=$1FF8, startup=yes;
+    BANK1: start=$D000, size=$1000, hotspot=$1FF9, startup=no;
 }
 MEMORY {
     bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
@@ -192,10 +192,9 @@ MEMORY {
 ```
 
 The linker validates the conventional bank count, logical address, selector,
-and BANK0 startup assignment for F8, F6, and F4. Under the descending logical
-convention, BANK0 uses the final conventional selector: `$1FF9` for F8/F6 and
-`$1FFB` for F4; later logical banks work downward through the mapper's selector
-range.
+and BANK0 startup assignment for F8, F6, and F4. Logical bank addresses descend
+from BANK0 at `$F000`, but selector hotspots ascend with bank number: F8 uses
+`$1FF8+$bank`, F6 uses `$1FF6+$bank`, and F4 uses `$1FF4+$bank`.
 
 Every selector hotspot is reserved at the same low twelve-bit offset in every
 bank. An ordinary `ro` or `data` segment region covering any selector is

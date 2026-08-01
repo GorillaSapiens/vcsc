@@ -61,7 +61,10 @@ index($bankswitching,'hotspot bytes may not become code or ordinary ROM data')>=
    or die "bankswitching plan lost per-bank hotspot reservation\n";
 index($bankswitching,'CARTRIDGE vectorbridge')>=0 &&
 index($bankswitching,'BIT BANK0_HOTSPOT; JMP __reset')>=0 &&
-index($bankswitching,q{F4's $1FFA and $1FFB selector})>=0
+index($bankswitching,q{F4's $1FFA and $1FFB selector})>=0 &&
+index($bankswitching,'F8       $1FF8')>=0 &&
+index($bankswitching,'F6       $1FF6')>=0 &&
+index($bankswitching,'F4       $1FF4')>=0
    or die "bankswitching plan lost implemented vector bridge design\n";
 
 # The two complete drawscreen profiles remain installed intentionally.  They are

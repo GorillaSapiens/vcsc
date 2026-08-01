@@ -56,19 +56,19 @@ sub bank_start {
 }
 sub mapper_info {
    my ($mapper) = @_;
-   return (2, 0x1FF9) if $mapper eq 'F8';
-   return (4, 0x1FF9) if $mapper eq 'F6';
-   return (8, 0x1FFB) if $mapper eq 'F4';
+   return (2, 0x1FF8) if $mapper eq 'F8';
+   return (4, 0x1FF6) if $mapper eq 'F6';
+   return (8, 0x1FF4) if $mapper eq 'F4';
    die "unknown mapper $mapper\n";
 }
 sub make_cfg {
    my ($mapper, $bridge) = @_;
-   my ($count, $highest_hotspot) = mapper_info($mapper);
+   my ($count, $first_hotspot) = mapper_info($mapper);
    my $banks = '';
    my $memory = '';
    for my $bank (0 .. $count - 1) {
       my $start = bank_start($bank);
-      my $hotspot = $highest_hotspot - $bank;
+      my $hotspot = $first_hotspot + $bank;
       $banks .= sprintf("   BANK%d: start=\$%04X, size=\$1000, hotspot=\$%04X, startup=%s;\n",
                         $bank, $start, $hotspot, $bank == 0 ? 'yes' : 'no');
       $memory .= sprintf("   BANK%d_VECTOR_BRIDGE: start=\$%04X, size=\$0012, bank=BANK%d;\n",
@@ -120,10 +120,10 @@ sub cart_byte {
 }
 sub hotspot_bank {
    my ($mapper, $address) = @_;
-   my ($count, $highest_hotspot) = mapper_info($mapper);
+   my ($count, $first_hotspot) = mapper_info($mapper);
    my $cart_address = $address & 0x1FFF;
    for my $bank (0 .. $count - 1) {
-      return $bank if $cart_address == $highest_hotspot - $bank;
+      return $bank if $cart_address == $first_hotspot + $bank;
    }
    return undef;
 }
@@ -179,7 +179,7 @@ void main(void) { asm nop; }
 SRC
 
 for my $mapper (qw(F8 F6 F4)) {
-   my ($count, $highest_hotspot) = mapper_info($mapper);
+   my ($count, $first_hotspot) = mapper_info($mapper);
    my $cfg = File::Spec->catfile($tmp, lc($mapper) . '.cfg');
    my $bin = File::Spec->catfile($tmp, lc($mapper) . '.bin');
    my $map_path = File::Spec->catfile($tmp, lc($mapper) . '.map');
@@ -200,11 +200,11 @@ for my $mapper (qw(F8 F6 F4)) {
       or die "$mapper startup handlers or main escaped BANK0\n";
 
    my $expected_bridge = pack('C*',
-      0x2C, $highest_hotspot & 0xFF, $highest_hotspot >> 8,
+      0x2C, $first_hotspot & 0xFF, $first_hotspot >> 8,
       0x4C, $nmi & 0xFF, $nmi >> 8,
-      0x2C, $highest_hotspot & 0xFF, $highest_hotspot >> 8,
+      0x2C, $first_hotspot & 0xFF, $first_hotspot >> 8,
       0x4C, $reset & 0xFF, $reset >> 8,
-      0x2C, $highest_hotspot & 0xFF, $highest_hotspot >> 8,
+      0x2C, $first_hotspot & 0xFF, $first_hotspot >> 8,
       0x4C, $irqbrk & 0xFF, $irqbrk >> 8);
    my $expected_vectors = pack('v3', 0xFFE0, 0xFFE6, 0xFFEC);
 
@@ -234,7 +234,7 @@ require_fail('missing vectorbridge', 'requires CARTRIDGE vectorbridge',
 
 my $selector_cfg = File::Spec->catfile($tmp, 'selector-overlap.cfg');
 write_file($selector_cfg, make_cfg('F8', 0x0FE8));
-require_fail('vector bridge over selector', 'overlaps BANK0 selector hotspot $1FF9',
+require_fail('vector bridge over selector', 'overlaps BANK0 selector hotspot $1FF8',
              $vcsc, '-I', $include, '-T', $selector_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'selector.bin'), $src);
