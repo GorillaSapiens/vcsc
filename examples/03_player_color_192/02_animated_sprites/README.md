@@ -33,9 +33,17 @@ bytes and each frame occupies eight bytes. Runtime selection changes only the
 player graphics-pointer bytes; bitmap data is never copied into RAM.
 
 Each animation frame is held for eight NTSC frames while the sprites continue
-moving. A complete left-to-right traversal takes 160 frames, and the complete
-15-pair gallery takes 2,400 frames. The cartridge preserves 192 visible
-scanlines and leaves 16 bytes of RIOT RAM free.
+moving. Some source animations bob vertically within their 8x8 cells. To keep
+the multicolor bands attached to those sprites, the cartridge counts transparent
+rows above each selected frame and rotates that player's eight-row palette by
+the same amount into a mutable RAM color table. The 960 graphics bytes remain
+byte-for-byte source-exact; only the row-color mapping changes. A completely
+blank frame uses the unrotated palette because no color is visible.
+
+A complete left-to-right traversal takes 160 frames, and the complete 15-pair
+gallery takes 2,400 frames. The cartridge preserves 192 visible scanlines. It
+uses 3,484 ROM bytes and 124 RIOT RAM bytes including the four-byte hardware
+stack reserve, leaving 606 ROM bytes and 4 RAM bytes free.
 
 ## Controls
 

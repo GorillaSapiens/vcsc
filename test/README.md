@@ -249,8 +249,9 @@ occupancy extracted from PICO-8 sprites 1 through 120, and verifies four aligned
 drives all 15 complete 160-frame left-to-right traversals plus Select and pause
 controls. The oracle locks X=0 entry, one-pixel-per-frame motion, X=159 clipping,
 wrap through every pair back to the first pair, exact player pixels, graphics-
-pointer selection across all four hard pages, permitted row-color-table values,
-and 262-line frame periods.
+pointer selection across all four hard pages, mutable eight-byte RAM color
+tables, exact palette rotation by each frame's transparent top-row count,
+permitted visible color values, and 262-line frame periods.
 
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte

@@ -4,6 +4,8 @@ include "color_ntsc.c26"
 include "playfield.c26"
 
 page const uint8_t game_playfield[48] := {
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX),
+   VCS_PLAYFIELD_ROW(0b.X.X.X.X_.X.X.X.X_.X.X.X.X_.X.X.X.X),
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
@@ -12,25 +14,29 @@ page const uint8_t game_playfield[48] := {
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
    VCS_PLAYFIELD_ROW(0b........_........_........_........),
-   VCS_PLAYFIELD_ROW(0b........_........_........_........),
-   VCS_PLAYFIELD_ROW(0b........_........_........_........),
-   VCS_PLAYFIELD_ROW(0bX.X.X.X._.X.X.X.X_X.X.X.X._.X.X.X.X),
+   VCS_PLAYFIELD_ROW(0bX.X.X.X._X.X.X.X._X.X.X.X._X.X.X.X.),
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
 };
 
 // Graphics and colors use the renderer's highest-index-to-zero row order.
-page const uint8_t game_player0_colors[8] := {
+// The immutable palettes are rotated into the renderer's RAM color tables so
+// the bands follow sprites that bob vertically inside their 8x8 source cells.
+const uint8_t player0_palette[8] := {
    VCS_NTSC_GOLDENROD, VCS_NTSC_LIGHT_CORAL, VCS_NTSC_SANDY_BROWN,
    VCS_NTSC_GOLDENROD, VCS_NTSC_SANDY_BROWN, VCS_NTSC_LIGHT_CORAL,
    VCS_NTSC_GOLDENROD, VCS_NTSC_MEDIUM_PURPLE
 };
 
-page const uint8_t game_player1_colors[8] := {
+const uint8_t player1_palette[8] := {
    VCS_NTSC_SKY_BLUE, VCS_NTSC_AQUAMARINE, VCS_NTSC_PALE_GREEN,
    VCS_NTSC_SKY_BLUE_2, VCS_NTSC_PALE_GREEN, VCS_NTSC_AQUAMARINE,
    VCS_NTSC_SKY_BLUE, VCS_NTSC_ROYAL_BLUE
 };
 
+uint8_t game_player0_colors[8];
+uint8_t game_player1_colors[8];
+
+alias VCS_PLAYER_COLOR_192_MUTABLE_COLORS 1
 template "renderers/player_color_192/player_color_192.c26" as game
 
 // Exact one-bit silhouettes extracted from source PICO-8 sprites 1 through 120.
@@ -1355,7 +1361,7 @@ uint8_t select_ready := 1;
 uint8_t pause_animation := 0;
 uint8_t fire_ready := 1;
 
-inline void install_frames(void) {
+void install_frames(void) {
    // Each hard page starts at low byte zero. Bits 0..2 select a set inside
    // that page; bits 3..4 select one of the four hard-page high bytes.
    asm lda.z sprite0;
@@ -1425,6 +1431,55 @@ inline void install_frames(void) {
    asm lda #>sprite_frames_2;
    asm @p1_page_done:;
    asm sta.z game_player1_graphics + 1;
+
+   // Count transparent source rows above each glyph, then rotate that player's
+   // palette by the same amount. The graphics stay byte-for-byte source-exact;
+   // only the row-color mapping follows vertical motion inside the 8x8 cell.
+   asm ldy #7;
+   asm @p0_find_top:;
+   asm lda.iy (game_player0_graphics),y;
+   asm bne @p0_top_found;
+   asm dey;
+   asm bpl @p0_find_top;
+   asm ldy #7;
+   asm @p0_top_found:;
+   asm tya;
+   asm eor #7;
+   asm tay;
+   asm ldx #0;
+   asm @p0_copy_colors:;
+   asm lda.ay player0_palette,y;
+   asm sta.ax game_player0_colors,x;
+   asm iny;
+   asm tya;
+   asm and #7;
+   asm tay;
+   asm inx;
+   asm cpx #8;
+   asm bne @p0_copy_colors;
+
+   asm ldy #7;
+   asm @p1_find_top:;
+   asm lda.iy (game_player1_graphics),y;
+   asm bne @p1_top_found;
+   asm dey;
+   asm bpl @p1_find_top;
+   asm ldy #7;
+   asm @p1_top_found:;
+   asm tya;
+   asm eor #7;
+   asm tay;
+   asm ldx #0;
+   asm @p1_copy_colors:;
+   asm lda.ay player1_palette,y;
+   asm sta.ax game_player1_colors,x;
+   asm iny;
+   asm tya;
+   asm and #7;
+   asm tay;
+   asm inx;
+   asm cpx #8;
+   asm bne @p1_copy_colors;
 }
 
 inline void next_pair(void) {

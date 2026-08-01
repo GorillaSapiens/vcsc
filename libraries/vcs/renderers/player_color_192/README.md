@@ -11,9 +11,15 @@
 profile with independent per-row P0 and P1 color tables. Instantiate it after
 `vcs.c26` and drive its four lifecycle functions from `frame_ntsc.c26`.
 
-The application supplies page-contained `INSTANCE_playfield[48]`,
-`INSTANCE_player0_colors[8]`, and `INSTANCE_player1_colors[8]` objects plus
-page-contained player graphics. The component owns exactly 192 visible lines:
+The application supplies a page-contained `INSTANCE_playfield[48]`, two
+page-contained eight-byte player-color tables, and page-contained player
+graphics. Color tables are immutable by default. An application that defines the
+object-like alias `VCS_PLAYER_COLOR_192_MUTABLE_COLORS` before instantiation may
+instead supply mutable `INSTANCE_player0_colors[8]` and
+`INSTANCE_player1_colors[8]` RAM objects. It must initialize or update them
+outside `draw()` and leave them unchanged throughout the visible region.
+
+The component owns exactly 192 visible lines:
 twelve playfield rows of sixteen scanlines each. It cannot be combined with an
 eleven-line score inside the standard visible field.
 
@@ -37,8 +43,10 @@ playfield-position restore occur afterward in overscan, so they cannot expose a
 partially drawn extra scanline at the bottom of Stella's display. Public Y
 coordinates are then restored.
 
-The regression tests use the 6502/TIA write trace as the oracle. They verify all
-192 visible lines against the source playfield bytes at the exact safe write
+The regression tests use the 6502/TIA write trace as the oracle. They verify the
+ordinary immutable-table profile and the animated example's mutable-table
+profile, including page containment and updates outside visible drawing. They
+also verify all 192 visible lines against the source playfield bytes at the exact safe write
 phases, exact 262-line frames, VBLANK-only horizontal positioning, P0/P1 glyph
 order and colors, Ball activity in both the normal and terminal bands, and the
 absence of missile activity. Nonzero GRP1 handoffs are required to occur in

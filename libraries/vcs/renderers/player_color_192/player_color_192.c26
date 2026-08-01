@@ -5,10 +5,13 @@
 //
 //     template "renderers/player_color_192/player_color_192.c26" as game
 //
-// Include vcs.c26 first. Each instance requires page-contained immutable
-// INSTANCE_playfield[48], INSTANCE_player0_colors[], and
-// INSTANCE_player1_colors[] objects. Graphics and colors share the same
-// highest-index-to-zero row order. The component draws an exact 192-line
+// Include vcs.c26 first. Each instance requires a page-contained immutable
+// INSTANCE_playfield[48]. Player color tables are normally page-contained
+// immutable INSTANCE_player0_colors[8] and INSTANCE_player1_colors[8] objects.
+// Defining the object-like alias VCS_PLAYER_COLOR_192_MUTABLE_COLORS before
+// instantiation instead declares both tables mutable, allowing animation code
+// to update them in RAM outside the visible draw. Graphics and colors share the
+// same highest-index-to-zero row order. The component draws an exact 192-line
 // scoreless gameplay field as twelve uniform 16-line rows. It cannot be combined
 // with the independent eleven-line score inside the standard visible field.
 //
@@ -51,8 +54,13 @@ alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_object_x[2]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_object_x[3]
 
 extern const uint8_t TEMPLATE_playfield[48];
+#ifdef VCS_PLAYER_COLOR_192_MUTABLE_COLORS
+extern uint8_t TEMPLATE_player0_colors[8];
+extern uint8_t TEMPLATE_player1_colors[8];
+#else
 extern const uint8_t TEMPLATE_player0_colors[8];
 extern const uint8_t TEMPLATE_player1_colors[8];
+#endif
 
 // Shared fine-motion conversion table. Indexes 1..15 correspond to the
 // negative remainder left by the 15-pixel coarse-position loop.

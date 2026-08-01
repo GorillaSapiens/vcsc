@@ -2020,19 +2020,24 @@ than ship a fragile schedule if the hardware budget does not close.
           at X=0; left fire pauses/resumes motion and animation with edge-triggered
           controls.
         * Store the 960 frame bytes in four aligned 256-byte hard pages, padding
-          the final page with 64 zero bytes. Change only player graphics pointers
-          at runtime; preserve exact 262-line frames, the 192-line visible
-          renderer, row-color-table use, and 16 free RIOT RAM bytes. Document
-          highest-index-to-zero source-row storage.
+          the final page with 64 zero bytes. Select frames by changing player
+          graphics pointers; keep the source graphics byte-exact. For frames that
+          bob vertically inside their 8x8 cells, count leading transparent rows
+          and rotate an immutable eight-color palette into each renderer-owned
+          mutable RAM color table so the color bands follow the silhouette.
+          Preserve exact 262-line frames, the 192-line visible renderer, and four
+          free RIOT RAM bytes. Document highest-index-to-zero source-row storage.
         * Treat the adapted artwork conservatively under Quick's stated CC
           BY-NC-SA 4.0 license rather than the public-domain description supplied
           with the request. Install explicit attribution and asset-license notes.
         * Add an emulator oracle covering all 15 complete 160-frame traversals,
           exact P0/P1 pixels at every animation step and right-edge endpoint,
-          pointer selection across all four hard pages, row-color-table use,
-          controls, and frame period. Pin the exact extracted 960-byte occupancy
-          with SHA-256, verify the final-page padding, build with the staged
-          installed toolchain, and inspect the animated output under Stella 7.0.
+          pointer selection across all four hard pages, exact per-frame palette
+          rotation from transparent top-row displacement, visible use of the
+          rotated row-color tables, controls, and frame period. Pin the exact
+          extracted 960-byte occupancy with SHA-256, verify the final-page padding,
+          build with the staged installed toolchain, and inspect the animated
+          output under Stella 7.0.
 
 [ ] 35. Add first-class support for two paddle controllers on one controller port.
         Define a stable VCSC API for the two analog paddle positions and both paddle
@@ -7470,3 +7475,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   `make installcheck` pass. A cartridge built by the staged installed toolchain
   is byte-identical to the direct build and was run and visually inspected under
   Stella 7.0.
+
+2026-08-01 12:35:09 PDT, make animated row colors follow vertical sprite motion
+-------------------------------------------------------------------------------
+* Apply the supplied patch. Add the top-level `make patch` helper and replace the
+  animated example's former solid lane borders with the supplied solid/checker
+  playfield rows.
+* Add an opt-in `VCS_PLAYER_COLOR_192_MUTABLE_COLORS` renderer instantiation mode.
+  The default contract remains unchanged with page-contained immutable color
+  tables; the alias makes only that instance's two eight-byte color tables mutable
+  so animation code may update them outside the visible draw.
+* Keep all 960 extracted sprite bytes and their SHA-256 unchanged. Move each
+  player's fixed eight-color palette to ROM, count the transparent source rows at
+  the top of the selected frame, and rotate the palette by that displacement into
+  the mutable RAM color table. Because graphics and colors use the same
+  highest-index-to-zero renderer order, this keeps each color band attached to a
+  sprite that bobs within its 8x8 source cell. A completely blank frame uses the
+  unrotated palette.
+* Make `install_frames()` an ordinary shared function rather than duplicating it
+  at each call site, offsetting the RAM cost and leaving the final cartridge at
+  3,484 ROM bytes and 124 RIOT RAM bytes including the four-byte hardware-stack
+  reserve: 606 ROM bytes and four RAM bytes remain free.
+* Extend the animation source guard and emulator oracle to require the mutable
+  tables and immutable palettes, verify the exact eight-entry rotation for both
+  players on every captured frame, retain exact source pixels and all 2,400
+  automatic-gallery frames, and confirm visible player colors come from the
+  currently rotated tables. Update renderer, example, catalog, and test
+  documentation.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass in deterministic ranges 1-159, 160-186, and 187-202. The focused animation
+  and renderer tests, recursive example build, source-tree hygiene test, and
+  staged `make installcheck` pass. The final cartridge builds with the staged
+  toolchain and was run under Stella 7.0 for visual inspection.

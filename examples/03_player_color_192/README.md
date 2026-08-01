@@ -20,7 +20,7 @@ visible field, it cannot be composed with the 11-line score component.
 | No. | Example | Purpose |
 |---:|---|---|
 | 01 | [`interactive`](01_interactive/) | Select P0, P1, or Ball and move it one pixel or logical scanline at a time through the renderer's complete range |
-| 02 | [`animated_sprites`](02_animated_sprites/) | Move all 30 four-frame source animations from the left edge to the right in 15 pairs, switching pairs on each wrap |
+| 02 | [`animated_sprites`](02_animated_sprites/) | Move all 30 four-frame source animations across the screen in 15 pairs, rotating each RAM row-color table to follow vertical motion inside the source cell |
 
 For the exact RAM, table, and beam-timing contract, see
 [`libraries/vcs/renderers/player_color_192/README.md`](../../libraries/vcs/renderers/player_color_192/README.md).
