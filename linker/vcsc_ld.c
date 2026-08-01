@@ -442,12 +442,34 @@ static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg
                                                        const segment_rule_t *fallback)
 {
    const segment_rule_t *rule = find_segment_rule(cfg, name);
+   static const char *const private_suffixes[] = {
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_page$", NULL
+   };
    char base[MAX_NAME];
    const char *dot;
    size_t n;
 
    if (rule || !name)
       return rule ? rule : fallback;
+
+   /* Compiler-owned private layouts retain the source segment before their
+      metadata suffix. Prefer the longest named segment rule so CODE.bank1
+      governs CODE.bank1.__vcsc_function$foo rather than falling back to CODE. */
+   for (size_t i = 0; private_suffixes[i]; ++i) {
+      const char *suffix = strstr(name, private_suffixes[i]);
+      if (!suffix)
+         continue;
+      n = (size_t)(suffix - name);
+      if (n == 0 || n >= sizeof(base))
+         break;
+      memcpy(base, name, n);
+      base[n] = '\0';
+      rule = find_segment_rule(cfg, base);
+      if (rule)
+         return rule;
+      break;
+   }
+
    dot = strchr(name, '.');
    n = dot ? (size_t)(dot - name) : strlen(name);
    if (n == 0 || n >= sizeof(base))

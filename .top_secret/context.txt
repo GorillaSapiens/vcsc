@@ -1965,7 +1965,8 @@ than ship a fragile schedule if the hardware budget does not close.
         highest so BANK0 is last in the file, add per-bank vectors/reset bridges
         early, keep `main` in BANK0, reject cross-bank ROM data access, use one
         byte-identical replicated trampoline table with JSR-to-indirect-JMP calls,
-        and combine programmer bank pins with deterministic automatic placement
+        use existing named `mem` region modifiers for programmer function/object
+        pins, and combine those pins with deterministic automatic placement
         before using banking for any renderer profile.
 
 [ ] 30. Add Superchip cartridge RAM support after ordinary F8/F6/F4 banking is
@@ -7570,3 +7571,36 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   changes no compiler, assembler, linker, runtime, cfg, or public documentation.
 * Verification: all 337 compile-only tests pass. The focused source-tree hygiene
   and hard-rename/branding tests also pass.
+
+2026-08-01 14:10:44 PDT, use named mem regions for explicit function-bank placement
+---------------------------------------------------------------------------------
+* Update `.top_secret/bankswitching.txt` to make the existing named `mem` region
+  modifier the sole explicit function-bank spelling. A definition such as
+  `bank1 void some_function(void)` now means that the function belongs to the
+  previously declared `bank1` region; no `bank0` through `bank7` language
+  keywords are added. Unmarked functions remain available for later automatic
+  placement, while `main` may be unmarked or explicitly `bank0` and is rejected
+  when explicitly assigned to a numbered nonzero bank.
+* Complete bankswitching roadmap item 1. The compiler emits marked functions in
+  `CODE.<region>`, emits the same region metadata already used by objects,
+  requires declarations and definitions to agree, and rejects region modifiers
+  on inline functions. The assembler now preserves procedures in `CODE` and
+  `CODE.*` as independent private o26 layouts. The linker resolves a private
+  name such as `CODE.bank1.__vcsc_function$foo` through the exact `CODE.bank1`
+  rule before falling back to `CODE`.
+* Clarify Superchip region arithmetic. A source declaration beginning at `$D100`
+  must use `$size:0x0F00`, not `$size:0x1000`, because the source `mem` interval
+  describes allocatable ROM and must stop at `$DFFF`. The future cartridge image
+  model still emits the complete 4K physical bank and separately fills the
+  reserved `$D000-$D0FF` RAM-port prefix.
+* Add compiler diagnostics and code-generation tests for function region output,
+  declaration conflicts, inline misuse, and nonzero-bank `main`. Add an
+  end-to-end compiler/assembler/linker regression proving page-contained
+  `CODE.bank1.__vcsc_function$placed` resolves at `$D100` under a
+  `$D100+$0F00` region while ordinary `main` remains in the `$F000` home mirror.
+  Update compiler, assembler, linker, test, main-roadmap, and detailed banking
+  documentation.
+* Verification: all 341 compile-only tests pass. All 203 end-to-end/generic
+  tests pass; the long renderer tail was completed in deterministic chunks after
+  the broad run reached test 160. The focused function-region placement,
+  source-tree hygiene, and branding tests pass.

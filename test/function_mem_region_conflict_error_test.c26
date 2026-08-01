@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for function 'some_function'
+include "machine_6502.c26"
+mem bank0 { $start:0xF000 $size:0x1000 $ro };
+mem bank1 { $start:0xD000 $size:0x1000 $ro };
+
+bank1 void some_function(void);
+bank0 void some_function(void) {
+}

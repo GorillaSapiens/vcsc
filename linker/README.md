@@ -378,12 +378,17 @@ as separate one-byte objects (for example one byte at `$FF` and one at `$00`).
 The linker deliberately does not reject instruction operands such as
 `LDA ($FF),Y`, whose pointer-byte wrap is normal 6502 addressing behavior.
 
-Compiler and assembler procedures in the ordinary `CODE` segment are represented
-as independent `CODE.__vcsc_function$NAME` layouts. Their map entries therefore
-report exact function size and page status. Functions up to 256 bytes are kept
-within one page when an existing hole permits it without increasing the region
-high-water mark. A function definition marked `page` carries the hard flag and
-fails clearly when its final size exceeds one page or no legal placement exists.
-Explicit renderer code segments are not split automatically.
-Their complete layout may still receive the same bounded branch-aware
-start-address search.
+Compiler and assembler procedures in `CODE` or a named `CODE.*` region are
+represented as independent private layouts. Ordinary functions use
+`CODE.__vcsc_function$NAME`; a function marked with source mem region `bank1`
+uses `CODE.bank1.__vcsc_function$NAME`. The linker first looks for the longest
+matching segment rule, so `CODE.bank1` controls that private layout before the
+ordinary `CODE` fallback is considered.
+
+Their map entries therefore report exact function size and page status.
+Functions up to 256 bytes are kept within one page when an existing hole permits
+it without increasing the region high-water mark. A function definition marked
+`page` carries the hard flag and fails clearly when its final size exceeds one
+page or no legal placement exists. Explicit non-`CODE` renderer segments are
+not split automatically. Their complete layout may still receive the same
+bounded branch-aware start-address search.

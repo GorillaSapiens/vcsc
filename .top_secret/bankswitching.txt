@@ -266,17 +266,48 @@ hidden bank byte is added to pointer objects or function parameters.
 
 Bank placement policy
 ---------------------
-Programmers need an explicit way to pin functions, ROM objects, translation
-units, or named groups to a bank, but ordinary programs should not require every
-function to be hand-assigned. The intended policy is constrained automatic
+VCSC already has named `mem` regions and uses a region name as a declaration
+modifier for objects. The same mechanism is now the source spelling for explicit
+function placement; do not add special `bank0` through `bank7` language keywords.
+For an ordinary F8 bank:
+
+    mem bank1 { $start:0xD000 $size:0x1000 $ro };
+
+    bank1 void some_function(void) {
+        /* ... */
+    }
+
+For a Superchip profile, the source `mem` declaration describes the allocatable
+ROM interval, not the complete emitted physical bank. The RAM-port prefix is
+therefore excluded with a 0x0F00-byte region:
+
+    mem bank1 { $start:0xD100 $size:0x0F00 $ro };
+
+Using `$size:0x1000` at `$D100` would incorrectly extend the allocatable range
+through `$E0FF`; the cfg/image model still emits the complete 4K physical bank
+and fills its reserved `$D000-$D0FF` prefix separately.
+
+Named region modifiers now work on function definitions and produce private
+layouts such as `CODE.bank1.__vcsc_function$some_function`. The assembler keeps
+procedures in any `CODE` or `CODE.*` segment independently movable, and the
+linker resolves the longest matching segment rule so `CODE.bank1` controls that
+private layout. A declaration and its definition must use the same named region.
+An inline function cannot use a region modifier because inline expansion has no
+independently placeable linker layout.
+
+The same names continue to place ROM objects, so programmers use one vocabulary
+for code and data. Unmarked functions and objects remain candidates for
+constrained automatic placement. `main` may be unmarked or explicitly marked
+`bank0`; an explicit numbered nonzero bank on `main` is rejected. The eventual
+bank-aware linker must pin unmarked `main`, the normal startup path, and mandatory
+home-bank runtime material to BANK0.
+
+Programmers may eventually need explicit same-bank groups or translation-unit
+preferences, but those should extend named-memory metadata rather than introduce
+a second bank-placement syntax. The intended policy is constrained automatic
 placement:
 
-* `main`, the normal startup path, and mandatory BANK0 runtime material are
-  always pinned to BANK0. A public full-window cfg may not move `main` elsewhere.
-* Source/object metadata may hard-pin a function or ROM object to a named bank
-  and may request that several layouts remain together. The final spelling is
-  deferred, but the constraint must survive into o26 rather than being inferred
-  from source filenames.
+* Named `mem` modifiers are hard pins for functions and ROM objects.
 * Unpinned layouts are assigned automatically by the linker.
 * Cross-bank ROM data references are forbidden, so every function and every ROM
   object it directly reads form hard same-bank constraints. The linker should
@@ -431,7 +462,20 @@ when main roadmap item 29 becomes active.
          BANK0 last in the cartridge file.
        * Use existing split-address refs as the explicit Superchip baseline.
 
-[ ] 1. Extend the cfg parser and linker image model for multiple full 4K banks.
+[x] 1. Extend existing named `mem` region modifiers to function code.
+
+       * Emit a function marked `bank1` into `CODE.bank1` and preserve each
+         procedure as an independent private o26 layout.
+       * Resolve `CODE.bank1.__vcsc_function$NAME` through the exact
+         `CODE.bank1` linker segment rule before falling back to `CODE`.
+       * Emit and validate the same source mem-region metadata used by objects.
+       * Require declarations and definitions to agree on their region.
+       * Reject region modifiers on inline functions and explicit numbered
+         nonzero-bank placement of `main`.
+       * Test ordinary and Superchip-sized function regions, including the
+         correct `$D100+$0F00` allocatable SC interval.
+
+[ ] 2. Extend the cfg parser and linker image model for multiple full 4K banks.
 
        * Add explicit mapper/bank/startup/hotspot metadata.
        * Remove fixed table limits that prevent an eight-bank configuration.
@@ -442,7 +486,7 @@ when main roadmap item 29 becomes active.
          in the file; prove BANK0 is last.
        * Preserve the current unbanked `vcs_4k.cfg` output byte-for-byte.
 
-[ ] 2. Add per-bank vectors and same-offset reset bridges.
+[ ] 3. Add per-bank vectors and same-offset reset bridges.
 
        * Emit valid vectors in every selected physical bank.
        * Point each reset vector at that bank's logical mirror of a common bridge
@@ -452,7 +496,7 @@ when main roadmap item 29 becomes active.
          cross-bank calls.
        * Reserve mapper hotspots correctly even where they touch vector offsets.
 
-[ ] 3. Add bank-aware relocation classification and validation.
+[ ] 4. Add bank-aware relocation classification and validation.
 
        * Preserve JSR, JMP, and conditional-branch relocation intent in o26.
        * Identify same-bank, shared-memory, and cross-bank references from cfg
@@ -463,7 +507,7 @@ when main roadmap item 29 becomes active.
          initializers, and low/high/word data relocations with source-located
          diagnostics.
 
-[ ] 4. Add the byte-identical common trampoline table and cross-bank JMP.
+[ ] 5. Add the byte-identical common trampoline table and cross-bank JMP.
 
        * Reserve one deterministic bridge corridor at the same physical offset
          in every bank and copy exactly the same table bytes into every bank.
@@ -474,7 +518,7 @@ when main roadmap item 29 becomes active.
        * Deduplicate equivalent target entries, report replicated and per-entry
          costs, and diagnose bridge-corridor exhaustion.
 
-[ ] 5. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
+[ ] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
 
        * Redirect a direct cross-bank JSR to a generated target entry in the
          common replicated table.
@@ -485,11 +529,12 @@ when main roadmap item 29 becomes active.
        * Support nested cross-bank calls and add two bytes of weighted hardware-
          stack cost for every active cross-bank edge.
 
-[ ] 6. Add placement constraints and deterministic automatic bank placement.
+[ ] 7. Add placement constraints and deterministic automatic bank placement.
 
        * Pin `main`, startup, and mandatory home-bank runtime material to BANK0.
-       * Choose and document source/object spelling for named-bank affinity and
-         same-bank grouping of functions, ROM objects, and translation units.
+       * Use existing named `mem` modifiers for hard function/object affinity;
+         design only any additional same-bank grouping or translation-unit
+         preference metadata that measured programs require.
        * Build hard placement components from cross-bank-forbidden ROM-data
          edges and explicit grouping/pinning constraints.
        * Automatically place unpinned components with a deterministic greedy
@@ -497,7 +542,7 @@ when main roadmap item 29 becomes active.
        * Report pinned versus automatic placement, cut call edges, bridge cost,
          and clear overflow or contradictory-pin diagnostics.
 
-[ ] 7. Add and certify `vcs_8k_f8.cfg`.
+[ ] 8. Add and certify `vcs_8k_f8.cfg`.
 
        * Build a two-bank diagnostic with BANK1 first and BANK0 last in the file.
        * Verify reset from either initial bank, `main` in BANK0, automatic and pinned
@@ -505,7 +550,7 @@ when main roadmap item 29 becomes active.
          vectors, selector use, map output, and exact 8192-byte
          image size.
 
-[ ] 8. Add F6 and F4 through the same implementation.
+[ ] 9. Add F6 and F4 through the same implementation.
 
        * Add `vcs_16k_f6.cfg` and `vcs_32k_f4.cfg` without mapper-specific linker
          forks.
@@ -513,7 +558,7 @@ when main roadmap item 29 becomes active.
          order, reserved hotspots, and exact 16K/32K sizes.
        * Keep BANK0 at $F000 and last in both files.
 
-[ ] 9. Make archive selection, listings, map output, and simulator execution
+[ ] 10. Make archive selection, listings, map output, and simulator execution
        fully bank-aware.
 
        * Preserve normal lazy archive-member selection.
@@ -522,7 +567,7 @@ when main roadmap item 29 becomes active.
          or an equivalent generated sidecar.
        * Add Stella-backed visible signatures and stable-frame tests.
 
-[ ] 10. Add explicit-ref Superchip profiles.
+[ ] 11. Add explicit-ref Superchip profiles.
 
        * Add `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`.
        * Begin ordinary ROM allocation at $x100 in every bank, reserve the RAM
@@ -532,7 +577,7 @@ when main roadmap item 29 becomes active.
        * Verify shared 128-byte persistence across every bank switch and exact
          8K/16K/32K output sizes.
 
-[ ] 11. Add Automatic allocation of variables into Superchip RAM.
+[ ] 12. Add Automatic allocation of variables into Superchip RAM.
 
        * Define a named allocated-memory contract with separate read and write
          bases for one shared 128-byte physical region.
@@ -543,7 +588,7 @@ when main roadmap item 29 becomes active.
        * Count physical occupancy once and provide deterministic overflow
          diagnostics.
 
-[ ] 12. Integrate automatic Superchip initialization and lifecycle tests.
+[ ] 13. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
          startup.
@@ -553,7 +598,7 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-[ ] 13. Add banked renderer or multisprite profiles only after the generic
+[ ] 14. Add banked renderer or multisprite profiles only after the generic
        cartridge tests are stable.
 
        * Keep mapper behavior out of renderer timing code except for explicit
@@ -562,7 +607,7 @@ when main roadmap item 29 becomes active.
        * Do not multiply cfg files into every renderer x mapper combination
          without first defining a maintainable composition mechanism.
 
-[ ] 14. Improve automatic placement heuristics without changing semantics.
+[ ] 15. Improve automatic placement heuristics without changing semantics.
 
        * Measure whether call-frequency weighting, component ordering, or local
          moves materially reduce bridge count, cycles, and hardware-stack cost.
@@ -572,7 +617,7 @@ when main roadmap item 29 becomes active.
        * Permit a simple-placement mode for debugging and reproducibility; never
          fall back to invented cross-bank data access.
 
-[ ] 15. Design the next mapper family separately.
+[ ] 16. Design the next mapper family separately.
 
        * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
          segmented schemes such as E0/E7 based on an actual project need.
@@ -585,7 +630,6 @@ Decisions intentionally deferred
 The following are not settled by this document:
 
 * the final cfg property names and punctuation;
-* the source spelling for bank affinity;
 * the exact size/location of the common bridge corridor;
 * whether non-public or future mapper profiles may use a startup bank other
   than BANK0 while still keeping public full-window profiles and `main` in BANK0;

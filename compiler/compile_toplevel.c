@@ -342,6 +342,7 @@ void compile_function_decl(ASTNode *node) {
    }
 
    emit_function_parameter_storage(node, &ctx);
+   emit_mem_region_metadata_for_modifiers(node, modifiers);
    if (has_return_object) {
       {
          char segbuf[512];
@@ -350,6 +351,12 @@ void compile_function_decl(ASTNode *node) {
       }
       emit(&es_zp, "%s:\n", return_sym);
       emit(&es_zp, "\t.res %d\n", return_entry->size);
+   }
+   {
+      const char *memname = find_mem_modifier_name(modifiers);
+      if (memname && *memname) {
+         emit(&es_code, ".segment \"CODE.%s\"\n", memname);
+      }
    }
    emit(&es_code, ".proc %s\n", sym);
    if (has_modifier(modifiers, "page")) {
@@ -368,6 +375,9 @@ void compile_function_decl(ASTNode *node) {
    emit(&es_code, "@fini:\n");
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
+   if (find_mem_modifier_name(modifiers)) {
+      emit(&es_code, ".segment \"CODE\"\n");
+   }
    current_call_graph_function = saved_call_graph_function;
    current_call_graph_node = saved_call_graph_node;
 }

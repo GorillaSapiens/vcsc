@@ -38,19 +38,22 @@ index($bankswitching,'BANK0           $F000-$FFFF')>=0
    or die "bankswitching plan lost descending BANK0 logical origin\n";
 index($bankswitching,'BANK0 is always the final 4K bank in the file')>=0
    or die "bankswitching plan lost lowest-address-first output order\n";
-index($bankswitching,'[ ] 2. Add per-bank vectors and same-offset reset bridges.')>=0
+index($bankswitching,'[ ] 3. Add per-bank vectors and same-offset reset bridges.')>=0
    or die "bankswitching plan no longer schedules per-bank reset early\n";
-index($bankswitching,'[ ] 11. Add Automatic allocation of variables into Superchip RAM.')>=0
+index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
 index($bankswitching,'contain exactly the same bytes in every physical bank')>=0 &&
 index($bankswitching,'JMP  (__bank_target)')>=0
    or die "bankswitching plan lost the common indirect-JMP trampoline design\n";
-index($bankswitching,'always pinned to BANK0')>=0 &&
+index($bankswitching,'must pin unmarked `main`')>=0 &&
 index($bankswitching,'Unpinned layouts are assigned automatically by the linker')>=0
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";
 index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
    or die "bankswitching plan lost Superchip ROM-prefix reservation\n";
+index($bankswitching,'bank1 void some_function(void)')>=0 &&
+index($bankswitching,'$start:0xD100 $size:0x0F00')>=0
+   or die "bankswitching plan lost named function-region syntax or correct Superchip ROM span\n";
 
 # The two complete drawscreen profiles remain installed intentionally.  They are
 # legacy compatibility/regression targets, not preferred component APIs and not

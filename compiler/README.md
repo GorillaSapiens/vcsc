@@ -411,6 +411,28 @@ linker configuration defines the same start, size, and access type.
 A region is treated as zero page when its declared address range fits entirely
 within `$0000..$00ff`; the region's name has no special meaning.
 
+Named regions also place non-inline function definitions. This reuses the same
+declaration-modifier syntax rather than adding bank-specific keywords:
+
+```vcsc
+mem bank1 { $start:0xD000 $size:0x1000 $ro };
+
+bank1 void update_level(void) {
+   // emitted in CODE.bank1
+}
+```
+
+A function declaration and definition must agree on the named region. Inline
+functions cannot use one because their expansions have no independently
+placeable linker layout. For numbered bank regions, `main` may be unmarked or
+use `bank0`; explicitly placing it in `bank1` or another nonzero numbered bank
+is rejected.
+
+For a Superchip bank, the source region describes only allocatable ROM. Exclude
+the RAM-port prefix, for example `$start:0xD100 $size:0x0F00`; `$size:0x1000`
+would run through `$E0FF` rather than stopping at the end of the 4K bank mirror.
+The eventual banked cartridge writer still emits the complete physical bank.
+
 ### Pointers and arrays
 
 Pointers are 16-bit addresses. Arrays decay to pointers to their first element

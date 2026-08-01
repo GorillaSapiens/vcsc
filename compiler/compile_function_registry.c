@@ -33,6 +33,27 @@ static const ASTNode *function_modifiers_node(const ASTNode *fn) {
    return NULL;
 }
 
+static bool memname_is_nonzero_numbered_bank(const char *name) {
+   const char *p;
+   unsigned int value = 0;
+
+   if (!name || strncmp(name, "bank", 4)) {
+      return false;
+   }
+   p = name + 4;
+   if (!*p) {
+      return false;
+   }
+   while (*p) {
+      if (!isdigit((unsigned char)*p)) {
+         return false;
+      }
+      value = value * 10u + (unsigned int)(*p - '0');
+      p++;
+   }
+   return value != 0;
+}
+
 bool function_has_body(const ASTNode *fn) {
    return fn && fn->count == 3;
 }
@@ -247,12 +268,20 @@ static bool function_same_declaration(const ASTNode *a, const ASTNode *b) {
    }
    adecl = function_declarator_node(a);
    bdecl = function_declarator_node(b);
-   if (declarator_pointer_depth(adecl) != declarator_pointer_depth(bdecl) ||
-       !declarator_array_signature_matches_from(adecl, bdecl, 3) ||
-       has_modifier((ASTNode *)function_modifiers_node(a), "static") !=
-       has_modifier((ASTNode *)function_modifiers_node(b), "static") ||
-       function_is_inline(a) != function_is_inline(b)) {
-      return false;
+   {
+      const ASTNode *amod = function_modifiers_node(a);
+      const ASTNode *bmod = function_modifiers_node(b);
+      const char *amem = find_mem_modifier_name(amod);
+      const char *bmem = find_mem_modifier_name(bmod);
+
+      if (declarator_pointer_depth(adecl) != declarator_pointer_depth(bdecl) ||
+          !declarator_array_signature_matches_from(adecl, bdecl, 3) ||
+          has_modifier((ASTNode *)amod, "static") !=
+          has_modifier((ASTNode *)bmod, "static") ||
+          function_is_inline(a) != function_is_inline(b) ||
+          ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
+         return false;
+      }
    }
    return function_same_signature(a, b);
 }
@@ -416,6 +445,17 @@ void remember_function(const ASTNode *node, const char *name) {
    if (function_is_inline(node) && !strcmp(name, "main")) {
       error_user("[%s:%d.%d] entry function 'main' cannot be inline because startup requires a linker-visible symbol",
                  node->file, node->line, node->column);
+   }
+   {
+      const char *memname = find_mem_modifier_name(modifiers);
+      if (function_is_inline(node) && memname) {
+         error_user("[%s:%d.%d] inline function '%s' cannot use mem region '%s' because inline expansion has no independently placeable linker layout",
+                    node->file, node->line, node->column, name, memname);
+      }
+      if (!strcmp(name, "main") && memname_is_nonzero_numbered_bank(memname)) {
+         error_user("[%s:%d.%d] entry function 'main' must reside in mem region 'bank0', not '%s'",
+                    node->file, node->line, node->column, memname);
+      }
    }
    if (!functions) {
       functions = new_set();

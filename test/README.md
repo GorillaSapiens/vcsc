@@ -95,6 +95,14 @@ explicit test-only layout matching the retained generic simulator fixtures.
 Production `vcsc-ld` has no implicit layout, and production `vcsc` defaults to
 the bundled VCS 4K script instead.
 
+`function_mem_region_codegen_test.c26` and
+`function_mem_region_placement.pl` cover named `mem` modifiers on functions.
+They lock `CODE.bank1.__vcsc_function$NAME` private layouts, exact longest-rule
+linker placement, page containment, source/linker region metadata agreement,
+ordinary `CODE` restoration, and the Superchip-safe `$D100+$0F00` allocatable
+interval. Companion rejection tests cover conflicting declaration/definition
+regions, inline placement, and explicit nonzero-bank placement of `main`.
+
 `unicode_identifier_mangle.pl` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 `visual_binary_literal_codegen_test.c26` and

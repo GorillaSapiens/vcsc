@@ -734,6 +734,15 @@ range start and maximum index. Bit 0 is the hard whole-layout page-containment
 contract; bit 1 says that the indexed effective-address window is present. The
 linker remains backward-compatible with all older layout records.
 
+### Procedure layouts in named code regions
+
+In relocatable o26 output, `.proc` inside `CODE` or any `CODE.*` segment becomes
+an independently movable private layout. For example, a procedure in
+`CODE.bank1` is recorded as `CODE.bank1.__vcsc_function$NAME`. The linker can
+therefore pin one source-level function to a named memory region without merging
+all functions assigned to that region into one indivisible layout. Procedures
+in unrelated explicit segments retain their existing whole-segment behavior.
+
 ### `.pagecontain`
 
 `.pagecontain` marks the current named segment as a hard page-contained o26 layout. It takes no arguments; keep one constrained object in that segment. The linker places the complete final-sized layout anywhere it fits within one 256-byte page.

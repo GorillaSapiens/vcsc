@@ -505,7 +505,9 @@ static void assign_segments(asm_context_t *ctx)
       /* In relocatable objects, make every procedure an independently movable
          text layout. This preserves exact function boundaries and sizes for the
          linker without changing flat-binary assembly semantics. */
-      proc_name = (ctx->object_mode_o26 && !strcasecmp(current_segment, "CODE"))
+      proc_name = (ctx->object_mode_o26 &&
+                   !strncasecmp(current_segment, "CODE", 4) &&
+                   (current_segment[4] == '\0' || current_segment[4] == '.'))
          ? proc_decl_name(stmt) : NULL;
       if (proc_name) {
          segment_stack_t *frame;
