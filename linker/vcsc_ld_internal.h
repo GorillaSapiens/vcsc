@@ -53,10 +53,15 @@ typedef struct {
    uint16_t start;
    uint16_t size;
    uint16_t physical_size;
-   char type[8];
+   char type[16];
    int define_yes;
    int callstack_callgraph;
    uint16_t callstack_extra;
+   char file[MAX_PATH];
+   int fill_yes;
+   uint8_t fill_value;
+   int has_fill_value;
+   char bank_name[MAX_NAME];
    char name[MAX_NAME];
 } memory_region_t;
 
@@ -68,14 +73,32 @@ typedef struct {
    char type[16];
    int define_yes;
    uint16_t align;
+   uint16_t start;
+   int has_start;
 } segment_rule_t;
+
+//! One complete 4K physical bank in a full-window cartridge profile.
+typedef struct {
+   char name[MAX_NAME];
+   uint16_t start;
+   uint16_t size;
+   uint16_t hotspot;
+   int startup;
+} cartridge_bank_t;
 
 //! Complete in-memory linker configuration.
 typedef struct {
-   memory_region_t mem[16];
+   memory_region_t *mem;
    size_t mem_count;
-   segment_rule_t seg[16];
+   segment_rule_t *seg;
    size_t seg_count;
+   cartridge_bank_t *banks;
+   size_t bank_count;
+   char mapper[MAX_NAME];
+   uint8_t cartridge_fill_value;
+   uint16_t vector_bridge_offset;
+   int has_vector_bridge_offset;
+   int cartridge_banked;
    int call_stack_enabled;
    char call_stack_region[MAX_NAME];
    uint16_t call_stack_depth;

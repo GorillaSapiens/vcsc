@@ -38,8 +38,10 @@ index($bankswitching,'BANK0           $F000-$FFFF')>=0
    or die "bankswitching plan lost descending BANK0 logical origin\n";
 index($bankswitching,'BANK0 is always the final 4K bank in the file')>=0
    or die "bankswitching plan lost lowest-address-first output order\n";
-index($bankswitching,'[ ] 3. Add per-bank vectors and same-offset reset bridges.')>=0
-   or die "bankswitching plan no longer schedules per-bank reset early\n";
+index($bankswitching,'[x] 2. Extend the cfg parser and linker image model for multiple full 4K banks.')>=0
+   or die "bankswitching plan no longer records the completed multi-bank image foundation\n";
+index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.')>=0
+   or die "bankswitching plan no longer records completed per-bank reset bridges\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
 index($bankswitching,'contain exactly the same bytes in every physical bank')>=0 &&
@@ -54,6 +56,13 @@ index($bankswitching,'$x100')>=0
 index($bankswitching,'bank1 void some_function(void)')>=0 &&
 index($bankswitching,'$start:0xD100 $size:0x0F00')>=0
    or die "bankswitching plan lost named function-region syntax or correct Superchip ROM span\n";
+index($bankswitching,'Every selector hotspot is reserved at the same low twelve-bit offset')>=0 &&
+index($bankswitching,'hotspot bytes may not become code or ordinary ROM data')>=0
+   or die "bankswitching plan lost per-bank hotspot reservation\n";
+index($bankswitching,'CARTRIDGE vectorbridge')>=0 &&
+index($bankswitching,'BIT BANK0_HOTSPOT; JMP __reset')>=0 &&
+index($bankswitching,q{F4's $1FFA and $1FFB selector})>=0
+   or die "bankswitching plan lost implemented vector bridge design\n";
 
 # The two complete drawscreen profiles remain installed intentionally.  They are
 # legacy compatibility/regression targets, not preferred component APIs and not

@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260801_015619.tar.gz
+    vcsc.20260801_211533.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7604,3 +7604,42 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests pass; the long renderer tail was completed in deterministic chunks after
   the broad run reached test 160. The focused function-region placement,
   source-tree hygiene, and branding tests pass.
+
+2026-08-01 14:51:45 PDT, add full-bank images and deterministic reset bridges
+-------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 2. Extend the strict cfg parser
+  with dynamically sized `CARTRIDGE`, `BANKS`, `MEMORY`, and `SEGMENTS` state;
+  add mapper/fill, bank start/size/hotspot/startup, and `MEMORY bank=NAME`
+  metadata; reject unknown properties, malformed or incomplete F8/F6/F4 sets,
+  overlapping logical banks/regions, and non-binary banked output.
+* Emit each declared physical bank as one exact 4096-byte unit in ascending
+  logical-address order, so F8/F6/F4 files begin with the lowest logical bank
+  and end with BANK0. Preserve the stock unbanked `vcs_4k.cfg` image
+  byte-for-byte. Correct selector validation to the descending logical naming:
+  BANK0 uses `$1FF9` for F8/F6 and `$1FFB` for F4, and later BANK names work
+  downward through the mapper's conventional selector range.
+* Reserve every mapper hotspot at its low-twelve-bit offset in every physical
+  bank. Any ordinary code/data segment whose allocatable region covers a
+  selector byte is now a cfg error, even if the selector nominally chooses a
+  different bank. Add this requirement to `.top_secret/bankswitching.txt` and
+  lock it in structural and source-hygiene tests.
+* Complete detailed roadmap item 3. Require `CARTRIDGE vectorbridge=OFFSET`,
+  reserve an eighteen-byte corridor in every bank, and emit identical six-byte
+  NMI, RESET, and IRQ/BRK entries: `BIT BANK0_HOTSPOT; JMP handler`. Emit the
+  same BANK0-mirror vector words in the final six bytes of every bank. This
+  resets deterministically from any selected bank and makes F4's `$1FFA/$1FFB`
+  NMI-vector/selector overlap harmless because every bank supplies identical
+  bytes. Generated bridge/vector writes also reject collisions with placed
+  material; `__reset`, `__nmi`, `__irqbrk`, and `main` remain in BANK0.
+* Add `linker_banked_image_model.pl` and
+  `linker_banked_reset_bridges.pl`. They cover dynamic cfg tables, strict
+  diagnostics, hotspot/bridge reservation, exact file order and sizes,
+  byte-identical bridges/vectors, conventional selectors, and modeled
+  NMI/RESET/IRQ bridge execution from every initial bank for F8, F6, and F4.
+  Update linker, test, and internal roadmap documentation. The next detailed
+  bankswitching leaf is item 4, bank-aware relocation classification.
+* Verification: the clean build passes all 341 compile-only tests. The broad
+  end-to-end run passes its first 122 cases before the outer command timeout;
+  the remainder passes in deterministic groups, for all 205/205 end-to-end and
+  generic tests. The focused 17-test linker/placement/hygiene set and staged
+  `make installcheck` also pass.

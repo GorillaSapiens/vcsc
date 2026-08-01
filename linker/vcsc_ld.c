@@ -17,6 +17,15 @@
 #include "vcsc_ld_abi.h"
 #include "version.h"
 
+/* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
+enum {
+   VECTOR_BRIDGE_ENTRY_SIZE = 6,
+   VECTOR_BRIDGE_NMI_OFFSET = 0,
+   VECTOR_BRIDGE_RESET_OFFSET = VECTOR_BRIDGE_ENTRY_SIZE,
+   VECTOR_BRIDGE_IRQBRK_OFFSET = 2 * VECTOR_BRIDGE_ENTRY_SIZE,
+   VECTOR_BRIDGE_SIZE = 3 * VECTOR_BRIDGE_ENTRY_SIZE
+};
+
 //! @brief Print the linker command-line usage text.
 static void usage(FILE *fp)
 {
@@ -494,47 +503,100 @@ static char *trim(char *s)
    return s;
 }
 
+//! @brief Parse yes/no into a configuration boolean.
+static int parse_yes_no(const char *key, const char *value)
+{
+   value = trim((char *)value);
+   if (str_ieq(value, "yes"))
+      return 1;
+   if (str_ieq(value, "no"))
+      return 0;
+   fprintf(stderr, "vcsc-ld: bad %s value '%s'; expected yes or no\n", key, value);
+   exit(1);
+}
+
+//! @brief Parse a bounded numeric configuration property.
+static uint16_t parse_u16_property(const char *kind, const char *value,
+                                   uint32_t minimum, uint32_t maximum)
+{
+   parse_result_t n = parse_number(value);
+   if (!n.ok || n.pos != strlen(trim((char *)value)) ||
+       n.value < minimum || n.value > maximum) {
+      fprintf(stderr, "vcsc-ld: bad %s '%s'\n", kind, value);
+      exit(1);
+   }
+   return (uint16_t)n.value;
+}
+
+//! @brief Append one zeroed MEMORY entry to a dynamically sized config.
+static memory_region_t *append_memory_region(linker_config_t *cfg)
+{
+   cfg->mem = (memory_region_t *)xrealloc(
+      cfg->mem, (cfg->mem_count + 1) * sizeof(*cfg->mem));
+   memset(&cfg->mem[cfg->mem_count], 0, sizeof(*cfg->mem));
+   return &cfg->mem[cfg->mem_count++];
+}
+
+//! @brief Append one zeroed SEGMENTS entry to a dynamically sized config.
+static segment_rule_t *append_segment_rule(linker_config_t *cfg)
+{
+   cfg->seg = (segment_rule_t *)xrealloc(
+      cfg->seg, (cfg->seg_count + 1) * sizeof(*cfg->seg));
+   memset(&cfg->seg[cfg->seg_count], 0, sizeof(*cfg->seg));
+   return &cfg->seg[cfg->seg_count++];
+}
+
+//! @brief Append one zeroed BANKS entry to a dynamically sized config.
+static cartridge_bank_t *append_cartridge_bank(linker_config_t *cfg)
+{
+   cfg->banks = (cartridge_bank_t *)xrealloc(
+      cfg->banks, (cfg->bank_count + 1) * sizeof(*cfg->banks));
+   memset(&cfg->banks[cfg->bank_count], 0, sizeof(*cfg->banks));
+   return &cfg->banks[cfg->bank_count++];
+}
+
 //! @brief Parse memory property into the normalized representation used by linker layout and image writer.
 static void parse_memory_property(memory_region_t *mem, const char *key, const char *value)
 {
    parse_result_t n;
+   value = trim((char *)value);
    if (str_ieq(key, "start")) {
-      n = parse_number(value);
-      if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "vcsc-ld: bad memory start '%s'\n", value);
-         exit(1);
-      }
-      mem->start = (uint16_t)n.value;
+      mem->start = parse_u16_property("memory start", value, 0, 0xFFFFu);
    } else if (str_ieq(key, "size")) {
-      n = parse_number(value);
-      if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "vcsc-ld: bad memory size '%s'\n", value);
-         exit(1);
-      }
-      mem->size = (uint16_t)n.value;
+      mem->size = parse_u16_property("memory size", value, 1, 0xFFFFu);
    } else if (str_ieq(key, "type")) {
-      snprintf(mem->type, sizeof(mem->type), "%s", trim((char *)value));
+      snprintf(mem->type, sizeof(mem->type), "%s", value);
    } else if (str_ieq(key, "define")) {
-      mem->define_yes = str_ieq(trim((char *)value), "yes");
+      mem->define_yes = parse_yes_no("memory define", value);
    } else if (str_ieq(key, "callstack")) {
-      value = trim((char *)value);
       if (str_ieq(value, "callgraph")) {
          mem->callstack_callgraph = 1;
-      }
-      else if (str_ieq(value, "no")) {
+      } else if (str_ieq(value, "no")) {
          mem->callstack_callgraph = 0;
-      }
-      else {
+      } else {
          fprintf(stderr, "vcsc-ld: bad memory callstack mode '%s'; expected callgraph or no\n", value);
          exit(1);
       }
    } else if (str_ieq(key, "callstack_extra")) {
+      mem->callstack_extra =
+         parse_u16_property("memory callstack_extra", value, 0, 0xFFFFu);
+   } else if (str_ieq(key, "file")) {
+      snprintf(mem->file, sizeof(mem->file), "%s", value);
+   } else if (str_ieq(key, "fill")) {
+      mem->fill_yes = parse_yes_no("memory fill", value);
+   } else if (str_ieq(key, "fillval")) {
       n = parse_number(value);
-      if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "vcsc-ld: bad memory callstack_extra '%s'\n", value);
+      if (!n.ok || n.pos != strlen(value) || n.value > 0xFFu) {
+         fprintf(stderr, "vcsc-ld: bad memory fillval '%s'\n", value);
          exit(1);
       }
-      mem->callstack_extra = (uint16_t)n.value;
+      mem->fill_value = (uint8_t)n.value;
+      mem->has_fill_value = 1;
+   } else if (str_ieq(key, "bank")) {
+      snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", value);
+   } else {
+      fprintf(stderr, "vcsc-ld: unknown MEMORY property '%s'\n", key);
+      exit(1);
    }
 }
 
@@ -549,14 +611,411 @@ static void parse_segment_property(segment_rule_t *seg, const char *key, const c
    } else if (str_ieq(key, "type")) {
       snprintf(seg->type, sizeof(seg->type), "%s", value);
    } else if (str_ieq(key, "define")) {
-      seg->define_yes = str_ieq(value, "yes");
+      seg->define_yes = parse_yes_no("segment define", value);
    } else if (str_ieq(key, "align")) {
       parse_result_t n = parse_number(value);
-      if (!n.ok || n.value == 0 || n.value > 0x8000u || (n.value & (n.value - 1u)) != 0) {
+      if (!n.ok || n.pos != strlen(value) || n.value == 0 || n.value > 0x8000u ||
+          (n.value & (n.value - 1u)) != 0) {
          fprintf(stderr, "vcsc-ld: bad segment alignment '%s'; expected a power of two from 1 through $8000\n", value);
          exit(1);
       }
       seg->align = (uint16_t)n.value;
+   } else if (str_ieq(key, "start")) {
+      seg->start = parse_u16_property("segment start", value, 0, 0xFFFFu);
+      seg->has_start = 1;
+   } else {
+      fprintf(stderr, "vcsc-ld: unknown SEGMENTS property '%s'\n", key);
+      exit(1);
+   }
+}
+
+//! @brief Parse one CARTRIDGE property.
+static void parse_cartridge_property(linker_config_t *cfg,
+                                     const char *key, const char *value)
+{
+   parse_result_t n;
+   value = trim((char *)value);
+   if (str_ieq(key, "mapper")) {
+      snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", value);
+   } else if (str_ieq(key, "fillval")) {
+      n = parse_number(value);
+      if (!n.ok || n.pos != strlen(value) || n.value > 0xFFu) {
+         fprintf(stderr, "vcsc-ld: bad cartridge fillval '%s'\n", value);
+         exit(1);
+      }
+      cfg->cartridge_fill_value = (uint8_t)n.value;
+   } else if (str_ieq(key, "vectorbridge")) {
+      cfg->vector_bridge_offset =
+         parse_u16_property("cartridge vectorbridge", value, 0, 0x0FFFu);
+      cfg->has_vector_bridge_offset = 1;
+   } else {
+      fprintf(stderr, "vcsc-ld: unknown CARTRIDGE property '%s'\n", key);
+      exit(1);
+   }
+}
+
+//! @brief Parse one BANKS property.
+static void parse_bank_property(cartridge_bank_t *bank,
+                                const char *key, const char *value)
+{
+   value = trim((char *)value);
+   if (str_ieq(key, "start")) {
+      bank->start = parse_u16_property("bank start", value, 0, 0xFFFFu);
+   } else if (str_ieq(key, "size")) {
+      bank->size = parse_u16_property("bank size", value, 1, 0xFFFFu);
+   } else if (str_ieq(key, "hotspot")) {
+      bank->hotspot = parse_u16_property("bank hotspot", value, 0, 0xFFFFu);
+   } else if (str_ieq(key, "startup")) {
+      bank->startup = parse_yes_no("bank startup", value);
+   } else {
+      fprintf(stderr, "vcsc-ld: unknown BANKS property '%s'\n", key);
+      exit(1);
+   }
+}
+
+//! @brief Parse comma-separated key/value properties for one configuration entry.
+static void parse_property_list(linker_config_t *cfg, int block,
+                                void *entry, char *properties)
+{
+   char *tok = strtok(properties, ",");
+   while (tok) {
+      char *eq = strchr(tok, '=');
+      char *key;
+      char *value;
+      if (!eq) {
+         fprintf(stderr, "vcsc-ld: malformed configuration property '%s'; expected key=value\n",
+                 trim(tok));
+         exit(1);
+      }
+      *eq++ = '\0';
+      key = trim(tok);
+      value = trim(eq);
+      if (*key == '\0' || *value == '\0') {
+         fprintf(stderr, "vcsc-ld: malformed empty configuration property\n");
+         exit(1);
+      }
+      if (block == 1)
+         parse_cartridge_property(cfg, key, value);
+      else if (block == 2)
+         parse_bank_property((cartridge_bank_t *)entry, key, value);
+      else if (block == 3)
+         parse_memory_property((memory_region_t *)entry, key, value);
+      else
+         parse_segment_property((segment_rule_t *)entry, key, value);
+      tok = strtok(NULL, ",");
+   }
+}
+
+//! @brief Find a configured cartridge bank by name.
+static const cartridge_bank_t *find_cartridge_bank(const linker_config_t *cfg,
+                                                    const char *name)
+{
+   size_t i;
+   if (!cfg || !name)
+      return NULL;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      if (str_ieq(cfg->banks[i].name, name))
+         return &cfg->banks[i];
+   }
+   return NULL;
+}
+
+//! @brief Return whether one segment rule may place ordinary code/data bytes.
+static int segment_rule_is_ordinary_allocatable(const segment_rule_t *seg)
+{
+   if (!seg)
+      return 0;
+   if (str_ieq(seg->name, "VECTORS"))
+      return 0;
+   return str_ieq(seg->type, "ro") || str_ieq(seg->type, "data");
+}
+
+//! @brief Validate one fully parsed linker configuration.
+static void validate_linker_config(linker_config_t *cfg)
+{
+   size_t i;
+   size_t j;
+   size_t startup_count = 0;
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      memory_region_t *mem = &cfg->mem[i];
+      uint32_t end = (uint32_t)mem->start + mem->size;
+      mem->physical_size = mem->size;
+      if (!mem->name[0] || mem->size == 0) {
+         fprintf(stderr, "vcsc-ld: incomplete MEMORY entry '%s' start=$%04X size=$%04X type='%s'\n",
+                 mem->name[0] ? mem->name : "<unnamed>", mem->start, mem->size, mem->type);
+         exit(1);
+      }
+      if (end > 0x10000u) {
+         fprintf(stderr, "vcsc-ld: MEMORY region '%s' extends beyond address space\n",
+                 mem->name);
+         exit(1);
+      }
+      if (mem->callstack_extra && !mem->callstack_callgraph) {
+         fprintf(stderr,
+            "vcsc-ld: MEMORY region '%s' sets callstack_extra but does not request callstack=callgraph\n",
+            mem->name);
+         exit(1);
+      }
+      for (j = i + 1; j < cfg->mem_count; ++j) {
+         if (str_ieq(mem->name, cfg->mem[j].name)) {
+            fprintf(stderr, "vcsc-ld: duplicate MEMORY region '%s'\n", mem->name);
+            exit(1);
+         }
+      }
+   }
+
+   for (i = 0; i < cfg->seg_count; ++i) {
+      segment_rule_t *seg = &cfg->seg[i];
+      if (!seg->name[0] || !seg->load_name[0] || !seg->type[0]) {
+         fprintf(stderr, "vcsc-ld: incomplete SEGMENTS entry '%s'\n",
+                 seg->name[0] ? seg->name : "<unnamed>");
+         exit(1);
+      }
+      if (!find_memory(cfg, seg->load_name)) {
+         fprintf(stderr, "vcsc-ld: SEGMENTS entry '%s' names unknown load region '%s'\n",
+                 seg->name, seg->load_name);
+         exit(1);
+      }
+      if (seg->run_name[0] && !find_memory(cfg, seg->run_name)) {
+         fprintf(stderr, "vcsc-ld: SEGMENTS entry '%s' names unknown run region '%s'\n",
+                 seg->name, seg->run_name);
+         exit(1);
+      }
+      for (j = i + 1; j < cfg->seg_count; ++j) {
+         if (str_ieq(seg->name, cfg->seg[j].name)) {
+            fprintf(stderr, "vcsc-ld: duplicate SEGMENTS entry '%s'\n", seg->name);
+            exit(1);
+         }
+      }
+   }
+
+   if (cfg->bank_count == 0) {
+      if (cfg->mapper[0]) {
+         fprintf(stderr, "vcsc-ld: CARTRIDGE mapper requires a BANKS block\n");
+         exit(1);
+      }
+      cfg->cartridge_banked = 0;
+      return;
+   }
+
+   cfg->cartridge_banked = 1;
+   if (!cfg->mapper[0]) {
+      fprintf(stderr, "vcsc-ld: banked configuration requires CARTRIDGE mapper\n");
+      exit(1);
+   }
+   if (!cfg->has_vector_bridge_offset) {
+      fprintf(stderr,
+              "vcsc-ld: banked configuration requires CARTRIDGE vectorbridge\n");
+      exit(1);
+   }
+   if ((uint32_t)cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE > 0x0FFAu) {
+      fprintf(stderr,
+              "vcsc-ld: CARTRIDGE vectorbridge $%03X plus %u bytes overlaps the per-bank vectors\n",
+              cfg->vector_bridge_offset, VECTOR_BRIDGE_SIZE);
+      exit(1);
+   }
+
+   for (i = 0; i < cfg->bank_count; ++i) {
+      cartridge_bank_t *bank = &cfg->banks[i];
+      uint32_t end = (uint32_t)bank->start + bank->size;
+      if (!bank->name[0] || bank->size != 0x1000u ||
+          (bank->start & 0x0fffu) != 0 || end > 0x10000u) {
+         fprintf(stderr,
+                 "vcsc-ld: BANKS entry '%s' must describe one aligned 4K logical bank\n",
+                 bank->name[0] ? bank->name : "<unnamed>");
+         exit(1);
+      }
+      if (bank->hotspot < 0x1000u || bank->hotspot > 0x1fffu) {
+         fprintf(stderr,
+                 "vcsc-ld: BANKS entry '%s' hotspot $%04X is outside $1000-$1FFF\n",
+                 bank->name, bank->hotspot);
+         exit(1);
+      }
+      if (bank->startup)
+         startup_count++;
+      for (j = i + 1; j < cfg->bank_count; ++j) {
+         cartridge_bank_t *other = &cfg->banks[j];
+         uint32_t other_end = (uint32_t)other->start + other->size;
+         if (str_ieq(bank->name, other->name)) {
+            fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+            exit(1);
+         }
+         if (bank->start < other_end && other->start < end) {
+            fprintf(stderr, "vcsc-ld: logical cartridge banks '%s' and '%s' overlap\n",
+                    bank->name, other->name);
+            exit(1);
+         }
+         if (bank->hotspot == other->hotspot) {
+            fprintf(stderr, "vcsc-ld: duplicate bank hotspot $%04X for '%s' and '%s'\n",
+                    bank->hotspot, bank->name, other->name);
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1) {
+      fprintf(stderr, "vcsc-ld: banked configuration must mark exactly one BANKS entry startup=yes\n");
+      exit(1);
+   }
+
+   {
+      size_t expected_count = 0;
+      uint16_t highest_hotspot = 0;
+      if (str_ieq(cfg->mapper, "F8")) {
+         expected_count = 2;
+         highest_hotspot = 0x1FF9u;
+      } else if (str_ieq(cfg->mapper, "F6")) {
+         expected_count = 4;
+         highest_hotspot = 0x1FF9u;
+      } else if (str_ieq(cfg->mapper, "F4")) {
+         expected_count = 8;
+         highest_hotspot = 0x1FFBu;
+      } else {
+         fprintf(stderr,
+                 "vcsc-ld: unsupported full-window mapper '%s'; expected F8, F6, or F4\n",
+                 cfg->mapper);
+         exit(1);
+      }
+      if (cfg->bank_count != expected_count) {
+         fprintf(stderr, "vcsc-ld: mapper %s requires %zu banks, found %zu\n",
+                 cfg->mapper, expected_count, cfg->bank_count);
+         exit(1);
+      }
+      for (i = 0; i < expected_count; ++i) {
+         char expected_name[MAX_NAME];
+         const cartridge_bank_t *bank;
+         uint16_t expected_start = (uint16_t)(0xF000u - (uint16_t)(i * 0x2000u));
+         uint16_t expected_hotspot = (uint16_t)(highest_hotspot - (uint16_t)i);
+         snprintf(expected_name, sizeof(expected_name), "BANK%zu", i);
+         bank = find_cartridge_bank(cfg, expected_name);
+         if (!bank) {
+            fprintf(stderr, "vcsc-ld: mapper %s is missing %s\n",
+                    cfg->mapper, expected_name);
+            exit(1);
+         }
+         if (bank->start != expected_start) {
+            fprintf(stderr,
+                    "vcsc-ld: %s must start at $%04X for descending mirrored-bank order\n",
+                    bank->name, expected_start);
+            exit(1);
+         }
+         if (bank->hotspot != expected_hotspot) {
+            fprintf(stderr,
+                    "vcsc-ld: %s must use %s selector hotspot $%04X\n",
+                    bank->name, cfg->mapper, expected_hotspot);
+            exit(1);
+         }
+         if ((i == 0 && !bank->startup) || (i != 0 && bank->startup)) {
+            fprintf(stderr, "vcsc-ld: BANK0 must be the sole startup bank\n");
+            exit(1);
+         }
+      }
+   }
+
+   for (i = 0; i < cfg->bank_count; ++i) {
+      uint16_t selector_offset = (uint16_t)(cfg->banks[i].hotspot & 0x0FFFu);
+      if (selector_offset >= cfg->vector_bridge_offset &&
+          selector_offset < (uint16_t)(cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE)) {
+         fprintf(stderr,
+                 "vcsc-ld: CARTRIDGE vectorbridge $%03X overlaps %s selector hotspot $%04X\n",
+                 cfg->vector_bridge_offset, cfg->banks[i].name,
+                 cfg->banks[i].hotspot);
+         exit(1);
+      }
+   }
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      memory_region_t *mem = &cfg->mem[i];
+      const cartridge_bank_t *bank;
+      uint32_t mem_end;
+      if (!mem->bank_name[0]) {
+         int cartridge_output = str_ieq(mem->type, "ro");
+         for (j = 0; j < cfg->seg_count; ++j) {
+            if (str_ieq(cfg->seg[j].load_name, mem->name) &&
+                (str_ieq(cfg->seg[j].type, "ro") ||
+                 str_ieq(cfg->seg[j].type, "data"))) {
+               cartridge_output = 1;
+               break;
+            }
+         }
+         if (cartridge_output) {
+            fprintf(stderr,
+                    "vcsc-ld: banked cartridge MEMORY region '%s' must name bank=...\n",
+                    mem->name);
+            exit(1);
+         }
+         continue;
+      }
+      bank = find_cartridge_bank(cfg, mem->bank_name);
+      if (!bank) {
+         fprintf(stderr, "vcsc-ld: MEMORY region '%s' names unknown bank '%s'\n",
+                 mem->name, mem->bank_name);
+         exit(1);
+      }
+      mem_end = (uint32_t)mem->start + mem->size;
+      if (mem->start < bank->start ||
+          mem_end > (uint32_t)bank->start + bank->size) {
+         fprintf(stderr,
+                 "vcsc-ld: MEMORY region '%s' lies outside cartridge bank '%s'\n",
+                 mem->name, bank->name);
+         exit(1);
+      }
+      for (j = i + 1; j < cfg->mem_count; ++j) {
+         memory_region_t *other = &cfg->mem[j];
+         uint32_t other_end;
+         if (!other->bank_name[0] ||
+             !str_ieq(mem->bank_name, other->bank_name))
+            continue;
+         other_end = (uint32_t)other->start + other->size;
+         if (mem->start < other_end && other->start < mem_end) {
+            fprintf(stderr,
+                    "vcsc-ld: MEMORY regions '%s' and '%s' overlap inside bank '%s'\n",
+                    mem->name, other->name, mem->bank_name);
+            exit(1);
+         }
+      }
+   }
+
+   /* Every selector hotspot is visible at the same low twelve-bit offset in
+      every physical bank. Reject any ordinary allocatable segment region that
+      covers one of those bytes. Non-allocatable vector and bridge regions may
+      own fixed bytes that deliberately overlap mapper hotspots. */
+   for (i = 0; i < cfg->seg_count; ++i) {
+      const segment_rule_t *seg = &cfg->seg[i];
+      const memory_region_t *mem;
+      const cartridge_bank_t *bank;
+      if (!segment_rule_is_ordinary_allocatable(seg))
+         continue;
+      mem = find_memory(cfg, seg->load_name);
+      if (!mem || !mem->bank_name[0])
+         continue;
+      bank = find_cartridge_bank(cfg, mem->bank_name);
+      if (!bank)
+         continue;
+      {
+         uint32_t mem_end = (uint32_t)mem->start + mem->size;
+         uint16_t logical_bridge =
+            (uint16_t)(bank->start + cfg->vector_bridge_offset);
+         uint32_t logical_bridge_end =
+            (uint32_t)logical_bridge + VECTOR_BRIDGE_SIZE;
+         if (mem->start < logical_bridge_end && logical_bridge < mem_end) {
+            fprintf(stderr,
+                    "vcsc-ld: segment '%s' region '%s' covers reserved vector bridge $%04X-$%04X in %s\n",
+                    seg->name, mem->name, logical_bridge,
+                    (uint16_t)(logical_bridge_end - 1u), bank->name);
+            exit(1);
+         }
+         for (j = 0; j < cfg->bank_count; ++j) {
+            uint16_t logical_hotspot =
+               (uint16_t)(bank->start + (cfg->banks[j].hotspot & 0x0fffu));
+            if (logical_hotspot >= mem->start && logical_hotspot < mem_end) {
+               fprintf(stderr,
+                       "vcsc-ld: segment '%s' region '%s' covers reserved bank hotspot $%04X in %s\n",
+                       seg->name, mem->name, logical_hotspot, bank->name);
+               exit(1);
+            }
+         }
+      }
    }
 }
 
@@ -565,7 +1024,8 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
 {
    FILE *fp = fopen(path, "r");
    char line[1024];
-   enum { NONE, MEMORY, SEGMENTS } block = NONE;
+   enum { NONE, CARTRIDGE, BANKS, MEMORY, SEGMENTS } block = NONE;
+   unsigned line_number = 0;
 
    if (!fp) {
       fprintf(stderr, "vcsc-ld: cannot open '%s': %s\n", path, strerror(errno));
@@ -573,98 +1033,130 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
    }
 
    memset(cfg, 0, sizeof(*cfg));
+   cfg->cartridge_fill_value = 0xFFu;
 
    while (fgets(line, sizeof(line), fp)) {
       char *s = line;
-      char *brace;
-      char *comment = strchr(s, '#');
+      char *colon;
+      char *comment;
+      char *semi;
+      line_number++;
+
+      comment = strchr(s, '#');
       if (comment)
          *comment = '\0';
       s = trim(s);
       if (*s == '\0')
          continue;
 
+      if (str_ieq(s, "CARTRIDGE {") || str_ieq(s, "CARTRIDGE{")) {
+         if (block != NONE) {
+            fprintf(stderr, "vcsc-ld: nested block at %s:%u\n", path, line_number);
+            exit(1);
+         }
+         block = CARTRIDGE;
+         continue;
+      }
+      if (str_ieq(s, "BANKS {") || str_ieq(s, "BANKS{")) {
+         if (block != NONE) {
+            fprintf(stderr, "vcsc-ld: nested block at %s:%u\n", path, line_number);
+            exit(1);
+         }
+         block = BANKS;
+         continue;
+      }
       if (str_ieq(s, "MEMORY {") || str_ieq(s, "MEMORY{")) {
+         if (block != NONE) {
+            fprintf(stderr, "vcsc-ld: nested block at %s:%u\n", path, line_number);
+            exit(1);
+         }
          block = MEMORY;
          continue;
       }
       if (str_ieq(s, "SEGMENTS {") || str_ieq(s, "SEGMENTS{")) {
+         if (block != NONE) {
+            fprintf(stderr, "vcsc-ld: nested block at %s:%u\n", path, line_number);
+            exit(1);
+         }
          block = SEGMENTS;
          continue;
       }
       if (strcmp(s, "}") == 0) {
+         if (block == NONE) {
+            fprintf(stderr, "vcsc-ld: unmatched '}' at %s:%u\n", path, line_number);
+            exit(1);
+         }
          block = NONE;
          continue;
       }
-      if (block == NONE)
-         continue;
-
-      brace = strchr(s, ':');
-      if (!brace)
-         continue;
-      *brace++ = '\0';
-      s = trim(s);
-      brace = trim(brace);
-      {
-         char *semi = strrchr(brace, ';');
-         char *tok;
-         if (semi)
-            *semi = '\0';
-
-         if (block == MEMORY) {
-            memory_region_t *mem;
-            if (cfg->mem_count >= ARRAY_LEN(cfg->mem)) {
-               fprintf(stderr, "vcsc-ld: too many MEMORY entries\n");
-               exit(1);
-            }
-            mem = &cfg->mem[cfg->mem_count++];
-            memset(mem, 0, sizeof(*mem));
-            snprintf(mem->name, sizeof(mem->name), "%s", s);
-            tok = strtok(brace, ",");
-            while (tok) {
-               char *eq = strchr(tok, '=');
-               if (eq) {
-                  *eq++ = '\0';
-                  parse_memory_property(mem, trim(tok), trim(eq));
-               }
-               tok = strtok(NULL, ",");
-            }
-         } else {
-            segment_rule_t *seg;
-            if (cfg->seg_count >= ARRAY_LEN(cfg->seg)) {
-               fprintf(stderr, "vcsc-ld: too many SEGMENTS entries\n");
-               exit(1);
-            }
-            seg = &cfg->seg[cfg->seg_count++];
-            memset(seg, 0, sizeof(*seg));
-            snprintf(seg->name, sizeof(seg->name), "%s", s);
-            tok = strtok(brace, ",");
-            while (tok) {
-               char *eq = strchr(tok, '=');
-               if (eq) {
-                  *eq++ = '\0';
-                  parse_segment_property(seg, trim(tok), trim(eq));
-               }
-               tok = strtok(NULL, ",");
-            }
-         }
+      if (block == NONE) {
+         fprintf(stderr, "vcsc-ld: unrecognized top-level text at %s:%u: %s\n",
+                 path, line_number, s);
+         exit(1);
       }
-   }
 
-   fclose(fp);
+      semi = strrchr(s, ';');
+      if (!semi || trim(semi + 1)[0] != '\0') {
+         fprintf(stderr, "vcsc-ld: configuration entry must end with ';' at %s:%u\n",
+                 path, line_number);
+         exit(1);
+      }
+      *semi = '\0';
 
-   {
-      size_t i;
-      for (i = 0; i < cfg->mem_count; ++i) {
-         cfg->mem[i].physical_size = cfg->mem[i].size;
-         if (cfg->mem[i].callstack_extra && !cfg->mem[i].callstack_callgraph) {
-            fprintf(stderr,
-               "vcsc-ld: MEMORY region '%s' sets callstack_extra but does not request callstack=callgraph\n",
-               cfg->mem[i].name);
+      if (block == CARTRIDGE) {
+         char *eq = strchr(s, '=');
+         if (!eq) {
+            fprintf(stderr, "vcsc-ld: malformed CARTRIDGE entry at %s:%u\n",
+                    path, line_number);
             exit(1);
          }
+         *eq++ = '\0';
+         parse_cartridge_property(cfg, trim(s), trim(eq));
+         continue;
+      }
+
+      colon = strchr(s, ':');
+      if (!colon) {
+         fprintf(stderr, "vcsc-ld: malformed named entry at %s:%u\n",
+                 path, line_number);
+         exit(1);
+      }
+      *colon++ = '\0';
+      s = trim(s);
+      colon = trim(colon);
+      if (*s == '\0' || *colon == '\0') {
+         fprintf(stderr, "vcsc-ld: malformed empty named entry at %s:%u\n",
+                 path, line_number);
+         exit(1);
+      }
+
+      if (block == BANKS) {
+         cartridge_bank_t *bank = append_cartridge_bank(cfg);
+         snprintf(bank->name, sizeof(bank->name), "%s", s);
+         parse_property_list(cfg, 2, bank, colon);
+      } else if (block == MEMORY) {
+         memory_region_t *mem = append_memory_region(cfg);
+         snprintf(mem->name, sizeof(mem->name), "%s", s);
+         parse_property_list(cfg, 3, mem, colon);
+      } else {
+         segment_rule_t *seg = append_segment_rule(cfg);
+         snprintf(seg->name, sizeof(seg->name), "%s", s);
+         parse_property_list(cfg, 4, seg, colon);
       }
    }
+
+   if (ferror(fp)) {
+      fprintf(stderr, "vcsc-ld: read failed for '%s': %s\n", path, strerror(errno));
+      fclose(fp);
+      exit(1);
+   }
+   fclose(fp);
+   if (block != NONE) {
+      fprintf(stderr, "vcsc-ld: unterminated configuration block in '%s'\n", path);
+      exit(1);
+   }
+
+   validate_linker_config(cfg);
 }
 
 
@@ -2622,6 +3114,41 @@ static void image_write(uint8_t *image, uint8_t *used, uint16_t addr, const uint
    }
 }
 
+//! @brief Write linker-generated fixed bytes without overwriting placed material.
+static void image_write_generated(uint8_t *image, uint8_t *used, uint16_t addr,
+                                  const uint8_t *src, size_t len,
+                                  const char *who)
+{
+   size_t i;
+   for (i = 0; i < len; ++i) {
+      uint32_t a = (uint32_t)addr + i;
+      if (a > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: image write overflow from %s\n", who);
+         exit(1);
+      }
+      if (used[a]) {
+         fprintf(stderr,
+                 "vcsc-ld: linker-generated %s overlaps placed byte at $%04X\n",
+                 who, (unsigned)a);
+         exit(1);
+      }
+   }
+   image_write(image, used, addr, src, len, who);
+}
+
+//! @brief Encode one common BIT-hotspot/JMP-handler vector bridge entry.
+static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
+                                       uint16_t bank0_hotspot,
+                                       uint16_t handler)
+{
+   table[offset + 0u] = 0x2Cu; /* BIT absolute */
+   table[offset + 1u] = (uint8_t)(bank0_hotspot & 0xFFu);
+   table[offset + 2u] = (uint8_t)((bank0_hotspot >> 8) & 0xFFu);
+   table[offset + 3u] = 0x4Cu; /* JMP absolute */
+   table[offset + 4u] = (uint8_t)(handler & 0xFFu);
+   table[offset + 5u] = (uint8_t)((handler >> 8) & 0xFFu);
+}
+
 //! @brief Handle build init table image logic for linker layout and image writer.
 static void build_init_table_image(const input_set_t *in, const layout_t *layout, uint8_t *table)
 {
@@ -2684,11 +3211,11 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
    const memory_region_t *rom = find_memory(cfg, "ROM");
    size_t i;
    uint16_t reset, nmi, irqbrk;
-   if (!rom) {
+   if (!cfg->cartridge_banked && !rom) {
       fprintf(stderr, "vcsc-ld: ROM memory region not found\n");
       exit(1);
    }
-   memset(image, 0xFF, 65536);
+   memset(image, cfg->cartridge_fill_value, 65536);
    memset(used, 0, 65536);
 
    for (i = 0; i < in->object_count; ++i) {
@@ -2749,13 +3276,77 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
    nmi = lookup_global_addr(layout, "__nmi");
    irqbrk = lookup_global_addr(layout, "__irqbrk");
 
-   image[0xFFFA] = (uint8_t)(nmi & 0xFFu);
-   image[0xFFFB] = (uint8_t)((nmi >> 8) & 0xFFu);
-   image[0xFFFC] = (uint8_t)(reset & 0xFFu);
-   image[0xFFFD] = (uint8_t)((reset >> 8) & 0xFFu);
-   image[0xFFFE] = (uint8_t)(irqbrk & 0xFFu);
-   image[0xFFFF] = (uint8_t)((irqbrk >> 8) & 0xFFu);
-   used[0xFFFA] = used[0xFFFB] = used[0xFFFC] = used[0xFFFD] = used[0xFFFE] = used[0xFFFF] = 1;
+   if (cfg->cartridge_banked) {
+      const cartridge_bank_t *startup = NULL;
+      uint8_t bridge[VECTOR_BRIDGE_SIZE];
+      uint8_t vectors[6];
+      uint16_t bridge_base;
+      uint16_t bank0_hotspot;
+      uint32_t startup_end;
+
+      for (i = 0; i < cfg->bank_count; ++i) {
+         if (cfg->banks[i].startup) {
+            startup = &cfg->banks[i];
+            break;
+         }
+      }
+      if (!startup) {
+         fprintf(stderr, "vcsc-ld: banked configuration has no startup bank\n");
+         exit(1);
+      }
+      startup_end = (uint32_t)startup->start + startup->size;
+      if (reset < startup->start || reset >= startup_end ||
+          nmi < startup->start || nmi >= startup_end ||
+          irqbrk < startup->start || irqbrk >= startup_end) {
+         fprintf(stderr,
+                 "vcsc-ld: __reset, __nmi, and __irqbrk must all reside in startup bank %s\n",
+                 startup->name);
+         exit(1);
+      }
+
+      bridge_base = (uint16_t)(startup->start + cfg->vector_bridge_offset);
+      bank0_hotspot = startup->hotspot;
+      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_NMI_OFFSET,
+                                 bank0_hotspot, nmi);
+      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_RESET_OFFSET,
+                                 bank0_hotspot, reset);
+      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_IRQBRK_OFFSET,
+                                 bank0_hotspot, irqbrk);
+
+      /* Every bank receives the exact same bridge bytes and vector words. The
+         vectors use BANK0's logical mirror. Whichever physical bank is active
+         therefore fetches the same low-twelve-bit bridge offset, which selects
+         BANK0 before jumping to the ordinary runtime handler. Identical bytes
+         also make F4's NMI-vector/hotspot overlap deterministic. */
+      vectors[0] = (uint8_t)((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) & 0xFFu);
+      vectors[1] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) >> 8) & 0xFFu);
+      vectors[2] = (uint8_t)((bridge_base + VECTOR_BRIDGE_RESET_OFFSET) & 0xFFu);
+      vectors[3] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_RESET_OFFSET) >> 8) & 0xFFu);
+      vectors[4] = (uint8_t)((bridge_base + VECTOR_BRIDGE_IRQBRK_OFFSET) & 0xFFu);
+      vectors[5] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_IRQBRK_OFFSET) >> 8) & 0xFFu);
+
+      for (i = 0; i < cfg->bank_count; ++i) {
+         uint16_t bank_bridge =
+            (uint16_t)(cfg->banks[i].start + cfg->vector_bridge_offset);
+         uint16_t bank_vectors =
+            (uint16_t)(cfg->banks[i].start + cfg->banks[i].size - 6u);
+         image_write_generated(image, used, bank_bridge, bridge,
+                               sizeof(bridge), "vector bridge");
+         image_write_generated(image, used, bank_vectors, vectors,
+                               sizeof(vectors), "vectors");
+      }
+   } else {
+      uint16_t vector_base = 0xFFFAu;
+      image[vector_base + 0u] = (uint8_t)(nmi & 0xFFu);
+      image[vector_base + 1u] = (uint8_t)((nmi >> 8) & 0xFFu);
+      image[vector_base + 2u] = (uint8_t)(reset & 0xFFu);
+      image[vector_base + 3u] = (uint8_t)((reset >> 8) & 0xFFu);
+      image[vector_base + 4u] = (uint8_t)(irqbrk & 0xFFu);
+      image[vector_base + 5u] = (uint8_t)((irqbrk >> 8) & 0xFFu);
+      used[vector_base + 0u] = used[vector_base + 1u] =
+         used[vector_base + 2u] = used[vector_base + 3u] =
+         used[vector_base + 4u] = used[vector_base + 5u] = 1;
+   }
 }
 
 //! @brief Handle hex checksum logic for linker layout and image writer.
@@ -2815,22 +3406,49 @@ static void write_intel_hex(const char *path, const uint8_t *image, const uint8_
    fclose(fp);
 }
 
-//! @brief Write a flat binary from the lowest used address through the highest.
-static void write_flat_binary(const char *path, const uint8_t *image, const uint8_t *used)
+//! @brief Compare cartridge-bank pointers by ascending logical start address.
+static int compare_cartridge_bank_start(const void *lhs, const void *rhs)
 {
-   FILE *fp;
-   uint32_t first = 0;
-   uint32_t last = 65535u;
-   uint32_t addr;
+   const cartridge_bank_t *const *a = (const cartridge_bank_t *const *)lhs;
+   const cartridge_bank_t *const *b = (const cartridge_bank_t *const *)rhs;
+   if ((*a)->start < (*b)->start)
+      return -1;
+   if ((*a)->start > (*b)->start)
+      return 1;
+   return strcmp((*a)->name, (*b)->name);
+}
 
-   while (first < 65536u && !used[first])
-      first++;
-   while (last > first && !used[last])
-      last--;
-   if (first >= 65536u) {
-      fprintf(stderr, "vcsc-ld: cannot write empty flat binary '%s'\n", path);
+//! @brief Return one bank's physical file offset in ascending logical order.
+static uint32_t cartridge_bank_file_offset(const linker_config_t *cfg,
+                                           const cartridge_bank_t *bank)
+{
+   uint32_t offset = 0;
+   size_t i;
+   if (!cfg || !bank)
+      return 0;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      if (cfg->banks[i].start < bank->start)
+         offset += cfg->banks[i].size;
+   }
+   return offset;
+}
+
+//! @brief Write one byte and terminate with a useful diagnostic on failure.
+static void write_binary_byte(FILE *fp, const char *path, uint8_t byte)
+{
+   if (fwrite(&byte, 1, 1, fp) != 1) {
+      fprintf(stderr, "vcsc-ld: write failed for '%s': %s\n", path, strerror(errno));
+      fclose(fp);
       exit(1);
    }
+}
+
+//! @brief Write a flat binary in unbanked address-span or banked physical order.
+static void write_flat_binary(const char *path, const linker_config_t *cfg,
+                              const uint8_t *image, const uint8_t *used)
+{
+   FILE *fp;
+   uint32_t addr;
 
    fp = fopen(path, "wb");
    if (!fp) {
@@ -2838,12 +3456,42 @@ static void write_flat_binary(const char *path, const uint8_t *image, const uint
       exit(1);
    }
 
-   for (addr = first; addr <= last; ++addr) {
-      uint8_t byte = used[addr] ? image[addr] : 0xFFu;
-      if (fwrite(&byte, 1, 1, fp) != 1) {
-         fprintf(stderr, "vcsc-ld: write failed for '%s': %s\n", path, strerror(errno));
+   if (cfg->cartridge_banked) {
+      const cartridge_bank_t **order;
+      size_t i;
+      order = (const cartridge_bank_t **)xmalloc(
+         cfg->bank_count * sizeof(*order));
+      for (i = 0; i < cfg->bank_count; ++i)
+         order[i] = &cfg->banks[i];
+      qsort(order, cfg->bank_count, sizeof(*order),
+            compare_cartridge_bank_start);
+
+      for (i = 0; i < cfg->bank_count; ++i) {
+         const cartridge_bank_t *bank = order[i];
+         uint32_t end = (uint32_t)bank->start + bank->size;
+         for (addr = bank->start; addr < end; ++addr) {
+            uint8_t byte = used[addr] ? image[addr] : cfg->cartridge_fill_value;
+            write_binary_byte(fp, path, byte);
+         }
+      }
+      free(order);
+   } else {
+      uint32_t first = 0;
+      uint32_t last = 65535u;
+
+      while (first < 65536u && !used[first])
+         first++;
+      while (last > first && !used[last])
+         last--;
+      if (first >= 65536u) {
+         fprintf(stderr, "vcsc-ld: cannot write empty flat binary '%s'\n", path);
          fclose(fp);
          exit(1);
+      }
+
+      for (addr = first; addr <= last; ++addr) {
+         uint8_t byte = used[addr] ? image[addr] : 0xFFu;
+         write_binary_byte(fp, path, byte);
       }
    }
 
@@ -2852,6 +3500,7 @@ static void write_flat_binary(const char *path, const uint8_t *image, const uint
       exit(1);
    }
 }
+
 
 //! @brief Describe one object's page-containment result for the linker map.
 static const char *page_placement_name(uint16_t addr, uint16_t size, int hard)
@@ -3095,10 +3744,35 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       exit(1);
    }
 
+   if (cfg->cartridge_banked) {
+      uint32_t output_size = 0;
+      fprintf(fp, "CARTRIDGE\n");
+      for (i = 0; i < cfg->bank_count; ++i)
+         output_size += cfg->banks[i].size;
+      fprintf(fp,
+              "  mapper=%s output-size=$%08" PRIX32
+              " fill=$%02X vectorbridge=$%03X size=$%02X\n",
+              cfg->mapper, output_size, cfg->cartridge_fill_value,
+              cfg->vector_bridge_offset, VECTOR_BRIDGE_SIZE);
+      fprintf(fp, "\nBANKS\n");
+      for (i = 0; i < cfg->bank_count; ++i) {
+         const cartridge_bank_t *bank = &cfg->banks[i];
+         fprintf(fp,
+                 "  %-10s start=$%04X size=$%04X hotspot=$%04X file=$%08" PRIX32 "%s\n",
+                 bank->name, bank->start, bank->size, bank->hotspot,
+                 cartridge_bank_file_offset(cfg, bank),
+                 bank->startup ? " startup=yes" : "");
+      }
+      fprintf(fp, "\n");
+   }
+
    fprintf(fp, "MEMORY\n");
    for (i = 0; i < cfg->mem_count; ++i) {
-      fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s\n",
+      fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s",
          cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
+      if (cfg->mem[i].bank_name[0])
+         fprintf(fp, " bank=%s", cfg->mem[i].bank_name);
+      fputc('\n', fp);
    }
 
    fprintf(fp, "\nMEMORY USAGE\n");
@@ -3712,6 +4386,11 @@ int main(int argc, char **argv)
       return 1;
    }
    parse_cfg_file(&cfg, cfg_path);
+   if (cfg.cartridge_banked && !ends_with(hex_path, ".bin")) {
+      fprintf(stderr,
+              "vcsc-ld: banked cartridge profiles require a flat .bin output\n");
+      return 1;
+   }
 
    select_needed_objects(&inputs);
    validate_abi_metadata(&inputs);
@@ -3732,7 +4411,7 @@ int main(int argc, char **argv)
    used = (uint8_t *)xmalloc(65536);
    build_rom_image(&cfg, &inputs, &layout, image, used);
    if (ends_with(hex_path, ".bin"))
-      write_flat_binary(hex_path, image, used);
+      write_flat_binary(hex_path, &cfg, image, used);
    else
       write_intel_hex(hex_path, image, used);
    write_map_file(map_output.enabled ? map_output.path : NULL,
@@ -3771,6 +4450,9 @@ int main(int argc, char **argv)
    for (i = 0; i < layout.cursor_count; ++i)
       free(layout.cursors[i].holes);
    free(layout.cursors);
+   free(cfg.mem);
+   free(cfg.seg);
+   free(cfg.banks);
 
    return 0;
 }

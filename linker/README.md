@@ -141,7 +141,12 @@ the user does not provide `-T`.
 
 ## Config support
 
-`vcsc-ld` intentionally keeps the config parser simple. It understands the style shown above:
+`vcsc-ld` intentionally supports a small, strict cfg language. Unknown blocks,
+properties, malformed entries, and duplicate names are errors rather than being
+silently ignored. It understands:
+
+- `CARTRIDGE { ... }` for banked mapper and fill metadata
+- `BANKS { ... }` for complete physical bank units
 - `MEMORY { ... }`
 - `SEGMENTS { ... }`
 - `start = $1234`
@@ -153,6 +158,68 @@ the user does not provide `-T`.
 - `align = N` on a segment rule, where N is a power of two
 - `callstack = callgraph/no`
 - `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
+- `bank = NAME` on a cartridge-output `MEMORY` region in a banked profile
+- `mapper = F8/F6/F4`, `fillval = BYTE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
+- `start`, `size`, `hotspot`, and `startup = yes/no` on a named `BANKS` entry
+
+### Full-window banked image foundation
+
+The first bank-aware image model uses the descending mirrored logical ranges
+BANK0 `$F000-$FFFF`, BANK1 `$D000-$DFFF`, and so on. A banked cfg describes the
+complete 4K output units separately from the allocatable `MEMORY` regions inside
+them:
+
+```text
+CARTRIDGE {
+    mapper = F8;
+    fillval = $FF;
+    vectorbridge = $0FE0;
+}
+BANKS {
+    BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
+    BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
+}
+MEMORY {
+    bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
+    BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012,          bank=BANK1;
+    BANK1_TAIL:          start=$DFF2, size=$0008,          bank=BANK1;
+    BANK1_VECTORS:       start=$DFFA, size=$0006,          bank=BANK1;
+    ROM:                 start=$F000, size=$0FE0, type=ro, bank=BANK0;
+    BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012,          bank=BANK0;
+    BANK0_TAIL:          start=$FFF2, size=$0008,          bank=BANK0;
+    BANK0_VECTORS:       start=$FFFA, size=$0006,          bank=BANK0;
+}
+```
+
+The linker validates the conventional bank count, logical address, selector,
+and BANK0 startup assignment for F8, F6, and F4. Under the descending logical
+convention, BANK0 uses the final conventional selector: `$1FF9` for F8/F6 and
+`$1FFB` for F4; later logical banks work downward through the mapper's selector
+range.
+
+Every selector hotspot is reserved at the same low twelve-bit offset in every
+bank. An ordinary `ro` or `data` segment region covering any selector is
+rejected before placement, so code or ordinary ROM data cannot land on an
+address whose access changes the selected bank. The configured
+`vectorbridge` corridor is reserved the same way.
+
+The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
+IRQ/BRK entries are copied at that physical offset in every bank. Each entry is
+`BIT BANK0_HOTSPOT; JMP handler`. The final six bytes of every bank contain the
+same vector words, using BANK0's logical mirror of those three entries. This
+makes reset deterministic from every initially selected bank and also makes
+F4's `$1FFA/$1FFB` NMI-vector/selector overlap harmless. The handlers and `main`
+must remain in BANK0.
+
+Flat banked output must use `.bin`. The writer emits complete 4096-byte units in
+ascending logical-address order, filling unoccupied bytes with the cartridge
+fill value. Thus F8 writes BANK1 then BANK0, and BANK0 occupies the final 4K of
+the file. The map reports mapper, exact output size, bridge offset/size, each
+bank's selector, startup status, and physical file offset.
+
+Bank-aware relocation rejection, cross-bank JMP/JSR trampolines, and automatic
+placement remain later bankswitching roadmap slices. Until those land, a banked
+program must not attempt ordinary cross-bank control or data references.
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
@@ -311,9 +378,10 @@ choices are zero-growth local moves; farther starts are not useful because they
 repeat a low-byte phase while wasting at least one complete page. The search is
 greedy in input order, deterministic, and deliberately bounded rather than an
 unbounded global code-layout optimizer.
-- the config parser is intentionally small and only covers the needed subset
-- Intel HEX is emitted as sparse data records rather than one giant padded image dump
-- Flat binary output spans the lowest through highest used address and fills internal gaps with `$FF`; a conventional VCS layout therefore produces exactly 4096 bytes for `$F000-$FFFF`
+- the config parser is intentionally small, strict, and only covers the documented subset
+- Intel HEX is emitted as sparse logical-address records for unbanked profiles
+- Unbanked flat binary output spans the lowest through highest used address and fills internal gaps with `$FF`; a conventional VCS layout therefore produces exactly 4096 bytes for `$F000-$FFFF`
+- Banked flat binary output concatenates complete 4K bank units from lowest logical address to highest, so BANK0 is last
 
 ## Building
 

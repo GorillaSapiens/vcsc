@@ -103,6 +103,22 @@ ordinary `CODE` restoration, and the Superchip-safe `$D100+$0F00` allocatable
 interval. Companion rejection tests cover conflicting declaration/definition
 regions, inline placement, and explicit nonzero-bank placement of `main`.
 
+`linker_banked_image_model.pl` covers the first full-window banked-image
+foundation. It uses an F8 test cfg with more than sixteen MEMORY and SEGMENTS
+entries, verifies dynamic cfg storage, strict unknown-property rejection,
+selector-hotspot and generated-vector-corridor reservation in every bank, exact
+8K output, BANK1-before-BANK0 physical order, conventional descending selector
+assignment, replicated bridge/vector bytes, map file offsets, and byte-for-byte
+preservation of a stock `vcs_4k.cfg` fixture.
+
+`linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
+then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every
+possible initially selected bank. It locks the common eighteen-byte
+`BIT BANK0_HOTSPOT; JMP handler` table, identical BANK0-mirror vector words,
+exact 8K/16K/32K image sizes, handler/`main` residency in BANK0, F4's
+NMI-vector/selector overlap, and diagnostics for missing or selector-overlapping
+bridge corridors.
+
 `unicode_identifier_mangle.pl` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 `visual_binary_literal_codegen_test.c26` and

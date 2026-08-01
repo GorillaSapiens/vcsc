@@ -84,24 +84,49 @@ Add separate public linker configurations for the common schemes:
     vcs_16k_f6sc.cfg
     vcs_32k_f4sc.cfg
 
-The exact new cfg spelling is not yet locked, but a bank description must tell
-the linker at least:
+The first implemented cfg spelling uses `CARTRIDGE` and `BANKS` blocks plus a
+`bank=NAME` property on cartridge-output `MEMORY` regions:
 
-* the bank name and logical 16-bit range;
-* the mapper/scheme family;
-* the hotspot that selects that bank;
-* whether it is the startup/home bank;
-* the full physical bank size and output fill value;
-* its ordinary ROM allocation range;
-* its per-bank vector range;
-* mapper-reserved addresses, including hotspots;
-* the common same-offset area reserved for linker-generated bridges.
+    CARTRIDGE {
+        mapper = F8;
+        fillval = $FF;
+        vectorbridge = $0FE0;
+    }
 
-The cfg parser must reject unknown properties. Silently ignoring a misspelled
-bank or hotspot property would create a plausible-looking but dead cartridge.
-The current fixed limits on MEMORY and SEGMENTS entries must be replaced or
-raised enough for an eight-bank configuration and its per-bank vectors,
-reserved areas, and output regions.
+    BANKS {
+        BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
+        BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
+    }
+
+    MEMORY {
+        bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
+        BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012,          bank=BANK1;
+        BANK1_TAIL:          start=$DFF2, size=$0008,          bank=BANK1;
+        BANK1_VECTORS:       start=$DFFA, size=$0006,          bank=BANK1;
+        ROM:                 start=$F000, size=$0FE0, type=ro, bank=BANK0;
+        BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012,          bank=BANK0;
+        BANK0_TAIL:          start=$FFF2, size=$0008,          bank=BANK0;
+        BANK0_VECTORS:       start=$FFFA, size=$0006,          bank=BANK0;
+        /* shared RAM regions omitted */
+    }
+
+A bank description tells the linker the bank name and logical 16-bit range, the
+mapper family, its selector hotspot, whether it is the startup bank, the full
+physical bank size, and output fill value. `MEMORY` entries subdivide that full
+physical unit into allocatable ROM and non-allocatable holes such as hotspots,
+vectors, and later the common bridge corridor.
+
+The cfg parser rejects unknown blocks and properties. Silently ignoring a
+misspelled bank or hotspot property would create a plausible-looking but dead
+cartridge. MEMORY, SEGMENTS, and BANKS storage is dynamically sized rather than
+limited to sixteen entries.
+
+Every selector hotspot is reserved at the same low twelve-bit offset in every
+physical bank, not merely in the bank selected by that hotspot. The linker
+rejects a configuration when any ordinary allocatable code/data segment region
+covers any declared selector byte. Vector-only ownership may use fixed bytes
+which overlap mapper hotspots where the mapper requires it, but ordinary code
+must never be placed there.
 
 The implementation should model a physical bank as one 4K output unit even when
 its allocatable ROM is split into ordinary code, a bridge area, reserved hotspot
@@ -113,27 +138,36 @@ Per-bank vectors and reset bridges
 Per-bank vectors and reset bridges are an early foundation item, not cleanup at
 the end. Power-up bank state must not be assumed.
 
-Every physical bank receives its own six vector bytes at that bank's logical
-mirror, for example $FFFA-$FFFF in BANK0 and $DFFA-$DFFF in BANK1. The vector
-values must use that bank's logical high bits. Ordinary placement must never
-consume vector bytes or mapper hotspot bytes. Some mapper hotspot ranges touch
-or overlap otherwise conventional vector offsets, so the cfg and linker must
-reserve them according to the selected scheme instead of applying one hardcoded
-layout blindly.
+The implemented `CARTRIDGE vectorbridge` property gives one low-twelve-bit
+corridor offset. The first implementation reserves eighteen bytes there in every
+physical bank and emits three byte-identical six-byte entries:
 
-Every bank also receives a tiny reset bridge at the same low twelve-bit offset.
-Its reset vector points to the bridge using that bank's logical address. For the
-first public full-window profiles, the bridge selects BANK0 and then continues
-at the matching offset there, where it enters the normal VCSC startup path.
-BANK0 uses the same bridge sequence; selecting the already selected bank is
-harmless.
+    NMI entry:      BIT BANK0_HOTSPOT; JMP __nmi
+    RESET entry:    BIT BANK0_HOTSPOT; JMP __reset
+    IRQ/BRK entry:  BIT BANK0_HOTSPOT; JMP __irqbrk
 
-This gives deterministic startup regardless of which bank happened to be
-selected before the reset vector fetch. The normal DATA/BSS initialization and
-`main` entry live in BANK0 rather than being duplicated wholesale.
-NMI and IRQ/BRK vector treatment must be defined per mapper and tested even
-though the 6507 package does not expose ordinary IRQ/NMI inputs; BRK still uses
-the IRQ vector.
+Every physical bank also receives the same six vector bytes at its final six
+physical offsets. All three vector words use BANK0's logical mirror of the
+common entries, for example $FFE0, $FFE6, and $FFEC when `vectorbridge=$0FE0`.
+The currently selected physical bank ignores those upper logical address bits,
+fetches the identical entry at the same cartridge offset, and the entry selects
+BANK0 before jumping to the ordinary runtime handler. BANK0 runs the same
+sequence; selecting the already selected bank is harmless.
+
+Using one identical vector image is deliberate. F4's $1FFA and $1FFB selector
+hotspots overlap the NMI vector bytes. Identical vector bytes make either
+old-bank or newly selected-bank read timing produce the same word, and the
+second vector fetch leaves BANK0 selected under the descending logical-bank
+convention. The common NMI entry selects BANK0 again before entering `__nmi`.
+RESET and IRQ/BRK follow the same general bridge path, so BRK remains safe even
+though the 6507 package exposes no ordinary NMI/IRQ inputs.
+
+Ordinary placement must never consume the vector corridor, the six final vector
+bytes, or any mapper hotspot. The linker rejects an allocatable code/data region
+covering the configured eighteen-byte corridor or any selector byte, and it
+rejects generated bridge/vector output which would overwrite placed material.
+The normal DATA/BSS initialization and `main` entry live only in BANK0 rather
+than being duplicated wholesale.
 
 Bank-aware relocation rules
 ---------------------------
@@ -475,26 +509,36 @@ when main roadmap item 29 becomes active.
        * Test ordinary and Superchip-sized function regions, including the
          correct `$D100+$0F00` allocatable SC interval.
 
-[ ] 2. Extend the cfg parser and linker image model for multiple full 4K banks.
+[x] 2. Extend the cfg parser and linker image model for multiple full 4K banks.
 
-       * Add explicit mapper/bank/startup/hotspot metadata.
-       * Remove fixed table limits that prevent an eight-bank configuration.
-       * Reject unknown cfg properties and conflicting bank definitions.
+       * Add explicit CARTRIDGE mapper/fill metadata, BANKS
+         start/size/hotspot/startup metadata, and MEMORY `bank=NAME` ownership.
+       * Replace fixed MEMORY and SEGMENTS tables with dynamic storage and add a
+         dynamic BANKS table.
+       * Reject unknown cfg properties, malformed entries, unsupported or
+         incomplete F8/F6/F4 bank sets, conflicting banks, overlapping bank
+         MEMORY regions, and non-binary banked output.
+       * Reserve every selector hotspot at the same physical offset in every
+         bank by rejecting any ordinary allocatable segment region which covers
+         one; hotspot bytes may not become code or ordinary ROM data.
        * Group allocatable regions, reserved holes, and vectors into exact 4K
          physical output units.
        * Emit bank units in ascending logical-address order with no logical gaps
          in the file; prove BANK0 is last.
        * Preserve the current unbanked `vcs_4k.cfg` output byte-for-byte.
 
-[ ] 3. Add per-bank vectors and same-offset reset bridges.
+[x] 3. Add per-bank vectors and same-offset reset bridges.
 
-       * Emit valid vectors in every selected physical bank.
-       * Point each reset vector at that bank's logical mirror of a common bridge
-         offset.
-       * Select BANK0 and enter the normal startup path containing `main`.
-       * Test reset from every possible initial bank before adding ordinary
-         cross-bank calls.
-       * Reserve mapper hotspots correctly even where they touch vector offsets.
+       * Require a `CARTRIDGE vectorbridge` low-twelve-bit offset and reserve the
+         same eighteen-byte NMI/RESET/IRQ corridor in every bank.
+       * Emit byte-identical `BIT BANK0_HOTSPOT; JMP handler` entries and
+         byte-identical vector words in every selected physical bank.
+       * Route all vectors through BANK0 before entering `__nmi`, `__reset`, or
+         `__irqbrk`; keep startup and `main` in BANK0.
+       * Test all three vectors from every possible initial bank under F8, F6,
+         and F4, including F4's NMI-vector/selector overlap.
+       * Reject missing, vector-overlapping, selector-overlapping, or
+         ordinary-code-overlapping bridge corridors.
 
 [ ] 4. Add bank-aware relocation classification and validation.
 
@@ -629,7 +673,6 @@ Decisions intentionally deferred
 --------------------------------
 The following are not settled by this document:
 
-* the final cfg property names and punctuation;
 * the exact size/location of the common bridge corridor;
 * whether non-public or future mapper profiles may use a startup bank other
   than BANK0 while still keeping public full-window profiles and `main` in BANK0;
