@@ -242,6 +242,18 @@ a later HMOVE reached while `HMBL` is still nonzero. `vcs_player_extreme_right.p
 $AA/$55 checkerboard players at X=159; that pattern exposes the one-bit row swap
 that solid glyphs hide at the extreme right edge.
 
+`vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
+checks its eight attributed four-frame sets and aligned 256-byte graphics table,
+and drives an emulator oracle through the full automatic sequence plus Select
+and pause controls. The oracle locks exact player pixels, graphics-pointer
+selection, permitted row-color-table values, and 262-line frame periods.
+
+`vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
+checks its eight attributed four-frame sets and aligned 256-byte graphics table,
+and drives an emulator oracle through the full automatic sequence plus Select
+and pause controls. The oracle locks exact player pixels, graphics-pointer
+selection, permitted row-color-table values, and 262-line frame periods.
+
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte
 public interfaces, 74-byte and 78-byte total RAM contracts, official-opcode

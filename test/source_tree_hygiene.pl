@@ -64,6 +64,10 @@ $context =~ /^\s*\[x\] 22i4c1\./m
    or die "public composition-matrix roadmap leaf is not complete\n";
 $context =~ /^\s*\[x\] 22i4\./m
    or die "visible-component roadmap gate is not complete\n";
+$context =~ /^\[x\] 34\./m
+   or die "animated-sprite roadmap item is not complete\n";
+$context !~ /Task 22 remains the active roadmap family/
+   or die "stale task-22 active-roadmap summary was restored\n";
 
 my @markdown;
 find(sub {

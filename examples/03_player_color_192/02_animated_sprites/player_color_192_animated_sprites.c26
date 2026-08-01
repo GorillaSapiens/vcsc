@@ -1,0 +1,515 @@
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+
+page const uint8_t game_playfield[48] := {
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0b........_........_........_........),
+   VCS_PLAYFIELD_ROW(0bX.X.X.X._.X.X.X.X_X.X.X.X._.X.X.X.X),
+   VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
+};
+
+// Graphics and colors use the renderer's highest-index-to-zero row order.
+page const uint8_t game_player0_colors[8] := {
+   VCS_NTSC_GOLDENROD, VCS_NTSC_LIGHT_CORAL, VCS_NTSC_SANDY_BROWN,
+   VCS_NTSC_GOLDENROD, VCS_NTSC_SANDY_BROWN, VCS_NTSC_LIGHT_CORAL,
+   VCS_NTSC_GOLDENROD, VCS_NTSC_MEDIUM_PURPLE
+};
+
+page const uint8_t game_player1_colors[8] := {
+   VCS_NTSC_SKY_BLUE, VCS_NTSC_AQUAMARINE, VCS_NTSC_PALE_GREEN,
+   VCS_NTSC_SKY_BLUE_2, VCS_NTSC_PALE_GREEN, VCS_NTSC_AQUAMARINE,
+   VCS_NTSC_SKY_BLUE, VCS_NTSC_ROYAL_BLUE
+};
+
+template "renderers/player_color_192/player_color_192.c26" as game
+
+// Eight four-frame, one-bit Atari adaptations of Quick's PICO-8 animations.
+// Each 32-byte animation begins on a 32-byte boundary inside one page.
+page const uint8_t sprite_frames[256] := {
+   // running_man
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b...XX...,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXX...,
+      0b...XX...,
+      0b..X.X...,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b...XX...,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXX...,
+      0b...XX...,
+      0b...X.X..,
+      0b..X...X.
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b...XX...,
+      0b..XXXX..,
+      0b...XX...,
+      0b...XXX..,
+      0b...XX...,
+      0b..X.X...,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b...XX...,
+      0b..XXXX..,
+      0b...XX...,
+      0b...XXX..,
+      0b...XX...,
+      0b..X.X...,
+      0b...X..X.
+   ),
+   // dog
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.XX.....,
+      0bXXXXXX..,
+      0bX.XXXXXX,
+      0b..X...X.,
+      0b.X....X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.XX.....,
+      0bXXXXXX..,
+      0bX.XXXXXX,
+      0b...X.X..,
+      0b..X...X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..XX....,
+      0b.XXXXXX.,
+      0bXX.XXXXX,
+      0b..X..X..,
+      0b.X....X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..XX....,
+      0b.XXXXXX.,
+      0bXX.XXXXX,
+      0b...X..X.,
+      0b..X....X,
+      0b........
+   ),
+   // cat
+   game_SPRITE_GLYPH(
+      0b........,
+      0bX.X.....,
+      0bXXX.....,
+      0b.XXXX...,
+      0b.XXXXX..,
+      0b..X..X..,
+      0b.X....X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bX.X.....,
+      0bXXX.....,
+      0b.XXXX...,
+      0b.XXXXX..,
+      0b...X.X..,
+      0b..X...X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.....X.X,
+      0b.....XXX,
+      0b...XXXX.,
+      0b..XXXXX.,
+      0b..X..X..,
+      0b.X....X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.....X.X,
+      0b.....XXX,
+      0b...XXXX.,
+      0b..XXXXX.,
+      0b...X.X..,
+      0b..X...X.,
+      0b........
+   ),
+   // t_rex
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.XXXXX..,
+      0bXXXXXXX.,
+      0bXXX.X...,
+      0b.XXXXX..,
+      0b..XXX...,
+      0b..X.X...,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.XXXXX..,
+      0bXXXXXXX.,
+      0bXXX.X...,
+      0b.XXXXX..,
+      0b..XXX...,
+      0b...X.X..,
+      0b..X...X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b..XXXXX.,
+      0b.XXXXXXX,
+      0b...X.XXX,
+      0b..XXXXX.,
+      0b...XXX..,
+      0b..X.X...,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b..XXXXX.,
+      0b.XXXXXXX,
+      0b...X.XXX,
+      0b..XXXXX.,
+      0b...XXX..,
+      0b...X.X..,
+      0b..X...X.
+   ),
+   // worm
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b.XX.XX..,
+      0bXXXXXXXX,
+      0bX..X..X.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b..XX....,
+      0b.XXXXXX.,
+      0bXX..XXXX,
+      0b........,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b....XX..,
+      0b.XXXXXX.,
+      0bXXXX..XX,
+      0b........,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b..XX.XX.,
+      0bXXXXXXXX,
+      0b.X..X..X,
+      0b........,
+      0b........
+   ),
+   // orange_hopper
+   game_SPRITE_GLYPH(
+      0b........,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..X..X..,
+      0b.X....X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b...XX...,
+      0b..X..X..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b..X..X..,
+      0b.X....X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b...XX...,
+      0b..X..X..
+   ),
+   // blue_hopper
+   game_SPRITE_GLYPH(
+      0b........,
+      0b..X..X..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXXX..,
+      0b.X.XX.X.,
+      0bX......X
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b...XX...,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXXX..,
+      0b..X..X..,
+      0b.X....X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..X..X..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..X..X..,
+      0b.X....X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b...XX...,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXXX..,
+      0b..X..X..,
+      0b.X....X.
+   ),
+   // helicube
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0bXXXXXXXX,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0b..XXXX..,
+      0b...XX...
+   ),
+   game_SPRITE_GLYPH(
+      0bX..XX..X,
+      0b.XXXXXX.,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0b..XXXX..,
+      0b...XX...
+   ),
+   game_SPRITE_GLYPH(
+      0b.X.XX.X.,
+      0b..XXXX..,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0b..XXXX..,
+      0b...XX...
+   ),
+   game_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.X.XX.X.,
+      0b...XX...,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0b..XXXX..,
+      0b...XX...
+   )
+};
+
+alias SPRITE_COUNT 8
+alias FRAME_HOLD 8
+alias PAIR_LOOPS 4
+
+uint8_t sprite0 := 0;
+uint8_t sprite1 := 1;
+uint8_t animation_frame := 0;
+uint8_t animation_clock := 0;
+uint8_t animation_loop := 0;
+uint8_t select_ready := 1;
+uint8_t pause_animation := 0;
+uint8_t fire_ready := 1;
+
+inline void install_frames(void) {
+   // All frames share one aligned page, so only the low pointer byte changes.
+   asm lda.z sprite0;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z game_player0_graphics;
+   asm lda.z animation_frame;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora.z game_player0_graphics;
+   asm clc;
+   asm adc #<sprite_frames;
+   asm sta.z game_player0_graphics;
+   asm lda #>sprite_frames;
+   asm sta.z game_player0_graphics + 1;
+
+   asm lda.z sprite1;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z game_player1_graphics;
+   asm lda.z animation_frame;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora.z game_player1_graphics;
+   asm clc;
+   asm adc #<sprite_frames;
+   asm sta.z game_player1_graphics;
+   asm lda #>sprite_frames;
+   asm sta.z game_player1_graphics + 1;
+}
+
+inline void next_pair(void) {
+   sprite0 += 2;
+   if (sprite0 >= SPRITE_COUNT) { sprite0 := 0; }
+   sprite1 := sprite0 + 1;
+   animation_frame := 0;
+   animation_clock := 0;
+   animation_loop := 0;
+   install_frames();
+}
+
+inline void update_animation(void) {
+   if (!pause_animation) {
+      animation_clock++;
+      if (animation_clock >= FRAME_HOLD) {
+         animation_clock := 0;
+         animation_frame++;
+         if (animation_frame >= 4) {
+            animation_frame := 0;
+            animation_loop++;
+            if (animation_loop >= PAIR_LOOPS) {
+               next_pair();
+            }
+            else {
+               install_frames();
+            }
+         }
+         else {
+            install_frames();
+         }
+      }
+   }
+}
+
+inline void update_controls(void) {
+   if (!(SWCHB & 0x01)) { asm jmp ($fffc); }
+
+   if (SWCHB & 0x02) {
+      select_ready := 1;
+   }
+   else {
+      if (select_ready) {
+         next_pair();
+         select_ready := 0;
+      }
+   }
+
+   if (INPT4 & 0x80) {
+      fire_ready := 1;
+   }
+   else {
+      if (fire_ready) {
+         pause_animation := !pause_animation;
+         fire_ready := 0;
+      }
+   }
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_MEDIUM_PURPLE;
+   CTRLPF := 0x21;
+
+   game_PLAYER0_X := 48;
+   game_PLAYER1_X := 104;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_BALL_X := 80;
+
+   game_player0_y := 55;
+   game_player1_y := 54;
+   game_ball_y := 94;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_height := 0;
+   game_playfield_position := 8;
+
+   install_frames();
+   game_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      update_controls();
+      update_animation();
+      vcs_ntsc_end_overscan();
+   }
+}

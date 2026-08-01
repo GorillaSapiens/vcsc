@@ -284,6 +284,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/03_player_color_192/01_interactive/player_color_192_interactive.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
+	  "$(CURDIR)/examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  -T "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg" \
 	  "$(CURDIR)/examples/02_faithful_legacy_playercolors/01_interactive/faithful_legacy_playercolors_interactive.c26" \

@@ -74,11 +74,10 @@ Example hierarchy policy
       examples/07_player_color_181_unofficial/
       examples/08_all_five_181_unofficial/
 
-* The current tree contains fifteen public leaf cartridges: four basic
-  examples, one faithful legacy diagnostic, one 192-line player-color
-  diagnostic, two official 181-line player-color score layouts, one 192-line
-  all-five diagnostic, two official 181-line all-five score layouts, and four
-  matched unofficial 181-line score-layout examples.
+* The current tree contains 48 public leaf cartridges: the complete 40-cartridge
+  181-line score/gameplay composition matrix; four basic examples; one faithful
+  legacy diagnostic; two 192-line player-color examples (interactive motion and
+  animated sprites); and one 192-line all-five diagnostic.
 * Every leaf directory contains exactly one editable `.c26` cartridge, one
   Makefile, and one README. Renderer and layout directories have READMEs that
   document the shared timing, resource, opcode, and composition contracts.
@@ -695,11 +694,11 @@ Result: passed.
 
 Compile suite:
 
-    334 passed, 0 failed, 334 total
+    337 passed, 0 failed, 337 total
 
 End-to-end/generic suite:
 
-    200 passed, 0 failed, 200 total
+    202 passed, 0 failed, 202 total
 
 Staged install check:
 
@@ -2000,11 +1999,31 @@ than ship a fragile schedule if the hardware budget does not close.
         which renderers/components are portable unchanged, require a SECAM palette,
         or are intentionally unavailable.
 
-[ ] 34. Add a public animated-sprites example that changes player bitmap frames at
+[x] 34. Add a public animated-sprites example that changes player bitmap frames at
         runtime rather than merely moving a static glyph. Exercise at least one
         multi-frame animation for each player, preserve renderer timing, document
         source-row ordering and frame-rate control, and verify the expected frame
         sequence and pixels under Stella from the staged installed toolchain.
+
+        Completed 2026-08-01 out of roadmap order while task 23 remains next:
+
+        * Add `examples/03_player_color_192/02_animated_sprites/`, using the
+          official-opcode 192-line player-color renderer and one aligned 256-byte
+          graphics table containing eight named four-frame 8x8 animation sets.
+        * Display two sets simultaneously, hold each frame for eight NTSC frames,
+          repeat each four-frame sequence four times, and automatically advance
+          through all four pairs. Game Select advances a pair immediately and
+          left fire pauses/resumes with edge-triggered controls.
+        * Change only player graphics pointers at runtime; preserve exact 262-line
+          frames, the 192-line visible renderer, row-color-table use, and 19 free
+          RIOT RAM bytes. Document highest-index-to-zero source-row storage.
+        * Treat the adapted artwork conservatively under Quick's stated CC
+          BY-NC-SA 4.0 license rather than the public-domain description supplied
+          with the request. Install explicit attribution and asset-license notes.
+        * Add an emulator oracle covering the full 512-frame automatic gallery,
+          exact P0/P1 pixels, pointer selection, row-color-table use, controls, and
+          frame period. Build the public cartridge with the staged installed
+          toolchain and inspect its animated output under Stella 7.0.
 
 [ ] 35. Add first-class support for two paddle controllers on one controller port.
         Define a stable VCSC API for the two analog paddle positions and both paddle
@@ -2149,17 +2168,19 @@ output cartridge-ROM usage reporting, and task 20v added the first stack-safe
 gameplay integration boundary. Task 21 added the separate P0+P1+BL per-logical-
 row player-color profile with no missiles.
 
-Task 22 remains the active roadmap family: finish the current correctness and
-composition gates before beginning tasks 23 through 25. Task 23 is the explicitly
-optional all-five-object player-color profile. Tasks 24 and 25 add widely spaced
-and left/right dual-score six-glyph display variants. Task 26 records the resulting
-renderer- and score-display-authoring process as a HOWTO. The former task 20w
-multisprite placeholder has been removed from task 20 and expanded into tasks 27
-through 30: multisprite contract and normalization, minimal unbanked integration,
-general 8K+ bankswitching, and Superchip support. Task 31 adds measured fixed-point
-inlining of single-call-site internal functions. Tasks 32 and 33 add native PAL
-and SECAM target families. Tasks 34 through 43 add animated-sprite and game
-examples, paddle/keypad/driving-controller support, a diagnostic cartridge,
+Task 22 and all of its correctness, composition, and public-matrix gates are
+complete. Task 23 is the default next unfinished roadmap item and remains the
+explicitly optional all-five-object player-color profile. The user may direct
+self-contained later work out of order; task 34, the public animated-sprite
+example, was completed in that manner without advancing task 23. Tasks 24 and 25
+add widely spaced and left/right dual-score six-glyph display variants. Task 26
+records the resulting renderer- and score-display-authoring process as a HOWTO.
+The former task 20w multisprite placeholder has been removed from task 20 and
+expanded into tasks 27 through 30: multisprite contract and normalization,
+minimal unbanked integration, general 8K+ bankswitching, and Superchip support.
+Task 31 adds measured fixed-point inlining of single-call-site internal functions.
+Tasks 32 and 33 add native PAL and SECAM target families. Tasks 35 through 43 add
+game examples, paddle/keypad/driving-controller support, a diagnostic cartridge,
 playfield colors, and a side-scroller/platform example.
 
 * Whether later to infer PHA/PHP/JSR and S manipulation in inline or included
@@ -7352,3 +7373,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   `.same` or `.cross` when timing matters.
 * Verification: 337/337 compile-only tests pass, all 201 end-to-end/generic
   tests pass across deterministic splits, and staged `make installcheck` passes.
+
+2026-08-01 09:46:29 PDT, add public 192-line animated-sprite gallery out of roadmap order
+-------------------------------------------------------------------------------
+* Correct the stale open-implementation summary: task 22 and all of its
+  correctness/composition/public-matrix gates are complete. Task 23 remains the
+  default next unfinished item even though the user explicitly skipped ahead to
+  complete task 34.
+* Add `examples/03_player_color_192/02_animated_sprites/`, an official-opcode
+  192-visible-line player-color cartridge containing eight four-frame 8x8 sets:
+  running man, dog, cat, T. rex, worm, orange hopper, blue hopper, and helicube.
+  P0/P1 display one pair simultaneously; each frame lasts eight NTSC frames,
+  each pair repeats four complete animation loops, and all four pairs cycle
+  automatically. Game Select advances a pair and left fire pauses/resumes, both
+  edge-triggered.
+* Store all 32 frames in one page-aligned 256-byte ROM object and change only the
+  two graphics-pointer low bytes at runtime. Preserve exact 262-line frames and
+  the 192-line player-color renderer. Final cartridge usage is 2,721 ROM bytes
+  and 109 RIOT RAM bytes, leaving 1,369 ROM bytes and 19 RAM bytes free.
+* Correct the supplied licensing assumption. Quick's source page labels the
+  PICO-8 cartridge CC BY-NC-SA 4.0 rather than public domain. Add explicit
+  `ASSET_LICENSE.md` attribution and conservatively treat the hand-adapted one-bit
+  artwork under that license while leaving VCSC code under the project license.
+* Add `vcs_player_color_192_animation.pl/.cpp`: verify all 512 automatic-gallery
+  frames, exact P0/P1 bitmap pixels, frame/pair pointer selection, permitted
+  row-color-table use, pause/Select behavior, and exact 262-line periods. Extend
+  the recursive example build, staged installcheck, test documentation, example
+  catalogs, current public count (48), and roadmap/source-hygiene guards.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass across the completed first 159-test run and deterministic 20-, 22-, and
+  one-test tail runs. Staged `make installcheck` passes. A fresh cartridge built
+  by a separately staged installed toolchain was run and visually inspected under
+  Stella 7.0 in a virtual X display.
