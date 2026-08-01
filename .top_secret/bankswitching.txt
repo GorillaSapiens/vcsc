@@ -1,0 +1,488 @@
+VCSC BANKSWITCHING AND SUPERCHIP PLAN
+=====================================
+
+Status
+------
+This is the detailed design and implementation roadmap for the broad project
+roadmap items covering 8K-and-larger cartridge bankswitching and Superchip RAM.
+It is an internal planning document, not installed user documentation. The
+main roadmap in `.top_secret/context.txt` remains authoritative for project
+ordering; this file owns the detailed order within those milestones.
+
+The first implementation family is the ordinary full-window Atari schemes:
+
+    F8      2 x 4K banks   8K total
+    F6      4 x 4K banks  16K total
+    F4      8 x 4K banks  32K total
+
+Their Superchip variants follow after ordinary banking is stable:
+
+    F8SC    2 x 4K banks plus shared 128-byte cartridge RAM
+    F6SC    4 x 4K banks plus shared 128-byte cartridge RAM
+    F4SC    8 x 4K banks plus shared 128-byte cartridge RAM
+
+Segmented and unusual schemes such as 3F, 3E, E0, E7, FE, UA, and 0840 are not
+part of the first implementation. The common model should avoid blocking them,
+but it must not pretend that they are merely differently sized F8 cartridges.
+DPC, DPC+, CDF, and coprocessor-assisted formats are separate projects.
+
+Core model: use the missing address lines as the bank namespace
+---------------------------------------------------------------
+The 6507 has a 16-bit internal program counter but exposes only thirteen address
+lines to the cartridge. A13-A15 do not reach the cartridge. VCSC can therefore
+assign every physical 4K bank a distinct ordinary 16-bit logical range while
+the cartridge sees every one of those ranges as the same $1000-$1FFF window.
+
+Use the established descending logical convention:
+
+    logical bank    linker range
+    ------------    ------------
+    BANK0           $F000-$FFFF
+    BANK1           $D000-$DFFF
+    BANK2           $B000-$BFFF
+    BANK3           $9000-$9FFF
+    BANK4           $7000-$7FFF
+    BANK5           $5000-$5FFF
+    BANK6           $3000-$3FFF
+    BANK7           $1000-$1FFF
+
+Equivalently:
+
+    bank_base = $F000 - (bank_number * $2000)
+
+F8 uses BANK0 and BANK1. F6 uses BANK0 through BANK3. F4 uses BANK0 through
+BANK7. Ordinary linker symbols and relocations remain 16-bit. No far pointer or
+bank-qualified C pointer is required for this family.
+
+The cartridge file is written in ascending logical-address order, beginning
+with the lowest-address bank and ending with the highest-address bank. Therefore
+BANK0 is always the final 4K bank in the file:
+
+    F8 file order:  BANK1, BANK0
+    F6 file order:  BANK3, BANK2, BANK1, BANK0
+    F4 file order:  BANK7, BANK6, BANK5, BANK4,
+                    BANK3, BANK2, BANK1, BANK0
+
+The linker must emit those banks contiguously without the unused logical gaps
+between $1FFF and $3000, $3FFF and $5000, and so on. File position and logical
+CPU address are separate facts, but file position is deterministic from the
+ascending logical-bank order rather than an arbitrary bank-number ordering.
+
+BANK0 is the default startup/home bank unless a configuration explicitly says
+otherwise. Startup policy and hotspot numbering remain explicit configuration
+facts; the linker must not infer a selector merely from the name BANK0.
+
+Configuration model
+-------------------
+Add separate public linker configurations for the common schemes:
+
+    vcs_8k_f8.cfg
+    vcs_16k_f6.cfg
+    vcs_32k_f4.cfg
+    vcs_8k_f8sc.cfg
+    vcs_16k_f6sc.cfg
+    vcs_32k_f4sc.cfg
+
+The exact new cfg spelling is not yet locked, but a bank description must tell
+the linker at least:
+
+* the bank name and logical 16-bit range;
+* the mapper/scheme family;
+* the hotspot that selects that bank;
+* whether it is the startup/home bank;
+* the full physical bank size and output fill value;
+* its ordinary ROM allocation range;
+* its per-bank vector range;
+* mapper-reserved addresses, including hotspots;
+* the common same-offset area reserved for linker-generated bridges.
+
+The cfg parser must reject unknown properties. Silently ignoring a misspelled
+bank or hotspot property would create a plausible-looking but dead cartridge.
+The current fixed limits on MEMORY and SEGMENTS entries must be replaced or
+raised enough for an eight-bank configuration and its per-bank vectors,
+reserved areas, and output regions.
+
+The implementation should model a physical bank as one 4K output unit even when
+its allocatable ROM is split into ordinary code, a bridge area, reserved hotspot
+bytes, and vectors. A bank may contain non-allocatable holes, but its emitted
+file chunk remains exactly 4096 bytes.
+
+Per-bank vectors and reset bridges
+----------------------------------
+Per-bank vectors and reset bridges are an early foundation item, not cleanup at
+the end. Power-up bank state must not be assumed.
+
+Every physical bank receives its own six vector bytes at that bank's logical
+mirror, for example $FFFA-$FFFF in BANK0 and $DFFA-$DFFF in BANK1. The vector
+values must use that bank's logical high bits. Ordinary placement must never
+consume vector bytes or mapper hotspot bytes. Some mapper hotspot ranges touch
+or overlap otherwise conventional vector offsets, so the cfg and linker must
+reserve them according to the selected scheme instead of applying one hardcoded
+layout blindly.
+
+Every bank also receives a tiny reset bridge at the same low twelve-bit offset.
+Its reset vector points to the bridge using that bank's logical address. The
+bridge selects the configured startup bank and then continues at the matching
+offset in that bank, where it enters the normal VCSC startup path. BANK0 can use
+the same bridge sequence; selecting the already selected bank is harmless.
+
+This gives deterministic startup regardless of which bank happened to be
+selected before the reset vector fetch. The normal DATA/BSS initialization and
+`main` entry remain in the startup bank rather than being duplicated wholesale.
+NMI and IRQ/BRK vector treatment must be defined per mapper and tested even
+though the 6507 package does not expose ordinary IRQ/NMI inputs; BRK still uses
+the IRQ vector.
+
+Bank-aware relocation rules
+---------------------------
+A cfg-defined bank identity, not just an arithmetic test on upper address bits,
+determines whether two ROM locations are in the same physical bank. This also
+handles Superchip banks whose allocatable ROM begins at $x100.
+
+References from banked ROM obey these rules:
+
+* A reference to ROM in the same bank is emitted normally.
+* A reference to RIOT RAM, TIA, RIOT registers, or another explicitly shared
+  nonbanked address is emitted normally from every bank.
+* A direct cross-bank JSR is redirected through a generated call bridge.
+* A direct cross-bank JMP is redirected through a generated one-way bridge.
+* A cross-bank conditional branch is an error.
+* A cross-bank ROM load, address constant relocation, pointer initializer, or
+  other data reference is an error.
+* Indirect cross-bank control flow remains unsupported. VCSC already rejects
+  function pointers, so ordinary compiled calls remain visible to the linker.
+
+The assembler/object format must identify control-transfer relocations as JSR,
+JMP, or conditional branch. The linker should not infer semantics by peeking at
+an opcode byte next to a generic word relocation. Existing low-byte, high-byte,
+and word data relocations remain ordinary data references and therefore cannot
+cross banks.
+
+A programmer can always defeat relocation checks with a manually written raw
+numeric address. That does not make such access supported; diagnostics cover
+symbolic relocations the toolchain can prove.
+
+Cross-bank call and jump bridges
+--------------------------------
+A bank switch takes effect before the next opcode fetch. Generated bridges
+therefore occupy the same low twelve-bit cartridge offset in all participating
+banks.
+
+Conceptual cross-bank call from source bank A to target in bank B:
+
+    source bank A, bridge offset N:
+        BIT  bank_B_hotspot       ; subsequent fetch comes from bank B
+
+    destination bank B, offset N+3:
+        JSR  target_in_bank_B
+        BIT  bank_A_hotspot       ; subsequent fetch comes from bank A
+
+    source bank A, offset N+9:
+        RTS
+
+The original call site performs JSR to the source-bank side of this bridge. The
+inner JSR returns to the destination-bank side, which restores the source bank;
+the final RTS then returns to the original caller. Nested cross-bank calls work
+because every bridge restores its statically known source bank.
+
+A cross-bank JMP needs only a source-bank hotspot access followed by a JMP in
+the destination bank at the matching continuation offset. It never restores the
+source bank.
+
+The linker may deduplicate call bridges by source bank, destination bank, and
+target symbol. It may similarly deduplicate one-way jump bridges. Every bank
+must reserve a common low-offset bridge corridor large enough for the generated
+paired pieces. Bridge placement must be deterministic and reported in the map.
+Exhausting the corridor is a clear link error.
+
+A cross-bank call keeps one additional hardware-stack return address live while
+the destination function runs. Whole-program hardware-stack sizing must charge
+that edge two additional bytes. The map must show bridge-induced stack cost and
+the final longest weighted call path.
+
+Cross-bank data policy
+----------------------
+The first implementation deliberately has no far ROM data reads. Code and the
+ROM tables it directly uses must live in the same bank. Data shared by multiple
+banks may be duplicated or deliberately placed with each caller. A relocation
+from one bank to a const object in another bank is a hard error, not an implicit
+bank switch.
+
+Ordinary C pointers stay 16-bit and bank-local for ROM. Taking the address of a
+ROM object in another bank is rejected when represented by a relocation. No
+hidden bank byte is added to pointer objects or function parameters.
+
+Initial bank placement should be explicit and predictable. Do not begin with an
+automatic free-for-all bank packer. The source/object/linker interface needs a
+way to assign a function or ROM object, a whole translation unit, or an input
+segment to a named bank. Unannotated material should go to the configured
+startup bank. Once explicit placement, diagnostics, and map reporting are solid,
+a later optimization may pack unpinned material without changing semantics.
+
+Archive selection remains normal symbol-driven selection. After members are
+selected, every selected layout must have one legal bank placement. The map
+must identify the owning object/archive member for every placement and bridge.
+
+Superchip RAM using existing split-address references
+-----------------------------------------------------
+VCSC already supports split read/write absolute references:
+
+    ref uint8_t object@[read_address/write_address];
+
+Loads use the first address and stores use the second. Taking the address of a
+split-address ref is already rejected. That is enough for explicit Superchip
+RAM aliases without inventing a new pointer representation.
+
+The SC cfg profiles reserve the bank prefix used by the RAM ports and keep
+ordinary ROM code/data out of it by beginning each bank's allocatable ROM at
+$x100, for example $F100 in BANK0 and $D100 in BANK1. Vectors remain at the top
+of each logical bank. Even though allocation begins at $x100, the output writer
+still emits a complete 4K bank and fills the reserved $x000-$x0FF prefix, so the
+finished F8SC/F6SC/F4SC images remain 8K/16K/32K respectively.
+
+The 128 bytes of cartridge RAM are shared across bank switches. Explicit refs
+may name each byte or array using the scheme's read and write windows. The
+scheme-specific VCS header should provide constants or helpers so applications
+do not repeat magic port addresses.
+
+Automatic allocation of variables into Superchip RAM is a required later
+roadmap item, not a prerequisite for the first explicit-ref SC cartridge. It
+will require more than cfg entries because an allocated object has one logical
+identity but separate load and store addresses. The compiler/object/linker
+contract must preserve both aliases for each allocated object:
+
+* loads relocate against the read alias;
+* stores relocate against the write alias;
+* initializers and BSS clearing write through the write alias;
+* address-taking and ordinary pointer decay are rejected until a sound split-
+  address reference ABI exists;
+* activation-overlay use is deferred until persistent globals and arrays are
+  proven;
+* map usage counts the shared 128 physical bytes once, not once per alias or
+  once per bank.
+
+A likely future source model is a named Superchip memory region with separate
+read and write bases, but its spelling is intentionally not fixed here. The
+existing `@[read/write]` behavior is the semantic baseline.
+
+Normal cold-start startup initializes automatically allocated SC DATA/BSS just
+as it initializes RIOT RAM, but stores through the write window. Bank switching
+must not disturb SC RAM contents. Warm-reset behavior should follow the normal
+VCSC startup contract unless a later explicit no-reinitialize entry point is
+added.
+
+Map, listing, and diagnostics
+-----------------------------
+A banked map should report at least:
+
+* mapper/profile name and exact output size;
+* each bank's logical range, selector hotspot, startup status, physical file
+  offset, used bytes, free bytes, and reserved bytes;
+* output order, proving that the lowest logical bank is written first and BANK0
+  is written last;
+* every per-bank vector and reset bridge;
+* every generated call/jump bridge, its source bank, destination bank, target,
+  logical addresses, and byte cost;
+* bridge corridor occupancy;
+* weighted hardware-stack depth including cross-bank call edges;
+* every rejected or unresolved cross-bank data relocation with source and
+  target symbols;
+* Superchip RAM physical occupancy and read/write aliases when present.
+
+Listings and symbol sidecars should retain ordinary 16-bit logical addresses.
+Where ambiguity matters, they should additionally show the bank name and output
+file offset. The raw `.bin` remains a contiguous cartridge image in the
+ascending-logical-address bank order defined above.
+
+Testing strategy
+----------------
+Every implementation slice needs both structural and execution tests.
+
+Structural tests should verify exact image size, bank order, fill bytes, vectors,
+hotspot reservations, logical symbol addresses, physical file offsets, bridge
+bytes, deterministic placement, map output, and useful errors. Tests must prove
+that BANK0 is the final physical bank in F8, F6, and F4 output.
+
+Execution tests should use the VCSC simulator after it learns the selected
+mapper, plus Stella where appropriate. A minimal diagnostic cartridge should:
+
+* reset correctly no matter which bank is selected initially;
+* enter the configured startup bank;
+* call into every other bank and return correctly;
+* perform nested cross-bank calls;
+* perform a one-way cross-bank jump;
+* preserve RIOT RAM and, for SC variants, cartridge RAM across switches;
+* expose a distinct visible or RAM signature from every bank;
+* retain exact frame length while switching outside critical visible timing.
+
+Negative tests should cover cross-bank ROM reads, pointers, low/high-byte data
+relocations, conditional branches, indirect control flow, bridge exhaustion,
+invalid or duplicate hotspots, overlapping banks, malformed output order,
+missing per-bank vectors, unknown cfg properties, and ROM placement in an SC
+RAM-port prefix.
+
+Detailed roadmap
+----------------
+The first unfinished leaf in this file is the next bankswitching-specific action
+when main roadmap item 29 becomes active.
+
+[x] 0. Record and lock the initial full-window design decisions.
+
+       * Use descending mirrored logical ranges with BANK0 at $F000.
+       * Keep ordinary 16-bit symbols and bank-local ROM pointers.
+       * Reject cross-bank ROM data references.
+       * Write physical banks from lowest logical address to highest, placing
+         BANK0 last in the cartridge file.
+       * Use existing split-address refs as the explicit Superchip baseline.
+
+[ ] 1. Extend the cfg parser and linker image model for multiple full 4K banks.
+
+       * Add explicit mapper/bank/startup/hotspot metadata.
+       * Remove fixed table limits that prevent an eight-bank configuration.
+       * Reject unknown cfg properties and conflicting bank definitions.
+       * Group allocatable regions, reserved holes, and vectors into exact 4K
+         physical output units.
+       * Emit bank units in ascending logical-address order with no logical gaps
+         in the file; prove BANK0 is last.
+       * Preserve the current unbanked `vcs_4k.cfg` output byte-for-byte.
+
+[ ] 2. Add per-bank vectors and same-offset reset bridges.
+
+       * Emit valid vectors in every selected physical bank.
+       * Point each reset vector at that bank's logical mirror of a common bridge
+         offset.
+       * Select the configured startup bank and enter the normal startup path.
+       * Test reset from every possible initial bank before adding ordinary
+         cross-bank calls.
+       * Reserve mapper hotspots correctly even where they touch vector offsets.
+
+[ ] 3. Add bank-aware relocation classification and validation.
+
+       * Preserve JSR, JMP, and conditional-branch relocation intent in o26.
+       * Identify same-bank, shared-memory, and cross-bank references from cfg
+         bank identities.
+       * Continue emitting same-bank ROM and shared RAM/hardware references
+         normally.
+       * Reject cross-bank branches, data reads, address constants, pointer
+         initializers, and low/high/word data relocations with source-located
+         diagnostics.
+
+[ ] 4. Generate same-offset cross-bank JMP bridges.
+
+       * Reserve a deterministic common bridge corridor in every bank.
+       * Redirect a cross-bank JMP to its source-side hotspot access and
+         destination-side absolute JMP.
+       * Deduplicate equivalent bridges, report them in the map, and diagnose
+         bridge-corridor exhaustion.
+
+[ ] 5. Generate same-offset cross-bank JSR/return bridges.
+
+       * Redirect direct cross-bank calls through paired source/destination code.
+       * Restore the statically known source bank before the final RTS.
+       * Support nested cross-bank calls.
+       * Add two bytes of weighted hardware-stack cost for every active
+         cross-bank edge and report the longest weighted path.
+
+[ ] 6. Add explicit function/object/translation-unit bank placement.
+
+       * Choose and document one source/object spelling for named-bank affinity.
+       * Place unannotated code and ROM data in the startup bank.
+       * Keep each function and every directly read ROM table in one bank.
+       * Preserve deterministic placement and clear overflow diagnostics.
+       * Do not add automatic bank packing yet.
+
+[ ] 7. Add and certify `vcs_8k_f8.cfg`.
+
+       * Build a two-bank diagnostic with BANK1 first and BANK0 last in the file.
+       * Verify reset from either initial bank, cross-bank JMP, cross-bank JSR,
+         nested return, vectors, selector use, map output, and exact 8192-byte
+         image size.
+
+[ ] 8. Add F6 and F4 through the same implementation.
+
+       * Add `vcs_16k_f6.cfg` and `vcs_32k_f4.cfg` without mapper-specific linker
+         forks.
+       * Exercise every bank, every selector, per-bank reset, nested calls, file
+         order, reserved hotspots, and exact 16K/32K sizes.
+       * Keep BANK0 at $F000 and last in both files.
+
+[ ] 9. Make archive selection, listings, map output, and simulator execution
+       fully bank-aware.
+
+       * Preserve normal lazy archive-member selection.
+       * Report each selected member's bank placement and every bridge.
+       * Teach `vcsc-sim` to execute F8/F6/F4 using the same mapper description
+         or an equivalent generated sidecar.
+       * Add Stella-backed visible signatures and stable-frame tests.
+
+[ ] 10. Add explicit-ref Superchip profiles.
+
+       * Add `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`.
+       * Begin ordinary ROM allocation at $x100 in every bank, reserve the RAM
+         port prefix, and still emit a complete 4K physical bank.
+       * Publish scheme constants/helpers for existing
+         `ref uint8_t object@[read/write]` declarations.
+       * Verify shared 128-byte persistence across every bank switch and exact
+         8K/16K/32K output sizes.
+
+[ ] 11. Add Automatic allocation of variables into Superchip RAM.
+
+       * Define a named allocated-memory contract with separate read and write
+         bases for one shared 128-byte physical region.
+       * Preserve both aliases through compiler metadata, o26, linker layout,
+         loads, stores, initialization, and map output.
+       * Start with persistent globals and arrays.
+       * Reject address-taking, pointer decay, and unsupported `ref` passing.
+       * Count physical occupancy once and provide deterministic overflow
+         diagnostics.
+
+[ ] 12. Integrate automatic Superchip initialization and lifecycle tests.
+
+       * Clear SC BSS and copy SC DATA through the write window during normal
+         startup.
+       * Prove that bank switches preserve SC contents.
+       * Define reset/reinitialization behavior explicitly.
+       * Add map, simulator, Stella, and installed-toolchain coverage.
+       * Consider activation-overlay placement only after persistent allocation
+         is stable and measured.
+
+[ ] 13. Add banked renderer or multisprite profiles only after the generic
+       cartridge tests are stable.
+
+       * Keep mapper behavior out of renderer timing code except for explicit
+         switch points outside beam-critical paths.
+       * Measure bridge, ROM, RIOT RAM, Superchip RAM, and hardware-stack costs.
+       * Do not multiply cfg files into every renderer x mapper combination
+         without first defining a maintainable composition mechanism.
+
+[ ] 14. Evaluate automatic bank packing as an optional linker optimization.
+
+       * Pack only unpinned functions/objects after explicit placement is proven.
+       * Keep functions with their directly accessed ROM data.
+       * Minimize bridges and reject unsatisfied placement rather than inventing
+         cross-bank data access.
+       * Preserve deterministic output and allow automatic packing to be
+         disabled.
+
+[ ] 15. Design the next mapper family separately.
+
+       * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
+         segmented schemes such as E0/E7 based on an actual project need.
+       * Reuse logical mirror, vector, output, relocation, and reporting pieces
+         where honest, but add a true window model rather than forcing the
+         mapper into the full-window F8/F6/F4 abstraction.
+
+Decisions intentionally deferred
+--------------------------------
+The following are not settled by this document:
+
+* the final cfg property names and punctuation;
+* the source spelling for bank affinity;
+* the exact size/location of the common bridge corridor;
+* whether the startup bank may differ from BANK0 in the first public cfgs;
+* whether a later split-address allocated object can participate in ordinary
+  `ref` parameter passing;
+* whether automatic bank packing is worthwhile after explicit placement.
+
+Those choices should be made in the roadmap slice that can implement and test
+them, not guessed here and fossilized without evidence.

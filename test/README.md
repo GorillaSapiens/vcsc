@@ -338,9 +338,13 @@ duplicate deletion-ledger entries, any deleted path that reappears, displaced
 core README files, and broken relative Markdown links.
 
 `vcsc_branding.pl` also enforces the developer-record quarantine:
-`.top_secret/context.txt`, `.top_secret/instruction.txt`, `.top_secret/remove.txt`,
-and their explanatory README occupy that internal role, while the obsolete
-top-level notes and software-stack snapshot must remain absent.
+`.top_secret/context.txt`, `.top_secret/bankswitching.txt`,
+`.top_secret/instruction.txt`, `.top_secret/remove.txt`, and their explanatory
+README occupy that internal role, while the obsolete top-level notes and
+software-stack snapshot must remain absent. `source_tree_hygiene.pl` locks the
+bankswitching plan's descending logical-bank convention, lowest-address-first
+file order, early per-bank reset work, `$x100` Superchip ROM boundary, and the
+required automatic Superchip-variable allocation roadmap item.
 
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace

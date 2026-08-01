@@ -15,6 +15,10 @@ This directory is **for developer eyes only**. Its contents are project-maintena
 
 The durable project handoff, design-decision record, immediate TODO list, and chronological development log. Read it before continuing queued work, and update it after meaningful implementation or design changes.
 
+### `bankswitching.txt`
+
+The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The main roadmap in `context.txt` controls when this work begins.
+
 ### `instruction.txt`
 
 The intentionally retained default workflow for bounded roadmap work: finish only complete steps, reserve time for testing and cleanup, package a clean tree, and place the download link first. It is durable project guidance, not accidental conversational residue.

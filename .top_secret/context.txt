@@ -1959,15 +1959,19 @@ than ship a fragile schedule if the hardware budget does not close.
         raster behavior, and measured ROM cost before adding cartridge variants.
 
 [ ] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
-        linker/runtime milestone. Define bank-aware placement, logical origins,
-        hotspots, vectors, cross-bank calls/returns, archive selection, map and
-        usage reporting, diagnostics, and emulator-backed tests before using it
-        for any banked renderer profile.
+        linker/runtime milestone. Follow the detailed ordered roadmap in
+        `.top_secret/bankswitching.txt`: use descending mirrored logical banks
+        with BANK0 at $F000, emit physical banks from lowest logical address to
+        highest so BANK0 is last in the file, add per-bank vectors/reset bridges
+        early, reject cross-bank ROM data access, and generate direct JMP/JSR
+        bridges before using banking for any renderer profile.
 
-[ ] 30. Add Superchip cartridge RAM support as a separate linker/runtime
-        milestone after banked cartridge support is stable. Define its RAM
-        windows, read/write aliases, startup and persistence contract, allocator
-        interaction, map reporting, and tests; only then add corresponding
+[ ] 30. Add Superchip cartridge RAM support after ordinary F8/F6/F4 banking is
+        stable, following `.top_secret/bankswitching.txt`. Keep code out of the
+        RAM-port prefix by beginning ordinary ROM allocation at $x100, use the
+        existing split read/write absolute-reference semantics for the first
+        explicit profiles, and include Automatic allocation of variables into
+        Superchip RAM as a required later roadmap slice before corresponding
         Superchip or banked multisprite profiles.
 
 [ ] 31. Add fixed-point whole-program inlining for reachable internal functions
@@ -7507,3 +7511,31 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   and renderer tests, recursive example build, source-tree hygiene test, and
   staged `make installcheck` pass. The final cartridge builds with the staged
   toolchain and was run under Stella 7.0 for visual inspection.
+
+2026-08-01 13:27:32 PDT, record the bankswitching and Superchip implementation plan
+-------------------------------------------------------------------------------
+* Add `.top_secret/bankswitching.txt` as the detailed internal roadmap for
+  main tasks 29 and 30. Lock the full-window starting model around the 6507's
+  missing A13-A15 cartridge lines: BANK0 uses $F000-$FFFF and later banks work
+  downward by $2000, while the cartridge writer emits the lowest logical bank
+  first so BANK0 is the final 4K chunk in F8, F6, and F4 images.
+* Put per-bank vectors and same-offset reset bridges near the beginning of the
+  roadmap so startup does not depend on power-up bank state. Keep ordinary
+  16-bit symbols, reject cross-bank ROM data relocations, and use generated
+  same-offset JMP/JSR bridges for direct cross-bank control flow with weighted
+  hardware-stack accounting.
+* Base the first F8SC/F6SC/F4SC profiles on the existing split read/write
+  absolute-reference semantics. Reserve each bank's $x000-$x0FF RAM-port
+  prefix by beginning ordinary ROM allocation at $x100 while still emitting a
+  complete 4K bank. Include Automatic allocation of variables into Superchip
+  RAM as an explicit required later roadmap item, with separate load/store
+  aliases, startup initialization, persistence, occupancy, and pointer-safety
+  rules.
+* Update the main roadmap tasks and internal-directory README to point to the
+  new detailed plan. Extend the developer-record allowlist, source-tree hygiene
+  guard, and test-harness documentation so the new file is retained and its key
+  conventions cannot silently regress. This changes no compiler, assembler,
+  linker, runtime, cfg, or public documentation behavior.
+* Verification: all 337 compile-only tests passed during a clean build. The
+  broad end-to-end run passed tests 1 through 122 before the outer command
+  window expired. The focused branding and source-tree hygiene tests pass.

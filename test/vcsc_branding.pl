@@ -98,7 +98,7 @@ for my $parts (
 my $top_secret = File::Spec->catdir($repo, '.top_secret');
 opendir(my $top_secret_dh, $top_secret) or die "could not open $top_secret: $!\n";
 my @top_secret_extra = sort grep {
-   $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
+   $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'bankswitching.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
 } readdir($top_secret_dh);
 closedir($top_secret_dh);
 @top_secret_extra and die "unexpected developer-only files remain: @top_secret_extra\n";
@@ -106,6 +106,7 @@ closedir($top_secret_dh);
 for my $parts (
    [qw(.top_secret README.md)],
    [qw(.top_secret context.txt)],
+   [qw(.top_secret bankswitching.txt)],
    [qw(.top_secret remove.txt)],
    [qw(.top_secret instruction.txt)],
 ) {

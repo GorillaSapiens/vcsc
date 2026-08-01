@@ -31,6 +31,20 @@ for my $rel (sort keys %readme_heading) {
 }
 index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `instruction.txt`')>=0
    or die ".top_secret/README.md does not document instruction.txt\n";
+index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `bankswitching.txt`')>=0
+   or die ".top_secret/README.md does not document bankswitching.txt\n";
+my $bankswitching=slurp(File::Spec->catfile($repo,'.top_secret','bankswitching.txt'));
+index($bankswitching,'BANK0           $F000-$FFFF')>=0
+   or die "bankswitching plan lost descending BANK0 logical origin\n";
+index($bankswitching,'BANK0 is always the final 4K bank in the file')>=0
+   or die "bankswitching plan lost lowest-address-first output order\n";
+index($bankswitching,'[ ] 2. Add per-bank vectors and same-offset reset bridges.')>=0
+   or die "bankswitching plan no longer schedules per-bank reset early\n";
+index($bankswitching,'[ ] 11. Add Automatic allocation of variables into Superchip RAM.')>=0
+   or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
+index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
+index($bankswitching,'$x100')>=0
+   or die "bankswitching plan lost Superchip ROM-prefix reservation\n";
 
 # The two complete drawscreen profiles remain installed intentionally.  They are
 # legacy compatibility/regression targets, not preferred component APIs and not
