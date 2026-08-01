@@ -2010,20 +2010,22 @@ than ship a fragile schedule if the hardware budget does not close.
         * Add `examples/03_player_color_192/02_animated_sprites/`, using the
           official-opcode 192-line player-color renderer and one aligned 256-byte
           graphics table containing eight named four-frame 8x8 animation sets.
-        * Display two sets simultaneously, hold each frame for eight NTSC frames,
-          repeat each four-frame sequence four times, and automatically advance
-          through all four pairs. Game Select advances a pair immediately and
-          left fire pauses/resumes with edge-triggered controls.
+        * Display two sets simultaneously on separate vertical lanes, starting
+          both at X=0 and moving them right one pixel per NTSC frame. Hold each
+          animation frame for eight NTSC frames; after the X=159 frame, restart at
+          X=0 with the next pair. Game Select advances a pair and restarts at X=0;
+          left fire pauses/resumes motion and animation with edge-triggered controls.
         * Change only player graphics pointers at runtime; preserve exact 262-line
-          frames, the 192-line visible renderer, row-color-table use, and 19 free
+          frames, the 192-line visible renderer, row-color-table use, and 20 free
           RIOT RAM bytes. Document highest-index-to-zero source-row storage.
         * Treat the adapted artwork conservatively under Quick's stated CC
           BY-NC-SA 4.0 license rather than the public-domain description supplied
           with the request. Install explicit attribution and asset-license notes.
-        * Add an emulator oracle covering the full 512-frame automatic gallery,
-          exact P0/P1 pixels, pointer selection, row-color-table use, controls, and
-          frame period. Build the public cartridge with the staged installed
-          toolchain and inspect its animated output under Stella 7.0.
+        * Add an emulator oracle covering four complete 160-frame traversals,
+          exact P0/P1 pixels at every animation step and right-edge endpoint,
+          pointer selection, row-color-table use, controls, and frame period. Build
+          the public cartridge with the staged installed toolchain and inspect its
+          animated output under Stella 7.0.
 
 [ ] 35. Add first-class support for two paddle controllers on one controller port.
         Define a stable VCSC API for the two analog paddle positions and both paddle
@@ -7405,3 +7407,24 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   one-test tail runs. Staged `make installcheck` passes. A fresh cartridge built
   by a separately staged installed toolchain was run and visually inspected under
   Stella 7.0 in a virtual X display.
+
+2026-08-01 10:08:27 PDT, make animated-sprite gallery traverse the screen
+-------------------------------------------------------------------------------
+* Replace the stationary P0/P1 gallery presentation with two vertically separated
+  lanes whose players both start at visible X=0 and move right one pixel per NTSC
+  frame. Preserve the eight-frame bitmap hold while motion continues. The X=159
+  frame is the final clipped right-edge frame; the following frame respawns both
+  players at X=0 with the next animation pair.
+* Keep the four existing sprite pairs and edge-triggered controls. Game Select now
+  advances immediately to the next pair and restarts it at X=0. Left fire pauses
+  and resumes both horizontal motion and bitmap animation. Remove the obsolete
+  four-loop counter, reducing final usage to 2,676 ROM bytes and 108 RIOT RAM
+  bytes, with 1,414 ROM bytes and 20 RAM bytes free.
+* Expand the animation emulator oracle from the former stationary 512-frame cycle
+  to four complete 160-frame traversals. Lock one-pixel-per-frame P0/P1 motion,
+  separate vertical lanes, exact animated pixels, progressive X=159 clipping,
+  pair change and X=0 wrap, pointer selection, row-color-table use, pause/select
+  behavior, and exact 262-line frame periods. Update the example and test catalogs.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass across deterministic splits. Staged make installcheck passes. A cartridge
+  built from the final source was run and visually inspected under Stella 7.0.

@@ -20,7 +20,7 @@ visible field, it cannot be composed with the 11-line score component.
 | No. | Example | Purpose |
 |---:|---|---|
 | 01 | [`interactive`](01_interactive/) | Select P0, P1, or Ball and move it one pixel or logical scanline at a time through the renderer's complete range |
-| 02 | [`animated_sprites`](02_animated_sprites/) | Cycle eight four-frame 8x8 sprite adaptations through P0 and P1 with pause and pair-selection controls |
+| 02 | [`animated_sprites`](02_animated_sprites/) | Move four pairs of four-frame 8x8 sprite adaptations from the left edge to the right, switching pairs on each wrap |
 
 For the exact RAM, table, and beam-timing contract, see
 [`libraries/vcs/renderers/player_color_192/README.md`](../../libraries/vcs/renderers/player_color_192/README.md).

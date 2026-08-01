@@ -38,8 +38,8 @@ constexpr uint16_t kTim64t=0x0296;
 constexpr uint16_t kT1024t=0x0297;
 
 struct Addresses {
-   uint8_t sprite0, sprite1, animation_frame, animation_clock, animation_loop;
-   uint8_t pause_animation, select_ready, fire_ready;
+   uint8_t sprite0, sprite1, animation_frame, animation_clock;
+   uint8_t pause_animation, select_ready, fire_ready, object_x;
    uint8_t p0_pointer, p1_pointer;
    uint16_t frames, p0_colors, p1_colors;
 };
@@ -47,7 +47,8 @@ struct Write { uint16_t address; uint8_t value; };
 struct TimedWrite { uint64_t line, cycle, beam_cycle; uint16_t address; uint8_t value; };
 struct Capture {
    uint64_t period=0;
-   uint8_t sprite0=0,sprite1=0,animation_frame=0,animation_clock=0,animation_loop=0,pause=0;
+   uint8_t sprite0=0,sprite1=0,animation_frame=0,animation_clock=0,pause=0;
+   uint8_t player0_x=0,player1_x=0;
    uint16_t p0_pointer=0,p1_pointer=0;
    std::vector<TimedWrite> writes;
 };
@@ -99,8 +100,9 @@ void begin_capture() {
    c.sprite1=memory_image[address.sprite1];
    c.animation_frame=memory_image[address.animation_frame];
    c.animation_clock=memory_image[address.animation_clock];
-   c.animation_loop=memory_image[address.animation_loop];
    c.pause=memory_image[address.pause_animation];
+   c.player0_x=memory_image[address.object_x];
+   c.player1_x=memory_image[static_cast<uint8_t>(address.object_x+1)];
    c.p0_pointer=word_at(address.p0_pointer);
    c.p1_pointer=word_at(address.p1_pointer);
    frames.push_back(c);
@@ -198,13 +200,14 @@ void verify_pixels(const Capture &c,size_t index) {
          const uint64_t color_clock=68+x;
          while (event<events.size() && events[event].beam_cycle*3<=color_clock) apply(state,events[event++]);
          if (line<39) continue;
-         const int row=(line>=136 && line<152)?(line-136)/2:-1;
-         const uint8_t want0=row>=0?source_row(c.p0_pointer,row):0;
-         const uint8_t want1=row>=0?source_row(c.p1_pointer,row):0;
-         const bool actual0=player_pixel(state.grp0_display,state.nusiz0,state.refp0,48,x);
-         const bool actual1=player_pixel(state.grp1_display,state.nusiz1,state.refp1,104,x);
-         const bool expected0=player_pixel(want0,0,0,48,x);
-         const bool expected1=player_pixel(want1,0,0,104,x);
+         const int row0=(line>=146 && line<162)?(line-146)/2:-1;
+         const int row1=(line>=116 && line<132)?(line-116)/2:-1;
+         const uint8_t want0=row0>=0?source_row(c.p0_pointer,row0):0;
+         const uint8_t want1=row1>=0?source_row(c.p1_pointer,row1):0;
+         const bool actual0=player_pixel(state.grp0_display,state.nusiz0,state.refp0,c.player0_x,x);
+         const bool actual1=player_pixel(state.grp1_display,state.nusiz1,state.refp1,c.player1_x,x);
+         const bool expected0=player_pixel(want0,0,0,c.player0_x,x);
+         const bool expected1=player_pixel(want1,0,0,c.player1_x,x);
          if (actual0!=expected0 || actual1!=expected1) {
             std::fprintf(stderr,"vcs_player_color_192_animation: frame %zu pixel mismatch line %d x=%u P0 %u/%u P1 %u/%u\n",
                          index,line,x,actual0,expected0,actual1,expected1);
@@ -221,12 +224,12 @@ void verify_pixels(const Capture &c,size_t index) {
    if (checked!=static_cast<uint64_t>(232-39)*160*2) fail("wrong pixel count");
 }
 void verify_state(const Capture &c,size_t f) {
-   const uint8_t pair=static_cast<uint8_t>(((f/128)*2)%8);
-   const uint8_t anim=static_cast<uint8_t>((f/8)%4);
-   const uint8_t loop=static_cast<uint8_t>((f/32)%4);
+   const uint8_t position=static_cast<uint8_t>(f%160);
+   const uint8_t pair=static_cast<uint8_t>(((f/160)*2)%8);
+   const uint8_t anim=static_cast<uint8_t>((position/8)%4);
    if (c.sprite0!=pair || c.sprite1!=pair+1 || c.animation_frame!=anim ||
-       c.animation_clock!=f%8 || c.animation_loop!=loop)
-      fail("automatic animation sequence mismatch at frame "+std::to_string(f));
+       c.animation_clock!=position%8 || c.player0_x!=position || c.player1_x!=position)
+      fail("automatic moving-animation sequence mismatch at frame "+std::to_string(f));
    const uint16_t want0=static_cast<uint16_t>(address.frames+c.sprite0*32+c.animation_frame*8);
    const uint16_t want1=static_cast<uint16_t>(address.frames+c.sprite1*32+c.animation_frame*8);
    if (c.p0_pointer!=want0 || c.p1_pointer!=want1) fail("graphics pointer sequence mismatch");
@@ -236,13 +239,13 @@ void verify_state(const Capture &c,size_t f) {
 
 int main(int argc,char **argv) {
    if (argc!=15) {
-      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 frame clock loop pause select_ready fire_ready p0ptr p1ptr frames p0colors p1colors\n",argv[0]);
+      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames p0colors p1colors\n",argv[0]);
       return 2;
    }
    address.sprite0=parse_number(argv[2],255); address.sprite1=parse_number(argv[3],255);
    address.animation_frame=parse_number(argv[4],255); address.animation_clock=parse_number(argv[5],255);
-   address.animation_loop=parse_number(argv[6],255); address.pause_animation=parse_number(argv[7],255);
-   address.select_ready=parse_number(argv[8],255); address.fire_ready=parse_number(argv[9],255);
+   address.pause_animation=parse_number(argv[6],255); address.select_ready=parse_number(argv[7],255);
+   address.fire_ready=parse_number(argv[8],255); address.object_x=parse_number(argv[9],254);
    address.p0_pointer=parse_number(argv[10],254); address.p1_pointer=parse_number(argv[11],254);
    address.frames=parse_number(argv[12],65535); address.p0_colors=parse_number(argv[13],65535);
    address.p1_colors=parse_number(argv[14],65535);
@@ -256,47 +259,51 @@ int main(int argc,char **argv) {
 
    mos6502 cpu(read_bus,write_bus,clock_cycle);
    cpu.Reset();
-   run_until_frames(cpu,513);
-   for (size_t f=0;f<512;++f) {
+   run_until_frames(cpu,641);
+   for (size_t f=0;f<640;++f) {
       if (f>=2 && frames[f].period!=262*kCyclesPerLine) fail("frame is not exactly 262 lines");
       verify_state(frames[f],f);
-      if (f>=8 && (f%8)==0) verify_pixels(frames[f],f);
+      if (f>=8 && ((f%8)==0 || (f%160)==159)) verify_pixels(frames[f],f);
    }
 
-   // Game Select advances one pair per press and does not autorepeat while held.
+   // Game Select advances one pair, restarts at the left edge, and does not autorepeat.
    swchb=0xfd;
-   run_until_frames(cpu,514);
-   if (frames[513].sprite0!=2 || frames[513].sprite1!=3 || frames[513].animation_frame!=0)
-      fail("Game Select did not advance one pair");
-   run_until_frames(cpu,515);
-   if (frames[514].sprite0!=2 || frames[514].sprite1!=3)
-      fail("held Game Select autorepeated");
+   run_until_frames(cpu,642);
+   if (frames[641].sprite0!=2 || frames[641].sprite1!=3 || frames[641].animation_frame!=0 ||
+       frames[641].player0_x!=0 || frames[641].player1_x!=0)
+      fail("Game Select did not advance one pair at the left edge");
+   run_until_frames(cpu,643);
+   if (frames[642].sprite0!=2 || frames[642].sprite1!=3 ||
+       frames[642].player0_x!=1 || frames[642].player1_x!=1)
+      fail("held Game Select autorepeated or stopped motion");
    swchb=0xff;
-   run_until_frames(cpu,516);
+   run_until_frames(cpu,644);
    swchb=0xfd;
-   run_until_frames(cpu,517);
-   if (frames[516].sprite0!=4 || frames[516].sprite1!=5)
-      fail("second Game Select press did not advance");
+   run_until_frames(cpu,645);
+   if (frames[644].sprite0!=4 || frames[644].sprite1!=5 ||
+       frames[644].player0_x!=0 || frames[644].player1_x!=0)
+      fail("second Game Select press did not advance at the left edge");
    swchb=0xff;
 
-   // Left fire pauses once per press; held fire cannot retrigger it.
+   // Left fire pauses both movement and frame animation once per press.
    inpt4=0x00;
-   run_until_frames(cpu,518);
-   const uint8_t paused_frame=frames[517].animation_frame;
-   const uint8_t paused_clock=frames[517].animation_clock;
-   const uint8_t paused_loop=frames[517].animation_loop;
-   if (!frames[517].pause) fail("left fire did not pause animation");
-   run_until_frames(cpu,526);
-   for (size_t f=518;f<526;++f)
+   run_until_frames(cpu,646);
+   const uint8_t paused_frame=frames[645].animation_frame;
+   const uint8_t paused_clock=frames[645].animation_clock;
+   const uint8_t paused_x=frames[645].player0_x;
+   if (!frames[645].pause) fail("left fire did not pause animation");
+   run_until_frames(cpu,654);
+   for (size_t f=646;f<654;++f)
       if (!frames[f].pause || frames[f].animation_frame!=paused_frame ||
-          frames[f].animation_clock!=paused_clock || frames[f].animation_loop!=paused_loop)
-         fail("paused animation changed or held fire retriggered");
+          frames[f].animation_clock!=paused_clock || frames[f].player0_x!=paused_x ||
+          frames[f].player1_x!=paused_x)
+         fail("paused animation moved or held fire retriggered");
    inpt4=0x80;
-   run_until_frames(cpu,527);
+   run_until_frames(cpu,655);
    inpt4=0x00;
-   run_until_frames(cpu,528);
-   if (frames[527].pause) fail("second left-fire press did not resume animation");
+   run_until_frames(cpu,656);
+   if (frames[655].pause) fail("second left-fire press did not resume animation");
 
-   std::puts("vcs_player_color_192_animation ok: eight four-frame galleries across four loops per pair, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls");
+   std::puts("vcs_player_color_192_animation ok: eight four-frame sprites traverse left-to-right in four pairs, wrap to a new pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls");
    return 0;
 }

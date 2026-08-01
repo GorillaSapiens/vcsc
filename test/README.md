@@ -244,15 +244,11 @@ that solid glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
 checks its eight attributed four-frame sets and aligned 256-byte graphics table,
-and drives an emulator oracle through the full automatic sequence plus Select
-and pause controls. The oracle locks exact player pixels, graphics-pointer
-selection, permitted row-color-table values, and 262-line frame periods.
-
-`vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
-checks its eight attributed four-frame sets and aligned 256-byte graphics table,
-and drives an emulator oracle through the full automatic sequence plus Select
-and pause controls. The oracle locks exact player pixels, graphics-pointer
-selection, permitted row-color-table values, and 262-line frame periods.
+and drives an emulator oracle through four complete 160-frame left-to-right
+traversals plus Select and pause controls. The oracle locks X=0 entry, one-pixel-
+per-frame motion, X=159 clipping and wrap to a new pair, exact player pixels,
+graphics-pointer selection, permitted row-color-table values, and 262-line frame
+periods.
 
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte

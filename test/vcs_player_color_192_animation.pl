@@ -63,7 +63,11 @@ $glyph_count==32 or die "animated gallery has $glyph_count frames; expected 32\n
 $text =~ /page\s+const\s+uint8_t\s+sprite_frames\[256\]/
    or die "animation frames are no longer one aligned 256-byte table\n";
 $text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n";
-$text =~ /alias\s+PAIR_LOOPS\s+4/ or die "animation pair-loop count changed\n";
+$text =~ /alias\s+RIGHT_EDGE\s+159/ or die "animation right-edge endpoint changed\n";
+$text =~ /game_PLAYER0_X\s*:=\s*0/ && $text =~ /game_PLAYER1_X\s*:=\s*0/
+   or die "animated sprites no longer start at the left edge\n";
+$text =~ /if\s*\(game_PLAYER0_X\s*>=\s*RIGHT_EDGE\)/
+   or die "right-edge wrap control missing\n";
 $text =~ /if\s*\(SWCHB\s*&\s*0x02\)/ or die "Game Select edge control missing\n";
 $text =~ /if\s*\(INPT4\s*&\s*0x80\)/ or die "left-fire pause control missing\n";
 $license_text =~ /Quick/ && $license_text =~ /CC BY-NC-SA 4\.0/
@@ -89,13 +93,13 @@ $rc==0 && !$sig or die "animation harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "animation harness build wrote output\n$out$err";
 
 my @zp_args=map { zp_arg($map,$_) }
-   qw(sprite0 sprite1 animation_frame animation_clock animation_loop pause_animation select_ready fire_ready game_player0_graphics game_player1_graphics);
+   qw(sprite0 sprite1 animation_frame animation_clock pause_animation select_ready fire_ready game_object_x game_player0_graphics game_player1_graphics);
 my @symbol_args=map { symbol_arg($map,$_) }
    qw(sprite_frames game_player0_colors game_player1_colors);
 my @args=(@zp_args,@symbol_args);
 ($rc,$sig,$out,$err)=capture($harness,$bin,@args);
 $rc==0 && !$sig or die "animated gallery emulator proof failed\n$out$err";
-$out eq "vcs_player_color_192_animation ok: eight four-frame galleries across four loops per pair, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls\n"
+$out eq "vcs_player_color_192_animation ok: eight four-frame sprites traverse left-to-right in four pairs, wrap to a new pair at X=0, exact player pixels and row-color-table use, 262-line frames, pair selection, and pause controls\n"
    or die "unexpected animation harness output: $out";
 $err eq '' or die "animation harness stderr: $err";
 
