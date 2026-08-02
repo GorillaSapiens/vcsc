@@ -25,6 +25,15 @@
  * of reached absolute operands, valid vector entries, and resolved indirect
  * targets that may be changed with mask 0xe0.
  *
+ * After recursive tracing, a second pass searches previously unclassified
+ * regions for constrained, internally consistent instruction islands.  JAM/KIL
+ * bytes cannot be instruction starts; inferred instructions may not overlap
+ * established operands or ROM data; control-flow destinations must decode
+ * consistently; and absolute ROM reads act as data constraints.  Because this
+ * remains a disassembly heuristic rather than proof of runtime reachability,
+ * every byte discovered only by this pass is printed with
+ * discovery=second-pass-only confidence=heuristic.
+ *
  * Complete banks are taken from the beginning of the file.  Any final partial
  * bank is ignored.  In particular, the 2,303-byte DPC tail used by cartridges
  * such as Pitfall II (2,048 display bytes plus 255 frequency bytes) is never
@@ -64,6 +73,9 @@
 #define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
 #define STACK_TRACK_DEPTH 8u
 #define MUTABLE_MASK 0xe0u
+
+#define DISCOVERY_FIRST_PASS  0x01u
+#define DISCOVERY_SECOND_PASS 0x02u
 
 #define USE_OPCODE          0x01u
 #define USE_OTHER_OPERAND   0x02u
@@ -106,6 +118,7 @@ typedef enum {
 typedef struct {
    uint8_t uses;
    uint8_t candidate_kinds;
+   uint8_t candidate_passes;
    uint16_t first_pc;
    uint16_t first_address;
    uint8_t first_opcode;
@@ -136,6 +149,8 @@ typedef struct {
    size_t bank_count;
    size_t trailing_bytes;
    byte_info_t *byte_info;
+   uint8_t *second_opcode;
+   uint8_t *second_operand;
    abstract_state_t *states;
    uint8_t *subroutine_summaries;
    uint8_t visited[ADDRESS_SPACE_SIZE];
@@ -158,6 +173,8 @@ typedef struct {
    uint16_t summary_work[ADDRESS_SPACE_SIZE];
    size_t work_count;
    size_t instruction_count;
+   size_t second_instruction_count;
+   size_t second_component_count;
 } analysis_t;
 
 #define I  AM_IMPLIED
@@ -357,7 +374,8 @@ static int fetch_bank_byte(const analysis_t *a, uint16_t address,
 }
 
 static void remember_candidate(analysis_t *a, size_t bank_offset,
-                               uint8_t kind, uint16_t pc, uint8_t opcode,
+                               uint8_t kind, uint8_t discovery_pass,
+                               uint16_t pc, uint8_t opcode,
                                address_mode_t mode, uint16_t address)
 {
    byte_info_t *info = &a->byte_info[bank_offset];
@@ -369,6 +387,7 @@ static void remember_candidate(analysis_t *a, size_t bank_offset,
    }
    info->uses |= USE_MUTABLE_HIGH;
    info->candidate_kinds |= kind;
+   info->candidate_passes |= discovery_pass;
 }
 
 static void mark_rom_data_byte(analysis_t *a, uint16_t address)
@@ -548,7 +567,8 @@ static int fetch_instruction(const analysis_t *a, uint16_t pc,
 static void mark_instruction_bytes(analysis_t *a, uint16_t pc,
                                    uint8_t opcode, address_mode_t mode,
                                    const uint8_t bytes[3],
-                                   const size_t offsets[3], unsigned length)
+                                   const size_t offsets[3], unsigned length,
+                                   uint8_t discovery_pass)
 {
    unsigned i;
    a->byte_info[offsets[0]].uses |= USE_OPCODE;
@@ -557,8 +577,8 @@ static void mark_instruction_bytes(analysis_t *a, uint16_t pc,
       if (i == 2 && mode_has_absolute_operand(mode)) {
          uint16_t address = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
          if ((bytes[2] & 0x10u) != 0 && operand_high_is_bus_only(opcode)) {
-            remember_candidate(a, offsets[2], CAND_ABSOLUTE, pc, opcode,
-                               mode, address);
+            remember_candidate(a, offsets[2], CAND_ABSOLUTE,
+                               discovery_pass, pc, opcode, mode, address);
          }
          else {
             a->byte_info[offsets[2]].uses |= USE_OTHER_OPERAND;
@@ -1077,7 +1097,8 @@ static int resolve_indirect_jump(analysis_t *a, uint16_t pc,
    *target = (uint16_t)(low | ((uint16_t)high << 8));
    if (high_source == KNOWN_BYTE_ROM) {
       if ((high & 0x10u) != 0) {
-         remember_candidate(a, high_offset, CAND_INDIRECT_TARGET, pc, 0x6c,
+         remember_candidate(a, high_offset, CAND_INDIRECT_TARGET,
+                            DISCOVERY_FIRST_PASS, pc, 0x6c,
                             AM_INDIRECT, *target);
       }
       else {
@@ -1506,6 +1527,584 @@ static int resolve_indexed_table_jmp(analysis_t *a, uint16_t pc,
    return 1;
 }
 
+
+/*
+ * The second pass is deliberately heuristic.  It searches bytes that the
+ * recursive first pass did not reach, but it does not pretend that arbitrary
+ * data can be distinguished from code with certainty.  A proposed code island
+ * must satisfy all of these constraints:
+ *
+ *   - no instruction start may be a JAM/KIL opcode;
+ *   - inferred instructions may not overlap bytes already established as
+ *     first-pass operands or ROM data;
+ *   - inferred operands may not overlap established instruction starts;
+ *   - branch and direct JMP/JSR successors must themselves decode
+ *     consistently, join established code, or terminate cleanly;
+ *   - an absolute ROM read is treated as evidence that its target is data, so
+ *     a proposed parse that also executes that byte is rejected;
+ *   - the island must contain mostly official NMOS 6502 instructions and have
+ *     a credible control-flow ending or a join into first-pass code.
+ *
+ * Accepted islands are marked as inferred code and fed through the same
+ * operand/candidate machinery as the first pass.  Their output is explicitly
+ * labelled discovery=second-pass-only confidence=heuristic.  This prevents a
+ * useful recovery heuristic from being confused with proven reachability.
+ */
+
+typedef struct {
+   uint8_t start[CART_WINDOW_SIZE];
+   uint8_t cover[CART_WINDOW_SIZE];
+   uint8_t data[CART_WINDOW_SIZE];
+   uint16_t pc_for_offset[CART_WINDOW_SIZE];
+   uint16_t work[CART_WINDOW_SIZE];
+   size_t work_count;
+   size_t instructions;
+   size_t official_instructions;
+   size_t unofficial_instructions;
+   size_t control_transfers;
+   size_t terminals;
+   size_t joins;
+   size_t unresolved_terminals;
+   int rejected;
+} second_trace_t;
+
+typedef struct {
+   uint16_t root;
+   int score;
+   size_t instructions;
+   size_t inbound_references;
+   int boundary_root;
+} second_candidate_t;
+
+static int opcode_is_jam(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x02: case 0x12: case 0x22: case 0x32:
+   case 0x42: case 0x52: case 0x62: case 0x72:
+   case 0x92: case 0xb2: case 0xd2: case 0xf2:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int opcode_is_official(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x00: case 0x01: case 0x05: case 0x06: case 0x08: case 0x09:
+   case 0x0a: case 0x0d: case 0x0e:
+   case 0x10: case 0x11: case 0x15: case 0x16: case 0x18: case 0x19:
+   case 0x1d: case 0x1e:
+   case 0x20: case 0x21: case 0x24: case 0x25: case 0x26: case 0x28:
+   case 0x29: case 0x2a: case 0x2c: case 0x2d: case 0x2e:
+   case 0x30: case 0x31: case 0x35: case 0x36: case 0x38: case 0x39:
+   case 0x3d: case 0x3e:
+   case 0x40: case 0x41: case 0x45: case 0x46: case 0x48: case 0x49:
+   case 0x4a: case 0x4c: case 0x4d: case 0x4e:
+   case 0x50: case 0x51: case 0x55: case 0x56: case 0x58: case 0x59:
+   case 0x5d: case 0x5e:
+   case 0x60: case 0x61: case 0x65: case 0x66: case 0x68: case 0x69:
+   case 0x6a: case 0x6c: case 0x6d: case 0x6e:
+   case 0x70: case 0x71: case 0x75: case 0x76: case 0x78: case 0x79:
+   case 0x7d: case 0x7e:
+   case 0x81: case 0x84: case 0x85: case 0x86: case 0x88: case 0x8a:
+   case 0x8c: case 0x8d: case 0x8e:
+   case 0x90: case 0x91: case 0x94: case 0x95: case 0x96: case 0x98:
+   case 0x99: case 0x9a: case 0x9d:
+   case 0xa0: case 0xa1: case 0xa2: case 0xa4: case 0xa5: case 0xa6:
+   case 0xa8: case 0xa9: case 0xaa: case 0xac: case 0xad: case 0xae:
+   case 0xb0: case 0xb1: case 0xb4: case 0xb5: case 0xb6: case 0xb8:
+   case 0xb9: case 0xba: case 0xbc: case 0xbd: case 0xbe:
+   case 0xc0: case 0xc1: case 0xc4: case 0xc5: case 0xc6: case 0xc8:
+   case 0xc9: case 0xca: case 0xcc: case 0xcd: case 0xce:
+   case 0xd0: case 0xd1: case 0xd5: case 0xd6: case 0xd8: case 0xd9:
+   case 0xdd: case 0xde:
+   case 0xe0: case 0xe1: case 0xe4: case 0xe5: case 0xe6: case 0xe8:
+   case 0xe9: case 0xea: case 0xec: case 0xed: case 0xee:
+   case 0xf0: case 0xf1: case 0xf5: case 0xf6: case 0xf8: case 0xf9:
+   case 0xfd: case 0xfe:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static uint16_t canonical_bank_address(const analysis_t *a, size_t offset)
+{
+   if (a->bank_size == TWO_K_SIZE)
+      return (uint16_t)(0xf800u | (uint16_t)(offset & 0x07ffu));
+   return (uint16_t)(0xf000u | (uint16_t)(offset & 0x0fffu));
+}
+
+static int second_byte_blocks_opcode(const analysis_t *a, size_t offset)
+{
+   uint8_t uses = a->byte_info[offset].uses;
+   return (uses & (USE_OTHER_OPERAND | USE_MUTABLE_HIGH | USE_ROM_DATA)) != 0 ||
+          a->second_operand[offset] != 0;
+}
+
+static int second_byte_blocks_operand(const analysis_t *a, size_t offset)
+{
+   return (a->byte_info[offset].uses & USE_OPCODE) != 0 ||
+          a->second_opcode[offset] != 0;
+}
+
+static int second_decode_is_locally_possible(const analysis_t *a, uint16_t pc,
+                                             uint8_t bytes[3],
+                                             size_t offsets[3],
+                                             address_mode_t *mode,
+                                             unsigned *length)
+{
+   uint8_t opcode;
+   size_t offset;
+   unsigned i;
+
+   if (!fetch_bank_byte(a, pc, &opcode, &offset))
+      return 0;
+   if (opcode_is_jam(opcode) || second_byte_blocks_opcode(a, offset))
+      return 0;
+
+   *mode = (address_mode_t)opcode_modes[opcode];
+   *length = instruction_length(*mode);
+   if (offset + *length > a->bank_size)
+      return 0;
+   if (!fetch_instruction(a, pc, bytes, offsets, *length))
+      return 0;
+
+   for (i = 1; i < *length; ++i) {
+      if (second_byte_blocks_operand(a, offsets[i]))
+         return 0;
+   }
+   return 1;
+}
+
+static int second_trace_enqueue(const analysis_t *a, second_trace_t *trace,
+                                uint16_t pc)
+{
+   size_t offset;
+
+   if (!address_to_bank_offset(a, pc, &offset)) {
+      trace->rejected = 1;
+      return 0;
+   }
+
+   if ((a->byte_info[offset].uses & USE_OPCODE) != 0 ||
+       a->second_opcode[offset] != 0) {
+      ++trace->joins;
+      return 1;
+   }
+
+   if (trace->cover[offset] == 2u || trace->data[offset]) {
+      trace->rejected = 1;
+      return 0;
+   }
+   if (trace->start[offset])
+      return 1;
+   if (trace->work_count >= a->bank_size) {
+      trace->rejected = 1;
+      return 0;
+   }
+
+   trace->start[offset] = 1;
+   trace->pc_for_offset[offset] = pc;
+   trace->work[trace->work_count++] = pc;
+   return 1;
+}
+
+static int second_trace_mark_data(const analysis_t *a,
+                                  second_trace_t *trace, uint16_t address)
+{
+   size_t offset;
+
+   if (!address_to_bank_offset(a, address, &offset))
+      return 1;
+   if (trace->cover[offset] != 0 ||
+       (a->byte_info[offset].uses & USE_OPCODE) != 0 ||
+       a->second_opcode[offset] != 0) {
+      trace->rejected = 1;
+      return 0;
+   }
+   trace->data[offset] = 1;
+   return 1;
+}
+
+static void second_trace_note_data_reference(const analysis_t *a,
+                                             second_trace_t *trace,
+                                             uint8_t opcode,
+                                             address_mode_t mode,
+                                             uint16_t operand)
+{
+   flow_kind_t flow = instruction_flow(opcode);
+
+   if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE ||
+       flow == FLOW_JMP_INDIRECT || opcode_is_write_only(opcode))
+      return;
+
+   /*
+    * Exact absolute reads are strong data evidence.  For indexed reads the
+    * base byte alone is used as a weaker constraint; marking all 256 possible
+    * bytes here would make a heuristic recovery pass swallow entire banks.
+    */
+   if (mode == AM_ABSOLUTE || mode == AM_ABSOLUTE_X ||
+       mode == AM_ABSOLUTE_Y)
+      (void)second_trace_mark_data(a, trace, operand);
+}
+
+static int build_second_trace(const analysis_t *a, uint16_t root,
+                              second_trace_t *trace)
+{
+   memset(trace, 0, sizeof(*trace));
+   if (!second_trace_enqueue(a, trace, root))
+      return 0;
+
+   while (trace->work_count != 0 && !trace->rejected) {
+      uint16_t pc = trace->work[--trace->work_count];
+      uint8_t bytes[3] = { 0, 0, 0 };
+      size_t offsets[3] = { 0, 0, 0 };
+      address_mode_t mode;
+      flow_kind_t flow;
+      unsigned length;
+      unsigned i;
+      uint8_t opcode;
+      uint16_t next;
+      uint16_t operand = 0;
+      size_t start_offset;
+
+      if (!address_to_bank_offset(a, pc, &start_offset)) {
+         trace->rejected = 1;
+         break;
+      }
+      if (trace->cover[start_offset] == 1u)
+         continue;
+      if (!second_decode_is_locally_possible(a, pc, bytes, offsets,
+                                             &mode, &length)) {
+         trace->rejected = 1;
+         break;
+      }
+
+      opcode = bytes[0];
+      if (trace->data[start_offset]) {
+         trace->rejected = 1;
+         break;
+      }
+      trace->cover[start_offset] = 1u;
+      for (i = 1; i < length; ++i) {
+         if (trace->cover[offsets[i]] == 1u || trace->data[offsets[i]]) {
+            trace->rejected = 1;
+            break;
+         }
+         trace->cover[offsets[i]] = 2u;
+      }
+      if (trace->rejected)
+         break;
+
+      ++trace->instructions;
+      if (opcode_is_official(opcode))
+         ++trace->official_instructions;
+      else
+         ++trace->unofficial_instructions;
+
+      next = (uint16_t)(pc + length);
+      if (mode_has_absolute_operand(mode))
+         operand = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
+      second_trace_note_data_reference(a, trace, opcode, mode, operand);
+      if (trace->rejected)
+         break;
+
+      flow = instruction_flow(opcode);
+      switch (flow) {
+      case FLOW_NEXT:
+         (void)second_trace_enqueue(a, trace, next);
+         break;
+
+      case FLOW_BRANCH:
+         ++trace->control_transfers;
+         (void)second_trace_enqueue(a, trace, next);
+         (void)second_trace_enqueue(
+            a, trace, (uint16_t)(next + (int8_t)bytes[1]));
+         break;
+
+      case FLOW_JSR:
+         ++trace->control_transfers;
+         (void)second_trace_enqueue(a, trace, next);
+         (void)second_trace_enqueue(a, trace, operand);
+         break;
+
+      case FLOW_JMP_ABSOLUTE:
+         ++trace->control_transfers;
+         ++trace->terminals;
+         (void)second_trace_enqueue(a, trace, operand);
+         break;
+
+      case FLOW_JMP_INDIRECT:
+         ++trace->control_transfers;
+         ++trace->terminals;
+         ++trace->unresolved_terminals;
+         break;
+
+      case FLOW_RTS:
+         ++trace->terminals;
+         break;
+
+      case FLOW_BRK:
+         ++trace->terminals;
+         break;
+
+      case FLOW_STOP:
+         /* JAM was rejected before decoding; the remaining official case is RTI. */
+         ++trace->terminals;
+         break;
+      }
+
+      if (trace->instructions > a->bank_size / 2u) {
+         /* A heuristic root consuming most of a bank is not a useful island. */
+         trace->rejected = 1;
+         break;
+      }
+   }
+
+   return !trace->rejected && trace->instructions != 0;
+}
+
+static int second_root_is_boundary(const analysis_t *a, size_t offset)
+{
+   size_t previous;
+   uint8_t previous_byte;
+
+   if (offset == 0)
+      return 1;
+   previous = offset - 1u;
+   if (a->byte_info[previous].uses != 0)
+      return 1;
+   previous_byte = a->cart[a->bank_file_offset + previous];
+   return opcode_is_jam(previous_byte);
+}
+
+static void count_second_pass_inbound_references(const analysis_t *a,
+                                                 uint16_t *inbound)
+{
+   size_t offset;
+
+   memset(inbound, 0, a->bank_size * sizeof(*inbound));
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      uint16_t pc = canonical_bank_address(a, offset);
+      uint8_t bytes[3] = { 0, 0, 0 };
+      size_t offsets[3] = { 0, 0, 0 };
+      address_mode_t mode;
+      unsigned length;
+      flow_kind_t flow;
+      uint16_t target;
+      size_t target_offset;
+
+      if ((a->byte_info[offset].uses & USE_OPCODE) != 0)
+         continue;
+      if (!second_decode_is_locally_possible(a, pc, bytes, offsets,
+                                             &mode, &length))
+         continue;
+      flow = instruction_flow(bytes[0]);
+      if (flow == FLOW_BRANCH) {
+         target = (uint16_t)(pc + length + (int8_t)bytes[1]);
+      }
+      else if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE) {
+         target = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
+      }
+      else {
+         continue;
+      }
+      if (address_to_bank_offset(a, target, &target_offset) &&
+          inbound[target_offset] != UINT16_MAX)
+         ++inbound[target_offset];
+   }
+}
+
+static int second_trace_is_credible(const second_trace_t *trace,
+                                    size_t inbound, int boundary)
+{
+   size_t allowed_unofficial;
+
+   if (trace->rejected || trace->instructions < 4u)
+      return 0;
+   if (trace->terminals == 0 && trace->joins == 0)
+      return 0;
+
+   allowed_unofficial = trace->instructions / 10u;
+   if (allowed_unofficial < 1u)
+      allowed_unofficial = 1u;
+   if (trace->unofficial_instructions > allowed_unofficial)
+      return 0;
+   if (trace->official_instructions * 100u < trace->instructions * 80u)
+      return 0;
+
+   if (inbound == 0) {
+      if (!boundary && trace->instructions < 12u)
+         return 0;
+      if (trace->control_transfers == 0 && trace->instructions < 8u)
+         return 0;
+   }
+   return 1;
+}
+
+static int second_trace_score(const second_trace_t *trace,
+                              size_t inbound, int boundary)
+{
+   size_t raw = trace->official_instructions * 4u +
+                trace->control_transfers * 6u +
+                trace->terminals * 8u +
+                trace->joins * 12u +
+                inbound * 10u +
+                (boundary ? 3u : 0u);
+   size_t penalty = trace->unofficial_instructions * 8u +
+                    trace->unresolved_terminals * 2u;
+   if (raw <= penalty)
+      return 0;
+   if (raw - penalty > (size_t)INT32_MAX)
+      return INT32_MAX;
+   return (int)(raw - penalty);
+}
+
+static int compare_second_candidates(const void *left, const void *right)
+{
+   const second_candidate_t *a = (const second_candidate_t *)left;
+   const second_candidate_t *b = (const second_candidate_t *)right;
+
+   if (a->score != b->score)
+      return a->score < b->score ? 1 : -1;
+   if (a->instructions != b->instructions)
+      return a->instructions < b->instructions ? 1 : -1;
+   if (a->inbound_references != b->inbound_references)
+      return a->inbound_references < b->inbound_references ? 1 : -1;
+   if (a->root != b->root)
+      return a->root > b->root ? 1 : -1;
+   return 0;
+}
+
+static int second_trace_conflicts_with_committed(const analysis_t *a,
+                                                 const second_trace_t *trace)
+{
+   size_t offset;
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      if (trace->start[offset] && a->second_operand[offset])
+         return 1;
+      if (trace->cover[offset] == 2u && a->second_opcode[offset])
+         return 1;
+      if (trace->data[offset] && a->second_opcode[offset])
+         return 1;
+      if (trace->cover[offset] != 0 &&
+          (a->byte_info[offset].uses & USE_ROM_DATA) != 0)
+         return 1;
+   }
+   return 0;
+}
+
+static void commit_second_trace(analysis_t *a, const second_trace_t *trace)
+{
+   size_t offset;
+
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      if (trace->data[offset])
+         a->byte_info[offset].uses |= USE_ROM_DATA;
+   }
+
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      uint16_t pc;
+      uint8_t bytes[3] = { 0, 0, 0 };
+      size_t offsets[3] = { 0, 0, 0 };
+      address_mode_t mode;
+      unsigned length;
+      unsigned i;
+
+      if (!trace->start[offset] || trace->cover[offset] != 1u)
+         continue;
+      if ((a->byte_info[offset].uses & USE_OPCODE) != 0)
+         continue;
+
+      pc = trace->pc_for_offset[offset];
+      if (!second_decode_is_locally_possible(a, pc, bytes, offsets,
+                                             &mode, &length))
+         continue;
+
+      mark_instruction_bytes(a, pc, bytes[0], mode, bytes, offsets, length,
+                             DISCOVERY_SECOND_PASS);
+      a->second_opcode[offset] = 1;
+      for (i = 1; i < length; ++i)
+         a->second_operand[offsets[i]] = 1;
+      ++a->second_instruction_count;
+   }
+   ++a->second_component_count;
+}
+
+static void run_second_pass(analysis_t *a)
+{
+   uint16_t *inbound;
+   second_candidate_t *candidates;
+   size_t candidate_count = 0;
+   size_t offset;
+   size_t index;
+
+   inbound = (uint16_t *)calloc(a->bank_size, sizeof(*inbound));
+   candidates = (second_candidate_t *)calloc(a->bank_size,
+                                              sizeof(*candidates));
+   if (inbound == NULL || candidates == NULL) {
+      fprintf(stderr,
+              "stego: warning: could not allocate second-pass tables: %s\n",
+              strerror(errno));
+      free(candidates);
+      free(inbound);
+      return;
+   }
+
+   count_second_pass_inbound_references(a, inbound);
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      uint16_t root = canonical_bank_address(a, offset);
+      second_trace_t trace;
+      int boundary;
+
+      if ((a->byte_info[offset].uses & USE_OPCODE) != 0 ||
+          second_byte_blocks_opcode(a, offset))
+         continue;
+      if (!build_second_trace(a, root, &trace))
+         continue;
+      boundary = second_root_is_boundary(a, offset);
+      if (!second_trace_is_credible(&trace, inbound[offset], boundary))
+         continue;
+
+      candidates[candidate_count].root = root;
+      candidates[candidate_count].score =
+         second_trace_score(&trace, inbound[offset], boundary);
+      candidates[candidate_count].instructions = trace.instructions;
+      candidates[candidate_count].inbound_references = inbound[offset];
+      candidates[candidate_count].boundary_root = boundary;
+      ++candidate_count;
+   }
+
+   qsort(candidates, candidate_count, sizeof(*candidates),
+         compare_second_candidates);
+
+   for (index = 0; index < candidate_count; ++index) {
+      second_trace_t trace;
+      size_t root_offset;
+
+      if (!address_to_bank_offset(a, candidates[index].root, &root_offset))
+         continue;
+      if ((a->byte_info[root_offset].uses & USE_OPCODE) != 0 ||
+          a->second_opcode[root_offset] != 0 ||
+          second_byte_blocks_opcode(a, root_offset))
+         continue;
+      if (!build_second_trace(a, candidates[index].root, &trace))
+         continue;
+      if (!second_trace_is_credible(&trace,
+                                    candidates[index].inbound_references,
+                                    candidates[index].boundary_root))
+         continue;
+      if (second_trace_conflicts_with_committed(a, &trace))
+         continue;
+      commit_second_trace(a, &trace);
+   }
+
+   free(candidates);
+   free(inbound);
+}
+
 static void trace(analysis_t *a)
 {
    while (a->work_count != 0) {
@@ -1536,7 +2135,8 @@ static void trace(analysis_t *a)
          a->visited[pc] = 1;
          ++a->instruction_count;
       }
-      mark_instruction_bytes(a, pc, opcode, mode, bytes, offsets, length);
+      mark_instruction_bytes(a, pc, opcode, mode, bytes, offsets, length,
+                             DISCOVERY_FIRST_PASS);
       next = (uint16_t)(pc + length);
 
       if (mode_has_absolute_operand(mode))
@@ -1659,7 +2259,7 @@ static int read_vector(analysis_t *a, uint16_t vector_address,
       return 0;
    }
 
-   remember_candidate(a, high_offset, kind,
+   remember_candidate(a, high_offset, kind, DISCOVERY_FIRST_PASS,
                       (uint16_t)(vector_address + 1u), 0,
                       AM_ABSOLUTE, *target);
    return 1;
@@ -1703,27 +2303,44 @@ static void print_allowed_values(uint8_t value)
    }
 }
 
-static size_t print_candidates(const analysis_t *a)
+static size_t print_candidates(const analysis_t *a,
+                               size_t *first_pass_count,
+                               size_t *second_pass_only_count)
 {
    size_t offset;
    size_t count = 0;
 
+   *first_pass_count = 0;
+   *second_pass_only_count = 0;
    for (offset = 0; offset < a->bank_size; ++offset) {
       const byte_info_t *info = &a->byte_info[offset];
       uint8_t conflicts = (uint8_t)(info->uses &
                            (USE_OPCODE | USE_OTHER_OPERAND | USE_ROM_DATA));
       uint8_t value;
       char kinds[96];
+      const char *discovery;
 
       if ((info->uses & USE_MUTABLE_HIGH) == 0 || conflicts != 0)
          continue;
 
+      if ((info->candidate_passes & DISCOVERY_FIRST_PASS) != 0) {
+         discovery = (info->candidate_passes & DISCOVERY_SECOND_PASS) != 0
+            ? "first+second" : "first-pass";
+         ++*first_pass_count;
+      }
+      else {
+         discovery = "second-pass-only";
+         ++*second_pass_only_count;
+      }
+
       value = a->cart[a->bank_file_offset + offset];
       describe_candidate_kinds(info->candidate_kinds, kinds, sizeof(kinds));
       printf("safe bank=%zu file_offset=0x%zx bank_offset=0x%03zx "
-             "byte=%02x mask=e0 kinds=%s",
+             "byte=%02x mask=e0 kinds=%s discovery=%s",
              a->bank_index, a->bank_file_offset + offset, offset,
-             (unsigned)value, kinds);
+             (unsigned)value, kinds, discovery);
+      if (strcmp(discovery, "second-pass-only") == 0)
+         printf(" confidence=heuristic");
 
       if (info->candidate_kinds & CAND_ABSOLUTE) {
          printf(" pc=$%04" PRIx16 " opcode=%02x mode=%s address=$%04" PRIx16,
@@ -1790,6 +2407,8 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
    a->bank_index = bank_index;
    a->bank_file_offset = bank_index * a->bank_size;
    memset(a->byte_info, 0, a->bank_size * sizeof(*a->byte_info));
+   memset(a->second_opcode, 0, a->bank_size);
+   memset(a->second_operand, 0, a->bank_size);
    memset(a->visited, 0, sizeof(a->visited));
    memset(a->state_seen, 0, sizeof(a->state_seen));
    memset(a->queued, 0, sizeof(a->queued));
@@ -1810,26 +2429,35 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
    memset(a->summary_valid, 0, sizeof(a->summary_valid));
    a->work_count = 0;
    a->instruction_count = 0;
+   a->second_instruction_count = 0;
+   a->second_component_count = 0;
 }
 
 static int allocate_analysis_tables(analysis_t *a)
 {
    a->byte_info = (byte_info_t *)calloc(a->bank_size,
                                         sizeof(*a->byte_info));
+   a->second_opcode = (uint8_t *)calloc(a->bank_size, 1u);
+   a->second_operand = (uint8_t *)calloc(a->bank_size, 1u);
    a->states = (abstract_state_t *)calloc(ADDRESS_SPACE_SIZE,
                                           sizeof(*a->states));
    a->subroutine_summaries = (uint8_t *)calloc(
       ADDRESS_SPACE_SIZE, ZERO_PAGE_KNOWN_BYTES);
 
-   if (a->byte_info == NULL || a->states == NULL ||
+   if (a->byte_info == NULL || a->second_opcode == NULL ||
+       a->second_operand == NULL || a->states == NULL ||
        a->subroutine_summaries == NULL) {
       fprintf(stderr, "stego: could not allocate analysis tables: %s\n",
               strerror(errno));
       free(a->subroutine_summaries);
       free(a->states);
+      free(a->second_operand);
+      free(a->second_opcode);
       free(a->byte_info);
       a->subroutine_summaries = NULL;
       a->states = NULL;
+      a->second_operand = NULL;
+      a->second_opcode = NULL;
       a->byte_info = NULL;
       return 0;
    }
@@ -1840,6 +2468,8 @@ static void free_analysis_tables(analysis_t *a)
 {
    free(a->subroutine_summaries);
    free(a->states);
+   free(a->second_operand);
+   free(a->second_opcode);
    free(a->byte_info);
 }
 
@@ -1849,6 +2479,10 @@ static int analyze(uint8_t *cart, size_t size)
    size_t bank_index;
    size_t total_safe = 0;
    size_t total_instructions = 0;
+   size_t total_second_instructions = 0;
+   size_t total_second_components = 0;
+   size_t total_first_pass_safe = 0;
+   size_t total_second_pass_safe = 0;
    size_t total_unresolved = 0;
    size_t total_resolved_ram = 0;
    size_t total_unresolved_rts = 0;
@@ -1890,6 +2524,8 @@ static int analyze(uint8_t *cart, size_t size)
       int reset_valid;
       int irq_valid;
       size_t safe_count;
+      size_t first_pass_safe;
+      size_t second_pass_safe;
       size_t unresolved;
       size_t resolved_ram;
       size_t unresolved_rts;
@@ -1924,8 +2560,10 @@ static int analyze(uint8_t *cart, size_t size)
       if (irq_valid)
          enqueue_state(&a, irq, &initial_state);
       trace(&a);
+      run_second_pass(&a);
 
-      safe_count = print_candidates(&a);
+      safe_count = print_candidates(&a, &first_pass_safe,
+                                    &second_pass_safe);
       unresolved = count_flags(a.unresolved_indirect_pc);
       resolved_ram = count_flags(a.resolved_ram_indirect_pc);
       unresolved_rts = count_flags(a.unresolved_rts_pc);
@@ -1940,7 +2578,18 @@ static int analyze(uint8_t *cart, size_t size)
 
       printf("bank=%zu reachable_instruction_starts=%zu\n",
              a.bank_index, a.instruction_count);
+      printf("bank=%zu second_pass_inferred_instruction_starts=%zu\n",
+             a.bank_index, a.second_instruction_count);
+      printf("bank=%zu second_pass_inferred_components=%zu\n",
+             a.bank_index, a.second_component_count);
+      printf("bank=%zu combined_instruction_starts=%zu\n",
+             a.bank_index,
+             a.instruction_count + a.second_instruction_count);
       printf("bank=%zu safe_bytes=%zu\n", a.bank_index, safe_count);
+      printf("bank=%zu safe_bytes_first_pass=%zu\n",
+             a.bank_index, first_pass_safe);
+      printf("bank=%zu safe_bytes_second_pass_only=%zu\n",
+             a.bank_index, second_pass_safe);
       printf("bank=%zu resolved_ram_indirect_jumps=%zu\n",
              a.bank_index, resolved_ram);
       printf("bank=%zu unresolved_indirect_jumps=%zu\n",
@@ -1965,7 +2614,11 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, truncated);
 
       total_safe += safe_count;
+      total_first_pass_safe += first_pass_safe;
+      total_second_pass_safe += second_pass_safe;
       total_instructions += a.instruction_count;
+      total_second_instructions += a.second_instruction_count;
+      total_second_components += a.second_component_count;
       total_unresolved += unresolved;
       total_resolved_ram += resolved_ram;
       total_unresolved_rts += unresolved_rts;
@@ -1980,7 +2633,16 @@ static int analyze(uint8_t *cart, size_t size)
    }
 
    printf("total_reachable_instruction_starts=%zu\n", total_instructions);
+   printf("total_second_pass_inferred_instruction_starts=%zu\n",
+          total_second_instructions);
+   printf("total_second_pass_inferred_components=%zu\n",
+          total_second_components);
+   printf("total_combined_instruction_starts=%zu\n",
+          total_instructions + total_second_instructions);
    printf("total_safe_bytes=%zu\n", total_safe);
+   printf("total_safe_bytes_first_pass=%zu\n", total_first_pass_safe);
+   printf("total_safe_bytes_second_pass_only=%zu\n",
+          total_second_pass_safe);
    printf("total_resolved_ram_indirect_jumps=%zu\n", total_resolved_ram);
    printf("total_unresolved_indirect_jumps=%zu\n", total_unresolved);
    printf("total_resolved_stack_rts_targets=%zu\n",
@@ -2000,6 +2662,13 @@ static int analyze(uint8_t *cart, size_t size)
           total_unresolved_dynamic);
    printf("total_truncated_instructions=%zu\n", total_truncated);
 
+   if (total_second_instructions != 0) {
+      fprintf(stderr,
+              "stego: note: the heuristic second pass inferred %zu "
+              "instruction start(s) in %zu component(s); second-pass-only "
+              "safe bytes are explicitly labelled confidence=heuristic\n",
+              total_second_instructions, total_second_components);
+   }
    if (a.bank_count > 1u) {
       fprintf(stderr,
               "stego: warning: all %zu banks were traced independently; "
