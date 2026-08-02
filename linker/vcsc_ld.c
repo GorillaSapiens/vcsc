@@ -23,7 +23,8 @@ enum {
    VECTOR_BRIDGE_NMI_OFFSET = 0,
    VECTOR_BRIDGE_RESET_OFFSET = VECTOR_BRIDGE_ENTRY_SIZE,
    VECTOR_BRIDGE_IRQBRK_OFFSET = 2 * VECTOR_BRIDGE_ENTRY_SIZE,
-   VECTOR_BRIDGE_SIZE = 3 * VECTOR_BRIDGE_ENTRY_SIZE
+   VECTOR_BRIDGE_SIZE = 3 * VECTOR_BRIDGE_ENTRY_SIZE,
+   BANK_JMP_ENTRY_SIZE = 8
 };
 
 //! @brief Print the linker command-line usage text.
@@ -648,6 +649,14 @@ static void parse_cartridge_property(linker_config_t *cfg,
       cfg->vector_bridge_offset =
          parse_u16_property("cartridge vectorbridge", value, 0, 0x0FFFu);
       cfg->has_vector_bridge_offset = 1;
+   } else if (str_ieq(key, "trampoline")) {
+      cfg->trampoline_offset =
+         parse_u16_property("cartridge trampoline", value, 0, 0x0FFFu);
+      cfg->has_trampoline_offset = 1;
+   } else if (str_ieq(key, "trampolinesize")) {
+      cfg->trampoline_size =
+         parse_u16_property("cartridge trampolinesize", value, 1, 0x1000u);
+      cfg->has_trampoline_size = 1;
    } else {
       fprintf(stderr, "vcsc-ld: unknown CARTRIDGE property '%s'\n", key);
       exit(1);
@@ -809,6 +818,33 @@ static void validate_linker_config(linker_config_t *cfg)
               "vcsc-ld: banked configuration requires CARTRIDGE vectorbridge\n");
       exit(1);
    }
+   if (!cfg->has_trampoline_offset || !cfg->has_trampoline_size) {
+      fprintf(stderr,
+              "vcsc-ld: banked configuration requires CARTRIDGE trampoline and trampolinesize\n");
+      exit(1);
+   }
+   if ((uint32_t)cfg->trampoline_offset + cfg->trampoline_size > 0x1000u) {
+      fprintf(stderr,
+              "vcsc-ld: CARTRIDGE trampoline $%03X plus $%03X bytes exceeds one 4K bank\n",
+              cfg->trampoline_offset, cfg->trampoline_size);
+      exit(1);
+   }
+   if ((uint32_t)cfg->trampoline_offset + cfg->trampoline_size > 0x0FFAu) {
+      fprintf(stderr,
+              "vcsc-ld: CARTRIDGE trampoline $%03X plus $%03X bytes overlaps the per-bank vectors\n",
+              cfg->trampoline_offset, cfg->trampoline_size);
+      exit(1);
+   }
+   if ((uint32_t)cfg->trampoline_offset + cfg->trampoline_size > cfg->vector_bridge_offset &&
+       (uint32_t)cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE > cfg->trampoline_offset) {
+      fprintf(stderr,
+              "vcsc-ld: CARTRIDGE trampoline $%03X-$%03X overlaps vectorbridge $%03X-$%03X\n",
+              cfg->trampoline_offset,
+              (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
+              cfg->vector_bridge_offset,
+              (uint16_t)(cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE - 1u));
+      exit(1);
+   }
    if ((uint32_t)cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE > 0x0FFAu) {
       fprintf(stderr,
               "vcsc-ld: CARTRIDGE vectorbridge $%03X plus %u bytes overlaps the per-bank vectors\n",
@@ -929,6 +965,15 @@ static void validate_linker_config(linker_config_t *cfg)
                  cfg->banks[i].hotspot);
          exit(1);
       }
+      if (selector_offset >= cfg->trampoline_offset &&
+          selector_offset < (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size)) {
+         fprintf(stderr,
+                 "vcsc-ld: CARTRIDGE trampoline $%03X-$%03X overlaps %s selector hotspot $%04X\n",
+                 cfg->trampoline_offset,
+                 (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
+                 cfg->banks[i].name, cfg->banks[i].hotspot);
+         exit(1);
+      }
    }
 
    for (i = 0; i < cfg->mem_count; ++i) {
@@ -1001,10 +1046,21 @@ static void validate_linker_config(linker_config_t *cfg)
          continue;
       {
          uint32_t mem_end = (uint32_t)mem->start + mem->size;
+         uint16_t logical_trampoline =
+            (uint16_t)(bank->start + cfg->trampoline_offset);
+         uint32_t logical_trampoline_end =
+            (uint32_t)logical_trampoline + cfg->trampoline_size;
          uint16_t logical_bridge =
             (uint16_t)(bank->start + cfg->vector_bridge_offset);
          uint32_t logical_bridge_end =
             (uint32_t)logical_bridge + VECTOR_BRIDGE_SIZE;
+         if (mem->start < logical_trampoline_end && logical_trampoline < mem_end) {
+            fprintf(stderr,
+                    "vcsc-ld: segment '%s' region '%s' covers reserved trampoline $%04X-$%04X in %s\n",
+                    seg->name, mem->name, logical_trampoline,
+                    (uint16_t)(logical_trampoline_end - 1u), bank->name);
+            exit(1);
+         }
          if (mem->start < logical_bridge_end && logical_bridge < mem_end) {
             fprintf(stderr,
                     "vcsc-ld: segment '%s' region '%s' covers reserved vector bridge $%04X-$%04X in %s\n",
@@ -3156,12 +3212,63 @@ static const char *relocation_width_name(uint8_t type)
    }
 }
 
-//! @brief Validate one resolved relocation against full-window bank boundaries.
-static void validate_banked_relocation(const linker_config_t *cfg,
-                                       const object_file_t *obj,
-                                       uint8_t image_segid,
-                                       const reloc_t *r,
-                                       const resolved_reloc_target_t *target)
+//! @brief Find or append one deduplicated direct cross-bank JMP target entry.
+static bank_jump_entry_t *find_or_add_bank_jump_entry(layout_t *layout,
+                                                       const linker_config_t *cfg,
+                                                       const resolved_reloc_target_t *target,
+                                                       const cartridge_bank_t *destination_bank)
+{
+   size_t i;
+   bank_jump_entry_t *entry;
+   uint16_t next_offset;
+   uint32_t next_end;
+
+   for (i = 0; i < layout->bank_jump_entry_count; ++i) {
+      entry = &layout->bank_jump_entries[i];
+      if (entry->target_addr == target->address &&
+          entry->destination_hotspot == destination_bank->hotspot)
+         return entry;
+   }
+
+   next_offset = layout->bank_trampoline_used;
+   /* The inline target word is read by NMOS JMP (absolute).  Insert one fill
+      byte when the word would begin at page offset $FF. */
+   if (((cfg->trampoline_offset + next_offset + 6u) & 0x00FFu) == 0x00FFu)
+      next_offset++;
+   next_end = (uint32_t)next_offset + BANK_JMP_ENTRY_SIZE;
+   if (next_end > cfg->trampoline_size) {
+      fprintf(stderr,
+              "vcsc-ld: common trampoline corridor $%03X-$%03X is exhausted while adding JMP target '%s' at $%04X (%s); %zu entries of %u bytes already consume $%03X bytes\n",
+              cfg->trampoline_offset,
+              (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
+              target->name, target->address, destination_bank->name,
+              layout->bank_jump_entry_count, BANK_JMP_ENTRY_SIZE,
+              layout->bank_trampoline_used);
+      exit(1);
+   }
+
+   layout->bank_jump_entries = (bank_jump_entry_t *)xrealloc(
+      layout->bank_jump_entries,
+      (layout->bank_jump_entry_count + 1) * sizeof(*layout->bank_jump_entries));
+   entry = &layout->bank_jump_entries[layout->bank_jump_entry_count++];
+   memset(entry, 0, sizeof(*entry));
+   entry->target_addr = target->address;
+   entry->table_offset = next_offset;
+   entry->destination_hotspot = destination_bank->hotspot;
+   entry->target_name = xstrdup(target->name);
+   snprintf(entry->destination_bank, sizeof(entry->destination_bank), "%s",
+            destination_bank->name);
+   layout->bank_trampoline_used = (uint16_t)next_end;
+   return entry;
+}
+
+//! @brief Validate or rewrite one resolved relocation at a full-window bank boundary.
+static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
+                                          const object_file_t *obj,
+                                          uint8_t image_segid,
+                                          const reloc_t *r,
+                                          const resolved_reloc_target_t *target,
+                                          layout_t *layout)
 {
    const object_layout_t *source_layout;
    const cartridge_bank_t *source_bank;
@@ -3172,7 +3279,7 @@ static void validate_banked_relocation(const linker_config_t *cfg,
    uint8_t control;
 
    if (!cfg || !cfg->cartridge_banked)
-      return;
+      return target->address;
 
    source_layout = find_layout_for_image_offset(obj, image_segid, r->offset);
    if (!source_layout) {
@@ -3185,7 +3292,7 @@ static void validate_banked_relocation(const linker_config_t *cfg,
       (uint16_t)(r->offset - source_layout->image_base));
    source_bank = cartridge_bank_for_address(cfg, source_address);
    if (!source_bank)
-      return;
+      return target->address;
 
    owner_bank = cartridge_bank_for_address(cfg, target->owner_address);
    final_bank = cartridge_bank_for_address(cfg, target->address);
@@ -3194,7 +3301,7 @@ static void validate_banked_relocation(const linker_config_t *cfg,
    else if (final_bank && final_bank != source_bank)
       different_bank = final_bank;
    if (!different_bank)
-      return;
+      return target->address;
 
    control = r->type & O26_RTYPE_CONTROL_MASK;
    if (control == O26_RTYPE_CONTROL_JSR) {
@@ -3205,11 +3312,30 @@ static void validate_banked_relocation(const linker_config_t *cfg,
       exit(1);
    }
    if (control == O26_RTYPE_CONTROL_JMP) {
-      fprintf(stderr,
-              "vcsc-ld: cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); JMP trampoline generation is not implemented yet\n",
-              obj->origin, source_layout->name, source_address, source_bank->name,
-              target->name, target->address, different_bank->name);
-      exit(1);
+      bank_jump_entry_t *entry;
+      uint32_t address;
+      if (!final_bank || final_bank == source_bank) {
+         fprintf(stderr,
+                 "vcsc-ld: cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X, which does not resolve inside the destination bank\n",
+                 obj->origin, source_layout->name, source_address, source_bank->name,
+                 target->name, target->address);
+         exit(1);
+      }
+      if ((r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) !=
+          O26_RTYPE_WORD) {
+         fprintf(stderr,
+                 "vcsc-ld: direct cross-bank JMP relocation in %s is not a 16-bit operand\n",
+                 obj->origin);
+         exit(1);
+      }
+      entry = find_or_add_bank_jump_entry(layout, cfg, target, final_bank);
+      address = (uint32_t)source_bank->start + cfg->trampoline_offset +
+                entry->table_offset;
+      if (address > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: generated JMP trampoline address overflow\n");
+         exit(1);
+      }
+      return (uint16_t)address;
    }
    if (control == O26_RTYPE_CONTROL_BRANCH) {
       fprintf(stderr,
@@ -3231,7 +3357,7 @@ static void validate_banked_relocation(const linker_config_t *cfg,
 
 //! @brief Handle apply segment relocs logic for linker layout and image writer.
 static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
-                                 const layout_t *layout,
+                                 layout_t *layout,
                                  const linker_config_t *cfg,
                                  uint8_t image_segid,
                                  const char *seg_name)
@@ -3241,6 +3367,7 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
       reloc_t *r = &seg->relocs[i];
       uint16_t current_word;
       resolved_reloc_target_t target;
+      uint16_t resolved_address;
       const char *who = obj->origin;
       (void)seg_name;
 
@@ -3272,24 +3399,25 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
       }
 
       target = resolve_reloc_target(obj, r, current_word, layout);
-      validate_banked_relocation(cfg, obj, image_segid, r, &target);
+      resolved_address = rewrite_banked_relocation(cfg, obj, image_segid, r,
+                                                   &target, layout);
 
-      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (target.address & 0xffu) == 0xffu) {
+      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (resolved_address & 0xffu) == 0xffu) {
          fprintf(stderr,
                  "vcsc-ld: indirect JMP vector at $%04X in %s triggers the NMOS 6502/6507 page-wrap bug\n",
-                 target.address, who);
+                 resolved_address, who);
          exit(1);
       }
 
       switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
          case O26_RTYPE_LOW:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)(target.address & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset, (uint8_t)(resolved_address & 0xFFu), who);
             break;
          case O26_RTYPE_HIGH:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)((target.address >> 8) & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset, (uint8_t)((resolved_address >> 8) & 0xFFu), who);
             break;
          case O26_RTYPE_WORD:
-            patch_u16(seg->data, seg->length, r->offset, target.address, who);
+            patch_u16(seg->data, seg->length, r->offset, resolved_address, who);
             break;
          default:
             fprintf(stderr, "vcsc-ld: unsupported relocation type 0x%02x in %s\n", r->type, who);
@@ -3299,7 +3427,7 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
 }
 
 //! @brief Compute all and update linker layout and image writer state once prerequisite pass data is available.
-static void resolve_all(input_set_t *in, const layout_t *layout,
+static void resolve_all(input_set_t *in, layout_t *layout,
                         const linker_config_t *cfg)
 {
    size_t i;
@@ -3359,6 +3487,21 @@ static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
    table[offset + 3u] = 0x4Cu; /* JMP absolute */
    table[offset + 4u] = (uint8_t)(handler & 0xFFu);
    table[offset + 5u] = (uint8_t)((handler >> 8) & 0xFFu);
+}
+
+//! @brief Encode one state-preserving inline-pointer JMP entry for the common table.
+static void encode_bank_jump_entry(uint8_t *table, size_t offset,
+                                   const bank_jump_entry_t *entry,
+                                   uint16_t canonical_pointer)
+{
+   table[offset + 0u] = 0x8Du; /* STA destination hotspot; preserves A and flags. */
+   table[offset + 1u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
+   table[offset + 2u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
+   table[offset + 3u] = 0x6Cu; /* JMP through the inline target word. */
+   table[offset + 4u] = (uint8_t)(canonical_pointer & 0xFFu);
+   table[offset + 5u] = (uint8_t)((canonical_pointer >> 8) & 0xFFu);
+   table[offset + 6u] = (uint8_t)(entry->target_addr & 0xFFu);
+   table[offset + 7u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
 }
 
 //! @brief Handle build init table image logic for linker layout and image writer.
@@ -3514,6 +3657,34 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
                  "vcsc-ld: __reset, __nmi, and __irqbrk must all reside in startup bank %s\n",
                  startup->name);
          exit(1);
+      }
+
+      if (layout->bank_trampoline_used > 0) {
+         uint8_t *trampoline;
+         size_t j;
+         trampoline = (uint8_t *)xmalloc(layout->bank_trampoline_used);
+         memset(trampoline, cfg->cartridge_fill_value, layout->bank_trampoline_used);
+         for (j = 0; j < layout->bank_jump_entry_count; ++j) {
+            const bank_jump_entry_t *entry = &layout->bank_jump_entries[j];
+            uint16_t canonical_pointer = (uint16_t)(startup->start +
+               cfg->trampoline_offset + entry->table_offset + 6u);
+            if ((canonical_pointer & 0x00FFu) == 0x00FFu) {
+               fprintf(stderr,
+                       "vcsc-ld: generated inline JMP target pointer at $%04X triggers the NMOS page-wrap bug\n",
+                       canonical_pointer);
+               exit(1);
+            }
+            encode_bank_jump_entry(trampoline, entry->table_offset, entry,
+                                   canonical_pointer);
+         }
+         for (j = 0; j < cfg->bank_count; ++j) {
+            uint16_t bank_trampoline =
+               (uint16_t)(cfg->banks[j].start + cfg->trampoline_offset);
+            image_write_generated(image, used, bank_trampoline, trampoline,
+                                  layout->bank_trampoline_used,
+                                  "common JMP trampoline table");
+         }
+         free(trampoline);
       }
 
       bridge_base = (uint16_t)(startup->start + cfg->vector_bridge_offset);
@@ -3998,8 +4169,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          output_size += cfg->banks[i].size;
       fprintf(fp,
               "  mapper=%s output-size=$%08" PRIX32
-              " fill=$%02X vectorbridge=$%03X size=$%02X\n",
+              " fill=$%02X trampoline=$%03X size=$%03X"
+              " vectorbridge=$%03X size=$%02X\n",
               cfg->mapper, output_size, cfg->cartridge_fill_value,
+              cfg->trampoline_offset, cfg->trampoline_size,
               cfg->vector_bridge_offset, VECTOR_BRIDGE_SIZE);
       fprintf(fp, "\nBANKS\n");
       for (i = 0; i < cfg->bank_count; ++i) {
@@ -4025,6 +4198,26 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "\nMEMORY USAGE\n");
    write_cartridge_rom_usage(fp, cfg, used, "  ");
    write_ram_usage(fp, cfg, in, layout, "  ");
+
+   if (cfg->cartridge_banked) {
+      fprintf(fp, "\nTRAMPOLINES\n");
+      fprintf(fp,
+              "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
+              " target-passing=inline entries=%zu entry-size=$%02X\n",
+              cfg->trampoline_offset, cfg->trampoline_size,
+              layout->bank_trampoline_used,
+              (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
+              layout->bank_jump_entry_count, BANK_JMP_ENTRY_SIZE);
+      for (i = 0; i < layout->bank_jump_entry_count; ++i) {
+         const bank_jump_entry_t *entry = &layout->bank_jump_entries[i];
+         fprintf(fp,
+                 "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                 i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                 entry->target_addr, entry->target_name,
+                 entry->destination_bank, entry->destination_hotspot,
+                 (uint32_t)BANK_JMP_ENTRY_SIZE * (uint32_t)cfg->bank_count);
+      }
+   }
 
    fprintf(fp, "\nOBJECTS\n");
    for (i = 0; i < in->object_count; ++i) {
@@ -4695,6 +4888,9 @@ int main(int argc, char **argv)
    for (i = 0; i < layout.zero_record_count; ++i)
       free(layout.zero_records[i].name);
    free(layout.zero_records);
+   for (i = 0; i < layout.bank_jump_entry_count; ++i)
+      free(layout.bank_jump_entries[i].target_name);
+   free(layout.bank_jump_entries);
    for (i = 0; i < layout.cursor_count; ++i)
       free(layout.cursors[i].holes);
    free(layout.cursors);

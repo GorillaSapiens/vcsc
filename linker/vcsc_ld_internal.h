@@ -103,6 +103,10 @@ typedef struct {
    uint8_t cartridge_fill_value;
    uint16_t vector_bridge_offset;
    int has_vector_bridge_offset;
+   uint16_t trampoline_offset;
+   uint16_t trampoline_size;
+   int has_trampoline_offset;
+   int has_trampoline_size;
    int cartridge_banked;
    int call_stack_enabled;
    char call_stack_region[MAX_NAME];
@@ -271,6 +275,15 @@ typedef struct {
    uint16_t size;
 } zero_record_t;
 
+//! One deduplicated direct cross-bank JMP entry in the common replicated table.
+typedef struct {
+   uint16_t target_addr;
+   uint16_t table_offset;
+   uint16_t destination_hotspot;
+   char *target_name;
+   char destination_bank[MAX_NAME];
+} bank_jump_entry_t;
+
 //! Final placement, copy/zero tables, stack range, and global symbols.
 typedef struct {
    uint16_t code_load_cur;
@@ -297,6 +310,9 @@ typedef struct {
    uint16_t zero_table_size;
    uint16_t stack_start;
    uint16_t stack_top;
+   bank_jump_entry_t *bank_jump_entries;
+   size_t bank_jump_entry_count;
+   uint16_t bank_trampoline_used;
    int call_stack_enabled;
    uint16_t call_stack_depth;
    uint16_t call_stack_extra;

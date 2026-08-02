@@ -18,6 +18,14 @@ sub write_file {
    print {$fh} $text;
    close($fh);
 }
+sub slurp {
+   my ($path) = @_;
+   open(my $fh, '<:raw', $path) or die "could not read $path: $!\n";
+   local $/;
+   my $text = <$fh>;
+   close($fh);
+   return defined($text) ? $text : '';
+}
 sub run_capture {
    my (@cmd) = @_;
    my $err = gensym;
@@ -59,6 +67,8 @@ write_file($cfg, <<'CFG');
 CARTRIDGE {
    mapper = F8;
    fillval = $FF;
+   trampoline = $0F00;
+   trampolinesize = $00E0;
    vectorbridge = $0FE0;
 }
 BANKS {
@@ -68,11 +78,13 @@ BANKS {
 MEMORY {
    ZEROPAGE: start=$0000, size=$0080, type=rw;
    RAM: start=$0080, size=$0080, type=rw;
-   bank1: start=$D000, size=$0FE0, type=ro, bank=BANK1;
+   bank1: start=$D000, size=$0F00, type=ro, bank=BANK1;
+   BANK1_TRAMPOLINE: start=$DF00, size=$00E0, bank=BANK1;
    BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012, bank=BANK1;
    BANK1_TAIL: start=$DFF2, size=$0008, bank=BANK1;
    BANK1_VECTORS: start=$DFFA, size=$0006, bank=BANK1;
-   ROM: start=$F000, size=$0FE0, type=ro, bank=BANK0;
+   ROM: start=$F000, size=$0F00, type=ro, bank=BANK0;
+   BANK0_TRAMPOLINE: start=$FF00, size=$00E0, bank=BANK0;
    BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012, bank=BANK0;
    BANK0_TAIL: start=$FFF2, size=$0008, bank=BANK0;
    BANK0_VECTORS: start=$FFFA, size=$0006, bank=BANK0;
@@ -162,16 +174,85 @@ $jsr_err =~ /\(BANK0\).*\(BANK1\).*JSR trampoline generation/s
 
 my $cross_jmp = assemble_case('cross_jmp', $preamble . <<'ASM');
 .export remote
+.export again
+.export return_home
+.export home_target
 .proc main
    JMP remote
+.endproc
+.proc again
+   JMP remote
+.endproc
+.proc home_target
+   RTS
 .endproc
 .segment "CODE.bank1"
 .proc remote
    RTS
 .endproc
+.proc return_home
+   JMP home_target
+.endproc
 ASM
-require_fail('cross-bank JMP classification', 'cross-bank JMP',
-             link_command('cross_jmp', $cross_jmp));
+my $cross_jmp_bin = File::Spec->catfile($tmp, 'cross_jmp.bin');
+my $cross_jmp_map = File::Spec->catfile($tmp, 'cross_jmp.map');
+require_ok('cross-bank JMP trampoline generation',
+           $ld, '-T', $cfg, '-Map', $cross_jmp_map,
+           '--no-sym', '--no-list', '--no-cfg',
+           '-o', $cross_jmp_bin, $cross_jmp);
+my $jmp_image = slurp($cross_jmp_bin);
+my $jmp_map = slurp($cross_jmp_map);
+length($jmp_image) == 8192 or die "cross-JMP image was not 8K\n";
+$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline entries=2 entry-size=\$08/
+   or die "map omitted common JMP table accounting or deduplication\n$jmp_map";
+my $bank1_table = substr($jmp_image, 0x0F00, 0x10);
+my $bank0_table = substr($jmp_image, 0x1F00, 0x10);
+$bank1_table eq $bank0_table
+   or die "common JMP table was not byte-identical in both banks\n";
+sub map_symbol_addr {
+   my ($map, $name) = @_;
+   return hex($1) if $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m;
+   die "map omitted symbol $name\n$map";
+}
+sub image_offset_for_addr {
+   my ($addr) = @_;
+   return ($addr >= 0xF000 ? 0x1000 : 0) + ($addr & 0x0FFF);
+}
+my $remote_addr = map_symbol_addr($jmp_map, 'remote');
+my $home_addr = map_symbol_addr($jmp_map, 'home_target');
+my $main_addr = map_symbol_addr($jmp_map, 'main');
+my $again_addr = map_symbol_addr($jmp_map, 'again');
+my $return_home_addr = map_symbol_addr($jmp_map, 'return_home');
+my $entry0 = pack('C*',
+   0x8D, 0xF8, 0x1F,
+   0x6C, 0x06, 0xFF,
+   $remote_addr & 0xFF, $remote_addr >> 8);
+my $entry1 = pack('C*',
+   0x8D, 0xF9, 0x1F,
+   0x6C, 0x0E, 0xFF,
+   $home_addr & 0xFF, $home_addr >> 8);
+substr($bank0_table, 0x00, 0x08) eq $entry0
+   or die "BANK0-to-BANK1 JMP entry bytes are wrong\n";
+substr($bank0_table, 0x08, 0x08) eq $entry1
+   or die "BANK1-to-BANK0 JMP entry bytes are wrong\n";
+substr($jmp_image, image_offset_for_addr($main_addr), 3) eq pack('Cv', 0x4C, 0xFF00)
+   or die "main JMP was not redirected to BANK0's first table mirror\n";
+substr($jmp_image, image_offset_for_addr($again_addr), 3) eq pack('Cv', 0x4C, 0xFF00)
+   or die "equivalent JMP target did not reuse the first table entry\n";
+substr($jmp_image, image_offset_for_addr($return_home_addr), 3) eq pack('Cv', 0x4C, 0xDF08)
+   or die "BANK1 JMP was not redirected to BANK1's second table mirror\n";
+$jmp_map =~ /JMP entry=0 .*target=\$[0-9A-Fa-f]{4} .*destination=BANK1 hotspot=\$1FF8/
+   or die "map omitted BANK1 JMP entry details\n$jmp_map";
+$jmp_map =~ /JMP entry=1 .*target=\$[0-9A-Fa-f]{4} .*destination=BANK0 hotspot=\$1FF9/
+   or die "map omitted BANK0 JMP entry details\n$jmp_map";
+
+my $tiny_cfg = File::Spec->catfile($tmp, 'tiny-trampoline.cfg');
+my $tiny_text = slurp($cfg);
+$tiny_text =~ s/trampolinesize = \$00E0/trampolinesize = \$0008/;
+write_file($tiny_cfg, $tiny_text);
+require_fail('common JMP corridor exhaustion', 'common trampoline corridor',
+             $ld, '-T', $tiny_cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'tiny-trampoline.bin'), $cross_jmp);
 
 my $cross_branch = assemble_case('cross_branch', $preamble . <<'ASM');
 .export remote

@@ -83,6 +83,8 @@ sub make_cfg {
       my $hotspot = hotspot_for_vcsc_bank($mapper, $bank);
       $banks .= sprintf("   BANK%d: start=\$%04X, size=\$1000, hotspot=\$%04X, startup=%s;\n",
                         $bank, $start, $hotspot, $bank == 0 ? 'yes' : 'no');
+      $memory .= sprintf("   BANK%d_TRAMPOLINE: start=\$%04X, size=\$00E0, bank=BANK%d;\n",
+                         $bank, $start + 0x0F00, $bank);
       $memory .= sprintf("   BANK%d_VECTOR_BRIDGE: start=\$%04X, size=\$0012, bank=BANK%d;\n",
                          $bank, $start + 0x0FE0, $bank);
       $memory .= sprintf("   BANK%d_TAIL: start=\$%04X, size=\$0008, bank=BANK%d;\n",
@@ -94,6 +96,8 @@ sub make_cfg {
 CARTRIDGE {
    mapper = %s;
    fillval = $C3;
+   trampoline = $0F00;
+   trampolinesize = $00E0;
    vectorbridge = $%03X;
 }
 BANKS {
@@ -101,7 +105,7 @@ BANKS {
 MEMORY {
    ZEROPAGE: start=$0000, size=$0080, type=rw;
    RAM: start=$0080, size=$0080, type=rw;
-   ROM: start=$F000, size=$0FE0, type=ro, bank=BANK0;
+   ROM: start=$F000, size=$0F00, type=ro, bank=BANK0;
 %s}
 SEGMENTS {
    ZEROPAGE: load=ROM, run=ZEROPAGE, type=zp;

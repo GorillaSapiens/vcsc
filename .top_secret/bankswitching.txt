@@ -145,6 +145,8 @@ The first implemented cfg spelling uses `CARTRIDGE` and `BANKS` blocks plus a
     CARTRIDGE {
         mapper = F8;
         fillval = $FF;
+        trampoline = $0F00;
+        trampolinesize = $00E0;
         vectorbridge = $0FE0;
     }
 
@@ -154,11 +156,13 @@ The first implemented cfg spelling uses `CARTRIDGE` and `BANKS` blocks plus a
     }
 
     MEMORY {
-        bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
+        bank1:              start=$D000, size=$0F00, type=ro, bank=BANK1;
+        BANK1_TRAMPOLINE:    start=$DF00, size=$00E0,          bank=BANK1;
         BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012,          bank=BANK1;
         BANK1_TAIL:          start=$DFF2, size=$0008,          bank=BANK1;
         BANK1_VECTORS:       start=$DFFA, size=$0006,          bank=BANK1;
-        ROM:                 start=$F000, size=$0FE0, type=ro, bank=BANK0;
+        ROM:                 start=$F000, size=$0F00, type=ro, bank=BANK0;
+        BANK0_TRAMPOLINE:    start=$FF00, size=$00E0,          bank=BANK0;
         BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012,          bank=BANK0;
         BANK0_TAIL:          start=$FFF2, size=$0008,          bank=BANK0;
         BANK0_VECTORS:       start=$FFFA, size=$0006,          bank=BANK0;
@@ -170,8 +174,11 @@ its mapper selector hotspot, whether it is the startup bank, and the full 4K
 physical-bank size.  The output writer derives physical/file index from
 ascending logical address, not from the numeric suffix in `BANKn`.  `MEMORY`
 entries subdivide each full physical unit into allocatable ROM and
-non-allocatable holes such as hotspots, vectors, and later the common bridge
-corridor.
+non-allocatable holes such as hotspots, vectors, and the common trampoline
+corridor. `CARTRIDGE trampoline` gives the corridor's low-twelve-bit start and
+`trampolinesize` gives its reserved capacity. Both are required for banked
+profiles, must fit inside one 4K bank, and may not overlap the vector bridge,
+vectors, or any selector hotspot.
 
 The cfg parser rejects unknown blocks and properties. Silently ignoring a
 misspelled bank or hotspot property would create a plausible-looking but dead
@@ -259,13 +266,14 @@ and therefore cannot cross banks. Ordinary two-byte relative branches remain in
 the B26 branch table and are checked from their final source and target
 addresses after placement.
 
-Until roadmap items 5 and 6 install the common JMP/JSR trampoline machinery,
-the linker rejects a proven cross-bank direct JMP or JSR with a control-specific
-"trampoline generation is not implemented yet" diagnostic. It must not emit
-the raw mirrored target address, which would transfer to unrelated bytes in the
-currently selected physical bank. This temporary rejection is intentionally
-different from the permanent prohibition on cross-bank ROM data and
-conditional branches.
+Roadmap item 5 now installs direct cross-bank JMP trampolines. A proven direct
+cross-bank JMP is rewritten to the source bank's logical mirror of a deduplicated
+entry in the common replicated table. Direct cross-bank JSR remains rejected
+with a control-specific "JSR trampoline generation is not implemented yet"
+diagnostic until roadmap item 6 lands. The linker never emits a raw mirrored
+cross-bank target address. This temporary JSR rejection is intentionally
+different from the permanent prohibition on cross-bank ROM data and conditional
+branches.
 
 A programmer can always defeat relocation checks with a manually written raw
 numeric address. That does not make such access supported; diagnostics cover
@@ -297,65 +305,51 @@ target function's RTS reaches the synthetic return stub. That stub selects the
 caller's bank and executes a second RTS, which consumes the caller's original
 return address.
 
-A practical first implementation may reserve one two-byte RIOT RAM pointer such
-as `__bank_target`. A direct cross-bank call is redirected to a generated target
-entry in the common table. The entry stores the target's ordinary 16-bit logical
-address in `__bank_target`, then jumps to an entry associated with the statically
-known source bank:
+The implemented direct-JMP entry does not need a shared RAM pointer. Each
+specialized eight-byte table entry carries its own immutable target word:
 
-    generated entry for source BANK0 and target $DABC:
-        LDA  #<$DABC
-        STA  __bank_target
-        LDA  #>$DABC
-        STA  __bank_target+1
-        JMP  jsr_from_bank0
+    generated entry for target $DABC:
+        STA  destination_hotspot
+        JMP  (BANK0-mirror address of inline_target)
+    inline_target:
+        .word $DABC
 
-    jsr_from_bank0:
-        LDA  #>(return_to_bank0 - 1)
-        PHA
-        LDA  #<(return_to_bank0 - 1)
-        PHA
-        ; Decode the high bits of __bank_target and select its bank.
-        ...
-        JMP  (__bank_target)
+`STA` is deliberate: F8/F6/F4 switch on an access to the hotspot, and a store
+changes neither A nor the processor flags. A direct JMP therefore preserves the
+machine state that the original instruction would have preserved. The indirect
+pointer operand always uses BANK0's logical mirror of the inline word. A13-A15
+do not reach the cartridge, so that address reads the same low-twelve-bit table
+offset from whichever physical bank is selected after the hotspot store. The
+complete entry bytes are consequently identical in every bank.
 
-    return_to_bank0:
-        BIT  bank0_hotspot
-        RTS
+The linker deduplicates entries by final target address and destination hotspot.
+Every call site to one target jumps to its own source bank's logical mirror of
+the same entry offset. The table allocator inserts a fill byte when needed so an
+inline target word never begins at page offset $FF and cannot trigger the NMOS
+6502/6507 indirect-JMP page-wrap bug. Corridor exhaustion is a link error which
+reports the reserved range, target, entry count, and consumed bytes.
 
-The manually pushed address is one less than the return-stub address because
-RTS increments the pulled address. Its logical high bits identify the source
-bank's mirror of the common table. When the destination function returns, the
-destination bank is still selected, but that bank contains the identical return
-stub at the same physical offset. The BIT selects the source bank, and the final
-RTS returns to the original caller.
+Roadmap item 6 will add calls on top of the same JSR-to-indirect-JMP principle.
+The caller's ordinary JSR has already placed its real return address on the
+hardware stack. A source-bank-aware entry will push a synthetic return-stub
+address, select the target bank, and enter the callee with an indirect JMP using
+an inline or equivalently precise target word. The target function's RTS reaches
+the identical return stub, which restores the source bank and performs the
+second RTS. The exact call-entry byte sequence remains deliberately deferred to
+item 6; the completed direct-JMP ABI does not force a writable target pointer.
 
-The destination selector may be chosen by a common decoder using the target's
-logical high bits. The linker may later specialize or fold that decoder for a
-known target, but it must preserve the same indirect-JMP call semantics and the
-single identical replicated table. A target entry can be shared by all call
-sites with the same source bank and target symbol. Nested cross-bank calls work
-because each active call contributes its own synthetic return address.
+A cross-bank JMP never restores the source bank. It selects the destination and
+continues at the final logical target. Cross-bank JSR will restore the source
+bank through its synthetic return stub.
 
-A cross-bank JMP uses the same target-pointer and destination-selection machinery
-without pushing a synthetic return address:
-
-    void jmp_trampoline(uint16_t target) {
-        select_bank(bank_of(target));
-        asm jmp (target);
-    }
-
-A direct cross-bank JMP is redirected to a generated target entry which fills
-`__bank_target` and enters the common jump dispatcher. It never restores the
-source bank.
-
-The linker must reserve the common bridge corridor at the same physical offset
-in every bank, emit one byte-identical table into every bank, place source-bank
-entry points and return stubs within that table, and report its total replicated
-cost. Exhausting the corridor is a clear link error. A cross-bank call keeps one
-additional hardware-stack return address live while the destination function
-runs, so whole-program hardware-stack sizing charges that edge two additional
-bytes and reports the longest weighted path.
+The linker reserves the common bridge corridor at the same physical offset in
+every bank and emits one byte-identical table into every bank. Direct-JMP
+entries occupy that table now; later source-bank call entries and return stubs
+will share the same reserved corridor. The map reports its occupied and total
+replicated cost. Exhausting the corridor is a clear link error. A cross-bank
+call keeps one additional hardware-stack return address live while the
+destination function runs, so whole-program hardware-stack sizing must charge
+that edge two additional bytes and report the longest weighted path.
 
 Cross-bank data policy
 ----------------------
@@ -376,7 +370,7 @@ modifier for objects. The same mechanism is now the source spelling for explicit
 function placement; do not add special `bank0` through `bank7` language keywords.
 For an ordinary F8 bank:
 
-    mem bank1 { $start:0xD000 $size:0x1000 $ro };
+    mem bank1 { $start:0xD000 $size:0x0F00 $ro };
 
     bank1 void some_function(void) {
         /* ... */
@@ -507,9 +501,9 @@ A banked map should report at least:
 * output order, proving that the lowest logical bank is written first and BANK0
   is written last;
 * every per-bank vector and reset bridge;
-* the byte-identical common trampoline table, its physical offset, replicated
-  size, reserved target pointer, source entries, return stubs, and destination
-  decoder;
+* the byte-identical common trampoline table, its physical offset, reserved
+  capacity, occupied and replicated size, inline target-passing ABI, direct-JMP
+  entries, and later source entries/return stubs;
 * every generated call/jump target entry, its source bank, destination bank,
   target, logical addresses, and byte cost;
 * bridge corridor occupancy;
@@ -625,22 +619,27 @@ when main roadmap item 29 becomes active.
        * Reject cross-bank branches, data reads, address constants, pointer
          initializers, and low/high/word data relocations with source-located
          diagnostics.
-       * Until bridge generation lands, reject cross-bank direct JMP/JSR with
-         distinct pending-trampoline diagnostics rather than emitting a wrong
-         raw mirror address or misclassifying the relocation as data.
+       * This validation slice originally rejected cross-bank direct JMP/JSR
+         with distinct pending-trampoline diagnostics rather than emitting a
+         wrong raw mirror address or misclassifying the relocation as data.
+         Item 5 now rewrites direct JMP; direct JSR remains rejected until item 6.
        * Diagnose object, movable source layout, final source address/bank,
          target symbol/layout, final target address, and target bank.
 
-[ ] 5. Add the byte-identical common trampoline table and cross-bank JMP.
+[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.
 
-       * Reserve one deterministic bridge corridor at the same physical offset
-         in every bank and copy exactly the same table bytes into every bank.
-       * Reserve one shared two-byte target pointer or define an equally precise
-         target-passing ABI.
-       * Redirect a direct cross-bank JMP to a generated target entry, select the
-         destination bank, and finish with `JMP (target)`.
-       * Deduplicate equivalent target entries, report replicated and per-entry
-         costs, and diagnose bridge-corridor exhaustion.
+       * Require `CARTRIDGE trampoline` and `trampolinesize`; reserve that
+         deterministic low-twelve-bit corridor in every bank and reject overlap
+         with ordinary allocation, vector bridges, vectors, or hotspots.
+       * Use an eight-byte state-preserving target ABI per deduplicated entry:
+         `STA destination_hotspot; JMP (inline_target); .word target`, with the
+         indirect operand encoded through BANK0's logical mirror.
+       * Redirect each direct cross-bank JMP to the source bank's mirror of the
+         shared entry offset. Copy the exact occupied table bytes into every
+         physical bank and leave the rest of the reserved corridor filled.
+       * Avoid the NMOS indirect-JMP page-wrap bug, deduplicate equivalent
+         targets, report reserved/occupied/replicated and per-entry costs, and
+         diagnose corridor exhaustion.
 
 [ ] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
 

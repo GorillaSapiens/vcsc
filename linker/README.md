@@ -159,7 +159,8 @@ silently ignored. It understands:
 - `callstack = callgraph/no`
 - `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
 - `bank = NAME` on a cartridge-output `MEMORY` region in a banked profile
-- `mapper = F8/F6/F4`, `fillval = BYTE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
+- `mapper = F8/F6/F4`, `fillval = BYTE`, `trampoline = OFFSET`,
+  `trampolinesize = SIZE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
 - `start`, `size`, `hotspot`, and `startup = yes/no` on a named `BANKS` entry
 
 ### Full-window banked image foundation
@@ -173,6 +174,8 @@ them:
 CARTRIDGE {
     mapper = F8;
     fillval = $FF;
+    trampoline = $0F00;
+    trampolinesize = $00E0;
     vectorbridge = $0FE0;
 }
 BANKS {
@@ -180,11 +183,13 @@ BANKS {
     BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
 }
 MEMORY {
-    bank1:              start=$D000, size=$0FE0, type=ro, bank=BANK1;
+    bank1:               start=$D000, size=$0F00, type=ro, bank=BANK1;
+    BANK1_TRAMPOLINE:    start=$DF00, size=$00E0,          bank=BANK1;
     BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012,          bank=BANK1;
     BANK1_TAIL:          start=$DFF2, size=$0008,          bank=BANK1;
     BANK1_VECTORS:       start=$DFFA, size=$0006,          bank=BANK1;
-    ROM:                 start=$F000, size=$0FE0, type=ro, bank=BANK0;
+    ROM:                 start=$F000, size=$0F00, type=ro, bank=BANK0;
+    BANK0_TRAMPOLINE:    start=$FF00, size=$00E0,          bank=BANK0;
     BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012,          bank=BANK0;
     BANK0_TAIL:          start=$FFF2, size=$0008,          bank=BANK0;
     BANK0_VECTORS:       start=$FFFA, size=$0006,          bank=BANK0;
@@ -228,8 +233,10 @@ table, including VCSC `BANK0` as the sole startup bank and final file chunk.
 Every selector hotspot is reserved at the same low twelve-bit offset in every
 bank. An ordinary `ro` or `data` segment region covering any selector is
 rejected before placement, so code or ordinary ROM data cannot land on an
-address whose access changes the selected bank. The configured
-`vectorbridge` corridor is reserved the same way.
+address whose access changes the selected bank. The configured `trampoline`
+corridor and `vectorbridge` corridor are reserved the same way. The trampoline
+corridor must fit wholly below the final six vector bytes, and neither generated
+corridor may overlap the other or a selector hotspot.
 
 The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
 IRQ/BRK entries are copied at that physical offset in every bank. Each entry is
@@ -245,9 +252,9 @@ The handlers and `main` must remain in BANK0.
 Flat banked output must use `.bin`. The writer emits complete 4096-byte units in
 ascending logical-address order, filling unoccupied bytes with the cartridge
 fill value. Thus F8 writes VCSC BANK1 as physical/file chunk 0 and VCSC BANK0 as
-chunk 1.  VCSC BANK0 occupies the final 4K of every F8/F6/F4 image. The map
-reports mapper, exact output size, bridge offset/size, each VCSC bank's selector,
-startup status, and physical file offset.
+chunk 1. VCSC BANK0 occupies the final 4K of every F8/F6/F4 image. The map
+reports mapper, exact output size, trampoline and vector-bridge reservations,
+each VCSC bank's selector, startup status, and physical file offset.
 
 After final placement, the linker classifies every symbolic relocation by the
 configured bank containing its serialized source bytes and the bank owning its
@@ -259,15 +266,45 @@ conditional branches are also rejected when their final target occupies a
 different bank.
 
 Current o26 objects preserve direct `JSR`, direct absolute `JMP`, and relaxed
-conditional-branch intent in the relocation type.  The linker therefore
-diagnoses cross-bank calls and jumps as such rather than misreporting them as
-data reads.  Until the common trampoline-table roadmap items land, a proven
-cross-bank `JMP` or `JSR` is rejected with a specific "trampoline generation is
-not implemented yet" diagnostic; emitting the raw mirrored address would call
-the wrong bytes.  Diagnostics identify the input object, movable source layout,
-final source address and VCSC bank, target symbol/layout, final target address,
-and destination VCSC bank.  Raw numeric addresses contain no relocation and,
-as usual, cannot be checked by the linker.
+conditional-branch intent in the relocation type. The linker therefore
+distinguishes trampoline-eligible control flow from forbidden ROM-data
+references without guessing from neighboring opcode bytes.
+
+A proven direct cross-bank `JMP` is redirected to a deduplicated eight-byte
+entry in the common trampoline corridor. The linker emits the occupied portion
+of that corridor byte-for-byte identically at the same physical offset in every
+bank:
+
+```asm
+    STA destination_hotspot
+    JMP (inline_target_pointer)
+inline_target:
+    .word final_target
+```
+
+`STA` is intentional: F8/F6/F4 react to the hotspot access, while the store
+preserves A and all processor flags just as the original direct `JMP` would.
+The indirect pointer uses BANK0's logical mirror of the inline target word. The
+upper mirror bits are absent from the cartridge bus, so after the bank switch it
+still reads the same low-twelve-bit bytes from the selected physical bank. Every
+bank contains identical entry bytes, which is required because instruction
+fetch continues in the newly selected bank immediately after the hotspot
+access.
+
+Entries are deduplicated by final target address and destination hotspot. Each
+call site receives its source bank's logical mirror of the common entry offset.
+The allocator inserts a fill byte when necessary so the inline pointer never
+begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
+full corridor is a link error. The map reports reserved, occupied, and total
+replicated bytes plus every generated target entry.
+
+Direct cross-bank `JSR` remains rejected with a specific "JSR trampoline
+generation is not implemented yet" diagnostic until the next roadmap item adds
+the synthetic return-address and source-bank return-stub path. Cross-bank ROM
+data and conditional branches remain permanent errors. Diagnostics identify the
+input object, source layout/address/bank, target symbol/address/bank, and the
+failed rule. Raw numeric addresses contain no relocation and cannot be checked
+by the linker.
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest

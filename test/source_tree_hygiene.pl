@@ -44,9 +44,14 @@ index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
-index($bankswitching,'contain exactly the same bytes in every physical bank')>=0 &&
-index($bankswitching,'JMP  (__bank_target)')>=0
-   or die "bankswitching plan lost the common indirect-JMP trampoline design\n";
+index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
+index($bankswitching,'STA  destination_hotspot')>=0 &&
+index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&
+index($bankswitching,'target word never begins at page offset $FF')>=0
+   or die "bankswitching plan lost the completed inline-target JMP trampoline design\n";
+index($bankswitching,'[ ] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.')>=0 &&
+index($bankswitching,'Push a synthetic return-stub address')>=0
+   or die "bankswitching plan lost the pending cross-bank JSR return path\n";
 index($bankswitching,'must pin unmarked `main`')>=0 &&
 index($bankswitching,'Unpinned layouts are assigned automatically by the linker')>=0
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";
@@ -59,6 +64,8 @@ index($bankswitching,'$start:0xD100 $size:0x0F00')>=0
 index($bankswitching,'Every selector hotspot is reserved at the same low twelve-bit offset')>=0 &&
 index($bankswitching,'hotspot bytes may not become code or ordinary ROM data')>=0
    or die "bankswitching plan lost per-bank hotspot reservation\n";
+index($bankswitching,'CARTRIDGE trampoline')>=0 &&
+index($bankswitching,'trampolinesize')>=0 &&
 index($bankswitching,'CARTRIDGE vectorbridge')>=0 &&
 index($bankswitching,'BIT BANK0_HOTSPOT; JMP __reset')>=0 &&
 index($bankswitching,q{F4's $1FFA and $1FFB selector})>=0

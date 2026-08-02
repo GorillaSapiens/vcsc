@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260801_220615.tar.gz
+    vcsc.20260802_022217.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7742,3 +7742,36 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verify that the corrected archive has no enclosing project directory and that
   a clean extraction differs from `vcsc.20260801_224931.tar.gz` in the expected
   source, test, and documentation files.
+
+
+2026-08-01 19:46:05 PDT, add common direct-JMP bank trampoline table
+--------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 5. Require banked profiles to
+  declare a same-offset common trampoline corridor with `CARTRIDGE
+  trampoline` and `trampolinesize`; reject corridors which exceed one 4K bank
+  or overlap ordinary allocatable ROM, vector bridges, per-bank vectors, or
+  any mapper selector hotspot.
+* Rewrite every proven direct cross-bank JMP to the source bank's logical
+  mirror of a deduplicated common table entry. Each eight-byte entry is
+  `STA destination_hotspot; JMP (inline_target); .word target`. The hotspot
+  store preserves A and processor flags; the indirect pointer uses BANK0's
+  logical mirror, which resolves to the same low-twelve-bit table bytes in the
+  newly selected physical bank.
+* Emit the occupied table bytes identically at the same physical offset in all
+  banks. Deduplicate equal target/hotspot pairs, insert fill when an inline
+  target word would begin at page offset `$FF` and trigger the NMOS indirect-
+  JMP wrap bug, diagnose corridor exhaustion, and report reserved, occupied,
+  replicated, and per-entry costs in the linker map.
+* Keep direct cross-bank JSR rejected with its specific pending diagnostic.
+  Detailed roadmap item 6 is next: JSR-to-indirect-JMP call entries, synthetic
+  return addresses, source-bank return stubs, and weighted hardware-stack
+  accounting.
+* Expand assembler, linker, test, source-hygiene, and detailed banking
+  documentation. Tests lock exact F8 entry bytes, source-bank mirror patching,
+  target deduplication, byte-identical replication, map output, corridor and
+  vector overlap diagnostics, and exhaustion.
+* Verification: all 341 compile-only tests pass. All 206 end-to-end/generic
+  tests pass (the first run reached 122 before the outer timeout; the remaining
+  84 passed in deterministic groups of 40, 22, and 22). Focused bank image,
+  reset bridge, relocation/trampoline, and source-hygiene tests pass, and staged
+  `make installcheck` passes.

@@ -121,14 +121,17 @@ complete logical-bank/file-index/hotspot relationship for all three mappers,
 F4's NMI-vector/selector overlap, and diagnostics for missing or
 selector-overlapping bridge corridors.
 
-`linker_banked_relocation_validation.pl` covers the first bank-aware relocation
-slice. It proves that same-bank code/data references and shared RAM references
-remain legal; that o26 retains distinct direct `JSR`, direct `JMP`, and relaxed
-conditional-branch intent; and that the linker rejects cross-bank relative and
-long branches, ROM loads, address constants, pointer words, low/high-byte
-relocations, and indirect-`JMP` vectors. Cross-bank calls and jumps receive
-their own pending-trampoline diagnostics rather than being mistaken for data
-references.
+`linker_banked_relocation_validation.pl` covers bank-aware relocation validation
+and the first generated control-transfer bridge. It proves that same-bank
+code/data references and shared RAM references remain legal; that o26 retains
+distinct direct `JSR`, direct `JMP`, and relaxed conditional-branch intent; and
+that the linker rejects cross-bank relative and long branches, ROM loads,
+address constants, pointer words, low/high-byte relocations, and indirect-`JMP`
+vectors. It also checks direct cross-bank `JMP` rewriting, source-bank mirror
+addresses, target deduplication, exact byte-identical eight-byte entries in all
+physical banks, destination hotspots, inline target words, map accounting, and
+corridor exhaustion. Direct cross-bank `JSR` still receives its own pending
+return-stub diagnostic.
 
 `unicode_identifier_mangle.pl` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
@@ -378,10 +381,10 @@ core README files, and broken relative Markdown links.
 README occupy that internal role, while the obsolete top-level notes and
 software-stack snapshot must remain absent. `source_tree_hygiene.pl` locks the
 bankswitching plan's descending logical-bank convention, lowest-address-first
-file order, early per-bank reset work, byte-identical JSR-to-indirect-JMP
-trampoline table, `main`-in-BANK0 constrained automatic placement, `$x100`
-Superchip ROM boundary, and the required automatic Superchip-variable allocation
-roadmap item.
+file order, early per-bank reset work, completed byte-identical direct-`JMP`
+trampoline table, planned JSR-to-indirect-JMP return path, `main`-in-BANK0
+constrained automatic placement, `$x100` Superchip ROM boundary, and the
+required automatic Superchip-variable allocation roadmap item.
 
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace

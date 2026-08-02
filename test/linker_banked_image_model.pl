@@ -69,7 +69,7 @@ my $map = File::Spec->catfile($tmp, 'banked.map');
 
 write_file($src, <<'SRC');
 include "machine_6502.c26"
-mem bank1 { $start:0xD000 $size:0x0FE0 $ro };
+mem bank1 { $start:0xD000 $size:0x0F00 $ro };
 
 bank1 void placed(void) {
    asm nop;
@@ -91,6 +91,8 @@ my $valid_cfg = <<"CFG";
 CARTRIDGE {
    mapper = F8;
    fillval = \$A5;
+   trampoline = \$0F00;
+   trampolinesize = \$00E0;
    vectorbridge = \$0FE0;
 }
 BANKS {
@@ -100,11 +102,13 @@ BANKS {
 MEMORY {
    ZEROPAGE: start=\$0000, size=\$0080, type=rw;
    RAM: start=\$0080, size=\$0080, type=rw;
-$extras   bank1: start=\$D000, size=\$0FE0, type=ro, bank=BANK1;
+$extras   bank1: start=\$D000, size=\$0F00, type=ro, bank=BANK1;
+   BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0, bank=BANK1;
    BANK1_VECTOR_BRIDGE: start=\$DFE0, size=\$0012, bank=BANK1;
    BANK1_TAIL: start=\$DFF2, size=\$0008, bank=BANK1;
    BANK1_VECTORS: start=\$DFFA, size=\$0006, bank=BANK1;
-   ROM: start=\$F000, size=\$0FE0, type=ro, bank=BANK0;
+   ROM: start=\$F000, size=\$0F00, type=ro, bank=BANK0;
+   BANK0_TRAMPOLINE: start=\$FF00, size=\$00E0, bank=BANK0;
    BANK0_VECTOR_BRIDGE: start=\$FFE0, size=\$0012, bank=BANK0;
    BANK0_TAIL: start=\$FFF2, size=\$0008, bank=BANK0;
    BANK0_VECTORS: start=\$FFFA, size=\$0006, bank=BANK0;
@@ -134,6 +138,9 @@ substr($image, 0x0FF2, 8) eq ("\xA5" x 8)
    or die "BANK1 reserved tail was not retained as fill before per-bank vectors\n";
 substr($image, 0x1000, 4) eq "\x78\xD8\xA2\xFF"
    or die "BANK0/runtime bytes were not emitted as the final physical bank\n";
+substr($image, 0x0F00, 0xE0) eq ("\xA5" x 0xE0) &&
+substr($image, 0x1F00, 0xE0) eq ("\xA5" x 0xE0)
+   or die "unused common trampoline corridor was not reserved and filled identically\n";
 my $bank1_bridge = substr($image, 0x0FE0, 18);
 my $bank0_bridge = substr($image, 0x1FE0, 18);
 $bank1_bridge eq $bank0_bridge && $bank1_bridge ne ("\xA5" x 18)
@@ -148,7 +155,7 @@ ord(substr($bank0_vectors, 5, 1)) == 0xFF
    or die "per-bank vectors do not use BANK0's F000 logical mirror\n";
 
 my $map_text = slurp($map);
-$map_text =~ /mapper=F8 output-size=\$00002000 fill=\$A5 vectorbridge=\$FE0 size=\$12/
+$map_text =~ /mapper=F8 output-size=\$00002000 fill=\$A5 trampoline=\$F00 size=\$0E0 vectorbridge=\$FE0 size=\$12/
    or die "map omitted F8 image/bridge metadata\n$map_text";
 $map_text =~ /BANK1\s+start=\$D000.*hotspot=\$1FF8.*file=\$00000000/
    or die "map did not assign BANK1 physical file offset zero\n$map_text";
@@ -158,6 +165,25 @@ $map_text =~ /^\s*\$D000\s+placed\b/m
    or die "placed function did not retain its D000 logical address\n$map_text";
 $map_text =~ /^\s*\$F[0-9A-Fa-f]{3}\s+main\b/m
    or die "main did not remain in the BANK0 mirror\n$map_text";
+
+my $missing_trampoline_cfg = File::Spec->catfile($tmp, 'missing-trampoline.cfg');
+(my $missing_trampoline_text = $valid_cfg) =~ s/^\s*trampoline\s*=.*
+//m;
+write_file($missing_trampoline_cfg, $missing_trampoline_text);
+require_fail('missing trampoline offset', 'requires CARTRIDGE trampoline and trampolinesize',
+             $vcsc, '-I', $include, '-T', $missing_trampoline_cfg,
+             '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'missing-trampoline.bin'), $src);
+
+my $trampoline_vectors_cfg = File::Spec->catfile($tmp, 'trampoline-vectors.cfg');
+my $trampoline_vectors_text = $valid_cfg;
+$trampoline_vectors_text =~ s/trampoline = \$0F00;/trampoline = \$0FFA;/;
+$trampoline_vectors_text =~ s/trampolinesize = \$00E0;/trampolinesize = \$0001;/;
+write_file($trampoline_vectors_cfg, $trampoline_vectors_text);
+require_fail('trampoline over per-bank vectors', 'overlaps the per-bank vectors',
+             $vcsc, '-I', $include, '-T', $trampoline_vectors_cfg,
+             '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'trampoline-vectors.bin'), $src);
 
 my $unknown_cfg = File::Spec->catfile($tmp, 'unknown.cfg');
 (my $unknown_text = $valid_cfg) =~ s/hotspot=\$1FF8/hotpsot=\$1FF8/;
@@ -188,9 +214,20 @@ require_fail('ordinary code over bank hotspot', 'covers reserved bank hotspot $D
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'hotspot.bin'), $src);
 
+my $trampoline_cfg = File::Spec->catfile($tmp, 'trampoline-overlap.cfg');
+my $trampoline_text = $valid_cfg;
+$trampoline_text =~ s/   BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0, bank=BANK1;/   bank1_trampoline: start=\$DF00, size=\$00E0, type=ro, bank=BANK1;/;
+$trampoline_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_trampoline, type=ro;/;
+write_file($trampoline_cfg, $trampoline_text);
+require_fail('ordinary code over common trampoline corridor', 'covers reserved trampoline $DF00-$DFDF',
+             $vcsc, '-I', $include, '-T', $trampoline_cfg,
+             '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'trampoline.bin'), $src);
+
 my $bridge_cfg = File::Spec->catfile($tmp, 'bridge-overlap.cfg');
 my $bridge_text = $valid_cfg;
-$bridge_text =~ s/   BANK1_VECTOR_BRIDGE: start=\$DFE0, size=\$0012, bank=BANK1;/   bank1_bridge: start=\$DFE0, size=\$0012, type=ro, bank=BANK1;/;
+$bridge_text =~ s/   BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0, bank=BANK1;
+   BANK1_VECTOR_BRIDGE: start=\$DFE0, size=\$0012, bank=BANK1;/   bank1_bridge: start=\$DFE0, size=\$0012, type=ro, bank=BANK1;/;
 $bridge_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_bridge, type=ro;/;
 write_file($bridge_cfg, $bridge_text);
 require_fail('ordinary code over vector bridge', 'covers reserved vector bridge $DFE0-$DFF1',
