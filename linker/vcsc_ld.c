@@ -2015,29 +2015,35 @@ static void add_generated_symbols(layout_t *layout)
    }
 }
 
-//! @brief Find global addr in linker layout and image writer tables without transferring ownership.
-static uint16_t lookup_global_addr(const layout_t *layout, const char *name)
+//! @brief Find a global symbol in linker layout state without transferring ownership.
+static const global_symbol_t *lookup_global_symbol(const layout_t *layout,
+                                                   const char *name)
 {
    size_t i;
    char *weak;
 
    for (i = 0; i < layout->global_count; ++i) {
       if (strcmp(layout->globals[i].name, name) == 0)
-         return layout->globals[i].addr;
+         return &layout->globals[i];
    }
 
    weak = make_weak_name(name);
    for (i = 0; i < layout->global_count; ++i) {
       if (strcmp(layout->globals[i].name, weak) == 0) {
-         uint16_t addr = layout->globals[i].addr;
          free(weak);
-         return addr;
+         return &layout->globals[i];
       }
    }
    free(weak);
 
    fprintf(stderr, "vcsc-ld: unresolved symbol '%s'\n", name);
    exit(1);
+}
+
+//! @brief Find global addr in linker layout and image writer tables without transferring ownership.
+static uint16_t lookup_global_addr(const layout_t *layout, const char *name)
+{
+   return lookup_global_symbol(layout, name)->addr;
 }
 
 //! @brief Collect init functions in input from existing linker layout and image writer state for a later pass.
@@ -2641,6 +2647,115 @@ static uint16_t object_runtime_addr_for_layout_value(const object_file_t *obj,
    return (uint16_t)((int)base + (int)packed_value - (int)lay->packed_base);
 }
 
+//! @brief Find the configured logical cartridge bank containing one address.
+static const cartridge_bank_t *cartridge_bank_for_address(const linker_config_t *cfg,
+                                                          uint16_t address)
+{
+   size_t i;
+
+   if (!cfg || !cfg->cartridge_banked)
+      return NULL;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      const cartridge_bank_t *bank = &cfg->banks[i];
+      uint32_t end = (uint32_t)bank->start + bank->size;
+      if (address >= bank->start && (uint32_t)address < end)
+         return bank;
+   }
+   return NULL;
+}
+
+//! @brief Find the movable layout whose serialized bytes contain one relocation.
+static const object_layout_t *find_layout_for_image_offset(const object_file_t *obj,
+                                                           uint8_t image_segid,
+                                                           uint32_t offset)
+{
+   size_t i;
+
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *lay = &obj->layouts[i];
+      uint32_t end = (uint32_t)lay->image_base + lay->size;
+      if (lay->image_segid == image_segid &&
+          offset >= lay->image_base && offset < end)
+         return lay;
+   }
+   return NULL;
+}
+
+typedef struct {
+   uint16_t address;
+   uint16_t owner_address;
+   const char *name;
+   const object_layout_t *owner_layout;
+} resolved_reloc_target_t;
+
+//! @brief Resolve one relocation while retaining the symbol/layout address used for bank identity.
+static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
+                                                    const reloc_t *r,
+                                                    uint16_t current_word,
+                                                    const layout_t *layout)
+{
+   resolved_reloc_target_t result;
+
+   memset(&result, 0, sizeof(result));
+   result.name = "<local relocation>";
+
+   if (r->segid == O26_SEG_UNDEF) {
+      const global_symbol_t *global;
+      if (r->undef_index >= obj->undef_count) {
+         fprintf(stderr, "vcsc-ld: bad undefined-symbol index in %s\n", obj->origin);
+         exit(1);
+      }
+      global = lookup_global_symbol(layout, obj->undefs[r->undef_index]);
+      result.address = (uint16_t)(global->addr + current_word);
+      result.owner_address = global->addr;
+      result.name = obj->undefs[r->undef_index];
+      return result;
+   }
+
+   if (r->has_layout_index) {
+      const object_layout_t *lay;
+      uint16_t base;
+      if (r->layout_index >= obj->layout_count) {
+         fprintf(stderr, "vcsc-ld: relocation layout index %u is out of range in %s\n",
+                 (unsigned)r->layout_index, obj->origin);
+         exit(1);
+      }
+      lay = &obj->layouts[r->layout_index];
+      if (lay->segid != r->segid) {
+         fprintf(stderr,
+                 "vcsc-ld: relocation layout '%s' has segment %u, expected %u in %s\n",
+                 lay->name, (unsigned)lay->segid, (unsigned)r->segid, obj->origin);
+         exit(1);
+      }
+      base = (r->segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
+      result.address = object_runtime_addr_for_layout_value(obj, r->layout_index,
+                                                            r->segid, current_word);
+      result.owner_address = base;
+      result.name = lay->name;
+      result.owner_layout = lay;
+      return result;
+   }
+
+   if (r->segid == O26_SEG_ABS) {
+      result.address = current_word;
+      result.owner_address = current_word;
+      result.name = "<absolute symbol>";
+      return result;
+   }
+
+   result.owner_layout = find_layout_for_value(obj, r->segid, current_word);
+   if (!result.owner_layout) {
+      fprintf(stderr, "vcsc-ld: could not map packed relocation value $%04X in %s for segment %u\n",
+              current_word, obj->origin, (unsigned)r->segid);
+      exit(1);
+   }
+   result.owner_address = (r->segid == O26_SEG_TEXT)
+      ? result.owner_layout->load_addr : result.owner_layout->run_addr;
+   result.address = object_runtime_addr_for_value(obj, r->segid, current_word);
+   result.name = result.owner_layout->name;
+   return result;
+}
+
 #define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
 
 typedef struct activation_piece_t {
@@ -3030,19 +3145,116 @@ static void patch_u16(uint8_t *buf, size_t len, uint32_t off, uint16_t v, const 
    buf[off + 1] = (uint8_t)((v >> 8) & 0xFFu);
 }
 
+//! @brief Return a stable diagnostic spelling for one relocation width.
+static const char *relocation_width_name(uint8_t type)
+{
+   switch (type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+      case O26_RTYPE_LOW:  return "low-byte";
+      case O26_RTYPE_HIGH: return "high-byte";
+      case O26_RTYPE_WORD: return "word";
+      default:             return "unknown-width";
+   }
+}
+
+//! @brief Validate one resolved relocation against full-window bank boundaries.
+static void validate_banked_relocation(const linker_config_t *cfg,
+                                       const object_file_t *obj,
+                                       uint8_t image_segid,
+                                       const reloc_t *r,
+                                       const resolved_reloc_target_t *target)
+{
+   const object_layout_t *source_layout;
+   const cartridge_bank_t *source_bank;
+   const cartridge_bank_t *owner_bank;
+   const cartridge_bank_t *final_bank;
+   const cartridge_bank_t *different_bank = NULL;
+   uint16_t source_address;
+   uint8_t control;
+
+   if (!cfg || !cfg->cartridge_banked)
+      return;
+
+   source_layout = find_layout_for_image_offset(obj, image_segid, r->offset);
+   if (!source_layout) {
+      fprintf(stderr,
+              "vcsc-ld: could not identify source layout for relocation offset $%04X in %s\n",
+              (unsigned)r->offset, obj->origin);
+      exit(1);
+   }
+   source_address = (uint16_t)(source_layout->load_addr +
+      (uint16_t)(r->offset - source_layout->image_base));
+   source_bank = cartridge_bank_for_address(cfg, source_address);
+   if (!source_bank)
+      return;
+
+   owner_bank = cartridge_bank_for_address(cfg, target->owner_address);
+   final_bank = cartridge_bank_for_address(cfg, target->address);
+   if (owner_bank && owner_bank != source_bank)
+      different_bank = owner_bank;
+   else if (final_bank && final_bank != source_bank)
+      different_bank = final_bank;
+   if (!different_bank)
+      return;
+
+   control = r->type & O26_RTYPE_CONTROL_MASK;
+   if (control == O26_RTYPE_CONTROL_JSR) {
+      fprintf(stderr,
+              "vcsc-ld: cross-bank JSR in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); JSR trampoline generation is not implemented yet\n",
+              obj->origin, source_layout->name, source_address, source_bank->name,
+              target->name, target->address, different_bank->name);
+      exit(1);
+   }
+   if (control == O26_RTYPE_CONTROL_JMP) {
+      fprintf(stderr,
+              "vcsc-ld: cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); JMP trampoline generation is not implemented yet\n",
+              obj->origin, source_layout->name, source_address, source_bank->name,
+              target->name, target->address, different_bank->name);
+      exit(1);
+   }
+   if (control == O26_RTYPE_CONTROL_BRANCH) {
+      fprintf(stderr,
+              "vcsc-ld: cross-bank conditional branch in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); conditional branches may not cross banks\n",
+              obj->origin, source_layout->name, source_address, source_bank->name,
+              target->name, target->address, different_bank->name);
+      exit(1);
+   }
+
+   fprintf(stderr,
+           "vcsc-ld: cross-bank ROM %s relocation in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); cross-bank ROM data references are not allowed%s\n",
+           relocation_width_name(r->type), obj->origin, source_layout->name,
+           source_address, source_bank->name, target->name, target->address,
+           different_bank->name,
+           (r->type & O26_RTYPE_INDIRECT_JMP) ?
+              " (the indirect-JMP vector is a data reference)" : "");
+   exit(1);
+}
+
 //! @brief Handle apply segment relocs logic for linker layout and image writer.
-static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const layout_t *layout, const char *seg_name)
+static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
+                                 const layout_t *layout,
+                                 const linker_config_t *cfg,
+                                 uint8_t image_segid,
+                                 const char *seg_name)
 {
    size_t i;
    for (i = 0; i < seg->reloc_count; ++i) {
       reloc_t *r = &seg->relocs[i];
-      uint16_t target = 0;
       uint16_t current_word;
+      resolved_reloc_target_t target;
       const char *who = obj->origin;
       (void)seg_name;
 
+      if (r->offset >= seg->length) {
+         fprintf(stderr, "vcsc-ld: relocation offset out of range in %s\n", who);
+         exit(1);
+      }
+
       switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
          case O26_RTYPE_WORD:
+            if (r->offset + 1 >= seg->length) {
+               fprintf(stderr, "vcsc-ld: relocation word offset out of range in %s\n", who);
+               exit(1);
+            }
             current_word = (uint16_t)(seg->data[r->offset] | (seg->data[r->offset + 1] << 8));
             break;
 
@@ -3059,35 +3271,25 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
             break;
       }
 
-      if (r->segid == O26_SEG_UNDEF) {
-         if (r->undef_index >= obj->undef_count) {
-            fprintf(stderr, "vcsc-ld: bad undefined-symbol index in %s\n", who);
-            exit(1);
-         }
-         target = (uint16_t)(lookup_global_addr(layout, obj->undefs[r->undef_index]) + current_word);
-      } else if (r->has_layout_index) {
-         target = object_runtime_addr_for_layout_value(obj, r->layout_index,
-                                                       r->segid, current_word);
-      } else {
-         target = object_runtime_addr_for_value(obj, r->segid, current_word);
-      }
+      target = resolve_reloc_target(obj, r, current_word, layout);
+      validate_banked_relocation(cfg, obj, image_segid, r, &target);
 
-      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (target & 0xffu) == 0xffu) {
+      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (target.address & 0xffu) == 0xffu) {
          fprintf(stderr,
                  "vcsc-ld: indirect JMP vector at $%04X in %s triggers the NMOS 6502/6507 page-wrap bug\n",
-                 target, who);
+                 target.address, who);
          exit(1);
       }
 
       switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
          case O26_RTYPE_LOW:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)(target & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset, (uint8_t)(target.address & 0xFFu), who);
             break;
          case O26_RTYPE_HIGH:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)((target >> 8) & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset, (uint8_t)((target.address >> 8) & 0xFFu), who);
             break;
          case O26_RTYPE_WORD:
-            patch_u16(seg->data, seg->length, r->offset, target, who);
+            patch_u16(seg->data, seg->length, r->offset, target.address, who);
             break;
          default:
             fprintf(stderr, "vcsc-ld: unsupported relocation type 0x%02x in %s\n", r->type, who);
@@ -3097,12 +3299,15 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg, const l
 }
 
 //! @brief Compute all and update linker layout and image writer state once prerequisite pass data is available.
-static void resolve_all(input_set_t *in, const layout_t *layout)
+static void resolve_all(input_set_t *in, const layout_t *layout,
+                        const linker_config_t *cfg)
 {
    size_t i;
    for (i = 0; i < in->object_count; ++i) {
-      apply_segment_relocs(&in->objects[i], &in->objects[i].text, layout, "text");
-      apply_segment_relocs(&in->objects[i], &in->objects[i].data, layout, "data");
+      apply_segment_relocs(&in->objects[i], &in->objects[i].text, layout, cfg,
+                           O26_SEG_TEXT, "text");
+      apply_segment_relocs(&in->objects[i], &in->objects[i].data, layout, cfg,
+                           O26_SEG_DATA, "data");
    }
 }
 
@@ -3551,6 +3756,41 @@ static int taken_branch_crosses_page(uint16_t source, uint16_t target)
 {
    uint16_t next_pc = (uint16_t)(source + 2u);
    return (next_pc & 0xff00u) != (target & 0xff00u);
+}
+
+//! @brief Reject retained relative branches whose final source and target occupy different banks.
+static void enforce_branch_bank_contracts(const linker_config_t *cfg,
+                                          const input_set_t *in)
+{
+   size_t i;
+
+   if (!cfg || !cfg->cartridge_banked)
+      return;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+
+      for (j = 0; j < obj->branch_count; ++j) {
+         const branch_t *branch = &obj->branches[j];
+         uint16_t source = object_runtime_addr_for_value(obj, branch->segid,
+                                                         branch->source);
+         uint16_t target = object_runtime_addr_for_value(obj, branch->segid,
+                                                         branch->target);
+         const cartridge_bank_t *source_bank =
+            cartridge_bank_for_address(cfg, source);
+         const cartridge_bank_t *target_bank =
+            cartridge_bank_for_address(cfg, target);
+
+         if (source_bank && target_bank && source_bank != target_bank) {
+            fprintf(stderr,
+                    "vcsc-ld: cross-bank conditional branch in %s at $%04X (%s) targets $%04X (%s); conditional branches may not cross banks\n",
+                    obj->origin, source, source_bank->name, target,
+                    target_bank->name);
+            exit(1);
+         }
+      }
+   }
 }
 
 //! @brief Verify all hard branch-page contracts after final layout.
@@ -4409,9 +4649,10 @@ int main(int argc, char **argv)
    }
    warn_unused_cmdline_objects(&inputs);
    layout_objects(&cfg, &inputs, &layout);
+   enforce_branch_bank_contracts(&cfg, &inputs);
    enforce_branch_page_contracts(&inputs);
    add_generated_symbols(&layout);
-   resolve_all(&inputs, &layout);
+   resolve_all(&inputs, &layout, &cfg);
    enforce_declaration_use_contracts(&inputs);
 
    image = (uint8_t *)xmalloc(65536);

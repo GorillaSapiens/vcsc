@@ -7698,3 +7698,47 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   the initial 162-test run followed by the remaining 43 tests in two deterministic
   groups after outer command-window limits; focused bank-image/reset/hygiene
   tests pass; and staged `make installcheck` passes.
+
+2026-08-01 19:05:40 PDT, bank-aware relocation classification and validation
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 4.  Preserve direct-control intent in the
+  two previously unused low bits of version-2 o26 relocation types: direct JSR,
+  direct JMP, and the absolute JMP emitted for a relaxed conditional branch are
+  now distinguishable without inspecting neighboring opcode bytes.  Ordinary
+  short relative branches continue to use the retained B26 branch table.
+* Teach `vcsc-ld` to identify the final source layout/bank and target owner/bank
+  for every symbolic relocation after placement.  Same-bank ROM references and
+  references to shared nonbanked RAM or hardware addresses remain ordinary.
+* Reject every provable unsupported crossing before patching bytes: cross-bank
+  ROM data/address relocations, pointer initializers, indirect-JMP vectors, and
+  both short and relaxed conditional branches are errors.  Direct cross-bank
+  JSR and JMP receive distinct diagnostics saying that trampoline generation is
+  not implemented yet; they must not silently become mirrored-address calls or
+  jumps into unrelated bytes.
+* Add `test/linker_banked_relocation_validation.pl` covering same-bank control
+  flow and data, shared RAM access, all direct-control classes, low/high/word
+  data relocations, pointer data, indirect-JMP vectors, and short/relaxed branch
+  crossings.  Update assembler, linker, test, and detailed bankswitching
+  documentation.  The next bankswitching leaf is roadmap item 5: the common
+  byte-identical replicated trampoline table and generated cross-bank JMP.
+* Verification: all 341 compile-only tests pass.  All 206 end-to-end/generic
+  tests pass, completed as the first 163 tests followed by the remaining 43 in
+  two deterministic groups because of outer command-window limits.  Focused
+  bank-image, reset-bridge, and relocation-validation tests pass, and staged
+  `make installcheck` passes.
+
+2026-08-01 19:23:00 PDT, correct relocation-step tarball packaging
+------------------------------------------------------------------
+* The `vcsc.20260802_020559.tar.gz` archive accidentally wrapped the project in
+  a top-level `vcsc/` directory, unlike the prior flat project tarballs.  When
+  extracted over an existing checkout, that leaves the checkout itself
+  unchanged and puts the modified tree in a new `vcsc/` subdirectory, making
+  the archive appear unchanged.
+* Repackage the same bank-aware relocation-classification implementation with
+  project files at the archive root.  No relocation semantics were rolled back;
+  the changed source remains in `assembler/o26.c`, `linker/vcsc_ld.c`, and
+  `linker/vcsc_ld_internal.h`, with coverage in
+  `test/linker_banked_relocation_validation.pl`.
+* Verify that the corrected archive has no enclosing project directory and that
+  a clean extraction differs from `vcsc.20260801_224931.tar.gz` in the expected
+  source, test, and documentation files.

@@ -249,11 +249,23 @@ References from banked ROM obey these rules:
   but VCSC still rejects function pointers, so ordinary compiled calls remain
   visible to the linker.
 
-The assembler/object format must identify control-transfer relocations as JSR,
-JMP, or conditional branch. The linker should not infer semantics by peeking at
-an opcode byte next to a generic word relocation. Existing low-byte, high-byte,
-and word data relocations remain ordinary data references and therefore cannot
-cross banks.
+The assembler/object format identifies direct control-transfer relocations as
+JSR, JMP, or relaxed conditional branch. The two otherwise-unused low bits of
+the o26 relocation type carry this intent without changing relocation
+arithmetic or the version-2 object format. The linker does not infer semantics
+by peeking at an opcode byte next to a generic word relocation. Existing
+low-byte, high-byte, and word data relocations remain ordinary data references
+and therefore cannot cross banks. Ordinary two-byte relative branches remain in
+the B26 branch table and are checked from their final source and target
+addresses after placement.
+
+Until roadmap items 5 and 6 install the common JMP/JSR trampoline machinery,
+the linker rejects a proven cross-bank direct JMP or JSR with a control-specific
+"trampoline generation is not implemented yet" diagnostic. It must not emit
+the raw mirrored target address, which would transfer to unrelated bytes in the
+currently selected physical bank. This temporary rejection is intentionally
+different from the permanent prohibition on cross-bank ROM data and
+conditional branches.
 
 A programmer can always defeat relocation checks with a manually written raw
 numeric address. That does not make such access supported; diagnostics cover
@@ -603,7 +615,7 @@ when main roadmap item 29 becomes active.
        * Reject missing, vector-overlapping, selector-overlapping, or
          ordinary-code-overlapping bridge corridors.
 
-[ ] 4. Add bank-aware relocation classification and validation.
+[x] 4. Add bank-aware relocation classification and validation.
 
        * Preserve JSR, JMP, and conditional-branch relocation intent in o26.
        * Identify same-bank, shared-memory, and cross-bank references from cfg
@@ -613,6 +625,11 @@ when main roadmap item 29 becomes active.
        * Reject cross-bank branches, data reads, address constants, pointer
          initializers, and low/high/word data relocations with source-located
          diagnostics.
+       * Until bridge generation lands, reject cross-bank direct JMP/JSR with
+         distinct pending-trampoline diagnostics rather than emitting a wrong
+         raw mirror address or misclassifying the relocation as data.
+       * Diagnose object, movable source layout, final source address/bank,
+         target symbol/layout, final target address, and target bank.
 
 [ ] 5. Add the byte-identical common trampoline table and cross-bank JMP.
 

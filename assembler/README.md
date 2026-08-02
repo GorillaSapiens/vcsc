@@ -772,6 +772,16 @@ Word relocations used by indirect `JMP` additionally carry the
 `O26_RTYPE_INDIRECT_JMP` bit.  It does not change relocation arithmetic; it
 identifies the final vector address for the linker's NMOS `$xxFF` hazard check.
 
+The two low relocation-type bits preserve direct control-transfer intent:
+ordinary data/address relocation, direct `JSR`, direct absolute `JMP`, or the
+absolute `JMP` emitted while relaxing a conditional branch.  The numeric
+relocation arithmetic is unchanged.  A bank-aware linker uses this intent to
+distinguish a future trampoline-eligible call or jump from a forbidden
+cross-bank ROM-data reference.  Ordinary two-byte relative branches continue
+to live in the `B26` branch table; the relaxed long form carries both its local
+inverse-branch record and conditional-branch intent on the generated absolute
+target relocation.
+
 Current version-2 o26 relocations against a symbol defined in the same object
 also carry the exact serialized layout index containing that symbol. This is
 required for affine expressions such as `table-$100`: after the constant is

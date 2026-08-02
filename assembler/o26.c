@@ -26,6 +26,11 @@ symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const st
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
 #define O26_RTYPE_LAYOUT 0x04
+#define O26_RTYPE_CONTROL_MASK 0x03
+#define O26_RTYPE_CONTROL_NONE 0x00
+#define O26_RTYPE_CONTROL_JSR  0x01
+#define O26_RTYPE_CONTROL_JMP  0x02
+#define O26_RTYPE_CONTROL_BRANCH 0x03
 
 #define O26_MODE_ALIGN1 0x0000
 #define O26_MODE_OBJECT 0x1000
@@ -1311,6 +1316,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
       case STMT_INSN: {
          reloc_expr_info_t info;
          unsigned char opcode;
+         unsigned char reloc_intent = O26_RTYPE_CONTROL_NONE;
          long value;
          long insn_off = off;
          emit_mode_t emode;
@@ -1335,6 +1341,7 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                writer_error(wr->ctx, stmt, "failed to write long branch jmp opcode");
                return 0;
             }
+            reloc_intent = O26_RTYPE_CONTROL_BRANCH;
          } else {
             if (!opcode_lookup(stmt->u.insn.opcode, emode, &opcode)) {
                writer_error(wr->ctx, stmt, "illegal addressing mode for %s%s",
@@ -1345,6 +1352,10 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                writer_error(wr->ctx, stmt, "failed to write opcode");
                return 0;
             }
+            if (emode == EM_ABS && str_ieq(stmt->u.insn.opcode, "JSR"))
+               reloc_intent = O26_RTYPE_CONTROL_JSR;
+            else if (emode == EM_ABS && str_ieq(stmt->u.insn.opcode, "JMP"))
+               reloc_intent = O26_RTYPE_CONTROL_JMP;
          }
 
          if (emode == EM_IMPLIED || emode == EM_ACCUMULATOR)
@@ -1413,7 +1424,8 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                }
                if (!buf_write_word(buf, off, (unsigned short)(value & 0xFFFF)) ||
                    !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2,
-                      emode == EM_IND ? O26_RTYPE_INDIRECT_JMP : 0)) {
+                      (unsigned char)((emode == EM_IND ? O26_RTYPE_INDIRECT_JMP : 0) |
+                                      reloc_intent))) {
                   writer_error(wr->ctx, stmt, "failed to write o26 address");
                   return 0;
                }

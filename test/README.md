@@ -121,6 +121,15 @@ complete logical-bank/file-index/hotspot relationship for all three mappers,
 F4's NMI-vector/selector overlap, and diagnostics for missing or
 selector-overlapping bridge corridors.
 
+`linker_banked_relocation_validation.pl` covers the first bank-aware relocation
+slice. It proves that same-bank code/data references and shared RAM references
+remain legal; that o26 retains distinct direct `JSR`, direct `JMP`, and relaxed
+conditional-branch intent; and that the linker rejects cross-bank relative and
+long branches, ROM loads, address constants, pointer words, low/high-byte
+relocations, and indirect-`JMP` vectors. Cross-bank calls and jumps receive
+their own pending-trampoline diagnostics rather than being mistaken for data
+references.
+
 `unicode_identifier_mangle.pl` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 `visual_binary_literal_codegen_test.c26` and
