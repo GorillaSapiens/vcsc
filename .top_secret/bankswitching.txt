@@ -599,18 +599,41 @@ hotspot reservations, logical symbol addresses, physical file offsets, bridge
 bytes, deterministic placement, map output, and useful errors. Tests must prove
 that BANK0 is the final physical bank in F8, F6, and F4 output.
 
-Execution tests should use the VCSC simulator after it learns the selected
-mapper, plus Stella where appropriate. A minimal diagnostic cartridge should:
+Stella is the authoritative end-to-end execution environment for bank
+switching and Superchip behavior.  The linker tests may retain small structural
+or opcode-level models for precise diagnostics, and `vcsc-sim` should eventually
+learn the same mapper descriptions, but neither substitutes for executing the
+finished cartridge image in Stella's independent F8/F6/F4/F8SC/F6SC/F4SC
+implementation.  Installed-profile certification must therefore include Stella,
+not merely compare bytes or execute a VCSC-owned mapper model.
 
-* reset correctly no matter which bank is selected initially;
-* enter BANK0 and call `main` there;
-* call into every other bank through the replicated indirect-JMP trampoline
-  table and return correctly;
-* perform nested cross-bank calls;
-* perform a one-way cross-bank jump;
-* preserve RIOT RAM and, for SC variants, cartridge RAM across switches;
-* expose a distinct visible or RAM signature from every bank;
-* retain exact frame length while switching outside critical visible timing.
+Create a visible diagnostic cartridge, parameterized or separately built for
+F8, F6, and F4, which:
+
+* is run once with every physical/file bank forced as the initial power-on bank
+  and also in repeated developer-mode runs with randomized startup-bank state;
+* resets correctly from every initial bank, enters BANK0, and calls `main` there;
+* exercises every possible ordered source-bank to destination-bank transition,
+  including self-selection where useful, through direct selector accesses,
+  cross-bank JMP, cross-bank JSR/return, and nested cross-bank calls;
+* writes known source-bank, destination-bank, transition-number, and phase
+  values into RIOT RAM before and after each switch, and verifies those values,
+  the restored source bank, and the hardware-stack balance after each return;
+* renders a distinctive PASS or FAIL sprite for every transition in a stable
+  frame.  A failure indication should identify at least the source bank,
+  destination bank, and failed phase so a screenshot is diagnostically useful;
+* emits a final unmistakable all-pass frame only after every transition has
+  completed, allowing the existing Stella screenshot/oracle machinery to grade
+  the actual cartridge;
+* retains exact frame length and performs mapper changes outside critical
+  visible timing.
+
+The Superchip versions of the diagnostic must additionally write distinct
+patterns through the write window, read them back through the read window,
+carry them across every tested bank transition, and display separate PASS/FAIL
+results for alias direction, persistence, initialization, and bounds.  Stella
+must be used to test both bank switching and Superchip operation; a local
+interpreter that repeats VCSC's own assumptions is not sufficient certification.
 
 Negative tests should cover cross-bank ROM reads, pointers, low/high-byte data
 relocations, conditional branches, indirect control flow, bridge exhaustion,
@@ -776,14 +799,26 @@ when main roadmap item 29 becomes active.
        * Install/uninstall both public profiles and compile staged diagnostics
          through each profile in `make installcheck`.
 
-[ ] 10. Make archive selection, listings, map output, and simulator execution
-       fully bank-aware.
+[ ] 10. Make archive selection, listings, map output, simulator execution,
+       and Stella certification fully bank-aware.
 
        * Preserve normal lazy archive-member selection.
        * Report each selected member's bank placement and every bridge.
        * Teach `vcsc-sim` to execute F8/F6/F4 using the same mapper description
-         or an equivalent generated sidecar.
-       * Add Stella-backed visible signatures and stable-frame tests.
+         or an equivalent generated sidecar, while keeping Stella as the
+         authoritative independent execution test.
+       * Add an example F8/F6/F4 diagnostic cartridge which tests every possible
+         ordered source-bank to destination-bank transition.  Before and after
+         each transition it writes and checks known values in RIOT RAM, verifies
+         bank restoration and stack balance, and displays a distinctive PASS or
+         FAIL sprite for that transition plus a final stable all-pass frame.
+       * Run the diagnostic in Stella with every physical bank forced as the
+         startup bank, then with developer-mode random startup-bank selection.
+         Exercise selector accesses, cross-bank JMP, cross-bank JSR/return, and
+         nested calls; grade the resulting stable frames through Stella oracles.
+       * Extend the same Stella diagnostic framework to the SC profiles when
+         they land, proving read-window/write-window direction, initialization,
+         bounds, and Superchip persistence across every bank transition.
 
 [ ] 11. Add explicit-ref Superchip profiles.
 
@@ -793,7 +828,8 @@ when main roadmap item 29 becomes active.
        * Publish scheme constants/helpers for existing
          `ref uint8_t object@[read/write]` declarations.
        * Verify shared 128-byte persistence across every bank switch and exact
-         8K/16K/32K output sizes.
+         8K/16K/32K output sizes, using Stella diagnostic cartridges in addition
+         to structural linker tests.
 
 [ ] 12. Add Automatic allocation of variables into Superchip RAM.
 
@@ -841,7 +877,9 @@ when main roadmap item 29 becomes active.
          startup.
        * Prove that bank switches preserve SC contents.
        * Define reset/reinitialization behavior explicitly.
-       * Add map, simulator, Stella, and installed-toolchain coverage.
+       * Add map, simulator, installed-toolchain, and authoritative Stella
+         diagnostic-cart coverage, including a visible PASS/FAIL result for
+         initialization, alias direction, persistence, and overflow handling.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 

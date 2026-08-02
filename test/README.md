@@ -427,6 +427,11 @@ trampoline table with weighted call-stack accounting, `main`-in-BANK0
 constrained automatic placement, `$x100` Superchip ROM boundary, and the
 required automatic Superchip-variable allocation roadmap item.
 
+The hygiene test also locks the bankswitching roadmap requirement that final
+bank-switching and Superchip execution be certified in Stella using forced and
+random startup banks, known RAM signatures, and visible per-transition
+PASS/FAIL sprites.  A VCSC-owned mapper model is not sole end-to-end evidence.
+
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace
 members remain, and that multiplication, division, and remainder do not select

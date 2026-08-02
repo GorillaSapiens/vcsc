@@ -42,6 +42,12 @@ index($bankswitching,'[x] 2. Extend the cfg parser and linker image model for mu
    or die "bankswitching plan no longer records the completed multi-bank image foundation\n";
 index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.')>=0
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
+index($bankswitching,'[ ] 10. Make archive selection, listings, map output, simulator execution,')>=0 &&
+index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
+index($bankswitching,'every possible ordered source-bank to destination-bank transition')>=0 &&
+$bankswitching =~ /displays a distinctive PASS or\s+FAIL sprite for that transition/ &&
+index($bankswitching,'proving read-window/write-window direction')>=0
+   or die "bankswitching plan lost authoritative Stella bank/Superchip diagnostics\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
 index($bankswitching,'mem superchip {')>=0 &&

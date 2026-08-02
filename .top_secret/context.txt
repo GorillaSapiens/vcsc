@@ -7972,3 +7972,25 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   Staged `make installcheck` passes with the supplied bison/flex packages.
 * Detailed bankswitching roadmap item 10, fully bank-aware archive/listing/map
   and simulator execution, is next.
+
+
+2026-08-02 14:20:00 PDT, require Stella diagnostic carts for banking and Superchip
+----------------------------------------------------------------------------------
+* Expand detailed bankswitching roadmap item 10 so Stella is the authoritative
+  independent end-to-end execution test for F8/F6/F4 and later F8SC/F6SC/F4SC
+  cartridges.  `vcsc-sim` and small test interpreters may provide useful
+  diagnostics, but they may not be the sole certification of mapper behavior.
+* Plan an example diagnostic cartridge which runs from every forced physical
+  startup bank and under Stella's randomized developer startup-bank mode, tests
+  every ordered source-bank to destination-bank transition, and covers direct
+  selector accesses, cross-bank JMP, cross-bank JSR/return, and nested calls.
+* Require each transition to write and validate known source, destination, phase,
+  and sequence values in RIOT RAM, verify bank restoration and balanced hardware
+  stack, and render a distinctive per-transition PASS or FAIL sprite followed by
+  a stable final all-pass frame suitable for the Stella screenshot/oracle tests.
+* Extend the same Stella diagnostic framework to Superchip profiles and automatic
+  allocation, proving `@[read_address/write_address]` direction, initialization,
+  bounds, and 128-byte shared-RAM persistence across every bank switch.
+* Update source-tree hygiene and test documentation so this roadmap contract
+  cannot silently regress.  Detailed roadmap item 10 remains the next unfinished
+  bankswitching action.
