@@ -34,6 +34,12 @@
  * every byte discovered only by this pass is printed with
  * discovery=second-pass-only confidence=heuristic.
  *
+ * The report also classifies cartridge bytes by bus use: fetched as code,
+ * read as data, addressed by a write, conservatively possibly touched, or
+ * untouched.  Untouched ranges are certified only when the current model has
+ * no unresolved control-flow/data accesses and no unmodeled mapper state;
+ * otherwise they are explicitly labeled confidence=not-observed.
+ *
  * Complete banks are taken from the beginning of the file.  Any final partial
  * bank is ignored.  In particular, the 2,303-byte DPC tail used by cartridges
  * such as Pitfall II (2,048 display bytes plus 255 frequency bytes) is never
@@ -82,6 +88,17 @@
 #define USE_MUTABLE_HIGH    0x04u
 #define USE_ROM_DATA        0x08u
 
+/* Independent bus-touch provenance.  A mutable instruction operand is still
+ * fetched as code even though it is intentionally not marked OTHER_OPERAND. */
+#define TOUCH_CODE_FIRST       0x01u
+#define TOUCH_CODE_SECOND      0x02u
+#define TOUCH_READ_FIRST       0x04u
+#define TOUCH_READ_SECOND      0x08u
+#define TOUCH_WRITE_FIRST      0x10u
+#define TOUCH_WRITE_SECOND     0x20u
+#define TOUCH_POSSIBLE_FIRST   0x40u
+#define TOUCH_POSSIBLE_SECOND  0x80u
+
 #define CAND_ABSOLUTE       0x01u
 #define CAND_VECTOR_NMI     0x02u
 #define CAND_VECTOR_RESET   0x04u
@@ -117,6 +134,7 @@ typedef enum {
 
 typedef struct {
    uint8_t uses;
+   uint8_t touch_flags;
    uint8_t candidate_kinds;
    uint8_t candidate_passes;
    uint16_t first_pc;
@@ -175,7 +193,18 @@ typedef struct {
    size_t instruction_count;
    size_t second_instruction_count;
    size_t second_component_count;
+   size_t second_unresolved_memory_accesses;
 } analysis_t;
+
+typedef struct {
+   size_t code_first;
+   size_t code_second_only;
+   size_t data_read;
+   size_t write_addressed;
+   size_t possible_touch;
+   size_t untouched_proven;
+   size_t not_observed_uncertain;
+} touch_counts_t;
 
 #define I  AM_IMPLIED
 #define A  AM_ACCUMULATOR
@@ -390,19 +419,64 @@ static void remember_candidate(analysis_t *a, size_t bank_offset,
    info->candidate_passes |= discovery_pass;
 }
 
-static void mark_rom_data_byte(analysis_t *a, uint16_t address)
+static uint8_t touch_code_flag(uint8_t discovery_pass)
 {
-   size_t offset;
-   if (address_to_bank_offset(a, address, &offset))
-      a->byte_info[offset].uses |= USE_ROM_DATA;
+   return (discovery_pass & DISCOVERY_FIRST_PASS) != 0
+      ? TOUCH_CODE_FIRST : TOUCH_CODE_SECOND;
 }
 
-static void mark_possible_indexed_rom_data(analysis_t *a, uint16_t base)
+static void mark_rom_data_byte_pass(analysis_t *a, uint16_t address,
+                                    uint8_t discovery_pass)
+{
+   size_t offset;
+   if (address_to_bank_offset(a, address, &offset)) {
+      a->byte_info[offset].uses |= USE_ROM_DATA;
+      a->byte_info[offset].touch_flags |=
+         (discovery_pass & DISCOVERY_FIRST_PASS) != 0
+            ? TOUCH_READ_FIRST : TOUCH_READ_SECOND;
+   }
+}
+
+static void mark_rom_data_byte(analysis_t *a, uint16_t address)
+{
+   mark_rom_data_byte_pass(a, address, DISCOVERY_FIRST_PASS);
+}
+
+static void mark_write_address_byte_pass(analysis_t *a, uint16_t address,
+                                         uint8_t discovery_pass)
+{
+   size_t offset;
+   if (address_to_bank_offset(a, address, &offset)) {
+      a->byte_info[offset].touch_flags |=
+         (discovery_pass & DISCOVERY_FIRST_PASS) != 0
+            ? TOUCH_WRITE_FIRST : TOUCH_WRITE_SECOND;
+   }
+}
+
+static void mark_possible_touch_byte_pass(analysis_t *a, uint16_t address,
+                                          int may_read,
+                                          uint8_t discovery_pass)
+{
+   size_t offset;
+   if (address_to_bank_offset(a, address, &offset)) {
+      if (may_read)
+         a->byte_info[offset].uses |= USE_ROM_DATA;
+      a->byte_info[offset].touch_flags |=
+         (discovery_pass & DISCOVERY_FIRST_PASS) != 0
+            ? TOUCH_POSSIBLE_FIRST : TOUCH_POSSIBLE_SECOND;
+   }
+}
+
+static void mark_possible_indexed_touch(analysis_t *a, uint16_t base,
+                                        int may_read,
+                                        uint8_t discovery_pass)
 {
    unsigned i;
    for (i = 0; i <= 0xffu; ++i)
-      mark_rom_data_byte(a, (uint16_t)(base + i));
+      mark_possible_touch_byte_pass(a, (uint16_t)(base + i), may_read,
+                                    discovery_pass);
 }
+
 
 static int state_zp_is_known(const abstract_state_t *state, uint8_t address)
 {
@@ -571,9 +645,12 @@ static void mark_instruction_bytes(analysis_t *a, uint16_t pc,
                                    uint8_t discovery_pass)
 {
    unsigned i;
+   uint8_t code_touch = touch_code_flag(discovery_pass);
    a->byte_info[offsets[0]].uses |= USE_OPCODE;
+   a->byte_info[offsets[0]].touch_flags |= code_touch;
 
    for (i = 1; i < length; ++i) {
+      a->byte_info[offsets[i]].touch_flags |= code_touch;
       if (i == 2 && mode_has_absolute_operand(mode)) {
          uint16_t address = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
          if ((bytes[2] & 0x10u) != 0 && operand_high_is_bus_only(opcode)) {
@@ -996,35 +1073,45 @@ static void mark_direct_and_indirect_data_access(analysis_t *a,
    uint16_t operand = bytes[1];
    uint16_t address;
    uint16_t pointer;
+   int writes = opcode_writes_memory(opcode);
+   int reads = !opcode_is_write_only(opcode);
 
    if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE ||
-       flow == FLOW_JMP_INDIRECT || opcode_is_write_only(opcode))
+       flow == FLOW_JMP_INDIRECT)
       return;
 
    if (mode_has_absolute_operand(mode))
       operand |= (uint16_t)bytes[2] << 8;
 
+#define MARK_EXACT(addr) do { \
+   if (reads) mark_rom_data_byte(a, (addr)); \
+   if (writes) mark_write_address_byte_pass(a, (addr), DISCOVERY_FIRST_PASS); \
+} while (0)
+#define MARK_POSSIBLE(base) do { \
+   mark_possible_indexed_touch(a, (base), reads, DISCOVERY_FIRST_PASS); \
+} while (0)
+
    switch (mode) {
    case AM_ABSOLUTE:
-      mark_rom_data_byte(a, operand);
+      MARK_EXACT(operand);
       break;
    case AM_ABSOLUTE_X:
       if (state->x_known)
-         mark_rom_data_byte(a, (uint16_t)(operand + state->x));
+         MARK_EXACT((uint16_t)(operand + state->x));
       else
-         mark_possible_indexed_rom_data(a, operand);
+         MARK_POSSIBLE(operand);
       break;
    case AM_ABSOLUTE_Y:
       if (state->y_known)
-         mark_rom_data_byte(a, (uint16_t)(operand + state->y));
+         MARK_EXACT((uint16_t)(operand + state->y));
       else
-         mark_possible_indexed_rom_data(a, operand);
+         MARK_POSSIBLE(operand);
       break;
    case AM_INDEXED_INDIRECT:
       if (state->x_known &&
           resolve_zp_word(state,
                           (uint8_t)((uint8_t)operand + state->x), &address)) {
-         mark_rom_data_byte(a, address);
+         MARK_EXACT(address);
          a->resolved_dynamic_pc[pc] = 1;
       }
       else {
@@ -1034,9 +1121,9 @@ static void mark_direct_and_indirect_data_access(analysis_t *a,
    case AM_INDIRECT_INDEXED:
       if (resolve_zp_word(state, (uint8_t)operand, &pointer)) {
          if (state->y_known)
-            mark_rom_data_byte(a, (uint16_t)(pointer + state->y));
+            MARK_EXACT((uint16_t)(pointer + state->y));
          else
-            mark_possible_indexed_rom_data(a, pointer);
+            MARK_POSSIBLE(pointer);
          a->resolved_dynamic_pc[pc] = 1;
       }
       else {
@@ -1046,6 +1133,9 @@ static void mark_direct_and_indirect_data_access(analysis_t *a,
    default:
       break;
    }
+
+#undef MARK_POSSIBLE
+#undef MARK_EXACT
 }
 
 typedef enum {
@@ -1996,13 +2086,53 @@ static int second_trace_conflicts_with_committed(const analysis_t *a,
    return 0;
 }
 
+static void mark_second_pass_memory_access(analysis_t *a, uint8_t opcode,
+                                           address_mode_t mode,
+                                           const uint8_t bytes[3])
+{
+   flow_kind_t flow = instruction_flow(opcode);
+   uint16_t operand = bytes[1];
+   int writes = opcode_writes_memory(opcode);
+   int reads = !opcode_is_write_only(opcode);
+
+   if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE ||
+       flow == FLOW_JMP_INDIRECT)
+      return;
+   if (mode_has_absolute_operand(mode))
+      operand |= (uint16_t)bytes[2] << 8;
+
+   switch (mode) {
+   case AM_ABSOLUTE:
+      if (reads)
+         mark_rom_data_byte_pass(a, operand, DISCOVERY_SECOND_PASS);
+      if (writes)
+         mark_write_address_byte_pass(a, operand, DISCOVERY_SECOND_PASS);
+      break;
+   case AM_ABSOLUTE_X:
+   case AM_ABSOLUTE_Y:
+      /* The heuristic pass records the 256-byte range as possibly touched,
+       * but does not strengthen its pre-existing candidate-elimination rules. */
+      mark_possible_indexed_touch(a, operand, 0,
+                                  DISCOVERY_SECOND_PASS);
+      break;
+   case AM_INDEXED_INDIRECT:
+   case AM_INDIRECT_INDEXED:
+      ++a->second_unresolved_memory_accesses;
+      break;
+   default:
+      break;
+   }
+}
+
 static void commit_second_trace(analysis_t *a, const second_trace_t *trace)
 {
    size_t offset;
 
    for (offset = 0; offset < a->bank_size; ++offset) {
-      if (trace->data[offset])
+      if (trace->data[offset]) {
          a->byte_info[offset].uses |= USE_ROM_DATA;
+         a->byte_info[offset].touch_flags |= TOUCH_READ_SECOND;
+      }
    }
 
    for (offset = 0; offset < a->bank_size; ++offset) {
@@ -2025,6 +2155,7 @@ static void commit_second_trace(analysis_t *a, const second_trace_t *trace)
 
       mark_instruction_bytes(a, pc, bytes[0], mode, bytes, offsets, length,
                              DISCOVERY_SECOND_PASS);
+      mark_second_pass_memory_access(a, bytes[0], mode, bytes);
       a->second_opcode[offset] = 1;
       for (i = 1; i < length; ++i)
          a->second_operand[offsets[i]] = 1;
@@ -2246,8 +2377,11 @@ static int read_vector(analysis_t *a, uint16_t vector_address,
       return 0;
    }
 
-   /* Vector low bytes are ordinary data and are never mutation candidates. */
+   /* Vector bytes are fetched by the CPU; only a valid high byte can be a
+    * mutation candidate. */
    a->byte_info[low_offset].uses |= USE_ROM_DATA;
+   a->byte_info[low_offset].touch_flags |= TOUCH_READ_FIRST;
+   a->byte_info[high_offset].touch_flags |= TOUCH_READ_FIRST;
    *target = (uint16_t)(low | ((uint16_t)high << 8));
 
    /*
@@ -2364,6 +2498,117 @@ static size_t print_candidates(const analysis_t *a,
    return count;
 }
 
+static int touch_is_observed(uint8_t flags)
+{
+   return (flags & (TOUCH_CODE_FIRST | TOUCH_CODE_SECOND |
+                    TOUCH_READ_FIRST | TOUCH_READ_SECOND |
+                    TOUCH_WRITE_FIRST | TOUCH_WRITE_SECOND)) != 0;
+}
+
+static void print_byte_range(const analysis_t *a, const char *kind,
+                             size_t first, size_t last,
+                             const char *extra)
+{
+   printf("%s bank=%zu file_offsets=0x%zx-0x%zx "
+          "bank_offsets=0x%03zx-0x%03zx length=%zu%s%s\n",
+          kind, a->bank_index,
+          a->bank_file_offset + first, a->bank_file_offset + last,
+          first, last, last - first + 1u,
+          extra[0] != '\0' ? " " : "", extra);
+}
+
+static touch_counts_t print_touch_report(const analysis_t *a,
+                                         int confidence_is_limited,
+                                         const char *uncertainty)
+{
+   touch_counts_t counts;
+   size_t offset;
+   size_t start;
+
+   memset(&counts, 0, sizeof(counts));
+   for (offset = 0; offset < a->bank_size; ++offset) {
+      uint8_t flags = a->byte_info[offset].touch_flags;
+      if ((flags & TOUCH_CODE_FIRST) != 0)
+         ++counts.code_first;
+      if ((flags & TOUCH_CODE_SECOND) != 0 &&
+          (flags & TOUCH_CODE_FIRST) == 0)
+         ++counts.code_second_only;
+      if ((flags & (TOUCH_READ_FIRST | TOUCH_READ_SECOND)) != 0)
+         ++counts.data_read;
+      if ((flags & (TOUCH_WRITE_FIRST | TOUCH_WRITE_SECOND)) != 0)
+         ++counts.write_addressed;
+      if (!touch_is_observed(flags) &&
+          (flags & (TOUCH_POSSIBLE_FIRST | TOUCH_POSSIBLE_SECOND)) != 0)
+         ++counts.possible_touch;
+      if (flags == 0) {
+         if (confidence_is_limited)
+            ++counts.not_observed_uncertain;
+         else
+            ++counts.untouched_proven;
+      }
+   }
+
+   offset = 0;
+   while (offset < a->bank_size) {
+      if (a->byte_info[offset].touch_flags != 0) {
+         ++offset;
+         continue;
+      }
+      start = offset;
+      while (offset + 1u < a->bank_size &&
+             a->byte_info[offset + 1u].touch_flags == 0)
+         ++offset;
+      if (confidence_is_limited) {
+         char detail[192];
+         (void)snprintf(detail, sizeof(detail),
+                        "confidence=not-observed uncertainty=%s", uncertainty);
+         print_byte_range(a, "untouched", start, offset, detail);
+      }
+      else {
+         print_byte_range(a, "untouched", start, offset,
+                          "confidence=proven-under-current-model");
+      }
+      ++offset;
+   }
+
+   offset = 0;
+   while (offset < a->bank_size) {
+      uint8_t flags = a->byte_info[offset].touch_flags;
+      if (touch_is_observed(flags) ||
+          (flags & (TOUCH_POSSIBLE_FIRST | TOUCH_POSSIBLE_SECOND)) == 0) {
+         ++offset;
+         continue;
+      }
+      start = offset;
+      while (offset + 1u < a->bank_size) {
+         flags = a->byte_info[offset + 1u].touch_flags;
+         if (touch_is_observed(flags) ||
+             (flags & (TOUCH_POSSIBLE_FIRST | TOUCH_POSSIBLE_SECOND)) == 0)
+            break;
+         ++offset;
+      }
+      print_byte_range(a, "possibly_touched", start, offset,
+                       "confidence=possible source=indexed-address-range");
+      ++offset;
+   }
+
+   printf("bank=%zu bytes_fetched_as_code_first_pass=%zu\n",
+          a->bank_index, counts.code_first);
+   printf("bank=%zu bytes_fetched_as_code_second_pass_only=%zu\n",
+          a->bank_index, counts.code_second_only);
+   printf("bank=%zu bytes_read_as_data=%zu\n",
+          a->bank_index, counts.data_read);
+   printf("bank=%zu bytes_write_addressed=%zu\n",
+          a->bank_index, counts.write_addressed);
+   printf("bank=%zu bytes_possibly_touched=%zu\n",
+          a->bank_index, counts.possible_touch);
+   printf("bank=%zu bytes_untouched_proven=%zu\n",
+          a->bank_index, counts.untouched_proven);
+   printf("bank=%zu bytes_not_observed_uncertain=%zu\n",
+          a->bank_index, counts.not_observed_uncertain);
+   return counts;
+}
+
 static int choose_bank_layout(analysis_t *a)
 {
    if (a->file_size == TWO_K_SIZE) {
@@ -2431,6 +2676,7 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
    a->instruction_count = 0;
    a->second_instruction_count = 0;
    a->second_component_count = 0;
+   a->second_unresolved_memory_accesses = 0;
 }
 
 static int allocate_analysis_tables(analysis_t *a)
@@ -2494,7 +2740,9 @@ static int analyze(uint8_t *cart, size_t size)
    size_t total_unresolved_dynamic = 0;
    size_t total_resolved_dynamic = 0;
    size_t total_truncated = 0;
+   touch_counts_t total_touch;
 
+   memset(&total_touch, 0, sizeof(total_touch));
    memset(&a, 0, sizeof(a));
    a.cart = cart;
    a.file_size = size;
@@ -2537,6 +2785,9 @@ static int analyze(uint8_t *cart, size_t size)
       size_t unresolved_dynamic;
       size_t resolved_dynamic;
       size_t truncated;
+      int touch_confidence_limited;
+      char touch_uncertainty[160];
+      touch_counts_t touch;
 
       memset(&initial_state, 0, sizeof(initial_state));
       reset_bank_analysis(&a, bank_index);
@@ -2576,6 +2827,29 @@ static int analyze(uint8_t *cart, size_t size)
       resolved_dynamic = count_flags(a.resolved_dynamic_pc);
       truncated = count_flags(a.truncated_pc);
 
+      touch_uncertainty[0] = '\0';
+#define ADD_UNCERTAINTY(word) do { \
+   if (touch_uncertainty[0] != '\0') \
+      (void)strncat(touch_uncertainty, "+", \
+                    sizeof(touch_uncertainty) - strlen(touch_uncertainty) - 1u); \
+   (void)strncat(touch_uncertainty, (word), \
+                 sizeof(touch_uncertainty) - strlen(touch_uncertainty) - 1u); \
+} while (0)
+      if (a.bank_count > 1u)
+         ADD_UNCERTAINTY("mapper-unmodeled");
+      if (unresolved != 0 || unresolved_rts != 0)
+         ADD_UNCERTAINTY("unresolved-control-flow");
+      if (unresolved_dynamic != 0 ||
+          a.second_unresolved_memory_accesses != 0)
+         ADD_UNCERTAINTY("unresolved-data-access");
+      if (truncated != 0)
+         ADD_UNCERTAINTY("truncated-instruction");
+      touch_confidence_limited = touch_uncertainty[0] != '\0';
+      touch = print_touch_report(&a, touch_confidence_limited,
+                                 touch_confidence_limited
+                                    ? touch_uncertainty : "none");
+#undef ADD_UNCERTAINTY
+
       printf("bank=%zu reachable_instruction_starts=%zu\n",
              a.bank_index, a.instruction_count);
       printf("bank=%zu second_pass_inferred_instruction_starts=%zu\n",
@@ -2610,6 +2884,8 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, resolved_dynamic);
       printf("bank=%zu unresolved_indirect_data_accesses=%zu\n",
              a.bank_index, unresolved_dynamic);
+      printf("bank=%zu second_pass_unresolved_memory_accesses=%zu\n",
+             a.bank_index, a.second_unresolved_memory_accesses);
       printf("bank=%zu truncated_instructions=%zu\n",
              a.bank_index, truncated);
 
@@ -2630,6 +2906,13 @@ static int analyze(uint8_t *cart, size_t size)
       total_unresolved_dynamic += unresolved_dynamic;
       total_resolved_dynamic += resolved_dynamic;
       total_truncated += truncated;
+      total_touch.code_first += touch.code_first;
+      total_touch.code_second_only += touch.code_second_only;
+      total_touch.data_read += touch.data_read;
+      total_touch.write_addressed += touch.write_addressed;
+      total_touch.possible_touch += touch.possible_touch;
+      total_touch.untouched_proven += touch.untouched_proven;
+      total_touch.not_observed_uncertain += touch.not_observed_uncertain;
    }
 
    printf("total_reachable_instruction_starts=%zu\n", total_instructions);
@@ -2661,6 +2944,19 @@ static int analyze(uint8_t *cart, size_t size)
    printf("total_unresolved_indirect_data_accesses=%zu\n",
           total_unresolved_dynamic);
    printf("total_truncated_instructions=%zu\n", total_truncated);
+   printf("total_bytes_fetched_as_code_first_pass=%zu\n",
+          total_touch.code_first);
+   printf("total_bytes_fetched_as_code_second_pass_only=%zu\n",
+          total_touch.code_second_only);
+   printf("total_bytes_read_as_data=%zu\n", total_touch.data_read);
+   printf("total_bytes_write_addressed=%zu\n",
+          total_touch.write_addressed);
+   printf("total_bytes_possibly_touched=%zu\n",
+          total_touch.possible_touch);
+   printf("total_bytes_untouched_proven=%zu\n",
+          total_touch.untouched_proven);
+   printf("total_bytes_not_observed_uncertain=%zu\n",
+          total_touch.not_observed_uncertain);
 
    if (total_second_instructions != 0) {
       fprintf(stderr,
