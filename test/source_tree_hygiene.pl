@@ -44,6 +44,12 @@ index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
+index($bankswitching,'mem superchip {')>=0 &&
+index($bankswitching,'$read_start:  0xF080')>=0 &&
+index($bankswitching,'$write_start: 0xF000')>=0 &&
+index($bankswitching,'ref uint8_t foo@[0xF080/0xF000];')>=0 &&
+index($bankswitching,'superchip uint8_t buffer[32];')>=0
+   or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 index($bankswitching,'[ ] 13. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
@@ -71,6 +77,12 @@ index($bankswitching,'[x] 8. Add and certify `vcs_8k_f8.cfg`.')>=0
 -f File::Spec->catfile($test,'vcs_f8_profile.pl') &&
 -f File::Spec->catfile($test,'fixtures','bankswitching','f8_profile_diagnostic.c26')
    or die "certified F8 profile or its diagnostics are missing\n";
+index($bankswitching,'[x] 9. Add F6 and F4 through the same implementation.')>=0
+   or die "bankswitching plan no longer records certified F6/F4 profiles\n";
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_f6.cfg') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_32k_f4.cfg') &&
+-f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
+   or die "certified F6/F4 profiles or their regression test are missing\n";
 $bankswitching =~ /The linker pins unmarked\s+`main`/ &&
 $bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";

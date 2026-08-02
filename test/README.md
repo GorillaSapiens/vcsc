@@ -149,6 +149,16 @@ possible initially selected file chunk and proves the reset bridge reaches
 BANK0 and nested calls restore banks and hardware-stack returns correctly.
 `make installcheck` repeats the source build with the staged installed profile.
 
+`vcs_f6_f4_profiles.pl` certifies the installed `vcs_16k_f6.cfg` and
+`vcs_32k_f4.cfg` profiles through the same linker implementation.  It places a
+nested call-chain function in every logical bank, starts execution from every
+possible initially selected physical chunk, exercises every selector on the
+outward and return paths, locks BANK3..BANK0 and BANK7..BANK0 file order,
+reserved hotspot bytes, byte-identical trampoline/vector corridors, F4's NMI
+vector/hotspot overlap, balanced stack restoration, map identities, and exact
+16384/32768-byte output.  `make installcheck` also builds staged diagnostics
+through both installed profiles.
+
 `linker_banked_auto_placement.pl` covers deterministic roadmap-item-7 placement.
 It links the same fixture twice, pins runtime and `main` to BANK0, spills an
 unpinned function by capacity, keeps a call-connected function home, collapses a

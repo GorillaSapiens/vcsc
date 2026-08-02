@@ -7932,3 +7932,43 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   before packaging, so the delivered diff contains only the intended roadmap,
   profile, test, Makefile, fixture, and documentation changes rather than a
   gratuitous rebuild of every host tool.
+
+
+2026-08-02 13:46:34 PDT, certify public F6/F4 profiles and lock Superchip allocation spelling
+------------------------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 9 by adding the public installed
+  `libraries/vcs/vcs_16k_f6.cfg` and `libraries/vcs/vcs_32k_f4.cfg` profiles
+  through the existing full-window implementation.  F6 writes VCSC
+  BANK3/BANK2/BANK1/BANK0 in physical-file order with `$1FF6-$1FF9`; F4 writes
+  BANK7 through BANK0 with `$1FF4-$1FFB`.  BANK0 remains the `$F000` home bank
+  and final file chunk in both profiles.
+* Reserve the same `$xF00-$xFDF` trampoline table, `$xFE0-$xFF1` vector bridge,
+  `$xFF2-$xFF9` tail, and `$xFFA-$xFFF` vectors in every physical bank.  F4's
+  `$1FFA/$1FFB` NMI-vector overlap remains deterministic because every physical
+  bank contains identical vector bytes and the fetch finishes with BANK0
+  selected.
+* Add `test/vcs_f6_f4_profiles.pl`.  It assembles a nested call chain with one
+  function in every logical bank, starts from every possible initially selected
+  physical chunk, exercises every mapper selector on outward and return paths,
+  verifies LIFO bank restoration and balanced hardware stack, locks exact
+  logical-bank/file-index/hotspot map identities, byte-identical common
+  corridors, reserved hotspot bytes, F4 vector overlap, and exact 16K/32K image
+  sizes.
+* Install and uninstall both profiles, extend staged `make installcheck` to
+  compile diagnostics through F8, F6, and F4, and update the VCS catalog,
+  driver/linker/test documentation, generic-target retention, and source-tree
+  hygiene checks.
+* Lock the planned automatic Superchip allocation spelling and address order in
+  `.top_secret/bankswitching.txt`: an SC header will define
+  `mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };`,
+  applications will write `superchip uint8_t foo;`, and the explicit equivalent
+  is `ref uint8_t foo@[0xF080/0xF000];`.  Existing syntax is always
+  `@[read_address/write_address]`; loads use the read alias and stores,
+  initializers, and BSS clearing use the write alias.  The 128 bytes are one
+  shared physical region across every bank.
+* Verification: all 344 compile-only tests pass.  All 210 end-to-end/generic
+  tests pass; the ordered run reached 165 before the command window and the
+  remaining 45 passed in two groups of 22 plus the one legacy legal-byte test.
+  Staged `make installcheck` passes with the supplied bison/flex packages.
+* Detailed bankswitching roadmap item 10, fully bank-aware archive/listing/map
+  and simulator execution, is next.

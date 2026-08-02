@@ -35,6 +35,8 @@ for my $parts (
    [qw(libraries vcs vcs.c26)],
    [qw(libraries vcs vcs_4k.cfg)],
    [qw(libraries vcs vcs_8k_f8.cfg)],
+   [qw(libraries vcs vcs_16k_f6.cfg)],
+   [qw(libraries vcs vcs_32k_f4.cfg)],
    [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],
    [qw(libraries vcs legacy-basic-renderers multisprite multisprite_renderer.asm)],
    [qw(test machine_6502.c26)],

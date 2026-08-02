@@ -15,7 +15,9 @@ Files:
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `vcs_8k_f8.cfg` ... installed two-bank F8 profile with VCSC BANK1 at `$D000` first in the file, BANK0 at `$F000` last, `$1FF8/$1FF9` selectors, byte-identical trampoline/vector corridors, and deterministic automatic placement
+- `vcs_8k_f8.cfg` ... installed two-bank F8 profile; BANK1 first, BANK0 last, exact 8K output
+- `vcs_16k_f6.cfg` ... installed four-bank F6 profile; BANK3 through BANK0 in file order, exact 16K output
+- `vcs_32k_f4.cfg` ... installed eight-bank F4 profile; BANK7 through BANK0 in file order, exact 32K output and deterministic vector/hotspot overlap handling
 - `color_ntsc.c26` ... readable aliases defined through the compile-time `__builtin_ntsc_rgb(r, g, b)` NTSC palette matcher
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
@@ -195,18 +197,30 @@ vcsc -I libraries/vcs source.c26 -o game.bin
 A `.bin` output name asks the linker for a contiguous flat binary; this VCS
 layout produces exactly 4096 bytes mapped at `$F000-$FFFF`.
 
-Build an 8K F8 cartridge explicitly:
+Build a full-window bank-switched cartridge explicitly:
 
 ```sh
-vcsc -I libraries/vcs -T libraries/vcs/vcs_8k_f8.cfg source.c26 -o game.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs_8k_f8.cfg  source.c26 -o game-f8.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs_16k_f6.cfg source.c26 -o game-f6.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs_32k_f4.cfg source.c26 -o game-f4.bin
 ```
 
-The F8 profile writes VCSC BANK1 (`$D000-$DFFF`) as the first 4K file chunk and
-VCSC BANK0 (`$F000-$FFFF`) as the second and startup chunk.  F8 hotspot `$1FF8`
-selects the first chunk/BANK1; `$1FF9` selects the second chunk/BANK0.  Ordinary
-allocation occupies `$D000-$DEFF` and `$F000-$FEFF`; the remaining `$xF00-$xFFF`
-area in both banks is reserved for the common trampoline table, vector bridge,
-hotspots, and vectors.
+The profiles use descending VCSC logical banks with BANK0 at `$F000-$FFFF` as
+the home/startup bank and final 4K file chunk.  File order and selectors are:
+
+```text
+profile  first file chunk          final file chunk          selector range
+-------  ------------------------  ------------------------  --------------
+F8       BANK1 $D000 via $1FF8     BANK0 $F000 via $1FF9    $1FF8-$1FF9
+F6       BANK3 $9000 via $1FF6     BANK0 $F000 via $1FF9    $1FF6-$1FF9
+F4       BANK7 $1000 via $1FF4     BANK0 $F000 via $1FFB    $1FF4-$1FFB
+```
+
+Every bank allocates ordinary ROM only through `$xEFF`.  `$xF00-$xFDF` is the
+byte-identical trampoline table, `$xFE0-$xFF1` is the byte-identical vector
+bridge, and the remaining tail contains reserved selector bytes and vectors.
+F4 selectors `$1FFA/$1FFB` overlap the NMI vector bytes; identical vectors in
+every physical bank make the fetch deterministic and leave BANK0 selected.
 
 Unmarked functions and const objects are placed automatically.  Hard source
 pins use named memory modifiers matching the profile:
@@ -231,7 +245,7 @@ Notes:
 - Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
-- `vcs_8k_f8.cfg` is opt-in with `-T`; it is installed beside `vcs_4k.cfg` and always emits exactly 8192 bytes.
+- `vcs_8k_f8.cfg`, `vcs_16k_f6.cfg`, and `vcs_32k_f4.cfg` are opt-in with `-T`; they are installed beside `vcs_4k.cfg` and emit exactly 8192, 16384, and 32768 bytes.
 - `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. A linker configuration may add `callstack_extra` bytes for hardware-stack use declared by an included assembly module. Both maintained standard-renderer objects export their assembly-initiated overscan-hook edge and use four supplementary bytes for the deeper internal mask-preparation chain. Arbitrary inline-assembly pushes and stack-pointer manipulation are still not inferred.

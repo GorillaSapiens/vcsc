@@ -527,9 +527,34 @@ contract must preserve both aliases for each allocated object:
 * map usage counts the shared 128 physical bytes once, not once per alias or
   once per bank.
 
-A likely future source model is a named Superchip memory region with separate
-read and write bases, but its spelling is intentionally not fixed here. The
-existing `@[read/write]` behavior is the semantic baseline.
+Automatic allocation uses the existing named-memory declaration model rather
+than adding a built-in `superchip` type or keyword.  An SC machine/profile
+header will define a split-address region conceptually as:
+
+    mem superchip {
+        $read_start:  0xF080
+        $write_start: 0xF000
+        $size:        0x80
+        $rw
+    };
+
+Applications then request ordinary allocated objects in that region:
+
+    superchip uint8_t foo;
+    superchip uint8_t buffer[32];
+
+The ordering is deliberately the same as the already implemented explicit-ref
+syntax: `@[read_address/write_address]`.  Thus the explicit spelling equivalent
+to the first allocated byte is:
+
+    ref uint8_t foo@[0xF080/0xF000];
+
+Loads use `$F080+offset`; stores, BSS clearing, and initializer copies use
+`$F000+offset`.  The source header supplies the region name and aliases so an
+application does not repeat mapper constants.  The linker treats this as one
+shared 128-byte physical allocation, not BANK0-owned storage merely because the
+canonical aliases use the `$Fxxx` mirror.  Code in every selected bank may use
+the same allocated object without a bank switch.
 
 Normal cold-start startup initializes automatically allocated SC DATA/BSS just
 as it initializes RIOT RAM, but stores through the write window. Bank switching
@@ -738,13 +763,18 @@ when main roadmap item 29 becomes active.
          nested return, byte-identical common corridors, vectors, selector use,
          map output, staged installation, and exact 8192-byte image size.
 
-[ ] 9. Add F6 and F4 through the same implementation.
+[x] 9. Add F6 and F4 through the same implementation.
 
-       * Add `vcs_16k_f6.cfg` and `vcs_32k_f4.cfg` without mapper-specific linker
-         forks.
-       * Exercise every bank, every selector, per-bank reset, nested calls, file
-         order, reserved hotspots, and exact 16K/32K sizes.
-       * Keep BANK0 at $F000 and last in both files.
+       * Add and install `vcs_16k_f6.cfg` and `vcs_32k_f4.cfg` without
+         mapper-specific linker forks.
+       * Exercise every logical bank and every selector with nested cross-bank
+         calls, reset from every initially selected physical chunk, exact file
+         order, byte-identical trampoline/vector corridors, reserved hotspot
+         bytes, F4's NMI-vector/selector overlap, and exact 16K/32K sizes.
+       * Keep BANK0 at $F000 and last in both files; certify F6 physical/file
+         BANK3..BANK0 order and F4 physical/file BANK7..BANK0 order.
+       * Install/uninstall both public profiles and compile staged diagnostics
+         through each profile in `make installcheck`.
 
 [ ] 10. Make archive selection, listings, map output, and simulator execution
        fully bank-aware.
@@ -767,10 +797,17 @@ when main roadmap item 29 becomes active.
 
 [ ] 12. Add Automatic allocation of variables into Superchip RAM.
 
-       * Define a named allocated-memory contract with separate read and write
-         bases for one shared 128-byte physical region.
+       * Define `mem superchip { $read_start:0xF080 $write_start:0xF000
+         $size:0x80 $rw };` through the SC machine/profile header and allocate
+         objects with ordinary named-region syntax such as
+         `superchip uint8_t foo;` and `superchip uint8_t buffer[32];`.
+       * Lock the existing split-address order: explicit refs are
+         `@[read_address/write_address]`, so the first SC byte is equivalent to
+         `ref uint8_t foo@[0xF080/0xF000];`.  Loads use the read alias; stores,
+         initializer copies, and BSS clearing use the write alias.
        * Preserve both aliases through compiler metadata, o26, linker layout,
-         loads, stores, initialization, and map output.
+         loads, stores, initialization, and map output while treating the region
+         as shared across all selected banks rather than owned by BANK0.
        * Start with persistent globals and arrays.
        * Reject address-taking, pointer decay, and unsupported `ref` passing.
        * Count physical occupancy once and provide deterministic overflow
