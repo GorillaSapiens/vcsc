@@ -137,6 +137,11 @@ call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
 
+`fp_removed.pl` independently locks that the linker still reserves exactly two
+bytes per weighted hardware-return slot (never the obsolete four-byte frame-
+pointer-era allowance) and never lets weighted depth fall below ordinary call
+depth.
+
 `unicode_identifier_mangle.pl` is a focused stage test for UTF-8 identifiers. It verifies lexer-level malformed UTF-8 rejection, readable `?uXXXX?` symbol escaping in generated assembly, assembler/linker acceptance, and simulator execution.
 
 `visual_binary_literal_codegen_test.c26` and

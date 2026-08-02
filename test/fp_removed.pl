@@ -37,11 +37,13 @@ for my $path (
 }
 
 my $linker = slurp(File::Spec->catfile($repo, 'linker', 'vcsc_ld.c'));
-$linker =~ /bytes\s*=\s*\(uint32_t\)depth\s*\*\s*2u/
-   or die "linker no longer reserves two hardware-stack bytes per call depth\n";
+$linker =~ /bytes\s*=\s*\(uint32_t\)weighted_depth\s*\*\s*2u/
+   or die "linker no longer reserves two hardware-stack bytes per weighted call depth\n";
+$linker =~ /if\s*\(weighted_depth\s*<\s*depth\)\s*weighted_depth\s*=\s*depth/s
+   or die "linker can reserve fewer hardware-stack slots than the ordinary call depth\n";
 $linker =~ /if\s*\(init_count\s*>\s*0\)\s*bytes\s*\+=\s*2u/s
    or die "linker does not reserve the stock startup's init cursor\n";
-$linker !~ /bytes\s*=\s*\(uint32_t\)depth\s*\*\s*4u/
+$linker !~ /bytes\s*=\s*\(uint32_t\)(?:depth|weighted_depth)\s*\*\s*4u/
    or die "linker still includes the old frame-pointer preservation allowance\n";
 
 my $source = File::Spec->catfile($tmp, 'fp_name.c26');

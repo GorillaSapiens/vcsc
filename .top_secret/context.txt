@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260802_024636.tar.gz
+    vcsc.20260802_030441.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7813,3 +7813,25 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   deterministic groups of 27 and 16 after outer command time limits. Focused
   bank image, reset bridge, relocation/JSR, weighted-stack, and source-hygiene
   tests pass. Staged `make installcheck` passes.
+
+2026-08-02 10:59:18 PDT, repair stale frame-pointer-removal stack assertion
+----------------------------------------------------------------------------
+* Fix `test/fp_removed.pl`, which still required the pre-bankswitching source
+  spelling `bytes = (uint32_t)depth * 2u`.  Bankswitching roadmap item 6
+  intentionally changed the reservation basis to `weighted_depth`, where every
+  active source call contributes one return-address slot and every active
+  cross-bank edge contributes one additional trampoline return-address slot.
+* Keep the original regression's real ABI requirement: reserve exactly two
+  bytes per hardware return-address slot, never the obsolete four bytes per
+  source-call depth used while frame-pointer state was pushed.  Also require
+  the linker's weighted depth to be clamped to at least the ordinary call depth.
+* This is a test repair rather than a linker semantic change.  The linker was
+  already reserving the correct `2 * weighted_depth` bytes; the stale textual
+  assertion caused `make test` to report 206/207 despite the focused weighted
+  call-stack test passing.
+* Update the current source-lineage input archive to
+  `vcsc.20260802_030441.tar.gz`.
+* Verification: the repaired `fp_removed.pl` passes directly; all 341
+  compile-only tests pass; all 207 end-to-end/generic tests pass (the first
+  complete-order run reached 164 before the command window, then the final 43
+  passed as groups of 18 and 25); and staged `make installcheck` passes.
