@@ -61,8 +61,9 @@ my $map = File::Spec->catfile($tmp, 'weighted.map');
 write_file($src, <<'SRC');
 include "machine_6502.c26"
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+mem ROM { $start:0xF000 $size:0x0F00 $ro };
 
-void home_leaf(void) {
+ROM void home_leaf(void) {
    asm nop;
 }
 

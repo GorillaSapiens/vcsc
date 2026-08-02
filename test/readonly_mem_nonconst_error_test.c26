@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: object 'mutable_byte' placed in a $ro mem region must be const
+include "machine_6502.c26"
+mem bank1 { $start:0xD000 $size:0x1000 $ro };
+
+bank1 uint8_t mutable_byte := 1;
+
+void main(void) {
+}

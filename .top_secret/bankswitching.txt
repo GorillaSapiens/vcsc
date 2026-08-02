@@ -401,7 +401,7 @@ Using `$size:0x1000` at `$D100` would incorrectly extend the allocatable range
 through `$E0FF`; the cfg/image model still emits the complete 4K physical bank
 and fills its reserved `$D000-$D0FF` prefix separately.
 
-Named region modifiers now work on function definitions and produce private
+Named region modifiers work on function definitions and produce private
 layouts such as `CODE.bank1.__vcsc_function$some_function`. The assembler keeps
 procedures in any `CODE` or `CODE.*` segment independently movable, and the
 linker resolves the longest matching segment rule so `CODE.bank1` controls that
@@ -409,54 +409,85 @@ private layout. A declaration and its definition must use the same named region.
 An inline function cannot use a region modifier because inline expansion has no
 independently placeable linker layout.
 
-The same names continue to place ROM objects, so programmers use one vocabulary
-for code and data. Unmarked functions and objects remain candidates for
-constrained automatic placement. `main` may be unmarked or explicitly marked
-`bank0`; an explicit numbered nonzero bank on `main` is rejected. The eventual
-bank-aware linker must pin unmarked `main`, the normal startup path, and mandatory
-home-bank runtime material to BANK0.
+Named `$ro` regions also pin constant ROM objects. For example:
 
-Programmers may eventually need explicit same-bank groups or translation-unit
-preferences, but those should extend named-memory metadata rather than introduce
-a second bank-placement syntax. The intended policy is constrained automatic
-placement:
+    bank1 const uint8_t level_table[4] := { 1, 2, 3, 4 };
 
-* Named `mem` modifiers are hard pins for functions and ROM objects.
-* Unpinned layouts are assigned automatically by the linker.
-* Cross-bank ROM data references are forbidden, so every function and every ROM
-  object it directly reads form hard same-bank constraints. The linker should
-  collapse those constraints into indivisible placement components before
-  packing.
-* Direct call-graph edges are soft constraints. Keeping a caller and callee in
-  one bank avoids a trampoline; cutting the edge is legal and incurs bridge ROM,
-  cycles, and two bytes of live hardware stack while the callee runs.
-* Explicit bank pins constrain the component containing the pinned layout. Two
-  incompatible pins in one hard component are a link error.
+is emitted as `RODATA.bank1.__vcsc_object$level_table`. A definition in a `$ro`
+region must be `const` and must have a link-time initializer; it cannot fall back
+to DATA/BSS plus startup writes. This keeps the source declaration, o26 private
+layout, and linker bank affinity honest. Ordinary writable named regions retain
+their existing DATA/BSS behavior.
 
-The first automatic placer need not solve an expensive global optimization
-problem. It should be deterministic, place hard components without overflow,
-respect all pins, keep the `main` component in BANK0, and use a documented greedy
-cost function which prefers fewer or more heavily weighted cross-bank calls.
-Stable tie-breaking by symbol/object order is more valuable than a clever but
-nondeterministic result. A later heuristic pass may improve packing without
-changing the source contract.
+Unmarked private `CODE.__vcsc_function$...` and
+`RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are candidates for
+automatic placement. `main` may be unmarked or explicitly marked `bank0`; an
+explicit numbered nonzero bank on `main` is rejected. The linker pins unmarked
+`main`, startup/non-private runtime material, and private runtime functions whose
+reserved implementation names begin with `_` to the configured startup bank,
+which is BANK0 in the public full-window profiles.
 
-The call graph alone is insufficient: ROM-data edges, hard placement groups,
-assembly/layout constraints, reserved bridge space, and per-bank capacity all
+The implemented placement policy is constrained and deterministic:
+
+* Named `mem` modifiers are hard pins for functions and ROM objects. A pinned
+  private layout keeps the exact named MEMORY region, not merely the bank.
+* Cross-bank ROM data is forbidden. Every relocation between ROM layouts other
+  than a trampoline-eligible direct JSR/JMP, plus every retained branch edge,
+  forms a hard same-bank relation. The linker collapses the transitive closure
+  into indivisible placement components before assigning addresses.
+* A hard component inherits any explicit or mandatory bank pin carried by one
+  of its members. Conflicting pins in one component are a fatal diagnostic that
+  names the component, layout, object, and incompatible banks.
+* Direct JSR and direct JMP edges are soft relations because the replicated
+  trampoline table can implement them. Repeated edges accumulate; the initial
+  cost uses the actual per-entry replicated-table payload, 15 for JSR and 8 for
+  JMP. This is a deterministic placement heuristic, not a claim about dynamic
+  call frequency.
+* Before packing movable components, the linker charges each ordinary ROM
+  region for fixed initialized-data images and generated copy/zero/init tables.
+  The largest `type=ro` MEMORY region owned by each bank is that bank's default
+  automatic-placement region; named pins still use their exact region.
+* Pinned components are assigned first in stable input order. Unpinned
+  components are considered by decreasing byte size, then decreasing soft-edge
+  degree, then stable object/layout order. Among banks with enough preliminary
+  capacity, the chosen bank minimizes weighted edges cut against components
+  already assigned. Ties prefer the startup bank, then the higher logical bank
+  address, then the bank name.
+* The preliminary budget catches clear capacity failures early. The normal
+  layout allocator remains authoritative for alignment, page containment,
+  branch-page constraints, and any holes those rules create.
+* If no bank can hold a component, the diagnostic reports its size and the free
+  ordinary-ROM capacity in every candidate bank. The linker never breaks a hard
+  component, moves a hard pin, duplicates a function, or invents a cross-bank
+  ROM-data access to make the image fit.
+
+This first placer intentionally has no second placement language, explicit
+same-bank-group attribute, translation-unit preference, profile-guided call
+frequency, or local-search pass. Those can be added only when measured programs
+show a need. Existing hard data edges already express the most important
+same-bank grouping, while named `mem` modifiers give programmers a direct
+steering wheel for timing-critical or architectural decisions.
+
+The call graph alone is insufficient: ROM-data edges, explicit pins, reserved
+trampoline/vector space, generated startup tables, and per-bank capacity all
 matter. Conversely, requiring programmers to place everything manually throws
 away whole-program information the linker already has. The hybrid policy keeps
 normal use sane while preserving precise control for timing-critical code,
 fixed architecture, debugging, and reproducible experiments.
 
-A ROM table used by functions in several banks either pulls those functions
-into one hard component, is explicitly duplicated, or causes an unsatisfied
-placement error. The linker must never silently invent a cross-bank data read.
-Functions are not duplicated automatically in the first implementation.
+A ROM table used by functions in several banks pulls those functions and the
+table into one hard component unless the table is explicitly duplicated. If
+that component carries incompatible pins or cannot fit, the link fails. The
+linker never silently synthesizes a far ROM read. Functions and objects are not
+duplicated automatically in this implementation.
 
-Archive selection remains normal symbol-driven selection. After members are
-selected, every selected layout must have one legal bank placement. The map
-must identify the owning object/archive member, whether each placement was
-pinned or automatic, its hard component, and every resulting bridge.
+Archive selection remains normal symbol-driven selection. Placement runs only
+after the final object/archive-member set is known. The map's `BANK PLACEMENT`
+section reports every component, pinned versus automatic assignment, owning
+bank and concrete MEMORY region, component byte cost, incident cut weight, and
+originating object. The `TRAMPOLINES` section then reports the actual generated
+bridges. This makes placement reproducible and auditable rather than linker
+astrology.
 
 Superchip RAM using existing split-address references
 -----------------------------------------------------
@@ -672,18 +703,28 @@ when main roadmap item 29 becomes active.
          ordinary and weighted depths. Assembly-hidden calls still require
          `callstack_extra`.
 
-[ ] 7. Add placement constraints and deterministic automatic bank placement.
+[x] 7. Add placement constraints and deterministic automatic bank placement.
 
-       * Pin `main`, startup, and mandatory home-bank runtime material to BANK0.
-       * Use existing named `mem` modifiers for hard function/object affinity;
-         design only any additional same-bank grouping or translation-unit
-         preference metadata that measured programs require.
-       * Build hard placement components from cross-bank-forbidden ROM-data
-         edges and explicit grouping/pinning constraints.
-       * Automatically place unpinned components with a deterministic greedy
-         call-graph-aware cost function while respecting capacity and pins.
-       * Report pinned versus automatic placement, cut call edges, bridge cost,
-         and clear overflow or contradictory-pin diagnostics.
+       * Pin `main`, startup/non-private runtime layouts, and reserved-name
+         private runtime functions to BANK0; keep named `mem` modifiers as hard
+         function/object pins.
+       * Emit initialized `const` objects in named `$ro` regions as private
+         `RODATA.region` layouts. Reject mutable definitions and runtime-only
+         initializers in read-only regions.
+       * Build indivisible hard components from every cross-bank-forbidden ROM
+         relocation and retained branch, propagating explicit and mandatory
+         pins and diagnosing contradictions before final layout.
+       * Treat direct JSR/JMP relationships as soft edges weighted by their
+         15-byte/8-byte bridge payload. Reserve fixed ROM/startup-table capacity,
+         place pins first, then use deterministic size/degree/stable ordering and
+         minimum incremental cut cost with documented bank tie-breaks.
+       * Report component identity, pinned versus automatic members, concrete
+         bank/MEMORY assignment, byte cost, incident cut weight, and resulting
+         trampoline entries. Diagnose per-bank capacity when a component cannot
+         fit; preserve final allocator checks for alignment and page constraints.
+       * Cover deterministic repeated links, capacity spill, hard data affinity,
+         contradictory pins, `main` residency, generated bridge count, and a
+         source-compiled named `$ro` object whose unpinned reader follows it.
 
 [ ] 8. Add and certify `vcs_8k_f8.cfg`.
 
@@ -777,8 +818,9 @@ The following are not settled by this document:
   than BANK0 while still keeping public full-window profiles and `main` in BANK0;
 * whether a later split-address allocated object can participate in ordinary
   `ref` parameter passing;
-* the first deterministic automatic-placement cost function and whether later
-  optimization passes justify their complexity.
+* whether measured programs justify profile-guided edge weights, explicit
+  same-bank groups, translation-unit preferences, or a deterministic local-search
+  pass beyond the completed greedy placer.
 
 Those choices should be made in the roadmap slice that can implement and test
 them, not guessed here and fossilized without evidence.

@@ -95,6 +95,7 @@ SEGMENTS {
    BSS: load=RAM, type=bss;
    STARTUP: load=ROM, type=ro;
    CODE: load=ROM, type=ro;
+   CODE.bank0: load=ROM, type=ro;
    CODE.bank1: load=bank1, type=ro;
    RODATA: load=ROM, type=ro;
    VECTORS: load=BANK0_VECTORS, type=ro, start=$FFFA;
@@ -174,6 +175,7 @@ my $cross_jsr = assemble_case('cross_jsr', $preamble . <<'ASM');
    STA.a $0080
    RTS
 .endproc
+.segment "CODE.bank0"
 .proc home_leaf
    STA.a $0083
    LDA #$33
@@ -342,6 +344,7 @@ my $cross_jmp = assemble_case('cross_jmp', $preamble . <<'ASM');
 .proc main
    JMP remote
 .endproc
+.segment "CODE.bank0"
 .proc again
    JMP remote
 .endproc
@@ -418,7 +421,7 @@ my $cross_branch = assemble_case('cross_branch', $preamble . <<'ASM');
    RTS
 .endproc
 ASM
-require_fail('cross-bank relative branch', 'cross-bank conditional branch',
+require_fail('cross-bank relative branch', 'hard bank-placement component',
              link_command('cross_branch', $cross_branch));
 
 my $long_padding = join('', map { "   .byte \$00\n" } 1 .. 140);
@@ -435,15 +438,15 @@ ASM
    RTS
 .endproc
 ASM
-require_fail('cross-bank relaxed long branch', 'cross-bank conditional branch',
+require_fail('cross-bank relaxed long branch', 'hard bank-placement component',
              link_command('cross_long_branch', $cross_long_branch));
 
 for my $case (
-   ['cross_word', 'LDA.a remote_data', 'cross-bank ROM word relocation'],
-   ['cross_low',  'LDA #<remote_data', 'cross-bank ROM low-byte relocation'],
-   ['cross_high', 'LDX #>remote_data', 'cross-bank ROM high-byte relocation'],
-   ['cross_pointer', '.word remote_data', 'cross-bank ROM word relocation'],
-   ['cross_indirect', 'JMP (remote_data)', 'the indirect-JMP vector is a data reference'],
+   ['cross_word', 'LDA.a remote_data', 'hard bank-placement component'],
+   ['cross_low',  'LDA #<remote_data', 'hard bank-placement component'],
+   ['cross_high', 'LDX #>remote_data', 'hard bank-placement component'],
+   ['cross_pointer', '.word remote_data', 'hard bank-placement component'],
+   ['cross_indirect', 'JMP (remote_data)', 'hard bank-placement component'],
 ) {
    my ($name, $statement, $fragment) = @$case;
    my $body;

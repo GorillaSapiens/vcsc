@@ -1430,6 +1430,8 @@ static const cartridge_bank_t *call_graph_function_bank(const linker_config_t *c
    layout = call_graph_find_function_layout(in, node_name, NULL);
    if (!layout)
       return NULL;
+   if (layout->placement_bank[0])
+      return find_cartridge_bank(cfg, layout->placement_bank);
    fallback = find_segment_rule(cfg, "CODE");
    rule = find_layout_segment_rule(cfg, layout->name, fallback);
    if (!rule || !rule->load_name[0])
@@ -2894,6 +2896,806 @@ static const object_layout_t *find_layout_for_image_offset(const object_file_t *
 }
 
 typedef struct {
+   object_file_t *obj;
+   object_layout_t *layout;
+   const memory_region_t *configured_memory;
+   const cartridge_bank_t *configured_bank;
+   const memory_region_t *pin_memory;
+   const cartridge_bank_t *pin_bank;
+   size_t stable_order;
+   int parent;
+   int rank;
+   int directly_pinned;
+} bank_placement_item_t;
+
+typedef struct {
+   int first;
+   int second;
+   uint32_t weight;
+} bank_placement_edge_t;
+
+typedef struct {
+   int root;
+   uint16_t id;
+   size_t stable_order;
+   uint32_t bytes;
+   uint32_t degree;
+   uint32_t cut_weight;
+   const cartridge_bank_t *bank;
+   int pinned;
+   int assigned;
+} bank_placement_component_t;
+
+typedef struct {
+   const memory_region_t *memory;
+   uint32_t capacity;
+   uint32_t used;
+} bank_placement_budget_t;
+
+//! @brief Return the allocatable ROM memory region configured for one layout before automatic banking.
+static const memory_region_t *bank_placement_layout_memory(const linker_config_t *cfg,
+                                                            const object_layout_t *lay)
+{
+   const segment_rule_t *fallback;
+   const segment_rule_t *rule;
+
+   if (!cfg || !lay)
+      return NULL;
+   fallback = find_segment_rule(cfg,
+      lay->segid == O26_SEG_TEXT ? "CODE" : "DATA");
+   rule = find_layout_segment_rule(cfg, lay->name, fallback);
+   if (!rule || !rule->load_name[0])
+      return NULL;
+   return find_memory(cfg, rule->load_name);
+}
+
+//! @brief Split a compiler-private layout name into its source segment prefix.
+static int bank_placement_private_base(const char *name, char *base, size_t base_size)
+{
+   static const char *const markers[] = {
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_page$", NULL
+   };
+   size_t i;
+
+   if (!name || !base || base_size == 0)
+      return 0;
+   for (i = 0; markers[i]; ++i) {
+      const char *marker = strstr(name, markers[i]);
+      size_t n;
+      if (!marker)
+         continue;
+      n = (size_t)(marker - name);
+      if (n == 0 || n >= base_size)
+         return 0;
+      memcpy(base, name, n);
+      base[n] = '\0';
+      return 1;
+   }
+   return 0;
+}
+
+//! @brief Return whether a private ROM layout has no explicit named-memory pin.
+static int bank_placement_layout_is_automatic_candidate(const object_layout_t *lay)
+{
+   char base[MAX_NAME];
+
+   if (!lay || lay->segid != O26_SEG_TEXT ||
+       !bank_placement_private_base(lay->name, base, sizeof(base)))
+      return 0;
+   return str_ieq(base, "CODE") || str_ieq(base, "RODATA");
+}
+
+//! @brief Return the startup/home bank from a validated banked profile.
+static const cartridge_bank_t *bank_placement_startup_bank(const linker_config_t *cfg)
+{
+   size_t i;
+
+   if (!cfg)
+      return NULL;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      if (cfg->banks[i].startup)
+         return &cfg->banks[i];
+   }
+   return NULL;
+}
+
+//! @brief Select the deterministic ordinary ROM allocation region for one bank.
+static const memory_region_t *bank_placement_auto_memory(const linker_config_t *cfg,
+                                                          const cartridge_bank_t *bank)
+{
+   const memory_region_t *best = NULL;
+   size_t i;
+
+   if (!cfg || !bank)
+      return NULL;
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      if (!mem->bank_name[0] || !str_ieq(mem->bank_name, bank->name) ||
+          !str_ieq(mem->type, "ro") || mem->size == 0)
+         continue;
+      if (!best || mem->size > best->size ||
+          (mem->size == best->size && mem->start < best->start) ||
+          (mem->size == best->size && mem->start == best->start &&
+           strcmp(mem->name, best->name) < 0))
+         best = mem;
+   }
+   return best;
+}
+
+//! @brief Find one placement item by its exact movable-layout identity.
+static int bank_placement_find_item(const bank_placement_item_t *items,
+                                    size_t count,
+                                    const object_layout_t *layout)
+{
+   size_t i;
+   for (i = 0; i < count; ++i) {
+      if (items[i].layout == layout)
+         return (int)i;
+   }
+   return -1;
+}
+
+//! @brief Union-find root for one hard same-bank placement item.
+static int bank_placement_root(bank_placement_item_t *items, int item)
+{
+   if (items[item].parent != item)
+      items[item].parent = bank_placement_root(items, items[item].parent);
+   return items[item].parent;
+}
+
+//! @brief Merge two layouts joined by a cross-bank-forbidden ROM relationship.
+static void bank_placement_union(bank_placement_item_t *items, int first, int second)
+{
+   int a = bank_placement_root(items, first);
+   int b = bank_placement_root(items, second);
+
+   if (a == b)
+      return;
+   if (items[a].rank < items[b].rank) {
+      int tmp = a;
+      a = b;
+      b = tmp;
+   }
+   items[b].parent = a;
+   if (items[a].rank == items[b].rank)
+      items[a].rank++;
+}
+
+//! @brief Add or weight one undirected soft control-transfer placement edge.
+static void bank_placement_add_edge(bank_placement_edge_t **edges,
+                                    size_t *count,
+                                    int first, int second,
+                                    uint32_t weight)
+{
+   size_t i;
+
+   if (first < 0 || second < 0 || first == second || weight == 0)
+      return;
+   if (first > second) {
+      int tmp = first;
+      first = second;
+      second = tmp;
+   }
+   for (i = 0; i < *count; ++i) {
+      if ((*edges)[i].first == first && (*edges)[i].second == second) {
+         (*edges)[i].weight += weight;
+         return;
+      }
+   }
+   *edges = (bank_placement_edge_t *)xrealloc(*edges,
+      (*count + 1) * sizeof(**edges));
+   (*edges)[*count].first = first;
+   (*edges)[*count].second = second;
+   (*edges)[*count].weight = weight;
+   (*count)++;
+}
+
+//! @brief Find an exported definition and its owning movable layout before addresses exist.
+static const object_layout_t *bank_placement_export_layout(const input_set_t *in,
+                                                            const char *name,
+                                                            const object_file_t **object_out,
+                                                            const symbol_t **symbol_out)
+{
+   char *weak;
+   size_t pass;
+   size_t i, j;
+
+   if (object_out)
+      *object_out = NULL;
+   if (symbol_out)
+      *symbol_out = NULL;
+   if (!in || !name)
+      return NULL;
+   weak = make_weak_name(name);
+   for (pass = 0; pass < 2; ++pass) {
+      const char *wanted = pass == 0 ? name : weak;
+      for (i = 0; i < in->object_count; ++i) {
+         const object_file_t *obj = &in->objects[i];
+         for (j = 0; j < obj->export_count; ++j) {
+            const symbol_t *sym = &obj->exports[j];
+            if (strcmp(sym->name, wanted) != 0)
+               continue;
+            if (object_out)
+               *object_out = obj;
+            if (symbol_out)
+               *symbol_out = sym;
+            free(weak);
+            return sym->segid == O26_SEG_TEXT
+               ? find_layout_for_value(obj, sym->segid, sym->value) : NULL;
+         }
+      }
+   }
+   free(weak);
+   return NULL;
+}
+
+typedef struct {
+   const object_layout_t *layout;
+   const cartridge_bank_t *fixed_bank;
+} bank_placement_target_t;
+
+//! @brief Resolve the ownership relevant to pre-layout same-bank and call edges.
+static bank_placement_target_t bank_placement_reloc_target(const linker_config_t *cfg,
+                                                            const input_set_t *in,
+                                                            const object_file_t *obj,
+                                                            const reloc_t *reloc,
+                                                            uint16_t current_word)
+{
+   bank_placement_target_t result;
+
+   memset(&result, 0, sizeof(result));
+   if (reloc->segid == O26_SEG_UNDEF) {
+      const object_file_t *provider = NULL;
+      const symbol_t *symbol = NULL;
+      if (reloc->undef_index >= obj->undef_count)
+         return result;
+      result.layout = bank_placement_export_layout(in,
+         obj->undefs[reloc->undef_index], &provider, &symbol);
+      if (!result.layout && symbol && symbol->segid == O26_SEG_ABS)
+         result.fixed_bank = cartridge_bank_for_address(cfg,
+            (uint16_t)(symbol->value + current_word));
+      return result;
+   }
+   if (reloc->has_layout_index) {
+      if (reloc->layout_index < obj->layout_count &&
+          obj->layouts[reloc->layout_index].segid == O26_SEG_TEXT)
+         result.layout = &obj->layouts[reloc->layout_index];
+      return result;
+   }
+   if (reloc->segid == O26_SEG_TEXT) {
+      result.layout = find_layout_for_value(obj, reloc->segid, current_word);
+      return result;
+   }
+   if (reloc->segid == O26_SEG_ABS)
+      result.fixed_bank = cartridge_bank_for_address(cfg, current_word);
+   return result;
+}
+
+//! @brief Read the unresolved 16-bit affine value carried by one relocation.
+static uint16_t bank_placement_current_word(const o26_segment_t *segment,
+                                            const reloc_t *reloc)
+{
+   switch (reloc->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+      case O26_RTYPE_WORD:
+         if (reloc->offset + 1 < segment->length)
+            return (uint16_t)(segment->data[reloc->offset] |
+                              (segment->data[reloc->offset + 1] << 8));
+         break;
+      case O26_RTYPE_LOW:
+         if (reloc->offset < segment->length)
+            return (uint16_t)(segment->data[reloc->offset] |
+                              ((reloc->has_aux_low ? reloc->aux_low : 0) << 8));
+         break;
+      case O26_RTYPE_HIGH:
+         if (reloc->offset < segment->length)
+            return (uint16_t)((reloc->has_aux_low ? reloc->aux_low : 0) |
+                              (segment->data[reloc->offset] << 8));
+         break;
+   }
+   return reloc->offset < segment->length ? segment->data[reloc->offset] : 0;
+}
+
+//! @brief Attach a hard bank pin discovered before component collapse.
+static void bank_placement_pin_item(bank_placement_item_t *item,
+                                    const cartridge_bank_t *bank,
+                                    const memory_region_t *memory,
+                                    int direct)
+{
+   if (!item || !bank)
+      return;
+   if (item->pin_bank && item->pin_bank != bank) {
+      fprintf(stderr,
+              "vcsc-ld: contradictory bank pins for layout %s from %s: %s and %s\n",
+              item->layout->name, item->obj->origin,
+              item->pin_bank->name, bank->name);
+      exit(1);
+   }
+   item->pin_bank = bank;
+   if (memory)
+      item->pin_memory = memory;
+   if (direct)
+      item->directly_pinned = 1;
+}
+
+//! @brief Find or create the capacity ledger for one allocatable banked ROM region.
+static bank_placement_budget_t *bank_placement_budget_for(
+                                      bank_placement_budget_t **budgets,
+                                      size_t *count,
+                                      const memory_region_t *memory)
+{
+   size_t i;
+
+   if (!memory)
+      return NULL;
+   for (i = 0; i < *count; ++i) {
+      if ((*budgets)[i].memory == memory)
+         return &(*budgets)[i];
+   }
+   *budgets = (bank_placement_budget_t *)xrealloc(*budgets,
+      (*count + 1) * sizeof(**budgets));
+   (*budgets)[*count].memory = memory;
+   (*budgets)[*count].capacity = memory->size;
+   (*budgets)[*count].used = 0;
+   return &(*budgets)[(*count)++];
+}
+
+//! @brief Consume one region's placement budget with a source-located diagnostic.
+static void bank_placement_consume(bank_placement_budget_t **budgets,
+                                   size_t *budget_count,
+                                   const memory_region_t *memory,
+                                   uint32_t bytes,
+                                   const char *what,
+                                   const char *origin)
+{
+   bank_placement_budget_t *budget;
+
+   if (!memory || bytes == 0)
+      return;
+   budget = bank_placement_budget_for(budgets, budget_count, memory);
+   if (budget->used + bytes > budget->capacity) {
+      fprintf(stderr,
+              "vcsc-ld: bank placement overflow in MEMORY %s while assigning %s from %s: need $%04" PRIX32 " bytes with $%04" PRIX32 " free\n",
+              memory->name, what ? what : "layout", origin ? origin : "?",
+              bytes, budget->capacity - budget->used);
+      exit(1);
+   }
+   budget->used += bytes;
+}
+
+//! @brief Return available bytes in one auto-placement memory region.
+static uint32_t bank_placement_budget_free(bank_placement_budget_t **budgets,
+                                           size_t *budget_count,
+                                           const memory_region_t *memory)
+{
+   bank_placement_budget_t *budget =
+      bank_placement_budget_for(budgets, budget_count, memory);
+   return budget->capacity >= budget->used ? budget->capacity - budget->used : 0;
+}
+
+//! @brief Give a stable preference rank to a candidate logical bank.
+static int bank_placement_bank_precedes(const cartridge_bank_t *a,
+                                        const cartridge_bank_t *b)
+{
+   if (!b)
+      return 1;
+   if (a->startup != b->startup)
+      return a->startup > b->startup;
+   if (a->start != b->start)
+      return a->start > b->start;
+   return strcmp(a->name, b->name) < 0;
+}
+
+//! @brief Reserve fixed ROM data images and generated startup tables before auto packing.
+static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
+                                             const input_set_t *in,
+                                             bank_placement_budget_t **budgets,
+                                             size_t *budget_count)
+{
+   size_t i, j;
+   size_t copy_count = 0;
+   size_t zero_count = 0;
+   const segment_rule_t *data_rule = find_segment_rule(cfg, "DATA");
+   const memory_region_t *table_memory = data_rule && data_rule->load_name[0]
+      ? find_memory(cfg, data_rule->load_name) : NULL;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         if (lay->segid != O26_SEG_TEXT &&
+             (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)) {
+            const memory_region_t *memory = bank_placement_layout_memory(cfg, lay);
+            bank_placement_consume(budgets, budget_count, memory, lay->size,
+                                   lay->name, obj->origin);
+         }
+         if (lay->segid == O26_SEG_DATA ||
+             (lay->segid == O26_SEG_ZP &&
+              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
+            copy_count++;
+         if (lay->segid == O26_SEG_BSS ||
+             (lay->segid == O26_SEG_ZP &&
+              lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
+              strstr(lay->name, ".__vcsc_object$") != NULL))
+            zero_count++;
+      }
+   }
+   if (table_memory) {
+      uint32_t table_bytes = (uint32_t)(copy_count + 1u) * 6u +
+                             (uint32_t)(zero_count + 1u) * 4u +
+                             (uint32_t)(count_init_functions_in_input(in) + 1u) * 2u;
+      bank_placement_consume(budgets, budget_count, table_memory, table_bytes,
+                             "linker startup tables", "<linker>");
+   }
+}
+
+//! @brief Assign one complete hard component to a logical bank and concrete regions.
+static void bank_placement_assign_component(const linker_config_t *cfg,
+                                            bank_placement_item_t *items,
+                                            size_t item_count,
+                                            bank_placement_component_t *component,
+                                            const cartridge_bank_t *bank,
+                                            bank_placement_budget_t **budgets,
+                                            size_t *budget_count)
+{
+   const memory_region_t *auto_memory = bank_placement_auto_memory(cfg, bank);
+   size_t i;
+
+   for (i = 0; i < item_count; ++i) {
+      const memory_region_t *memory;
+      if (bank_placement_root(items, (int)i) != component->root)
+         continue;
+      memory = items[i].pin_memory ? items[i].pin_memory : auto_memory;
+      if (!memory) {
+         fprintf(stderr,
+                 "vcsc-ld: no ordinary allocatable ROM MEMORY region is available in %s for automatic layout %s from %s\n",
+                 bank->name, items[i].layout->name, items[i].obj->origin);
+         exit(1);
+      }
+      if (!memory->bank_name[0] || !str_ieq(memory->bank_name, bank->name)) {
+         fprintf(stderr,
+                 "vcsc-ld: layout %s from %s is assigned to %s but MEMORY %s belongs to %s\n",
+                 items[i].layout->name, items[i].obj->origin, bank->name,
+                 memory->name, memory->bank_name[0] ? memory->bank_name : "no bank");
+         exit(1);
+      }
+      bank_placement_consume(budgets, budget_count, memory,
+                             items[i].layout->size,
+                             items[i].layout->name, items[i].obj->origin);
+      snprintf(items[i].layout->placement_memory,
+               sizeof(items[i].layout->placement_memory), "%s", memory->name);
+      snprintf(items[i].layout->placement_bank,
+               sizeof(items[i].layout->placement_bank), "%s", bank->name);
+      items[i].layout->placement_mode = items[i].directly_pinned
+         ? BANK_PLACEMENT_PINNED : BANK_PLACEMENT_AUTOMATIC;
+   }
+   component->bank = bank;
+   component->assigned = 1;
+}
+
+//! @brief Perform deterministic hard-component and soft-call-aware full-window placement.
+static void assign_automatic_bank_placements(const linker_config_t *cfg,
+                                             input_set_t *in)
+{
+   bank_placement_item_t *items = NULL;
+   bank_placement_edge_t *edges = NULL;
+   bank_placement_component_t *components = NULL;
+   bank_placement_budget_t *budgets = NULL;
+   size_t item_count = 0;
+   size_t edge_count = 0;
+   size_t component_count = 0;
+   size_t budget_count = 0;
+   const cartridge_bank_t *startup;
+   size_t i, j;
+
+   if (!cfg || !cfg->cartridge_banked)
+      return;
+   startup = bank_placement_startup_bank(cfg);
+   if (!startup) {
+      fprintf(stderr, "vcsc-ld: banked automatic placement requires one startup bank\n");
+      exit(1);
+   }
+
+   /* Every ROM-resident movable layout participates, including fixed runtime
+      material.  Fixed layouts act as anchors for hard data and soft calls. */
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *memory;
+         const cartridge_bank_t *bank;
+         char base[MAX_NAME];
+         const char *function_name;
+         int automatic;
+         int mandatory = 0;
+
+         if (lay->segid != O26_SEG_TEXT || lay->size == 0)
+            continue;
+         memory = bank_placement_layout_memory(cfg, lay);
+         if (!memory || !memory->bank_name[0])
+            continue;
+         bank = find_cartridge_bank(cfg, memory->bank_name);
+         if (!bank)
+            continue;
+         automatic = bank_placement_layout_is_automatic_candidate(lay);
+         function_name = call_graph_layout_function_name(lay);
+         if (function_name &&
+             (strcmp(function_name, "main") == 0 || function_name[0] == '_'))
+            mandatory = 1;
+
+         items = (bank_placement_item_t *)xrealloc(items,
+            (item_count + 1) * sizeof(*items));
+         memset(&items[item_count], 0, sizeof(items[item_count]));
+         items[item_count].obj = obj;
+         items[item_count].layout = lay;
+         items[item_count].configured_memory = memory;
+         items[item_count].configured_bank = bank;
+         items[item_count].stable_order = item_count;
+         items[item_count].parent = (int)item_count;
+         if (!automatic || mandatory) {
+            const cartridge_bank_t *pin_bank = mandatory ? startup : bank;
+            const memory_region_t *pin_memory = memory;
+            if (mandatory && bank != startup)
+               pin_memory = bank_placement_auto_memory(cfg, startup);
+            bank_placement_pin_item(&items[item_count], pin_bank,
+                                    pin_memory, 1);
+         }
+         (void)bank_placement_private_base(lay->name, base, sizeof(base));
+         item_count++;
+      }
+   }
+   if (item_count == 0)
+      goto cleanup;
+
+   /* Classify symbolic relocations before addresses exist.  Data/branch edges
+      are hard same-bank constraints; direct JSR/JMP edges are weighted soft
+      preferences because the common trampoline table can implement them. */
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      o26_segment_t *segments[2] = { &obj->text, &obj->data };
+      uint8_t image_segids[2] = { O26_SEG_TEXT, O26_SEG_DATA };
+      size_t s;
+      for (s = 0; s < 2; ++s) {
+         o26_segment_t *segment = segments[s];
+         size_t rindex;
+         for (rindex = 0; rindex < segment->reloc_count; ++rindex) {
+            reloc_t *reloc = &segment->relocs[rindex];
+            const object_layout_t *source_layout =
+               find_layout_for_image_offset(obj, image_segids[s], reloc->offset);
+            bank_placement_target_t target;
+            int source_item;
+            int target_item;
+            uint16_t current_word;
+            uint8_t control;
+
+            if (!source_layout)
+               continue;
+            current_word = bank_placement_current_word(segment, reloc);
+            target = bank_placement_reloc_target(cfg, in, obj, reloc, current_word);
+            source_item = bank_placement_find_item(items, item_count, source_layout);
+            target_item = bank_placement_find_item(items, item_count, target.layout);
+            control = reloc->type & O26_RTYPE_CONTROL_MASK;
+
+            if ((control == O26_RTYPE_CONTROL_JSR ||
+                 control == O26_RTYPE_CONTROL_JMP) &&
+                !(reloc->type & O26_RTYPE_INDIRECT_JMP)) {
+               bank_placement_add_edge(&edges, &edge_count,
+                  source_item, target_item,
+                  control == O26_RTYPE_CONTROL_JSR ? BANK_JSR_ENTRY_SIZE
+                                                   : BANK_JMP_ENTRY_SIZE);
+               continue;
+            }
+
+            if (source_item >= 0 && target_item >= 0) {
+               bank_placement_union(items, source_item, target_item);
+            }
+            else if (target_item >= 0) {
+               const memory_region_t *source_memory =
+                  bank_placement_layout_memory(cfg, source_layout);
+               const cartridge_bank_t *source_bank =
+                  source_memory && source_memory->bank_name[0]
+                     ? find_cartridge_bank(cfg, source_memory->bank_name) : NULL;
+               if (source_bank)
+                  bank_placement_pin_item(&items[target_item], source_bank,
+                                          NULL, 1);
+            }
+            else if (source_item >= 0 && target.fixed_bank) {
+               bank_placement_pin_item(&items[source_item], target.fixed_bank,
+                                       NULL, 1);
+            }
+         }
+      }
+
+      /* Retained short branches are also hard same-bank edges. */
+      for (j = 0; j < obj->branch_count; ++j) {
+         const branch_t *branch = &obj->branches[j];
+         const object_layout_t *source =
+            find_layout_for_value(obj, branch->segid, branch->source);
+         const object_layout_t *target =
+            find_layout_for_value(obj, branch->segid, branch->target);
+         int source_item = bank_placement_find_item(items, item_count, source);
+         int target_item = bank_placement_find_item(items, item_count, target);
+         if (source_item >= 0 && target_item >= 0)
+            bank_placement_union(items, source_item, target_item);
+      }
+   }
+
+   /* Compact union-find roots into stable component records and diagnose
+      incompatible explicit or inherited hard pins. */
+   for (i = 0; i < item_count; ++i) {
+      int root = bank_placement_root(items, (int)i);
+      size_t c;
+      for (c = 0; c < component_count; ++c) {
+         if (components[c].root == root)
+            break;
+      }
+      if (c == component_count) {
+         components = (bank_placement_component_t *)xrealloc(components,
+            (component_count + 1) * sizeof(*components));
+         memset(&components[component_count], 0, sizeof(components[component_count]));
+         components[component_count].root = root;
+         components[component_count].id = (uint16_t)component_count;
+         components[component_count].stable_order = items[i].stable_order;
+         component_count++;
+      }
+      components[c].bytes += items[i].layout->size;
+      if (items[i].stable_order < components[c].stable_order)
+         components[c].stable_order = items[i].stable_order;
+      if (items[i].pin_bank) {
+         if (components[c].bank && components[c].bank != items[i].pin_bank) {
+            fprintf(stderr,
+                    "vcsc-ld: hard bank-placement component %u has contradictory pins: %s from %s requires %s, but another member requires %s\n",
+                    components[c].id, items[i].layout->name,
+                    items[i].obj->origin, items[i].pin_bank->name,
+                    components[c].bank->name);
+            exit(1);
+         }
+         components[c].bank = items[i].pin_bank;
+         components[c].pinned = 1;
+      }
+   }
+
+   /* Collapse soft edges to components and accumulate deterministic degree. */
+   for (i = 0; i < edge_count; ++i) {
+      int first_root = bank_placement_root(items, edges[i].first);
+      int second_root = bank_placement_root(items, edges[i].second);
+      size_t first_component = 0;
+      size_t second_component = 0;
+      if (first_root == second_root)
+         continue;
+      while (components[first_component].root != first_root)
+         first_component++;
+      while (components[second_component].root != second_root)
+         second_component++;
+      components[first_component].degree += edges[i].weight;
+      components[second_component].degree += edges[i].weight;
+   }
+
+   bank_placement_reserve_fixed_rom(cfg, in, &budgets, &budget_count);
+
+   /* Hard-pinned components are assigned first in stable order. */
+   for (;;) {
+      bank_placement_component_t *next = NULL;
+      for (i = 0; i < component_count; ++i) {
+         if (!components[i].pinned || components[i].assigned)
+            continue;
+         if (!next || components[i].stable_order < next->stable_order)
+            next = &components[i];
+      }
+      if (!next)
+         break;
+      bank_placement_assign_component(cfg, items, item_count, next,
+                                      next->bank, &budgets, &budget_count);
+   }
+
+   /* First-fit-decreasing component order, with a weighted cut-cost choice
+      among banks that still have enough ordinary ROM capacity. */
+   for (;;) {
+      bank_placement_component_t *next = NULL;
+      const cartridge_bank_t *best_bank = NULL;
+      uint32_t best_cut = 0;
+
+      for (i = 0; i < component_count; ++i) {
+         if (components[i].assigned)
+            continue;
+         if (!next || components[i].bytes > next->bytes ||
+             (components[i].bytes == next->bytes &&
+              components[i].degree > next->degree) ||
+             (components[i].bytes == next->bytes &&
+              components[i].degree == next->degree &&
+              components[i].stable_order < next->stable_order))
+            next = &components[i];
+      }
+      if (!next)
+         break;
+
+      for (i = 0; i < cfg->bank_count; ++i) {
+         const cartridge_bank_t *candidate = &cfg->banks[i];
+         const memory_region_t *memory = bank_placement_auto_memory(cfg, candidate);
+         uint32_t cut = 0;
+         size_t e;
+
+         if (!memory || bank_placement_budget_free(&budgets, &budget_count, memory) < next->bytes)
+            continue;
+         for (e = 0; e < edge_count; ++e) {
+            int first_root = bank_placement_root(items, edges[e].first);
+            int second_root = bank_placement_root(items, edges[e].second);
+            int other_root = -1;
+            size_t c;
+            if (first_root == next->root)
+               other_root = second_root;
+            else if (second_root == next->root)
+               other_root = first_root;
+            if (other_root < 0 || other_root == next->root)
+               continue;
+            for (c = 0; c < component_count; ++c) {
+               if (components[c].root == other_root && components[c].assigned) {
+                  if (components[c].bank != candidate)
+                     cut += edges[e].weight;
+                  break;
+               }
+            }
+         }
+         if (!best_bank || cut < best_cut ||
+             (cut == best_cut && bank_placement_bank_precedes(candidate, best_bank))) {
+            best_bank = candidate;
+            best_cut = cut;
+         }
+      }
+
+      if (!best_bank) {
+         fprintf(stderr,
+                 "vcsc-ld: automatic bank placement cannot fit hard component %u ($%04" PRIX32 " bytes); available ordinary ROM:",
+                 next->id, next->bytes);
+         for (i = 0; i < cfg->bank_count; ++i) {
+            const memory_region_t *memory = bank_placement_auto_memory(cfg, &cfg->banks[i]);
+            fprintf(stderr, " %s/%s=$%04" PRIX32,
+                    cfg->banks[i].name, memory ? memory->name : "<none>",
+                    memory ? bank_placement_budget_free(&budgets, &budget_count, memory) : 0);
+         }
+         fputc('\n', stderr);
+         exit(1);
+      }
+      bank_placement_assign_component(cfg, items, item_count, next,
+                                      best_bank, &budgets, &budget_count);
+   }
+
+   /* Record final component identity, pin state, byte cost, and cut weight for
+      map output and later weighted call-stack analysis. */
+   for (i = 0; i < edge_count; ++i) {
+      int first_root = bank_placement_root(items, edges[i].first);
+      int second_root = bank_placement_root(items, edges[i].second);
+      size_t first_component = 0;
+      size_t second_component = 0;
+      if (first_root == second_root)
+         continue;
+      while (components[first_component].root != first_root)
+         first_component++;
+      while (components[second_component].root != second_root)
+         second_component++;
+      if (components[first_component].bank != components[second_component].bank) {
+         components[first_component].cut_weight += edges[i].weight;
+         components[second_component].cut_weight += edges[i].weight;
+      }
+   }
+   for (i = 0; i < item_count; ++i) {
+      int root = bank_placement_root(items, (int)i);
+      size_t c = 0;
+      while (components[c].root != root)
+         c++;
+      items[i].layout->placement_component = components[c].id;
+      items[i].layout->placement_component_pinned = (uint8_t)components[c].pinned;
+      items[i].layout->placement_component_bytes = components[c].bytes;
+      items[i].layout->placement_cut_weight = components[c].cut_weight;
+   }
+
+cleanup:
+   free(items);
+   free(edges);
+   free(components);
+   free(budgets);
+}
+
+typedef struct {
    uint16_t address;
    uint16_t owner_address;
    const char *name;
@@ -3226,7 +4028,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          if (lay->segid != O26_SEG_TEXT)
             continue;
          rule = find_layout_segment_rule(cfg, lay->name, code);
-         load_name = (rule && rule->load_name[0]) ? rule->load_name : code_load_name;
+         load_name = lay->placement_memory[0] ? lay->placement_memory
+            : ((rule && rule->load_name[0]) ? rule->load_name : code_load_name);
          lay->load_addr = alloc_code_branch_aware(layout, cfg, load_name, obj, lay,
             rule ? rule->align : 1, lay->name, obj->origin);
          lay->run_addr = lay->load_addr;
@@ -4448,6 +5251,70 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    write_ram_usage(fp, cfg, in, layout, "  ");
 
    if (cfg->cartridge_banked) {
+      uint16_t max_component = 0;
+      int have_component = 0;
+      fprintf(fp, "\nBANK PLACEMENT\n");
+      for (i = 0; i < in->object_count; ++i) {
+         const object_file_t *obj = &in->objects[i];
+         size_t j;
+         for (j = 0; j < obj->layout_count; ++j) {
+            const object_layout_t *lay = &obj->layouts[j];
+            if (!lay->placement_bank[0])
+               continue;
+            have_component = 1;
+            if (lay->placement_component > max_component)
+               max_component = lay->placement_component;
+         }
+      }
+      if (!have_component) {
+         fprintf(fp, "  <no movable ROM layouts>\n");
+      }
+      else {
+         uint16_t component;
+         for (component = 0; component <= max_component; ++component) {
+            const object_layout_t *representative = NULL;
+            size_t oi;
+            for (oi = 0; oi < in->object_count && !representative; ++oi) {
+               const object_file_t *obj = &in->objects[oi];
+               size_t lj;
+               for (lj = 0; lj < obj->layout_count; ++lj) {
+                  const object_layout_t *lay = &obj->layouts[lj];
+                  if (lay->placement_bank[0] &&
+                      lay->placement_component == component) {
+                     representative = lay;
+                     break;
+                  }
+               }
+            }
+            if (!representative)
+               continue;
+            fprintf(fp,
+                    "  component=%u assignment=%s bank=%s bytes=$%04" PRIX32
+                    " cut-weight=$%04" PRIX32 "\n",
+                    component,
+                    representative->placement_component_pinned ? "pinned" : "automatic",
+                    representative->placement_bank,
+                    representative->placement_component_bytes,
+                    representative->placement_cut_weight);
+            for (oi = 0; oi < in->object_count; ++oi) {
+               const object_file_t *obj = &in->objects[oi];
+               size_t lj;
+               for (lj = 0; lj < obj->layout_count; ++lj) {
+                  const object_layout_t *lay = &obj->layouts[lj];
+                  if (!lay->placement_bank[0] ||
+                      lay->placement_component != component)
+                     continue;
+                  fprintf(fp,
+                          "     %-9s %-28s region=%-12s size=$%04X object=%s\n",
+                          lay->placement_mode == BANK_PLACEMENT_PINNED
+                             ? "pinned" : "automatic",
+                          lay->name, lay->placement_memory, lay->size,
+                          obj->origin);
+               }
+            }
+         }
+      }
+
       size_t jmp_count = 0;
       size_t jsr_count = 0;
       for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
@@ -4496,10 +5363,17 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       for (j = 0; j < o->layout_count; ++j) {
          const object_layout_t *lay = &o->layouts[j];
          if (lay->segid == O26_SEG_TEXT) {
-            fprintf(fp, "     %-16s load=$%04X size=$%04X page=%s\n",
+            fprintf(fp, "     %-16s load=$%04X size=$%04X page=%s",
                     lay->name, lay->load_addr, lay->size,
                     page_placement_name(lay->load_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
+            if (lay->placement_bank[0])
+               fprintf(fp, " bank=%s region=%s placement=%s component=%u",
+                       lay->placement_bank, lay->placement_memory,
+                       lay->placement_mode == BANK_PLACEMENT_PINNED
+                          ? "pinned" : "automatic",
+                       lay->placement_component);
+            fputc('\n', fp);
          }
          else if (lay->segid == O26_SEG_DATA) {
             fprintf(fp, "     %-16s load=$%04X run=$%04X size=$%04X load-page=%s run-page=%s\n",
@@ -5106,6 +5980,7 @@ int main(int argc, char **argv)
    select_needed_objects(&inputs);
    validate_abi_metadata(&inputs);
    validate_mem_region_metadata(&cfg, &inputs);
+   assign_automatic_bank_placements(&cfg, &inputs);
    {
       uint16_t weighted_call_depth = 0;
       uint16_t call_depth = enforce_symbol_backed_call_graph(

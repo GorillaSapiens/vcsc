@@ -328,6 +328,50 @@ Diagnostics identify the input object, source layout/address/bank, target
 symbol/address/bank, and the failed rule. Raw numeric addresses contain no
 relocation and cannot be checked by the linker.
 
+### Deterministic automatic bank placement
+
+In a banked profile, compiler-private unmarked `CODE.__vcsc_function$...` and
+`RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are movable across
+the configured full-window banks. Explicit named source `mem` modifiers produce
+`CODE.region` or `RODATA.region` private layouts and are hard pins to that exact
+MEMORY region. `main`, startup/non-private runtime layouts, and private runtime
+functions using reserved implementation names beginning with `_` are pinned to
+the startup bank, which is BANK0 in the public profiles.
+
+Before assigning addresses, the linker classifies relationships between ROM
+layouts:
+
+- every ROM data/address relocation and every retained branch is a hard
+  same-bank edge;
+- direct JSR and direct absolute JMP edges are soft because the common table can
+  bridge them;
+- repeated soft edges accumulate a deterministic weight of 15 per JSR and 8 per
+  JMP, matching the corresponding trampoline-entry payload rather than claiming
+  a runtime execution frequency.
+
+Hard edges are collapsed transitively into indivisible components. A component
+inherits any explicit or mandatory pin carried by a member; incompatible pins
+are rejected before address layout. Fixed initialized-data images and generated
+copy/zero/init tables are charged against their ROM regions before automatic
+components are packed.
+
+For each logical bank, the largest owned `type=ro` MEMORY entry is its default
+automatic-placement region. Pinned components are assigned first in stable input
+order. Remaining components are ordered by decreasing byte size, decreasing
+soft-edge degree, then stable object/layout order. A component goes to the bank
+with enough preliminary capacity that adds the least cut weight against already
+assigned components. Ties prefer the startup bank, then the higher logical
+address, then the bank name. The ordinary allocator still performs the final
+alignment, page-containment, branch-page, and hole checks.
+
+Failure never weakens the source contract: the linker does not split a hard
+component, move a pin, duplicate code/data, or synthesize a far ROM read. A
+capacity error reports the component size and free ordinary-ROM capacity of
+every bank. The map's `BANK PLACEMENT` section records component number, pinned
+or automatic assignment, bank, concrete MEMORY region, component bytes,
+incident cut weight, layout, and input object. The later `TRAMPOLINES` section
+reports the bridges actually created by the resulting cut call edges.
+
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
 acyclic source-level call path. For statically configured banked functions it
@@ -436,8 +480,11 @@ MEMORY USAGE
 
 When you request a map file, `vcsc-ld` writes the same unified memory-usage section plus:
 - effective memory regions after any call-graph stack reservation
-- object placement
-- the selected call-stack region, graph depth, byte reserve, and physical range
+- deterministic bank-placement components, pins, automatic assignments, cut
+  weights, and concrete MEMORY regions for banked profiles
+- object placement and generated cross-bank trampoline entries
+- the selected call-stack region, ordinary/weighted graph depth, byte reserve,
+  and physical range
 - linker-generated symbols
 - all resolved global symbols
 

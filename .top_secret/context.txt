@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260802_030441.tar.gz
+    vcsc.20260802_180410.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7835,3 +7835,47 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   compile-only tests pass; all 207 end-to-end/generic tests pass (the first
   complete-order run reached 164 before the command window, then the final 43
   passed as groups of 18 and 25); and staged `make installcheck` passes.
+
+
+2026-08-02 12:14:51 PDT, add deterministic automatic bank placement
+------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 7.  Before assigning final
+  addresses, the linker now gathers every selected bank-owned private CODE and
+  RODATA layout, pins `main`, startup/non-private runtime material, reserved-name
+  private runtime functions, and explicitly named `mem` layouts, then collapses
+  every cross-bank-forbidden ROM relocation and retained branch into an
+  indivisible hard same-bank component.  Contradictory inherited or explicit
+  pins fail before ordinary layout.
+* Treat direct JSR and direct absolute JMP relationships as soft placement edges
+  because the replicated trampoline table can implement them.  Use deterministic
+  bridge-payload weights of 15 for JSR and 8 for JMP, reserve fixed initialized
+  ROM images and generated copy/zero/init tables first, assign pins in stable
+  order, then place unpinned components by decreasing size, decreasing soft-edge
+  degree, and stable input order.  Choose the candidate bank with minimum
+  incremental cut weight; ties prefer BANK0/startup, then the higher logical
+  address and bank name.
+* Preserve hard programmer control through existing named `mem` modifiers.  A
+  `const` object defined in a named `$ro` region now emits an independently
+  placeable `RODATA.region.__vcsc_object$NAME` layout.  Reject mutable definitions
+  and runtime-only initializers in read-only named regions instead of silently
+  creating DATA/BSS that startup would need to write.
+* Add `BANK PLACEMENT` map reporting for component number, pinned/automatic
+  assignment, logical bank, concrete MEMORY region, component bytes, incident
+  cut weight, member layout, and input object.  Capacity diagnostics report the
+  component size and free ordinary-ROM bytes in every candidate bank; final
+  alignment, page, branch, and hole constraints remain enforced by the normal
+  allocator.
+* Add `test/linker_banked_auto_placement.pl`.  It locks deterministic repeated
+  links, call-connected home placement, capacity spill, hard ROM-data affinity,
+  contradictory pins, BANK0 `main`, expected bridge counts, and a source-compiled
+  named `$ro` object whose unpinned reader follows it into BANK1.  Add three
+  compile-only tests for read-only named object emission and rejection cases,
+  and update compiler, linker, test, source-hygiene, and detailed bankswitching
+  documentation.  Detailed roadmap item 8, a certified installed
+  `vcs_8k_f8.cfg` profile and complete diagnostic cartridge, is next.
+* Verification: all 344 compile-only tests pass.  All 208 end-to-end/generic
+  tests pass; the full ordered run reached 165 before the command window, then
+  the remaining 43 passed in deterministic groups of 27 and 16.  Focused F8/F6/
+  F4 image, reset, relocation/trampoline, weighted-stack, automatic-placement,
+  and source-hygiene tests pass.  Staged `make installcheck` passes using the
+  supplied bison/flex packages.

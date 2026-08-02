@@ -102,6 +102,9 @@ linker placement, page containment, source/linker region metadata agreement,
 ordinary `CODE` restoration, and the Superchip-safe `$D100+$0F00` allocatable
 interval. Companion rejection tests cover conflicting declaration/definition
 regions, inline placement, and explicit nonzero-bank placement of `main`.
+`readonly_mem_object_codegen_test.c26` locks source-level `$ro` object emission
+as `RODATA.region.__vcsc_object$NAME`; companion tests reject mutable definitions
+and runtime-only initializers in read-only named regions.
 
 `linker_banked_image_model.pl` covers the first full-window banked-image
 foundation. It uses an F8 test cfg with more than sixteen MEMORY and SEGMENTS
@@ -136,6 +139,16 @@ restoration, and balanced hardware-stack returns.
 call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
+
+`linker_banked_auto_placement.pl` covers deterministic roadmap-item-7 placement.
+It links the same fixture twice, pins runtime and `main` to BANK0, spills an
+unpinned function by capacity, keeps a call-connected function home, collapses a
+forbidden ROM-data edge into a hard component, and rejects contradictory pins.
+It also compiles a VCSC named `$ro` object, proves the object becomes a pinned
+`RODATA.bank1` layout, proves its unpinned reader follows it to BANK1, and checks
+that the resulting BANK0 `main` call creates exactly one JSR bridge. Map output
+must identify components, pinned/automatic members, concrete regions, byte cost,
+and incident cut weight.
 
 `fp_removed.pl` independently locks that the linker still reserves exactly two
 bytes per weighted hardware-return slot (never the obsolete four-byte frame-

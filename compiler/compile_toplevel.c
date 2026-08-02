@@ -861,6 +861,7 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_const = declaration_const_applies_to_object(modifiers, declarator);
    bool is_static = has_modifier(modifiers, "static");
    bool is_zeropage = modifiers_imply_zeropage(modifiers);
+   bool is_readonly_mem = modifiers_imply_readonly_mem(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
    bool is_absolute_ref = is_ref && addrspec != NULL;
@@ -871,6 +872,10 @@ void compile_global_decl_item(ASTNode *node) {
    if (is_page && modifiers_imply_mem_storage(modifiers)) {
       error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
                  node->file, node->line, node->column);
+   }
+   if (is_readonly_mem && !is_const && !is_extern) {
+      error_user("[%s:%d.%d] object '%s' placed in a $ro mem region must be const",
+                 node->file, node->line, node->column, name);
    }
    if (is_page && (is_extern || is_absolute_ref)) {
       error_user("[%s:%d.%d] 'page' requires a file-scope data-object definition",
@@ -986,6 +991,14 @@ void compile_global_decl_item(ASTNode *node) {
             emit_sink_append(&es_zpdata, &init_es);
             restore_object_segment(&es_zpdata, segbuf);
          }
+         else if (modifiers_imply_mem_storage(modifiers) && is_const && is_readonly_mem) {
+            char segbuf[256];
+            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "RODATA");
+            emit_data_object_segment(&es_rodata, segbuf, symname, is_page, size);
+            emit(&es_rodata, "%s:\n", symname);
+            emit_sink_append(&es_rodata, &init_es);
+            restore_object_segment(&es_rodata, segbuf);
+         }
          else if (modifiers_imply_mem_storage(modifiers)) {
             char segbuf[256];
             build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "DATA");
@@ -1003,6 +1016,11 @@ void compile_global_decl_item(ASTNode *node) {
             restore_object_segment(es, base);
          }
          return;
+      }
+
+      if (is_readonly_mem) {
+         error_user("[%s:%d.%d] object '%s' placed in a $ro mem region requires a link-time initializer",
+                    node->file, node->line, node->column, name);
       }
 
       if (is_zeropage) {

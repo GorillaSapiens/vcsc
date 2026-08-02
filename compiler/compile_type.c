@@ -1497,9 +1497,35 @@ bool mem_decl_is_zeropage(const ASTNode *mem_decl) {
    return false;
 }
 
+//! @brief Return whether one named mem declaration describes read-only storage.
+bool mem_decl_is_readonly(const ASTNode *mem_decl) {
+   const ASTNode *flags;
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2) {
+      return false;
+   }
+   flags = mem_decl->children[1];
+   if (!flags || is_empty(flags)) {
+      return false;
+   }
+   for (int i = 0; i < flags->count; i++) {
+      const char *text = (flags->children[i] && flags->children[i]->strval)
+         ? flags->children[i]->strval : NULL;
+      if (text && !strcmp(text, "$ro")) {
+         return true;
+      }
+   }
+   return false;
+}
+
 //! @brief Handle modifiers imply zeropage logic for compiler type system.
 bool modifiers_imply_zeropage(const ASTNode *modifiers) {
    return mem_decl_is_zeropage(find_mem_modifier_node(modifiers));
+}
+
+//! @brief Return whether a declaration's named mem modifier is read-only.
+bool modifiers_imply_readonly_mem(const ASTNode *modifiers) {
+   return mem_decl_is_readonly(find_mem_modifier_node(modifiers));
 }
 
 //! @brief Handle modifiers imply mem storage logic for compiler type system.

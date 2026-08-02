@@ -54,8 +54,15 @@ index($bankswitching,'JSR  body')>=0 &&
 index($bankswitching,'STA  source_hotspot')>=0 &&
 index($bankswitching,'__call_stack_weighted_depth')>=0
    or die "bankswitching plan lost the completed cross-bank JSR return path\n";
-index($bankswitching,'must pin unmarked `main`')>=0 &&
-index($bankswitching,'Unpinned layouts are assigned automatically by the linker')>=0
+index($bankswitching,'[x] 7. Add placement constraints and deterministic automatic bank placement.')>=0 &&
+index($bankswitching,'Pinned components are assigned first in stable input order')>=0 &&
+$bankswitching =~ /15 for JSR and 8 for\s+JMP/ &&
+index($bankswitching,'RODATA.bank1.__vcsc_object$level_table')>=0
+   or die "bankswitching plan lost completed deterministic automatic placement\n";
+-f File::Spec->catfile($test,'linker_banked_auto_placement.pl')
+   or die "automatic bank-placement regression test is missing\n";
+$bankswitching =~ /The linker pins unmarked\s+`main`/ &&
+$bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";
 index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0

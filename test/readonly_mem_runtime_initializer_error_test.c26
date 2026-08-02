@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: object 'runtime_value' placed in a $ro mem region requires a link-time initializer
+include "machine_6502.c26"
+mem bank1 { $start:0xD000 $size:0x1000 $ro };
+
+uint8_t seed := 3;
+
+uint8_t twice(uint8_t value) {
+   return value + value;
+}
+
+bank1 const uint8_t runtime_value := twice(seed);
+
+void main(void) {
+}

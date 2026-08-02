@@ -138,7 +138,21 @@ typedef struct {
    uint16_t index_range_max;
    uint16_t load_addr;
    uint16_t run_addr;
+   /* Final full-window cartridge placement chosen before ordinary address
+      allocation.  These fields are linker-private; they are not serialized in
+      o26 files. */
+   char placement_memory[MAX_NAME];
+   char placement_bank[MAX_NAME];
+   uint16_t placement_component;
+   uint8_t placement_mode;
+   uint8_t placement_component_pinned;
+   uint32_t placement_component_bytes;
+   uint32_t placement_cut_weight;
 } object_layout_t;
+
+#define BANK_PLACEMENT_NONE      0
+#define BANK_PLACEMENT_PINNED    1
+#define BANK_PLACEMENT_AUTOMATIC 2
 
 typedef struct {
    uint32_t offset;
