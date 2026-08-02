@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260802_180410.tar.gz
+    vcsc.20260802_191524.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7879,3 +7879,56 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   F4 image, reset, relocation/trampoline, weighted-stack, automatic-placement,
   and source-hygiene tests pass.  Staged `make installcheck` passes using the
   supplied bison/flex packages.
+
+
+2026-08-02 12:33:41 PDT, certify the installed F8 profile and record explicit bank duplication
+------------------------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 8 by adding the public installed
+  `libraries/vcs/vcs_8k_f8.cfg` profile.  It uses VCSC BANK1 at `$D000` as
+  physical/file chunk 0 selected by `$1FF8`, VCSC BANK0 at `$F000` as the
+  startup/home chunk 1 selected by `$1FF9`, and writes BANK0 last.  Ordinary
+  allocation ends at `$xEFF`; `$xF00-$xFDF` is the byte-identical common
+  trampoline corridor, `$xFE0-$xFF1` is the byte-identical vector bridge,
+  `$xFF2-$xFF9` is reserved tail/hotspot space, and vectors occupy
+  `$xFFA-$xFFF` in both banks.
+* Name the public allocatable regions `bank0` and `bank1`, with matching
+  `CODE.bankN` and `RODATA.bankN` segment rules, so existing named `mem`
+  modifiers provide hard pins while unmarked private CODE/RODATA remains
+  eligible for deterministic automatic placement.  Keep `main`, startup, and
+  required runtime material in BANK0.
+* Add the private `test/fixtures/bankswitching/f8_profile_diagnostic.c26` and
+  `test/vcs_f8_profile.pl`.  The source diagnostic proves explicit BANK0/BANK1
+  pins, an unpinned reader following a pinned BANK1 const object, cross-bank
+  JMP, nested cross-bank JSR, byte-identical common corridors, exact selector
+  identities, map output, and exact 8192-byte output.  A small profile-specific
+  opcode model starts from both possible initially selected physical chunks,
+  follows the reset bridge into BANK0, executes BANK0 -> BANK1 -> BANK0 nested
+  calls, and proves LIFO bank restoration and balanced hardware-stack returns.
+* Install and uninstall `share/vcs/vcs_8k_f8.cfg`; extend `make installcheck` to
+  compile the diagnostic with the staged driver/profile and verify the exact
+  image size and BANK0/BANK1 map identities.  Update the VCS catalog, driver,
+  linker, test, source-hygiene, and generic-target-retention documentation.
+* Add a new roadmap item immediately after automatic Superchip allocation for
+  explicit multi-bank duplication.  Planned syntax such as
+  `bank0 bank1 const uint8_t table[] := { ... };` creates one immutable object
+  copy per listed bank and binds references to the local copy.  The same
+  multi-region syntax will duplicate functions and prefer a local function copy
+  before generating a cross-bank bridge.  Region sets are order-insensitive but
+  must agree across declarations/definitions; duplicate region names and mutable
+  object replication are errors.  Combining `inline` with any named bank or
+  memory-region specification is always an error.
+* Detailed bankswitching roadmap item 9, public F6 and F4 profiles through the
+  same implementation, is next.
+
+
+2026-08-02 12:39:18 PDT, finish F8-profile certification verification
+---------------------------------------------------------------------
+* Complete verification of the roadmap item 8 work above.  All 344
+  compile-only tests pass.  All 209 end-to-end/generic tests pass; the ordered
+  suite was completed in deterministic groups because one uninterrupted run
+  exceeds the command window.  The focused installed F8 profile, source-tree
+  hygiene, generic-target retention, and staged `make installcheck` tests pass.
+* Restore build products and generated version headers from the input archive
+  before packaging, so the delivered diff contains only the intended roadmap,
+  profile, test, Makefile, fixture, and documentation changes rather than a
+  gratuitous rebuild of every host tool.

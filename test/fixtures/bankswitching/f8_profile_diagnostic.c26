@@ -1,0 +1,43 @@
+include "machine_6502.c26"
+
+// These names and spans match libraries/vcs/vcs_8k_f8.cfg.  Unmarked code is
+// automatically placed; named modifiers are hard pins.
+mem bank0 { $start:0xF000 $size:0x0F00 $ro };
+mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+
+uint8_t result;
+
+bank1 const uint8_t bank1_value := 0x42;
+
+bank0 void home_leaf(void) {
+   result := result + 1;
+}
+
+bank0 void home_tail(void) {
+   result := result + 8;
+}
+
+bank1 void remote(void) {
+   result := result + 2;
+   home_leaf();
+}
+
+// This is a tail call.  The direct cross-bank JMP is rewritten through the
+// common byte-identical trampoline table and home_tail's RTS returns through
+// the JSR that entered remote_jump.
+bank1 void remote_jump(void) {
+   asm jmp home_tail;
+}
+
+// The object reference is a hard same-bank constraint, so this unpinned
+// function is automatically placed with bank1_value in BANK1.
+uint8_t automatic_reader(void) {
+   return bank1_value;
+}
+
+void main(void) {
+   result := 0;
+   remote();
+   result := result + automatic_reader();
+   remote_jump();
+}

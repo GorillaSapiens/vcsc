@@ -44,6 +44,10 @@ index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
+index($bankswitching,'[ ] 13. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
+index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
+index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
+   or die "bankswitching plan lost const/function bank duplication or inline conflict rules\n";
 index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
 index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&
@@ -61,6 +65,12 @@ index($bankswitching,'RODATA.bank1.__vcsc_object$level_table')>=0
    or die "bankswitching plan lost completed deterministic automatic placement\n";
 -f File::Spec->catfile($test,'linker_banked_auto_placement.pl')
    or die "automatic bank-placement regression test is missing\n";
+index($bankswitching,'[x] 8. Add and certify `vcs_8k_f8.cfg`.')>=0
+   or die "bankswitching plan no longer records the certified F8 profile\n";
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_f8.cfg') &&
+-f File::Spec->catfile($test,'vcs_f8_profile.pl') &&
+-f File::Spec->catfile($test,'fixtures','bankswitching','f8_profile_diagnostic.c26')
+   or die "certified F8 profile or its diagnostics are missing\n";
 $bankswitching =~ /The linker pins unmarked\s+`main`/ &&
 $bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";

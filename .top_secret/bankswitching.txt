@@ -726,13 +726,17 @@ when main roadmap item 29 becomes active.
          contradictory pins, `main` residency, generated bridge count, and a
          source-compiled named `$ro` object whose unpinned reader follows it.
 
-[ ] 8. Add and certify `vcs_8k_f8.cfg`.
+[x] 8. Add and certify `vcs_8k_f8.cfg`.
 
-       * Build a two-bank diagnostic with BANK1 first and BANK0 last in the file.
-       * Verify reset from either initial bank, `main` in BANK0, automatic and pinned
-         placement, cross-bank JMP, JSR-to-indirect-JMP calls, nested return,
-         vectors, selector use, map output, and exact 8192-byte
-         image size.
+       * Install a public two-bank profile with BANK1 first and BANK0 last in
+         the file, ordinary allocation ending at `$xEFF`, and common trampoline,
+         vector-bridge, tail, hotspot, and vector reservations in both banks.
+       * Provide `bank0` and `bank1` MEMORY/SEGMENT names for hard source pins
+         while leaving unmarked CODE/RODATA eligible for deterministic placement.
+       * Certify reset from either initial file chunk, `main` and runtime in BANK0,
+         automatic and pinned placement, cross-bank JMP, JSR-to-indirect-JMP calls,
+         nested return, byte-identical common corridors, vectors, selector use,
+         map output, staged installation, and exact 8192-byte image size.
 
 [ ] 9. Add F6 and F4 through the same implementation.
 
@@ -772,7 +776,29 @@ when main roadmap item 29 becomes active.
        * Count physical occupancy once and provide deterministic overflow
          diagnostics.
 
-[ ] 13. Integrate automatic Superchip initialization and lifecycle tests.
+[ ] 13. Add explicit multi-bank duplication for immutable objects and functions.
+
+       * Accept an order-insensitive set of named bank-region modifiers, for
+         example `bank0 bank1 const uint8_t table[] := { ... };`, and emit one
+         identical ROM copy in every listed bank.
+       * Bind each ordinary reference to the copy in the referencing function's
+         current bank.  A reference from a bank without a declared copy is an
+         error; the copies need not share one low-twelve-bit offset.
+       * Permit the same syntax on functions.  Emit one function body per listed
+         bank and resolve calls from a bank containing a copy to that local copy
+         before considering a cross-bank trampoline.
+       * Require every declaration and definition to specify the same region set
+         regardless of order; reject duplicate region names and mutable object
+         duplication until explicit coherence semantics exist.
+       * Combining `inline` with any named bank/memory-region specification,
+         whether single-bank or multi-bank, is always an error.  Inline bodies
+         have caller-selected placement and therefore cannot carry an independent
+         bank-placement contract.
+       * Report every replicated copy and its total physical ROM cost in the map,
+         and test local binding, mixed pinned/unpinned callers, function pointers
+         remaining unsupported, and deterministic diagnostics for missing copies.
+
+[ ] 14. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
          startup.
@@ -782,7 +808,7 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-[ ] 14. Add banked renderer or multisprite profiles only after the generic
+[ ] 15. Add banked renderer or multisprite profiles only after the generic
        cartridge tests are stable.
 
        * Keep mapper behavior out of renderer timing code except for explicit
@@ -791,7 +817,7 @@ when main roadmap item 29 becomes active.
        * Do not multiply cfg files into every renderer x mapper combination
          without first defining a maintainable composition mechanism.
 
-[ ] 15. Improve automatic placement heuristics without changing semantics.
+[ ] 16. Improve automatic placement heuristics without changing semantics.
 
        * Measure whether call-frequency weighting, component ordering, or local
          moves materially reduce bridge count, cycles, and hardware-stack cost.
@@ -801,7 +827,7 @@ when main roadmap item 29 becomes active.
        * Permit a simple-placement mode for debugging and reproducibility; never
          fall back to invented cross-bank data access.
 
-[ ] 16. Design the next mapper family separately.
+[ ] 17. Design the next mapper family separately.
 
        * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
          segmented schemes such as E0/E7 based on an actual project need.

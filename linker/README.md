@@ -196,6 +196,11 @@ MEMORY {
 }
 ```
 
+The installed `libraries/vcs/vcs_8k_f8.cfg` profile is the first certified
+public use of this model.  It names the ordinary allocatable regions `bank0`
+and `bank1`, reserves `$xF00-$xFFF` identically in both chunks, and is selected
+explicitly with `-T`; the default driver profile remains unbanked `vcs_4k.cfg`.
+
 The linker treats three identities as separate: the VCSC logical `BANKn`
 name, the zero-based physical/file chunk index, and the mapper selector hotspot.
 Do not read an external phrase such as "bank 0" as VCSC `BANK0` unless it

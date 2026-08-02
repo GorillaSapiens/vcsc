@@ -44,6 +44,7 @@ When run from the built repository tree, it finds:
 - `simulator/vcsc-sim` (only for path reporting via `-print-prog-name=sim`)
 - `libraries/runtime/libvcsc.l26` for default linking
 - `libraries/vcs/vcs_4k.cfg` for the default unbanked VCS cartridge layout
+- `libraries/vcs/vcs_8k_f8.cfg` as the explicit installed F8 bank-switched profile selected with `-T`
 
 When installed, it expects this layout under the same prefix:
 
@@ -51,6 +52,7 @@ When installed, it expects this layout under the same prefix:
 - `lib/libvcsc.l26`
 - `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
 - `share/vcs/vcs_4k.cfg` for the default linker layout
+- `share/vcs/vcs_8k_f8.cfg` for explicit two-bank F8 links
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 
@@ -74,6 +76,12 @@ Build and link a program:
 
 ```sh
 ./driver/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o solid_color.bin
+```
+
+Select the installed/repository F8 profile explicitly:
+
+```sh
+./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs_8k_f8.cfg banked.c26 -o banked.bin
 ```
 
 Compile only:

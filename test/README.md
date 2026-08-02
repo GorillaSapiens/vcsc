@@ -140,6 +140,15 @@ call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
 
+`vcs_f8_profile.pl` certifies the installed `libraries/vcs/vcs_8k_f8.cfg`
+profile.  It compiles the private F8 source diagnostic, locks BANK1-first/BANK0-
+last file order, `$1FF8/$1FF9` selector identities, hard and automatic placement,
+cross-bank JMP and nested JSR bridges, byte-identical common corridors, vectors,
+map output, and exact 8192-byte output.  A small opcode model starts from each
+possible initially selected file chunk and proves the reset bridge reaches
+BANK0 and nested calls restore banks and hardware-stack returns correctly.
+`make installcheck` repeats the source build with the staged installed profile.
+
 `linker_banked_auto_placement.pl` covers deterministic roadmap-item-7 placement.
 It links the same fixture twice, pins runtime and `main` to BANK0, spills an
 unpinned function by capacity, keeps a call-connected function home, collapses a
