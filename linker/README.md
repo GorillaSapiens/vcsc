@@ -298,21 +298,51 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-Direct cross-bank `JSR` remains rejected with a specific "JSR trampoline
-generation is not implemented yet" diagnostic until the next roadmap item adds
-the synthetic return-address and source-bank return-stub path. Cross-bank ROM
-data and conditional branches remain permanent errors. Diagnostics identify the
-input object, source layout/address/bank, target symbol/address/bank, and the
-failed rule. Raw numeric addresses contain no relocation and cannot be checked
-by the linker.
+A proven direct cross-bank `JSR` is redirected to a fifteen-byte source-aware
+entry in the same common table:
+
+```asm
+    JSR body
+return_to_source:
+    STA source_hotspot
+    RTS
+body:
+    STA destination_hotspot
+    JMP (inline_target_pointer)
+inline_target:
+    .word final_target
+```
+
+The call-site JSR leaves the caller's real return address on the hardware stack.
+The entry's internal JSR creates the synthetic return address without changing
+A, X, Y, or processor flags. The destination function's RTS reaches the
+byte-identical `return_to_source` stub, whose hotspot store restores the caller's
+bank while preserving A and flags; its RTS then consumes the original call-site
+return address. Internal JSR and indirect-pointer operands use BANK0's logical
+mirror of the common table, so the encoded bytes are identical in every bank.
+JSR entries are deduplicated by source hotspot, destination hotspot, and final
+target. Nested cross-bank calls naturally restore banks in LIFO order.
+
+Cross-bank ROM data and conditional branches remain permanent errors.
+Diagnostics identify the input object, source layout/address/bank, target
+symbol/address/bank, and the failed rule. Raw numeric addresses contain no
+relocation and cannot be checked by the linker.
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
-acyclic source-level call path and shrinks that region from the top before
-placing DATA/BSS/ZEROPAGE. The reserve is two bytes per function level for
-active JSR return addresses, plus one fixed two-byte allowance when the selected
-objects contain one or more runtime initializer functions. The extra pair holds
-the stock startup's init-table cursor while it calls an initializer.
+acyclic source-level call path. For statically configured banked functions it
+also computes a weighted depth which adds one hardware-return slot for every
+simultaneously active cross-bank call edge. The region is shrunk from the top
+before placing DATA/BSS/ZEROPAGE. The reserve is two bytes per weighted slot,
+plus one fixed two-byte allowance when the selected objects contain one or more
+runtime initializer functions. The extra pair holds the stock startup's
+init-table cursor while it calls an initializer.
+
+The map preserves the ordinary source-level `depth`, reports `weighted-depth`
+and `bank-extra-slots`, and exports `__call_stack_weighted_depth` and
+`__call_stack_bank_extra_slots`. Hand-written or separately assembled calls
+which are absent from compiler call metadata still require an explicit
+`callstack_extra` allowance.
 
 `callstack_extra = N` adds an explicit byte count to that reserve. It is for
 stack use known by a source-integration contract but hidden from compiler call

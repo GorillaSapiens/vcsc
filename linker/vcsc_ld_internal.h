@@ -111,6 +111,8 @@ typedef struct {
    int call_stack_enabled;
    char call_stack_region[MAX_NAME];
    uint16_t call_stack_depth;
+   uint16_t call_stack_weighted_depth;
+   uint16_t call_stack_bank_extra_slots;
    uint16_t call_stack_extra;
    uint16_t call_stack_size;
    uint16_t call_stack_start;
@@ -275,14 +277,17 @@ typedef struct {
    uint16_t size;
 } zero_record_t;
 
-//! One deduplicated direct cross-bank JMP entry in the common replicated table.
+//! One deduplicated direct cross-bank control-transfer entry in the common table.
 typedef struct {
+   uint8_t kind;
    uint16_t target_addr;
    uint16_t table_offset;
+   uint16_t source_hotspot;
    uint16_t destination_hotspot;
    char *target_name;
+   char source_bank[MAX_NAME];
    char destination_bank[MAX_NAME];
-} bank_jump_entry_t;
+} bank_trampoline_entry_t;
 
 //! Final placement, copy/zero tables, stack range, and global symbols.
 typedef struct {
@@ -310,11 +315,13 @@ typedef struct {
    uint16_t zero_table_size;
    uint16_t stack_start;
    uint16_t stack_top;
-   bank_jump_entry_t *bank_jump_entries;
-   size_t bank_jump_entry_count;
+   bank_trampoline_entry_t *bank_trampoline_entries;
+   size_t bank_trampoline_entry_count;
    uint16_t bank_trampoline_used;
    int call_stack_enabled;
    uint16_t call_stack_depth;
+   uint16_t call_stack_weighted_depth;
+   uint16_t call_stack_bank_extra_slots;
    uint16_t call_stack_extra;
    uint16_t call_stack_size;
    uint16_t call_stack_start;

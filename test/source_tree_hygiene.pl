@@ -49,9 +49,11 @@ index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&
 index($bankswitching,'target word never begins at page offset $FF')>=0
    or die "bankswitching plan lost the completed inline-target JMP trampoline design\n";
-index($bankswitching,'[ ] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.')>=0 &&
-index($bankswitching,'Push a synthetic return-stub address')>=0
-   or die "bankswitching plan lost the pending cross-bank JSR return path\n";
+index($bankswitching,'[x] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.')>=0 &&
+index($bankswitching,'JSR  body')>=0 &&
+index($bankswitching,'STA  source_hotspot')>=0 &&
+index($bankswitching,'__call_stack_weighted_depth')>=0
+   or die "bankswitching plan lost the completed cross-bank JSR return path\n";
 index($bankswitching,'must pin unmarked `main`')>=0 &&
 index($bankswitching,'Unpinned layouts are assigned automatically by the linker')>=0
    or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";

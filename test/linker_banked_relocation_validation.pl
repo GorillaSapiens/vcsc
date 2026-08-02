@@ -114,6 +114,15 @@ sub link_command {
    return ($ld, '-T', $cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
            '-o', File::Spec->catfile($tmp, "$name.bin"), @objects);
 }
+sub map_symbol_addr {
+   my ($map, $name) = @_;
+   return hex($1) if $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m;
+   die "map omitted symbol $name\n$map";
+}
+sub image_offset_for_addr {
+   my ($addr) = @_;
+   return ($addr >= 0xF000 ? 0x1000 : 0) + ($addr & 0x0FFF);
+}
 
 my $preamble = <<'ASM';
 .export __reset
@@ -158,19 +167,172 @@ require_ok('same-bank code/data and shared RAM relocations',
 
 my $cross_jsr = assemble_case('cross_jsr', $preamble . <<'ASM');
 .export remote
+.export home_leaf
 .proc main
+   LDA #$11
    JSR remote
+   STA.a $0080
+   RTS
+.endproc
+.proc home_leaf
+   STA.a $0083
+   LDA #$33
    RTS
 .endproc
 .segment "CODE.bank1"
 .proc remote
+   STA.a $0081
+   LDA #$22
+   JSR home_leaf
+   STA.a $0082
    RTS
 .endproc
 ASM
-my $jsr_err = require_fail('cross-bank JSR classification', 'cross-bank JSR',
-                           link_command('cross_jsr', $cross_jsr));
-$jsr_err =~ /\(BANK0\).*\(BANK1\).*JSR trampoline generation/s
-   or die "cross-bank JSR diagnostic omitted bank identities or trampoline status\n$jsr_err";
+my $cross_jsr_bin = File::Spec->catfile($tmp, 'cross_jsr.bin');
+my $cross_jsr_map = File::Spec->catfile($tmp, 'cross_jsr.map');
+require_ok('cross-bank JSR trampoline generation',
+           $ld, '-T', $cfg, '-Map', $cross_jsr_map,
+           '--no-sym', '--no-list', '--no-cfg',
+           '-o', $cross_jsr_bin, $cross_jsr);
+my $jsr_image = slurp($cross_jsr_bin);
+my $jsr_map = slurp($cross_jsr_map);
+length($jsr_image) == 8192 or die "cross-JSR image was not 8K\n";
+$jsr_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$01E replicated=\$0000003C target-passing=inline entries=2 jmp=0 jsr=2 jmp-size=\$08 jsr-size=\$0F/
+   or die "map omitted common JSR table accounting\n$jsr_map";
+my $jsr_bank1_table = substr($jsr_image, 0x0F00, 0x1E);
+my $jsr_bank0_table = substr($jsr_image, 0x1F00, 0x1E);
+$jsr_bank1_table eq $jsr_bank0_table
+   or die "common JSR table was not byte-identical in both banks\n";
+my $jsr_remote_addr = map_symbol_addr($jsr_map, 'remote');
+my $jsr_home_addr = map_symbol_addr($jsr_map, 'home_leaf');
+my $jsr_main_addr = map_symbol_addr($jsr_map, 'main');
+my $jsr_entry0 = pack('C*',
+   0x20, 0x07, 0xFF,
+   0x8D, 0xF9, 0x1F,
+   0x60,
+   0x8D, 0xF8, 0x1F,
+   0x6C, 0x0D, 0xFF,
+   $jsr_remote_addr & 0xFF, $jsr_remote_addr >> 8);
+my $jsr_entry1 = pack('C*',
+   0x20, 0x16, 0xFF,
+   0x8D, 0xF8, 0x1F,
+   0x60,
+   0x8D, 0xF9, 0x1F,
+   0x6C, 0x1C, 0xFF,
+   $jsr_home_addr & 0xFF, $jsr_home_addr >> 8);
+substr($jsr_bank0_table, 0x00, 0x0F) eq $jsr_entry0
+   or die "BANK0-to-BANK1 JSR entry bytes are wrong\n";
+substr($jsr_bank0_table, 0x0F, 0x0F) eq $jsr_entry1
+   or die "BANK1-to-BANK0 JSR entry bytes are wrong\n";
+substr($jsr_image, image_offset_for_addr($jsr_main_addr) + 2, 3) eq pack('Cv', 0x20, 0xFF00)
+   or die "main JSR was not redirected to BANK0's first table mirror\n";
+my $remote_bytes = substr($jsr_image, image_offset_for_addr($jsr_remote_addr), 32);
+index($remote_bytes, pack('Cv', 0x20, 0xDF0F)) >= 0
+   or die "BANK1 nested JSR was not redirected to BANK1's second table mirror\n";
+$jsr_map =~ /JSR entry=0 .*source=BANK0 hotspot=\$1FF9 destination=BANK1 hotspot=\$1FF8/
+   or die "map omitted BANK0-to-BANK1 JSR entry details\n$jsr_map";
+$jsr_map =~ /JSR entry=1 .*source=BANK1 hotspot=\$1FF8 destination=BANK0 hotspot=\$1FF9/
+   or die "map omitted BANK1-to-BANK0 JSR entry details\n$jsr_map";
+
+# Execute the nested bridge path with the small opcode subset used above. This
+# proves that the destination callee sees the caller's A value, each target RTS
+# reaches the identical source-bank restore stub, nested calls restore in LIFO
+# order, and the final RTS reaches the original caller with BANK0 selected.
+{
+   my @ram = (0) x 256;
+   my @stack = (0) x 256;
+   my $selected = 1; # F8 physical/file chunk 1 is VCSC BANK0.
+   my $pc = $jsr_main_addr;
+   my $sp = 0xFF;
+   my $a = 0;
+   my $steps = 0;
+   my $read8 = sub {
+      my ($addr) = @_;
+      return $ram[$addr] if $addr < 0x100;
+      return ord(substr($jsr_image, $selected * 0x1000 + ($addr & 0x0FFF), 1));
+   };
+   my $push = sub {
+      my ($value) = @_;
+      $stack[$sp] = $value & 0xFF;
+      $sp = ($sp - 1) & 0xFF;
+   };
+   my $pop = sub {
+      $sp = ($sp + 1) & 0xFF;
+      return $stack[$sp];
+   };
+   while (++$steps < 200) {
+      my $op = $read8->($pc);
+      if ($op == 0xA9) { # LDA immediate
+         $a = $read8->(($pc + 1) & 0xFFFF);
+         $pc = ($pc + 2) & 0xFFFF;
+      }
+      elsif ($op == 0x8D) { # STA absolute, including mapper hotspots
+         my $addr = $read8->(($pc + 1) & 0xFFFF) |
+                    ($read8->(($pc + 2) & 0xFFFF) << 8);
+         if ($addr == 0x1FF8) {
+            $selected = 0;
+         }
+         elsif ($addr == 0x1FF9) {
+            $selected = 1;
+         }
+         elsif ($addr < 0x100) {
+            $ram[$addr] = $a;
+         }
+         $pc = ($pc + 3) & 0xFFFF;
+      }
+      elsif ($op == 0x20) { # JSR absolute
+         my $target = $read8->(($pc + 1) & 0xFFFF) |
+                      ($read8->(($pc + 2) & 0xFFFF) << 8);
+         my $ret = ($pc + 2) & 0xFFFF;
+         $push->($ret >> 8);
+         $push->($ret & 0xFF);
+         $pc = $target;
+      }
+      elsif ($op == 0x6C) { # JMP (absolute)
+         my $pointer = $read8->(($pc + 1) & 0xFFFF) |
+                       ($read8->(($pc + 2) & 0xFFFF) << 8);
+         $pc = $read8->($pointer) | ($read8->(($pointer + 1) & 0xFFFF) << 8);
+      }
+      elsif ($op == 0x60) { # RTS
+         last if $sp == 0xFF;
+         $pc = (($pop->() | ($pop->() << 8)) + 1) & 0xFFFF;
+      }
+      else {
+         die sprintf("nested JSR emulator hit unsupported opcode %02X at %04X\n", $op, $pc);
+      }
+   }
+   $steps < 200 or die "nested JSR bridge execution did not terminate\n";
+   $ram[0x81] == 0x11 or die "destination callee did not receive caller A through first bridge\n";
+   $ram[0x83] == 0x22 or die "nested home callee did not receive caller A through second bridge\n";
+   $ram[0x82] == 0x33 or die "nested return did not preserve A while restoring BANK1\n";
+   $ram[0x80] == 0x33 or die "outer return did not preserve A while restoring BANK0\n";
+   $selected == 1 or die "nested cross-bank JSR path did not finish in BANK0\n";
+   $sp == 0xFF or die "nested cross-bank JSR path did not balance the hardware stack\n";
+}
+
+my $jsr_wrap_cfg = File::Spec->catfile($tmp, 'jsr-wrap.cfg');
+my $jsr_wrap_text = slurp($cfg);
+$jsr_wrap_text =~ s/trampoline = \$0F00/trampoline = \$0EF2/;
+$jsr_wrap_text =~ s/trampolinesize = \$00E0/trampolinesize = \$00EE/;
+$jsr_wrap_text =~ s/bank1: start=\$D000, size=\$0F00/bank1: start=\$D000, size=\$0EF2/;
+$jsr_wrap_text =~ s/BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0/BANK1_TRAMPOLINE: start=\$DEF2, size=\$00EE/;
+$jsr_wrap_text =~ s/ROM: start=\$F000, size=\$0F00/ROM: start=\$F000, size=\$0EF2/;
+$jsr_wrap_text =~ s/BANK0_TRAMPOLINE: start=\$FF00, size=\$00E0/BANK0_TRAMPOLINE: start=\$FEF2, size=\$00EE/;
+write_file($jsr_wrap_cfg, $jsr_wrap_text);
+my $jsr_wrap_bin = File::Spec->catfile($tmp, 'jsr-wrap.bin');
+my $jsr_wrap_map = File::Spec->catfile($tmp, 'jsr-wrap.map');
+require_ok('cross-bank JSR inline-pointer page-wrap padding',
+           $ld, '-T', $jsr_wrap_cfg, '-Map', $jsr_wrap_map,
+           '--no-sym', '--no-list', '--no-cfg',
+           '-o', $jsr_wrap_bin, $cross_jsr);
+my $jsr_wrap_image = slurp($jsr_wrap_bin);
+my $jsr_wrap_map_text = slurp($jsr_wrap_map);
+ord(substr($jsr_wrap_image, 0x0EF2, 1)) == 0xFF &&
+ord(substr($jsr_wrap_image, 0x1EF2, 1)) == 0xFF
+   or die "JSR page-wrap avoidance did not leave identical fill padding\n";
+$jsr_wrap_map_text =~ /common-offset=\$EF2 reserved=\$0EE used=\$01F/ &&
+$jsr_wrap_map_text =~ /JSR entry=0 offset=\$EF3/
+   or die "JSR page-wrap avoidance did not move the first entry past xxFF\n$jsr_wrap_map_text";
 
 my $cross_jmp = assemble_case('cross_jmp', $preamble . <<'ASM');
 .export remote
@@ -203,21 +365,12 @@ require_ok('cross-bank JMP trampoline generation',
 my $jmp_image = slurp($cross_jmp_bin);
 my $jmp_map = slurp($cross_jmp_map);
 length($jmp_image) == 8192 or die "cross-JMP image was not 8K\n";
-$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline entries=2 entry-size=\$08/
+$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline entries=2 jmp=2 jsr=0 jmp-size=\$08 jsr-size=\$0F/
    or die "map omitted common JMP table accounting or deduplication\n$jmp_map";
 my $bank1_table = substr($jmp_image, 0x0F00, 0x10);
 my $bank0_table = substr($jmp_image, 0x1F00, 0x10);
 $bank1_table eq $bank0_table
    or die "common JMP table was not byte-identical in both banks\n";
-sub map_symbol_addr {
-   my ($map, $name) = @_;
-   return hex($1) if $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m;
-   die "map omitted symbol $name\n$map";
-}
-sub image_offset_for_addr {
-   my ($addr) = @_;
-   return ($addr >= 0xF000 ? 0x1000 : 0) + ($addr & 0x0FFF);
-}
 my $remote_addr = map_symbol_addr($jmp_map, 'remote');
 my $home_addr = map_symbol_addr($jmp_map, 'home_target');
 my $main_addr = map_symbol_addr($jmp_map, 'main');

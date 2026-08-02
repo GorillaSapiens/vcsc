@@ -266,14 +266,14 @@ and therefore cannot cross banks. Ordinary two-byte relative branches remain in
 the B26 branch table and are checked from their final source and target
 addresses after placement.
 
-Roadmap item 5 now installs direct cross-bank JMP trampolines. A proven direct
-cross-bank JMP is rewritten to the source bank's logical mirror of a deduplicated
-entry in the common replicated table. Direct cross-bank JSR remains rejected
-with a control-specific "JSR trampoline generation is not implemented yet"
-diagnostic until roadmap item 6 lands. The linker never emits a raw mirrored
-cross-bank target address. This temporary JSR rejection is intentionally
-different from the permanent prohibition on cross-bank ROM data and conditional
-branches.
+Roadmap items 5 and 6 install direct cross-bank JMP and JSR trampolines. A
+proven direct transfer is rewritten to the source bank's logical mirror of a
+deduplicated entry in the common replicated table. JMP entries are deduplicated
+by final target and destination hotspot. JSR entries also include the statically
+known source hotspot because their embedded return stub must restore that bank.
+The linker never emits a raw mirrored cross-bank target address. This generated
+control-flow support is intentionally different from the permanent prohibition
+on cross-bank ROM data and conditional branches.
 
 A programmer can always defeat relocation checks with a manually written raw
 numeric address. That does not make such access supported; diagnostics cover
@@ -289,21 +289,37 @@ at the next byte in the newly selected bank; byte-for-byte identity is therefore
 what makes every continuation safe.
 
 The 6502 has no indirect JSR instruction, but a normal JSR can call a fixed
-bridge which ultimately performs an indirect JMP. That is the generic
-cross-bank call mechanism. Conceptually:
+entry whose own JSR creates the synthetic return address before the entry
+ultimately performs an indirect JMP. That is the generic cross-bank call
+mechanism. The implemented fifteen-byte entry is:
 
-    void jsr_trampoline(uint16_t target) {
-        push_return_address(return_to_callers_bank);
-        select_bank(bank_of(target));
-        asm jmp (target);
-    }
+    generated entry for source BANKs and target $DABC:
+        JSR  body
+    return_to_source:
+        STA  source_hotspot
+        RTS
+    body:
+        STA  destination_hotspot
+        JMP  (BANK0-mirror address of inline_target)
+    inline_target:
+        .word $DABC
 
-The caller's ordinary JSR has already placed its real return address on the
-hardware stack. The trampoline pushes a synthetic return address above it,
-switches to the target bank, and executes JMP through the target pointer. The
-target function's RTS reaches the synthetic return stub. That stub selects the
-caller's bank and executes a second RTS, which consumes the caller's original
-return address.
+The call site's ordinary JSR first places its real return address on the
+hardware stack. The generated entry's JSR then places the address immediately
+before `return_to_source` above it, without modifying A, X, Y, or the processor
+flags. `body` selects the target bank and enters the callee with the indirect
+JMP. The target function's RTS increments the synthetic address and reaches the
+identical return stub. That stub stores A to the caller's hotspot, preserving A
+and flags while restoring the source bank, and executes a second RTS through the
+call site's original return address.
+
+Both the internal JSR operand and indirect-JMP pointer are encoded through
+BANK0's logical mirror of the common table. The CPU may therefore change its
+upper logical address bits while the cartridge continues to see the same low
+twelve-bit offset. Every physical bank contains the same bytes at that offset,
+so the entry remains valid before and after either bank switch. Entries are
+deduplicated by source hotspot, destination hotspot, and final target. Nested
+cross-bank calls naturally nest the two return addresses in LIFO order.
 
 The implemented direct-JMP entry does not need a shared RAM pointer. Each
 specialized eight-byte table entry carries its own immutable target word:
@@ -329,27 +345,26 @@ inline target word never begins at page offset $FF and cannot trigger the NMOS
 6502/6507 indirect-JMP page-wrap bug. Corridor exhaustion is a link error which
 reports the reserved range, target, entry count, and consumed bytes.
 
-Roadmap item 6 will add calls on top of the same JSR-to-indirect-JMP principle.
-The caller's ordinary JSR has already placed its real return address on the
-hardware stack. A source-bank-aware entry will push a synthetic return-stub
-address, select the target bank, and enter the callee with an indirect JMP using
-an inline or equivalently precise target word. The target function's RTS reaches
-the identical return stub, which restores the source bank and performs the
-second RTS. The exact call-entry byte sequence remains deliberately deferred to
-item 6; the completed direct-JMP ABI does not force a writable target pointer.
-
 A cross-bank JMP never restores the source bank. It selects the destination and
-continues at the final logical target. Cross-bank JSR will restore the source
-bank through its synthetic return stub.
+continues at the final logical target. A cross-bank JSR restores the source bank
+through its embedded synthetic return stub.
 
 The linker reserves the common bridge corridor at the same physical offset in
-every bank and emits one byte-identical table into every bank. Direct-JMP
-entries occupy that table now; later source-bank call entries and return stubs
-will share the same reserved corridor. The map reports its occupied and total
-replicated cost. Exhausting the corridor is a clear link error. A cross-bank
-call keeps one additional hardware-stack return address live while the
-destination function runs, so whole-program hardware-stack sizing must charge
-that edge two additional bytes and report the longest weighted path.
+every bank and emits one byte-identical table into every bank. Eight-byte JMP
+entries and fifteen-byte source-aware JSR entries share that corridor. The map
+reports occupied and total replicated bytes, separate entry counts and sizes,
+and each transfer's source/destination identity. Exhausting the corridor is a
+clear link error. The allocator inserts fill when either entry's inline target
+word would begin at page offset `$FF`, avoiding the NMOS indirect-JMP wrap bug.
+
+A cross-bank call keeps one additional hardware-stack return address live while
+the destination function runs. For compiler-described call edges, the linker
+computes both the ordinary longest function depth and a weighted depth which
+adds one return-address slot for every simultaneously active cross-bank edge.
+`callstack = callgraph` reserves two bytes per weighted slot and exports
+`__call_stack_weighted_depth` and `__call_stack_bank_extra_slots` alongside the
+existing stack symbols. Calls hidden in hand-written or separately assembled
+code remain the integration's responsibility through `callstack_extra`.
 
 Cross-bank data policy
 ----------------------
@@ -622,7 +637,7 @@ when main roadmap item 29 becomes active.
        * This validation slice originally rejected cross-bank direct JMP/JSR
          with distinct pending-trampoline diagnostics rather than emitting a
          wrong raw mirror address or misclassifying the relocation as data.
-         Item 5 now rewrites direct JMP; direct JSR remains rejected until item 6.
+         Items 5 and 6 now rewrite direct JMP and JSR through the common table.
        * Diagnose object, movable source layout, final source address/bank,
          target symbol/layout, final target address, and target bank.
 
@@ -641,16 +656,21 @@ when main roadmap item 29 becomes active.
          targets, report reserved/occupied/replicated and per-entry costs, and
          diagnose corridor exhaustion.
 
-[ ] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
+[x] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.
 
-       * Redirect a direct cross-bank JSR to a generated target entry in the
-         common replicated table.
-       * Push a synthetic return-stub address for the statically known source
-         bank, select the target bank, and enter the callee with `JMP (target)`.
-       * Restore the caller's bank in the identical common return stub, then RTS
-         through the original call-site return address.
-       * Support nested cross-bank calls and add two bytes of weighted hardware-
-         stack cost for every active cross-bank edge.
+       * Redirect a direct cross-bank JSR to a fifteen-byte source-aware target
+         entry in the common replicated table.
+       * Use an internal JSR to create the synthetic return address without
+         clobbering A, X, Y, or flags; select the target bank and enter the
+         callee with `JMP (inline_target)`.
+       * Restore the caller's bank with an embedded identical `STA hotspot; RTS`
+         stub, then RTS through the original call-site return address.
+       * Deduplicate by source bank, destination bank, and final target; support
+         nested cross-bank calls and avoid the NMOS indirect-JMP page-wrap bug.
+       * Add one weighted hardware-stack slot for every active compiler-described
+         cross-bank edge, reserve two bytes per slot, and report/export the
+         ordinary and weighted depths. Assembly-hidden calls still require
+         `callstack_extra`.
 
 [ ] 7. Add placement constraints and deterministic automatic bank placement.
 

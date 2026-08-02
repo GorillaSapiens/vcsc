@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260802_022217.tar.gz
+    vcsc.20260802_024636.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -7775,3 +7775,41 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   84 passed in deterministic groups of 40, 22, and 22). Focused bank image,
   reset bridge, relocation/trampoline, and source-hygiene tests pass, and staged
   `make installcheck` passes.
+
+2026-08-01 20:02:55 PDT, add cross-bank JSR trampolines and weighted hardware-stack sizing
+--------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 6. Proven direct cross-bank JSR
+  relocations now target a source-aware fifteen-byte entry in the same byte-
+  identical common table used by direct cross-bank JMP. Each entry is
+  `JSR body; STA source_hotspot; RTS; STA destination_hotspot;
+  JMP (inline_target); .word target`.
+* Use the entry's internal JSR to create the synthetic return address without
+  clobbering A, X, Y, or processor flags. The destination function's RTS
+  reaches the identical source-bank restore stub; its hotspot store restores
+  the caller's bank while preserving A and flags, and its final RTS consumes
+  the original call-site return address. Nested BANK0 -> BANK1 -> BANK0 calls
+  restore banks and hardware-stack frames in LIFO order.
+* Deduplicate JSR entries by source hotspot, destination hotspot, and final
+  target. Keep direct-JMP entries deduplicated by destination and target.
+  Report separate JMP/JSR counts and entry sizes, source and destination bank
+  identities, occupied bytes, and replicated cost. Insert identical fill
+  padding when either inline pointer would begin at page offset `$FF`, avoiding
+  the NMOS indirect-JMP page-wrap bug.
+* Extend call-graph stack sizing for statically configured banked functions.
+  Preserve the ordinary source-function depth, compute a weighted hardware-
+  return depth which adds one slot for every simultaneously active cross-bank
+  edge, and reserve two bytes per weighted slot. Export and map
+  `__call_stack_weighted_depth` and `__call_stack_bank_extra_slots`; calls hidden
+  from compiler metadata continue to require `callstack_extra`.
+* Expand `test/linker_banked_relocation_validation.pl` with exact replicated
+  JSR bytes, source-mirror patching, a nested execution model which proves A
+  preservation and balanced returns, and explicit page-wrap padding. Add
+  `test/linker_banked_jsr_callstack.pl` for a compiled BANK0 -> BANK1 -> BANK0
+  call graph and exact weighted RAM reservation. Update linker, test,
+  source-hygiene, and detailed bankswitching documentation. Roadmap item 7,
+  deterministic automatic bank placement with hard pins, is next.
+* Verification: all 341 compile-only tests pass. All 207 end-to-end/generic
+  tests pass, completed as the first 164 tests followed by the remaining 43 in
+  deterministic groups of 27 and 16 after outer command time limits. Focused
+  bank image, reset bridge, relocation/JSR, weighted-stack, and source-hygiene
+  tests pass. Staged `make installcheck` passes.

@@ -24,7 +24,10 @@ enum {
    VECTOR_BRIDGE_RESET_OFFSET = VECTOR_BRIDGE_ENTRY_SIZE,
    VECTOR_BRIDGE_IRQBRK_OFFSET = 2 * VECTOR_BRIDGE_ENTRY_SIZE,
    VECTOR_BRIDGE_SIZE = 3 * VECTOR_BRIDGE_ENTRY_SIZE,
-   BANK_JMP_ENTRY_SIZE = 8
+   BANK_TRAMPOLINE_JMP = 1,
+   BANK_TRAMPOLINE_JSR = 2,
+   BANK_JMP_ENTRY_SIZE = 8,
+   BANK_JSR_ENTRY_SIZE = 15
 };
 
 //! @brief Print the linker command-line usage text.
@@ -1349,6 +1352,94 @@ static void call_graph_collect_from_object(const object_file_t *obj,
    }
 }
 
+//! @brief Return the source-level function name carried by one private code layout.
+static const char *call_graph_layout_function_name(const object_layout_t *layout)
+{
+   static const char marker[] = ".__vcsc_function$";
+   const char *p;
+
+   if (!layout || !layout->name)
+      return NULL;
+   p = strstr(layout->name, marker);
+   return p ? p + sizeof(marker) - 1u : NULL;
+}
+
+//! @brief Find the object and private code layout implementing one graph node.
+static const object_layout_t *call_graph_find_function_layout(
+                                             const input_set_t *in,
+                                             const char *node_name,
+                                             const object_file_t **object_out)
+{
+   const char *separator = NULL;
+   const char *scan;
+   const char *function_name = node_name;
+   size_t origin_len = 0;
+   size_t i;
+
+   if (object_out)
+      *object_out = NULL;
+   if (!in || !node_name)
+      return NULL;
+
+   for (scan = node_name; (scan = strstr(scan, "::")) != NULL; scan += 2)
+      separator = scan;
+   if (separator) {
+      origin_len = (size_t)(separator - node_name);
+      function_name = separator + 2;
+   }
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+
+      if (separator) {
+         if (strlen(obj->origin) != origin_len ||
+             strncmp(obj->origin, node_name, origin_len) != 0)
+            continue;
+      }
+      else if (!call_graph_object_exports_symbol(obj, function_name)) {
+         continue;
+      }
+
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *layout = &obj->layouts[j];
+         const char *layout_function = call_graph_layout_function_name(layout);
+         if (layout_function && strcmp(layout_function, function_name) == 0) {
+            if (object_out)
+               *object_out = obj;
+            return layout;
+         }
+      }
+   }
+
+   return NULL;
+}
+
+//! @brief Resolve a graph node's statically configured full-window bank.
+static const cartridge_bank_t *call_graph_function_bank(const linker_config_t *cfg,
+                                                        const input_set_t *in,
+                                                        const char *node_name)
+{
+   const object_layout_t *layout;
+   const segment_rule_t *fallback;
+   const segment_rule_t *rule;
+   const memory_region_t *memory;
+
+   if (!cfg || !cfg->cartridge_banked)
+      return NULL;
+   layout = call_graph_find_function_layout(in, node_name, NULL);
+   if (!layout)
+      return NULL;
+   fallback = find_segment_rule(cfg, "CODE");
+   rule = find_layout_segment_rule(cfg, layout->name, fallback);
+   if (!rule || !rule->load_name[0])
+      return NULL;
+   memory = find_memory(cfg, rule->load_name);
+   if (!memory || !memory->bank_name[0])
+      return NULL;
+   return find_cartridge_bank(cfg, memory->bank_name);
+}
+
 //! @brief Handle call graph tarjan visit logic for linker layout and image writer.
 static void call_graph_tarjan_visit(int v,
                                     const call_graph_edge_t *edges, size_t edge_count,
@@ -1448,8 +1539,44 @@ static int call_graph_longest_depth_visit(int v,
    return best;
 }
 
+//! @brief Compute the longest active hardware-return path including bank bridges.
+static int call_graph_longest_weighted_depth_visit(
+                                          int v,
+                                          const call_graph_edge_t *edges,
+                                          size_t edge_count,
+                                          const cartridge_bank_t *const *banks,
+                                          int *memo)
+{
+   size_t i;
+   int best = 1;
+
+   if (memo[v] > 0)
+      return memo[v];
+
+   for (i = 0; i < edge_count; ++i) {
+      int child_depth;
+      int bridge_depth = 0;
+
+      if (edges[i].from != v)
+         continue;
+      if (banks && banks[v] && banks[edges[i].to] &&
+          banks[v] != banks[edges[i].to])
+         bridge_depth = 1;
+      child_depth = 1 + bridge_depth +
+         call_graph_longest_weighted_depth_visit(edges[i].to, edges,
+                                                 edge_count, banks, memo);
+      if (child_depth > best)
+         best = child_depth;
+   }
+
+   memo[v] = best;
+   return best;
+}
+
 //! @brief Validate symbol backed call graph invariants and return its maximum function depth.
-static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in)
+static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in,
+                                                 const linker_config_t *cfg,
+                                                 uint16_t *weighted_depth_out)
 {
    call_graph_node_t *nodes = NULL;
    call_graph_edge_t *edges = NULL;
@@ -1464,7 +1591,10 @@ static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in)
    unsigned char *component_has_symbol_backed = NULL;
    unsigned char *component_has_cycle = NULL;
    int *depth_memo = NULL;
+   int *weighted_depth_memo = NULL;
+   const cartridge_bank_t **node_banks = NULL;
    int max_depth = 0;
+   int max_weighted_depth = 0;
    int stack_top = 0;
    int index_counter = 0;
    int component_count = 0;
@@ -1473,6 +1603,8 @@ static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in)
    for (i = 0; i < in->object_count; ++i)
       call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count);
 
+   if (weighted_depth_out)
+      *weighted_depth_out = 0;
    if (node_count == 0)
       goto cleanup;
 
@@ -1526,11 +1658,21 @@ static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in)
    }
 
    depth_memo = (int *)xcalloc(node_count, sizeof(*depth_memo));
+   weighted_depth_memo = (int *)xcalloc(node_count, sizeof(*weighted_depth_memo));
+   node_banks = (const cartridge_bank_t **)xcalloc(node_count, sizeof(*node_banks));
+   for (i = 0; i < node_count; ++i)
+      node_banks[i] = call_graph_function_bank(cfg, in, nodes[i].name);
    for (i = 0; i < node_count; ++i) {
       int depth = call_graph_longest_depth_visit((int)i, edges, edge_count, depth_memo);
+      int weighted_depth = call_graph_longest_weighted_depth_visit(
+         (int)i, edges, edge_count, node_banks, weighted_depth_memo);
       if (depth > max_depth)
          max_depth = depth;
+      if (weighted_depth > max_weighted_depth)
+         max_weighted_depth = weighted_depth;
    }
+   if (weighted_depth_out)
+      *weighted_depth_out = (uint16_t)max_weighted_depth;
 
 cleanup:
    for (i = 0; i < node_count; ++i)
@@ -1546,6 +1688,8 @@ cleanup:
    free(component_has_symbol_backed);
    free(component_has_cycle);
    free(depth_memo);
+   free(weighted_depth_memo);
+   free(node_banks);
    return (uint16_t)max_depth;
 }
 
@@ -1984,7 +2128,10 @@ static void enforce_declaration_use_contracts(const input_set_t *in)
 }
 
 //! @brief Shrink the configured RAM arena by the stack requirement derived from the call graph.
-static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t depth, size_t init_count)
+static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
+                                               uint16_t depth,
+                                               uint16_t weighted_depth,
+                                               size_t init_count)
 {
    memory_region_t *target = NULL;
    size_t i;
@@ -2005,11 +2152,16 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t de
       return;
 
    /* Each active source function accounts for one two-byte JSR return address.
+      A cross-bank edge contributes one additional two-byte return address for
+      the JSR inside the common trampoline entry. weighted_depth is therefore
+      the maximum number of simultaneously active hardware return addresses.
       The stock startup also preserves its two-byte init-table cursor while an
       init function runs. callstack_extra reserves a configuration-declared
       number of additional top-of-RAM bytes for stack use hidden inside included
       or separately assembled routines. */
-   bytes = (uint32_t)depth * 2u;
+   if (weighted_depth < depth)
+      weighted_depth = depth;
+   bytes = (uint32_t)weighted_depth * 2u;
    if (init_count > 0)
       bytes += 2u;
    bytes += target->callstack_extra;
@@ -2027,6 +2179,8 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg, uint16_t de
    cfg->call_stack_enabled = 1;
    snprintf(cfg->call_stack_region, sizeof(cfg->call_stack_region), "%s", target->name);
    cfg->call_stack_depth = depth;
+   cfg->call_stack_weighted_depth = weighted_depth;
+   cfg->call_stack_bank_extra_slots = (uint16_t)(weighted_depth - depth);
    cfg->call_stack_extra = target->callstack_extra;
    cfg->call_stack_size = (uint16_t)bytes;
    cfg->call_stack_start = (uint16_t)(end - bytes);
@@ -2064,6 +2218,8 @@ static void add_generated_symbols(layout_t *layout)
    add_global(layout, "__stack_top", layout->stack_top, O26_SEG_ABS, "<linker>");
    if (layout->call_stack_enabled) {
       add_global(layout, "__call_stack_depth", layout->call_stack_depth, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_weighted_depth", layout->call_stack_weighted_depth, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_bank_extra_slots", layout->call_stack_bank_extra_slots, O26_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_extra", layout->call_stack_extra, O26_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_size", layout->call_stack_size, O26_SEG_ABS, "<linker>");
       add_global(layout, "__call_stack_start", layout->call_stack_start, O26_SEG_ABS, "<linker>");
@@ -3037,6 +3193,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    memset(layout, 0, sizeof(*layout));
    layout->call_stack_enabled = cfg->call_stack_enabled;
    layout->call_stack_depth = cfg->call_stack_depth;
+   layout->call_stack_weighted_depth = cfg->call_stack_weighted_depth;
+   layout->call_stack_bank_extra_slots = cfg->call_stack_bank_extra_slots;
    layout->call_stack_extra = cfg->call_stack_extra;
    layout->call_stack_size = cfg->call_stack_size;
    layout->call_stack_start = cfg->call_stack_start;
@@ -3212,50 +3370,79 @@ static const char *relocation_width_name(uint8_t type)
    }
 }
 
-//! @brief Find or append one deduplicated direct cross-bank JMP target entry.
-static bank_jump_entry_t *find_or_add_bank_jump_entry(layout_t *layout,
+//! @brief Return the encoded byte size for one generated bank trampoline entry.
+static uint16_t bank_trampoline_entry_size(uint8_t kind)
+{
+   return kind == BANK_TRAMPOLINE_JSR ? BANK_JSR_ENTRY_SIZE : BANK_JMP_ENTRY_SIZE;
+}
+
+//! @brief Return the inline indirect-target word offset within one entry.
+static uint16_t bank_trampoline_pointer_offset(uint8_t kind)
+{
+   return kind == BANK_TRAMPOLINE_JSR ? 13u : 6u;
+}
+
+//! @brief Find or append one deduplicated direct cross-bank transfer entry.
+static bank_trampoline_entry_t *find_or_add_bank_trampoline_entry(
+                                                       layout_t *layout,
                                                        const linker_config_t *cfg,
                                                        const resolved_reloc_target_t *target,
-                                                       const cartridge_bank_t *destination_bank)
+                                                       const cartridge_bank_t *source_bank,
+                                                       const cartridge_bank_t *destination_bank,
+                                                       uint8_t kind)
 {
    size_t i;
-   bank_jump_entry_t *entry;
+   bank_trampoline_entry_t *entry;
    uint16_t next_offset;
+   uint16_t entry_size;
+   uint16_t pointer_offset;
    uint32_t next_end;
 
-   for (i = 0; i < layout->bank_jump_entry_count; ++i) {
-      entry = &layout->bank_jump_entries[i];
-      if (entry->target_addr == target->address &&
-          entry->destination_hotspot == destination_bank->hotspot)
+   for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
+      entry = &layout->bank_trampoline_entries[i];
+      if (entry->kind == kind &&
+          entry->target_addr == target->address &&
+          entry->destination_hotspot == destination_bank->hotspot &&
+          (kind != BANK_TRAMPOLINE_JSR ||
+           entry->source_hotspot == source_bank->hotspot))
          return entry;
    }
 
+   entry_size = bank_trampoline_entry_size(kind);
+   pointer_offset = bank_trampoline_pointer_offset(kind);
    next_offset = layout->bank_trampoline_used;
    /* The inline target word is read by NMOS JMP (absolute).  Insert one fill
       byte when the word would begin at page offset $FF. */
-   if (((cfg->trampoline_offset + next_offset + 6u) & 0x00FFu) == 0x00FFu)
+   if (((cfg->trampoline_offset + next_offset + pointer_offset) & 0x00FFu) == 0x00FFu)
       next_offset++;
-   next_end = (uint32_t)next_offset + BANK_JMP_ENTRY_SIZE;
+   next_end = (uint32_t)next_offset + entry_size;
    if (next_end > cfg->trampoline_size) {
       fprintf(stderr,
-              "vcsc-ld: common trampoline corridor $%03X-$%03X is exhausted while adding JMP target '%s' at $%04X (%s); %zu entries of %u bytes already consume $%03X bytes\n",
+              "vcsc-ld: common trampoline corridor $%03X-$%03X is exhausted while adding %s target '%s' at $%04X (%s); %zu entries already consume $%03X bytes and this entry needs %u bytes\n",
               cfg->trampoline_offset,
               (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
+              kind == BANK_TRAMPOLINE_JSR ? "JSR" : "JMP",
               target->name, target->address, destination_bank->name,
-              layout->bank_jump_entry_count, BANK_JMP_ENTRY_SIZE,
-              layout->bank_trampoline_used);
+              layout->bank_trampoline_entry_count,
+              layout->bank_trampoline_used, entry_size);
       exit(1);
    }
 
-   layout->bank_jump_entries = (bank_jump_entry_t *)xrealloc(
-      layout->bank_jump_entries,
-      (layout->bank_jump_entry_count + 1) * sizeof(*layout->bank_jump_entries));
-   entry = &layout->bank_jump_entries[layout->bank_jump_entry_count++];
+   layout->bank_trampoline_entries = (bank_trampoline_entry_t *)xrealloc(
+      layout->bank_trampoline_entries,
+      (layout->bank_trampoline_entry_count + 1) * sizeof(*layout->bank_trampoline_entries));
+   entry = &layout->bank_trampoline_entries[layout->bank_trampoline_entry_count++];
    memset(entry, 0, sizeof(*entry));
+   entry->kind = kind;
    entry->target_addr = target->address;
    entry->table_offset = next_offset;
+   entry->source_hotspot = source_bank ? source_bank->hotspot : 0;
    entry->destination_hotspot = destination_bank->hotspot;
    entry->target_name = xstrdup(target->name);
+   if (source_bank) {
+      snprintf(entry->source_bank, sizeof(entry->source_bank), "%s",
+               source_bank->name);
+   }
    snprintf(entry->destination_bank, sizeof(entry->destination_bank), "%s",
             destination_bank->name);
    layout->bank_trampoline_used = (uint16_t)next_end;
@@ -3305,14 +3492,35 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
 
    control = r->type & O26_RTYPE_CONTROL_MASK;
    if (control == O26_RTYPE_CONTROL_JSR) {
-      fprintf(stderr,
-              "vcsc-ld: cross-bank JSR in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); JSR trampoline generation is not implemented yet\n",
-              obj->origin, source_layout->name, source_address, source_bank->name,
-              target->name, target->address, different_bank->name);
-      exit(1);
+      bank_trampoline_entry_t *entry;
+      uint32_t address;
+      if (!final_bank || final_bank == source_bank) {
+         fprintf(stderr,
+                 "vcsc-ld: cross-bank JSR in %s layout '%s' at $%04X (%s) targets '%s' at $%04X, which does not resolve inside the destination bank\n",
+                 obj->origin, source_layout->name, source_address, source_bank->name,
+                 target->name, target->address);
+         exit(1);
+      }
+      if ((r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) !=
+          O26_RTYPE_WORD) {
+         fprintf(stderr,
+                 "vcsc-ld: direct cross-bank JSR relocation in %s is not a 16-bit operand\n",
+                 obj->origin);
+         exit(1);
+      }
+      entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
+                                                source_bank, final_bank,
+                                                BANK_TRAMPOLINE_JSR);
+      address = (uint32_t)source_bank->start + cfg->trampoline_offset +
+                entry->table_offset;
+      if (address > 0xFFFFu) {
+         fprintf(stderr, "vcsc-ld: generated JSR trampoline address overflow\n");
+         exit(1);
+      }
+      return (uint16_t)address;
    }
    if (control == O26_RTYPE_CONTROL_JMP) {
-      bank_jump_entry_t *entry;
+      bank_trampoline_entry_t *entry;
       uint32_t address;
       if (!final_bank || final_bank == source_bank) {
          fprintf(stderr,
@@ -3328,7 +3536,9 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
                  obj->origin);
          exit(1);
       }
-      entry = find_or_add_bank_jump_entry(layout, cfg, target, final_bank);
+      entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
+                                                source_bank, final_bank,
+                                                BANK_TRAMPOLINE_JMP);
       address = (uint32_t)source_bank->start + cfg->trampoline_offset +
                 entry->table_offset;
       if (address > 0xFFFFu) {
@@ -3491,7 +3701,7 @@ static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
 
 //! @brief Encode one state-preserving inline-pointer JMP entry for the common table.
 static void encode_bank_jump_entry(uint8_t *table, size_t offset,
-                                   const bank_jump_entry_t *entry,
+                                   const bank_trampoline_entry_t *entry,
                                    uint16_t canonical_pointer)
 {
    table[offset + 0u] = 0x8Du; /* STA destination hotspot; preserves A and flags. */
@@ -3502,6 +3712,35 @@ static void encode_bank_jump_entry(uint8_t *table, size_t offset,
    table[offset + 5u] = (uint8_t)((canonical_pointer >> 8) & 0xFFu);
    table[offset + 6u] = (uint8_t)(entry->target_addr & 0xFFu);
    table[offset + 7u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
+}
+
+//! @brief Encode one state-preserving JSR-to-indirect-JMP entry.
+static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
+                                  const bank_trampoline_entry_t *entry,
+                                  uint16_t canonical_entry,
+                                  uint16_t canonical_pointer)
+{
+   uint16_t body = (uint16_t)(canonical_entry + 7u);
+
+   /* The first JSR creates the synthetic return address without touching any
+      register or processor flag.  The target's RTS returns to the embedded
+      source-bank restore stub, whose final RTS consumes the call site's
+      original return address. */
+   table[offset + 0u] = 0x20u; /* JSR absolute to the entry body. */
+   table[offset + 1u] = (uint8_t)(body & 0xFFu);
+   table[offset + 2u] = (uint8_t)((body >> 8) & 0xFFu);
+   table[offset + 3u] = 0x8Du; /* STA source hotspot; preserves A and flags. */
+   table[offset + 4u] = (uint8_t)(entry->source_hotspot & 0xFFu);
+   table[offset + 5u] = (uint8_t)((entry->source_hotspot >> 8) & 0xFFu);
+   table[offset + 6u] = 0x60u; /* RTS through the original caller return. */
+   table[offset + 7u] = 0x8Du; /* STA destination hotspot. */
+   table[offset + 8u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
+   table[offset + 9u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
+   table[offset + 10u] = 0x6Cu; /* JMP through the inline target word. */
+   table[offset + 11u] = (uint8_t)(canonical_pointer & 0xFFu);
+   table[offset + 12u] = (uint8_t)((canonical_pointer >> 8) & 0xFFu);
+   table[offset + 13u] = (uint8_t)(entry->target_addr & 0xFFu);
+   table[offset + 14u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
 }
 
 //! @brief Handle build init table image logic for linker layout and image writer.
@@ -3664,25 +3903,34 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
          size_t j;
          trampoline = (uint8_t *)xmalloc(layout->bank_trampoline_used);
          memset(trampoline, cfg->cartridge_fill_value, layout->bank_trampoline_used);
-         for (j = 0; j < layout->bank_jump_entry_count; ++j) {
-            const bank_jump_entry_t *entry = &layout->bank_jump_entries[j];
+         for (j = 0; j < layout->bank_trampoline_entry_count; ++j) {
+            const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[j];
+            uint16_t pointer_offset = bank_trampoline_pointer_offset(entry->kind);
+            uint16_t canonical_entry = (uint16_t)(startup->start +
+               cfg->trampoline_offset + entry->table_offset);
             uint16_t canonical_pointer = (uint16_t)(startup->start +
-               cfg->trampoline_offset + entry->table_offset + 6u);
+               cfg->trampoline_offset + entry->table_offset + pointer_offset);
             if ((canonical_pointer & 0x00FFu) == 0x00FFu) {
                fprintf(stderr,
                        "vcsc-ld: generated inline JMP target pointer at $%04X triggers the NMOS page-wrap bug\n",
                        canonical_pointer);
                exit(1);
             }
-            encode_bank_jump_entry(trampoline, entry->table_offset, entry,
-                                   canonical_pointer);
+            if (entry->kind == BANK_TRAMPOLINE_JSR) {
+               encode_bank_jsr_entry(trampoline, entry->table_offset, entry,
+                                     canonical_entry, canonical_pointer);
+            }
+            else {
+               encode_bank_jump_entry(trampoline, entry->table_offset, entry,
+                                      canonical_pointer);
+            }
          }
          for (j = 0; j < cfg->bank_count; ++j) {
             uint16_t bank_trampoline =
                (uint16_t)(cfg->banks[j].start + cfg->trampoline_offset);
             image_write_generated(image, used, bank_trampoline, trampoline,
                                   layout->bank_trampoline_used,
-                                  "common JMP trampoline table");
+                                  "common bank trampoline table");
          }
          free(trampoline);
       }
@@ -4200,22 +4448,43 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    write_ram_usage(fp, cfg, in, layout, "  ");
 
    if (cfg->cartridge_banked) {
+      size_t jmp_count = 0;
+      size_t jsr_count = 0;
+      for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
+         if (layout->bank_trampoline_entries[i].kind == BANK_TRAMPOLINE_JSR)
+            jsr_count++;
+         else
+            jmp_count++;
+      }
       fprintf(fp, "\nTRAMPOLINES\n");
       fprintf(fp,
               "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
-              " target-passing=inline entries=%zu entry-size=$%02X\n",
+              " target-passing=inline entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
               cfg->trampoline_offset, cfg->trampoline_size,
               layout->bank_trampoline_used,
               (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
-              layout->bank_jump_entry_count, BANK_JMP_ENTRY_SIZE);
-      for (i = 0; i < layout->bank_jump_entry_count; ++i) {
-         const bank_jump_entry_t *entry = &layout->bank_jump_entries[i];
-         fprintf(fp,
-                 "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
-                 i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
-                 entry->target_addr, entry->target_name,
-                 entry->destination_bank, entry->destination_hotspot,
-                 (uint32_t)BANK_JMP_ENTRY_SIZE * (uint32_t)cfg->bank_count);
+              layout->bank_trampoline_entry_count, jmp_count, jsr_count,
+              BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
+      for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
+         const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[i];
+         uint16_t entry_size = bank_trampoline_entry_size(entry->kind);
+         if (entry->kind == BANK_TRAMPOLINE_JSR) {
+            fprintf(fp,
+                    "  JSR entry=%zu offset=$%03X target=$%04X %-20s source=%s hotspot=$%04X destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                    i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                    entry->target_addr, entry->target_name,
+                    entry->source_bank, entry->source_hotspot,
+                    entry->destination_bank, entry->destination_hotspot,
+                    (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+         }
+         else {
+            fprintf(fp,
+                    "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                    i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                    entry->target_addr, entry->target_name,
+                    entry->destination_bank, entry->destination_hotspot,
+                    (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+         }
       }
    }
 
@@ -4300,13 +4569,15 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "  __stack_top   $%04X\n", layout->stack_top);
    if (layout->call_stack_enabled) {
       fprintf(fp, "\nCALL STACK\n");
-      fprintf(fp, "  region=%s depth=%u bytes=$%04X physical=$%04X-$%04X extra=$%04X\n",
+      fprintf(fp, "  region=%s depth=%u bytes=$%04X physical=$%04X-$%04X extra=$%04X weighted-depth=%u bank-extra-slots=%u\n",
               cfg->call_stack_region,
               (unsigned)layout->call_stack_depth,
               layout->call_stack_size,
               layout->call_stack_start,
               layout->call_stack_top,
-              layout->call_stack_extra);
+              layout->call_stack_extra,
+              (unsigned)layout->call_stack_weighted_depth,
+              (unsigned)layout->call_stack_bank_extra_slots);
    }
 
    fprintf(fp, "\nSYMBOLS\n");
@@ -4836,9 +5107,12 @@ int main(int argc, char **argv)
    validate_abi_metadata(&inputs);
    validate_mem_region_metadata(&cfg, &inputs);
    {
-      uint16_t call_depth = enforce_symbol_backed_call_graph(&inputs);
+      uint16_t weighted_call_depth = 0;
+      uint16_t call_depth = enforce_symbol_backed_call_graph(
+         &inputs, &cfg, &weighted_call_depth);
       size_t init_count = count_init_functions_in_input(&inputs);
-      reserve_call_stack_from_call_graph(&cfg, call_depth, init_count);
+      reserve_call_stack_from_call_graph(&cfg, call_depth,
+                                         weighted_call_depth, init_count);
    }
    warn_unused_cmdline_objects(&inputs);
    layout_objects(&cfg, &inputs, &layout);
@@ -4888,9 +5162,9 @@ int main(int argc, char **argv)
    for (i = 0; i < layout.zero_record_count; ++i)
       free(layout.zero_records[i].name);
    free(layout.zero_records);
-   for (i = 0; i < layout.bank_jump_entry_count; ++i)
-      free(layout.bank_jump_entries[i].target_name);
-   free(layout.bank_jump_entries);
+   for (i = 0; i < layout.bank_trampoline_entry_count; ++i)
+      free(layout.bank_trampoline_entries[i].target_name);
+   free(layout.bank_trampoline_entries);
    for (i = 0; i < layout.cursor_count; ++i)
       free(layout.cursors[i].holes);
    free(layout.cursors);
