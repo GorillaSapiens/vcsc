@@ -33,16 +33,18 @@
  * Important limits:
  *   - Banks are traced independently.  Bank-switch accesses are not interpreted
  *     as control-flow edges between physical banks.
- *   - A small abstract interpreter tracks constants in A, X, Y, and zero
- *     page.  This resolves common LDA/LDX/LDY-immediate plus STA/STX/STY
- *     pointer setup, including JMP through a zero-page pointer.  At branches,
- *     constants survive only when all incoming paths agree.
+ *   - A small abstract interpreter tracks constants in A, X, Y, zero page,
+ *     and the most recent hardware-stack bytes.  This resolves common
+ *     LDA/LDX/LDY-immediate plus STA/STX/STY pointer setup, JMP through a
+ *     zero-page pointer, and synthetic return-address dispatches made by
+ *     pushing constant high/low bytes followed by RTS.  At branches, constants
+ *     survive only when all incoming paths agree.
  *   - JSR fallthrough preserves zero-page constants only for cells that a
  *     conservative scan of the called routine cannot write.  Registers are
  *     treated as clobbered.  Unresolved indirect control flow in a called
  *     routine invalidates every tracked zero-page constant.
- *   - Runtime targets that remain unknown, RTS/RTI tricks, self-generated RAM
- *     code, and unresolved indirect data reads are reported.  Candidate bytes
+ *   - Runtime targets that remain unknown, nonconstant RTS/RTI tricks,
+ *     self-generated RAM code, and unresolved indirect data reads are reported.  Candidate bytes
  *     remain listed when an indirect data address cannot be resolved, so such
  *     output requires review of the accompanying warning.
  *   - "Safe" means bus-equivalent under normal 6507 mirroring.  Deliberate
@@ -56,6 +58,7 @@
 #define ADDRESS_SPACE_SIZE 65536u
 #define ZERO_PAGE_SIZE 256u
 #define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
+#define STACK_TRACK_DEPTH 8u
 #define MUTABLE_MASK 0xe0u
 
 #define USE_OPCODE          0x01u
@@ -91,6 +94,7 @@ typedef enum {
    FLOW_JSR,
    FLOW_JMP_ABSOLUTE,
    FLOW_JMP_INDIRECT,
+   FLOW_RTS,
    FLOW_BRK,
    FLOW_STOP
 } flow_kind_t;
@@ -113,6 +117,10 @@ typedef struct {
    uint8_t y;
    uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
    uint8_t zp_value[ZERO_PAGE_SIZE];
+   /* Entries are stored in pull order: element 0 is the next byte popped. */
+   uint8_t stack_count;
+   uint8_t stack_known[STACK_TRACK_DEPTH];
+   uint8_t stack_value[STACK_TRACK_DEPTH];
 } abstract_state_t;
 
 typedef struct {
@@ -131,6 +139,8 @@ typedef struct {
    uint8_t queued[ADDRESS_SPACE_SIZE];
    uint8_t unresolved_indirect_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_ram_indirect_pc[ADDRESS_SPACE_SIZE];
+   uint8_t unresolved_rts_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_stack_rts_pc[ADDRESS_SPACE_SIZE];
    uint8_t unresolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t truncated_pc[ADDRESS_SPACE_SIZE];
@@ -254,8 +264,9 @@ static flow_kind_t instruction_flow(uint8_t opcode)
       return FLOW_JMP_INDIRECT;
    case 0x00:
       return FLOW_BRK;
-   case 0x40:
    case 0x60:
+      return FLOW_RTS;
+   case 0x40:
    case 0x02: case 0x12: case 0x22: case 0x32:
    case 0x42: case 0x52: case 0x62: case 0x72:
    case 0x92: case 0xb2: case 0xd2: case 0xf2:
@@ -399,6 +410,47 @@ static int state_zp_get(const abstract_state_t *state, uint8_t address,
    return 1;
 }
 
+static void state_stack_clear(abstract_state_t *state)
+{
+   state->stack_count = 0;
+}
+
+static void state_stack_push(abstract_state_t *state, int known, uint8_t value)
+{
+   size_t i;
+   size_t limit = state->stack_count;
+
+   if (limit >= STACK_TRACK_DEPTH)
+      limit = STACK_TRACK_DEPTH - 1u;
+   for (i = limit; i != 0; --i) {
+      state->stack_known[i] = state->stack_known[i - 1u];
+      state->stack_value[i] = state->stack_value[i - 1u];
+   }
+   state->stack_known[0] = known ? 1u : 0u;
+   state->stack_value[0] = value;
+   if (state->stack_count < STACK_TRACK_DEPTH)
+      ++state->stack_count;
+}
+
+static int state_stack_pop(abstract_state_t *state, int *known, uint8_t *value)
+{
+   size_t i;
+
+   if (state->stack_count == 0) {
+      *known = 0;
+      *value = 0;
+      return 0;
+   }
+   *known = state->stack_known[0] != 0;
+   *value = state->stack_value[0];
+   for (i = 1; i < state->stack_count; ++i) {
+      state->stack_known[i - 1u] = state->stack_known[i];
+      state->stack_value[i - 1u] = state->stack_value[i];
+   }
+   --state->stack_count;
+   return 1;
+}
+
 static int state_merge(abstract_state_t *destination,
                        const abstract_state_t *source)
 {
@@ -426,6 +478,24 @@ static int state_merge(abstract_state_t *destination,
            destination->zp_value[zp] != source->zp_value[zp])) {
          state_zp_set_unknown(destination, zp);
          changed = 1;
+      }
+   }
+
+   if (destination->stack_count != source->stack_count) {
+      if (destination->stack_count != 0) {
+         state_stack_clear(destination);
+         changed = 1;
+      }
+   }
+   else {
+      for (address = 0; address < destination->stack_count; ++address) {
+         if (destination->stack_known[address] &&
+             (!source->stack_known[address] ||
+              destination->stack_value[address] !=
+                 source->stack_value[address])) {
+            destination->stack_known[address] = 0;
+            changed = 1;
+         }
       }
    }
    return changed;
@@ -849,6 +919,32 @@ static void transfer_state(const analysis_t *a,
          output->a = (uint8_t)(input->a ^ bytes[1]);
       }
       break;
+
+   case 0x48: /* PHA */
+      state_stack_push(output, input->a_known, input->a);
+      break;
+   case 0x08: /* PHP: status is not tracked, but stack depth is. */
+      state_stack_push(output, 0, 0);
+      break;
+   case 0x68: { /* PLA */
+      int known;
+      if (state_stack_pop(output, &known, &value) && known) {
+         output->a_known = 1;
+         output->a = value;
+      }
+      else {
+         output->a_known = 0;
+      }
+      break;
+   }
+   case 0x28: { /* PLP */
+      int known;
+      (void)state_stack_pop(output, &known, &value);
+      break;
+   }
+   case 0x9a: /* TXS changes which physical bytes are at the stack top. */
+      state_stack_clear(output);
+      break;
    default:
       break;
    }
@@ -1127,6 +1223,8 @@ static const uint8_t *subroutine_zp_summary(analysis_t *a, uint16_t target)
             summary_set_all(summary);
          break;
       }
+      case FLOW_RTS:
+         break;
       case FLOW_BRK:
          summary_set_all(summary);
          break;
@@ -1207,8 +1305,19 @@ static void trace(analysis_t *a)
          break;
 
       case FLOW_JSR: {
+         abstract_state_t called = output;
          abstract_state_t returned = output;
-         enqueue_state(a, address, &output);
+         uint16_t return_address = (uint16_t)(next - 1u);
+
+         /*
+          * JSR pushes the high byte and then the low byte of PC-1.  The stack
+          * model stores bytes in pull order, so the low byte becomes entry 0.
+          * The separate fallthrough edge remains as a conservative summary,
+          * while the explicit stack bytes let an reached RTS return precisely.
+          */
+         state_stack_push(&called, 1, (uint8_t)(return_address >> 8));
+         state_stack_push(&called, 1, (uint8_t)return_address);
+         enqueue_state(a, address, &called);
          apply_subroutine_clobbers(a, &returned, address);
          enqueue_state(a, next, &returned);
          break;
@@ -1222,6 +1331,27 @@ static void trace(analysis_t *a)
          uint16_t target;
          if (resolve_indirect_jump(a, pc, input, address, &target))
             enqueue_state(a, target, &output);
+         break;
+      }
+
+      case FLOW_RTS: {
+         abstract_state_t returned = output;
+         uint8_t low;
+         uint8_t high;
+         int low_known;
+         int high_known;
+
+         if (state_stack_pop(&returned, &low_known, &low) &&
+             state_stack_pop(&returned, &high_known, &high) &&
+             low_known && high_known) {
+            uint16_t target = (uint16_t)(
+               (uint16_t)(low | ((uint16_t)high << 8)) + 1u);
+            a->resolved_stack_rts_pc[pc] = 1;
+            enqueue_state(a, target, &returned);
+         }
+         else {
+            a->unresolved_rts_pc[pc] = 1;
+         }
          break;
       }
 
@@ -1406,6 +1536,8 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
    memset(a->unresolved_indirect_pc, 0, sizeof(a->unresolved_indirect_pc));
    memset(a->resolved_ram_indirect_pc, 0,
           sizeof(a->resolved_ram_indirect_pc));
+   memset(a->unresolved_rts_pc, 0, sizeof(a->unresolved_rts_pc));
+   memset(a->resolved_stack_rts_pc, 0, sizeof(a->resolved_stack_rts_pc));
    memset(a->unresolved_dynamic_pc, 0, sizeof(a->unresolved_dynamic_pc));
    memset(a->resolved_dynamic_pc, 0, sizeof(a->resolved_dynamic_pc));
    memset(a->truncated_pc, 0, sizeof(a->truncated_pc));
@@ -1453,6 +1585,8 @@ static int analyze(uint8_t *cart, size_t size)
    size_t total_instructions = 0;
    size_t total_unresolved = 0;
    size_t total_resolved_ram = 0;
+   size_t total_unresolved_rts = 0;
+   size_t total_resolved_stack_rts = 0;
    size_t total_unresolved_dynamic = 0;
    size_t total_resolved_dynamic = 0;
    size_t total_truncated = 0;
@@ -1488,6 +1622,8 @@ static int analyze(uint8_t *cart, size_t size)
       size_t safe_count;
       size_t unresolved;
       size_t resolved_ram;
+      size_t unresolved_rts;
+      size_t resolved_stack_rts;
       size_t unresolved_dynamic;
       size_t resolved_dynamic;
       size_t truncated;
@@ -1518,6 +1654,8 @@ static int analyze(uint8_t *cart, size_t size)
       safe_count = print_candidates(&a);
       unresolved = count_flags(a.unresolved_indirect_pc);
       resolved_ram = count_flags(a.resolved_ram_indirect_pc);
+      unresolved_rts = count_flags(a.unresolved_rts_pc);
+      resolved_stack_rts = count_flags(a.resolved_stack_rts_pc);
       unresolved_dynamic = count_flags(a.unresolved_dynamic_pc);
       resolved_dynamic = count_flags(a.resolved_dynamic_pc);
       truncated = count_flags(a.truncated_pc);
@@ -1529,6 +1667,10 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, resolved_ram);
       printf("bank=%zu unresolved_indirect_jumps=%zu\n",
              a.bank_index, unresolved);
+      printf("bank=%zu resolved_stack_rts_targets=%zu\n",
+             a.bank_index, resolved_stack_rts);
+      printf("bank=%zu unresolved_rts_targets=%zu\n",
+             a.bank_index, unresolved_rts);
       printf("bank=%zu resolved_indirect_data_accesses=%zu\n",
              a.bank_index, resolved_dynamic);
       printf("bank=%zu unresolved_indirect_data_accesses=%zu\n",
@@ -1540,6 +1682,8 @@ static int analyze(uint8_t *cart, size_t size)
       total_instructions += a.instruction_count;
       total_unresolved += unresolved;
       total_resolved_ram += resolved_ram;
+      total_unresolved_rts += unresolved_rts;
+      total_resolved_stack_rts += resolved_stack_rts;
       total_unresolved_dynamic += unresolved_dynamic;
       total_resolved_dynamic += resolved_dynamic;
       total_truncated += truncated;
@@ -1549,6 +1693,9 @@ static int analyze(uint8_t *cart, size_t size)
    printf("total_safe_bytes=%zu\n", total_safe);
    printf("total_resolved_ram_indirect_jumps=%zu\n", total_resolved_ram);
    printf("total_unresolved_indirect_jumps=%zu\n", total_unresolved);
+   printf("total_resolved_stack_rts_targets=%zu\n",
+          total_resolved_stack_rts);
+   printf("total_unresolved_rts_targets=%zu\n", total_unresolved_rts);
    printf("total_resolved_indirect_data_accesses=%zu\n",
           total_resolved_dynamic);
    printf("total_unresolved_indirect_data_accesses=%zu\n",
@@ -1577,6 +1724,12 @@ static int analyze(uint8_t *cart, size_t size)
               "stego: warning: %zu JMP-indirect target(s) remained unknown "
               "after ROM and zero-page constant analysis\n",
               total_unresolved);
+   }
+   if (total_unresolved_rts != 0) {
+      fprintf(stderr,
+              "stego: warning: %zu RTS target(s) could not be resolved from "
+              "constant hardware-stack bytes\n",
+              total_unresolved_rts);
    }
    if (total_unresolved_dynamic != 0) {
       fprintf(stderr,
