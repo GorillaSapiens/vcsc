@@ -36,9 +36,11 @@
  *   - A small abstract interpreter tracks constants in A, X, Y, zero page,
  *     and the most recent hardware-stack bytes.  This resolves common
  *     LDA/LDX/LDY-immediate plus STA/STX/STY pointer setup, JMP through a
- *     zero-page pointer, and synthetic return-address dispatches made by
- *     pushing constant high/low bytes followed by RTS.  At branches, constants
- *     survive only when all incoming paths agree.
+ *     zero-page pointer, synthetic return-address dispatches made by pushing
+ *     constant high/low bytes followed by RTS, and the common table-driven RTS
+ *     dispatch sequence that loads a correlated high/low pair with the same
+ *     even X or Y index.  At branches, constants survive only when all incoming
+ *     paths agree.
  *   - JSR fallthrough preserves zero-page constants only for cells that a
  *     conservative scan of the called routine cannot write.  Registers are
  *     treated as clobbered.  Unresolved indirect control flow in a called
@@ -141,6 +143,8 @@ typedef struct {
    uint8_t resolved_ram_indirect_pc[ADDRESS_SPACE_SIZE];
    uint8_t unresolved_rts_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_stack_rts_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_table_rts_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_table_rts_target[ADDRESS_SPACE_SIZE];
    uint8_t unresolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t truncated_pc[ADDRESS_SPACE_SIZE];
@@ -901,6 +905,13 @@ static void transfer_state(const analysis_t *a,
       }
       break;
 
+   case 0x0a: /* ASL A */
+      if (input->a_known) {
+         output->a_known = 1;
+         output->a = (uint8_t)(input->a << 1);
+      }
+      break;
+
    case 0x09: /* ORA #imm */
       if (input->a_known) {
          output->a_known = 1;
@@ -1255,6 +1266,129 @@ static void apply_subroutine_clobbers(analysis_t *a,
    }
 }
 
+/*
+ * Recognize this compact computed-dispatch idiom immediately before RTS:
+ *
+ *       ASL A
+ *       TAY                    ; or TAX
+ *       LDA high_table,Y       ; or ,X
+ *       PHA
+ *       LDA low_table,Y
+ *       PHA
+ *       RTS
+ *
+ * ASL guarantees that the shared index is even, so each table entry is one
+ * little-endian target-minus-one word.  The two loads are deliberately paired
+ * by the same index; independently combining their possible bytes would invent
+ * a cross product of targets that the program can never produce.
+ *
+ * This is a conservative reachability expansion.  It enumerates every even
+ * index, because the value shifted into X/Y may be unknown.  Extra paths can
+ * reduce the final safe-byte set, but cannot make an unsafe byte appear safe.
+ */
+static int resolve_indexed_table_rts(analysis_t *a, uint16_t pc,
+                                     const abstract_state_t *returned)
+{
+   uint8_t bytes[11];
+   size_t ignored_offset;
+   uint16_t start = (uint16_t)(pc - 10u);
+   uint8_t index_transfer;
+   uint8_t indexed_load;
+   uint16_t high_base;
+   uint16_t low_base;
+   unsigned index;
+   unsigned table_bytes;
+   size_t target_count = 0;
+
+   for (index = 0; index < sizeof(bytes); ++index) {
+      if (!fetch_bank_byte(a, (uint16_t)(start + index), &bytes[index],
+                           &ignored_offset))
+         return 0;
+   }
+
+   if (bytes[0] != 0x0au || bytes[10] != 0x60u ||
+       bytes[5] != 0x48u || bytes[9] != 0x48u)
+      return 0;
+
+   index_transfer = bytes[1];
+   if (index_transfer == 0xa8u)       /* TAY */
+      indexed_load = 0xb9u;           /* LDA abs,Y */
+   else if (index_transfer == 0xaau)  /* TAX */
+      indexed_load = 0xbdu;           /* LDA abs,X */
+   else
+      return 0;
+
+   if (bytes[2] != indexed_load || bytes[6] != indexed_load)
+      return 0;
+
+   high_base = (uint16_t)(bytes[3] | ((uint16_t)bytes[4] << 8));
+   low_base = (uint16_t)(bytes[7] | ((uint16_t)bytes[8] << 8));
+
+   /*
+    * Require the packed word table to begin immediately after the RTS.  In
+    * this idiom entry zero points to the first instruction after the table,
+    * which gives a structural, non-guessing bound for the valid even indexes.
+    */
+   if (!address_is_cartridge(low_base) || !address_is_cartridge(high_base) ||
+       (low_base & 0x0fffu) == 0x0fffu ||
+       ((high_base & 0x0fffu) != ((low_base + 1u) & 0x0fffu)) ||
+       ((low_base & 0x0fffu) != ((pc + 1u) & 0x0fffu)))
+      return 0;
+
+   {
+      uint8_t first_low;
+      uint8_t first_high;
+      uint16_t first_target;
+      unsigned low_offset = (unsigned)(low_base & 0x0fffu);
+      unsigned target_offset;
+
+      if (!fetch_bank_byte(a, low_base, &first_low, NULL) ||
+          !fetch_bank_byte(a, high_base, &first_high, NULL))
+         return 0;
+      first_target = (uint16_t)(
+         (uint16_t)(first_low | ((uint16_t)first_high << 8)) + 1u);
+      if (!address_is_cartridge(first_target))
+         return 0;
+      target_offset = (unsigned)(first_target & 0x0fffu);
+      if (target_offset <= low_offset)
+         return 0;
+      table_bytes = target_offset - low_offset;
+      if (table_bytes > 256u || (table_bytes & 1u) != 0)
+         return 0;
+   }
+
+   for (index = 0; index < table_bytes; index += 2u) {
+      uint16_t low_address = (uint16_t)(low_base + index);
+      uint16_t high_address = (uint16_t)(high_base + index);
+      uint8_t low;
+      uint8_t high;
+      uint16_t target;
+
+      if (!fetch_bank_byte(a, low_address, &low, NULL) ||
+          !fetch_bank_byte(a, high_address, &high, NULL))
+         continue;
+
+      /* These bytes are semantically live table data, never stego candidates. */
+      mark_rom_data_byte(a, low_address);
+      mark_rom_data_byte(a, high_address);
+
+      target = (uint16_t)(
+         (uint16_t)(low | ((uint16_t)high << 8)) + 1u);
+      if (!address_is_cartridge(target))
+         continue;
+
+      a->resolved_table_rts_target[target] = 1;
+      enqueue_state(a, target, returned);
+      ++target_count;
+   }
+
+   if (target_count == 0)
+      return 0;
+
+   a->resolved_table_rts_pc[pc] = 1;
+   return 1;
+}
+
 static void trace(analysis_t *a)
 {
    while (a->work_count != 0) {
@@ -1340,14 +1474,21 @@ static void trace(analysis_t *a)
          uint8_t high;
          int low_known;
          int high_known;
+         int have_low;
+         int have_high;
 
-         if (state_stack_pop(&returned, &low_known, &low) &&
-             state_stack_pop(&returned, &high_known, &high) &&
-             low_known && high_known) {
+         have_low = state_stack_pop(&returned, &low_known, &low);
+         have_high = state_stack_pop(&returned, &high_known, &high);
+         if (have_low && have_high && low_known && high_known) {
             uint16_t target = (uint16_t)(
                (uint16_t)(low | ((uint16_t)high << 8)) + 1u);
             a->resolved_stack_rts_pc[pc] = 1;
+            a->unresolved_rts_pc[pc] = 0;
             enqueue_state(a, target, &returned);
+         }
+         else if (resolve_indexed_table_rts(a, pc, &returned)) {
+            a->resolved_stack_rts_pc[pc] = 1;
+            a->unresolved_rts_pc[pc] = 0;
          }
          else {
             a->unresolved_rts_pc[pc] = 1;
@@ -1538,6 +1679,9 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
           sizeof(a->resolved_ram_indirect_pc));
    memset(a->unresolved_rts_pc, 0, sizeof(a->unresolved_rts_pc));
    memset(a->resolved_stack_rts_pc, 0, sizeof(a->resolved_stack_rts_pc));
+   memset(a->resolved_table_rts_pc, 0, sizeof(a->resolved_table_rts_pc));
+   memset(a->resolved_table_rts_target, 0,
+          sizeof(a->resolved_table_rts_target));
    memset(a->unresolved_dynamic_pc, 0, sizeof(a->unresolved_dynamic_pc));
    memset(a->resolved_dynamic_pc, 0, sizeof(a->resolved_dynamic_pc));
    memset(a->truncated_pc, 0, sizeof(a->truncated_pc));
@@ -1587,6 +1731,8 @@ static int analyze(uint8_t *cart, size_t size)
    size_t total_resolved_ram = 0;
    size_t total_unresolved_rts = 0;
    size_t total_resolved_stack_rts = 0;
+   size_t total_resolved_table_rts_sites = 0;
+   size_t total_resolved_table_rts_targets = 0;
    size_t total_unresolved_dynamic = 0;
    size_t total_resolved_dynamic = 0;
    size_t total_truncated = 0;
@@ -1624,6 +1770,8 @@ static int analyze(uint8_t *cart, size_t size)
       size_t resolved_ram;
       size_t unresolved_rts;
       size_t resolved_stack_rts;
+      size_t resolved_table_rts_sites;
+      size_t resolved_table_rts_targets;
       size_t unresolved_dynamic;
       size_t resolved_dynamic;
       size_t truncated;
@@ -1656,6 +1804,8 @@ static int analyze(uint8_t *cart, size_t size)
       resolved_ram = count_flags(a.resolved_ram_indirect_pc);
       unresolved_rts = count_flags(a.unresolved_rts_pc);
       resolved_stack_rts = count_flags(a.resolved_stack_rts_pc);
+      resolved_table_rts_sites = count_flags(a.resolved_table_rts_pc);
+      resolved_table_rts_targets = count_flags(a.resolved_table_rts_target);
       unresolved_dynamic = count_flags(a.unresolved_dynamic_pc);
       resolved_dynamic = count_flags(a.resolved_dynamic_pc);
       truncated = count_flags(a.truncated_pc);
@@ -1669,6 +1819,10 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, unresolved);
       printf("bank=%zu resolved_stack_rts_targets=%zu\n",
              a.bank_index, resolved_stack_rts);
+      printf("bank=%zu resolved_indexed_table_rts_sites=%zu\n",
+             a.bank_index, resolved_table_rts_sites);
+      printf("bank=%zu resolved_indexed_table_rts_targets=%zu\n",
+             a.bank_index, resolved_table_rts_targets);
       printf("bank=%zu unresolved_rts_targets=%zu\n",
              a.bank_index, unresolved_rts);
       printf("bank=%zu resolved_indirect_data_accesses=%zu\n",
@@ -1684,6 +1838,8 @@ static int analyze(uint8_t *cart, size_t size)
       total_resolved_ram += resolved_ram;
       total_unresolved_rts += unresolved_rts;
       total_resolved_stack_rts += resolved_stack_rts;
+      total_resolved_table_rts_sites += resolved_table_rts_sites;
+      total_resolved_table_rts_targets += resolved_table_rts_targets;
       total_unresolved_dynamic += unresolved_dynamic;
       total_resolved_dynamic += resolved_dynamic;
       total_truncated += truncated;
@@ -1695,6 +1851,10 @@ static int analyze(uint8_t *cart, size_t size)
    printf("total_unresolved_indirect_jumps=%zu\n", total_unresolved);
    printf("total_resolved_stack_rts_targets=%zu\n",
           total_resolved_stack_rts);
+   printf("total_resolved_indexed_table_rts_sites=%zu\n",
+          total_resolved_table_rts_sites);
+   printf("total_resolved_indexed_table_rts_targets=%zu\n",
+          total_resolved_table_rts_targets);
    printf("total_unresolved_rts_targets=%zu\n", total_unresolved_rts);
    printf("total_resolved_indirect_data_accesses=%zu\n",
           total_resolved_dynamic);
@@ -1728,7 +1888,7 @@ static int analyze(uint8_t *cart, size_t size)
    if (total_unresolved_rts != 0) {
       fprintf(stderr,
               "stego: warning: %zu RTS target(s) could not be resolved from "
-              "constant hardware-stack bytes\n",
+              "constant stack bytes or a correlated indexed ROM table\n",
               total_unresolved_rts);
    }
    if (total_unresolved_dynamic != 0) {
