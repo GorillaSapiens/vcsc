@@ -39,7 +39,9 @@
  *     zero-page pointer, synthetic return-address dispatches made by pushing
  *     constant high/low bytes followed by RTS, and the common table-driven RTS
  *     dispatch sequence that loads a correlated high/low pair with the same
- *     even X or Y index.  At branches, constants survive only when all incoming
+ *     even X or Y index.  The analogous packed-word dispatcher that stores a
+ *     correlated pair into zero page and executes JMP (zp) is also recognized.
+ *     At branches, constants survive only when all incoming
  *     paths agree.
  *   - JSR fallthrough preserves zero-page constants only for cells that a
  *     conservative scan of the called routine cannot write.  Registers are
@@ -145,6 +147,8 @@ typedef struct {
    uint8_t resolved_stack_rts_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_table_rts_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_table_rts_target[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_table_jmp_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_table_jmp_target[ADDRESS_SPACE_SIZE];
    uint8_t unresolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t resolved_dynamic_pc[ADDRESS_SPACE_SIZE];
    uint8_t truncated_pc[ADDRESS_SPACE_SIZE];
@@ -1389,6 +1393,119 @@ static int resolve_indexed_table_rts(analysis_t *a, uint16_t pc,
    return 1;
 }
 
+/*
+ * Recognize this packed-word JMP dispatcher immediately before JMP (zp):
+ *
+ *       LDA selector
+ *       ASL A
+ *       TAX                    ; or TAY
+ *       LDA low_table,X        ; or ,Y
+ *       STA pointer
+ *       LDA high_table,X
+ *       STA pointer+1
+ *       JMP (pointer)
+ *
+ * ASL makes the shared index even, so the two indexed loads select the low and
+ * high byte of one little-endian target.  The table must begin immediately
+ * after the JMP instruction, and the two bases must differ by one byte.  Its
+ * end is the first packed word whose high byte does not select cartridge ROM.
+ * Requiring that terminator avoids guessing a length when all following words
+ * happen to look like cartridge addresses.
+ *
+ * This is deliberately a narrow structural recognizer.  It fixes a common
+ * finite jump-table idiom without independently combining low and high bytes,
+ * which would invent impossible targets.
+ */
+static int resolve_indexed_table_jmp(analysis_t *a, uint16_t pc,
+                                     const abstract_state_t *state)
+{
+   uint8_t bytes[17];
+   uint16_t targets[128];
+   uint16_t start;
+   uint8_t transfer;
+   uint8_t indexed_load;
+   uint8_t pointer;
+   uint16_t low_base;
+   uint16_t high_base;
+   unsigned index;
+   size_t target_count = 0;
+   int found_terminator = 0;
+
+   if ((pc & 0x0fffu) < 14u)
+      return 0;
+   start = (uint16_t)(pc - 14u);
+
+   for (index = 0; index < sizeof(bytes); ++index) {
+      if (!fetch_bank_byte(a, (uint16_t)(start + index), &bytes[index], NULL))
+         return 0;
+   }
+
+   if (bytes[0] != 0xa5u || bytes[2] != 0x0au ||
+       bytes[7] != 0x85u || bytes[12] != 0x85u ||
+       bytes[14] != 0x6cu || bytes[16] != 0x00u)
+      return 0;
+
+   transfer = bytes[3];
+   if (transfer == 0xaau)       /* TAX */
+      indexed_load = 0xbdu;     /* LDA abs,X */
+   else if (transfer == 0xa8u)  /* TAY */
+      indexed_load = 0xb9u;     /* LDA abs,Y */
+   else
+      return 0;
+
+   if (bytes[4] != indexed_load || bytes[9] != indexed_load)
+      return 0;
+
+   pointer = bytes[8];
+   if (bytes[13] != (uint8_t)(pointer + 1u) || bytes[15] != pointer)
+      return 0;
+
+   low_base = (uint16_t)(bytes[5] | ((uint16_t)bytes[6] << 8));
+   high_base = (uint16_t)(bytes[10] | ((uint16_t)bytes[11] << 8));
+   if (!address_is_cartridge(low_base) || !address_is_cartridge(high_base) ||
+       ((high_base & 0x0fffu) != ((low_base + 1u) & 0x0fffu)) ||
+       ((low_base & 0x0fffu) != ((pc + 3u) & 0x0fffu)))
+      return 0;
+
+   /* First determine a finite, structurally terminated table with no effects. */
+   for (index = 0; index < 256u; index += 2u) {
+      uint16_t low_address = (uint16_t)(low_base + index);
+      uint16_t high_address = (uint16_t)(high_base + index);
+      uint8_t low;
+      uint8_t high;
+      uint16_t target;
+
+      if (!fetch_bank_byte(a, low_address, &low, NULL) ||
+          !fetch_bank_byte(a, high_address, &high, NULL))
+         break;
+
+      target = (uint16_t)(low | ((uint16_t)high << 8));
+      if (!address_is_cartridge(target)) {
+         found_terminator = 1;
+         break;
+      }
+      targets[target_count++] = target;
+   }
+
+   if (target_count == 0 || !found_terminator)
+      return 0;
+
+   for (index = 0; index < target_count; ++index) {
+      uint16_t low_address = (uint16_t)(low_base + index * 2u);
+      uint16_t high_address = (uint16_t)(high_base + index * 2u);
+      uint16_t target = targets[index];
+
+      mark_rom_data_byte(a, low_address);
+      mark_rom_data_byte(a, high_address);
+      a->resolved_table_jmp_target[target] = 1;
+      enqueue_state(a, target, state);
+   }
+
+   a->unresolved_indirect_pc[pc] = 0;
+   a->resolved_table_jmp_pc[pc] = 1;
+   return 1;
+}
+
 static void trace(analysis_t *a)
 {
    while (a->work_count != 0) {
@@ -1465,6 +1582,8 @@ static void trace(analysis_t *a)
          uint16_t target;
          if (resolve_indirect_jump(a, pc, input, address, &target))
             enqueue_state(a, target, &output);
+         else
+            (void)resolve_indexed_table_jmp(a, pc, &output);
          break;
       }
 
@@ -1682,6 +1801,9 @@ static void reset_bank_analysis(analysis_t *a, size_t bank_index)
    memset(a->resolved_table_rts_pc, 0, sizeof(a->resolved_table_rts_pc));
    memset(a->resolved_table_rts_target, 0,
           sizeof(a->resolved_table_rts_target));
+   memset(a->resolved_table_jmp_pc, 0, sizeof(a->resolved_table_jmp_pc));
+   memset(a->resolved_table_jmp_target, 0,
+          sizeof(a->resolved_table_jmp_target));
    memset(a->unresolved_dynamic_pc, 0, sizeof(a->unresolved_dynamic_pc));
    memset(a->resolved_dynamic_pc, 0, sizeof(a->resolved_dynamic_pc));
    memset(a->truncated_pc, 0, sizeof(a->truncated_pc));
@@ -1733,6 +1855,8 @@ static int analyze(uint8_t *cart, size_t size)
    size_t total_resolved_stack_rts = 0;
    size_t total_resolved_table_rts_sites = 0;
    size_t total_resolved_table_rts_targets = 0;
+   size_t total_resolved_table_jmp_sites = 0;
+   size_t total_resolved_table_jmp_targets = 0;
    size_t total_unresolved_dynamic = 0;
    size_t total_resolved_dynamic = 0;
    size_t total_truncated = 0;
@@ -1772,6 +1896,8 @@ static int analyze(uint8_t *cart, size_t size)
       size_t resolved_stack_rts;
       size_t resolved_table_rts_sites;
       size_t resolved_table_rts_targets;
+      size_t resolved_table_jmp_sites;
+      size_t resolved_table_jmp_targets;
       size_t unresolved_dynamic;
       size_t resolved_dynamic;
       size_t truncated;
@@ -1806,6 +1932,8 @@ static int analyze(uint8_t *cart, size_t size)
       resolved_stack_rts = count_flags(a.resolved_stack_rts_pc);
       resolved_table_rts_sites = count_flags(a.resolved_table_rts_pc);
       resolved_table_rts_targets = count_flags(a.resolved_table_rts_target);
+      resolved_table_jmp_sites = count_flags(a.resolved_table_jmp_pc);
+      resolved_table_jmp_targets = count_flags(a.resolved_table_jmp_target);
       unresolved_dynamic = count_flags(a.unresolved_dynamic_pc);
       resolved_dynamic = count_flags(a.resolved_dynamic_pc);
       truncated = count_flags(a.truncated_pc);
@@ -1823,6 +1951,10 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, resolved_table_rts_sites);
       printf("bank=%zu resolved_indexed_table_rts_targets=%zu\n",
              a.bank_index, resolved_table_rts_targets);
+      printf("bank=%zu resolved_indexed_table_jmp_sites=%zu\n",
+             a.bank_index, resolved_table_jmp_sites);
+      printf("bank=%zu resolved_indexed_table_jmp_targets=%zu\n",
+             a.bank_index, resolved_table_jmp_targets);
       printf("bank=%zu unresolved_rts_targets=%zu\n",
              a.bank_index, unresolved_rts);
       printf("bank=%zu resolved_indirect_data_accesses=%zu\n",
@@ -1840,6 +1972,8 @@ static int analyze(uint8_t *cart, size_t size)
       total_resolved_stack_rts += resolved_stack_rts;
       total_resolved_table_rts_sites += resolved_table_rts_sites;
       total_resolved_table_rts_targets += resolved_table_rts_targets;
+      total_resolved_table_jmp_sites += resolved_table_jmp_sites;
+      total_resolved_table_jmp_targets += resolved_table_jmp_targets;
       total_unresolved_dynamic += unresolved_dynamic;
       total_resolved_dynamic += resolved_dynamic;
       total_truncated += truncated;
@@ -1855,6 +1989,10 @@ static int analyze(uint8_t *cart, size_t size)
           total_resolved_table_rts_sites);
    printf("total_resolved_indexed_table_rts_targets=%zu\n",
           total_resolved_table_rts_targets);
+   printf("total_resolved_indexed_table_jmp_sites=%zu\n",
+          total_resolved_table_jmp_sites);
+   printf("total_resolved_indexed_table_jmp_targets=%zu\n",
+          total_resolved_table_jmp_targets);
    printf("total_unresolved_rts_targets=%zu\n", total_unresolved_rts);
    printf("total_resolved_indirect_data_accesses=%zu\n",
           total_resolved_dynamic);
@@ -1882,7 +2020,7 @@ static int analyze(uint8_t *cart, size_t size)
    if (total_unresolved != 0) {
       fprintf(stderr,
               "stego: warning: %zu JMP-indirect target(s) remained unknown "
-              "after ROM and zero-page constant analysis\n",
+              "after ROM, zero-page constant, and correlated table analysis\n",
               total_unresolved);
    }
    if (total_unresolved_rts != 0) {
