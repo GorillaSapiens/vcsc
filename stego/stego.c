@@ -33,9 +33,18 @@
  * Important limits:
  *   - Banks are traced independently.  Bank-switch accesses are not interpreted
  *     as control-flow edges between physical banks.
- *   - Runtime targets obtained from RAM, RTS/RTI tricks, self-generated RAM
- *     code, and data reached through zero-page indirect pointers cannot be
- *     resolved statically.  The program reports such uncertainty.
+ *   - A small abstract interpreter tracks constants in A, X, Y, and zero
+ *     page.  This resolves common LDA/LDX/LDY-immediate plus STA/STX/STY
+ *     pointer setup, including JMP through a zero-page pointer.  At branches,
+ *     constants survive only when all incoming paths agree.
+ *   - JSR fallthrough preserves zero-page constants only for cells that a
+ *     conservative scan of the called routine cannot write.  Registers are
+ *     treated as clobbered.  Unresolved indirect control flow in a called
+ *     routine invalidates every tracked zero-page constant.
+ *   - Runtime targets that remain unknown, RTS/RTI tricks, self-generated RAM
+ *     code, and unresolved indirect data reads are reported.  Candidate bytes
+ *     remain listed when an indirect data address cannot be resolved, so such
+ *     output requires review of the accompanying warning.
  *   - "Safe" means bus-equivalent under normal 6507 mirroring.  Deliberate
  *     software inspection of logical PC/stack address bits can invalidate that
  *     assumption.
@@ -45,6 +54,8 @@
 #define TWO_K_SIZE 2048u
 #define DPC_TRAILING_SIZE (2048u + 255u)
 #define ADDRESS_SPACE_SIZE 65536u
+#define ZERO_PAGE_SIZE 256u
+#define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
 #define MUTABLE_MASK 0xe0u
 
 #define USE_OPCODE          0x01u
@@ -94,6 +105,17 @@ typedef struct {
 } byte_info_t;
 
 typedef struct {
+   uint8_t a_known;
+   uint8_t a;
+   uint8_t x_known;
+   uint8_t x;
+   uint8_t y_known;
+   uint8_t y;
+   uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
+   uint8_t zp_value[ZERO_PAGE_SIZE];
+} abstract_state_t;
+
+typedef struct {
    uint8_t *cart;
    size_t file_size;
    size_t bank_file_offset;
@@ -102,14 +124,22 @@ typedef struct {
    size_t bank_count;
    size_t trailing_bytes;
    byte_info_t *byte_info;
+   abstract_state_t *states;
+   uint8_t *subroutine_summaries;
    uint8_t visited[ADDRESS_SPACE_SIZE];
+   uint8_t state_seen[ADDRESS_SPACE_SIZE];
    uint8_t queued[ADDRESS_SPACE_SIZE];
+   uint8_t unresolved_indirect_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_ram_indirect_pc[ADDRESS_SPACE_SIZE];
+   uint8_t unresolved_dynamic_pc[ADDRESS_SPACE_SIZE];
+   uint8_t resolved_dynamic_pc[ADDRESS_SPACE_SIZE];
+   uint8_t truncated_pc[ADDRESS_SPACE_SIZE];
+   uint8_t summary_valid[ADDRESS_SPACE_SIZE];
+   uint8_t summary_visited[ADDRESS_SPACE_SIZE];
    uint16_t work[ADDRESS_SPACE_SIZE];
+   uint16_t summary_work[ADDRESS_SPACE_SIZE];
    size_t work_count;
    size_t instruction_count;
-   size_t unresolved_indirect_jumps;
-   size_t dynamic_data_accesses;
-   size_t truncated_instructions;
 } analysis_t;
 
 #define I  AM_IMPLIED
@@ -336,12 +366,91 @@ static void mark_possible_indexed_rom_data(analysis_t *a, uint16_t base)
       mark_rom_data_byte(a, (uint16_t)(base + i));
 }
 
-static void enqueue(analysis_t *a, uint16_t pc)
+static int state_zp_is_known(const abstract_state_t *state, uint8_t address)
 {
+   return (state->zp_known[address >> 3] &
+           (uint8_t)(1u << (address & 7u))) != 0;
+}
+
+static void state_zp_set_known(abstract_state_t *state, uint8_t address,
+                               uint8_t value)
+{
+   state->zp_known[address >> 3] |= (uint8_t)(1u << (address & 7u));
+   state->zp_value[address] = value;
+}
+
+static void state_zp_set_unknown(abstract_state_t *state, uint8_t address)
+{
+   state->zp_known[address >> 3] &=
+      (uint8_t)~(uint8_t)(1u << (address & 7u));
+}
+
+static void state_zp_set_all_unknown(abstract_state_t *state)
+{
+   memset(state->zp_known, 0, sizeof(state->zp_known));
+}
+
+static int state_zp_get(const abstract_state_t *state, uint8_t address,
+                        uint8_t *value)
+{
+   if (!state_zp_is_known(state, address))
+      return 0;
+   *value = state->zp_value[address];
+   return 1;
+}
+
+static int state_merge(abstract_state_t *destination,
+                       const abstract_state_t *source)
+{
+   unsigned address;
+   int changed = 0;
+
+#define MERGE_REGISTER(name)                                                   \
+   do {                                                                         \
+      if (destination->name##_known &&                                         \
+          (!source->name##_known || destination->name != source->name)) {      \
+         destination->name##_known = 0;                                        \
+         changed = 1;                                                          \
+      }                                                                         \
+   } while (0)
+
+   MERGE_REGISTER(a);
+   MERGE_REGISTER(x);
+   MERGE_REGISTER(y);
+#undef MERGE_REGISTER
+
+   for (address = 0; address < ZERO_PAGE_SIZE; ++address) {
+      uint8_t zp = (uint8_t)address;
+      if (state_zp_is_known(destination, zp) &&
+          (!state_zp_is_known(source, zp) ||
+           destination->zp_value[zp] != source->zp_value[zp])) {
+         state_zp_set_unknown(destination, zp);
+         changed = 1;
+      }
+   }
+   return changed;
+}
+
+static void enqueue_state(analysis_t *a, uint16_t pc,
+                          const abstract_state_t *state)
+{
+   int changed;
+
    if (!address_is_cartridge(pc))
       return;
-   if (a->queued[pc])
+
+   if (!a->state_seen[pc]) {
+      a->states[pc] = *state;
+      a->state_seen[pc] = 1;
+      changed = 1;
+   }
+   else {
+      changed = state_merge(&a->states[pc], state);
+   }
+
+   if (!changed || a->queued[pc])
       return;
+
    a->queued[pc] = 1;
    a->work[a->work_count++] = pc;
 }
@@ -383,59 +492,583 @@ static void mark_instruction_bytes(analysis_t *a, uint16_t pc,
    }
 }
 
-static void mark_direct_rom_access(analysis_t *a, uint8_t opcode,
-                                   address_mode_t mode, uint16_t address)
+static int resolve_zp_word(const abstract_state_t *state, uint8_t pointer,
+                           uint16_t *value)
+{
+   uint8_t low;
+   uint8_t high;
+   if (!state_zp_get(state, pointer, &low) ||
+       !state_zp_get(state, (uint8_t)(pointer + 1u), &high))
+      return 0;
+   *value = (uint16_t)(low | ((uint16_t)high << 8));
+   return 1;
+}
+
+static int resolve_effective_address(const abstract_state_t *state,
+                                     address_mode_t mode,
+                                     uint16_t operand, uint16_t *address)
+{
+   uint16_t pointer;
+   switch (mode) {
+   case AM_ZERO_PAGE:
+      *address = (uint8_t)operand;
+      return 1;
+   case AM_ZERO_PAGE_X:
+      if (!state->x_known)
+         return 0;
+      *address = (uint8_t)((uint8_t)operand + state->x);
+      return 1;
+   case AM_ZERO_PAGE_Y:
+      if (!state->y_known)
+         return 0;
+      *address = (uint8_t)((uint8_t)operand + state->y);
+      return 1;
+   case AM_ABSOLUTE:
+      *address = operand;
+      return 1;
+   case AM_ABSOLUTE_X:
+      if (!state->x_known)
+         return 0;
+      *address = (uint16_t)(operand + state->x);
+      return 1;
+   case AM_ABSOLUTE_Y:
+      if (!state->y_known)
+         return 0;
+      *address = (uint16_t)(operand + state->y);
+      return 1;
+   case AM_INDEXED_INDIRECT:
+      if (!state->x_known ||
+          !resolve_zp_word(state,
+                           (uint8_t)((uint8_t)operand + state->x), &pointer))
+         return 0;
+      *address = pointer;
+      return 1;
+   case AM_INDIRECT_INDEXED:
+      if (!state->y_known ||
+          !resolve_zp_word(state, (uint8_t)operand, &pointer))
+         return 0;
+      *address = (uint16_t)(pointer + state->y);
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int read_known_byte(const analysis_t *a,
+                           const abstract_state_t *state,
+                           uint16_t address, uint8_t *value)
+{
+   if (address <= 0x00ffu)
+      return state_zp_get(state, (uint8_t)address, value);
+   return fetch_bank_byte(a, address, value, NULL);
+}
+
+static int read_known_operand(const analysis_t *a,
+                              const abstract_state_t *state,
+                              address_mode_t mode, const uint8_t bytes[3],
+                              uint8_t *value)
+{
+   uint16_t operand;
+   uint16_t address;
+
+   if (mode == AM_IMMEDIATE) {
+      *value = bytes[1];
+      return 1;
+   }
+
+   operand = bytes[1];
+   if (mode_has_absolute_operand(mode))
+      operand |= (uint16_t)bytes[2] << 8;
+
+   if (!resolve_effective_address(state, mode, operand, &address))
+      return 0;
+   return read_known_byte(a, state, address, value);
+}
+
+static int opcode_writes_a(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x01: case 0x03: case 0x05: case 0x07: case 0x09: case 0x0a:
+   case 0x0b: case 0x0d: case 0x0f: case 0x11: case 0x13: case 0x15:
+   case 0x17: case 0x19: case 0x1b: case 0x1d: case 0x1f:
+   case 0x21: case 0x23: case 0x25: case 0x27: case 0x29: case 0x2a:
+   case 0x2b: case 0x2d: case 0x2f: case 0x31: case 0x33: case 0x35:
+   case 0x37: case 0x39: case 0x3b: case 0x3d: case 0x3f:
+   case 0x41: case 0x43: case 0x45: case 0x47: case 0x49: case 0x4a:
+   case 0x4b: case 0x4d: case 0x4f: case 0x51: case 0x53: case 0x55:
+   case 0x57: case 0x59: case 0x5b: case 0x5d: case 0x5f:
+   case 0x61: case 0x63: case 0x65: case 0x67: case 0x68: case 0x69:
+   case 0x6a: case 0x6b: case 0x6d: case 0x6f: case 0x71: case 0x73:
+   case 0x75: case 0x77: case 0x79: case 0x7b: case 0x7d: case 0x7f:
+   case 0x8a: case 0x8b: case 0x98:
+   case 0xa1: case 0xa3: case 0xa5: case 0xa7: case 0xa9: case 0xab:
+   case 0xad: case 0xaf: case 0xb1: case 0xb3: case 0xb5: case 0xb7:
+   case 0xb9: case 0xbb: case 0xbd: case 0xbf:
+   case 0xe1: case 0xe3: case 0xe5: case 0xe7: case 0xe9: case 0xeb:
+   case 0xed: case 0xef: case 0xf1: case 0xf3: case 0xf5: case 0xf7:
+   case 0xf9: case 0xfb: case 0xfd: case 0xff:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int opcode_writes_x(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0xa2: case 0xa3: case 0xa6: case 0xa7: case 0xaa: case 0xab:
+   case 0xae: case 0xaf: case 0xb3: case 0xb6: case 0xb7: case 0xba:
+   case 0xbb: case 0xbe: case 0xbf: case 0xca: case 0xcb: case 0xe8:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int opcode_writes_y(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x88: case 0xa0: case 0xa4: case 0xa8: case 0xac:
+   case 0xb4: case 0xbc: case 0xc8:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int opcode_writes_memory(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x03: case 0x06: case 0x07: case 0x0e: case 0x0f:
+   case 0x13: case 0x16: case 0x17: case 0x1b: case 0x1e: case 0x1f:
+   case 0x23: case 0x26: case 0x27: case 0x2e: case 0x2f:
+   case 0x33: case 0x36: case 0x37: case 0x3b: case 0x3e: case 0x3f:
+   case 0x43: case 0x46: case 0x47: case 0x4e: case 0x4f:
+   case 0x53: case 0x56: case 0x57: case 0x5b: case 0x5e: case 0x5f:
+   case 0x63: case 0x66: case 0x67: case 0x6e: case 0x6f:
+   case 0x73: case 0x76: case 0x77: case 0x7b: case 0x7e: case 0x7f:
+   case 0x81: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
+   case 0x8c: case 0x8d: case 0x8e: case 0x8f:
+   case 0x91: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
+   case 0x99: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f:
+   case 0xc3: case 0xc6: case 0xc7: case 0xce: case 0xcf:
+   case 0xd3: case 0xd6: case 0xd7: case 0xdb: case 0xde: case 0xdf:
+   case 0xe3: case 0xe6: case 0xe7: case 0xee: case 0xef:
+   case 0xf3: case 0xf6: case 0xf7: case 0xfb: case 0xfe: case 0xff:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int known_store_value(uint8_t opcode, const abstract_state_t *state,
+                             uint8_t *value)
+{
+   switch (opcode) {
+   case 0x81: case 0x85: case 0x8d: case 0x91:
+   case 0x95: case 0x99: case 0x9d:
+      if (!state->a_known)
+         return 0;
+      *value = state->a;
+      return 1;
+   case 0x84: case 0x8c: case 0x94:
+      if (!state->y_known)
+         return 0;
+      *value = state->y;
+      return 1;
+   case 0x86: case 0x8e: case 0x96:
+      if (!state->x_known)
+         return 0;
+      *value = state->x;
+      return 1;
+   case 0x83: case 0x87: case 0x8f: case 0x97:
+      if (!state->a_known || !state->x_known)
+         return 0;
+      *value = (uint8_t)(state->a & state->x);
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static void apply_memory_write(const abstract_state_t *input,
+                               abstract_state_t *output, uint8_t opcode,
+                               address_mode_t mode, const uint8_t bytes[3])
+{
+   uint16_t operand = bytes[1];
+   uint16_t address;
+   uint8_t value;
+   int value_known;
+
+   if (!opcode_writes_memory(opcode))
+      return;
+
+   if (mode_has_absolute_operand(mode))
+      operand |= (uint16_t)bytes[2] << 8;
+   value_known = known_store_value(opcode, input, &value);
+
+   if (!resolve_effective_address(input, mode, operand, &address)) {
+      /* An unresolved indexed or indirect write could alias any zero-page byte. */
+      state_zp_set_all_unknown(output);
+      return;
+   }
+
+   if (address > 0x00ffu)
+      return;
+
+   if (value_known)
+      state_zp_set_known(output, (uint8_t)address, value);
+   else
+      state_zp_set_unknown(output, (uint8_t)address);
+}
+
+static void transfer_state(const analysis_t *a,
+                           const abstract_state_t *input,
+                           abstract_state_t *output, uint8_t opcode,
+                           address_mode_t mode, const uint8_t bytes[3])
+{
+   uint8_t value;
+
+   *output = *input;
+   apply_memory_write(input, output, opcode, mode, bytes);
+
+   if (opcode_writes_a(opcode))
+      output->a_known = 0;
+   if (opcode_writes_x(opcode))
+      output->x_known = 0;
+   if (opcode_writes_y(opcode))
+      output->y_known = 0;
+
+   switch (opcode) {
+   case 0xa9: /* LDA #imm */
+      output->a_known = 1;
+      output->a = bytes[1];
+      break;
+   case 0xa2: /* LDX #imm */
+      output->x_known = 1;
+      output->x = bytes[1];
+      break;
+   case 0xa0: /* LDY #imm */
+      output->y_known = 1;
+      output->y = bytes[1];
+      break;
+
+   case 0xa1: case 0xa5: case 0xad: case 0xb1: case 0xb5:
+   case 0xb9: case 0xbd: /* LDA */
+      if (read_known_operand(a, input, mode, bytes, &value)) {
+         output->a_known = 1;
+         output->a = value;
+      }
+      break;
+   case 0xa6: case 0xae: case 0xb6: case 0xbe: /* LDX */
+      if (read_known_operand(a, input, mode, bytes, &value)) {
+         output->x_known = 1;
+         output->x = value;
+      }
+      break;
+   case 0xa4: case 0xac: case 0xb4: case 0xbc: /* LDY */
+      if (read_known_operand(a, input, mode, bytes, &value)) {
+         output->y_known = 1;
+         output->y = value;
+      }
+      break;
+   case 0xa3: case 0xa7: case 0xab: case 0xaf:
+   case 0xb3: case 0xb7: case 0xbf: /* LAX */
+      if (read_known_operand(a, input, mode, bytes, &value)) {
+         output->a_known = 1;
+         output->a = value;
+         output->x_known = 1;
+         output->x = value;
+      }
+      break;
+
+   case 0xaa: /* TAX */
+      if (input->a_known) {
+         output->x_known = 1;
+         output->x = input->a;
+      }
+      break;
+   case 0xa8: /* TAY */
+      if (input->a_known) {
+         output->y_known = 1;
+         output->y = input->a;
+      }
+      break;
+   case 0x8a: /* TXA */
+      if (input->x_known) {
+         output->a_known = 1;
+         output->a = input->x;
+      }
+      break;
+   case 0x98: /* TYA */
+      if (input->y_known) {
+         output->a_known = 1;
+         output->a = input->y;
+      }
+      break;
+   case 0xe8: /* INX */
+      if (input->x_known) {
+         output->x_known = 1;
+         output->x = (uint8_t)(input->x + 1u);
+      }
+      break;
+   case 0xca: /* DEX */
+      if (input->x_known) {
+         output->x_known = 1;
+         output->x = (uint8_t)(input->x - 1u);
+      }
+      break;
+   case 0xc8: /* INY */
+      if (input->y_known) {
+         output->y_known = 1;
+         output->y = (uint8_t)(input->y + 1u);
+      }
+      break;
+   case 0x88: /* DEY */
+      if (input->y_known) {
+         output->y_known = 1;
+         output->y = (uint8_t)(input->y - 1u);
+      }
+      break;
+
+   case 0x09: /* ORA #imm */
+      if (input->a_known) {
+         output->a_known = 1;
+         output->a = (uint8_t)(input->a | bytes[1]);
+      }
+      break;
+   case 0x29: /* AND #imm */
+      if (input->a_known) {
+         output->a_known = 1;
+         output->a = (uint8_t)(input->a & bytes[1]);
+      }
+      break;
+   case 0x49: /* EOR #imm */
+      if (input->a_known) {
+         output->a_known = 1;
+         output->a = (uint8_t)(input->a ^ bytes[1]);
+      }
+      break;
+   default:
+      break;
+   }
+}
+
+static void mark_direct_and_indirect_data_access(analysis_t *a,
+                                                 uint16_t pc,
+                                                 const abstract_state_t *state,
+                                                 uint8_t opcode,
+                                                 address_mode_t mode,
+                                                 const uint8_t bytes[3])
 {
    flow_kind_t flow = instruction_flow(opcode);
+   uint16_t operand = bytes[1];
+   uint16_t address;
+   uint16_t pointer;
 
    if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE ||
-       flow == FLOW_JMP_INDIRECT)
-      return;
-   if (opcode_is_write_only(opcode))
+       flow == FLOW_JMP_INDIRECT || opcode_is_write_only(opcode))
       return;
 
-   if (mode == AM_ABSOLUTE)
-      mark_rom_data_byte(a, address);
-   else if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)
-      mark_possible_indexed_rom_data(a, address);
+   if (mode_has_absolute_operand(mode))
+      operand |= (uint16_t)bytes[2] << 8;
+
+   switch (mode) {
+   case AM_ABSOLUTE:
+      mark_rom_data_byte(a, operand);
+      break;
+   case AM_ABSOLUTE_X:
+      if (state->x_known)
+         mark_rom_data_byte(a, (uint16_t)(operand + state->x));
+      else
+         mark_possible_indexed_rom_data(a, operand);
+      break;
+   case AM_ABSOLUTE_Y:
+      if (state->y_known)
+         mark_rom_data_byte(a, (uint16_t)(operand + state->y));
+      else
+         mark_possible_indexed_rom_data(a, operand);
+      break;
+   case AM_INDEXED_INDIRECT:
+      if (state->x_known &&
+          resolve_zp_word(state,
+                          (uint8_t)((uint8_t)operand + state->x), &address)) {
+         mark_rom_data_byte(a, address);
+         a->resolved_dynamic_pc[pc] = 1;
+      }
+      else {
+         a->unresolved_dynamic_pc[pc] = 1;
+      }
+      break;
+   case AM_INDIRECT_INDEXED:
+      if (resolve_zp_word(state, (uint8_t)operand, &pointer)) {
+         if (state->y_known)
+            mark_rom_data_byte(a, (uint16_t)(pointer + state->y));
+         else
+            mark_possible_indexed_rom_data(a, pointer);
+         a->resolved_dynamic_pc[pc] = 1;
+      }
+      else {
+         a->unresolved_dynamic_pc[pc] = 1;
+      }
+      break;
+   default:
+      break;
+   }
+}
+
+typedef enum {
+   KNOWN_BYTE_NONE,
+   KNOWN_BYTE_ROM,
+   KNOWN_BYTE_ZERO_PAGE
+} known_byte_source_t;
+
+static known_byte_source_t read_indirect_pointer_byte(
+   const analysis_t *a, const abstract_state_t *state, uint16_t address,
+   uint8_t *value, size_t *rom_offset)
+{
+   if (address <= 0x00ffu && state_zp_get(state, (uint8_t)address, value))
+      return KNOWN_BYTE_ZERO_PAGE;
+   if (fetch_bank_byte(a, address, value, rom_offset))
+      return KNOWN_BYTE_ROM;
+   return KNOWN_BYTE_NONE;
 }
 
 static int resolve_indirect_jump(analysis_t *a, uint16_t pc,
+                                 const abstract_state_t *state,
                                  uint16_t pointer, uint16_t *target)
 {
    uint16_t high_address;
    uint8_t low;
    uint8_t high;
-   size_t low_offset;
-   size_t high_offset;
+   size_t low_offset = 0;
+   size_t high_offset = 0;
+   known_byte_source_t low_source;
+   known_byte_source_t high_source;
 
    /* Reproduce the NMOS 6502 JMP ($xxff) page-wrap behavior. */
    high_address = (uint16_t)((pointer & 0xff00u) |
                              ((uint16_t)(pointer + 1u) & 0x00ffu));
 
-   if (!fetch_bank_byte(a, pointer, &low, &low_offset) ||
-       !fetch_bank_byte(a, high_address, &high, &high_offset)) {
-      ++a->unresolved_indirect_jumps;
+   low_source = read_indirect_pointer_byte(a, state, pointer, &low,
+                                           &low_offset);
+   high_source = read_indirect_pointer_byte(a, state, high_address, &high,
+                                            &high_offset);
+   if (low_source == KNOWN_BYTE_NONE || high_source == KNOWN_BYTE_NONE) {
+      a->unresolved_indirect_pc[pc] = 1;
       return 0;
    }
 
-   a->byte_info[low_offset].uses |= USE_ROM_DATA;
-   *target = (uint16_t)(low | ((uint16_t)high << 8));
+   a->unresolved_indirect_pc[pc] = 0;
+   if (low_source == KNOWN_BYTE_ROM)
+      a->byte_info[low_offset].uses |= USE_ROM_DATA;
 
-   if ((high & 0x10u) != 0) {
-      remember_candidate(a, high_offset, CAND_INDIRECT_TARGET, pc, 0x6c,
-                         AM_INDIRECT, *target);
+   *target = (uint16_t)(low | ((uint16_t)high << 8));
+   if (high_source == KNOWN_BYTE_ROM) {
+      if ((high & 0x10u) != 0) {
+         remember_candidate(a, high_offset, CAND_INDIRECT_TARGET, pc, 0x6c,
+                            AM_INDIRECT, *target);
+      }
+      else {
+         a->byte_info[high_offset].uses |= USE_ROM_DATA;
+      }
    }
    else {
-      a->byte_info[high_offset].uses |= USE_ROM_DATA;
+      a->resolved_ram_indirect_pc[pc] = 1;
+   }
+
+   if (low_source == KNOWN_BYTE_ZERO_PAGE)
+      a->resolved_ram_indirect_pc[pc] = 1;
+   return 1;
+}
+
+static void summary_set_byte(uint8_t summary[ZERO_PAGE_KNOWN_BYTES],
+                             uint8_t address)
+{
+   summary[address >> 3] |= (uint8_t)(1u << (address & 7u));
+}
+
+static void summary_set_all(uint8_t summary[ZERO_PAGE_KNOWN_BYTES])
+{
+   memset(summary, 0xff, ZERO_PAGE_KNOWN_BYTES);
+}
+
+static int summary_is_all(const uint8_t summary[ZERO_PAGE_KNOWN_BYTES])
+{
+   unsigned i;
+   for (i = 0; i < ZERO_PAGE_KNOWN_BYTES; ++i) {
+      if (summary[i] != 0xffu)
+         return 0;
    }
    return 1;
 }
 
-static void trace(analysis_t *a)
+static void summary_note_memory_write(
+   uint8_t summary[ZERO_PAGE_KNOWN_BYTES], uint8_t opcode,
+   address_mode_t mode, const uint8_t bytes[3])
 {
-   while (a->work_count != 0) {
-      uint16_t pc = a->work[--a->work_count];
+   uint16_t address;
+
+   if (!opcode_writes_memory(opcode))
+      return;
+
+   switch (mode) {
+   case AM_ZERO_PAGE:
+      summary_set_byte(summary, bytes[1]);
+      break;
+   case AM_ABSOLUTE:
+      address = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
+      if (address <= 0x00ffu)
+         summary_set_byte(summary, (uint8_t)address);
+      break;
+   case AM_ZERO_PAGE_X:
+   case AM_ZERO_PAGE_Y:
+   case AM_ABSOLUTE_X:
+   case AM_ABSOLUTE_Y:
+   case AM_INDEXED_INDIRECT:
+   case AM_INDIRECT_INDEXED:
+      /* Without caller register/pointer state, any zero-page byte may alias. */
+      summary_set_all(summary);
+      break;
+   default:
+      break;
+   }
+}
+
+static int resolve_rom_indirect_target(const analysis_t *a,
+                                       uint16_t pointer, uint16_t *target)
+{
+   uint16_t high_address;
+   uint8_t low;
+   uint8_t high;
+
+   high_address = (uint16_t)((pointer & 0xff00u) |
+                             ((uint16_t)(pointer + 1u) & 0x00ffu));
+   if (!fetch_bank_byte(a, pointer, &low, NULL) ||
+       !fetch_bank_byte(a, high_address, &high, NULL))
+      return 0;
+   *target = (uint16_t)(low | ((uint16_t)high << 8));
+   return 1;
+}
+
+static const uint8_t *subroutine_zp_summary(analysis_t *a, uint16_t target)
+{
+   uint8_t *summary = a->subroutine_summaries +
+                      (size_t)target * ZERO_PAGE_KNOWN_BYTES;
+   size_t count = 0;
+
+   if (a->summary_valid[target])
+      return summary;
+
+   memset(summary, 0, ZERO_PAGE_KNOWN_BYTES);
+   memset(a->summary_visited, 0, sizeof(a->summary_visited));
+   if (address_is_cartridge(target)) {
+      a->summary_visited[target] = 1;
+      a->summary_work[count++] = target;
+   }
+
+   while (count != 0 && !summary_is_all(summary)) {
+      uint16_t pc = a->summary_work[--count];
       uint8_t bytes[3] = { 0, 0, 0 };
       size_t offsets[3] = { 0, 0, 0 };
       uint8_t opcode;
@@ -445,66 +1078,159 @@ static void trace(analysis_t *a)
       uint16_t next;
       uint16_t address = 0;
 
-      if (a->visited[pc])
-         continue;
-      a->visited[pc] = 1;
+      if (!fetch_bank_byte(a, pc, &opcode, NULL)) {
+         summary_set_all(summary);
+         break;
+      }
+      mode = (address_mode_t)opcode_modes[opcode];
+      length = instruction_length(mode);
+      if (!fetch_instruction(a, pc, bytes, offsets, length)) {
+         summary_set_all(summary);
+         break;
+      }
+      next = (uint16_t)(pc + length);
+      if (mode_has_absolute_operand(mode))
+         address = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
+      summary_note_memory_write(summary, opcode, mode, bytes);
+      flow = instruction_flow(opcode);
 
+#define SUMMARY_PUSH(value)                                                     \
+      do {                                                                       \
+         uint16_t summary_pc_ = (uint16_t)(value);                              \
+         if (address_is_cartridge(summary_pc_) &&                               \
+             !a->summary_visited[summary_pc_]) {                                 \
+            a->summary_visited[summary_pc_] = 1;                                \
+            a->summary_work[count++] = summary_pc_;                             \
+         }                                                                       \
+      } while (0)
+
+      switch (flow) {
+      case FLOW_NEXT:
+         SUMMARY_PUSH(next);
+         break;
+      case FLOW_BRANCH:
+         SUMMARY_PUSH(next);
+         SUMMARY_PUSH((uint16_t)(next + (int8_t)bytes[1]));
+         break;
+      case FLOW_JSR:
+         SUMMARY_PUSH(next);
+         SUMMARY_PUSH(address);
+         break;
+      case FLOW_JMP_ABSOLUTE:
+         SUMMARY_PUSH(address);
+         break;
+      case FLOW_JMP_INDIRECT: {
+         uint16_t indirect_target;
+         if (resolve_rom_indirect_target(a, address, &indirect_target))
+            SUMMARY_PUSH(indirect_target);
+         else
+            summary_set_all(summary);
+         break;
+      }
+      case FLOW_BRK:
+         summary_set_all(summary);
+         break;
+      case FLOW_STOP:
+         break;
+      }
+#undef SUMMARY_PUSH
+   }
+
+   a->summary_valid[target] = 1;
+   return summary;
+}
+
+static void apply_subroutine_clobbers(analysis_t *a,
+                                      abstract_state_t *state,
+                                      uint16_t target)
+{
+   const uint8_t *summary = subroutine_zp_summary(a, target);
+   unsigned address;
+
+   state->a_known = 0;
+   state->x_known = 0;
+   state->y_known = 0;
+   for (address = 0; address < ZERO_PAGE_SIZE; ++address) {
+      if ((summary[address >> 3] &
+           (uint8_t)(1u << (address & 7u))) != 0)
+         state_zp_set_unknown(state, (uint8_t)address);
+   }
+}
+
+static void trace(analysis_t *a)
+{
+   while (a->work_count != 0) {
+      uint16_t pc = a->work[--a->work_count];
+      const abstract_state_t *input = &a->states[pc];
+      abstract_state_t output;
+      uint8_t bytes[3] = { 0, 0, 0 };
+      size_t offsets[3] = { 0, 0, 0 };
+      uint8_t opcode;
+      address_mode_t mode;
+      flow_kind_t flow;
+      unsigned length;
+      uint16_t next;
+      uint16_t address = 0;
+
+      a->queued[pc] = 0;
       if (!fetch_bank_byte(a, pc, &opcode, NULL))
          continue;
 
       mode = (address_mode_t)opcode_modes[opcode];
       length = instruction_length(mode);
       if (!fetch_instruction(a, pc, bytes, offsets, length)) {
-         ++a->truncated_instructions;
+         a->truncated_pc[pc] = 1;
          continue;
       }
 
-      ++a->instruction_count;
+      if (!a->visited[pc]) {
+         a->visited[pc] = 1;
+         ++a->instruction_count;
+      }
       mark_instruction_bytes(a, pc, opcode, mode, bytes, offsets, length);
       next = (uint16_t)(pc + length);
 
-      if (mode_has_absolute_operand(mode)) {
+      if (mode_has_absolute_operand(mode))
          address = (uint16_t)(bytes[1] | ((uint16_t)bytes[2] << 8));
-         mark_direct_rom_access(a, opcode, mode, address);
-      }
-      else if (mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED) {
-         /* Runtime zero-page pointers can refer anywhere, including ROM. */
-         ++a->dynamic_data_accesses;
-      }
+      mark_direct_and_indirect_data_access(a, pc, input, opcode, mode, bytes);
+      transfer_state(a, input, &output, opcode, mode, bytes);
 
       flow = instruction_flow(opcode);
       switch (flow) {
       case FLOW_NEXT:
-         enqueue(a, next);
+         enqueue_state(a, next, &output);
          break;
 
-      case FLOW_BRANCH: {
-         int8_t displacement = (int8_t)bytes[1];
-         enqueue(a, next);
-         enqueue(a, (uint16_t)(next + displacement));
+      case FLOW_BRANCH:
+         enqueue_state(a, next, &output);
+         enqueue_state(a, (uint16_t)(next + (int8_t)bytes[1]), &output);
+         break;
+
+      case FLOW_JSR: {
+         abstract_state_t returned = output;
+         enqueue_state(a, address, &output);
+         apply_subroutine_clobbers(a, &returned, address);
+         enqueue_state(a, next, &returned);
          break;
       }
 
-      case FLOW_JSR:
-         enqueue(a, next);
-         enqueue(a, address);
-         break;
-
       case FLOW_JMP_ABSOLUTE:
-         enqueue(a, address);
+         enqueue_state(a, address, &output);
          break;
 
       case FLOW_JMP_INDIRECT: {
          uint16_t target;
-         if (resolve_indirect_jump(a, pc, address, &target))
-            enqueue(a, target);
+         if (resolve_indirect_jump(a, pc, input, address, &target))
+            enqueue_state(a, target, &output);
          break;
       }
 
-      case FLOW_BRK:
-         /* BRK returns to PC+2 if its handler eventually executes RTI. */
-         enqueue(a, (uint16_t)(pc + 2u));
+      case FLOW_BRK: {
+         abstract_state_t unknown;
+         memset(&unknown, 0, sizeof(unknown));
+         enqueue_state(a, (uint16_t)(pc + 2u), &unknown);
          break;
+      }
 
       case FLOW_STOP:
          break;
@@ -658,18 +1384,65 @@ static int choose_bank_layout(analysis_t *a)
    return 1;
 }
 
+static size_t count_flags(const uint8_t flags[ADDRESS_SPACE_SIZE])
+{
+   size_t pc;
+   size_t count = 0;
+   for (pc = 0; pc < ADDRESS_SPACE_SIZE; ++pc) {
+      if (flags[pc])
+         ++count;
+   }
+   return count;
+}
+
 static void reset_bank_analysis(analysis_t *a, size_t bank_index)
 {
    a->bank_index = bank_index;
    a->bank_file_offset = bank_index * a->bank_size;
    memset(a->byte_info, 0, a->bank_size * sizeof(*a->byte_info));
    memset(a->visited, 0, sizeof(a->visited));
+   memset(a->state_seen, 0, sizeof(a->state_seen));
    memset(a->queued, 0, sizeof(a->queued));
+   memset(a->unresolved_indirect_pc, 0, sizeof(a->unresolved_indirect_pc));
+   memset(a->resolved_ram_indirect_pc, 0,
+          sizeof(a->resolved_ram_indirect_pc));
+   memset(a->unresolved_dynamic_pc, 0, sizeof(a->unresolved_dynamic_pc));
+   memset(a->resolved_dynamic_pc, 0, sizeof(a->resolved_dynamic_pc));
+   memset(a->truncated_pc, 0, sizeof(a->truncated_pc));
+   memset(a->summary_valid, 0, sizeof(a->summary_valid));
    a->work_count = 0;
    a->instruction_count = 0;
-   a->unresolved_indirect_jumps = 0;
-   a->dynamic_data_accesses = 0;
-   a->truncated_instructions = 0;
+}
+
+static int allocate_analysis_tables(analysis_t *a)
+{
+   a->byte_info = (byte_info_t *)calloc(a->bank_size,
+                                        sizeof(*a->byte_info));
+   a->states = (abstract_state_t *)calloc(ADDRESS_SPACE_SIZE,
+                                          sizeof(*a->states));
+   a->subroutine_summaries = (uint8_t *)calloc(
+      ADDRESS_SPACE_SIZE, ZERO_PAGE_KNOWN_BYTES);
+
+   if (a->byte_info == NULL || a->states == NULL ||
+       a->subroutine_summaries == NULL) {
+      fprintf(stderr, "stego: could not allocate analysis tables: %s\n",
+              strerror(errno));
+      free(a->subroutine_summaries);
+      free(a->states);
+      free(a->byte_info);
+      a->subroutine_summaries = NULL;
+      a->states = NULL;
+      a->byte_info = NULL;
+      return 0;
+   }
+   return 1;
+}
+
+static void free_analysis_tables(analysis_t *a)
+{
+   free(a->subroutine_summaries);
+   free(a->states);
+   free(a->byte_info);
 }
 
 static int analyze(uint8_t *cart, size_t size)
@@ -679,7 +1452,9 @@ static int analyze(uint8_t *cart, size_t size)
    size_t total_safe = 0;
    size_t total_instructions = 0;
    size_t total_unresolved = 0;
-   size_t total_dynamic = 0;
+   size_t total_resolved_ram = 0;
+   size_t total_unresolved_dynamic = 0;
+   size_t total_resolved_dynamic = 0;
    size_t total_truncated = 0;
 
    memset(&a, 0, sizeof(a));
@@ -690,12 +1465,8 @@ static int analyze(uint8_t *cart, size_t size)
       return 0;
    }
 
-   a.byte_info = (byte_info_t *)calloc(a.bank_size, sizeof(*a.byte_info));
-   if (a.byte_info == NULL) {
-      fprintf(stderr, "stego: could not allocate analysis table: %s\n",
-              strerror(errno));
+   if (!allocate_analysis_tables(&a))
       return 0;
-   }
 
    printf("size=%zu\n", a.file_size);
    printf("complete_banks=%zu\n", a.bank_count);
@@ -707,6 +1478,7 @@ static int analyze(uint8_t *cart, size_t size)
       printf("ignored_tail=partial-bank\n");
 
    for (bank_index = 0; bank_index < a.bank_count; ++bank_index) {
+      abstract_state_t initial_state;
       uint16_t nmi = 0;
       uint16_t reset = 0;
       uint16_t irq = 0;
@@ -714,7 +1486,13 @@ static int analyze(uint8_t *cart, size_t size)
       int reset_valid;
       int irq_valid;
       size_t safe_count;
+      size_t unresolved;
+      size_t resolved_ram;
+      size_t unresolved_dynamic;
+      size_t resolved_dynamic;
+      size_t truncated;
 
+      memset(&initial_state, 0, sizeof(initial_state));
       reset_bank_analysis(&a, bank_index);
       printf("bank=%zu file_offset=0x%zx\n", a.bank_index,
              a.bank_file_offset);
@@ -730,35 +1508,51 @@ static int analyze(uint8_t *cart, size_t size)
              a.bank_index, irq, irq_valid ? "yes" : "no");
 
       if (nmi_valid)
-         enqueue(&a, nmi);
+         enqueue_state(&a, nmi, &initial_state);
       if (reset_valid)
-         enqueue(&a, reset);
+         enqueue_state(&a, reset, &initial_state);
       if (irq_valid)
-         enqueue(&a, irq);
+         enqueue_state(&a, irq, &initial_state);
       trace(&a);
 
       safe_count = print_candidates(&a);
+      unresolved = count_flags(a.unresolved_indirect_pc);
+      resolved_ram = count_flags(a.resolved_ram_indirect_pc);
+      unresolved_dynamic = count_flags(a.unresolved_dynamic_pc);
+      resolved_dynamic = count_flags(a.resolved_dynamic_pc);
+      truncated = count_flags(a.truncated_pc);
+
       printf("bank=%zu reachable_instruction_starts=%zu\n",
              a.bank_index, a.instruction_count);
       printf("bank=%zu safe_bytes=%zu\n", a.bank_index, safe_count);
+      printf("bank=%zu resolved_ram_indirect_jumps=%zu\n",
+             a.bank_index, resolved_ram);
       printf("bank=%zu unresolved_indirect_jumps=%zu\n",
-             a.bank_index, a.unresolved_indirect_jumps);
-      printf("bank=%zu dynamic_indirect_data_accesses=%zu\n",
-             a.bank_index, a.dynamic_data_accesses);
+             a.bank_index, unresolved);
+      printf("bank=%zu resolved_indirect_data_accesses=%zu\n",
+             a.bank_index, resolved_dynamic);
+      printf("bank=%zu unresolved_indirect_data_accesses=%zu\n",
+             a.bank_index, unresolved_dynamic);
       printf("bank=%zu truncated_instructions=%zu\n",
-             a.bank_index, a.truncated_instructions);
+             a.bank_index, truncated);
 
       total_safe += safe_count;
       total_instructions += a.instruction_count;
-      total_unresolved += a.unresolved_indirect_jumps;
-      total_dynamic += a.dynamic_data_accesses;
-      total_truncated += a.truncated_instructions;
+      total_unresolved += unresolved;
+      total_resolved_ram += resolved_ram;
+      total_unresolved_dynamic += unresolved_dynamic;
+      total_resolved_dynamic += resolved_dynamic;
+      total_truncated += truncated;
    }
 
    printf("total_reachable_instruction_starts=%zu\n", total_instructions);
    printf("total_safe_bytes=%zu\n", total_safe);
+   printf("total_resolved_ram_indirect_jumps=%zu\n", total_resolved_ram);
    printf("total_unresolved_indirect_jumps=%zu\n", total_unresolved);
-   printf("total_dynamic_indirect_data_accesses=%zu\n", total_dynamic);
+   printf("total_resolved_indirect_data_accesses=%zu\n",
+          total_resolved_dynamic);
+   printf("total_unresolved_indirect_data_accesses=%zu\n",
+          total_unresolved_dynamic);
    printf("total_truncated_instructions=%zu\n", total_truncated);
 
    if (a.bank_count > 1u) {
@@ -780,19 +1574,18 @@ static int analyze(uint8_t *cart, size_t size)
    }
    if (total_unresolved != 0) {
       fprintf(stderr,
-              "stego: warning: %zu JMP-indirect target(s) were outside the "
-              "currently analyzed ROM bank\n",
+              "stego: warning: %zu JMP-indirect target(s) remained unknown "
+              "after ROM and zero-page constant analysis\n",
               total_unresolved);
    }
-   if (total_dynamic != 0) {
+   if (total_unresolved_dynamic != 0) {
       fprintf(stderr,
-              "stego: warning: %zu reached instruction(s) use runtime "
-              "zero-page indirect addresses; arbitrary ROM data reads are "
-              "not modeled\n",
-              total_dynamic);
+              "stego: warning: %zu indirect data access(es) retained an "
+              "unknown pointer; listed candidates may require manual review\n",
+              total_unresolved_dynamic);
    }
 
-   free(a.byte_info);
+   free_analysis_tables(&a);
    return 1;
 }
 
