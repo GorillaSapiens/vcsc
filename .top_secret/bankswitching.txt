@@ -883,9 +883,100 @@ when main roadmap item 29 becomes active.
          bank and prove initialized DATA, zeroed BSS, dynamic indexing, alias
          direction, persistence across calls in every logical bank, exact image
          sizes, and one 34-byte physical occupancy report. Authoritative Stella,
-         installed-toolchain, and reset-lifecycle certification remains item 14.
+         installed-toolchain, and reset-lifecycle certification remains item 19.
+       * The current rejection of Superchip locals, parameters, and function
+         return storage is an implementation staging restriction, not intended
+         final language semantics. Items 13 through 16 remove those restrictions.
 
-[ ] 13. Add explicit multi-bank duplication for immutable objects and functions.
+[ ] 13. Add Superchip-backed automatic local variables.
+
+       * Permit ordinary local scalars, arrays, and other already-supported local
+         object forms to select a split-address writable region, for example
+         `superchip uint8_t scratch;` inside a function body.
+       * Keep the existing non-reentrant, symbol-backed local-storage model. Reads
+         use the region's read alias; writes and function-entry initializers use
+         its write alias. No runtime stack or new lifetime mechanism is required.
+       * Lower compound assignment, increment/decrement, indexed access, and any
+         supported bitfield update as an explicit read-alias load followed by a
+         write-alias store; never emit a single-address 6502 read-modify-write for
+         a split-address object.
+       * Preserve region identity and both aliases through inline-expansion-private
+         locals where inline locals are otherwise legal, and count each physical
+         allocation only once in map and overflow reporting.
+       * Test direct and indexed reads/writes, initializers, nested calls, inline
+         expansions, cross-bank use, exact map occupancy, deterministic overflow,
+         and rejection only where the underlying local object form is itself
+         unsupported.
+
+[ ] 14. Add Superchip-backed value parameters.
+
+       * Permit a value parameter to select the split-address writable region, for
+         example `void consume(superchip uint16_t value)`.
+       * Allocate the existing callee-owned parameter object in that region. The
+         caller writes the argument through the write alias before `JSR`; the
+         callee reads it through the read alias, and assignments to the parameter
+         write through the write alias.
+       * Carry the parameter region and both aliases in function ABI metadata so
+         calls work identically within one translation unit, across separate
+         compilation, and through generated cross-bank trampolines. Preserve the
+         existing non-reentrancy and call-cycle rules for symbol-backed parameters.
+       * Do not conflate value parameters with ordinary `ref` parameters. A sound
+         split-address pointer/reference ABI remains a separate decision.
+       * Test one- through four-byte values, BCD values, caller-side expression
+         evaluation, callee reads and writes, repeated and nested calls, separate
+         compilation, map accounting, and overflow diagnostics.
+
+[ ] 15. Add Superchip-backed function return storage.
+
+       * Permit a non-void function's existing hidden `function$__return` object
+         to select the split-address region, using syntax such as
+         `superchip uint8_t function(void)`. This extends the existing memory-return
+         ABI; it does not introduce register returns or a second calling convention.
+       * Lower `return expression;` to stores through the write alias. Callers read
+         the result through the read alias after the call. Preserve exact-sized
+         return storage for every already-supported return width and type which
+         fits in the selected region.
+       * Keep `$$` as the source-level lvalue for that same return object. Reads
+         from `$$` must use the read alias; assignments, compound assignments, and
+         member/byte writes to `$$` must use the write alias. A write followed by a
+         read of `$$` inside the callee must observe the value just written.
+       * Carry the result region and both aliases through declarations, definitions,
+         ABI metadata, separate compilation, duplicated/pinned function bodies,
+         map output, initialization, and deterministic overflow diagnostics.
+       * Add execution tests which explicitly write `$$`, read it back, modify it,
+         use a bare `return;`, and verify the caller receives the final value. Cover
+         at least one-, two-, three-, and four-byte returns, ordinary and BCD values,
+         same-bank and cross-bank calls, and all three SC profiles.
+
+[ ] 16. Generalize function region modifiers into a code-region set and one
+       result-storage region using `mem` attributes.
+
+       * Classify every named region modifier from its declared `mem` properties,
+         never from a hard-coded spelling such as `bank0` or `superchip`. For a
+         function declaration, read-only regions describe code placement; one
+         writable region describes the hidden return object's storage.
+       * Permit an order-insensitive mixture such as
+         `bank0 superchip uint8_t function(void)`, with the function body in the
+         read-only region and `function$__return` in the writable region. Preserve
+         the read-only code-region set and writable result region as separate ABI
+         facts even though this item emits at most one function-body copy.
+       * Allow at most one writable result region, reject one on a `void` function,
+         and diagnose duplicate, unknown, contradictory, or unsuitable region
+         modifiers. With no writable modifier, retain the normal default return
+         region; with no read-only modifier, retain automatic code placement.
+       * Permit the semantic representation of more than one read-only code region,
+         but until item 17 implements replication, reject a function which requests
+         more than one with a deterministic diagnostic stating that multi-region
+         code placement requires item 17. Do not partially duplicate or silently
+         choose one region in this item.
+       * Require declarations and definitions to agree independently on the code-
+         region set and result-storage region. Map output must report the one actual
+         code placement separately from the one return object.
+       * Add order-independence and arbitrary-region-name tests, single-code-region
+         plus writable-result tests, declaration/definition mismatch tests, and the
+         explicit deferred-multi-region diagnostic consumed by item 17.
+
+[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.
 
        * Accept an order-insensitive set of named bank-region modifiers, for
          example `bank0 bank1 const uint8_t table[] := { ... };`, and emit one
@@ -893,21 +984,55 @@ when main roadmap item 29 becomes active.
        * Bind each ordinary reference to the copy in the referencing function's
          current bank.  A reference from a bank without a declared copy is an
          error; the copies need not share one low-twelve-bit offset.
-       * Permit the same syntax on functions.  Emit one function body per listed
-         bank and resolve calls from a bank containing a copy to that local copy
-         before considering a cross-bank trampoline.
-       * Require every declaration and definition to specify the same region set
-         regardless of order; reject duplicate region names and mutable object
-         duplication until explicit coherence semantics exist.
+       * Permit the same syntax on functions, using item 16's region-role
+         partition. Emit one function body per read-only region and resolve calls
+         from a bank containing a copy to that local copy before considering a
+         cross-bank trampoline. A writable modifier, when present, selects one
+         shared return object rather than another function-body copy.
+       * Require every declaration and definition to specify the same code-region
+         set and result-storage region regardless of order; reject duplicate region
+         names and mutable object duplication until explicit coherence semantics
+         exist.
        * Combining `inline` with any named bank/memory-region specification,
          whether single-bank or multi-bank, is always an error.  Inline bodies
          have caller-selected placement and therefore cannot carry an independent
          bank-placement contract.
        * Report every replicated copy and its total physical ROM cost in the map,
-         and test local binding, mixed pinned/unpinned callers, function pointers
-         remaining unsupported, and deterministic diagnostics for missing copies.
+         and test local binding, mixed pinned/unpinned callers, the complete
+         `bank0 bank1 superchip` function form, function pointers remaining
+         unsupported, and deterministic diagnostics for missing copies.
 
-[ ] 14. Integrate automatic Superchip initialization and lifecycle tests.
+[ ] 18. Coalesce a single returned automatic variable with `$$`.
+
+       * For a value-returning function where every reachable return is exactly
+         `return variable;` for the same automatic local variable, allow that local
+         and the hidden return object to occupy the same byte or bytes. Bind the
+         source variable and `$$` as aliases of one allocation and eliminate the
+         final copy into `function$__return`.
+       * Apply the optimization only when the variable and return object have
+         identical types and identical resolved storage specifications. The resolved
+         storage specification includes memory-region identity, address size,
+         placement class, and the complete read/write alias mapping. An explicit
+         storage modifier must match exactly and must not be discarded merely because
+         two regions currently map to the same physical addresses. Also require that
+         the variable's address does not escape and that source code does not
+         explicitly read or write `$$` in a way which would make the two objects
+         observably distinct. Otherwise keep the existing separate allocations and
+         copy.
+       * When the return object is Superchip-backed, place the coalesced local in
+         the same split-address allocation: reads use the read alias and writes use
+         the write alias. Preserve the externally visible `function$__return` ABI
+         symbol and report the local as coalesced with it in the map.
+       * Test straight-line and branched functions, one- through four-byte values,
+         BCD values, and Superchip return storage. Verify one physical allocation,
+         absence of the redundant return copy, correct caller-visible results, and
+         deterministic fallback for different return variables, non-variable return
+         expressions, explicit `$$` access, escaping addresses, type mismatches, or
+         any storage-specification mismatch. Include same-type locals whose explicit
+         regions differ, including distinct regions which happen to map to the same
+         physical addresses. Update language, ABI, map, and optimization documentation.
+
+[ ] 19. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
          startup.
@@ -919,7 +1044,7 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-[ ] 15. Add banked renderer or multisprite profiles only after the generic
+[ ] 20. Add banked renderer or multisprite profiles only after the generic
        cartridge tests are stable.
 
        * Keep mapper behavior out of renderer timing code except for explicit
@@ -928,7 +1053,7 @@ when main roadmap item 29 becomes active.
        * Do not multiply cfg files into every renderer x mapper combination
          without first defining a maintainable composition mechanism.
 
-[ ] 16. Improve automatic placement heuristics without changing semantics.
+[ ] 21. Improve automatic placement heuristics without changing semantics.
 
        * Measure whether call-frequency weighting, component ordering, or local
          moves materially reduce bridge count, cycles, and hardware-stack cost.
@@ -938,7 +1063,7 @@ when main roadmap item 29 becomes active.
        * Permit a simple-placement mode for debugging and reproducibility; never
          fall back to invented cross-bank data access.
 
-[ ] 17. Design the next mapper family separately.
+[ ] 22. Design the next mapper family separately.
 
        * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
          segmented schemes such as E0/E7 based on an actual project need.
