@@ -40,9 +40,11 @@ exam:
 	@for each in `find examples/ -name Makefile | sed "s/Makefile//g" | sort`; do \
 		if [ -d "$$each" ]; then \
 			$(MAKE) -C "$$each" clean && \
-			$(MAKE) -C "$$each" && \
-			stella "$$each"/*.bin; \
+			$(MAKE) -C "$$each"; \
 		fi; \
+	done
+	@for each in `find examples/ -name \\*.bin | sort`; do \
+		stella "$$each"; \
 	done
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
