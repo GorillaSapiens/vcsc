@@ -46,8 +46,10 @@ index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
 index($bankswitching,'[x] 10. Make archive selection, listings, map output, simulator execution,')>=0 &&
 index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
-index($bankswitching,'every possible ordered source-bank to destination-bank transition')>=0 &&
-$bankswitching =~ /displays a distinctive PASS or FAIL sprite\s+for (?:each|that) transition/ &&
+$bankswitching =~ /every possible ordered source-bank\s+to destination-bank transition/ &&
+$bankswitching =~ /one cartridge\s+per mapper rather than one cartridge per transition/ &&
+$bankswitching =~ /stable final green-P\/dark-red-F frame/ &&
+$bankswitching =~ /exact default ASCII glyphs/ &&
 $bankswitching =~ /proving read-window\/write-window\s+direction/
    or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&

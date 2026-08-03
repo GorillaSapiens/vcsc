@@ -53,18 +53,23 @@ Files:
 
 ## Bank-switching diagnostic suite
 
-`bankswitching_diagnostic_suite.c26` is compiled with `MAPPER_BANKS`,
-`SOURCE_BANK`, and `JUMP_DEST`.  One source build calls every bank from the
-selected source bank, verifies RIOT-RAM signatures and hardware-stack balance,
-then performs one direct cross-bank jump.  It renders a green **P** final frame
-on success or a dark-red **X** final frame on failure.
+`bankswitching_diagnostic_suite.c26` is compiled with `MAPPER_BANKS` and,
+for the Superchip twins, `SUPERCHIP_TEST`. One cartridge internally executes the
+complete ordered source-bank to destination-bank direct-JMP matrix for its
+mapper. Every source bank also verifies a same-bank JSR/RTS path; BANK0 adds a
+nested BANK0-to-BANK1 call and return. RIOT-RAM signatures, matrix counts, and
+hardware-stack balance are checked before the cartridge settles on a green
+**P** final frame or a dark-red **F** failure frame. Both glyphs are copied from
+`fonts/default_ascii.c26`; the diagnostic forces absolute-X ROM loads and aligns
+each `GRP0` update to `WSYNC` so the glyph cannot be replaced by zero-page bytes
+or torn during a scanline.
 
 The editable wrapper and Makefile live under
-`examples/09_bankswitching/01_diagnostic/`.  The normal regression suite runs
-all 84 F8/F6/F4 source/destination combinations through the cfg-driven
-bank-aware simulator.  `make stella-bank-test STELLA=/path/to/stella` rebuilds
-and renders the same matrix in Stella, forces every physical startup bank, and
-also exercises developer-mode randomized startup banks.
+`examples/09_bankswitching/01_diagnostic/`. A normal build emits exactly six
+images: F8, F6, F4, F8SC, F6SC, and F4SC. The normal regression runs each image
+through the cfg-driven bank-aware simulator from every physical startup bank.
+`make stella-bank-test STELLA=/path/to/stella` runs those same six images in
+Stella with forced and developer-mode randomized startup banks.
 
 ## NTSC color matching
 

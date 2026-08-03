@@ -810,12 +810,15 @@ when main roadmap item 29 becomes active.
          the initially selected chunk, and expose physical `--start-bank`,
          `--stop-pc`, and RAM-dump controls for deterministic diagnostics.
        * Add the reusable `bankswitching_diagnostic_suite.c26` plus the editable
-         `examples/09_bankswitching/01_diagnostic` wrapper.  Across its 84
-         F8/F6/F4 builds it exercises every possible ordered source-bank to
-         destination-bank transition through direct JMP; every source also
-         JSRs and returns from every bank, writes known RIOT-RAM signatures,
-         verifies stack balance, and displays a distinctive PASS or FAIL sprite
-         for each transition plus a stable final green-P/red-X frame.
+         `examples/09_bankswitching/01_diagnostic` wrapper.  Emit one cartridge
+         per mapper rather than one cartridge per transition: F8, F6, and F4.
+         Each cartridge internally exercises every possible ordered source-bank
+         to destination-bank transition through direct JMP, performs a same-bank
+         JSR/RTS check from every source, adds a nested BANK0-to-BANK1 call and
+         return, writes known RIOT-RAM signatures, verifies stack balance, and
+         settles on a stable final green-P/dark-red-F frame.  The P and F are the
+         exact default ASCII glyphs, loaded with forced absolute indexed ROM
+         addressing and changed only on a scanline boundary.
        * Run the complete matrix in Stella, force every physical startup bank,
          and run developer-mode randomized startup-bank trials.  The top-level
          `stella-bank-test` target grades actual Stella snapshots; ordinary
@@ -840,9 +843,10 @@ when main roadmap item 29 becomes active.
          `superchip_ram[128]@[0xF080/0xF000]`, and reject SC cfgs whose bank-owned
          read-only regions overlap the RAM ports. Structural tests also mutate
          each public profile to expose the prefix and require the linker to
-         reject it. The simulator and 42-case Stella diagnostic both prove
-         boundary aliases, per-bank persistence, reset from every physical
-         chunk, and exact complete-bank output.
+         reject it. The three Superchip diagnostic cartridges internally run
+         their complete transition matrices; the simulator proves them from
+         every physical startup chunk, and Stella grades the same stable visible
+         PASS/FAIL result under forced and randomized startup-bank selection.
 
 [ ] 12. Add Automatic allocation of variables into Superchip RAM.
 

@@ -3,54 +3,38 @@ VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 SOURCE := bankswitching_diagnostic.c26
 
-# The default set tests every source bank's JSR transitions and one representative
-# direct-JMP destination.  `make full` emits every ordered JMP pair too.
-all: representative superchip
+all: ordinary superchip
 
-representative:
-	@set -e; \
-	for spec in F8:2:vcs_8k_f8.cfg F6:4:vcs_16k_f6.cfg F4:8:vcs_32k_f4.cfg; do \
-		mapper=$${spec%%:*}; rest=$${spec#*:}; banks=$${rest%%:*}; cfg=$${rest#*:}; \
-		s=0; while test $$s -lt $$banks; do \
-			mapper_lc=$$(printf '%s' "$$mapper" | tr '[:upper:]' '[:lower:]'); \
-			stem=$$(printf '%s_source%d_to0' "$$mapper_lc" "$$s"); \
-			$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=$$banks -DSOURCE_BANK=$$s -DJUMP_DEST=0 \
-				-T $(VCS_DIR)/$$cfg -Map $$stem.map $(SOURCE) -o $$stem.bin; \
-			s=$$((s+1)); \
-		done; \
-	done
+ordinary: f8.bin f6.bin f4.bin
 
-superchip:
-	@set -e; \
-	for spec in F8SC:2:vcs_8k_f8sc.cfg F6SC:4:vcs_16k_f6sc.cfg F4SC:8:vcs_32k_f4sc.cfg; do \
-		mapper=$${spec%%:*}; rest=$${spec#*:}; banks=$${rest%%:*}; cfg=$${rest#*:}; \
-		s=0; while test $$s -lt $$banks; do \
-			mapper_lc=$$(printf '%s' "$$mapper" | tr '[:upper:]' '[:lower:]'); \
-			stem=$$(printf '%s_source%d_to0' "$$mapper_lc" "$$s"); \
-			$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=$$banks -DSOURCE_BANK=$$s -DJUMP_DEST=0 -DSUPERCHIP_TEST \
-				-T $(VCS_DIR)/$$cfg -Map $$stem.map $(SOURCE) -o $$stem.bin; \
-			s=$$((s+1)); \
-		done; \
-	done
+superchip: f8sc.bin f6sc.bin f4sc.bin
 
-full:
-	@set -e; \
-	for spec in F8:2:vcs_8k_f8.cfg F6:4:vcs_16k_f6.cfg F4:8:vcs_32k_f4.cfg; do \
-		mapper=$${spec%%:*}; rest=$${spec#*:}; banks=$${rest%%:*}; cfg=$${rest#*:}; \
-		s=0; while test $$s -lt $$banks; do \
-			d=0; while test $$d -lt $$banks; do \
-				mapper_lc=$$(printf '%s' "$$mapper" | tr '[:upper:]' '[:lower:]'); \
-				stem=$$(printf '%s_source%d_to%d' "$$mapper_lc" "$$s" "$$d"); \
-				$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=$$banks -DSOURCE_BANK=$$s -DJUMP_DEST=$$d \
-					-T $(VCS_DIR)/$$cfg -Map $$stem.map $(SOURCE) -o $$stem.bin; \
-				d=$$((d+1)); \
-			done; \
-			s=$$((s+1)); \
-		done; \
-	done
+f8.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 \
+		-T $(VCS_DIR)/vcs_8k_f8.cfg -Map f8.map $(SOURCE) -o $@
+
+f6.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=4 \
+		-T $(VCS_DIR)/vcs_16k_f6.cfg -Map f6.map $(SOURCE) -o $@
+
+f4.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=8 \
+		-T $(VCS_DIR)/vcs_32k_f4.cfg -Map f4.map $(SOURCE) -o $@
+
+f8sc.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -DSUPERCHIP_TEST \
+		-T $(VCS_DIR)/vcs_8k_f8sc.cfg -Map f8sc.map $(SOURCE) -o $@
+
+f6sc.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=4 -DSUPERCHIP_TEST \
+		-T $(VCS_DIR)/vcs_16k_f6sc.cfg -Map f6sc.map $(SOURCE) -o $@
+
+f4sc.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=8 -DSUPERCHIP_TEST \
+		-T $(VCS_DIR)/vcs_32k_f4sc.cfg -Map f4sc.map $(SOURCE) -o $@
 
 clean:
-	rm -f f8_source* f6_source* f4_source* *.bin *.hex *.map *.sym *.lst *.cfg \
+	rm -f f8.* f6.* f4.* f8sc.* f6sc.* f4sc.* \
 		.bin .hex .map .sym .lst .cfg
 
-.PHONY: all representative superchip full clean
+.PHONY: all ordinary superchip clean

@@ -26,7 +26,8 @@ sub require_ok {
    return ($out,$err);
 }
 sub read_file {
-   my($p)=@_; open(my $fh,'<:raw',$p) or die "read $p: $!\n"; local $/; my $d=<$fh>; close($fh); return $d // '';
+   my($p)=@_; open(my $fh,'<:raw',$p) or die "read $p: $!\n"; local $/;
+   my $d=<$fh>; close($fh); return $d // '';
 }
 sub write_file {
    my($p,$data)=@_; open(my $fh,'>:raw',$p) or die "write $p: $!\n";
@@ -46,7 +47,6 @@ sub parse_dump {
    }
    return \@mem;
 }
-
 sub find_executable {
    my($name)=@_;
    return abs_path($name) if $name =~ m{/} && -x $name;
@@ -57,323 +57,236 @@ sub find_executable {
    return undef;
 }
 sub terminate_child {
-   my($pid)=@_;
-   return if !defined($pid) || $pid <= 0;
+   my($pid)=@_; return if !defined($pid) || $pid <= 0;
    kill 'TERM',$pid;
    for (1..20) {
       my $done=waitpid($pid,WNOHANG);
       return if $done==$pid || $done==-1;
       select(undef,undef,undef,0.05);
    }
-   kill 'KILL',$pid;
-   waitpid($pid,0);
+   kill 'KILL',$pid; waitpid($pid,0);
 }
-sub wait_for_exit {
-   my($pid,$seconds)=@_;
-   my $ticks=int($seconds*20);
-   for (1..$ticks) {
-      my $done=waitpid($pid,WNOHANG);
-      return $? >> 8 if $done==$pid;
-      select(undef,undef,undef,0.05);
+
+sub profiles {
+   return (
+      [F8=>2=>'vcs_8k_f8.cfg'=>0],
+      [F6=>4=>'vcs_16k_f6.cfg'=>0],
+      [F4=>8=>'vcs_32k_f4.cfg'=>0],
+      [F8SC=>2=>'vcs_8k_f8sc.cfg'=>1],
+      [F6SC=>4=>'vcs_16k_f6sc.cfg'=>1],
+      [F4SC=>8=>'vcs_32k_f4sc.cfg'=>1],
+   );
+}
+
+sub build_matrix_rom {
+   my($driver,$vcs,$source,$tmp,$profile,$simulator)=@_;
+   my($mapper,$banks,$cfg_name,$sc)=@$profile;
+   my $stem=lc($mapper).'_matrix';
+   my $bin=File::Spec->catfile($tmp,"$stem.bin");
+   my $map_path=File::Spec->catfile($tmp,"$stem.map");
+   my @defs=("-DMAPPER_BANKS=$banks");
+   push @defs,'-DSUPERCHIP_TEST' if $sc;
+   push @defs,'-DSIMULATOR_TEST' if $simulator;
+   require_ok("build $mapper complete matrix",
+      $driver,'-I',$vcs,@defs,'-T',File::Spec->catfile($vcs,$cfg_name),
+      '-Map',$map_path,$source,'-o',$bin);
+   -s $bin == $banks*4096
+      or die "$mapper did not emit an exact ".($banks*4096)."-byte image\n";
+   return ($bin,$map_path);
+}
+
+sub check_matrix_dump {
+   my($mapper,$banks,$sym,$mem,$sc)=@_;
+   $mem->[$sym->{failure}]==0
+      or die sprintf("%s failure byte is %02X\n",$mapper,$mem->[$sym->{failure}]);
+   $mem->[$sym->{source_seen}]==$banks-1
+      or die "$mapper did not execute the final logical source bank\n";
+   $mem->[$sym->{current_source}]==$banks && $mem->[$sym->{current_destination}]==0
+      or die "$mapper matrix indices did not reach the terminal state\n";
+   $mem->[$sym->{call_count}]==$banks
+      or die "$mapper same-bank call count is wrong\n";
+   $mem->[$sym->{transition_count}]==$banks*$banks
+      or die "$mapper did not execute the complete ordered direct-JMP matrix\n";
+   $mem->[$sym->{nested_count}]==1
+      or die "$mapper nested cross-bank call count is wrong\n";
+   $mem->[$sym->{signature}]==0x80+$banks-1
+      or die "$mapper final destination signature is wrong\n";
+   $mem->[$sym->{stack_before}]==$mem->[$sym->{stack_after}]
+      or die "$mapper direct-JMP path changed the hardware stack\n";
+   if ($sc) {
+      my $expected=$banks*$banks+$banks+1;
+      $mem->[0xF080]==0x5A && $mem->[0xF081]==$expected && $mem->[0xF0FF]==0xA5
+         or die "$mapper Superchip aliases/persistence/count are wrong\n";
    }
-   kill 'TERM',$pid;
-   select(undef,undef,undef,0.2);
-   my $done=waitpid($pid,WNOHANG);
-   if ($done!=$pid) { kill 'KILL',$pid; waitpid($pid,0); }
-   die "Stella did not exit after snapshot hotkeys\n";
 }
+
+sub run_simulator_matrix {
+   my($repo,$tmp,$source)=@_;
+   my $driver=File::Spec->catfile($repo,'driver','vcsc');
+   my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
+   my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+
+   for my $profile (profiles()) {
+      my($mapper,$banks,$cfg_name,$sc)=@$profile;
+      my $cfg=File::Spec->catfile($vcs,$cfg_name);
+      if ($sc) {
+         my $cfg_text=read_file($cfg);
+         $cfg_text =~ /mapper\s*=\s*\Q$mapper\E\s*;/
+            or die "$cfg_name does not declare mapper $mapper\n";
+         for my $logical_bank (0..$banks-1) {
+            my $start=sprintf('%04X',0xF100-$logical_bank*0x2000);
+            $cfg_text =~ /\bbank\Q$logical_bank\E\s*:\s*start\s*=\s*\$$start\s*,\s*size\s*=\s*\$0E00\s*,\s*type\s*=\s*ro\b/i
+               or die "$cfg_name does not reserve the Superchip prefix in bank$logical_bank\n";
+         }
+         my $bad=$cfg_text;
+         $bad =~ s/(\bbank0\s*:\s*start\s*=\s*)\$F100\s*,\s*size\s*=\s*\$0E00/$1\$F000, size = \$0F00/i
+            or die "could not make malformed $mapper Superchip cfg fixture\n";
+         my $bad_cfg=File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.cfg');
+         write_file($bad_cfg,$bad);
+         my($rc,$sig,$out,$err)=run_capture(
+            $driver,'-I',$vcs,'-T',$bad_cfg,
+            File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26'),
+            '-o',File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.bin'));
+         $rc!=0 && !$sig or die "$mapper malformed Superchip cfg unexpectedly linked\n$out\n$err";
+         $err =~ /overlaps the Superchip RAM-port prefix/i
+            or die "$mapper malformed Superchip cfg did not diagnose the RAM-port overlap\n$err";
+      }
+
+      my($bin,$map_path)=build_matrix_rom($driver,$vcs,$source,$tmp,$profile,1);
+      if ($sc) {
+         my $rom=read_file($bin);
+         for my $file_bank (0..$banks-1) {
+            substr($rom,$file_bank*4096,256) eq ("\xFF" x 256)
+               or die "$mapper physical/file bank $file_bank does not reserve the Superchip prefix\n";
+         }
+      }
+      my $map=read_file($map_path);
+      my %sym=map { $_ => map_symbol($map,$_) }
+         qw(simulator_done failure signature source_seen current_source current_destination
+            call_count transition_count nested_count stack_before stack_after);
+      for my $physical_start (0..$banks-1) {
+         my($out,$err)=require_ok("simulate $mapper from physical bank $physical_start",
+            $sim,'-T',$cfg,"--start-bank=$physical_start",
+            sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
+         $err eq '' or die "$mapper simulator wrote stderr:\n$err";
+         check_matrix_dump($mapper,$banks,\%sym,parse_dump($out),$sc);
+      }
+   }
+}
+
 sub run_stella_certification {
-   my($repo,$tmp,$source,$profiles,$sc_profiles)=@_;
+   my($repo,$tmp,$source)=@_;
    my $stella=$ENV{VCSC_STELLA} || $ENV{STELLA} || find_executable('stella');
    defined($stella) && -x $stella
       or die "Stella certification requires STELLA=/path/to/stella or Stella in PATH\n";
-   my $xvfb=find_executable('Xvfb')
-      or die "Stella certification requires Xvfb\n";
-   my $perl=find_executable('perl')
-      or die "Stella certification requires Perl\n";
-
+   my $xvfb=find_executable('Xvfb') or die "Stella certification requires Xvfb\n";
+   my $perl=find_executable('perl') or die "Stella certification requires Perl\n";
    my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
    my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    -f $keys && -f $grade or die "Stella snapshot helpers are missing\n";
+
+   my $driver=File::Spec->catfile($repo,'driver','vcsc');
+   my $vcs=File::Spec->catdir($repo,'libraries','vcs');
    my $stella_tmp=File::Spec->catdir($tmp,'stella');
    my $snap_root=File::Spec->catdir($stella_tmp,'snapshots');
-   my $user_dir=File::Spec->catdir($stella_tmp,'user');
-   make_path($snap_root,$user_dir);
-
-   my $display_num=90 + ($$ % 100);
-   my $label_selected=sub {
-      my($label)=@_;
-      return !$ENV{VCSC_STELLA_FILTER} || $label =~ /$ENV{VCSC_STELLA_FILTER}/;
+   my $user_root=File::Spec->catdir($stella_tmp,'user');
+   make_path($snap_root,$user_root);
+   my $display_num=90+($$%100);
+   my $selected=sub {
+      my($label)=@_; return !$ENV{VCSC_STELLA_FILTER} || $label =~ /$ENV{VCSC_STELLA_FILTER}/;
    };
 
    my $run_one=sub {
-      my(%arg)=@_;
-      my $label=$arg{label};
-      return unless $label_selected->($label);
+      my(%arg)=@_; my $label=$arg{label}; return unless $selected->($label);
       $display_num++ while -e "/tmp/.X11-unix/X$display_num";
-      my $display=":$display_num";
-      $display_num++;
-      my $xlog=File::Spec->catfile($stella_tmp,"$label.xvfb.log");
-      my $xpid=fork();
-      defined($xpid) or die "fork Xvfb: $!\n";
+      my $display=':'.$display_num++;
+      my $xpid=fork(); defined($xpid) or die "fork Xvfb: $!\n";
       if ($xpid==0) {
-         open(STDOUT,'>:raw',$xlog) or die "open $xlog: $!\n";
-         open(STDERR,'>&STDOUT') or die "dup Xvfb stderr: $!\n";
-         exec($xvfb,$display,'-ac','-screen','0','1024x768x24');
-         die "exec Xvfb: $!\n";
+         open(STDOUT,'>:raw',File::Spec->catfile($stella_tmp,"$label.xvfb.log")) or die $!;
+         open(STDERR,'>&STDOUT') or die $!;
+         exec($xvfb,$display,'-ac','-screen','0','1024x768x24'); die "exec Xvfb: $!\n";
       }
       select(undef,undef,undef,0.20);
-      local $ENV{DISPLAY}=$display;
-      local $ENV{XAUTHORITY}='/dev/null';
-      local $ENV{HOME}=$stella_tmp;
-      local $ENV{SDL_AUDIODRIVER}='dummy';
-      my $snapdir=File::Spec->catdir($snap_root,$label);
-      make_path($snapdir);
+      local $ENV{DISPLAY}=$display; local $ENV{XAUTHORITY}='/dev/null';
+      local $ENV{HOME}=$stella_tmp; local $ENV{SDL_AUDIODRIVER}='dummy';
+      my $snapdir=File::Spec->catdir($snap_root,$label); make_path($snapdir);
       unlink glob(File::Spec->catfile($snapdir,'*.png'));
-      my $log=File::Spec->catfile($stella_tmp,"$label.log");
-      my $run_user_dir=File::Spec->catdir($user_dir,$label);
-      make_path($run_user_dir);
+      my $run_user=File::Spec->catdir($user_root,$label); make_path($run_user);
       my @cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0',
                '-bs',$arg{mapper},'-snapsavedir',$snapdir,'-snapname','rom',
                '-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0',
-               '-userdir',$run_user_dir);
+               '-userdir',$run_user);
       push @cmd,'-startbank',$arg{start} if defined $arg{start};
       push @cmd,'-dev.settings','1','-dev.bankrandom','1' if $arg{random};
       push @cmd,$arg{rom};
-      my $pid=fork();
-      defined($pid) or die "fork Stella: $!\n";
+      my $pid=fork(); defined($pid) or die "fork Stella: $!\n";
       if ($pid==0) {
-         open(STDOUT,'>:raw',$log) or die "open $log: $!\n";
-         open(STDERR,'>&STDOUT') or die "dup Stella stderr: $!\n";
-         exec(@cmd);
-         die "exec Stella: $!\n";
+         open(STDOUT,'>:raw',File::Spec->catfile($stella_tmp,"$label.log")) or die $!;
+         open(STDERR,'>&STDOUT') or die $!; exec(@cmd); die "exec Stella: $!\n";
       }
       print STDERR "Stella $label\n" if $ENV{VCSC_STELLA_VERBOSE};
-      require_ok("snapshot $label",$perl,$keys);
-      my @png;
-      for (1..40) {
-         @png=grep { -s $_ } glob(File::Spec->catfile($snapdir,'*.png'));
-         last if @png==1;
-         select(undef,undef,undef,0.05);
+      my($graded,$last_grade_error)=(0,'');
+      for my $attempt (1..3) {
+         unlink glob(File::Spec->catfile($snapdir,'*.png'));
+         require_ok("snapshot $label attempt $attempt",$perl,$keys);
+         my @png;
+         for (1..40) {
+            @png=grep { -s $_ } glob(File::Spec->catfile($snapdir,'*.png'));
+            last if @png==1; select(undef,undef,undef,0.05);
+         }
+         if (@png!=1) {
+            $last_grade_error="Stella $label produced ".scalar(@png).
+                              " snapshots on attempt $attempt\n";
+            next;
+         }
+         my($rc,$sig,$out,$err)=run_capture($perl,$grade,$png[0]);
+         if ($rc==0 && !$sig && $err eq '') {
+            $graded=1;
+            last;
+         }
+         $last_grade_error="grade Stella frame $label attempt $attempt failed " .
+                           "rc=$rc sig=$sig\nstdout:\n$out\nstderr:\n$err";
       }
       terminate_child($pid);
-      @png==1 or die "Stella $label produced ".scalar(@png)." snapshots\n".read_file($log);
-      my($grade_out,$grade_err)=require_ok("grade Stella frame $label",$perl,$grade,$png[0]);
-      $grade_err eq '' or die "snapshot grader wrote stderr for $label: $grade_err\n";
       terminate_child($xpid);
+      $graded or die $last_grade_error;
    };
 
-   eval {
-      my $driver=File::Spec->catfile($repo,'driver','vcsc');
-      my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-      my %representative;
-      for my $profile (@$profiles) {
-         my($mapper,$banks,$cfg_name)=@$profile;
-         my $cfg=File::Spec->catfile($vcs,$cfg_name);
-         my $need_representative=0;
-         for my $physical_start (0..$banks-1) {
-            $need_representative ||= $label_selected->(lc($mapper)."_forced_start_$physical_start");
-            $need_representative ||= $label_selected->(lc($mapper)."_random_start_$physical_start");
-         }
-         for my $source_bank (0..$banks-1) {
-            for my $dest_bank (0..$banks-1) {
-               my $stem=lc($mapper)."_${source_bank}_${dest_bank}_stella";
-               next unless $label_selected->($stem) ||
-                           ($need_representative && $source_bank==0 && $dest_bank==0);
-               my $rom=File::Spec->catfile($stella_tmp,"$stem.bin");
-               require_ok("build Stella $mapper source $source_bank JMP $dest_bank",
-                  $driver,'-I',$vcs,"-DMAPPER_BANKS=$banks","-DSOURCE_BANK=$source_bank",
-                  "-DJUMP_DEST=$dest_bank",'-T',$cfg,$source,'-o',$rom);
-               $run_one->(label=>$stem,mapper=>$mapper,start=>0,rom=>$rom);
-               $representative{$mapper}=$rom if $source_bank==0 && $dest_bank==0;
-            }
-         }
-         for my $physical_start (0..$banks-1) {
-            $run_one->(label=>lc($mapper)."_forced_start_$physical_start",
-                      mapper=>$mapper,start=>$physical_start,rom=>$representative{$mapper});
-         }
-         for my $trial (0..$banks-1) {
-            $run_one->(label=>lc($mapper)."_random_start_$trial",
-                      mapper=>$mapper,random=>1,rom=>$representative{$mapper});
-         }
+   for my $profile (profiles()) {
+      my($mapper,$banks)=@$profile;
+      my @runs;
+      for my $physical_start (0..$banks-1) {
+         push @runs,{label=>lc($mapper)."_forced_start_$physical_start",
+                     mapper=>$mapper,start=>$physical_start};
       }
-      for my $profile (@$sc_profiles) {
-         my($mapper,$banks,$cfg_name)=@$profile;
-         my $cfg=File::Spec->catfile($vcs,$cfg_name);
-         my $need_representative=0;
-         for my $physical_start (0..$banks-1) {
-            $need_representative ||= $label_selected->(lc($mapper)."_forced_start_$physical_start");
-            $need_representative ||= $label_selected->(lc($mapper)."_random_start_$physical_start");
-         }
-         for my $source_bank (0..$banks-1) {
-            my $stem=lc($mapper)."_${source_bank}_0_stella";
-            next unless $label_selected->($stem) ||
-                        ($need_representative && $source_bank==0);
-            my $rom=File::Spec->catfile($stella_tmp,"$stem.bin");
-            require_ok("build Stella $mapper source $source_bank",
-               $driver,'-I',$vcs,"-DMAPPER_BANKS=$banks","-DSOURCE_BANK=$source_bank",
-               '-DJUMP_DEST=0','-DSUPERCHIP_TEST','-T',$cfg,$source,'-o',$rom);
-            $run_one->(label=>$stem,mapper=>$mapper,start=>0,rom=>$rom);
-            $representative{$mapper}=$rom if $source_bank==0;
-         }
-         for my $physical_start (0..$banks-1) {
-            $run_one->(label=>lc($mapper)."_forced_start_$physical_start",
-                      mapper=>$mapper,start=>$physical_start,rom=>$representative{$mapper});
-         }
-         for my $trial (0..$banks-1) {
-            $run_one->(label=>lc($mapper)."_random_start_$trial",
-                      mapper=>$mapper,random=>1,rom=>$representative{$mapper});
-         }
+      for my $trial (0..$banks-1) {
+         push @runs,{label=>lc($mapper)."_random_start_$trial",
+                     mapper=>$mapper,random=>1};
       }
-      1;
-   } or do {
-      my $error=$@ || 'unknown Stella certification failure';
-      die $error;
-   };
+      @runs=grep { $selected->($_->{label}) } @runs;
+      next unless @runs; # A focused filter must not build unrelated cartridges.
+      my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0);
+      for my $run (@runs) {
+         $run->{rom}=$rom;
+         $run_one->(%$run);
+      }
+   }
    print "Stella bank switching certification passed\n";
 }
 
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO TMP [--stella]\n");
 my $tmp=shift @ARGV // die "usage: $0 REPO TMP [--stella]\n";
-my $stella_mode = @ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
+my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 @ARGV and die "usage: $0 REPO TMP [--stella]\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
-
-my $driver=File::Spec->catfile($repo,'driver','vcsc');
-my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
-my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $source=File::Spec->catfile($vcs,'bankswitching_diagnostic_suite.c26');
-my @profiles=(
-   [F8=>2=>'vcs_8k_f8.cfg'],
-   [F6=>4=>'vcs_16k_f6.cfg'],
-   [F4=>8=>'vcs_32k_f4.cfg'],
-);
-my @sc_profiles=(
-   [F8SC=>2=>'vcs_8k_f8sc.cfg'],
-   [F6SC=>4=>'vcs_16k_f6sc.cfg'],
-   [F4SC=>8=>'vcs_32k_f4sc.cfg'],
-);
-my %built;
-
-if (!$stella_mode) {
-for my $profile (@profiles) {
-   my($mapper,$banks,$cfg_name)=@$profile;
-   my $cfg=File::Spec->catfile($vcs,$cfg_name);
-   for my $source_bank (0..$banks-1) {
-      for my $dest_bank (0..$banks-1) {
-         my $stem=lc($mapper)."_${source_bank}_${dest_bank}";
-         my $bin=File::Spec->catfile($tmp,"$stem.bin");
-         my $map_path=File::Spec->catfile($tmp,"$stem.map");
-         require_ok("build $mapper source $source_bank JMP $dest_bank",
-            $driver,'-I',$vcs,
-            "-DMAPPER_BANKS=$banks","-DSOURCE_BANK=$source_bank",
-            "-DJUMP_DEST=$dest_bank",'-DSIMULATOR_TEST',
-            '-T',$cfg,'-Map',$map_path,$source,'-o',$bin);
-         my $map=read_file($map_path);
-         my %sym=map { $_ => map_symbol($map,$_) }
-            qw(simulator_done failure source_seen transition_count stack_before stack_after);
-         my($out,$err)=require_ok("simulate $mapper source $source_bank JMP $dest_bank",
-            $sim,'-T',$cfg,'--start-bank=0',sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
-            '--dump-on-stop',$bin);
-         $err eq '' or die "$mapper simulator wrote stderr:\n$err";
-         my $mem=parse_dump($out);
-         $mem->[$sym{failure}]==0
-            or die sprintf("%s %u->%u failure byte is %02X\n",$mapper,$source_bank,$dest_bank,$mem->[$sym{failure}]);
-         $mem->[$sym{source_seen}]==$source_bank
-            or die "$mapper source signature is wrong for BANK$source_bank\n";
-         $mem->[$sym{transition_count}]==$banks+1
-            or die "$mapper transition count is wrong for BANK$source_bank->$dest_bank\n";
-         $mem->[$sym{stack_before}]==$mem->[$sym{stack_after}]
-            or die "$mapper direct JMP path changed the hardware stack\n";
-         $built{"$mapper:0:0"}=[$bin,$map_path,\%sym] if $source_bank==0 && $dest_bank==0;
-      }
-   }
-
-   my($bin,$map_path,$sym) = @{$built{"$mapper:0:0"}};
-   for my $physical_start (0..$banks-1) {
-      my($out,$err)=require_ok("simulate $mapper reset from physical bank $physical_start",
-         $sim,'-T',$cfg,"--start-bank=$physical_start",
-         sprintf('--stop-pc=0x%04X',$sym->{simulator_done}),'--dump-on-stop',$bin);
-      my $mem=parse_dump($out);
-      $mem->[$sym->{failure}]==0
-         or die "$mapper reset bridge failed from physical bank $physical_start\n";
-   }
-}
-
-for my $profile (@sc_profiles) {
-   my($mapper,$banks,$cfg_name)=@$profile;
-   my $cfg=File::Spec->catfile($vcs,$cfg_name);
-   my $cfg_text=read_file($cfg);
-   $cfg_text =~ /mapper\s*=\s*\Q$mapper\E\s*;/
-      or die "$cfg_name does not declare mapper $mapper\n";
-   for my $logical_bank (0..$banks-1) {
-      my $start=sprintf('%04X',0xF100-$logical_bank*0x2000);
-      $cfg_text =~ /\bbank\Q$logical_bank\E\s*:\s*start\s*=\s*\$$start\s*,\s*size\s*=\s*\$0E00\s*,\s*type\s*=\s*ro\b/i
-         or die "$cfg_name does not reserve the full Superchip prefix and high bridge corridor for bank$logical_bank\n";
-   }
-
-   # A malformed SC profile must be rejected before it can place ordinary ROM
-   # over the shared write/read ports.  Use a plain unbanked source so this
-   # checks the cfg itself rather than compiler-emitted named-region metadata.
-   my $bad_cfg_text=$cfg_text;
-   $bad_cfg_text =~ s/(\bbank0\s*:\s*start\s*=\s*)\$F100\s*,\s*size\s*=\s*\$0E00/$1\$F000, size = \$0F00/i
-      or die "could not make malformed $mapper Superchip cfg fixture\n";
-   my $bad_cfg=File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.cfg');
-   write_file($bad_cfg,$bad_cfg_text);
-   my($bad_rc,$bad_sig,$bad_out,$bad_err)=run_capture(
-      $driver,'-I',$vcs,'-T',$bad_cfg,
-      File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26'),
-      '-o',File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.bin'));
-   $bad_rc != 0 && !$bad_sig
-      or die "$mapper malformed Superchip cfg unexpectedly linked\nstdout:\n$bad_out\nstderr:\n$bad_err";
-   $bad_err =~ /overlaps the Superchip RAM-port prefix/i
-      or die "$mapper malformed Superchip cfg did not diagnose the RAM-port overlap\nstderr:\n$bad_err";
-
-   my $representative;
-   my $representative_map;
-   my $representative_sym;
-   for my $source_bank (0..$banks-1) {
-      my $stem=lc($mapper)."_${source_bank}_0";
-      my $bin=File::Spec->catfile($tmp,"$stem.bin");
-      my $map_path=File::Spec->catfile($tmp,"$stem.map");
-      require_ok("build $mapper source $source_bank",
-         $driver,'-I',$vcs,"-DMAPPER_BANKS=$banks","-DSOURCE_BANK=$source_bank",
-         '-DJUMP_DEST=0','-DSUPERCHIP_TEST','-DSIMULATOR_TEST',
-         '-T',$cfg,'-Map',$map_path,$source,'-o',$bin);
-      -s $bin == $banks * 4096
-         or die "$mapper did not emit an exact ".($banks*4096)."-byte image\n";
-      my $rom=read_file($bin);
-      for my $file_bank (0..$banks-1) {
-         substr($rom,$file_bank*4096,256) eq ("\xFF" x 256)
-            or die "$mapper physical/file bank $file_bank does not reserve the 256-byte Superchip prefix\n";
-      }
-      my $map=read_file($map_path);
-      my %sym=map { $_ => map_symbol($map,$_) }
-         qw(simulator_done failure source_seen transition_count stack_before stack_after);
-      my($out,$err)=require_ok("simulate $mapper source $source_bank",
-         $sim,'-T',$cfg,'--start-bank=0',sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
-         '--dump-on-stop',$bin);
-      $err eq '' or die "$mapper simulator wrote stderr:\n$err";
-      my $mem=parse_dump($out);
-      $mem->[$sym{failure}]==0
-         or die sprintf("%s source %u Superchip failure byte is %02X\n",$mapper,$source_bank,$mem->[$sym{failure}]);
-      $mem->[0xF080]==0x5A && $mem->[0xF081]==$banks+2 && $mem->[0xF0FF]==0xA5
-         or die "$mapper Superchip read aliases do not contain the persistent sentinels/count\n";
-      ($representative,$representative_map,$representative_sym)=($bin,$map_path,\%sym) if $source_bank==0;
-   }
-   for my $physical_start (0..$banks-1) {
-      my($out,$err)=require_ok("simulate $mapper reset from physical bank $physical_start",
-         $sim,'-T',$cfg,"--start-bank=$physical_start",
-         sprintf('--stop-pc=0x%04X',$representative_sym->{simulator_done}),
-         '--dump-on-stop',$representative);
-      my $mem=parse_dump($out);
-      $mem->[$representative_sym->{failure}]==0
-         or die "$mapper reset/Superchip persistence failed from physical bank $physical_start\n";
-   }
-}
-}
-
-if ($stella_mode) {
-   run_stella_certification($repo,$tmp,$source,\@profiles,\@sc_profiles);
-}
+my $source=File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26');
+my $source_text=read_file($source);
+$source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
+   or die "diagnostic PASS glyph is not the default-font P\n";
+$source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
+   or die "diagnostic FAIL glyph is not the default-font F\n";
+$source_text =~ /lda\.ax\s+fail_glyph,x.*lda\.ax\s+pass_glyph,x.*sta\s+WSYNC.*sta\s+GRP0/s
+   or die "diagnostic glyph loads must be absolute-indexed and scanline-aligned\n";
+if ($stella_mode) { run_stella_certification($repo,$tmp,$source); }
+else { run_simulator_matrix($repo,$tmp,$source); }
 print "bank switching diagnostic matrix passed\n";

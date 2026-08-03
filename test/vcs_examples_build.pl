@@ -67,7 +67,7 @@ for my $entry (@examples) {
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
    } elsif ($file eq 'bankswitching_diagnostic.c26') {
-      push @extra,'-DMAPPER_BANKS=2','-DSOURCE_BANK=0','-DJUMP_DEST=0',
+      push @extra,'-DMAPPER_BANKS=2',
                   '-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
    }
    -f $source or die "missing editable example $source\n";

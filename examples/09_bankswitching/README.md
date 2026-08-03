@@ -12,5 +12,6 @@ examples.  They deliberately exercise generated cross-bank JSR/RTS and direct
 JMP bridges, reset from arbitrary initially selected banks, RIOT-RAM signatures,
 and hardware-stack balance.
 
-The source is parameterized so one editable cartridge can produce the complete
-F8/F6/F4 transition matrix without duplicating source files.
+The source is parameterized so one editable cartridge produces exactly six
+mapper diagnostics: F8, F6, F4, F8SC, F6SC, and F4SC. Each binary executes its
+complete ordered direct bank-transition matrix internally.

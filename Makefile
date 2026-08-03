@@ -273,7 +273,7 @@ installcheck: tools
 	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	grep -q "BANK1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSOURCE_BANK=1 -DJUMP_DEST=0 -DSIMULATOR_TEST \
+	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
@@ -306,7 +306,7 @@ installcheck: tools
 	test -f "$$stage_vcs/superchip.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSOURCE_BANK=1 -DJUMP_DEST=0 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
+	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs_8k_f8sc.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \

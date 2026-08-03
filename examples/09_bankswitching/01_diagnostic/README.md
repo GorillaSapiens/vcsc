@@ -5,42 +5,46 @@
    \_/  \___||___/ \___|
 ```
 
-# F8/F6/F4 transition diagnostic suite
+# F8/F6/F4 complete transition diagnostics
 
 `bankswitching_diagnostic.c26` is the editable wrapper around the installed
-`bankswitching_diagnostic_suite.c26` parameterized cartridge source.  Each build chooses a mapper bank count, a logical source bank,
-and one direct-JMP destination:
+`bankswitching_diagnostic_suite.c26` source. One build selects a mapper only:
 
 ```sh
 ../../../driver/vcsc -I ../../../libraries/vcs \
-  -DMAPPER_BANKS=8 -DSOURCE_BANK=3 -DJUMP_DEST=6 \
+  -DMAPPER_BANKS=8 \
   -T ../../../libraries/vcs/vcs_32k_f4.cfg \
-  -Map f4_source3_to6.map bankswitching_diagnostic.c26 \
-  -o f4_source3_to6.bin
+  -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```
 
-Before the final direct jump, the selected source bank calls and returns from a
-target in every bank.  The BANK0 target makes an additional BANK1 call, so each
-build also exercises a nested cross-bank return path.  Every transition writes
-a unique signature to RIOT RAM,
-checks the hardware stack pointer before and after the call, and displays one
-status frame.  The final direct JMP is deliberately one-way: the destination
-writes its signature and jumps to the BANK0 finish path without pretending that
-a cross-bank JMP has call/return semantics.
+Each cartridge internally runs the complete ordered source-bank to
+destination-bank direct-JMP matrix: 4 transitions for F8, 16 for F6, and 64 for
+F4. Every source bank also performs a same-bank JSR/RTS check. BANK0 adds a
+nested BANK0-to-BANK1 call and return, so cross-bank call restoration and
+hardware-stack balance remain covered without consuming the common trampoline
+corridor with a separate JSR bridge for every ordered pair.
 
-A green background with a widened **P** sprite is PASS.  A dark red background
-with an **X** sprite is FAIL.  The transition frames use different background
-colors, and the final frame is stable for Stella snapshots.
+Every transition records and validates its source, destination, signature, and
+hardware-stack state in RIOT RAM. The Superchip builds additionally check both
+ends of the 128-byte RAM, read/write alias direction, and persistence through
+the whole matrix.
 
-`make` builds every source bank with JMP destination BANK0.  `make full` builds
-all ordered source/destination pairs: 4 F8, 16 F6, and 64 F4 cartridges.  The
-project's simulator regression executes the same full matrix, while the
-separate `make stella-bank-test` certification target runs it in the independent
-emulator with every forced physical startup bank and developer-mode randomized
-startup banks.  Set `STELLA=/path/to/stella` when Stella is not in `PATH`; the
-headless harness also requires Xvfb and `xkbcomp`; the helper programs are Perl and require no Python installation or Python modules.
+A green background with a widened **P** sprite is PASS. A dark-red background
+with a widened **F** sprite is FAIL. Both glyphs are copied from
+`libraries/vcs/fonts/default_ascii.c26`, with row storage reversed to match the
+down-counting display loop. Their ROM rows are loaded with explicit absolute-X
+addressing, and `GRP0` changes only immediately after `WSYNC`, so no row can be
+read from zero page or torn midway across a scanline. The result frame is stable
+for Stella snapshots.
 
-`make superchip` builds one F8SC/F6SC/F4SC diagnostic per source bank. These
-images use the same visible PASS/FAIL frame while checking the explicit
-`superchip_ram` read/write aliases, both ends of the 128-byte region, and a
-transition counter that persists through calls and jumps into every ROM bank.
+`make` emits exactly six cartridges:
+
+```text
+f8.bin    f6.bin    f4.bin
+f8sc.bin  f6sc.bin  f4sc.bin
+```
+
+`make ordinary` and `make superchip` build the two three-cartridge subsets.
+The normal regression runs all six through the cfg-driven simulator from every
+physical startup bank. `make stella-bank-test STELLA=/path/to/stella` runs the
+same six images in Stella with forced and randomized startup banks.

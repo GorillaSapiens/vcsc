@@ -113,12 +113,56 @@ my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));
 $center[1] > $center[0]+30 && $center[1] > $center[2]+30
    or die "FAIL-colored final frame: center=(@center)\n";
-my $bright=0;
+my @bright;
 for my $y (0..$height-1) {
    for my $x (0..$width-1) {
       my($red,$green,$blue)=$rgb_at->($x,$y);
-      $bright++ if $green>150 && $green>$red+30 && $green>$blue+30;
+      push @bright,[$x,$y] if $green>150 && $green>$red+30 && $green>$blue+30;
    }
 }
-$bright>=100 or die "PASS glyph missing or too small: bright-green pixels=$bright\n";
-print "${width}x${height} center=(@center) pass_pixels=$bright\n";
+@bright>=100 or die "PASS glyph missing or too small: bright-green pixels=".scalar(@bright)."\n";
+
+# The diagnostic deliberately uses the default-font P at double player width.
+# At Stella's 1x snapshot scale each source pixel is four PNG pixels wide.
+# Verify the actual silhouette, rather than accepting any sufficiently large
+# bright-green splatter (which is how the old torn/zero-page-loaded glyph got
+# through this test).
+my($min_x,$max_x,$min_y,$max_y)=($width,0,$height,0);
+for my $point (@bright) {
+   my($x,$y)=@$point;
+   $min_x=$x if $x<$min_x; $max_x=$x if $x>$max_x;
+   $min_y=$y if $y<$min_y; $max_y=$y if $y>$max_y;
+}
+$max_x-$min_x+1==24
+   or die "PASS glyph has wrong width: ".($max_x-$min_x+1)." pixels\n";
+$max_y-$min_y+1>=14 && $max_y-$min_y+1<=16
+   or die "PASS glyph has wrong height: ".($max_y-$min_y+1)." pixels\n";
+
+my @rows;
+for my $y ($min_y..$max_y) {
+   my $bits='';
+   for my $column (0..5) {
+      my $count=0;
+      for my $dx (0..3) {
+         my($red,$green,$blue)=$rgb_at->($min_x+$column*4+$dx,$y);
+         $count++ if $green>150 && $green>$red+30 && $green>$blue+30;
+      }
+      $count==0 || $count==4
+         or die "PASS glyph has a torn source pixel at y=$y column=$column\n";
+      $bits .= $count ? '1' : '0';
+   }
+   push @rows,$bits;
+}
+my(@shape,@runs);
+for my $row (@rows) {
+   if (!@shape || $shape[-1] ne $row) { push @shape,$row; push @runs,1; }
+   else { $runs[-1]++; }
+}
+join(',',@shape) eq '111110,110011,111110,110000'
+   or die "PASS glyph is not the default-font P: rows=".join(',',@shape)."\n";
+$runs[0]>=1 && $runs[0]<=3 && $runs[1]>=3 && $runs[1]<=5 &&
+$runs[2]>=1 && $runs[2]<=3 && $runs[3]>=6 && $runs[3]<=9
+   or die "PASS glyph has unexpected row scaling: runs=".join(',',@runs)."\n";
+
+print "${width}x${height} center=(@center) pass_pixels=".scalar(@bright).
+      " glyph=P bbox=$min_x,$min_y-$max_x,$max_y\n";

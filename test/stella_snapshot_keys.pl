@@ -159,7 +159,9 @@ my $keycode=f12_keycode();
 
 # SetInputFocus: RevertToParent=2, CurrentTime=0.
 send_request($x,42,2,pack('VV',$window,0),0);
-sleep(0.30);
+# Complete-matrix bank diagnostics can execute for several video frames
+# before settling on their PASS/FAIL display, especially in F4/F4SC.
+sleep(1.00);
 for my $type (2,3) { # KeyPress, KeyRelease
    my $event=key_event($type,$keycode,$root,$window);
    send_request($x,25,1,pack('VV',$window,0).$event,0);

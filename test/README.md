@@ -417,28 +417,33 @@ out of the image and reports, resolves the selected member at its logical
 `$Dxxx` address in map/symbol/list outputs, and reports the generated BANK0 to
 BANK1 call bridge with the archive-member origin intact.
 
-`vcs_bankswitching_diagnostic.pl` builds all 84 ordered F8/F6/F4 source/JMP
-pairs from `libraries/vcs/bankswitching_diagnostic_suite.c26`.  The normal
-`make test` path executes every image in cfg-driven `vcsc-sim`, checks RIOT-RAM
-signatures and stack balance, and resets a representative image from every
-physical/file bank.  The optional authoritative mode is:
+`vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
+from `libraries/vcs/bankswitching_diagnostic_suite.c26`. Each image executes its
+complete ordered source-bank to destination-bank direct-JMP matrix internally.
+The normal `make test` path runs each image in cfg-driven `vcsc-sim` from every
+physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
+the nested cross-bank call, and hardware-stack balance. The optional
+authoritative mode is:
 
 ```sh
 make stella-bank-test STELLA=/path/to/stella
 ```
 
-It renders the full matrix in Stella, grades the stable green **P** frame versus
-the dark-red **X** failure frame, forces every physical startup bank, and also
-runs one randomized developer-mode startup trial per physical bank.  The
+It runs the same three ordinary and three Superchip matrix images in Stella,
+grades the stable green **P** frame versus the dark-red **F** failure frame,
+including the exact default-font P silhouette rather than just its color/area,
+forces every physical startup bank, and also runs one randomized developer-mode
+startup trial per physical bank.  The
 headless runner requires Xvfb and `xkbcomp`; its snapshot-key and PNG-grading
 helpers are Perl and require no Python installation or Python modules.  Failed
 runs leave `.stella-bank-test/` intact for inspection.
 
 `vcs_bankswitching_example_make.pl` copies the public diagnostic example into a
-temporary directory and runs its `representative` Makefile target.  It locks the
-expected F8/F6/F4 output names, rejects hidden empty-stem sidecars, and catches
-broken shell command substitutions which would otherwise print misleading
-`/bin/sh: ...: not found` messages while still producing cartridges.
+temporary directory and runs its default Makefile target. It requires exactly
+six binaries and their map files—F8, F6, F4, F8SC, F6SC, and F4SC—rejects hidden
+empty-stem sidecars, and catches broken shell command substitutions which would
+otherwise print misleading `/bin/sh: ...: not found` messages while still
+producing cartridges.
 
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
@@ -577,10 +582,9 @@ protection against overwriting a same-stem linker script. ROM-specific Stella
 profiles. It checks every allocatable bank region begins at `$x100` with size
 `$0E00`, rejects deliberately malformed cfgs which expose the RAM-port prefix
 to ordinary ROM placement, verifies reserved 256-byte prefixes and exact image
-sizes, executes one diagnostic from every logical source and physical startup
-bank in the mapper-aware simulator, and validates the canonical
-`$F080-$F0FF` read aliases.  `stella-bank-test` independently runs 42 SC
-PASS-frame cases: one cartridge from every logical source bank plus every
-forced and randomized physical startup bank across F8SC, F6SC, and F4SC.
-`VCSC_STELLA_FILTER` limits both cartridge construction and execution when a
-focused Stella rerun is needed.
+sizes, executes each complete-matrix diagnostic from every physical startup
+bank in the mapper-aware simulator, and validates the canonical `$F080-$F0FF`
+read aliases plus a matrix-wide persistence count. `stella-bank-test`
+independently runs the same three SC images from every forced and randomized
+physical startup bank. `VCSC_STELLA_FILTER` limits execution when a focused
+Stella rerun is needed.
