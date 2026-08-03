@@ -430,8 +430,9 @@ make stella-bank-test STELLA=/path/to/stella
 It renders the full matrix in Stella, grades the stable green **P** frame versus
 the dark-red **X** failure frame, forces every physical startup bank, and also
 runs one randomized developer-mode startup trial per physical bank.  The
-headless runner requires Xvfb plus Python modules `Xlib` and `PIL`; failed runs
-leave `.stella-bank-test/` intact for inspection.
+headless runner requires Xvfb and `xkbcomp`; its snapshot-key and PNG-grading
+helpers are Perl and require no Python installation or Python modules.  Failed
+runs leave `.stella-bank-test/` intact for inspection.
 
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,

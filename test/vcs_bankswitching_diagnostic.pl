@@ -85,12 +85,11 @@ sub run_stella_certification {
       or die "Stella certification requires STELLA=/path/to/stella or Stella in PATH\n";
    my $xvfb=find_executable('Xvfb')
       or die "Stella certification requires Xvfb\n";
-   my $python=find_executable('python3')
-      or die "Stella certification requires python3 with python-xlib and Pillow\n";
-   require_ok('check Stella Python modules',$python,'-c','import Xlib, PIL');
+   my $perl=find_executable('perl')
+      or die "Stella certification requires Perl\n";
 
-   my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.py');
-   my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.py');
+   my $keys=File::Spec->catfile($repo,'test','stella_snapshot_keys.pl');
+   my $grade=File::Spec->catfile($repo,'test','stella_grade_bank_snapshot.pl');
    -f $keys && -f $grade or die "Stella snapshot helpers are missing\n";
    my $stella_tmp=File::Spec->catdir($tmp,'stella');
    my $snap_root=File::Spec->catdir($stella_tmp,'snapshots');
@@ -142,7 +141,7 @@ sub run_stella_certification {
          die "exec Stella: $!\n";
       }
       print STDERR "Stella $label\n" if $ENV{VCSC_STELLA_VERBOSE};
-      require_ok("snapshot $label",$python,$keys);
+      require_ok("snapshot $label",$perl,$keys);
       my @png;
       for (1..40) {
          @png=grep { -s $_ } glob(File::Spec->catfile($snapdir,'*.png'));
@@ -151,7 +150,7 @@ sub run_stella_certification {
       }
       terminate_child($pid);
       @png==1 or die "Stella $label produced ".scalar(@png)." snapshots\n".read_file($log);
-      my($grade_out,$grade_err)=require_ok("grade Stella frame $label",$python,$grade,$png[0]);
+      my($grade_out,$grade_err)=require_ok("grade Stella frame $label",$perl,$grade,$png[0]);
       $grade_err eq '' or die "snapshot grader wrote stderr for $label: $grade_err\n";
       terminate_child($xpid);
    };

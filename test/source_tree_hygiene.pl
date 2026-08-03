@@ -15,6 +15,8 @@ use File::Spec;
 my $repo=abs_path($ARGV[0] // File::Spec->catdir(File::Spec->curdir(),'..'));
 my $test=File::Spec->catdir($repo,'test');
 my $fixtures=File::Spec->catdir($repo,'assembler','tests');
+my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
+@python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
 # Core README placement and relative-link sanity.  These checks catch accidental
 # file swaps such as copying test/README.md over the repository front page.
@@ -50,8 +52,10 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
    or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
--f File::Spec->catfile($test,'stella_snapshot_keys.py') &&
--f File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
+-f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
+-f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
+!-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
+!-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 -f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";

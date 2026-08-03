@@ -8041,3 +8041,28 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   simulator-matrix, branding, and source-hygiene tests pass; and all 112 Stella
   snapshots grade as PASS.  The next detailed bankswitching action is roadmap
   item 11, explicit-ref F8SC/F6SC/F4SC profiles.
+
+
+2026-08-02 17:30:54 PDT, replace unnecessary Python Stella helpers with Perl
+--------------------------------------------------------------------------------
+* Remove the two Python files introduced for the headless Stella bank-switching
+  certification.  Neither job requires Python: PNG grading now uses a compact
+  Perl PNG decoder built on `Compress::Zlib`, and snapshot capture uses a Perl
+  helper which speaks the required core X11 requests directly and obtains the
+  F12 keycode from `xkbcomp`.
+* Rename the helpers to `test/stella_snapshot_keys.pl` and
+  `test/stella_grade_bank_snapshot.pl`; update the bank diagnostic runner to
+  invoke them with Perl and remove the python3, python-xlib, and Pillow checks.
+  The X11 helper retains the private-Xvfb largest-window selection, focus, and
+  F12 press/release behavior.  The grader retains the center-pixel green check
+  and minimum bright-green PASS-glyph area check while supporting the PNG color
+  formats emitted by Stella.
+* Update test/example documentation and source-tree hygiene.  The hygiene test
+  now rejects any top-level Python helper under `test/`, requires the two Perl
+  replacements, and requires the obsolete `.py` paths to remain absent.
+* Verification: all 344 compile-only tests pass.  All 212 end-to-end/generic
+  tests pass; the long ordered run was completed in contiguous chunks after the
+  command window expired.  Staged `make installcheck` passes.  A real headless
+  Stella F8 run successfully captured and graded its PASS snapshot through the
+  new Perl helpers, and the ordinary 84-image simulator matrix plus source-tree
+  hygiene pass.
