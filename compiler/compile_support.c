@@ -291,6 +291,7 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 
 
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
+#define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
 static Set *emitted_mem_region_metadata = NULL;
 
@@ -367,13 +368,18 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
    const ASTNode *mem_decl;
    const ASTNode *flags;
    unsigned int start = 0;
+   unsigned int read_start = 0;
+   unsigned int write_start = 0;
    unsigned int size = 0;
    unsigned int end = 0;
    bool have_start;
+   bool have_read_start;
+   bool have_write_start;
    bool have_size;
    bool have_end;
+   bool split;
    const char *type;
-   char sym[256];
+   char sym[320];
 
    name = find_mem_modifier_name(modifiers);
    if (!name) {
@@ -395,11 +401,25 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
 
    flags = mem_decl->children[1];
    have_start = mem_metadata_parse_u16_flag(flags, "$start:", &start);
+   have_read_start = mem_metadata_parse_u16_flag(flags, "$read_start:", &read_start);
+   have_write_start = mem_metadata_parse_u16_flag(flags, "$write_start:", &write_start);
    have_size = mem_metadata_parse_u16_flag(flags, "$size:", &size);
    have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
    type = mem_metadata_type_flag(flags);
+   split = have_read_start || have_write_start;
 
-   if (!have_start || (!have_size && !have_end) || !type || !strcmp(type, "conflict")) {
+   if (split) {
+      if (have_start || !have_read_start || !have_write_start ||
+          (!have_size && !have_end) || !type || strcmp(type, "rw")) {
+         error_user("[%s:%d.%d] split-address mem region '%s' must declare $read_start, $write_start, $size or $end, and exactly $rw (not $start/$ro)",
+               origin ? origin->file : mem_decl->file,
+               origin ? origin->line : mem_decl->line,
+               origin ? origin->column : mem_decl->column,
+               name);
+      }
+      start = read_start;
+   }
+   else if (!have_start || (!have_size && !have_end) || !type || !strcmp(type, "conflict")) {
       error_user("[%s:%d.%d] mem region '%s' is used for storage and must declare $start plus $size or $end and exactly one of $rw/$ro so vcsc-ld can validate it against the linker cfg",
             origin ? origin->file : mem_decl->file,
             origin ? origin->line : mem_decl->line,
@@ -409,23 +429,38 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
 
    if (!have_size) {
       if (end < start) {
-         error_user("[%s:%d.%d] mem region '%s' has $end below $start",
+         error_user("[%s:%d.%d] mem region '%s' has $end below its read/start address",
                mem_decl->file, mem_decl->line, mem_decl->column, name);
       }
       size = end - start;
    }
 
-   if (size > 0x10000u || start + size > 0x10000u) {
-      error_user("[%s:%d.%d] mem region '%s' range $%04X+$%04X is outside the 6502 address space",
-            mem_decl->file, mem_decl->line, mem_decl->column, name, start, size);
+   if (size > 0x10000u || start + size > 0x10000u ||
+       (split && write_start + size > 0x10000u)) {
+      error_user("[%s:%d.%d] mem region '%s' aliases are outside the 6502 address space",
+            mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
 
-   snprintf(sym, sizeof(sym), "%s%s$S%04X$Z%04X$T%s", MEM_REGION_META_PREFIX, name, start & 0xFFFFu, size & 0xFFFFu, type);
+   if (split) {
+      snprintf(sym, sizeof(sym), "%s%s$R%04X$W%04X$Z%04X$T%s",
+               MEM_REGION_SPLIT_META_PREFIX, name, read_start & 0xFFFFu,
+               write_start & 0xFFFFu, size & 0xFFFFu, type);
+   }
+   else {
+      snprintf(sym, sizeof(sym), "%s%s$S%04X$Z%04X$T%s", MEM_REGION_META_PREFIX, name, start & 0xFFFFu, size & 0xFFFFu, type);
+   }
    set_add(emitted_mem_region_metadata, strdup(name), (void *)1);
    emit(&es_export, "%s = 0\n", sym);
    emit(&es_export, ".export %s\n", sym);
+   if (split) {
+      /* The VCS default BSS/DATA regions are zero page, but a named split
+         region such as Superchip RAM lives in the cartridge address window.
+         Override the inherited base-segment contract so unsuffixed accesses
+         remain absolute until their aliases are resolved by the linker. */
+      emit(&es_export, ".segmentaddrsize \"BSS.%s\", absolute\n", name);
+      emit(&es_export, ".segmentaddrsize \"DATA.%s\", absolute\n", name);
+   }
 }
-
 
 //! @brief Return global decl lookup data used by compiler code-generation support; returned pointers alias existing storage unless explicitly allocated by the function name.
 const ASTNode *global_decl_lookup(const char *name) {
@@ -512,6 +547,35 @@ bool entry_is_absolute_ref(const ContextEntry *entry) {
    return entry && entry->is_absolute_ref;
 }
 
+//! @brief Attach symbolic read/write aliases for an allocated split-address object.
+static void init_split_mem_entry_addresses(ContextEntry *entry, const char *name,
+                                           const ASTNode *modifiers) {
+   char symbol[256];
+   char write_expr[320];
+   int delta = 0;
+
+   if (!entry || !name || !modifiers_imply_split_address(modifiers)) {
+      return;
+   }
+   if (!format_user_asm_symbol(name, symbol, sizeof(symbol)) ||
+       !modifiers_split_address_delta(modifiers, &delta)) {
+      error_unreachable("could not construct split-address aliases for '%s'", name ? name : "?");
+   }
+   entry->is_absolute_ref = true;
+   entry->read_expr = strdup(symbol);
+   if (delta == 0) {
+      entry->write_expr = strdup(symbol);
+   }
+   else {
+      snprintf(write_expr, sizeof(write_expr), "{%s %c %u}", symbol,
+               delta < 0 ? '-' : '+', (unsigned)(delta < 0 ? -delta : delta));
+      entry->write_expr = strdup(write_expr);
+   }
+   if (!entry->read_expr || !entry->write_expr) {
+      error_unreachable("out of memory constructing split-address aliases for '%s'", name);
+   }
+}
+
 //! @brief Extract init context entry from global decl for compiler code-generation support.
 bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, const ASTNode *g) {
    const ASTNode *modifiers;
@@ -542,6 +606,7 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->is_absolute_ref = has_modifier((ASTNode *) modifiers, "ref") && addrspec != NULL;
    entry->read_expr = address_spec_read_expr(addrspec);
    entry->write_expr = address_spec_write_expr(addrspec);
+   init_split_mem_entry_addresses(entry, name, modifiers);
    entry->offset = 0;
    entry->size = declarator_storage_size(type, declarator);
    return true;

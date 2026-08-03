@@ -828,6 +828,14 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_REF) && lv->is_bitfield) {
       return false;
    }
+   if (mode == LVALUE_ACCESS_WRITE && lv->is_bitfield && lv->is_absolute_ref &&
+       lv->read_expr && lv->write_expr && strcmp(lv->read_expr, lv->write_expr)) {
+      const ASTNode *site = lv->use_site;
+      error_user("[%s:%d.%d] split-address bitfield '%s' cannot be written because bitfield stores require a read-modify-write through one address",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 lv->name ? lv->name : "<unnamed>");
+   }
 
    emit_lvalue_semantic_use(ctx, lv,
       mode == LVALUE_ACCESS_READ ? "read" :
@@ -846,7 +854,12 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
          case LVALUE_ACCESS_REF:
             if (lv->read_expr && lv->write_expr) {
                if (strcmp(lv->read_expr, lv->write_expr)) {
-                  return false;
+                  const ASTNode *site = lv->use_site;
+                  error_user("[%s:%d.%d] absolute ref '%s' does not have a single address; address-taking, pointer decay, and ref passing are not supported for split-address objects (read %s, write %s)",
+                             site && site->file ? site->file : "<unknown>",
+                             site ? site->line : 0, site ? site->column : 0,
+                             lv->name ? lv->name : "<unnamed>",
+                             lv->read_expr, lv->write_expr);
                }
                abs_expr = lv->read_expr;
             }

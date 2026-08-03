@@ -288,6 +288,11 @@ void compile_function_decl(ASTNode *node) {
    ContextEntry *return_entry;
    char return_sym[256];
 
+   if (modifiers_imply_split_address(modifiers)) {
+      error_user("[%s:%d.%d] split-address mem region '%s' supports persistent data objects, not functions",
+                 node->file, node->line, node->column,
+                 find_mem_modifier_name(modifiers));
+   }
    validate_function_return_type(node);
    remember_function(node, name);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
@@ -862,6 +867,7 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_static = has_modifier(modifiers, "static");
    bool is_zeropage = modifiers_imply_zeropage(modifiers);
    bool is_readonly_mem = modifiers_imply_readonly_mem(modifiers);
+   bool is_split_mem = modifiers_imply_split_address(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
    bool is_absolute_ref = is_ref && addrspec != NULL;
@@ -872,6 +878,11 @@ void compile_global_decl_item(ASTNode *node) {
    if (is_page && modifiers_imply_mem_storage(modifiers)) {
       error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
                  node->file, node->line, node->column);
+   }
+   if (is_split_mem && (is_ref || addrspec != NULL)) {
+      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with 'ref' or an '@' address binding",
+                 node->file, node->line, node->column,
+                 find_mem_modifier_name(modifiers));
    }
    if (is_readonly_mem && !is_const && !is_extern) {
       error_user("[%s:%d.%d] object '%s' placed in a $ro mem region must be const",
@@ -1039,7 +1050,21 @@ void compile_global_decl_item(ASTNode *node) {
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
       }
-      remember_pending_global_init(name, symbuf, type, declarator, uexpr ? uexpr : expression, size, is_zeropage, false, NULL, NULL);
+      if (is_split_mem) {
+         ContextEntry split_entry;
+         if (!init_context_entry_from_global_decl(&split_entry, name, node)) {
+            error_unreachable("[%s:%d.%d] could not construct split-address initializer target for '%s'",
+                              node->file, node->line, node->column, name);
+         }
+         remember_pending_global_init(name, symbuf, type, declarator,
+                                      uexpr ? uexpr : expression, size, false, true,
+                                      split_entry.read_expr, split_entry.write_expr);
+      }
+      else {
+         remember_pending_global_init(name, symbuf, type, declarator,
+                                      uexpr ? uexpr : expression, size, is_zeropage,
+                                      false, NULL, NULL);
+      }
    }
 }
 

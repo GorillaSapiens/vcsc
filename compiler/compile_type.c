@@ -1518,6 +1518,49 @@ bool mem_decl_is_readonly(const ASTNode *mem_decl) {
    return false;
 }
 
+//! @brief Return the read/write alias starts for one split-address mem declaration.
+bool mem_decl_split_addresses(const ASTNode *mem_decl, unsigned int *read_start, unsigned int *write_start) {
+   const ASTNode *flags;
+   unsigned long long read_value = 0;
+   unsigned long long write_value = 0;
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2) {
+      return false;
+   }
+   flags = mem_decl->children[1];
+   if (!parse_flag_u64(flags, "$read_start:", &read_value) ||
+       !parse_flag_u64(flags, "$write_start:", &write_value) ||
+       read_value > 0xFFFFull || write_value > 0xFFFFull) {
+      return false;
+   }
+   if (read_start) {
+      *read_start = (unsigned int)read_value;
+   }
+   if (write_start) {
+      *write_start = (unsigned int)write_value;
+   }
+   return true;
+}
+
+//! @brief Return whether modifiers select a split-address allocated mem region.
+bool modifiers_imply_split_address(const ASTNode *modifiers) {
+   return mem_decl_split_addresses(find_mem_modifier_node(modifiers), NULL, NULL);
+}
+
+//! @brief Return the signed write-minus-read alias delta for a split-address mem region.
+bool modifiers_split_address_delta(const ASTNode *modifiers, int *delta) {
+   unsigned int read_start;
+   unsigned int write_start;
+
+   if (!mem_decl_split_addresses(find_mem_modifier_node(modifiers), &read_start, &write_start)) {
+      return false;
+   }
+   if (delta) {
+      *delta = (int)write_start - (int)read_start;
+   }
+   return true;
+}
+
 //! @brief Handle modifiers imply zeropage logic for compiler type system.
 bool modifiers_imply_zeropage(const ASTNode *modifiers) {
    return mem_decl_is_zeropage(find_mem_modifier_node(modifiers));

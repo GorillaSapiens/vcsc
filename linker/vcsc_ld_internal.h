@@ -49,6 +49,7 @@
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
+#define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
 #define MAX_NAME 128
 #define MAX_PATH 512
@@ -56,6 +57,8 @@
 //! Memory region parsed from a linker configuration file.
 typedef struct {
    uint16_t start;
+   uint16_t write_start;
+   int has_write_start;
    uint16_t size;
    uint16_t physical_size;
    char type[16];

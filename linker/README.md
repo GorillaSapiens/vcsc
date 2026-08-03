@@ -434,9 +434,9 @@ It is not trying to be a full `ld65` config parser.
 
 Objects produced by `vcsc-cc1` include hidden metadata for each `mem` region that was used for symbol-backed storage. Before layout, `vcsc-ld` compares that metadata with the config `MEMORY` table.
 
-The linker rejects the image if the config is missing the region, or if the `start`, `size`, or `type` differs from the compiler's `mem` declaration. The diagnostic reports both sides and tells the user to update either the VCSC source declaration or the linker cfg so they match.
+The linker rejects the image if the config is missing the region, or if the source and cfg disagree about its address, size, or type. Ordinary regions compare `start`, `size`, and `type`. Split-address regions compare `read_start`, `write_start`, `size`, and `type`; they must be `rw` and shared rather than assigned to one cartridge bank. Diagnostics report both sides and identify the mismatched property.
 
-Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used.
+Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used. Split-address DATA/BSS layouts use the read window as their canonical run address. Startup copy/zero records are translated to the corresponding write window.
 
 
 ## Segment mapping
@@ -646,6 +646,18 @@ F8SC, F6SC, and F4SC use the ordinary F8/F6/F4 bank count, logical addresses,
 file order, hotspots, trampolines, and reset bridges. The linker additionally
 rejects any bank-owned read-only region which overlaps that bank's `$x000-$x0FF`
 Superchip RAM-port prefix. Public SC profiles place ordinary ROM in
-`$x100-$xEFF` and still emit complete 4096-byte physical chunks. Explicit RAM
-objects use existing `@[read_address/write_address]` refs; automatic split-address
-allocation is intentionally separate.
+`$x100-$xEFF` and still emit complete 4096-byte physical chunks. Their shared
+Superchip region is declared as:
+
+```
+superchip: read_start = $F080, write_start = $F000,
+           size = $0080, type = rw, define = yes;
+```
+
+Source objects in `BSS.superchip` and `DATA.superchip` are allocated once in the
+read window. Relocations from every ROM bank may target either alias without
+being mistaken for cross-bank ROM references. Loads resolve to `$F080-$F0FF`;
+stores and startup DATA/BSS writes resolve to `$F000-$F07F`. The map reports
+physical occupancy once and prints both `run` and `write` addresses for each
+allocated object. Existing explicit `@[read_address/write_address]` refs remain
+available for fixed-address access.

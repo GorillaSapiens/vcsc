@@ -285,13 +285,26 @@ the first 256 bytes of every physical 4K chunk for the shared 128-byte
 Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K
 chunks are still emitted.
 
-Include `superchip.c26` after `vcs.c26` to obtain:
+Include `superchip.c26` after `vcs.c26` to obtain both the allocatable
+named region and the explicit whole-window alias:
 
 ```c
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 ref uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
-VCSC split refs are always `@[read_address/write_address]`: loads use
-`$F080-$F0FF`, stores use `$F000-$F07F`. The same physical RAM survives ROM
-bank changes. Address-taking from this split ref remains an error. Automatic
-allocation with `superchip uint8_t foo;` is a later roadmap item.
+Applications may allocate persistent globals and arrays directly:
+
+```c
+superchip uint8_t foo;
+superchip uint8_t buffer[32];
+```
+
+VCSC split addresses are always ordered read then write. Loads use
+`$F080-$F0FF`; stores, initializer copies, and BSS clearing use `$F000-$F07F`.
+The 128 physical bytes are shared by every ROM bank and counted once in the map.
+Direct indexing is supported, but address-taking, pointer decay, and `ref`
+passing are rejected because the object has no single ordinary address.
+Bitfield writes are also rejected because they require a two-alias
+read-modify-write operation. The explicit `superchip_ram` declaration remains available when fixed-offset access
+to the complete window is preferable.

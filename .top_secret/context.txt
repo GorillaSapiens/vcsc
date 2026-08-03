@@ -8193,3 +8193,45 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   Stella certifications pass (56 forced/randomized mapper starts plus the
   poisoned FAIL image); and Stella's developer overlay reports `262 / 60.0Hz`
   for both the white-P PASS frame and white-F FAIL frame.
+
+2026-08-03 04:37:28 PDT, implement automatic split-address Superchip allocation
+-------------------------------------------------------------------------------
+* Apply the user-supplied top-level Makefile patch. The `exam` target now
+  builds every example first, then launches each generated binary in a separate
+  Stella invocation; a failed build can no longer leave the loop half-building
+  and half-launching cartridges.
+* Complete bankswitching roadmap item 12. `superchip.c26` now declares
+  `mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080
+  $rw };`, and the F8SC/F6SC/F4SC cfgs expose the matching shared
+  `read_start`/`write_start` MEMORY region. Persistent file-scope objects and
+  arrays may use ordinary declarations such as `superchip uint8_t foo;` and
+  `superchip uint8_t buffer[32];`.
+* Add V2 compiler mem metadata carrying both aliases. Split objects retain one
+  symbolic identity, use the read alias for loads, and use the write alias for
+  stores, runtime initializers, DATA copies, and BSS clearing. Explicit absolute
+  segment-address contracts prevent the VCS zero-page defaults from shrinking
+  these cartridge-window operands. Fix direct constant and direct-lvalue stores
+  to runtime-indexed lvalues so `buffer[i] := value` cannot silently target the
+  array base.
+* Reject split-address use on functions, parameters, and automatic locals, plus
+  address-taking, pointer decay, explicit `ref`/`@` combinations, `ref`
+  argument passing, and split-address bitfield writes whose read-modify-write
+  sequence cannot use one CPU address. Linker cfg split regions must be `rw`,
+  stay within the address space, and be shared rather than assigned to a ROM bank.
+* Teach vcsc-ld to allocate each split object once in the read window, translate
+  startup copy/zero destinations into the write window, preserve both aliases
+  through relocations from every bank, and avoid misclassifying Superchip RAM as
+  cross-bank ROM. Map output reports shared region occupancy once and shows both
+  run/read and write addresses. Overflow diagnostics deterministically name the
+  first object that does not fit.
+* Add seven compile-only regressions and `superchip_allocation.pl`. The end-to-end
+  test builds F8SC/F6SC/F4SC images, starts each from every physical bank, and
+  proves DATA initialization, BSS clearing, direct/runtime indexing, read/write
+  direction, bank persistence, exact image sizes, 34-byte single occupancy, cfg
+  mismatch diagnostics, rejection of bank-owned split memory, and deterministic
+  overflow. Update compiler, linker, VCS, roadmap, and hygiene documentation.
+* Verification: all 353 compile-only tests pass; all 215 end-to-end/generic tests
+  pass (completed in ordered chunks because one invocation exceeds the execution
+  cap); staged `make installcheck` passes; focused split-address and hygiene
+  tests pass. Roadmap item 13, explicit multi-bank duplication for immutable
+  objects and functions, is next.

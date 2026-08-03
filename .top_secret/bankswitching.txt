@@ -851,7 +851,7 @@ when main roadmap item 29 becomes active.
          every physical startup chunk, and Stella grades the same stable visible
          PASS/FAIL result under forced and randomized startup-bank selection.
 
-[ ] 12. Add Automatic allocation of variables into Superchip RAM.
+[x] 12. Add Automatic allocation of variables into Superchip RAM.
 
        * Define `mem superchip { $read_start:0xF080 $write_start:0xF000
          $size:0x80 $rw };` through the SC machine/profile header and allocate
@@ -868,6 +868,22 @@ when main roadmap item 29 becomes active.
        * Reject address-taking, pointer decay, and unsupported `ref` passing.
        * Count physical occupancy once and provide deterministic overflow
          diagnostics.
+       * Implemented compiler metadata carries both aliases through private
+         `BSS.superchip`/`DATA.superchip` layouts. Unsuffixed direct accesses
+         retain absolute addressing, direct and runtime array indexing select
+         the correct alias, and invalid address-taking, decay, `ref`, local,
+         parameter, function, split-address bitfield-write, and bank-owned
+         split-region uses fail explicitly.
+       * The linker allocates shared split storage once at the read alias,
+         translates startup DATA copies and BSS clearing to the write alias,
+         exempts both aliases from cross-bank ROM rewriting, validates all cfg
+         properties, reports both addresses, and names the first overflowing
+         object deterministically.
+       * F8SC, F6SC, and F4SC simulator regressions start from every physical
+         bank and prove initialized DATA, zeroed BSS, dynamic indexing, alias
+         direction, persistence across calls in every logical bank, exact image
+         sizes, and one 34-byte physical occupancy report. Authoritative Stella,
+         installed-toolchain, and reset-lifecycle certification remains item 14.
 
 [ ] 13. Add explicit multi-bank duplication for immutable objects and functions.
 

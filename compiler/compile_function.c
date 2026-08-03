@@ -347,6 +347,11 @@ void build_function_context(const ASTNode *node, Context *ctx) {
             continue;
          }
 
+         if (modifiers_imply_split_address(modifiers)) {
+            error_user("[%s:%d.%d] split-address mem region '%s' currently supports only persistent file-scope objects and arrays, not parameters",
+                       parameter->file, parameter->line, parameter->column,
+                       find_mem_modifier_name(modifiers));
+         }
          slot_size = parameter_storage_size(parameter);
          if (modifiers_imply_zeropage(modifiers)) {
             ctx_zeropage(ctx, type, name);

@@ -716,7 +716,7 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    }
    byte_value = encoded;
 
-   if (dst->is_absolute_ref) {
+   if (dst->is_absolute_ref && !dst->indirect && !dst->needs_runtime_address) {
       if (!dst->write_expr || !*dst->write_expr) {
          return false;
       }
@@ -774,6 +774,7 @@ static bool compile_direct_byte_lvalue_to_absolute_ref(Context *ctx,
    LValueRef src;
 
    if (!dst || !dst->is_absolute_ref || dst->is_bitfield || dst->size != 1 ||
+       dst->indirect || dst->needs_runtime_address ||
        !dst->write_expr || !*dst->write_expr ||
        !resolve_ref_argument_lvalue(ctx, rhs, &src) || src.is_bitfield ||
        src.size != 1) {

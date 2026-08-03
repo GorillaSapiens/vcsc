@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: split-address bitfield 'packed' cannot be written
+// expecterr: bitfield stores require a read-modify-write through one address
+
+include "machine_6502.c26"
+type u1 { $size:1 $integer:unsigned };
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+struct Packed {
+   u1 low:4;
+   u1 high:4;
+};
+
+superchip Packed packed;
+
+void main(void) {
+   packed.low := 5;
+}

@@ -457,6 +457,41 @@ the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`
 would run through `$E0FF` rather than stopping at the end of the 4K bank mirror.
 The eventual banked cartridge writer still emits the complete physical bank.
 
+### Split-address allocated memory
+
+A named read/write region may expose separate CPU aliases for the same physical
+storage:
+
+```vcsc
+mem superchip {
+   $read_start:  0xF080
+   $write_start: 0xF000
+   $size:        0x80
+   $rw
+};
+
+superchip uint8_t foo;
+superchip uint8_t buffer[32];
+```
+
+The order matches explicit split refs: read address first, write address second.
+Loads from these objects use the read alias. Stores, runtime initializer writes,
+and startup BSS clearing use the write alias. The compiler preserves both
+symbolic aliases in relocations rather than replacing the object with a fixed
+integer address; the linker therefore allocates each object once and can report
+both final addresses.
+
+Split-address allocation currently supports persistent file-scope objects and
+arrays. It is not valid on functions, parameters, or automatic locals. Taking
+the address, array-to-pointer decay, and passing one as a `ref` argument are
+rejected because one ordinary pointer cannot encode different load and store
+addresses. Direct indexing remains supported, including runtime array indexes.
+Bitfield reads are valid, but bitfield writes are rejected because their
+read-modify-write sequence would need both aliases simultaneously.
+The selected linker `MEMORY` entry must use matching `read_start`,
+`write_start`, `size`, and `type = rw` values and must be shared rather than
+owned by a cartridge bank.
+
 ### Pointers and arrays
 
 Pointers are 16-bit addresses. Arrays decay to pointers to their first element

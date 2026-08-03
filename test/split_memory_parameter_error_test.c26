@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: split-address mem region 'superchip' currently supports only persistent file-scope objects and arrays, not parameters
+
+include "machine_6502.c26"
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+void touch(superchip uint8_t value) {
+}
+
+void main(void) {
+}

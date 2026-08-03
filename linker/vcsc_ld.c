@@ -160,7 +160,9 @@ static int symbol_backed_metadata_has_prefix(const char *name)
 //! @brief Return whether mem-region metadata has prefix in linker layout and image writer.
 static int mem_region_metadata_has_prefix(const char *name)
 {
-   return name && strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0;
+   return name &&
+      (strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_REGION_SPLIT_META_PREFIX, sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0);
 }
 
 //! @brief Return whether declaration-contract metadata has its reserved prefix.
@@ -338,31 +340,46 @@ static int parse_hex4(const char *s, uint16_t *out)
 
 //! @brief Decode compiler-emitted mem-region metadata from an exported symbol name.
 static int mem_region_metadata_parse(const char *name, char *region, size_t region_size,
-      uint16_t *start, uint16_t *size, char *type, size_t type_size)
+      uint16_t *read_start, uint16_t *write_start, int *has_write_start,
+      uint16_t *size, char *type, size_t type_size)
 {
    const char *p;
-   const char *smark;
+   const char *first_mark;
+   const char *wmark = NULL;
    const char *zmark;
    const char *tmark;
    size_t region_len;
    size_t type_len;
+   int split;
 
    if (!mem_region_metadata_has_prefix(name))
       return 0;
 
-   p = name + sizeof(MEM_REGION_META_PREFIX) - 1;
-   smark = strstr(p, "$S");
-   if (!smark || smark == p)
+   split = strncmp(name, MEM_REGION_SPLIT_META_PREFIX,
+                   sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0;
+   p = name + (split ? sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1
+                     : sizeof(MEM_REGION_META_PREFIX) - 1);
+   first_mark = strstr(p, split ? "$R" : "$S");
+   if (!first_mark || first_mark == p)
       return 0;
-   region_len = (size_t)(smark - p);
+   region_len = (size_t)(first_mark - p);
    if (region_len >= region_size)
       return 0;
    memcpy(region, p, region_len);
    region[region_len] = '\0';
 
-   if (!parse_hex4(smark + 2, start))
+   if (!parse_hex4(first_mark + 2, read_start))
       return 0;
-   zmark = smark + 6;
+   if (split) {
+      wmark = first_mark + 6;
+      if (strncmp(wmark, "$W", 2) != 0 || !parse_hex4(wmark + 2, write_start))
+         return 0;
+      zmark = wmark + 6;
+   }
+   else {
+      *write_start = *read_start;
+      zmark = first_mark + 6;
+   }
    if (strncmp(zmark, "$Z", 2) != 0)
       return 0;
    if (!parse_hex4(zmark + 2, size))
@@ -374,6 +391,7 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
    if (type_len == 0 || type_len >= type_size || strchr(tmark + 2, '$'))
       return 0;
    memcpy(type, tmark + 2, type_len + 1);
+   *has_write_start = split;
    return 1;
 }
 
@@ -390,13 +408,18 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          const char *sym = obj->exports[j].name;
          char region[MAX_NAME];
          char type[8];
-         uint16_t declared_start;
+         uint16_t declared_read_start;
+         uint16_t declared_write_start;
+         int declared_split;
          uint16_t declared_size;
          const memory_region_t *mem;
 
          if (!mem_region_metadata_has_prefix(sym))
             continue;
-         if (!mem_region_metadata_parse(sym, region, sizeof(region), &declared_start, &declared_size, type, sizeof(type))) {
+         if (!mem_region_metadata_parse(sym, region, sizeof(region),
+                                        &declared_read_start, &declared_write_start,
+                                        &declared_split, &declared_size,
+                                        type, sizeof(type))) {
             fprintf(stderr, "vcsc-ld: malformed mem-region metadata symbol '%s' in %s\n",
                   sym, obj->origin);
             exit(1);
@@ -411,11 +434,29 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
             exit(1);
          }
 
-         if (mem->start != declared_start) {
+         if (mem->start != declared_read_start) {
+            if (declared_split) {
+               fprintf(stderr,
+                     "vcsc-ld: mem region '%s' read_start mismatch in %s: compiler mem declaration says $%04X "
+                     "but linker cfg MEMORY %s starts at $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
+                     region, obj->origin, declared_read_start, mem->name, mem->start);
+            }
+            else {
+               fprintf(stderr,
+                     "vcsc-ld: mem region '%s' start mismatch in %s: compiler mem declaration says $%04X "
+                     "but linker cfg MEMORY %s starts at $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
+                     region, obj->origin, declared_read_start, mem->name, mem->start);
+            }
+            exit(1);
+         }
+         if (declared_split != mem->has_write_start ||
+             (declared_split && mem->write_start != declared_write_start)) {
             fprintf(stderr,
-                  "vcsc-ld: mem region '%s' start mismatch in %s: compiler mem declaration says $%04X "
-                  "but linker cfg MEMORY %s starts at $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
-                  region, obj->origin, declared_start, mem->name, mem->start);
+                  "vcsc-ld: mem region '%s' write-alias mismatch in %s: compiler mem declaration says %s$%04X "
+                  "but linker cfg MEMORY %s says %s$%04X. Update the VCSC source mem declaration or linker cfg so both aliases match.\n",
+                  region, obj->origin, declared_split ? "" : "no alias / ",
+                  declared_write_start, mem->name, mem->has_write_start ? "" : "no alias / ",
+                  mem->write_start);
             exit(1);
          }
          if (mem->size != declared_size) {
@@ -564,8 +605,11 @@ static void parse_memory_property(memory_region_t *mem, const char *key, const c
 {
    parse_result_t n;
    value = trim((char *)value);
-   if (str_ieq(key, "start")) {
-      mem->start = parse_u16_property("memory start", value, 0, 0xFFFFu);
+   if (str_ieq(key, "start") || str_ieq(key, "read_start")) {
+      mem->start = parse_u16_property("memory read/start", value, 0, 0xFFFFu);
+   } else if (str_ieq(key, "write_start")) {
+      mem->write_start = parse_u16_property("memory write_start", value, 0, 0xFFFFu);
+      mem->has_write_start = 1;
    } else if (str_ieq(key, "size")) {
       mem->size = parse_u16_property("memory size", value, 1, 0xFFFFu);
    } else if (str_ieq(key, "type")) {
@@ -758,9 +802,21 @@ static void validate_linker_config(linker_config_t *cfg)
                  mem->name[0] ? mem->name : "<unnamed>", mem->start, mem->size, mem->type);
          exit(1);
       }
-      if (end > 0x10000u) {
-         fprintf(stderr, "vcsc-ld: MEMORY region '%s' extends beyond address space\n",
+      if (end > 0x10000u ||
+          (mem->has_write_start && (uint32_t)mem->write_start + mem->size > 0x10000u)) {
+         fprintf(stderr, "vcsc-ld: MEMORY region '%s' read/write aliases extend beyond address space\n",
                  mem->name);
+         exit(1);
+      }
+      if (mem->has_write_start && !str_ieq(mem->type, "rw")) {
+         fprintf(stderr, "vcsc-ld: MEMORY region '%s' uses write_start but is not type=rw\n",
+                 mem->name);
+         exit(1);
+      }
+      if (mem->has_write_start && mem->bank_name[0]) {
+         fprintf(stderr,
+                 "vcsc-ld: split-address MEMORY region '%s' must be shared and may not specify bank=%s\n",
+                 mem->name, mem->bank_name);
          exit(1);
       }
       if (mem->callstack_extra && !mem->callstack_callgraph) {
@@ -2350,6 +2406,40 @@ static const char *rule_run_region_name(const segment_rule_t *rule)
    return rule->run_name[0] ? rule->run_name : rule->load_name;
 }
 
+//! @brief Translate a runtime read alias to the corresponding write alias.
+static uint16_t memory_runtime_write_address(const linker_config_t *cfg,
+                                             const char *mem_name,
+                                             uint16_t read_addr,
+                                             uint16_t size)
+{
+   const memory_region_t *mem = find_memory(cfg, mem_name);
+   uint32_t offset;
+   uint32_t write_addr;
+
+   if (!mem) {
+      fprintf(stderr, "vcsc-ld: MEMORY region '%s' not found while resolving write alias\n",
+              mem_name ? mem_name : "<unnamed>");
+      exit(1);
+   }
+   if (!mem->has_write_start)
+      return read_addr;
+   if (read_addr < mem->start ||
+       (uint32_t)read_addr + size > (uint32_t)mem->start + mem->size) {
+      fprintf(stderr,
+              "vcsc-ld: runtime object $%04X+$%04X lies outside split-address MEMORY region '%s' read window $%04X-$%04X\n",
+              read_addr, size, mem->name, mem->start,
+              (uint16_t)((uint32_t)mem->start + mem->size - 1u));
+      exit(1);
+   }
+   offset = (uint32_t)read_addr - mem->start;
+   write_addr = (uint32_t)mem->write_start + offset;
+   if (write_addr + size > 0x10000u) {
+      fprintf(stderr, "vcsc-ld: write alias overflow for MEMORY region '%s'\n", mem->name);
+      exit(1);
+   }
+   return (uint16_t)write_addr;
+}
+
 //! @brief Return ensure cursor data used by linker layout and image writer; returned pointers alias existing storage unless explicitly allocated by the function name.
 static memory_cursor_t *ensure_cursor(layout_t *layout, const linker_config_t *cfg, const char *mem_name)
 {
@@ -3724,6 +3814,7 @@ cleanup:
 typedef struct {
    uint16_t address;
    uint16_t owner_address;
+   uint8_t segid;
    const char *name;
    const object_layout_t *owner_layout;
 } resolved_reloc_target_t;
@@ -3748,6 +3839,7 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
       global = lookup_global_symbol(layout, obj->undefs[r->undef_index]);
       result.address = (uint16_t)(global->addr + current_word);
       result.owner_address = global->addr;
+      result.segid = global->segid;
       result.name = obj->undefs[r->undef_index];
       return result;
    }
@@ -3771,6 +3863,7 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
       result.address = object_runtime_addr_for_layout_value(obj, r->layout_index,
                                                             r->segid, current_word);
       result.owner_address = base;
+      result.segid = r->segid;
       result.name = lay->name;
       result.owner_layout = lay;
       return result;
@@ -3779,6 +3872,7 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
    if (r->segid == O26_SEG_ABS) {
       result.address = current_word;
       result.owner_address = current_word;
+      result.segid = O26_SEG_ABS;
       result.name = "<absolute symbol>";
       return result;
    }
@@ -3792,6 +3886,7 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
    result.owner_address = (r->segid == O26_SEG_TEXT)
       ? result.owner_layout->load_addr : result.owner_layout->run_addr;
    result.address = object_runtime_addr_for_value(obj, r->segid, current_word);
+   result.segid = r->segid;
    result.name = result.owner_layout->name;
    return result;
 }
@@ -4100,7 +4195,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
-               add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
+               add_copy_record(layout, lay->name, lay->load_addr,
+                               memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                               lay->size);
                break;
             }
 
@@ -4108,7 +4205,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
-               add_zero_record(layout, lay->name, lay->run_addr, lay->size);
+               add_zero_record(layout, lay->name,
+                               memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                               lay->size);
                break;
             }
 
@@ -4117,9 +4216,13 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
-                  add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr, lay->size);
+                  add_copy_record(layout, lay->name, lay->load_addr,
+                                  memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                                  lay->size);
                else if (strstr(lay->name, ".__vcsc_object$") != NULL)
-                  add_zero_record(layout, lay->name, lay->run_addr, lay->size);
+                  add_zero_record(layout, lay->name,
+                                  memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                                  lay->size);
                break;
             }
          }
@@ -4278,6 +4381,42 @@ static bank_trampoline_entry_t *find_or_add_bank_trampoline_entry(
    return entry;
 }
 
+//! @brief Return true when a relocation targets one of a shared split-address RAM region's aliases.
+static int relocation_targets_shared_split_memory(const linker_config_t *cfg,
+                                                  const resolved_reloc_target_t *target)
+{
+   size_t i;
+
+   if (!cfg || !target ||
+       (target->segid != O26_SEG_DATA &&
+        target->segid != O26_SEG_BSS &&
+        target->segid != O26_SEG_ZP))
+      return 0;
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      uint32_t read_end;
+      uint32_t write_end;
+      int owner_in_read;
+      int target_in_read;
+      int target_in_write;
+
+      if (!mem->has_write_start || mem->bank_name[0] || !str_ieq(mem->type, "rw"))
+         continue;
+      read_end = (uint32_t)mem->start + mem->size;
+      write_end = (uint32_t)mem->write_start + mem->size;
+      owner_in_read = target->owner_address >= mem->start &&
+                      (uint32_t)target->owner_address < read_end;
+      target_in_read = target->address >= mem->start &&
+                       (uint32_t)target->address < read_end;
+      target_in_write = target->address >= mem->write_start &&
+                        (uint32_t)target->address < write_end;
+      if (owner_in_read && (target_in_read || target_in_write))
+         return 1;
+   }
+   return 0;
+}
+
 //! @brief Validate or rewrite one resolved relocation at a full-window bank boundary.
 static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
                                           const object_file_t *obj,
@@ -4308,6 +4447,13 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       (uint16_t)(r->offset - source_layout->image_base));
    source_bank = cartridge_bank_for_address(cfg, source_address);
    if (!source_bank)
+      return target->address;
+
+   /* A split-address RAM region shares both aliases across every physical ROM
+      bank.  Its addresses overlap the cartridge window, so classifying them by
+      numeric address alone would falsely turn ordinary RAM accesses into
+      cross-bank ROM references. */
+   if (relocation_targets_shared_split_memory(cfg, target))
       return target->address;
 
    owner_bank = cartridge_bank_for_address(cfg, target->owner_address);
@@ -5099,6 +5245,24 @@ static int memory_region_is_writable_ram(const memory_region_t *mem)
    return mem != NULL && str_ieq(mem->type, "rw");
 }
 
+//! @brief Find the writable runtime region containing one placed object.
+static const memory_region_t *find_runtime_memory_for_range(const linker_config_t *cfg,
+                                                            uint16_t addr,
+                                                            uint16_t size)
+{
+   size_t i;
+   uint32_t end = (uint32_t)addr + size;
+
+   for (i = 0; cfg && i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      if (!memory_region_is_writable_ram(mem))
+         continue;
+      if (addr >= mem->start && end <= (uint32_t)mem->start + mem->size)
+         return mem;
+   }
+   return NULL;
+}
+
 //! @brief Count occupied output bytes inside one MEMORY region.
 static uint32_t memory_region_used_bytes(const memory_region_t *mem, const uint8_t *used)
 {
@@ -5265,8 +5429,15 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
 
    fprintf(fp, "MEMORY\n");
    for (i = 0; i < cfg->mem_count; ++i) {
-      fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s",
-         cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
+      if (cfg->mem[i].has_write_start) {
+         fprintf(fp, "  %-10s read_start=$%04X write_start=$%04X size=$%04X type=%s shared=yes",
+            cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].write_start,
+            cfg->mem[i].size, cfg->mem[i].type);
+      }
+      else {
+         fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s",
+            cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
+      }
       if (cfg->mem[i].bank_name[0])
          fprintf(fp, " bank=%s", cfg->mem[i].bank_name);
       fputc('\n', fp);
@@ -5402,15 +5573,28 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
             fputc('\n', fp);
          }
          else if (lay->segid == O26_SEG_DATA) {
-            fprintf(fp, "     %-16s load=$%04X run=$%04X size=$%04X load-page=%s run-page=%s\n",
-                    lay->name, lay->load_addr, lay->run_addr, lay->size,
-                    page_placement_name(lay->load_addr, lay->size, 0),
+            const memory_region_t *runtime_mem =
+               find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
+            fprintf(fp, "     %-16s load=$%04X run=$%04X",
+                    lay->name, lay->load_addr, lay->run_addr);
+            if (runtime_mem && runtime_mem->has_write_start)
+               fprintf(fp, " write=$%04X",
+                       memory_runtime_write_address(cfg, runtime_mem->name,
+                                                    lay->run_addr, lay->size));
+            fprintf(fp, " size=$%04X load-page=%s run-page=%s\n",
+                    lay->size, page_placement_name(lay->load_addr, lay->size, 0),
                     page_placement_name(lay->run_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }
          else {
-            fprintf(fp, "     %-16s run=$%04X size=$%04X page=%s\n",
-                    lay->name, lay->run_addr, lay->size,
+            const memory_region_t *runtime_mem =
+               find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
+            fprintf(fp, "     %-16s run=$%04X", lay->name, lay->run_addr);
+            if (runtime_mem && runtime_mem->has_write_start)
+               fprintf(fp, " write=$%04X",
+                       memory_runtime_write_address(cfg, runtime_mem->name,
+                                                    lay->run_addr, lay->size));
+            fprintf(fp, " size=$%04X page=%s\n", lay->size,
                     page_placement_name(lay->run_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
          }

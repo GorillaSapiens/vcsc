@@ -513,6 +513,12 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
    validate_nonreserved_implementation_name(name, node);
+
+   if (modifiers_imply_split_address(modifiers)) {
+      error_user("[%s:%d.%d] split-address mem region '%s' currently supports only persistent file-scope objects and arrays",
+                 node->file, node->line, node->column,
+                 find_mem_modifier_name(modifiers));
+   }
    emit_mem_region_metadata_for_modifiers(node, modifiers);
 
    if (has_modifier(modifiers, "inline")) {
