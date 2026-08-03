@@ -434,6 +434,12 @@ headless runner requires Xvfb and `xkbcomp`; its snapshot-key and PNG-grading
 helpers are Perl and require no Python installation or Python modules.  Failed
 runs leave `.stella-bank-test/` intact for inspection.
 
+`vcs_bankswitching_example_make.pl` copies the public diagnostic example into a
+temporary directory and runs its `representative` Makefile target.  It locks the
+expected F8/F6/F4 output names, rejects hidden empty-stem sidecars, and catches
+broken shell command substitutions which would otherwise print misleading
+`/bin/sh: ...: not found` messages while still producing cartridges.
+
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
 duplicate deletion-ledger entries, any deleted path that reappears, displaced

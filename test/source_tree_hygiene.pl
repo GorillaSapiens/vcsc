@@ -52,6 +52,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
    or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
+-f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&

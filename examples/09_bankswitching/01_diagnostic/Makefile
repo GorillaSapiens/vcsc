@@ -12,7 +12,8 @@ representative:
 	for spec in F8:2:vcs_8k_f8.cfg F6:4:vcs_16k_f6.cfg F4:8:vcs_32k_f4.cfg; do \
 		mapper=$${spec%%:*}; rest=$${spec#*:}; banks=$${rest%%:*}; cfg=$${rest#*:}; \
 		s=0; while test $$s -lt $$banks; do \
-			stem=`printf '%s_source%d_to0' `echo $$mapper | tr A-Z a-z` $$s`; \
+			mapper_lc=$$(printf '%s' "$$mapper" | tr '[:upper:]' '[:lower:]'); \
+			stem=$$(printf '%s_source%d_to0' "$$mapper_lc" "$$s"); \
 			$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=$$banks -DSOURCE_BANK=$$s -DJUMP_DEST=0 \
 				-T $(VCS_DIR)/$$cfg -Map $$stem.map $(SOURCE) -o $$stem.bin; \
 			s=$$((s+1)); \
@@ -25,7 +26,8 @@ full:
 		mapper=$${spec%%:*}; rest=$${spec#*:}; banks=$${rest%%:*}; cfg=$${rest#*:}; \
 		s=0; while test $$s -lt $$banks; do \
 			d=0; while test $$d -lt $$banks; do \
-				stem=`printf '%s_source%d_to%d' `echo $$mapper | tr A-Z a-z` $$s $$d`; \
+				mapper_lc=$$(printf '%s' "$$mapper" | tr '[:upper:]' '[:lower:]'); \
+				stem=$$(printf '%s_source%d_to%d' "$$mapper_lc" "$$s" "$$d"); \
 				$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=$$banks -DSOURCE_BANK=$$s -DJUMP_DEST=$$d \
 					-T $(VCS_DIR)/$$cfg -Map $$stem.map $(SOURCE) -o $$stem.bin; \
 				d=$$((d+1)); \
@@ -35,6 +37,7 @@ full:
 	done
 
 clean:
-	rm -f f8_source* f6_source* f4_source* *.hex *.map *.sym *.lst *.cfg
+	rm -f f8_source* f6_source* f4_source* *.bin *.hex *.map *.sym *.lst *.cfg \
+		.bin .hex .map .sym .lst .cfg
 
 .PHONY: all representative full clean

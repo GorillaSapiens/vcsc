@@ -8066,3 +8066,19 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   Stella F8 run successfully captured and graded its PASS snapshot through the
   new Perl helpers, and the ordinary 84-image simulator matrix plus source-tree
   hygiene pass.
+
+
+2026-08-02 17:48:48 PDT, fix diagnostic-example nested command substitutions
+-----------------------------------------------------------------------------
+* Fix `examples/09_bankswitching/01_diagnostic/Makefile`: its output-stem recipes
+  nested legacy backtick substitutions.  `/bin/sh` therefore parsed source-bank
+  numbers (`0`, `1`, ...) and mapper names (`F8`, `F6`, `F4`) as commands,
+  printed `not found`, and left `stem` empty even though the compiler invocations
+  themselves continued.  Replace the nested backticks with quoted POSIX `$(...)`
+  command substitutions and a separate lower-case mapper variable.
+* Extend `clean` to remove `*.bin` plus the hidden `.bin/.hex/.map/.sym/.lst/.cfg`
+  debris produced by the broken empty stem.
+* Add `test/vcs_bankswitching_example_make.pl`.  It builds the public example in
+  a temporary directory, requires all 14 representative F8/F6/F4 output stems,
+  rejects shell `not found` diagnostics, and rejects empty-stem hidden sidecars.
+  Update test documentation and source-tree hygiene to retain the regression.
