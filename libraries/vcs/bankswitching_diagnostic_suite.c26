@@ -92,36 +92,13 @@ bank0 const uint8_t fail_glyph[8] := {
 };
 
 bank0 void draw_status_frame(void) {
-   asm lda failure;
-   asm beq @pass_colors;
-   asm lda #$46;
-   asm sta COLUP0;
-   asm lda #$20;
-   asm jmp @colors_done;
-   asm @pass_colors:;
-   asm lda #$c8;
-   asm sta COLUP0;
-   asm lda status_color;
-   asm @colors_done:;
-   asm sta COLUBK;
-   asm lda #0;
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENAM0;
-   asm sta ENAM1;
-   asm sta ENABL;
-   asm sta REFP0;
-   asm sta VDELP0;
-   asm sta RESMP0;
-   asm sta HMP0;
-   asm sta CTRLPF;
-   asm sta HMCLR;
-   asm lda #5;
-   asm sta NUSIZ0;
+   // This is a non-returning display loop.  Keeping the frame-to-frame branch
+   // here avoids an invisible JSR/RTS/C-loop scanline between nominal frames.
+   asm @status_frame_loop:;
 
+   // Begin VSYNC immediately on re-entry.  All per-frame TIA setup is split
+   // across two budgeted VBLANK scanlines below, so it cannot silently add
+   // uncounted lines between frames.
    asm lda #2;
    asm sta VSYNC;
    asm ldx #3;
@@ -134,7 +111,42 @@ bank0 void draw_status_frame(void) {
    asm sta VSYNC;
    asm lda #2;
    asm sta VBLANK;
-   asm ldx #37;
+
+   // VBLANK setup line 1 of 37.  The status glyph is always white; only the
+   // background distinguishes PASS from FAIL.
+   asm lda #$0E;
+   asm sta COLUP0;
+   asm lda failure;
+   asm beq @pass_colors;
+   asm lda #$20;
+   asm jmp @colors_done;
+   asm @pass_colors:;
+   asm lda status_color;
+   asm @colors_done:;
+   asm sta COLUBK;
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta WSYNC;
+
+   // VBLANK setup line 2 of 37.
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta REFP0;
+   asm sta VDELP0;
+   asm sta RESMP0;
+   asm sta HMP0;
+   asm sta CTRLPF;
+   asm sta HMCLR;
+   asm lda #5;
+   asm sta NUSIZ0;
+   asm sta WSYNC;
+
+   asm ldx #35;
    asm @vblank_loop:;
    asm sta WSYNC;
    asm dex;
@@ -159,10 +171,10 @@ bank0 void draw_status_frame(void) {
    asm @glyph_loop:;
    asm lda failure;
    asm beq @pass_row;
-   asm lda.ax fail_glyph,x;
+   asm lda fail_glyph,x;
    asm jmp @row_ready;
    asm @pass_row:;
-   asm lda.ax pass_glyph,x;
+   asm lda pass_glyph,x;
    asm @row_ready:;
    // Wait for the next scanline before changing GRP0.  Updating GRP0 before
    // WSYNC tears each row in half because the row-selection branches consume
@@ -184,11 +196,14 @@ bank0 void draw_status_frame(void) {
    asm lda #2;
    asm sta VBLANK;
    asm lda #0;
-   asm ldx #30;
+   // Twenty-nine WSYNCs plus the branch/restart interval after the final
+   // WSYNC occupy thirty overscan scanlines as Stella counts them.
+   asm ldx #29;
    asm @overscan_loop:;
    asm sta WSYNC;
    asm dex;
    asm bne @overscan_loop;
+   asm jmp @status_frame_loop;
 }
 
 #ifdef SIMULATOR_TEST
@@ -478,9 +493,7 @@ bank0 void finish_all(void) {
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;
 #else
-   while (1) {
-      draw_status_frame();
-   }
+   asm jmp draw_status_frame;
 #endif
 }
 
@@ -966,7 +979,11 @@ bank7 void source_entry7(void) {
 #endif
 
 void main(void) {
+#ifdef POISONED_RESULT
+   failure := 1;
+#else
    failure := 0;
+#endif
    signature := 0;
    source_seen := 0xFF;
    current_source := 0;

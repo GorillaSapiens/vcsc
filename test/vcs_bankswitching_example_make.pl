@@ -50,14 +50,14 @@ $rc==0 && !$sig
 $stderr !~ /(?:^|\n)\/bin\/sh: .*: not found(?:\n|$)/
    or die "diagnostic example make executed malformed command substitutions:\n$stderr";
 
-for my $stem (qw(f8 f6 f4 f8sc f6sc f4sc)) {
+for my $stem (qw(f8 f6 f4 f8sc f6sc f4sc poisoned)) {
    -s File::Spec->catfile($work,"$stem.bin")
       or die "missing $stem.bin\n";
    -s File::Spec->catfile($work,"$stem.map")
       or die "missing $stem.map\n";
 }
 my @bins=glob(File::Spec->catfile($work,'*.bin'));
-@bins==6 or die "diagnostic example emitted ".scalar(@bins)." binaries instead of six\n";
+@bins==7 or die "diagnostic example emitted ".scalar(@bins)." binaries instead of seven\n";
 for my $suffix (qw(bin hex map sym lst cfg)) {
    !-e File::Spec->catfile($work,".$suffix")
       or die "malformed empty-stem artifact .$suffix was created\n";

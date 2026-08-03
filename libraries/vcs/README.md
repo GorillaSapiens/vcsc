@@ -59,17 +59,19 @@ complete ordered source-bank to destination-bank direct-JMP matrix for its
 mapper. Every source bank also verifies a same-bank JSR/RTS path; BANK0 adds a
 nested BANK0-to-BANK1 call and return. RIOT-RAM signatures, matrix counts, and
 hardware-stack balance are checked before the cartridge settles on a green
-**P** final frame or a dark-red **F** failure frame. Both glyphs are copied from
-`fonts/default_ascii.c26`; the diagnostic forces absolute-X ROM loads and aligns
-each `GRP0` update to `WSYNC` so the glyph cannot be replaced by zero-page bytes
-or torn during a scanline.
+background with a white **P** or a dark-red background with a white **F**. Both
+glyphs are copied from `fonts/default_ascii.c26`. Their ordinary
+`lda glyph,x` references remain absolute-X because the symbols are relocatable
+ROM; each `GRP0` update is aligned to `WSYNC`, and the complete frame is exactly
+262 scanlines.
 
 The editable wrapper and Makefile live under
-`examples/09_bankswitching/01_diagnostic/`. A normal build emits exactly six
-images: F8, F6, F4, F8SC, F6SC, and F4SC. The normal regression runs each image
-through the cfg-driven bank-aware simulator from every physical startup bank.
-`make stella-bank-test STELLA=/path/to/stella` runs those same six images in
-Stella with forced and developer-mode randomized startup banks.
+`examples/09_bankswitching/01_diagnostic/`. A normal build emits the six mapper
+images—F8, F6, F4, F8SC, F6SC, and F4SC—plus `poisoned.bin`, a deliberately
+failing F8 image for inspecting and grading the FAIL frame. The normal simulator
+regression runs the six mapper images from every physical startup bank. The
+Stella certification runs those six with forced and developer-mode randomized
+startup banks and separately grades the poisoned FAIL image.
 
 ## NTSC color matching
 

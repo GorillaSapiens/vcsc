@@ -3,11 +3,13 @@ VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 SOURCE := bankswitching_diagnostic.c26
 
-all: ordinary superchip
+all: ordinary superchip poisoned
 
 ordinary: f8.bin f6.bin f4.bin
 
 superchip: f8sc.bin f6sc.bin f4sc.bin
+
+poisoned: poisoned.bin
 
 f8.bin: $(SOURCE)
 	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 \
@@ -33,8 +35,12 @@ f4sc.bin: $(SOURCE)
 	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=8 -DSUPERCHIP_TEST \
 		-T $(VCS_DIR)/vcs_32k_f4sc.cfg -Map f4sc.map $(SOURCE) -o $@
 
+poisoned.bin: $(SOURCE)
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -DPOISONED_RESULT \
+		-T $(VCS_DIR)/vcs_8k_f8.cfg -Map poisoned.map $(SOURCE) -o $@
+
 clean:
-	rm -f f8.* f6.* f4.* f8sc.* f6sc.* f4sc.* \
+	rm -f f8.* f6.* f4.* f8sc.* f6sc.* f4sc.* poisoned.* \
 		.bin .hex .map .sym .lst .cfg
 
-.PHONY: all ordinary superchip clean
+.PHONY: all ordinary superchip poisoned clean

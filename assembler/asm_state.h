@@ -19,6 +19,8 @@ void asm_error(asm_context_t *ctx, const stmt_t *stmt, const char *fmt, ...);
 void asm_warning(const stmt_t *stmt, const char *fmt, ...);
 
 int import_is_zp(const asm_context_t *ctx, const char *name);
+int segment_addrsize_is_zp(const asm_context_t *ctx, const char *name);
+void gather_segment_addrsizes(asm_context_t *ctx);
 int segment_name_to_o26(const char *name);
 asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 void reset_segment_pcs(asm_context_t *ctx);

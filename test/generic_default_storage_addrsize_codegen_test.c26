@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// forbidasm: .segmentaddrsize
+include "machine_6502.c26"
+
+uint8_t uninitialized_byte;
+uint8_t initialized_byte := 1;
+
+void main(void) {
+   uninitialized_byte := initialized_byte;
+}

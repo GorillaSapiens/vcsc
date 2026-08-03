@@ -816,9 +816,12 @@ when main roadmap item 29 becomes active.
          to destination-bank transition through direct JMP, performs a same-bank
          JSR/RTS check from every source, adds a nested BANK0-to-BANK1 call and
          return, writes known RIOT-RAM signatures, verifies stack balance, and
-         settles on a stable final green-P/dark-red-F frame.  The P and F are the
-         exact default ASCII glyphs, loaded with forced absolute indexed ROM
-         addressing and changed only on a scanline boundary.
+         settles on a stable final green-background/white-P or dark-red-
+         background/white-F frame. The P and F are the exact default ASCII
+         glyphs, loaded through ordinary indexed syntax which must remain
+         absolute for relocatable ROM, and changed only on a scanline boundary.
+         The public example also emits one deliberately poisoned F8 image and
+         every displayed result frame is exactly 262 scanlines.
        * Run the complete matrix in Stella, force every physical startup bank,
          and run developer-mode randomized startup-bank trials.  The top-level
          `stella-bank-test` target grades actual Stella snapshots; ordinary

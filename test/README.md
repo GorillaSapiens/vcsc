@@ -440,10 +440,10 @@ runs leave `.stella-bank-test/` intact for inspection.
 
 `vcs_bankswitching_example_make.pl` copies the public diagnostic example into a
 temporary directory and runs its default Makefile target. It requires exactly
-six binaries and their map files—F8, F6, F4, F8SC, F6SC, and F4SC—rejects hidden
-empty-stem sidecars, and catches broken shell command substitutions which would
-otherwise print misleading `/bin/sh: ...: not found` messages while still
-producing cartridges.
+seven binaries and their map files—F8, F6, F4, F8SC, F6SC, F4SC, and the
+poisoned FAIL reference—rejects hidden empty-stem sidecars, and catches broken
+shell command substitutions which would otherwise print misleading
+`/bin/sh: ...: not found` messages while still producing cartridges.
 
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
@@ -463,9 +463,23 @@ required automatic Superchip-variable allocation roadmap item.
 
 The hygiene test also locks the completed F8/F6/F4 simulator and Stella
 certification, including the public diagnostic suite, forced and randomized
-startup-bank modes, known RAM signatures, and visible PASS/FAIL sprites.  It
-keeps the future requirement that the same Stella framework certify Superchip
-read/write aliases and persistence when the SC profiles land.
+startup-bank modes, known RAM signatures, exact 262-line result frames, white
+PASS/FAIL glyphs, and the poisoned FAIL reference. It keeps the future
+requirement that the same Stella framework certify Superchip read/write aliases
+and persistence when the SC profiles land.
+
+`assembler_relocatable_zp_relaxation.pl` assembles and links an ordinary
+non-banked object containing ROM, true ZEROPAGE, and ordinary BSS symbols. It
+requires bare `lda glyph,x` and `lda glyph+1` references to retain three-byte
+absolute-family encodings after final placement, verifies that a `BSS` segment
+address-size contract enables safe two-byte relaxation, verifies that a more
+specific `absolute` contract overrides the family contract, and keeps both a
+true ZEROPAGE label and an absolute byte constant in their legal two-byte forms.
+
+`vcs_default_storage_addrsize_codegen_test.c26` requires the Atari VCS memory
+model to emit zero-page contracts for ordinary DATA and BSS. Its generic 6502
+counterpart requires no such contracts when the default writable region starts
+at `$0200`, preventing target-independent zero-page assumptions.
 
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace

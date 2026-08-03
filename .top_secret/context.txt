@@ -8159,3 +8159,37 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   F8/F6/F4/F8SC/F6SC/F4SC grade the exact green P, including every physical
   startup bank.
 
+
+2026-08-03 03:50:35 PDT, fix relocatable zero-page relaxation and certify diagnostic result frames
+--------------------------------------------------------------------------------------------------
+* Replace the temporary `lda.ax` glyph workaround with a general assembler
+  fix. Relocatable mode no longer treats a symbol's small packed section offset
+  as proof that its final address is in page zero. Bare ROM references such as
+  `lda glyph,x` and `lda glyph+1` now remain absolute-family instructions.
+* Add the explicit `.segmentaddrsize "NAME", zp|absolute` assembler contract.
+  Contracts apply to a segment family and its dotted subsegments, with the most
+  specific match winning. True ZEROPAGE symbols, zero-page imports, absolute
+  byte expressions, and explicitly contracted segment families may still
+  relax; ordinary CODE/RODATA/BSS/DATA symbols may not relax merely because
+  their object-relative offset is below 256.
+* Have `vcsc-cc1` emit zero-page address-size contracts for ordinary BSS and
+  DATA only when the source memory model has one unique highest-priority
+  writable region and that entire region lies in `$0000-$00FF`. This preserves
+  the Atari VCS's required short RAM accesses while the generic 6502 target,
+  whose default RAM starts at `$0200`, retains absolute addressing. Add compiler
+  and assembler regressions covering VCS/generic selection, ROM operands, a BSS
+  family contract, and a more-specific absolute override.
+* Finish the public bank diagnostic as seven outputs: the six complete-matrix
+  F8/F6/F4/F8SC/F6SC/F4SC cartridges plus `poisoned.bin`. Both result glyphs are
+  exact default-font P/F shapes rendered in white; the poisoned image forces the
+  dark-red FAIL frame. Rebalance the non-returning display loop to Stella's
+  exact 262-line/60 Hz NTSC frame instead of 264 lines.
+* Update assembler, compiler, VCS, example, roadmap, and test documentation.
+  The diagnostic tests require ordinary unsuffixed ROM glyph loads, exactly
+  seven example binaries, white P/F result sprites, the poisoned failure hook,
+  and the 262-line schedule.
+* Verification: all 346 compile-only tests pass; all 214 end-to-end/generic
+  tests pass in one complete run; staged `make installcheck` passes; all 57
+  Stella certifications pass (56 forced/randomized mapper starts plus the
+  poisoned FAIL image); and Stella's developer overlay reports `262 / 60.0Hz`
+  for both the white-P PASS frame and white-F FAIL frame.

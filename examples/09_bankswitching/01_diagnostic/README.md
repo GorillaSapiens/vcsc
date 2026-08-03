@@ -29,22 +29,27 @@ hardware-stack state in RIOT RAM. The Superchip builds additionally check both
 ends of the 128-byte RAM, read/write alias direction, and persistence through
 the whole matrix.
 
-A green background with a widened **P** sprite is PASS. A dark-red background
-with a widened **F** sprite is FAIL. Both glyphs are copied from
-`libraries/vcs/fonts/default_ascii.c26`, with row storage reversed to match the
-down-counting display loop. Their ROM rows are loaded with explicit absolute-X
-addressing, and `GRP0` changes only immediately after `WSYNC`, so no row can be
-read from zero page or torn midway across a scanline. The result frame is stable
-for Stella snapshots.
+A green background with a widened white **P** sprite is PASS. A dark-red
+background with a widened white **F** sprite is FAIL. Both glyphs are copied
+from `libraries/vcs/fonts/default_ascii.c26`, with row storage reversed to match
+the down-counting display loop. The source uses ordinary `lda glyph,x` syntax;
+the assembler must preserve absolute-X because the glyph is relocatable ROM.
+`GRP0` changes only immediately after `WSYNC`, so no row is torn midway across
+a scanline. TIA setup is budgeted inside VBLANK and every result frame is
+exactly 262 scanlines.
 
-`make` emits exactly six cartridges:
+`make` emits exactly seven cartridges:
 
 ```text
-f8.bin    f6.bin    f4.bin
+f8.bin    f6.bin    f4.bin       poisoned.bin
 f8sc.bin  f6sc.bin  f4sc.bin
 ```
 
-`make ordinary` and `make superchip` build the two three-cartridge subsets.
-The normal regression runs all six through the cfg-driven simulator from every
-physical startup bank. `make stella-bank-test STELLA=/path/to/stella` runs the
-same six images in Stella with forced and randomized startup banks.
+The first six are the complete mapper diagnostics. `poisoned.bin` is an F8
+build with `POISONED_RESULT` defined; it still runs the matrix but deliberately
+settles on the FAIL frame so the expected white F on dark red can be inspected.
+`make ordinary`, `make superchip`, and `make poisoned` build the three subsets.
+The normal regression runs the six mapper diagnostics through the cfg-driven
+simulator from every physical startup bank. The Stella certification runs those
+six with forced and randomized startup banks and separately grades the poisoned
+FAIL image.

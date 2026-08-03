@@ -1,0 +1,11 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: .segmentaddrsize "BSS", zp
+// expectasm: .segmentaddrsize "DATA", zp
+include "vcs.c26"
+
+uint8_t uninitialized_byte;
+uint8_t initialized_byte := 1;
+
+void main(void) {
+   uninitialized_byte := initialized_byte;
+}

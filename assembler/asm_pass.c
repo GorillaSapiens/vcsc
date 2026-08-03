@@ -351,6 +351,118 @@ static int expr_is_zp_import(const asm_context_t *ctx, const expr_t *expr)
    return name && import_is_zp(ctx, name);
 }
 
+//! Classification used when deciding whether an ambiguous absolute-family
+//! operand may be shortened to its zero-page form in relocatable output.
+typedef enum zp_relax_expr_kind {
+   ZP_RELAX_EXPR_UNSAFE = 0,
+   ZP_RELAX_EXPR_ABSOLUTE,
+   ZP_RELAX_EXPR_ZP_RELOC
+} zp_relax_expr_kind_t;
+
+//! @brief Find an identifier using the same local/file/global lookup order as expr_eval().
+static const symbol_t *find_scoped_relax_symbol(const symtab_t *symbols,
+                                                const char *scope,
+                                                const char *file_scope,
+                                                const char *ident)
+{
+   char buf[4096];
+   const symbol_t *sym;
+
+   if (!symbols || !ident)
+      return NULL;
+
+   if (ident[0] == '@') {
+      snprintf(buf, sizeof(buf), "%s::%s", scope ? scope : "__root__", ident);
+      return symtab_find_const(symbols, buf);
+   }
+
+   if (file_scope && *file_scope) {
+      snprintf(buf, sizeof(buf), "%s::%s", file_scope, ident);
+      sym = symtab_find_const(symbols, buf);
+      if (sym)
+         return sym;
+   }
+
+   return symtab_find_const(symbols, ident);
+}
+
+//! @brief Classify whether an expression remains safely byte-addressable after linking.
+static zp_relax_expr_kind_t classify_zp_relax_expr(const asm_context_t *ctx,
+                                                   const expr_t *expr,
+                                                   const char *scope,
+                                                   const char *file_scope)
+{
+   const symbol_t *sym;
+   zp_relax_expr_kind_t left;
+   zp_relax_expr_kind_t right;
+
+   if (!expr)
+      return ZP_RELAX_EXPR_UNSAFE;
+
+   switch (expr->kind) {
+      case EXPR_NUMBER:
+      case EXPR_CHARCONST:
+         return ZP_RELAX_EXPR_ABSOLUTE;
+
+      case EXPR_PC:
+         /* In flat output the current PC is final.  In o26 output it is only
+            a section-relative offset and therefore cannot prove zero page. */
+         return ctx->object_mode_o26 ? ZP_RELAX_EXPR_UNSAFE : ZP_RELAX_EXPR_ABSOLUTE;
+
+      case EXPR_IDENT:
+         if (import_is_zp(ctx, expr->u.ident))
+            return ZP_RELAX_EXPR_ZP_RELOC;
+         sym = find_scoped_relax_symbol(&ctx->symbols, scope, file_scope, expr->u.ident);
+         if (!sym || !sym->defined)
+            return ZP_RELAX_EXPR_UNSAFE;
+         if (!ctx->object_mode_o26)
+            return ZP_RELAX_EXPR_ABSOLUTE;
+         if (sym->segment_id == O26_SEG_ABS)
+            return ZP_RELAX_EXPR_ABSOLUTE;
+         if (sym->segment_id == O26_SEG_ZP ||
+             segment_addrsize_is_zp(ctx, sym->segment_name))
+            return ZP_RELAX_EXPR_ZP_RELOC;
+         return ZP_RELAX_EXPR_UNSAFE;
+
+      case EXPR_UNARY:
+         /* Explicit low/high extraction deliberately requests a byte result,
+            even when the child itself is relocatable. */
+         if (expr->u.unary.op == EXPR_UOP_LO || expr->u.unary.op == EXPR_UOP_HI)
+            return ZP_RELAX_EXPR_ABSOLUTE;
+         left = classify_zp_relax_expr(ctx, expr->u.unary.child, scope, file_scope);
+         if (expr->u.unary.op == EXPR_UOP_POS)
+            return left;
+         return left == ZP_RELAX_EXPR_ABSOLUTE
+            ? ZP_RELAX_EXPR_ABSOLUTE : ZP_RELAX_EXPR_UNSAFE;
+
+      case EXPR_BINARY:
+         left = classify_zp_relax_expr(ctx, expr->u.binary.left, scope, file_scope);
+         right = classify_zp_relax_expr(ctx, expr->u.binary.right, scope, file_scope);
+
+         if (expr->u.binary.op == EXPR_BOP_ADD) {
+            if (left == ZP_RELAX_EXPR_ABSOLUTE && right == ZP_RELAX_EXPR_ABSOLUTE)
+               return ZP_RELAX_EXPR_ABSOLUTE;
+            if ((left == ZP_RELAX_EXPR_ZP_RELOC && right == ZP_RELAX_EXPR_ABSOLUTE) ||
+                (right == ZP_RELAX_EXPR_ZP_RELOC && left == ZP_RELAX_EXPR_ABSOLUTE))
+               return ZP_RELAX_EXPR_ZP_RELOC;
+            return ZP_RELAX_EXPR_UNSAFE;
+         }
+
+         if (expr->u.binary.op == EXPR_BOP_SUB) {
+            if (left == ZP_RELAX_EXPR_ABSOLUTE && right == ZP_RELAX_EXPR_ABSOLUTE)
+               return ZP_RELAX_EXPR_ABSOLUTE;
+            if (left == ZP_RELAX_EXPR_ZP_RELOC && right == ZP_RELAX_EXPR_ABSOLUTE)
+               return ZP_RELAX_EXPR_ZP_RELOC;
+            return ZP_RELAX_EXPR_UNSAFE;
+         }
+
+         return left == ZP_RELAX_EXPR_ABSOLUTE && right == ZP_RELAX_EXPR_ABSOLUTE
+            ? ZP_RELAX_EXPR_ABSOLUTE : ZP_RELAX_EXPR_UNSAFE;
+   }
+
+   return ZP_RELAX_EXPR_UNSAFE;
+}
+
 //! @brief Handle choose initial emit mode logic for assembler pass and relaxation engine.
 static int choose_initial_emit_mode(const asm_context_t *ctx, const insn_info_t *insn,
                                     emit_mode_t *out_mode, const char **why)
@@ -1031,9 +1143,11 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
    ctx->object_mode_o26 = object_mode_o26;
    ctx->imports = NULL;
    ctx->weaks = NULL;
+   ctx->segment_addrsizes = NULL;
    ctx->segments = NULL;
 
    asm_prepare_context_state(ctx);
+   gather_segment_addrsizes(ctx);
    /* Addressing-mode selection happens before the first relaxation pass, so
       collect .importzp/.zpimport declarations now.  Otherwise unresolved
       zero-page imports default to absolute modes and cycle-counted modules gain
@@ -1363,6 +1477,7 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
 
             if (!strcmp(stmt->u.dir->name, ".segment") ||
                 !strcmp(stmt->u.dir->name, ".segmentdef") ||
+                !strcmp(stmt->u.dir->name, ".segmentaddrsize") ||
                 !strcmp(stmt->u.dir->name, ".global") ||
                 !strcmp(stmt->u.dir->name, ".export") ||
                 !strcmp(stmt->u.dir->name, ".import") ||
@@ -1682,11 +1797,21 @@ int asm_relax(asm_context_t *ctx)
          if (!stmt->u.insn.expr)
             continue;
 
-         if (expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address, &value) != EXPR_EVAL_OK) {
-            if (!expr_is_imported_zp_reference(ctx, stmt->u.insn.expr))
+         {
+            zp_relax_expr_kind_t expr_kind;
+            expr_kind = classify_zp_relax_expr(ctx, stmt->u.insn.expr,
+                                               stmt->scope, stmt->file);
+            if (expr_kind == ZP_RELAX_EXPR_UNSAFE)
                continue;
-         } else if (!expr_is_u8_value(value)) {
-            continue;
+
+            if (expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
+                          stmt->address, &value) != EXPR_EVAL_OK) {
+               if (expr_kind != ZP_RELAX_EXPR_ZP_RELOC ||
+                   !expr_is_imported_zp_reference(ctx, stmt->u.insn.expr))
+                  continue;
+            } else if (!expr_is_u8_value(value)) {
+               continue;
+            }
          }
 
          if (candidate != stmt->u.insn.final_mode) {
@@ -1825,6 +1950,7 @@ static int directive_emit_pass2(asm_context_t *ctx,
        !strcmp(dir->name, ".rend") ||
        !strcmp(dir->name, ".segment") ||
        !strcmp(dir->name, ".segmentdef") ||
+       !strcmp(dir->name, ".segmentaddrsize") ||
        !strcmp(dir->name, ".pagecontain") ||
        !strcmp(dir->name, ".indexrange") ||
        !strcmp(dir->name, ".global") ||

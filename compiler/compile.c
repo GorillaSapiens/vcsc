@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <limits.h>
 
 #include "ast.h"
 #include "compile.h"
@@ -15,6 +16,7 @@
 #include "compile_internal.h"
 #include "compile_toplevel.h"
 #include "compile_support.h"
+#include "compile_type.h"
 #include "emit.h"
 #include "messages.h"
 #include "pair.h"
@@ -256,6 +258,95 @@ static void compile(ASTNode *program) {
    }
 }
 
+//! @brief Return whether a mem declaration flag list contains one exact flag.
+static bool mem_flags_contain(const ASTNode *flags, const char *want) {
+   if (!flags || is_empty(flags) || !want) {
+      return false;
+   }
+   for (int i = 0; i < flags->count; i++) {
+      const char *text = (flags->children[i] && flags->children[i]->strval)
+         ? flags->children[i]->strval : NULL;
+      if (text && !strcmp(text, want)) {
+         return true;
+      }
+   }
+   return false;
+}
+
+//! @brief Read the optional priority of one mem declaration; absent means zero.
+static long mem_decl_priority(const ASTNode *mem_decl) {
+   const ASTNode *flags;
+   long priority = 0;
+   bool found = false;
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2) {
+      return 0;
+   }
+   flags = mem_decl->children[1];
+   if (!flags || is_empty(flags)) {
+      return 0;
+   }
+   for (int i = 0; i < flags->count; i++) {
+      const char *text = (flags->children[i] && flags->children[i]->strval)
+         ? flags->children[i]->strval : NULL;
+      char *end = NULL;
+      long value;
+
+      if (!text || strncmp(text, "$priority:", 10)) {
+         continue;
+      }
+      value = strtol(text + 10, &end, 0);
+      if (!end || *end != '\0') {
+         error_user("[%s:%d.%d] mem declaration has invalid priority flag '%s'",
+                    mem_decl->file, mem_decl->line, mem_decl->column, text);
+      }
+      if (found) {
+         error_user("[%s:%d.%d] mem declaration has multiple priority flags",
+                    mem_decl->file, mem_decl->line, mem_decl->column);
+      }
+      priority = value;
+      found = true;
+   }
+   return priority;
+}
+
+//! @brief Determine whether plain writable storage is guaranteed to be in page zero.
+static bool default_writable_storage_is_zeropage(const ASTNode *program) {
+   const ASTNode *best = NULL;
+   long best_priority = LONG_MIN;
+   bool tied = false;
+
+   if (!program || strcmp(program->name, "program")) {
+      return false;
+   }
+   for (int i = 0; i < program->count; i++) {
+      const ASTNode *node = program->children[i];
+      const ASTNode *flags;
+      long priority;
+
+      if (!node || strcmp(node->name, "mem_decl_stmt") || node->count < 2) {
+         continue;
+      }
+      flags = node->children[1];
+      if (!mem_flags_contain(flags, "$rw")) {
+         continue;
+      }
+      priority = mem_decl_priority(node);
+      if (!best || priority > best_priority) {
+         best = node;
+         best_priority = priority;
+         tied = false;
+      }
+      else if (priority == best_priority) {
+         tied = true;
+      }
+   }
+
+   /* An ambiguous highest-priority region is not enough evidence for an
+      addressing-mode contraction.  The assembler will retain absolute mode. */
+   return best && !tied && mem_decl_is_zeropage(best);
+}
+
 static bool peephole_enabled = true;
 
 //! @brief Enable or disable the compiler assembly peephole pass.
@@ -282,6 +373,10 @@ void do_compile(FILE *out) {
    emit(&es_export, "; exports\n");
 
    compile(root);
+   if (default_writable_storage_is_zeropage(root)) {
+      emit(&es_export, ".segmentaddrsize \"BSS\", zp\n");
+      emit(&es_export, ".segmentaddrsize \"DATA\", zp\n");
+   }
    analyze_static_parameter_call_graph();
    emit_symbol_backed_call_graph_metadata();
    emit_runtime_global_init_function();

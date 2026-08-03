@@ -1168,7 +1168,8 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
       case STMT_DIR:
          if (!strcmp(stmt->u.dir->name, ".org") || !strcmp(stmt->u.dir->name, ".rorg") ||
              !strcmp(stmt->u.dir->name, ".rend") || !strcmp(stmt->u.dir->name, ".segment") ||
-             !strcmp(stmt->u.dir->name, ".segmentdef") || !strcmp(stmt->u.dir->name, ".global") ||
+             !strcmp(stmt->u.dir->name, ".segmentdef") || !strcmp(stmt->u.dir->name, ".segmentaddrsize") ||
+             !strcmp(stmt->u.dir->name, ".global") ||
              !strcmp(stmt->u.dir->name, ".export") || !strcmp(stmt->u.dir->name, ".import") ||
              !strcmp(stmt->u.dir->name, ".globalzp") || !strcmp(stmt->u.dir->name, ".exportzp") ||
              !strcmp(stmt->u.dir->name, ".importzp") || !strcmp(stmt->u.dir->name, ".zpglobal") ||

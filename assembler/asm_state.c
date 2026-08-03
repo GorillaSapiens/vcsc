@@ -117,6 +117,139 @@ int import_is_zp(const asm_context_t *ctx, const char *name)
    return p ? p->addr_size_zp : 0;
 }
 
+//! @brief Release segment address-size contracts owned by assembler state.
+static void free_segment_addrsizes(segment_addrsize_t *head)
+{
+   segment_addrsize_t *p;
+   segment_addrsize_t *next;
+
+   for (p = head; p; p = next) {
+      next = p->next;
+      free(p->name);
+      free(p);
+   }
+}
+
+//! @brief Return whether a concrete segment name belongs to a declared family.
+static int segment_addrsize_name_matches(const char *name, const char *base)
+{
+   size_t n;
+
+   if (!name || !base)
+      return 0;
+   n = strlen(base);
+   return !strncasecmp(name, base, n) && (name[n] == '\0' || name[n] == '.');
+}
+
+//! @brief Find the most specific address-size contract governing a segment.
+static const segment_addrsize_t *find_segment_addrsize_const(const asm_context_t *ctx,
+                                                              const char *name)
+{
+   const segment_addrsize_t *p;
+   const segment_addrsize_t *best = NULL;
+   size_t best_len = 0;
+
+   for (p = ctx ? ctx->segment_addrsizes : NULL; p; p = p->next) {
+      size_t len;
+      if (!segment_addrsize_name_matches(name, p->name))
+         continue;
+      len = strlen(p->name);
+      if (!best || len > best_len) {
+         best = p;
+         best_len = len;
+      }
+   }
+   return best;
+}
+
+//! @brief Return whether an explicit segment address-size contract promises zero page.
+int segment_addrsize_is_zp(const asm_context_t *ctx, const char *name)
+{
+   const segment_addrsize_t *p = find_segment_addrsize_const(ctx, name);
+   return p ? p->addr_size_zp : 0;
+}
+
+//! @brief Add or validate one explicit segment address-size contract.
+static void add_segment_addrsize(asm_context_t *ctx, const stmt_t *stmt,
+                                 const char *name, int addr_size_zp)
+{
+   segment_addrsize_t *p;
+
+   for (p = ctx->segment_addrsizes; p; p = p->next) {
+      if (strcasecmp(p->name, name))
+         continue;
+      if (p->addr_size_zp != (addr_size_zp ? 1 : 0)) {
+         asm_error(ctx, stmt,
+                   "conflicting .segmentaddrsize for '%s'; previous declaration at %s:%d",
+                   name, p->file ? p->file : "<input>", p->line);
+      }
+      return;
+   }
+
+   p = (segment_addrsize_t *)calloc(1, sizeof(*p));
+   if (!p) {
+      fprintf(stderr, "out of memory\n");
+      exit(1);
+   }
+   p->name = xstrdup(name);
+   p->file = stmt->file;
+   p->line = stmt->line;
+   p->addr_size_zp = addr_size_zp ? 1 : 0;
+   p->next = ctx->segment_addrsizes;
+   ctx->segment_addrsizes = p;
+}
+
+//! @brief Gather .segmentaddrsize contracts before initial mode selection.
+void gather_segment_addrsizes(asm_context_t *ctx)
+{
+   const stmt_t *stmt;
+
+   for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
+      const directive_info_t *dir;
+      const expr_t *size_expr;
+      char *name;
+      int addr_size_zp;
+
+      if (stmt->kind != STMT_DIR || !stmt->u.dir)
+         continue;
+      dir = stmt->u.dir;
+      if (strcmp(dir->name, ".segmentaddrsize"))
+         continue;
+
+      if (!dir->string || !dir->exprs || dir->exprs->next) {
+         asm_error(ctx, stmt,
+                   ".segmentaddrsize expects a quoted segment name and zp or absolute");
+         continue;
+      }
+      size_expr = dir->exprs->expr;
+      if (!size_expr || size_expr->kind != EXPR_IDENT) {
+         asm_error(ctx, stmt,
+                   ".segmentaddrsize address size must be zp or absolute");
+         continue;
+      }
+      if (!strcasecmp(size_expr->u.ident, "zp") ||
+          !strcasecmp(size_expr->u.ident, "zeropage")) {
+         addr_size_zp = 1;
+      } else if (!strcasecmp(size_expr->u.ident, "abs") ||
+                 !strcasecmp(size_expr->u.ident, "absolute")) {
+         addr_size_zp = 0;
+      } else {
+         asm_error(ctx, stmt,
+                   ".segmentaddrsize address size must be zp or absolute");
+         continue;
+      }
+
+      name = unquote_string(dir->string);
+      if (!name || !*name) {
+         asm_error(ctx, stmt, ".segmentaddrsize segment name cannot be empty");
+         free(name);
+         continue;
+      }
+      add_segment_addrsize(ctx, stmt, name, addr_size_zp);
+      free(name);
+   }
+}
+
 //! @brief Release weaks storage owned by assembler symbol, scope, and segment state.
 static void free_weaks(weak_name_t *head)
 {
@@ -890,6 +1023,8 @@ void asm_free_context_state(asm_context_t *ctx)
    free_weaks(ctx->weaks);
    ctx->imports = NULL;
    ctx->weaks = NULL;
+   free_segment_addrsizes(ctx->segment_addrsizes);
+   ctx->segment_addrsizes = NULL;
    free_segments(ctx->segments);
    ctx->segments = NULL;
 }

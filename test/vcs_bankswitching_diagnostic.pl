@@ -79,7 +79,7 @@ sub profiles {
 }
 
 sub build_matrix_rom {
-   my($driver,$vcs,$source,$tmp,$profile,$simulator)=@_;
+   my($driver,$vcs,$source,$tmp,$profile,$simulator,$poisoned)=@_;
    my($mapper,$banks,$cfg_name,$sc)=@$profile;
    my $stem=lc($mapper).'_matrix';
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
@@ -87,6 +87,7 @@ sub build_matrix_rom {
    my @defs=("-DMAPPER_BANKS=$banks");
    push @defs,'-DSUPERCHIP_TEST' if $sc;
    push @defs,'-DSIMULATOR_TEST' if $simulator;
+   push @defs,'-DPOISONED_RESULT' if $poisoned;
    require_ok("build $mapper complete matrix",
       $driver,'-I',$vcs,@defs,'-T',File::Spec->catfile($vcs,$cfg_name),
       '-Map',$map_path,$source,'-o',$bin);
@@ -239,7 +240,7 @@ sub run_stella_certification {
                               " snapshots on attempt $attempt\n";
             next;
          }
-         my($rc,$sig,$out,$err)=run_capture($perl,$grade,$png[0]);
+         my($rc,$sig,$out,$err)=run_capture($perl,$grade,$png[0],$arg{result} // 'pass');
          if ($rc==0 && !$sig && $err eq '') {
             $graded=1;
             last;
@@ -271,6 +272,12 @@ sub run_stella_certification {
          $run_one->(%$run);
       }
    }
+   if ($selected->('poisoned_failure')) {
+      my $profile=[F8=>2=>'vcs_8k_f8.cfg'=>0];
+      my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
+      $run_one->(label=>'poisoned_failure',mapper=>'F8',start=>0,
+                 rom=>$rom,result=>'fail');
+   }
    print "Stella bank switching certification passed\n";
 }
 
@@ -285,8 +292,16 @@ $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b
    or die "diagnostic PASS glyph is not the default-font P\n";
 $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
    or die "diagnostic FAIL glyph is not the default-font F\n";
-$source_text =~ /lda\.ax\s+fail_glyph,x.*lda\.ax\s+pass_glyph,x.*sta\s+WSYNC.*sta\s+GRP0/s
-   or die "diagnostic glyph loads must be absolute-indexed and scanline-aligned\n";
+$source_text =~ /lda\s+fail_glyph,x.*lda\s+pass_glyph,x.*sta\s+WSYNC.*sta\s+GRP0/s
+   or die "diagnostic glyph loads must use ordinary indexed syntax and remain scanline-aligned\n";
+$source_text !~ /lda\.ax\s+(?:fail|pass)_glyph,x/
+   or die "diagnostic still papers over assembler relaxation with explicit .ax\n";
+$source_text =~ /lda\s+#\$0E\s*;\s*asm\s+sta\s+COLUP0/s
+   or die "diagnostic status glyph is not white\n";
+$source_text =~ /\@status_frame_loop:.*ldx\s+#3.*ldx\s+#35.*ldx\s+#76.*ldx\s+#7.*ldx\s+#99.*ldx\s+#29.*jmp\s+\@status_frame_loop/s
+   or die "diagnostic frame schedule does not produce Stella's exact 262-line NTSC frame\n";
+$source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
+   or die "diagnostic poisoned-result build hook is missing\n";
 if ($stella_mode) { run_stella_certification($repo,$tmp,$source); }
 else { run_simulator_matrix($repo,$tmp,$source); }
 print "bank switching diagnostic matrix passed\n";

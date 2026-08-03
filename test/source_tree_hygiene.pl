@@ -48,10 +48,14 @@ index($bankswitching,'[x] 10. Make archive selection, listings, map output, simu
 index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
 $bankswitching =~ /every possible ordered source-bank\s+to destination-bank transition/ &&
 $bankswitching =~ /one cartridge\s+per mapper rather than one cartridge per transition/ &&
-$bankswitching =~ /stable final green-P\/dark-red-F frame/ &&
-$bankswitching =~ /exact default ASCII glyphs/ &&
+$bankswitching =~ /stable final green-background\/white-P or dark-red-\s*background\/white-F frame/ &&
+$bankswitching =~ /exact default ASCII\s+glyphs/ &&
+$bankswitching =~ /ordinary indexed syntax which must remain\s+absolute for relocatable ROM/ &&
+$bankswitching =~ /deliberately poisoned F8 image/ &&
+$bankswitching =~ /exactly 262 scanlines/ &&
 $bankswitching =~ /proving read-window\/write-window\s+direction/
    or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
+-f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&

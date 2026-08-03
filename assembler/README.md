@@ -243,6 +243,33 @@ The assembler preprocesses the root source before lexing/parsing:
 8. relaxation
 9. pass 2 emission
 
+In flat output, a final numeric address in `$0000..$00FF` may select the
+zero-page family. In relocatable o26 output, a small section-relative offset is
+**not** proof of zero page: CODE, RODATA, DATA, and BSS symbols retain
+absolute-family encodings unless their address size is independently known.
+Relaxation is allowed for absolute expressions, true local ZP/ZEROPAGE symbols,
+`.zpimport` symbols, and symbols covered by an explicit `.segmentaddrsize ...,
+zp` contract (including affine constant addends which remain in range). Thus
+bare `LDA glyph,X` is safe for a ROM glyph; `.ax` is not required as a
+workaround.
+
+A segment address-size contract applies to the named segment and its dotted
+subsegments:
+
+```asm
+.segmentaddrsize "BSS", zp
+.segmentaddrsize "BSS.slow_object", absolute
+```
+
+The most-specific matching declaration wins. The first line permits zero-page
+relaxation for `BSS` and `BSS.*`; the second overrides it for one subtree.
+Accepted size names are `zp`/`zeropage` and `absolute`/`abs`. Conflicting
+contracts for the same exact name are errors. This directive is an assertion
+about final linker placement, not a placement request. Use it only when the
+source memory model or linker contract guarantees the range. VCSC emits the
+BSS/DATA contracts automatically for targets whose default writable region is
+wholly within page zero.
+
 By default `vcsc-as` stays quiet on success. If you want to trace the relaxation work, enable the assembler xray:
 
 ```text

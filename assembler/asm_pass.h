@@ -27,6 +27,15 @@ typedef struct weak_name {
    struct weak_name *next;
 } weak_name_t;
 
+//! Explicit address-size contract for one segment family or named segment.
+typedef struct segment_addrsize {
+   char *name;
+   const char *file;
+   int line;
+   int addr_size_zp;
+   struct segment_addrsize *next;
+} segment_addrsize_t;
+
 //! Assembler segment placement and program-counter state.
 typedef struct asm_segment {
    char *name;
@@ -56,6 +65,7 @@ typedef struct asm_context {
    int object_mode_o26;
    import_name_t *imports;
    weak_name_t *weaks;
+   segment_addrsize_t *segment_addrsizes;
    asm_segment_t *segments;
 } asm_context_t;
 

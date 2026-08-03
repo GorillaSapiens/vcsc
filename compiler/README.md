@@ -411,6 +411,16 @@ linker configuration defines the same start, size, and access type.
 A region is treated as zero page when its declared address range fits entirely
 within `$0000..$00ff`; the region's name has no special meaning.
 
+Unqualified DATA and BSS objects use the highest-priority writable region. When
+that choice is unique and its complete range lies in page zero, the compiler
+emits `.segmentaddrsize "DATA", zp` and `.segmentaddrsize "BSS", zp` into the
+assembler source. That explicit contract lets relocatable assembly retain the
+short addressing modes required by the Atari VCS without guessing from a
+symbol's temporary section offset. A target whose default writable region begins
+at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
+keeps absolute-family addressing. Named zero-page regions continue to use their
+own ZEROPAGE layouts.
+
 Named regions also place non-inline function definitions. This reuses the same
 declaration-modifier syntax rather than adding bank-specific keywords:
 

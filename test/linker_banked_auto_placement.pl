@@ -173,7 +173,7 @@ $map =~ /automatic CODE\.__vcsc_function\$keep_home\s+region=ROM\s+size=\$0006/
    or die "call-connected keep_home was not kept automatically in BANK0\n$map";
 $map =~ /automatic CODE\.__vcsc_function\$spill\s+region=bank1\s+size=\$0006/
    or die "capacity did not spill the stable second function into BANK1\n$map";
-$map =~ /component=\d+ assignment=pinned bank=BANK1 bytes=\$0004 cut-weight=\$000F\n\s+automatic CODE\.__vcsc_function\$uses_table\s+region=bank1.*\n\s+pinned\s+RODATA\.bank1\.__vcsc_object\$bank1_table/s
+$map =~ /component=\d+ assignment=pinned bank=BANK1 bytes=\$0005 cut-weight=\$000F\n\s+automatic CODE\.__vcsc_function\$uses_table\s+region=bank1.*\n\s+pinned\s+RODATA\.bank1\.__vcsc_object\$bank1_table/s
    or die "hard ROM-data component did not pull its unpinned function into BANK1\n$map";
 $map =~ /entries=2 jmp=0 jsr=2/
    or die "automatic placement did not produce the expected two cross-bank calls\n$map";
