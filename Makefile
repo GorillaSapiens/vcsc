@@ -9,6 +9,8 @@ PACKAGE_PREFIX ?= /opt/vcsc
 PACKAGE_STAGING ?= $(CURDIR)/pkgroot
 INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
 DOXYGEN ?= doxygen
+STELLA ?= stella
+STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 
 all: test
 
@@ -45,6 +47,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
+	rm -rf $(STELLA_BANK_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -75,6 +78,7 @@ install-data:
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
 	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
+	install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26 $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
@@ -166,6 +170,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
@@ -240,6 +245,7 @@ package: tools
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" LIBDIR="/opt/vcsc/lib" INCLUDEDIR="/opt/vcsc/include" DATADIR="/opt/vcsc/share" CFGDIR="/opt/vcsc/share/cfg"
+	set -e; \
 	stage_bin="$(INSTALLCHECK_STAGING)/opt/vcsc/bin"; \
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
 	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
@@ -248,6 +254,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
+	test -f "$$stage_vcs/bankswitching_diagnostic_suite.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
 	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
@@ -257,6 +264,19 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"` -eq 8192; \
 	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	grep -q "BANK1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -DMAPPER_BANKS=2 -DSOURCE_BANK=1 -DJUMP_DEST=0 -DSIMULATOR_TEST \
+	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
+	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
+	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"` -eq 8192; \
+	sim_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map"`; \
+	test -n "$$sim_done"; \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8.cfg" --start-bank=0 \
+	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8.cfg" --start-bank=1 \
+	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
 	test -f "$$stage_vcs/vcs_16k_f6.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
 	  -T "$$stage_vcs/vcs_16k_f6.cfg" \
@@ -460,4 +480,10 @@ e2e: tools
 test: tools
 	@$(MAKE) --no-print-directory -C ./test test
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test docs
+stella-bank-test: tools
+	rm -rf $(STELLA_BANK_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_bankswitching_diagnostic.pl \
+	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)" --stella
+	rm -rf $(STELLA_BANK_TEST_TMP)
+
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test docs

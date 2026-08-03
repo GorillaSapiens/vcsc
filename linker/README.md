@@ -86,6 +86,14 @@ collisions are errors.
 Selection starts from the root symbols `__reset`, `__nmi`, and `__irqbrk`.
 From there, `vcsc-ld` repeatedly scans inputs to satisfy unresolved imports, pulling in only the object files that define needed symbols, until no new objects are selected.
 
+In banked links, lazy archive selection is unchanged.  Once selected, an archive
+member participates in the same hard placement constraints and automatic bank
+placement as a command-line object.  The map preserves the
+`archive.l26(member.o26)` origin on each placed layout and symbol, reports the
+member's logical bank/region, and lists every cross-bank bridge it caused.
+Stella `.sym` and `.lst` sidecars use the final mirrored logical addresses, not
+physical file offsets.
+
 Vector order is the normal 6502 order:
 - `$FFFA/$FFFB` ... NMI
 - `$FFFC/$FFFD` ... RESET

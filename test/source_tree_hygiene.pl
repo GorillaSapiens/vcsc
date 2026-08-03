@@ -42,12 +42,31 @@ index($bankswitching,'[x] 2. Extend the cfg parser and linker image model for mu
    or die "bankswitching plan no longer records the completed multi-bank image foundation\n";
 index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.')>=0
    or die "bankswitching plan no longer records completed per-bank reset bridges\n";
-index($bankswitching,'[ ] 10. Make archive selection, listings, map output, simulator execution,')>=0 &&
+index($bankswitching,'[x] 10. Make archive selection, listings, map output, simulator execution,')>=0 &&
 index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
 index($bankswitching,'every possible ordered source-bank to destination-bank transition')>=0 &&
-$bankswitching =~ /displays a distinctive PASS or\s+FAIL sprite for that transition/ &&
-index($bankswitching,'proving read-window/write-window direction')>=0
-   or die "bankswitching plan lost authoritative Stella bank/Superchip diagnostics\n";
+$bankswitching =~ /displays a distinctive PASS or FAIL sprite\s+for (?:each|that) transition/ &&
+$bankswitching =~ /proving read-window\/write-window\s+direction/
+   or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
+-f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
+-f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
+-f File::Spec->catfile($test,'stella_snapshot_keys.py') &&
+-f File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
+-f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26')
+   or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
+my $top_make=slurp(File::Spec->catfile($repo,'Makefile'));
+index($top_make,'stella-bank-test: tools')>=0 &&
+index($top_make,'--stella')>=0 &&
+index($top_make,'install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
+index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
+index($top_make,'--stop-pc=0x$$sim_done')>=0
+   or die "top-level installed simulator/Stella bank diagnostics are incomplete\n";
+my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
+index($sim_readme,'--start-bank=N')>=0 &&
+index($sim_readme,'mapper=F8')>=0 &&
+index($sim_readme,'Stella remains the independent authority')>=0
+   or die "simulator documentation lost banked cfg/file-index semantics\n";
 index($bankswitching,'[ ] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan lost automatic Superchip allocation roadmap item\n";
 index($bankswitching,'mem superchip {')>=0 &&

@@ -38,11 +38,26 @@ struct memory_region_t {
    char type[8];
    int define_yes;
    char name[MAX_NAME];
+   char bank_name[MAX_NAME];
+};
+
+struct cartridge_bank_t {
+   uint16_t start;
+   uint16_t size;
+   uint16_t hotspot;
+   int startup;
+   size_t file_index;
+   char name[MAX_NAME];
 };
 
 struct simulator_config_t {
-   memory_region_t mem[16];
+   memory_region_t mem[64];
    size_t mem_count;
+   cartridge_bank_t banks[8];
+   size_t bank_count;
+   char mapper[16];
+   int cartridge_banked;
+   size_t startup_bank;
 };
 
 struct parse_result_t {
@@ -52,14 +67,20 @@ struct parse_result_t {
 };
 
 struct simulator_options_t {
-   const char *hex_path;
+   const char *image_path;
    const char *cfg_path;
    uint16_t trace;
    int trace_set;
+   size_t start_bank;
+   int start_bank_set;
+   uint16_t stop_pc;
+   int stop_pc_set;
+   int dump_on_stop;
 };
 
 static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
+static size_t g_selected_bank = 0;
 
 void trace_regs(void);
 void trace_disasm(uint16_t pc);
@@ -67,7 +88,7 @@ void trace_disasm(uint16_t pc);
 static void usage(FILE *fp) {
    fprintf(fp,
       "Usage:\n"
-      "  vcsc-sim [options] file.hex\n"
+      "  vcsc-sim [options] file.hex|file.bin\n"
       "\n"
       "Options:\n"
       "  -t MASK              Enable trace bitmask MASK\n"
@@ -75,6 +96,9 @@ static void usage(FILE *fp) {
       "  -T FILE              Use FILE as simulator linker-style config\n"
       "  --config=FILE        Same as -T FILE\n"
       "  --script=FILE        Same as -T FILE\n"
+      "  --start-bank=N       Begin in physical/file bank N (banked cfg only)\n"
+      "  --stop-pc=ADDR       Exit successfully before executing ADDR\n"
+      "  --dump-on-stop       Dump memory as Intel HEX when --stop-pc fires\n"
       "  -h, --help           Show this help text\n"
       "  -V, --version        Show version information\n"
       "\n"
@@ -165,12 +189,51 @@ static void parse_memory_property(memory_region_t *mem_region, const char *key, 
    else if (str_ieq(key, "define")) {
       mem_region->define_yes = str_ieq(trim((char *)value), "yes");
    }
+   else if (str_ieq(key, "bank")) {
+      snprintf(mem_region->bank_name, sizeof(mem_region->bank_name), "%s", trim((char *)value));
+   }
+}
+
+static void parse_bank_property(cartridge_bank_t *bank, const char *key, const char *value) {
+   parse_result_t n;
+   if (str_ieq(key, "start")) {
+      n = parse_number(value);
+      if (!n.ok || n.value > 0xFFFFu) {
+         fprintf(stderr, "vcsc-sim: bad bank start '%s'\n", value);
+         exit(1);
+      }
+      bank->start = (uint16_t)n.value;
+   }
+   else if (str_ieq(key, "size")) {
+      n = parse_number(value);
+      if (!n.ok || n.value == 0 || n.value > 0xFFFFu) {
+         fprintf(stderr, "vcsc-sim: bad bank size '%s'\n", value);
+         exit(1);
+      }
+      bank->size = (uint16_t)n.value;
+   }
+   else if (str_ieq(key, "hotspot")) {
+      n = parse_number(value);
+      if (!n.ok || n.value > 0xFFFFu) {
+         fprintf(stderr, "vcsc-sim: bad bank hotspot '%s'\n", value);
+         exit(1);
+      }
+      bank->hotspot = (uint16_t)n.value;
+   }
+   else if (str_ieq(key, "startup")) {
+      bank->startup = str_ieq(trim((char *)value), "yes");
+   }
+}
+
+static void parse_cartridge_property(simulator_config_t *cfg, const char *key, const char *value) {
+   if (str_ieq(key, "mapper"))
+      snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", trim((char *)value));
 }
 
 static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
    FILE *fp = fopen(path, "r");
    char line[1024];
-   enum { NONE, MEMORY, SKIP_BLOCK } block = NONE;
+   enum { NONE, CARTRIDGE, BANKS, MEMORY, SKIP_BLOCK } block = NONE;
 
    if (!fp) {
       fprintf(stderr, "vcsc-sim: cannot open '%s': %s\n", path, strerror(errno));
@@ -181,7 +244,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
 
    while (fgets(line, sizeof(line), fp)) {
       char *s = line;
-      char *brace;
+      char *colon;
       char *comment = strchr(s, '#');
       if (comment)
          *comment = '\0';
@@ -189,11 +252,19 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       if (*s == '\0')
          continue;
 
+      if (str_ieq(s, "CARTRIDGE {") || str_ieq(s, "CARTRIDGE{")) {
+         block = CARTRIDGE;
+         continue;
+      }
+      if (str_ieq(s, "BANKS {") || str_ieq(s, "BANKS{")) {
+         block = BANKS;
+         continue;
+      }
       if (str_ieq(s, "MEMORY {") || str_ieq(s, "MEMORY{")) {
          block = MEMORY;
          continue;
       }
-      if (ends_with(s, "{") || ends_with(s, "{")) {
+      if (ends_with(s, "{")) {
          block = SKIP_BLOCK;
          continue;
       }
@@ -201,42 +272,102 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
          block = NONE;
          continue;
       }
-      if (block != MEMORY)
+
+      if (block == CARTRIDGE) {
+         char *semi = strrchr(s, ';');
+         char *eq;
+         if (semi)
+            *semi = '\0';
+         eq = strchr(s, '=');
+         if (eq) {
+            *eq++ = '\0';
+            parse_cartridge_property(cfg, trim(s), trim(eq));
+         }
+         continue;
+      }
+      if (block != BANKS && block != MEMORY)
          continue;
 
-      brace = strchr(s, ':');
-      if (!brace)
+      colon = strchr(s, ':');
+      if (!colon)
          continue;
-      *brace++ = '\0';
+      *colon++ = '\0';
       s = trim(s);
-      brace = trim(brace);
+      colon = trim(colon);
       {
-         char *semi = strrchr(brace, ';');
+         char *semi = strrchr(colon, ';');
          char *tok;
          if (semi)
             *semi = '\0';
 
-         if (cfg->mem_count >= (sizeof(cfg->mem) / sizeof(cfg->mem[0]))) {
-            fprintf(stderr, "vcsc-sim: too many MEMORY entries\n");
-            exit(1);
-         }
-
-         memory_region_t *mem_region = &cfg->mem[cfg->mem_count++];
-         memset(mem_region, 0, sizeof(*mem_region));
-         snprintf(mem_region->name, sizeof(mem_region->name), "%s", s);
-         tok = strtok(brace, ",");
-         while (tok) {
-            char *eq = strchr(tok, '=');
-            if (eq) {
-               *eq++ = '\0';
-               parse_memory_property(mem_region, trim(tok), trim(eq));
+         if (block == BANKS) {
+            if (cfg->bank_count >= (sizeof(cfg->banks) / sizeof(cfg->banks[0]))) {
+               fprintf(stderr, "vcsc-sim: too many BANKS entries\n");
+               exit(1);
             }
-            tok = strtok(NULL, ",");
+            cartridge_bank_t *bank = &cfg->banks[cfg->bank_count++];
+            memset(bank, 0, sizeof(*bank));
+            snprintf(bank->name, sizeof(bank->name), "%s", s);
+            tok = strtok(colon, ",");
+            while (tok) {
+               char *eq = strchr(tok, '=');
+               if (eq) {
+                  *eq++ = '\0';
+                  parse_bank_property(bank, trim(tok), trim(eq));
+               }
+               tok = strtok(NULL, ",");
+            }
+         }
+         else {
+            if (cfg->mem_count >= (sizeof(cfg->mem) / sizeof(cfg->mem[0]))) {
+               fprintf(stderr, "vcsc-sim: too many MEMORY entries\n");
+               exit(1);
+            }
+            memory_region_t *mem_region = &cfg->mem[cfg->mem_count++];
+            memset(mem_region, 0, sizeof(*mem_region));
+            snprintf(mem_region->name, sizeof(mem_region->name), "%s", s);
+            tok = strtok(colon, ",");
+            while (tok) {
+               char *eq = strchr(tok, '=');
+               if (eq) {
+                  *eq++ = '\0';
+                  parse_memory_property(mem_region, trim(tok), trim(eq));
+               }
+               tok = strtok(NULL, ",");
+            }
          }
       }
    }
 
    fclose(fp);
+
+   if (cfg->bank_count != 0) {
+      size_t startup_count = 0;
+      cfg->cartridge_banked = 1;
+      if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") || str_ieq(cfg->mapper, "F4"))) {
+         fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
+         exit(1);
+      }
+      for (size_t i = 0; i < cfg->bank_count; ++i) {
+         size_t file_index = 0;
+         if (cfg->banks[i].size != 0x1000u) {
+            fprintf(stderr, "vcsc-sim: %s bank '%s' is not 4K\n", cfg->mapper, cfg->banks[i].name);
+            exit(1);
+         }
+         for (size_t j = 0; j < cfg->bank_count; ++j)
+            if (cfg->banks[j].start < cfg->banks[i].start)
+               file_index++;
+         cfg->banks[i].file_index = file_index;
+         if (cfg->banks[i].startup) {
+            cfg->startup_bank = i;
+            startup_count++;
+         }
+      }
+      if (startup_count != 1) {
+         fprintf(stderr, "vcsc-sim: banked config must name exactly one startup bank\n");
+         exit(1);
+      }
+   }
 }
 
 static int address_is_read_only(uint16_t addr) {
@@ -349,6 +480,51 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          assign_option_value(&value, "", &argi, argc, argv, "--script");
          opts->cfg_path = value;
       }
+      else if (strncmp(arg, "--start-bank=", 13) == 0) {
+         const char *value = arg + 13;
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0') {
+            fprintf(stderr, "vcsc-sim: bad start bank '%s'\n", value);
+            exit(1);
+         }
+         opts->start_bank = parsed.value;
+         opts->start_bank_set = 1;
+      }
+      else if (strcmp(arg, "--start-bank") == 0) {
+         const char *value;
+         assign_option_value(&value, "", &argi, argc, argv, "--start-bank");
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0') {
+            fprintf(stderr, "vcsc-sim: bad start bank '%s'\n", value);
+            exit(1);
+         }
+         opts->start_bank = parsed.value;
+         opts->start_bank_set = 1;
+      }
+      else if (strncmp(arg, "--stop-pc=", 10) == 0) {
+         const char *value = arg + 10;
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
+            fprintf(stderr, "vcsc-sim: bad stop PC '%s'\n", value);
+            exit(1);
+         }
+         opts->stop_pc = (uint16_t)parsed.value;
+         opts->stop_pc_set = 1;
+      }
+      else if (strcmp(arg, "--stop-pc") == 0) {
+         const char *value;
+         assign_option_value(&value, "", &argi, argc, argv, "--stop-pc");
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
+            fprintf(stderr, "vcsc-sim: bad stop PC '%s'\n", value);
+            exit(1);
+         }
+         opts->stop_pc = (uint16_t)parsed.value;
+         opts->stop_pc_set = 1;
+      }
+      else if (strcmp(arg, "--dump-on-stop") == 0) {
+         opts->dump_on_stop = 1;
+      }
       else if (arg[0] == '-') {
          fprintf(stderr, "vcsc-sim: unknown option '%s'\n", arg);
          usage(stderr);
@@ -357,8 +533,8 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
       else if (ends_with(arg, ".cfg") && opts->cfg_path == nullptr) {
          opts->cfg_path = arg;
       }
-      else if (ends_with(arg, ".hex") && opts->hex_path == nullptr) {
-         opts->hex_path = arg;
+      else if ((ends_with(arg, ".hex") || ends_with(arg, ".bin")) && opts->image_path == nullptr) {
+         opts->image_path = arg;
       }
       else {
          parse_result_t parsed = parse_number(arg);
@@ -366,8 +542,8 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
             opts->trace = (uint16_t)parsed.value;
             opts->trace_set = 1;
          }
-         else if (opts->hex_path == nullptr) {
-            opts->hex_path = arg;
+         else if (opts->image_path == nullptr) {
+            opts->image_path = arg;
          }
          else {
             fprintf(stderr, "vcsc-sim: unexpected argument '%s'\n", arg);
@@ -377,7 +553,7 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
       }
    }
 
-   if (opts->hex_path == nullptr) {
+   if (opts->image_path == nullptr) {
       usage(stderr);
       exit(1);
    }
@@ -493,18 +669,94 @@ void load_intel_hex(const char *filename) {
    }
 }
 
+static int cartridge_window_address(uint16_t addr) {
+   return g_cfg_loaded && g_cfg.cartridge_banked && ((addr & 0x1FFFu) >= 0x1000u);
+}
+
+static size_t bank_index_for_file_index(size_t file_index) {
+   for (size_t i = 0; i < g_cfg.bank_count; ++i)
+      if (g_cfg.banks[i].file_index == file_index)
+         return i;
+   fprintf(stderr, "vcsc-sim: no bank for physical/file index %zu\n", file_index);
+   exit(1);
+}
+
+static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
+   uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
+   if (!g_cfg_loaded || !g_cfg.cartridge_banked)
+      return 0;
+   for (size_t i = 0; i < g_cfg.bank_count; ++i) {
+      if ((g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
+         *bank_index = i;
+         return 1;
+      }
+   }
+   return 0;
+}
+
+static uint16_t selected_bank_address(uint16_t addr) {
+   const cartridge_bank_t *bank = &g_cfg.banks[g_selected_bank];
+   return (uint16_t)(bank->start + (addr & 0x0FFFu));
+}
+
+static uint8_t peek_mem(uint16_t addr) {
+   if (cartridge_window_address(addr))
+      return mem[selected_bank_address(addr)];
+   return mem[addr];
+}
+
+static void load_raw_binary(const char *filename) {
+   std::ifstream in(filename, std::ios::binary);
+   if (!in)
+      throw std::runtime_error("Failed to open raw binary file");
+   std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)),
+                              std::istreambuf_iterator<char>());
+   if (!g_cfg_loaded || !g_cfg.cartridge_banked)
+      throw std::runtime_error("Raw .bin input requires a banked linker config");
+   size_t expected = 0;
+   for (size_t i = 0; i < g_cfg.bank_count; ++i)
+      expected += g_cfg.banks[i].size;
+   if (bytes.size() != expected)
+      throw std::runtime_error("Raw cartridge size does not match banked config");
+   for (size_t file_index = 0; file_index < g_cfg.bank_count; ++file_index) {
+      size_t bank_index = bank_index_for_file_index(file_index);
+      const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
+      memcpy(mem + bank->start, bytes.data() + file_index * bank->size, bank->size);
+   }
+}
+
 void write_cb(uint16_t addr, uint8_t val) {
-   if (trace_ops & TRACE_OP_WRITES) {
+   size_t selected;
+   if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
+
+   if (bank_index_for_hotspot(addr, &selected)) {
+      g_selected_bank = selected;
+      return;
+   }
+   if (cartridge_window_address(addr)) {
+      fprintf(stderr, "vcsc-sim: write to read-only cartridge memory at $%04X\n", addr);
+      trace_regs();
+      trace_disasm(gpc);
+      exit(1);
    }
    store_mem(addr, val, 0);
 }
 
 uint8_t read_cb(uint16_t addr) {
+   size_t selected;
+   uint8_t value = peek_mem(addr);
    if (trace_ops & TRACE_OP_READS) {
-      printf("read $%04x -> $%02x\n", addr, mem[addr]);
+      if (cartridge_window_address(addr))
+         printf("read $%04x [file-bank=%zu %s] -> $%02x\n", addr,
+                g_cfg.banks[g_selected_bank].file_index,
+                g_cfg.banks[g_selected_bank].name, value);
+      else
+         printf("read $%04x -> $%02x\n", addr, value);
    }
-   return mem[addr];
+   if (bank_index_for_hotspot(addr, &selected))
+      g_selected_bank = selected;
+   return value;
 }
 
 void clock_cb(mos6502* unused) {
@@ -558,31 +810,31 @@ void trace_regs(void) {
 }
 
 void trace_disasm(uint16_t pc) {
-   const char *code = cpu->GetCode(mem[pc]);
-   const char *addr = cpu->GetAddr(mem[pc]);
+   const char *code = cpu->GetCode(peek_mem(pc));
+   const char *addr = cpu->GetAddr(peek_mem(pc));
 
    switch (addr[0]) {
       case 'A':
          switch(addr[2]) {
             case 'I':
                // ABI
-               printf("ASM: $%04x: %s.i ($%04x)    ; %02x %02x %02x\n", pc, code, mem[pc+1] | (mem[pc+2] << 8), mem[pc], mem[pc+1], mem[pc+2]);
+               printf("ASM: $%04x: %s.i ($%04x)    ; %02x %02x %02x\n", pc, code, peek_mem(pc+1) | (peek_mem(pc+2) << 8), peek_mem(pc), peek_mem(pc+1), peek_mem(pc+2));
                break;
             case 'S':
                // ABS
-               printf("ASM: $%04x: %s.a $%04x      ; %02x %02x %02x\n", pc, code, mem[pc+1] | (mem[pc+2] << 8), mem[pc], mem[pc+1], mem[pc+2]);
+               printf("ASM: $%04x: %s.a $%04x      ; %02x %02x %02x\n", pc, code, peek_mem(pc+1) | (peek_mem(pc+2) << 8), peek_mem(pc), peek_mem(pc+1), peek_mem(pc+2));
                break;
             case 'X':
                // ABX
-               printf("ASM: $%04x: %s.ax $%04x,X   ; %02x %02x %02x\n", pc, code, mem[pc+1] | (mem[pc+2] << 8), mem[pc], mem[pc+1], mem[pc+2]);
+               printf("ASM: $%04x: %s.ax $%04x,X   ; %02x %02x %02x\n", pc, code, peek_mem(pc+1) | (peek_mem(pc+2) << 8), peek_mem(pc), peek_mem(pc+1), peek_mem(pc+2));
                break;
             case 'Y':
                // ABY
-               printf("ASM: $%04x: %s.ay $%04x,Y   ; %02x %02x %02x\n", pc, code, mem[pc+1] | (mem[pc+2] << 8), mem[pc], mem[pc+1], mem[pc+2]);
+               printf("ASM: $%04x: %s.ay $%04x,Y   ; %02x %02x %02x\n", pc, code, peek_mem(pc+1) | (peek_mem(pc+2) << 8), peek_mem(pc), peek_mem(pc+1), peek_mem(pc+2));
                break;
             case 'C':
                // ACC
-               printf("ASM: $%04x: %s A            ; %02x\n", pc, code, mem[pc]);
+               printf("ASM: $%04x: %s A            ; %02x\n", pc, code, peek_mem(pc));
                break;
          }
          break;
@@ -590,39 +842,39 @@ void trace_disasm(uint16_t pc) {
          switch(addr[2]) {
             case 'M':
                // IMM
-               printf("ASM: $%04x: %s #$%02x       ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s #$%02x       ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
             case 'P':
                // IMP
-               printf("ASM: $%04x: %s              ; %02x\n", pc, code, mem[pc]);
+               printf("ASM: $%04x: %s              ; %02x\n", pc, code, peek_mem(pc));
                break;
             case 'X':
                // INX
-               printf("ASM: $%04x: %s.ix ($%02x,X) ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s.ix ($%02x,X) ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
             case 'Y':
                // INY
-               printf("ASM: $%04x: %s.iy ($%02x),Y ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s.iy ($%02x),Y ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
          }
          break;
       case 'R':
          // REL
-               printf("ASM: $%04x: %s $%02x        ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s $%02x        ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
          break;
       case 'Z':
          switch(addr[2]) {
             case 'R':
                // ZER
-               printf("ASM: $%04x: %s.z $%02x      ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s.z $%02x      ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
             case 'X':
                // ZEX
-               printf("ASM: $%04x: %s.zx $%02x,X   ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s.zx $%02x,X   ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
             case 'Y':
                // ZEY
-               printf("ASM: $%04x: %s.zy $%02x,Y   ; %02x %02x\n", pc, code, mem[pc+1], mem[pc], mem[pc+1]);
+               printf("ASM: $%04x: %s.zy $%02x,Y   ; %02x %02x\n", pc, code, peek_mem(pc+1), peek_mem(pc), peek_mem(pc+1));
                break;
          }
          break;
@@ -645,7 +897,28 @@ int main (int argc, char **argv) {
 
    memset(mem, 0xFF, 65536);
 
-   load_intel_hex(opts.hex_path);
+   if (ends_with(opts.image_path, ".bin"))
+      load_raw_binary(opts.image_path);
+   else
+      load_intel_hex(opts.image_path);
+
+   if (g_cfg_loaded && g_cfg.cartridge_banked) {
+      if (opts.start_bank_set) {
+         if (opts.start_bank >= g_cfg.bank_count) {
+            fprintf(stderr, "vcsc-sim: start bank %zu is outside 0..%zu\n",
+                    opts.start_bank, g_cfg.bank_count - 1);
+            return 1;
+         }
+         g_selected_bank = bank_index_for_file_index(opts.start_bank);
+      }
+      else {
+         g_selected_bank = g_cfg.startup_bank;
+      }
+   }
+   else if (opts.start_bank_set) {
+      fprintf(stderr, "vcsc-sim: --start-bank requires a banked config\n");
+      return 1;
+   }
 
    cpu = new mos6502(read_cb, write_cb, clock_cb);
 
@@ -653,6 +926,11 @@ int main (int argc, char **argv) {
 
    while (1) {
       gpc = cpu->GetPC();
+      if (opts.stop_pc_set && gpc == opts.stop_pc) {
+         if (opts.dump_on_stop)
+            dump_mem_as_intel_hex();
+         return 0;
+      }
       if (trace_ops & TRACE_OP_REGS) {
          trace_regs();
       }
@@ -660,7 +938,7 @@ int main (int argc, char **argv) {
          trace_disasm(gpc);
       }
       cpu->Run(1, counter, mos6502::INST_COUNT);
-      if (cpu->GetPC() == 0xFFFF) {
+      if ((!g_cfg_loaded || !g_cfg.cartridge_banked) && cpu->GetPC() == 0xFFFF) {
 
          uint8_t op = cpu->GetA();
          uint16_t arg = ((uint16_t)cpu->GetY()) << 8 | cpu->GetX();

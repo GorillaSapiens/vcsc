@@ -600,12 +600,11 @@ bytes, deterministic placement, map output, and useful errors. Tests must prove
 that BANK0 is the final physical bank in F8, F6, and F4 output.
 
 Stella is the authoritative end-to-end execution environment for bank
-switching and Superchip behavior.  The linker tests may retain small structural
-or opcode-level models for precise diagnostics, and `vcsc-sim` should eventually
-learn the same mapper descriptions, but neither substitutes for executing the
-finished cartridge image in Stella's independent F8/F6/F4/F8SC/F6SC/F4SC
-implementation.  Installed-profile certification must therefore include Stella,
-not merely compare bytes or execute a VCSC-owned mapper model.
+switching and Superchip behavior.  `vcsc-sim` now consumes the public cfg
+`CARTRIDGE`/`BANKS` descriptions and executes raw F8/F6/F4 images, which gives
+fast deterministic RAM-signature and forced-start-bank diagnostics.  That
+VCSC-owned mapper model is not independent evidence: finished cartridge images
+must also run in Stella's F8/F6/F4 and later F8SC/F6SC/F4SC implementations.
 
 Create a visible diagnostic cartridge, parameterized or separately built for
 F8, F6, and F4, which:
@@ -799,26 +798,32 @@ when main roadmap item 29 becomes active.
        * Install/uninstall both public profiles and compile staged diagnostics
          through each profile in `make installcheck`.
 
-[ ] 10. Make archive selection, listings, map output, simulator execution,
+[x] 10. Make archive selection, listings, map output, simulator execution,
        and Stella certification fully bank-aware.
 
-       * Preserve normal lazy archive-member selection.
-       * Report each selected member's bank placement and every bridge.
-       * Teach `vcsc-sim` to execute F8/F6/F4 using the same mapper description
-         or an equivalent generated sidecar, while keeping Stella as the
-         authoritative independent execution test.
-       * Add an example F8/F6/F4 diagnostic cartridge which tests every possible
-         ordered source-bank to destination-bank transition.  Before and after
-         each transition it writes and checks known values in RIOT RAM, verifies
-         bank restoration and stack balance, and displays a distinctive PASS or
-         FAIL sprite for that transition plus a final stable all-pass frame.
-       * Run the diagnostic in Stella with every physical bank forced as the
-         startup bank, then with developer-mode random startup-bank selection.
-         Exercise selector accesses, cross-bank JMP, cross-bank JSR/return, and
-         nested calls; grade the resulting stable frames through Stella oracles.
-       * Extend the same Stella diagnostic framework to the SC profiles when
-         they land, proving read-window/write-window direction, initialization,
-         bounds, and Superchip persistence across every bank transition.
+       * Preserve normal lazy archive-member selection and report selected
+         `archive.l26(member.o26)` origins, logical bank placement, final symbol/
+         listing addresses, and every generated bridge.
+       * Teach `vcsc-sim` to parse the same F8/F6/F4 `CARTRIDGE` and `BANKS`
+         descriptions, load complete raw `.bin` chunks in physical/file order,
+         switch on configured hotspot reads/writes, fetch reset vectors through
+         the initially selected chunk, and expose physical `--start-bank`,
+         `--stop-pc`, and RAM-dump controls for deterministic diagnostics.
+       * Add the reusable `bankswitching_diagnostic_suite.c26` plus the editable
+         `examples/09_bankswitching/01_diagnostic` wrapper.  Across its 84
+         F8/F6/F4 builds it exercises every possible ordered source-bank to
+         destination-bank transition through direct JMP; every source also
+         JSRs and returns from every bank, writes known RIOT-RAM signatures,
+         verifies stack balance, and displays a distinctive PASS or FAIL sprite
+         for each transition plus a stable final green-P/red-X frame.
+       * Run the complete matrix in Stella, force every physical startup bank,
+         and run developer-mode randomized startup-bank trials.  The top-level
+         `stella-bank-test` target grades actual Stella snapshots; ordinary
+         `make test` runs the full matrix through the cfg-driven simulator.
+       * Keep extension of this same Stella diagnostic framework to the SC
+         profiles mandatory when they land, proving read-window/write-window
+         direction, initialization, bounds, and Superchip persistence across
+         every bank transition.
 
 [ ] 11. Add explicit-ref Superchip profiles.
 

@@ -7,80 +7,93 @@
 
 # vcsc-sim
 
-`vcsc-sim` loads a linked Intel HEX image into a 64 KiB 6502 memory array, resets the bundled MOS 6502 core, and runs until the simulated program exits through the simulator dispatch hook.
+`vcsc-sim` runs linked VCSC programs on the bundled MOS 6502 core.  It accepts
+ordinary Intel HEX images and, with a banked linker cfg, raw F8/F6/F4 cartridge
+images.  The simulator is useful for deterministic linker/runtime diagnostics;
+Stella remains the independent authority for Atari mapper and TIA behavior.
 
 ## Command line
 
 ```sh
 ./vcsc-sim [options] program.hex
+./vcsc-sim -T libraries/vcs/vcs_8k_f8.cfg program.bin
 ```
 
-The simulator expects an Intel HEX input file.
-It accepts the input `.hex`, optional trace mask, and optional linker-style cfg in any order.
-Supported forms are:
+Supported forms include:
 
 ```sh
 ./vcsc-sim program.hex
 ./vcsc-sim program.hex 0x0c
-./vcsc-sim --trace 0x0c program.hex
 ./vcsc-sim --trace=0x20 program.hex -T linker/cfg/sim.cfg
-./vcsc-sim linker/cfg/sim.cfg program.hex 0x20
+./vcsc-sim -T libraries/vcs/vcs_16k_f6.cfg --start-bank=0 game.bin
+./vcsc-sim -T libraries/vcs/vcs_32k_f4.cfg \
+  --start-bank=7 --stop-pc=0xF234 --dump-on-stop game.bin
 ```
 
-The trace argument is parsed with `strtoul(..., 0)`, so decimal, hex, and octal forms all work.
-For example, `0x0c` enables register and disassembly tracing, while `0x20` enables dispatch logging.
+Options added for banked diagnostics are:
+
+- `--start-bank=N` starts with physical/file chunk `N` selected.  This is not a
+  VCSC logical `BANKn` name.  For the public profiles, physical index zero is
+  the first 4K chunk in the file and VCSC BANK0 is the final chunk.
+- `--stop-pc=ADDR` exits successfully before executing the instruction at
+  `ADDR`.
+- `--dump-on-stop` emits the complete logical 64K memory array as Intel HEX when
+  `--stop-pc` fires.  Tests use this to inspect RIOT RAM signatures.
+
+The trace argument is parsed with `strtoul(..., 0)`, so decimal, hex, and octal
+forms all work.
 
 ## Trace flags
 
-Tracing can be enabled either from the command line or at runtime through the dispatch hook.
-The trace bit assignments in `simulator/main.cpp` are:
+- `0x0001` — memory reads
+- `0x0002` — memory writes
+- `0x0004` — register dump before each instruction
+- `0x0008` — disassembly before each instruction
+- `0x0010` — cycle-counter callback
+- `0x0020` — simulator-dispatch logging
 
-- `0x0001` ... memory reads
-- `0x0002` ... memory writes
-- `0x0004` ... register dump before each instruction
-- `0x0008` ... disassembly before each instruction
-- `0x0010` ... cycle counter callback
-- `0x0020` ... dispatch logging
-
-Examples:
-
-```sh
-./vcsc-sim program.hex 0x0c
-./vcsc-sim --trace=0x2f program.hex
-./vcsc-sim --trace 0x20 program.hex -T linker/cfg/sim.cfg
-```
-
-With tracing enabled, the simulator prints lines like:
+Banked cartridge trace lines include the selected physical/file chunk and its
+VCSC logical bank name:
 
 ```text
-read $1234 -> $56
-write $78 -> $1234
-A:$01 X:$02 Y:$03 P:$24(nv-BdIzc) SP:$ff PC:$8000
-ASM: $8000: lda #$01       ; a9 01
-cycle 42
+read $F123 [file-bank=0 BANK3] -> $A9
 ```
 
-Notes:
+## Cfg-based memory and mapper model
 
-- register tracing happens before each instruction
-- disassembly tracing happens before each instruction
-- cycle tracing prints the current instruction counter value passed to the clock callback
-- dispatch logging is printed only when the dispatch trace bit (`0x20`) is enabled
+With `-T`, `--config`, or `--script`, the simulator parses the same
+linker-style `MEMORY`, `CARTRIDGE`, and `BANKS` descriptions used by the public
+profiles.
 
+For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
+banked image, the simulator additionally:
 
-## Optional cfg-based ROM protection
+- accepts `mapper=F8`, `F6`, or `F4`;
+- loads each complete 4K `.bin` chunk into the logical range named by its BANKS
+  entry;
+- maps every CPU cartridge-window fetch through the currently selected physical
+  chunk while preserving the low twelve address bits;
+- changes the selected chunk on reads or writes to the configured hotspots;
+- fetches reset vectors through the selected bank, including F4's
+  `$1FFA/$1FFB` vector/hotspot overlap;
+- disables the `$FFFF` host dispatch escape hatch, because `$FFFF` is real
+  cartridge/vector space in these profiles.
 
-When a linker-style cfg is supplied with `-T`, `--config`, `--script`, or as a positional `.cfg` file, `vcsc-sim` reads its `MEMORY` block and treats every `type = ro` region as read-only for guest writes. A guest write into one of those regions stops the simulator with a diagnostic such as:
+A raw `.bin` therefore requires a banked cfg.  An Intel HEX image can still be
+used when logical bank ranges are already represented explicitly.
 
-```text
-vcsc-sim: write to read-only memory at $2FFF
-```
+`--start-bank` defaults to the cfg entry marked `startup=yes`.  Tests explicitly
+run every physical start index to prove the generated reset bridges.
 
-This protection applies only to guest-side writes through the emulated CPU. The simulator allows its own image loader and internal `$FFFF` dispatch shim to touch memory as needed.
+The simulator deliberately does not model TIA video, audio, or analogue
+behavior.  The public bank-transition diagnostic is also run under Stella from
+every forced startup bank and with randomized developer startup-bank selection.
 
 ## Dispatch hook
 
-The simulator reserves `JSR $FFFF` as a host-call escape hatch.
+For flat, unbanked Intel HEX programs, the simulator reserves `JSR $FFFF` as
+an escape hatch to host services.  The hook is disabled for banked cartridge
+images because `$FFFF` is real cartridge/vector space.
 When the CPU reaches program counter `$FFFF`, `vcsc-sim` does **not** execute whatever byte happens to live there. Instead it:
 
 1. reads the dispatch opcode from register `A`

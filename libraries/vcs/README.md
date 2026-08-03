@@ -18,6 +18,7 @@ Files:
 - `vcs_8k_f8.cfg` ... installed two-bank F8 profile; BANK1 first, BANK0 last, exact 8K output
 - `vcs_16k_f6.cfg` ... installed four-bank F6 profile; BANK3 through BANK0 in file order, exact 16K output
 - `vcs_32k_f4.cfg` ... installed eight-bank F4 profile; BANK7 through BANK0 in file order, exact 32K output and deterministic vector/hotspot overlap handling
+- `bankswitching_diagnostic_suite.c26` ... parameterized F8/F6/F4 all-transition diagnostic used by `vcsc-sim` and authoritative Stella certification
 - `color_ntsc.c26` ... readable aliases defined through the compile-time `__builtin_ntsc_rgb(r, g, b)` NTSC palette matcher
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
@@ -48,6 +49,22 @@ Files:
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix for 181-line all-five gameplay
 - `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
+- `../../examples/09_bankswitching/` ... parameterized F8/F6/F4 transition diagnostic with visible PASS/FAIL frames
+
+## Bank-switching diagnostic suite
+
+`bankswitching_diagnostic_suite.c26` is compiled with `MAPPER_BANKS`,
+`SOURCE_BANK`, and `JUMP_DEST`.  One source build calls every bank from the
+selected source bank, verifies RIOT-RAM signatures and hardware-stack balance,
+then performs one direct cross-bank jump.  It renders a green **P** final frame
+on success or a dark-red **X** final frame on failure.
+
+The editable wrapper and Makefile live under
+`examples/09_bankswitching/01_diagnostic/`.  The normal regression suite runs
+all 84 F8/F6/F4 source/destination combinations through the cfg-driven
+bank-aware simulator.  `make stella-bank-test STELLA=/path/to/stella` rebuilds
+and renders the same matrix in Stella, forces every physical startup bank, and
+also exercises developer-mode randomized startup banks.
 
 ## NTSC color matching
 

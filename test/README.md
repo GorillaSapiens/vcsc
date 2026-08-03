@@ -411,6 +411,28 @@ that reversing config order reverses the winner, confirms that exact `opXX`
 spellings still reach both bytes, and rejects attempts to assign a byte to an
 incompatible addressing mode.
 
+`linker_banked_archive_reporting.pl` proves that lazy `.l26` selection remains
+bank-aware.  It selects only the imported BANK1 member, leaves an unused member
+out of the image and reports, resolves the selected member at its logical
+`$Dxxx` address in map/symbol/list outputs, and reports the generated BANK0 to
+BANK1 call bridge with the archive-member origin intact.
+
+`vcs_bankswitching_diagnostic.pl` builds all 84 ordered F8/F6/F4 source/JMP
+pairs from `libraries/vcs/bankswitching_diagnostic_suite.c26`.  The normal
+`make test` path executes every image in cfg-driven `vcsc-sim`, checks RIOT-RAM
+signatures and stack balance, and resets a representative image from every
+physical/file bank.  The optional authoritative mode is:
+
+```sh
+make stella-bank-test STELLA=/path/to/stella
+```
+
+It renders the full matrix in Stella, grades the stable green **P** frame versus
+the dark-red **X** failure frame, forces every physical startup bank, and also
+runs one randomized developer-mode startup trial per physical bank.  The
+headless runner requires Xvfb plus Python modules `Xlib` and `PIL`; failed runs
+leave `.stella-bank-test/` intact for inspection.
+
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
 duplicate deletion-ledger entries, any deleted path that reappears, displaced
@@ -427,10 +449,11 @@ trampoline table with weighted call-stack accounting, `main`-in-BANK0
 constrained automatic placement, `$x100` Superchip ROM boundary, and the
 required automatic Superchip-variable allocation roadmap item.
 
-The hygiene test also locks the bankswitching roadmap requirement that final
-bank-switching and Superchip execution be certified in Stella using forced and
-random startup banks, known RAM signatures, and visible per-transition
-PASS/FAIL sprites.  A VCSC-owned mapper model is not sole end-to-end evidence.
+The hygiene test also locks the completed F8/F6/F4 simulator and Stella
+certification, including the public diagnostic suite, forced and randomized
+startup-bank modes, known RAM signatures, and visible PASS/FAIL sprites.  It
+keeps the future requirement that the same Stella framework certify Superchip
+read/write aliases and persistence when the SC profiles land.
 
 `runtime_workspace_split.pl` verifies that the runtime include imports no
 storage unconditionally, that only the five eight-byte-baseline workspace

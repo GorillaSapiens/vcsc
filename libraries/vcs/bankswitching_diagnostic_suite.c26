@@ -1,0 +1,1502 @@
+// F8/F6/F4 bank-transition diagnostic suite.
+//
+// Build this source once per SOURCE_BANK for JSR/RTS coverage from that bank,
+// and once per SOURCE_BANK/JUMP_DEST pair for direct one-way JMP coverage.
+// Each completed transition writes and verifies RIOT-RAM signatures and stack
+// state, shows a transition-colored PASS/FAIL glyph for one frame, and ends on
+// a stable all-pass or fail frame suitable for Stella snapshot testing.
+
+include "vcs.c26"
+
+#ifndef MAPPER_BANKS
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
+#ifndef SOURCE_BANK
+SOURCE_BANK_must_select_a_bank
+#endif
+#ifndef JUMP_DEST
+JUMP_DEST_must_select_a_bank
+#endif
+
+mem bank0 { $start:0xF000 $size:0x0F00 $ro };
+#if MAPPER_BANKS > 1
+mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+#endif
+#if MAPPER_BANKS > 2
+mem bank2 { $start:0xB000 $size:0x0F00 $ro };
+mem bank3 { $start:0x9000 $size:0x0F00 $ro };
+#endif
+#if MAPPER_BANKS > 4
+mem bank4 { $start:0x7000 $size:0x0F00 $ro };
+mem bank5 { $start:0x5000 $size:0x0F00 $ro };
+mem bank6 { $start:0x3000 $size:0x0F00 $ro };
+mem bank7 { $start:0x1000 $size:0x0F00 $ro };
+#endif
+
+uint8_t failure;
+uint8_t signature;
+uint8_t source_seen;
+uint8_t transition_count;
+uint8_t status_color;
+uint8_t stack_before;
+uint8_t stack_after;
+
+bank0 const uint8_t pass_glyph[8] := {
+   0b.XXXXX..,
+   0b.XX..XX.,
+   0b.XX..XX.,
+   0b.XXXXX..,
+   0b.XX.....,
+   0b.XX.....,
+   0b.XX.....,
+   0b........
+};
+
+bank0 const uint8_t fail_glyph[8] := {
+   0b.XX..XX.,
+   0b..XXXX..,
+   0b...XX...,
+   0b...XX...,
+   0b...XX...,
+   0b..XXXX..,
+   0b.XX..XX.,
+   0b........
+};
+
+bank0 void draw_status_frame(void) {
+   asm lda failure;
+   asm beq @pass_colors;
+   asm lda #$46;
+   asm sta COLUP0;
+   asm lda #$20;
+   asm jmp @colors_done;
+   asm @pass_colors:;
+   asm lda #$c8;
+   asm sta COLUP0;
+   asm lda status_color;
+   asm @colors_done:;
+   asm sta COLUBK;
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta REFP0;
+   asm sta VDELP0;
+   asm sta RESMP0;
+   asm sta HMP0;
+   asm sta CTRLPF;
+   asm sta HMCLR;
+   asm lda #5;
+   asm sta NUSIZ0;
+
+   asm lda #2;
+   asm sta VSYNC;
+   asm ldx #3;
+   asm @vsync_loop:;
+   asm sta WSYNC;
+   asm dex;
+   asm bne @vsync_loop;
+
+   asm lda #0;
+   asm sta VSYNC;
+   asm lda #2;
+   asm sta VBLANK;
+   asm ldx #37;
+   asm @vblank_loop:;
+   asm sta WSYNC;
+   asm dex;
+   asm bne @vblank_loop;
+
+   asm lda #0;
+   asm sta VBLANK;
+   asm ldx #76;
+   asm @visible_top:;
+   asm sta WSYNC;
+   asm dex;
+   asm bne @visible_top;
+
+   asm sta WSYNC;
+   asm ldx #20;
+   asm @position_delay:;
+   asm dex;
+   asm bne @position_delay;
+   asm sta RESP0;
+
+   asm ldx #7;
+   asm @glyph_loop:;
+   asm lda failure;
+   asm beq @pass_row;
+   asm lda fail_glyph,x;
+   asm jmp @row_ready;
+   asm @pass_row:;
+   asm lda pass_glyph,x;
+   asm @row_ready:;
+   asm sta GRP0;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm dex;
+   asm bpl @glyph_loop;
+
+   asm lda #0;
+   asm sta GRP0;
+   asm ldx #99;
+   asm @visible_bottom:;
+   asm sta WSYNC;
+   asm dex;
+   asm bne @visible_bottom;
+
+   asm lda #2;
+   asm sta VBLANK;
+   asm lda #0;
+   asm ldx #30;
+   asm @overscan_loop:;
+   asm sta WSYNC;
+   asm dex;
+   asm bne @overscan_loop;
+}
+
+bank0 void finish_jump(void) {
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x80 + JUMP_DEST || stack_before != stack_after) {
+      failure := 0xE0 + JUMP_DEST;
+   }
+   if (source_seen != SOURCE_BANK || transition_count != MAPPER_BANKS + 1) {
+      failure := 0xFE;
+   }
+   status_color := 0xC4;
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   while (1) {
+      draw_status_frame();
+   }
+#endif
+}
+
+#ifdef SIMULATOR_TEST
+bank0 void simulator_done(void) {
+   while (1) {
+   }
+}
+#endif
+
+bank1 void nested_leaf1(void) {
+   signature := 0xA1;
+}
+
+bank0 void call_target0(void) {
+   // Every source build reaches this target.  The additional BANK0 -> BANK1
+   // call makes source -> target0 -> nested_leaf1 a genuine nested path when
+   // the source itself is in another bank, and still exercises a nested
+   // cross-bank return when SOURCE_BANK is BANK0.
+   nested_leaf1();
+   signature := 0x40;
+   transition_count := transition_count + 1;
+}
+
+bank0 void jump_target0(void) {
+   signature := 0x80;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#if MAPPER_BANKS > 1
+bank1 void call_target1(void) {
+   signature := 0x41;
+   transition_count := transition_count + 1;
+}
+
+bank1 void jump_target1(void) {
+   signature := 0x81;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 2
+bank2 void call_target2(void) {
+   signature := 0x42;
+   transition_count := transition_count + 1;
+}
+
+bank2 void jump_target2(void) {
+   signature := 0x82;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 2
+bank3 void call_target3(void) {
+   signature := 0x43;
+   transition_count := transition_count + 1;
+}
+
+bank3 void jump_target3(void) {
+   signature := 0x83;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 4
+bank4 void call_target4(void) {
+   signature := 0x44;
+   transition_count := transition_count + 1;
+}
+
+bank4 void jump_target4(void) {
+   signature := 0x84;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 4
+bank5 void call_target5(void) {
+   signature := 0x45;
+   transition_count := transition_count + 1;
+}
+
+bank5 void jump_target5(void) {
+   signature := 0x85;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 4
+bank6 void call_target6(void) {
+   signature := 0x46;
+   transition_count := transition_count + 1;
+}
+
+bank6 void jump_target6(void) {
+   signature := 0x86;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if MAPPER_BANKS > 4
+bank7 void call_target7(void) {
+   signature := 0x47;
+   transition_count := transition_count + 1;
+}
+
+bank7 void jump_target7(void) {
+   signature := 0x87;
+   transition_count := transition_count + 1;
+   asm jmp finish_jump;
+}
+
+#endif
+#if SOURCE_BANK == 0
+bank0 void run_source(void) {
+   source_seen := 0;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x01;
+   }
+   status_color := 0x82;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x02;
+   }
+   status_color := 0x86;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x03;
+   }
+   status_color := 0x8A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x04;
+   }
+   status_color := 0x8E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x05;
+   }
+   status_color := 0x92;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x06;
+   }
+   status_color := 0x96;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x07;
+   }
+   status_color := 0x9A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x08;
+   }
+   status_color := 0x9E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank0 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 1
+bank1 void run_source(void) {
+   source_seen := 1;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x11;
+   }
+   status_color := 0x84;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x12;
+   }
+   status_color := 0x88;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x13;
+   }
+   status_color := 0x8C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x14;
+   }
+   status_color := 0x90;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x15;
+   }
+   status_color := 0x94;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x16;
+   }
+   status_color := 0x98;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x17;
+   }
+   status_color := 0x9C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x18;
+   }
+   status_color := 0xA0;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank1 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 2
+bank2 void run_source(void) {
+   source_seen := 2;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x21;
+   }
+   status_color := 0x86;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x22;
+   }
+   status_color := 0x8A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x23;
+   }
+   status_color := 0x8E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x24;
+   }
+   status_color := 0x92;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x25;
+   }
+   status_color := 0x96;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x26;
+   }
+   status_color := 0x9A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x27;
+   }
+   status_color := 0x9E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x28;
+   }
+   status_color := 0xA2;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank2 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 3
+bank3 void run_source(void) {
+   source_seen := 3;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x31;
+   }
+   status_color := 0x88;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x32;
+   }
+   status_color := 0x8C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x33;
+   }
+   status_color := 0x90;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x34;
+   }
+   status_color := 0x94;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x35;
+   }
+   status_color := 0x98;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x36;
+   }
+   status_color := 0x9C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x37;
+   }
+   status_color := 0xA0;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x38;
+   }
+   status_color := 0xA4;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank3 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 4
+bank4 void run_source(void) {
+   source_seen := 4;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x41;
+   }
+   status_color := 0x8A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x42;
+   }
+   status_color := 0x8E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x43;
+   }
+   status_color := 0x92;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x44;
+   }
+   status_color := 0x96;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x45;
+   }
+   status_color := 0x9A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x46;
+   }
+   status_color := 0x9E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x47;
+   }
+   status_color := 0xA2;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x48;
+   }
+   status_color := 0xA6;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank4 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 5
+bank5 void run_source(void) {
+   source_seen := 5;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x51;
+   }
+   status_color := 0x8C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x52;
+   }
+   status_color := 0x90;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x53;
+   }
+   status_color := 0x94;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x54;
+   }
+   status_color := 0x98;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x55;
+   }
+   status_color := 0x9C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x56;
+   }
+   status_color := 0xA0;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x57;
+   }
+   status_color := 0xA4;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x58;
+   }
+   status_color := 0xA8;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank5 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 6
+bank6 void run_source(void) {
+   source_seen := 6;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x61;
+   }
+   status_color := 0x8E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x62;
+   }
+   status_color := 0x92;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x63;
+   }
+   status_color := 0x96;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x64;
+   }
+   status_color := 0x9A;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x65;
+   }
+   status_color := 0x9E;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x66;
+   }
+   status_color := 0xA2;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x67;
+   }
+   status_color := 0xA6;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x68;
+   }
+   status_color := 0xAA;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank6 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#elif SOURCE_BANK == 7
+bank7 void run_source(void) {
+   source_seen := 7;
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target0();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x40 || stack_before != stack_after) {
+      failure := 0x71;
+   }
+   status_color := 0x90;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target1();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x41 || stack_before != stack_after) {
+      failure := 0x72;
+   }
+   status_color := 0x94;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#if MAPPER_BANKS > 2
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target2();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x42 || stack_before != stack_after) {
+      failure := 0x73;
+   }
+   status_color := 0x98;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target3();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x43 || stack_before != stack_after) {
+      failure := 0x74;
+   }
+   status_color := 0x9C;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+#if MAPPER_BANKS > 4
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target4();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x44 || stack_before != stack_after) {
+      failure := 0x75;
+   }
+   status_color := 0xA0;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target5();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x45 || stack_before != stack_after) {
+      failure := 0x76;
+   }
+   status_color := 0xA4;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target6();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x46 || stack_before != stack_after) {
+      failure := 0x77;
+   }
+   status_color := 0xA8;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+   signature := 0;
+   asm tsx;
+   asm stx stack_before;
+   call_target7();
+   asm tsx;
+   asm stx stack_after;
+   if (signature != 0x47 || stack_before != stack_after) {
+      failure := 0x78;
+   }
+   status_color := 0xAC;
+#ifndef SIMULATOR_TEST
+   draw_status_frame();
+#endif
+#endif
+}
+
+bank7 void jump_entry(void) {
+#if JUMP_DEST == 0
+   asm jmp jump_target0;
+#elif JUMP_DEST == 1
+#if MAPPER_BANKS > 1
+   asm jmp jump_target1;
+#endif
+#elif JUMP_DEST == 2
+#if MAPPER_BANKS > 2
+   asm jmp jump_target2;
+#endif
+#elif JUMP_DEST == 3
+#if MAPPER_BANKS > 2
+   asm jmp jump_target3;
+#endif
+#elif JUMP_DEST == 4
+#if MAPPER_BANKS > 4
+   asm jmp jump_target4;
+#endif
+#elif JUMP_DEST == 5
+#if MAPPER_BANKS > 4
+   asm jmp jump_target5;
+#endif
+#elif JUMP_DEST == 6
+#if MAPPER_BANKS > 4
+   asm jmp jump_target6;
+#endif
+#elif JUMP_DEST == 7
+#if MAPPER_BANKS > 4
+   asm jmp jump_target7;
+#endif
+#else
+   JUMP_DEST_is_outside_MAPPER_BANKS
+#endif
+}
+#else
+SOURCE_BANK_is_outside_MAPPER_BANKS
+#endif
+
+void main(void) {
+   failure := 0;
+   signature := 0;
+   source_seen := 0xff;
+   transition_count := 0;
+   status_color := 0x84;
+
+   run_source();
+
+   signature := 0;
+   status_color := 0xB4;
+   asm tsx;
+   asm stx stack_before;
+   asm jmp jump_entry;
+}

@@ -7994,3 +7994,50 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Update source-tree hygiene and test documentation so this roadmap contract
   cannot silently regress.  Detailed roadmap item 10 remains the next unfinished
   bankswitching action.
+
+
+2026-08-02 17:12:04 PDT, complete bank-aware simulator and Stella mapper certification
+---------------------------------------------------------------------------------------
+* Continue from `vcsc.20260802_142216.tar.gz` and complete detailed
+  bankswitching roadmap item 10.  Archive selection remains lazy and now has a
+  focused regression which proves that a selected `archive.l26(member.o26)`
+  keeps its archive-member origin while its final logical-bank placement,
+  symbol/listing addresses, and generated cross-bank bridge are reported; an
+  unused member remains absent.
+* Teach `vcsc-sim` to consume the public F8/F6/F4 `CARTRIDGE`, `BANKS`, and
+  `MEMORY` descriptions, load exact raw cartridge chunks in physical/file
+  order, map all cartridge-window accesses through the currently selected
+  chunk, and switch on configured hotspot reads and writes.  Add physical
+  `--start-bank`, deterministic `--stop-pc`, and `--dump-on-stop` controls;
+  reset-vector reads run through the selected bank, including F4's
+  `$1FFA/$1FFB` vector/hotspot overlap.  Keep the `$FFFF` host dispatch only for
+  flat unbanked images.
+* Add installed `libraries/vcs/bankswitching_diagnostic_suite.c26` and the
+  editable `examples/09_bankswitching/01_diagnostic` wrapper.  The parameterized
+  suite builds all 84 ordered F8/F6/F4 source-bank/direct-JMP-destination pairs.
+  Each source calls and returns from every bank, includes a nested cross-bank
+  path, records known RIOT-RAM signatures, checks hardware-stack balance, and
+  renders transition-colored status frames followed by a stable green-P success
+  or dark-red-X failure frame.
+* Add `test/vcs_bankswitching_diagnostic.pl`.  Ordinary `make test` runs all 84
+  images through the cfg-driven simulator and also forces a representative ROM
+  to reset from every physical/file bank.  Add `make stella-bank-test
+  STELLA=/path/to/stella` as the authoritative independent mapper test.  Its
+  headless Xvfb runner grades 112 actual Stella snapshots: the complete 84-ROM
+  transition matrix, all 14 forced physical startup-bank cases, and 14
+  developer-mode randomized startup-bank trials.  Deterministic TIA setup keeps
+  the PASS/FAIL glyph stable across randomized power-on state.
+* Install and uninstall the shared diagnostic source, make staged
+  `installcheck` compile it with the installed F8 profile, and execute the
+  resulting banked image in the installed simulator from both physical startup
+  banks.  Make `installcheck` fail fast so simulator or staging failures cannot
+  scroll past unnoticed.
+* Update the root, VCS-library, examples, linker, simulator, and test
+  documentation plus source-tree hygiene.  Keep extension of this same visible
+  Stella diagnostic to Superchip alias direction, initialization, bounds, and
+  persistence mandatory when the SC profiles arrive.
+* Verification: all 344 compile-only tests pass; all 212 end-to-end/generic
+  tests pass; staged `make installcheck` passes; the focused archive, examples,
+  simulator-matrix, branding, and source-hygiene tests pass; and all 112 Stella
+  snapshots grade as PASS.  The next detailed bankswitching action is roadmap
+  item 11, explicit-ref F8SC/F6SC/F4SC profiles.

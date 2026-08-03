@@ -66,6 +66,9 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
+   } elsif ($file eq 'bankswitching_diagnostic.c26') {
+      push @extra,'-DMAPPER_BANKS=2','-DSOURCE_BANK=0','-DJUMP_DEST=0',
+                  '-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
    }
    -f $source or die "missing editable example $source\n";
    my $source_dir=File::Spec->catdir($examples_root,$dir);
@@ -80,8 +83,11 @@ for my $entry (@examples) {
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";
    $err eq '' or die "$dir wrote stderr:\n$err";
    my $rom=read_file($bin);
-   length($rom)==4096 or die "$dir produced ".length($rom)." bytes, expected 4096\n";
-   my($nmi,$reset,$irq)=unpack('v3',substr($rom,0x0ffa,6));
+   my $expected_size = $file eq 'bankswitching_diagnostic.c26' ? 8192 : 4096;
+   length($rom)==$expected_size
+      or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
+   my $vector_offset = $expected_size - 6;
+   my($nmi,$reset,$irq)=unpack('v3',substr($rom,$vector_offset,6));
    for my $v ($nmi,$reset,$irq) {
       $v>=0xf000 && $v<=0xffff or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
    }

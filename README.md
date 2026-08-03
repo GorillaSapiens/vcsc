@@ -42,7 +42,8 @@ The repository contains:
 - a whole-program linker with VCS memory-layout support;
 - an object-library archiver;
 - a high-level build driver;
-- a matching simulator used by the regression suite;
+- a matching simulator used by the regression suite, including cfg-driven
+  F8/F6/F4 cartridge execution;
 - a small runtime library;
 - Atari 2600 bindings, reusable display and audio support, and maintained
   renderer implementations;
@@ -77,6 +78,7 @@ make unit          # compile-only tests
 make e2e           # linked/simulated and generic tests
 make sieve         # quick driver smoke build
 make installcheck  # staged installed-toolchain validation
+make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
 make docs          # Doxygen output under doxygen/
 make clean
 ```
@@ -193,6 +195,11 @@ cd test
 
 See [`test/README.md`](test/README.md) for test metadata, fixtures, filtering,
 and runner behavior.
+
+Banked mapper certification has two layers: `make test` executes every F8/F6/F4
+transition through `vcsc-sim`, while `make stella-bank-test` runs the visible
+PASS/FAIL diagnostic in Stella from every forced physical startup bank and under
+randomized developer startup-bank selection.
 
 ## Documentation
 
