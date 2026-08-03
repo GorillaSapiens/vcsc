@@ -57,6 +57,7 @@ struct simulator_config_t {
    size_t bank_count;
    char mapper[16];
    int cartridge_banked;
+   int superchip;
    size_t startup_bank;
 };
 
@@ -81,6 +82,7 @@ struct simulator_options_t {
 static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
 static size_t g_selected_bank = 0;
+static uint8_t g_superchip_ram[128];
 
 void trace_regs(void);
 void trace_disasm(uint16_t pc);
@@ -344,7 +346,11 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
    if (cfg->bank_count != 0) {
       size_t startup_count = 0;
       cfg->cartridge_banked = 1;
-      if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") || str_ieq(cfg->mapper, "F4"))) {
+      cfg->superchip = str_ieq(cfg->mapper, "F8SC") ||
+                       str_ieq(cfg->mapper, "F6SC") ||
+                       str_ieq(cfg->mapper, "F4SC");
+      if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
+            str_ieq(cfg->mapper, "F4") || cfg->superchip)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -669,6 +675,29 @@ void load_intel_hex(const char *filename) {
    }
 }
 
+static int superchip_read_offset(uint16_t addr, uint8_t *offset) {
+   uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
+   if (!g_cfg_loaded || !g_cfg.superchip || canonical < 0x1080u || canonical > 0x10FFu)
+      return 0;
+   *offset = (uint8_t)(canonical - 0x1080u);
+   return 1;
+}
+
+static int superchip_write_offset(uint16_t addr, uint8_t *offset) {
+   uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
+   if (!g_cfg_loaded || !g_cfg.superchip || canonical < 0x1000u || canonical > 0x107Fu)
+      return 0;
+   *offset = (uint8_t)(canonical - 0x1000u);
+   return 1;
+}
+
+static void mirror_superchip_byte(uint8_t offset, uint8_t value) {
+   /* The canonical BANK0 aliases make --dump-on-stop useful without changing
+      the raw cartridge mapping.  Those bytes are RAM ports, not executable ROM. */
+   mem[0xF000u + offset] = value;
+   mem[0xF080u + offset] = value;
+}
+
 static int cartridge_window_address(uint16_t addr) {
    return g_cfg_loaded && g_cfg.cartridge_banked && ((addr & 0x1FFFu) >= 0x1000u);
 }
@@ -700,6 +729,9 @@ static uint16_t selected_bank_address(uint16_t addr) {
 }
 
 static uint8_t peek_mem(uint16_t addr) {
+   uint8_t offset;
+   if (superchip_read_offset(addr, &offset))
+      return g_superchip_ram[offset];
    if (cartridge_window_address(addr))
       return mem[selected_bank_address(addr)];
    return mem[addr];
@@ -723,15 +755,26 @@ static void load_raw_binary(const char *filename) {
       const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
       memcpy(mem + bank->start, bytes.data() + file_index * bank->size, bank->size);
    }
+   if (g_cfg.superchip) {
+      memset(g_superchip_ram, 0, sizeof(g_superchip_ram));
+      for (size_t i = 0; i < sizeof(g_superchip_ram); ++i)
+         mirror_superchip_byte((uint8_t)i, 0);
+   }
 }
 
 void write_cb(uint16_t addr, uint8_t val) {
    size_t selected;
+   uint8_t offset;
    if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
 
    if (bank_index_for_hotspot(addr, &selected)) {
       g_selected_bank = selected;
+      return;
+   }
+   if (superchip_write_offset(addr, &offset)) {
+      g_superchip_ram[offset] = val;
+      mirror_superchip_byte(offset, val);
       return;
    }
    if (cartridge_window_address(addr)) {

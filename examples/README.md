@@ -27,7 +27,7 @@ the shared timing, resource, opcode, and composition contracts.
 | [`06_all_five_181`](06_all_five_181/) | Official-opcode 181-line P0/P1/M0/M1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
 | [`07_player_color_181_unofficial`](07_player_color_181_unofficial/) | Stable/common-NMOS unofficial-opcode twin of group 04 | Matching ten-layout score/poison matrix |
 | [`08_all_five_181_unofficial`](08_all_five_181_unofficial/) | Stable/common-NMOS unofficial-opcode twin of group 06 | Matching ten-layout score/poison matrix |
-| [`09_bankswitching`](09_bankswitching/) | F8/F6/F4 mapper diagnostics using generated reset and cross-bank bridges | Parameterized all-transition PASS/FAIL cartridge for simulator and Stella certification |
+| [`09_bankswitching`](09_bankswitching/) | F8/F6/F4 and F8SC/F6SC/F4SC mapper diagnostics using generated reset and cross-bank bridges | Parameterized all-transition PASS/FAIL cartridge plus shared-Superchip-RAM persistence checks for simulator and Stella certification |
 
 The four 181-line groups contribute a **40-cartridge composition matrix**:
 four gameplay families x four production score layouts x two orders, plus eight

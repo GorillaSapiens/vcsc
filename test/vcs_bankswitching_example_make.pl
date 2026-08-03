@@ -43,14 +43,14 @@ my($rc,$sig,$stdout,$stderr)=run_capture(
    'ROOT='.$repo,
    'VCSC='.File::Spec->catfile($repo,'driver','vcsc'),
    'VCS_DIR='.File::Spec->catdir($repo,'libraries','vcs'),
-   'representative'
+   'all'
 );
 $rc==0 && !$sig
    or die "diagnostic example make failed rc=$rc sig=$sig\nstdout:\n$stdout\nstderr:\n$stderr";
 $stderr !~ /(?:^|\n)\/bin\/sh: .*: not found(?:\n|$)/
    or die "diagnostic example make executed malformed command substitutions:\n$stderr";
 
-for my $spec ([f8=>2],[f6=>4],[f4=>8]) {
+for my $spec ([f8=>2],[f6=>4],[f4=>8],[f8sc=>2],[f6sc=>4],[f4sc=>8]) {
    my($mapper,$banks)=@$spec;
    for my $source (0..$banks-1) {
       my $stem="${mapper}_source${source}_to0";

@@ -7,6 +7,9 @@
 // a stable all-pass or fail frame suitable for Stella snapshot testing.
 
 include "vcs.c26"
+#ifdef SUPERCHIP_TEST
+include "superchip.c26"
+#endif
 
 #ifndef MAPPER_BANKS
 MAPPER_BANKS_must_be_2_4_or_8
@@ -18,6 +21,22 @@ SOURCE_BANK_must_select_a_bank
 JUMP_DEST_must_select_a_bank
 #endif
 
+#ifdef SUPERCHIP_TEST
+mem bank0 { $start:0xF100 $size:0x0E00 $ro };
+#if MAPPER_BANKS > 1
+mem bank1 { $start:0xD100 $size:0x0E00 $ro };
+#endif
+#if MAPPER_BANKS > 2
+mem bank2 { $start:0xB100 $size:0x0E00 $ro };
+mem bank3 { $start:0x9100 $size:0x0E00 $ro };
+#endif
+#if MAPPER_BANKS > 4
+mem bank4 { $start:0x7100 $size:0x0E00 $ro };
+mem bank5 { $start:0x5100 $size:0x0E00 $ro };
+mem bank6 { $start:0x3100 $size:0x0E00 $ro };
+mem bank7 { $start:0x1100 $size:0x0E00 $ro };
+#endif
+#else
 mem bank0 { $start:0xF000 $size:0x0F00 $ro };
 #if MAPPER_BANKS > 1
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
@@ -31,6 +50,7 @@ mem bank4 { $start:0x7000 $size:0x0F00 $ro };
 mem bank5 { $start:0x5000 $size:0x0F00 $ro };
 mem bank6 { $start:0x3000 $size:0x0F00 $ro };
 mem bank7 { $start:0x1000 $size:0x0F00 $ro };
+#endif
 #endif
 
 uint8_t failure;
@@ -166,6 +186,12 @@ bank0 void finish_jump(void) {
    if (signature != 0x80 + JUMP_DEST || stack_before != stack_after) {
       failure := 0xE0 + JUMP_DEST;
    }
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5 ||
+       superchip_ram[1] != MAPPER_BANKS + 2) {
+      failure := 0xFD;
+   }
+#endif
    if (source_seen != SOURCE_BANK || transition_count != MAPPER_BANKS + 1) {
       failure := 0xFE;
    }
@@ -187,10 +213,22 @@ bank0 void simulator_done(void) {
 #endif
 
 bank1 void nested_leaf1(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD1;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0xA1;
 }
 
 bank0 void call_target0(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD0;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    // Every source build reaches this target.  The additional BANK0 -> BANK1
    // call makes source -> target0 -> nested_leaf1 a genuine nested path when
    // the source itself is in another bank, and still exercises a nested
@@ -201,6 +239,12 @@ bank0 void call_target0(void) {
 }
 
 bank0 void jump_target0(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD0;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x80;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -208,11 +252,23 @@ bank0 void jump_target0(void) {
 
 #if MAPPER_BANKS > 1
 bank1 void call_target1(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD1;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x41;
    transition_count := transition_count + 1;
 }
 
 bank1 void jump_target1(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD1;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x81;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -221,11 +277,23 @@ bank1 void jump_target1(void) {
 #endif
 #if MAPPER_BANKS > 2
 bank2 void call_target2(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD2;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x42;
    transition_count := transition_count + 1;
 }
 
 bank2 void jump_target2(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD2;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x82;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -234,11 +302,23 @@ bank2 void jump_target2(void) {
 #endif
 #if MAPPER_BANKS > 2
 bank3 void call_target3(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD3;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x43;
    transition_count := transition_count + 1;
 }
 
 bank3 void jump_target3(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD3;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x83;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -247,11 +327,23 @@ bank3 void jump_target3(void) {
 #endif
 #if MAPPER_BANKS > 4
 bank4 void call_target4(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD4;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x44;
    transition_count := transition_count + 1;
 }
 
 bank4 void jump_target4(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD4;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x84;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -260,11 +352,23 @@ bank4 void jump_target4(void) {
 #endif
 #if MAPPER_BANKS > 4
 bank5 void call_target5(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD5;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x45;
    transition_count := transition_count + 1;
 }
 
 bank5 void jump_target5(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD5;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x85;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -273,11 +377,23 @@ bank5 void jump_target5(void) {
 #endif
 #if MAPPER_BANKS > 4
 bank6 void call_target6(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD6;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x46;
    transition_count := transition_count + 1;
 }
 
 bank6 void jump_target6(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD6;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x86;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -286,11 +402,23 @@ bank6 void jump_target6(void) {
 #endif
 #if MAPPER_BANKS > 4
 bank7 void call_target7(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD7;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x47;
    transition_count := transition_count + 1;
 }
 
 bank7 void jump_target7(void) {
+#ifdef SUPERCHIP_TEST
+   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+      failure := 0xD7;
+   }
+   superchip_ram[1] := superchip_ram[1] + 1;
+#endif
    signature := 0x87;
    transition_count := transition_count + 1;
    asm jmp finish_jump;
@@ -1491,6 +1619,14 @@ void main(void) {
    source_seen := 0xff;
    transition_count := 0;
    status_color := 0x84;
+#ifdef SUPERCHIP_TEST
+   // Explicit split-address Superchip refs: writes use $F000-$F07F and reads
+   // use $F080-$F0FF.  Boundary sentinels and a transition counter prove that
+   // one physical 128-byte RAM persists through every selected ROM bank.
+   superchip_ram[0] := 0x5A;
+   superchip_ram[1] := 0;
+   superchip_ram[127] := 0xA5;
+#endif
 
    run_source();
 

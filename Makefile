@@ -89,12 +89,16 @@ install-data:
 	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
+	install -m 0644 libraries/vcs/superchip.c26 $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	install -m 0644 libraries/vcs/vcs_8k_f8.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
 	install -m 0644 libraries/vcs/vcs_16k_f6.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
 	install -m 0644 libraries/vcs/vcs_32k_f4.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.cfg
+	install -m 0644 libraries/vcs/vcs_8k_f8sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
+	install -m 0644 libraries/vcs/vcs_16k_f6sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
+	install -m 0644 libraries/vcs/vcs_32k_f4sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers
 	install -m 0644 libraries/vcs/renderers/COMPONENT_CONVERSION.md \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
@@ -181,12 +185,16 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
@@ -295,6 +303,19 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"` -eq 32768; \
 	grep -q "BANK7.*hotspot=\$$1FF4.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
 	grep -q "BANK0.*hotspot=\$$1FFB.*file=\$$00007000.*startup=yes" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
+	test -f "$$stage_vcs/superchip.c26"; \
+	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  -DMAPPER_BANKS=2 -DSOURCE_BANK=1 -DJUMP_DEST=0 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
+	  -T "$$stage_vcs/vcs_8k_f8sc.cfg" \
+	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
+	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"` -eq 8192; \
+	sc_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
+	test -n "$$sc_done"; \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8sc.cfg" --start-bank=0 \
+	  --stop-pc=0x$$sc_done "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/03_score" \
 	  "$(CURDIR)/examples/01_basic/03_score/score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \

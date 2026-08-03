@@ -900,18 +900,22 @@ static void validate_linker_config(linker_config_t *cfg)
    {
       size_t expected_count = 0;
       uint16_t first_file_hotspot = 0;
-      if (str_ieq(cfg->mapper, "F8")) {
+      int superchip_mapper = 0;
+      if (str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F8SC")) {
          expected_count = 2;
          first_file_hotspot = 0x1FF8u;
-      } else if (str_ieq(cfg->mapper, "F6")) {
+         superchip_mapper = str_ieq(cfg->mapper, "F8SC");
+      } else if (str_ieq(cfg->mapper, "F6") || str_ieq(cfg->mapper, "F6SC")) {
          expected_count = 4;
          first_file_hotspot = 0x1FF6u;
-      } else if (str_ieq(cfg->mapper, "F4")) {
+         superchip_mapper = str_ieq(cfg->mapper, "F6SC");
+      } else if (str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "F4SC")) {
          expected_count = 8;
          first_file_hotspot = 0x1FF4u;
+         superchip_mapper = str_ieq(cfg->mapper, "F4SC");
       } else {
          fprintf(stderr,
-                 "vcsc-ld: unsupported full-window mapper '%s'; expected F8, F6, or F4\n",
+                 "vcsc-ld: unsupported full-window mapper '%s'; expected F8/F6/F4 or an SC variant\n",
                  cfg->mapper);
          exit(1);
       }
@@ -954,6 +958,28 @@ static void validate_linker_config(linker_config_t *cfg)
          if ((i == 0 && !bank->startup) || (i != 0 && bank->startup)) {
             fprintf(stderr, "vcsc-ld: BANK0 must be the sole startup bank\n");
             exit(1);
+         }
+      }
+
+      if (superchip_mapper) {
+         for (i = 0; i < cfg->mem_count; ++i) {
+            const memory_region_t *region = &cfg->mem[i];
+            const cartridge_bank_t *bank;
+            uint32_t end;
+            if (!region->bank_name[0] || !str_ieq(region->type, "ro"))
+               continue;
+            bank = find_cartridge_bank(cfg, region->bank_name);
+            if (!bank)
+               continue;
+            end = (uint32_t)region->start + region->size;
+            if (region->start < (uint16_t)(bank->start + 0x0100u) &&
+                end > bank->start) {
+               fprintf(stderr,
+                       "vcsc-ld: %s read-only region '%s' overlaps the Superchip RAM-port prefix $%04X-$%04X\n",
+                       cfg->mapper, region->name, bank->start,
+                       (uint16_t)(bank->start + 0x00FFu));
+               exit(1);
+            }
          }
       }
    }

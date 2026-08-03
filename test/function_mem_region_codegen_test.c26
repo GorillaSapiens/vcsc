@@ -1,5 +1,5 @@
 // vcsc-cc1 -I .
-// expectasm: __memmeta$V1$bank1$SD100$Z0F00$Tro = 0
+// expectasm: __memmeta$V1$bank1$SD100$Z0E00$Tro = 0
 // expectasmordered: .segment "CODE.bank1"
 // expectasmordered: .proc some_function
 // expectasmordered: .pagecontain
@@ -7,7 +7,7 @@
 // expectasmordered: .segment "CODE"
 // expectasmordered: .proc main
 include "machine_6502.c26"
-mem bank1 { $start:0xD100 $size:0x0F00 $ro };
+mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 
 bank1 page void some_function(void) {
    asm nop;

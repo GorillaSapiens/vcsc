@@ -192,3 +192,10 @@ jsr $ffff
 ```
 
 This exits with status 0.
+
+Superchip mapper support
+------------------------
+With F8SC/F6SC/F4SC cfg files, `vcsc-sim` models one shared 128-byte cartridge
+RAM. Writes to the mirrored `$1000-$107F` window update it and reads from
+`$1080-$10FF` return it regardless of the selected ROM bank. `--dump-on-stop`
+mirrors the final values at the canonical BANK0 read aliases `$F080-$F0FF`.

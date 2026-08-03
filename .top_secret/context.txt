@@ -7597,7 +7597,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   declaration conflicts, inline misuse, and nonzero-bank `main`. Add an
   end-to-end compiler/assembler/linker regression proving page-contained
   `CODE.bank1.__vcsc_function$placed` resolves at `$D100` under a
-  `$D100+$0F00` region while ordinary `main` remains in the `$F000` home mirror.
+  `$D100+$0E00` region while ordinary `main` remains in the `$F000` home mirror.
   Update compiler, assembler, linker, test, main-roadmap, and detailed banking
   documentation.
 * Verification: all 341 compile-only tests pass. All 203 end-to-end/generic
@@ -8082,3 +8082,46 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   a temporary directory, requires all 14 representative F8/F6/F4 output stems,
   rejects shell `not found` diagnostics, and rejects empty-stem hidden sidecars.
   Update test documentation and source-tree hygiene to retain the regression.
+
+
+2026-08-02 22:24:49 PDT, complete explicit-ref Superchip cartridge profiles
+----------------------------------------------------------------------------
+* Continue from `vcsc.20260802_175058.tar.gz` and complete detailed
+  bankswitching roadmap item 11. Add and install `vcs_8k_f8sc.cfg`,
+  `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`. They retain the established
+  logical-bank, physical-file, hotspot, reset-bridge, and trampoline conventions,
+  reserve each `$x000-$x0FF` Superchip port prefix, allocate ordinary ROM only in
+  `$x100-$xEFF` (`$0E00` bytes), and still emit complete 4K physical chunks.
+* Add installed `superchip.c26` with the existing split-reference spelling
+  `ref uint8_t superchip_ram[128]@[0xF080/0xF000];`. Preserve and document the
+  compiler's actual `@[read_address/write_address]` order: loads use the
+  `$x080-$x0FF` aliases and stores use `$x000-$x07F`. Automatic declarations such
+  as `superchip uint8_t foo;` remain roadmap item 12 rather than being faked by
+  this explicit-ref slice.
+* Extend the full-window linker validator to accept F8SC/F6SC/F4SC through the
+  common F8/F6/F4 implementation and reject any bank-owned read-only MEMORY
+  region overlapping the shared RAM-port prefix. Add structural tests for exact
+  `$x100+$0E00` allocation and deliberately malformed profiles which must fail
+  with a Superchip-prefix diagnostic. Correct the older named-bank examples and
+  tests from the impossible `$x100+$0F00` span to `$x100+$0E00`, because the
+  common trampoline corridor begins at `$xF00`.
+* Teach `vcsc-sim` the shared 128-byte SC write/read windows and persistence
+  across every selected ROM bank. Extend the reusable bank diagnostic so every
+  called, nested, and jumped-to bank checks boundary sentinels and advances a
+  shared Superchip counter. Ordinary tests verify all three exact image sizes,
+  every logical source bank, every physical reset bank, reserved prefixes, and
+  final read-alias contents.
+* Extend the authoritative Stella harness to F8SC/F6SC/F4SC. The completed
+  42-case SC set covers every logical source bank, every forced physical startup
+  bank, and randomized developer-mode startup trials, all grading the visible
+  green-P/red-X frame. Make `VCSC_STELLA_FILTER` avoid constructing unrelated
+  cartridges and keep `--stella` independent of the ordinary simulator matrix so
+  focused or complete Stella certification does not pointlessly run both suites.
+* Update the public diagnostic example, VCS/linker/simulator/test/example
+  documentation, staged install/uninstall rules, `make installcheck`, roadmap,
+  and source-tree hygiene. Verification: all 344 compile-only tests pass; all
+  213 end-to-end tests pass (completed in ordered chunks because one invocation
+  exceeds the execution window); staged `make installcheck` passes; the complete
+  42-case Superchip Stella set passes; and focused profile, example, simulator,
+  branding, and hygiene tests pass. The next detailed bankswitching action is
+  roadmap item 12, automatic allocation of variables into Superchip RAM.

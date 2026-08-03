@@ -1,0 +1,8 @@
+// Atari 2600 Superchip shared 128-byte cartridge RAM.
+//
+// The first address is the read alias and the second is the write alias,
+// matching VCSC's existing @[read_address/write_address] split-ref syntax.
+// The physical RAM is shared across every selected F8SC/F6SC/F4SC ROM bank.
+// Include this file after vcs.c26 when linking with an SC profile.
+
+ref uint8_t superchip_ram[128]@[0xF080/0xF000];

@@ -639,3 +639,13 @@ it without increasing the region high-water mark. A function definition marked
 page or no legal placement exists. Explicit non-`CODE` renderer segments are
 not split automatically. Their complete layout may still receive the same
 bounded branch-aware start-address search.
+
+Superchip full-window profiles
+------------------------------
+F8SC, F6SC, and F4SC use the ordinary F8/F6/F4 bank count, logical addresses,
+file order, hotspots, trampolines, and reset bridges. The linker additionally
+rejects any bank-owned read-only region which overlaps that bank's `$x000-$x0FF`
+Superchip RAM-port prefix. Public SC profiles place ordinary ROM in
+`$x100-$xEFF` and still emit complete 4096-byte physical chunks. Explicit RAM
+objects use existing `@[read_address/write_address]` refs; automatic split-address
+allocation is intentionally separate.

@@ -392,14 +392,14 @@ For an ordinary F8 bank:
     }
 
 For a Superchip profile, the source `mem` declaration describes the allocatable
-ROM interval, not the complete emitted physical bank. The RAM-port prefix is
-therefore excluded with a 0x0F00-byte region:
+ROM interval, not the complete emitted physical bank. The RAM-port prefix and
+the common `$xF00` trampoline corridor are excluded, leaving `$x100-$xEFF`:
 
-    mem bank1 { $start:0xD100 $size:0x0F00 $ro };
+    mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 
-Using `$size:0x1000` at `$D100` would incorrectly extend the allocatable range
-through `$E0FF`; the cfg/image model still emits the complete 4K physical bank
-and fills its reserved `$D000-$D0FF` prefix separately.
+The cfg/image model still emits the complete 4K physical bank and fills its
+reserved `$D000-$D0FF` prefix separately. A `$size:0x0F00` region would collide
+with the trampoline corridor; `$size:0x1000` would run beyond the logical bank.
 
 Named region modifiers work on function definitions and produce private
 layouts such as `CODE.bank1.__vcsc_function$some_function`. The assembler keeps
@@ -665,7 +665,7 @@ when main roadmap item 29 becomes active.
        * Reject region modifiers on inline functions and explicit numbered
          nonzero-bank placement of `main`.
        * Test ordinary and Superchip-sized function regions, including the
-         correct `$D100+$0F00` allocatable SC interval.
+         correct `$D100+$0E00` allocatable SC interval.
 
 [x] 2. Extend the cfg parser and linker image model for multiple full 4K banks.
 
@@ -825,7 +825,7 @@ when main roadmap item 29 becomes active.
          direction, initialization, bounds, and Superchip persistence across
          every bank transition.
 
-[ ] 11. Add explicit-ref Superchip profiles.
+[x] 11. Add explicit-ref Superchip profiles.
 
        * Add `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`.
        * Begin ordinary ROM allocation at $x100 in every bank, reserve the RAM
@@ -835,6 +835,14 @@ when main roadmap item 29 becomes active.
        * Verify shared 128-byte persistence across every bank switch and exact
          8K/16K/32K output sizes, using Stella diagnostic cartridges in addition
          to structural linker tests.
+       * Implemented profiles reserve `$x000-$x0FF`, allocate ordinary ROM only
+         in `$x100-$xEFF`, install `superchip.c26` with
+         `superchip_ram[128]@[0xF080/0xF000]`, and reject SC cfgs whose bank-owned
+         read-only regions overlap the RAM ports. Structural tests also mutate
+         each public profile to expose the prefix and require the linker to
+         reject it. The simulator and 42-case Stella diagnostic both prove
+         boundary aliases, per-bank persistence, reset from every physical
+         chunk, and exact complete-bank output.
 
 [ ] 12. Add Automatic allocation of variables into Superchip RAM.
 

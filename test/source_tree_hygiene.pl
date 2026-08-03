@@ -120,7 +120,7 @@ index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
    or die "bankswitching plan lost Superchip ROM-prefix reservation\n";
 index($bankswitching,'bank1 void some_function(void)')>=0 &&
-index($bankswitching,'$start:0xD100 $size:0x0F00')>=0
+index($bankswitching,'$start:0xD100 $size:0x0E00')>=0
    or die "bankswitching plan lost named function-region syntax or correct Superchip ROM span\n";
 index($bankswitching,'Every selector hotspot is reserved at the same low twelve-bit offset')>=0 &&
 index($bankswitching,'hotspot bytes may not become code or ordinary ROM data')>=0
@@ -311,5 +311,23 @@ for my $line (split(/\n/,slurp($ledger))) {
 }
 @duplicate_ledger and die "duplicate remove.txt paths: @duplicate_ledger\n";
 @resurrected and die "remove.txt paths have reappeared: @resurrected\n";
+
+for my $required (qw(
+   libraries/vcs/superchip.c26
+   libraries/vcs/vcs_8k_f8sc.cfg
+   libraries/vcs/vcs_16k_f6sc.cfg
+   libraries/vcs/vcs_32k_f4sc.cfg
+)) {
+   -f File::Spec->catfile($repo,split('/', $required))
+      or die "missing required Superchip file $required\n";
+}
+my $superchip_header=slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26'));
+index($superchip_header,'superchip_ram[128]@[0xF080/0xF000]')>=0
+   or die "superchip.c26 lost @[read/write] alias order\n";
+index($bankswitching,'[x] 11. Add explicit-ref Superchip profiles.')>=0
+   or die "explicit-ref Superchip roadmap item is not complete\n";
+index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&
+index($top_make,'libraries/vcs/superchip.c26')>=0
+   or die "Superchip profiles/header are not installed and uninstalled\n";
 
 print "source tree hygiene ok\n";

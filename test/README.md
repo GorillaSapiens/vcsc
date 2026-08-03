@@ -99,7 +99,7 @@ the bundled VCS 4K script instead.
 `function_mem_region_placement.pl` cover named `mem` modifiers on functions.
 They lock `CODE.bank1.__vcsc_function$NAME` private layouts, exact longest-rule
 linker placement, page containment, source/linker region metadata agreement,
-ordinary `CODE` restoration, and the Superchip-safe `$D100+$0F00` allocatable
+ordinary `CODE` restoration, and the Superchip-safe `$D100+$0E00` allocatable
 interval. Companion rejection tests cover conflicting declaration/definition
 regions, inline placement, and explicit nonzero-bank placement of `main`.
 `readonly_mem_object_codegen_test.c26` locks source-level `$ro` object emission
@@ -572,3 +572,15 @@ and RAM symbols, DASM-compatible list rows, generated CODE/DATA ranges, custom
 output names, per-sidecar disable switches, high-level driver passthrough, and
 protection against overwriting a same-stem linker script. ROM-specific Stella
 `.script` files remain user-owned and are intentionally not generated.
+
+`vcs_bankswitching_diagnostic.pl` also certifies the explicit-ref F8SC/F6SC/F4SC
+profiles. It checks every allocatable bank region begins at `$x100` with size
+`$0E00`, rejects deliberately malformed cfgs which expose the RAM-port prefix
+to ordinary ROM placement, verifies reserved 256-byte prefixes and exact image
+sizes, executes one diagnostic from every logical source and physical startup
+bank in the mapper-aware simulator, and validates the canonical
+`$F080-$F0FF` read aliases.  `stella-bank-test` independently runs 42 SC
+PASS-frame cases: one cartridge from every logical source bank plus every
+forced and randomized physical startup bank across F8SC, F6SC, and F4SC.
+`VCSC_STELLA_FILTER` limits both cartridge construction and execution when a
+focused Stella rerun is needed.

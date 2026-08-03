@@ -61,7 +61,7 @@ my $include = File::Spec->catfile($repo, 'test');
 
 write_file($src, <<'SRC');
 include "machine_6502.c26"
-mem bank1 { $start:0xD100 $size:0x0F00 $ro };
+mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 
 bank1 page void placed(void) {
    asm nop;
@@ -75,7 +75,7 @@ write_file($cfg, <<'CFG');
 MEMORY {
    ZEROPAGE: start=$0000, size=$0080, type=rw;
    RAM:      start=$0080, size=$0080, type=rw;
-   BANK1:    start=$D100, size=$0F00, type=ro;
+   BANK1:    start=$D100, size=$0E00, type=ro;
    ROM:      start=$F000, size=$1000, type=ro;
 }
 SEGMENTS {
@@ -95,7 +95,7 @@ $assembly =~ /\.segment "CODE\.bank1"\s+\.proc placed\s+\.pagecontain/s
    or die "placed function did not enter CODE.bank1 as a private page-contained procedure\n";
 $assembly =~ /\.endproc\s+\.segment "CODE"\s+\.proc main/s
    or die "compiler did not restore CODE before emitting unpinned main\n";
-$assembly =~ /__memmeta\$V1\$bank1\$SD100\$Z0F00\$Tro/
+$assembly =~ /__memmeta\$V1\$bank1\$SD100\$Z0E00\$Tro/
    or die "compiler omitted Superchip-sized bank1 metadata\n";
 
 require_ok('function-region link', $vcsc, '-I', $include, '-T', $cfg,

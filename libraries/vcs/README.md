@@ -269,3 +269,22 @@ Notes:
 - Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
 - `legacy-basic-renderers/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_RENDERER_CONVERSION.md` for the staged conversion inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.
+
+### Superchip profiles and explicit RAM aliases
+
+The public `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`
+profiles use the same logical-bank and hotspot order as F8/F6/F4 while reserving
+the first 256 bytes of every physical 4K chunk for the shared 128-byte
+Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K
+chunks are still emitted.
+
+Include `superchip.c26` after `vcs.c26` to obtain:
+
+```c
+ref uint8_t superchip_ram[128]@[0xF080/0xF000];
+```
+
+VCSC split refs are always `@[read_address/write_address]`: loads use
+`$F080-$F0FF`, stores use `$F000-$F07F`. The same physical RAM survives ROM
+bank changes. Address-taking from this split ref remains an error. Automatic
+allocation with `superchip uint8_t foo;` is a later roadmap item.

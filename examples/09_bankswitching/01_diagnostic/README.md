@@ -39,3 +39,8 @@ separate `make stella-bank-test` certification target runs it in the independent
 emulator with every forced physical startup bank and developer-mode randomized
 startup banks.  Set `STELLA=/path/to/stella` when Stella is not in `PATH`; the
 headless harness also requires Xvfb and `xkbcomp`; the helper programs are Perl and require no Python installation or Python modules.
+
+`make superchip` builds one F8SC/F6SC/F4SC diagnostic per source bank. These
+images use the same visible PASS/FAIL frame while checking the explicit
+`superchip_ram` read/write aliases, both ends of the 128-byte region, and a
+transition counter that persists through calls and jumps into every ROM bank.

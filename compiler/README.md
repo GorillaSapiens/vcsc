@@ -443,7 +443,7 @@ Unmarked private CODE and RODATA layouts remain eligible for deterministic
 automatic bank placement by a bank-aware linker configuration.
 
 For a Superchip bank, the source region describes only allocatable ROM. Exclude
-the RAM-port prefix, for example `$start:0xD100 $size:0x0F00`; `$size:0x1000`
+the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`
 would run through `$E0FF` rather than stopping at the end of the 4K bank mirror.
 The eventual banked cartridge writer still emits the complete physical bank.
 
