@@ -1,0 +1,24 @@
+// vcsc-cc1 -I .
+// expectasm: .export fruit$__return
+// forbidasm: .zpexport fruit$__return
+// expectasm: .segment "BSS.banana.__vcsc_activation$fruit"
+// expectasmordered: sta  {fruit$__return + 8196}
+// expectasmordered: lda  fruit$__return
+// expectasm: .import foreign$__return
+// forbidasm: .zpimport foreign$__return
+// expectasm: return_splitQ28regionQ3DbananaQ2CreadQ3D3003Q2CwriteQ3D5007Q29
+include "machine_6502.c26"
+
+mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0004 $rw };
+
+banana uint16_t fruit(void) {
+   $$ := 0x1233;
+   $$ += 1;
+   return;
+}
+
+extern banana uint16_t foreign(void);
+
+uint16_t use_returns(void) {
+   return fruit() + foreign();
+}

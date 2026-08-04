@@ -296,7 +296,8 @@ ref uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
 Applications may allocate persistent globals, arrays, automatic locals,
-function-scope static locals, and value parameters directly:
+function-scope static locals, value parameters, and function return objects
+directly:
 
 ```c
 superchip uint8_t foo;
@@ -310,11 +311,19 @@ void update(superchip uint16_t value) {
    calls++;
    foo := scratch;
 }
+
+superchip uint16_t current_value(void) {
+   $$ := foo;       // write through $F000
+   $$ += 1;         // read through $F080, write through $F000
+   return;
+}
 ```
 
-VCSC split addresses are always ordered read then write. Loads use
-`$F080-$F0FF`; stores, initializer copies, BSS clearing, and local initializer
-writes use `$F000-$F07F`. Automatic locals keep VCSC's fixed, non-reentrant
+A split declaration spells the read address first and the write address second;
+their numerical ordering is unrestricted. For the Superchip profile, loads use
+`$F080-$F0FF`; stores, initializer copies, BSS clearing, local initializer
+writes, parameter copies, and return writes use `$F000-$F07F`. Automatic locals
+keep VCSC's fixed, non-reentrant
 backing storage and participate in the call-graph activation overlay; inline
 expansions receive private local symbols. Function-scope `static superchip`
 objects instead occupy persistent `BSS.superchip` or `DATA.superchip` storage.
@@ -330,7 +339,11 @@ Split-address value parameters are supported: callers copy through the write
 alias using the ordinary selective-staging rule, while callees load through the
 read alias and store through the write alias. Only an argument which must
 survive a function call in a later argument remains in caller scratch. A
-split-address `ref` parameter remains rejected; return storage is the next
-roadmap step. The explicit `superchip_ram`
-declaration remains available when fixed-offset access to the complete window
-is preferable.
+non-void function may likewise use `superchip` to place its exact-sized hidden
+return object in the shared window. `return expression;` and assignments to `$$`
+write through `$F000`, while callee and caller reads use `$F080`. The function
+body itself remains automatically placed; combining a writable result region
+with an explicit code region is the next roadmap item. A split-address `ref`
+parameter remains rejected because an ordinary pointer carries only one
+address. The explicit `superchip_ram` declaration remains available when fixed-
+offset access to the complete window is preferable.

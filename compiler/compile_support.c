@@ -663,6 +663,24 @@ void emit_copy_scratch_to_symbol(const char *symbol, int src_offset, int size) {
    emit_copy_scratch_to_symbol_offset(symbol, 0, src_offset, size);
 }
 
+//! @brief Copy staged scratch bytes to an arbitrary writable address expression.
+void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, int size) {
+   bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+
+   if (!write_expr || !*write_expr || size <= 0) {
+      return;
+   }
+   if (!src_direct) {
+      emit_prepare_scratch_ptr(1, src_offset);
+   }
+   for (int i = 0; i < size; i++) {
+      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
+      emit(&es_code, "    lda %s,y\n",
+           src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+      emit_store_a_to_expr_address(write_expr, i);
+   }
+}
+
 //! @brief Extract emit load a from expr address for compiler code-generation support.
 void emit_load_a_from_expr_address(const char *expr, int addend) {
    char expr_buf[256];

@@ -252,6 +252,31 @@ static void function_parameter_storage_mode(const ASTNode *parameter,
             modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs");
 }
 
+//! @brief Format the complete hidden-result storage ABI mode for one function.
+static void function_return_storage_mode(const ASTNode *fn, char *buf, size_t buf_size) {
+   const ASTNode *ret_type = function_return_type(fn);
+   const ASTNode *ret_decl = function_return_declarator_from_callable(function_declarator_node(fn));
+   const ASTNode *modifiers = function_modifiers_node(fn);
+   const char *memname = find_mem_modifier_name(modifiers);
+   unsigned int read_start = 0;
+   unsigned int write_start = 0;
+
+   if (!buf || buf_size == 0) {
+      return;
+   }
+   if (return_type_is_void(ret_type, ret_decl)) {
+      snprintf(buf, buf_size, "return_void");
+      return;
+   }
+   if (mem_decl_split_addresses(find_mem_modifier_node(modifiers),
+                                &read_start, &write_start)) {
+      snprintf(buf, buf_size, "return_split(region=%s,read=%04X,write=%04X)",
+               memname ? memname : "?", read_start, write_start);
+      return;
+   }
+   snprintf(buf, buf_size, "return_memory");
+}
+
 static const char *global_storage_mode(const ASTNode *node, bool is_zeropage) {
    const ASTNode *modifiers = node && node->count > 0 ? node->children[0] : NULL;
    if (modifiers && has_modifier((ASTNode *)modifiers, "ref"))
@@ -538,9 +563,12 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
    snprintf(summary_fp, sizeof(summary_fp), "params=%d", fixed_count);
    snprintf(summary_detail, sizeof(summary_detail), "parameters=%d", fixed_count);
    emit_metadata_symbol("function", state, sym, "summary", summary_fp, summary_detail);
-   emit_type_record("function", state, sym, "return",
-                    return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_memory",
-                    ret_type, ret_decl);
+   {
+      char return_mode[256];
+      function_return_storage_mode(fn, return_mode, sizeof(return_mode));
+      emit_type_record("function", state, sym, "return",
+                       return_mode, ret_type, ret_decl);
+   }
 
    if (params && !is_empty(params)) {
       int out_index = 0;
@@ -596,8 +624,11 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
    memset(&ctx, 0, sizeof(ctx));
    sb_appendf(fp, "function(params=%d;return=", fixed_count);
    sb_appendf(detail, "function(parameters=%d, return=", fixed_count);
-   append_storage_mode(fp, detail,
-      return_type_is_void(ret_type, ret_decl) ? "return_void" : "return_memory");
+   {
+      char return_mode[256];
+      function_return_storage_mode(fn, return_mode, sizeof(return_mode));
+      append_storage_mode(fp, detail, return_mode);
+   }
    append_type_fingerprint(fp, detail, ret_type, ret_decl, &ctx);
 
    if (params && !is_empty(params)) {

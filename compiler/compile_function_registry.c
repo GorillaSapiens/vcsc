@@ -20,7 +20,7 @@
 extern Set *functions;
 
 //! @brief Return the modifiers attached to a function declaration or definition.
-static const ASTNode *function_modifiers_node(const ASTNode *fn) {
+const ASTNode *function_modifiers_node(const ASTNode *fn) {
    if (!fn) {
       return NULL;
    }

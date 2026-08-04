@@ -1004,7 +1004,7 @@ when main roadmap item 29 becomes active.
          plus that reusable slot. Existing sibling-overlay execution coverage
          proves the reduced staging remains safe.
 
-[ ] 15. Add Superchip-backed function return storage.
+[x] 15. Add Superchip-backed function return storage.
 
        * Permit a non-void function's existing hidden `function$__return` object
          to select the split-address region, using syntax such as
@@ -1015,16 +1015,53 @@ when main roadmap item 29 becomes active.
          return storage for every already-supported return width and type which
          fits in the selected region.
        * Keep `$$` as the source-level lvalue for that same return object. Reads
-         from `$$` must use the read alias; assignments, compound assignments, and
-         member/byte writes to `$$` must use the write alias. A write followed by a
-         read of `$$` inside the callee must observe the value just written.
+         from `$$` must use the read alias; assignments and compound assignments to
+         `$$` must use the write alias. A write followed by a read of `$$` inside
+         the callee must observe the value just written.
        * Carry the result region and both aliases through declarations, definitions,
-         ABI metadata, separate compilation, duplicated/pinned function bodies,
-         map output, initialization, and deterministic overflow diagnostics.
+         ABI metadata, separate compilation, generated cross-bank calls, map output,
+         activation layout, and deterministic overflow diagnostics. Item 16 handles
+         combining result storage with an explicit code-placement region.
        * Add execution tests which explicitly write `$$`, read it back, modify it,
          use a bare `return;`, and verify the caller receives the final value. Cover
          at least one-, two-, three-, and four-byte returns, ordinary and BCD values,
          same-bank and cross-bank calls, and all three SC profiles.
+
+       Completed 2026-08-04:
+
+       * Any named writable split-address `mem` region may back the existing
+         exact-sized hidden `function$__return` object. The implementation derives
+         the read symbol, write expression, size, and region-local activation
+         segment from ordinary `mem` metadata; no compiler or linker path recognizes
+         the spelling `superchip` or assumes a particular alias order or distance.
+       * `return expression;`, direct assignment to `$$`, and compound assignment to
+         `$$` store through the configured write alias. Reads of `$$` inside the
+         callee and result copies in the caller use the configured read alias. A bare
+         `return;` preserves the value already stored in the object. The epilogue
+         remains an ordinary `RTS`, and ignored results require no caller copy.
+       * Split return objects use absolute import/export rather than zero-page
+         import/export. Function contracts and linker ABI fingerprints carry the
+         result region plus both window starts, so declarations and definitions
+         cannot silently disagree within one translation unit or across separate
+         compilation. A writable result modifier on a `void` function is rejected.
+       * The return object participates in the selected region's ordinary call-graph
+         activation overlay and map accounting. Sibling result objects reuse the
+         same physical bytes, caller/callee paths remain disjoint, read and write
+         windows count once, and an over-capacity path produces the same deterministic
+         region-overflow diagnostic as locals and parameters.
+       * `superchip_function_returns.pl` covers one- through four-byte ordinary and
+         BCD returns, explicit `$$` write/read/update and bare-return paths, same-bank
+         calls, generated cross-bank JSR trampolines, every physical starting bank,
+         both aliases, exact four-byte physical occupancy, and deterministic overflow
+         under F8SC, F6SC, and F4SC. `split_memory_function_returns.pl` separately
+         compiles callers and definitions using `banana`, `pair`, and `orange`, with
+         different sizes, reversed window ordering, noncontiguous aliases, ordinary
+         integer and pointer results, map/symbol checks, result-region ABI mismatch,
+         and per-region overflow coverage.
+       * A split result modifier currently selects only return storage; the function
+         body's code remains automatically placed. Item 16 adds the independent
+         code-region/result-region partition needed to combine writable result
+         storage with an explicit read-only code-placement modifier.
 
 [ ] 16. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.

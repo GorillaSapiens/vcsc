@@ -432,8 +432,8 @@ The overlay is region-local: a function may own pieces in the default RAM,
 zero page, or a source-declared `mem` region, including a shared split-address
 region such as Superchip RAM, and each region is independently weighted along
 the call graph. Split-region activation layouts may contain parameters,
-automatic locals, return storage where supported, and compiler scratch. They use
-the read alias as their run address, the write alias for startup zeroing and
+automatic locals, return objects, and compiler scratch. They use the read alias
+as their run address, the write alias for startup zeroing and
 generated stores, and consume each physical byte only once. Direct-call ABI
 metadata preserves split parameter region identity and both aliases across
 separate compilation. Internal-linkage functions are qualified by
@@ -453,6 +453,14 @@ the write window, the aliases need not be adjacent or page-aligned, and each
 region keeps its declared size. Allocation and overflow accounting use one
 physical high-water mark for the region rather than inferring any Superchip-
 specific `$80` delta or 128-byte capacity.
+
+A non-void function may select one writable split-address region for its hidden
+`function$__return` object. The compiler emits that object in the function's
+activation segment for the selected region, exports its read address, and records
+the region plus both window starts in the function ABI. The linker overlays and
+counts it exactly like any other region-local activation piece. Map output shows
+both `run=` and `write=` addresses, and separately compiled declarations and
+definitions with different result regions are rejected before layout.
 
 Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used. Split-address DATA/BSS layouts use the read window as their canonical run address. Startup copy/zero records are translated to the corresponding write window.
 

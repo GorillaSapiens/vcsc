@@ -285,14 +285,12 @@ void compile_function_decl(ASTNode *node) {
    int saved_call_graph_node = current_call_graph_node;
    char sym[256];
    bool has_return_object;
+   bool return_is_zeropage = true;
+   bool return_is_split = false;
    ContextEntry *return_entry;
    char return_sym[256];
+   char return_write_expr[320];
 
-   if (modifiers_imply_split_address(modifiers)) {
-      error_user("[%s:%d.%d] split-address mem region '%s' supports persistent data objects, not functions",
-                 node->file, node->line, node->column,
-                 find_mem_modifier_name(modifiers));
-   }
    validate_function_return_type(node);
    remember_function(node, name);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
@@ -304,7 +302,10 @@ void compile_function_decl(ASTNode *node) {
    }
    has_return_object = function_has_return_object(node);
    if (has_return_object &&
-       !function_return_symbol_name(node, return_sym, sizeof(return_sym))) {
+       !function_return_storage_addresses(node,
+                                          return_sym, sizeof(return_sym),
+                                          return_write_expr, sizeof(return_write_expr),
+                                          &return_is_zeropage, &return_is_split)) {
       error_unreachable("[%s:%d.%d] invalid memory return symbol", node->file, node->line, node->column);
    }
 
@@ -312,7 +313,8 @@ void compile_function_decl(ASTNode *node) {
       emit(&es_export, ".export %s\n", sym);
       emit_function_parameter_exports(node);
       if (has_return_object) {
-         emit(&es_export, ".zpexport %s\n", return_sym);
+         emit(&es_export, return_is_zeropage ? ".zpexport %s\n" : ".export %s\n",
+              return_sym);
       }
       emit_function_abi_metadata(node, sym, true);
    }
@@ -341,7 +343,11 @@ void compile_function_decl(ASTNode *node) {
       if (!return_entry || return_entry->size < 1 || return_entry->size > 4) {
          error_unreachable("[%s:%d.%d] invalid memory return object", node->file, node->line, node->column);
       }
-      if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
+      if (return_entry->is_absolute_ref && return_entry->read_expr &&
+          *return_entry->read_expr) {
+         snprintf(return_sym, sizeof(return_sym), "%s", return_entry->read_expr);
+      }
+      else if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
          error_unreachable("[%s:%d.%d] invalid memory return symbol", node->file, node->line, node->column);
       }
    }
@@ -349,17 +355,24 @@ void compile_function_decl(ASTNode *node) {
    emit_function_parameter_storage(node, &ctx);
    emit_mem_region_metadata_for_modifiers(node, modifiers);
    if (has_return_object) {
-      {
-         char segbuf[512];
-         build_activation_storage_segment(segbuf, sizeof(segbuf), &ctx, NULL, "ZEROPAGE");
+      char segbuf[512];
+      build_activation_storage_segment(segbuf, sizeof(segbuf), &ctx,
+                                       return_is_split ? modifiers : NULL,
+                                       return_is_zeropage ? "ZEROPAGE" : "BSS");
+      if (return_is_zeropage) {
          emit(&es_zp, ".segment \"%s\"\n", segbuf);
+         emit(&es_zp, "%s:\n", return_sym);
+         emit(&es_zp, "\t.res %d\n", return_entry->size);
       }
-      emit(&es_zp, "%s:\n", return_sym);
-      emit(&es_zp, "\t.res %d\n", return_entry->size);
+      else {
+         emit(&es_bss, ".segment \"%s\"\n", segbuf);
+         emit(&es_bss, "%s:\n", return_sym);
+         emit(&es_bss, "\t.res %d\n", return_entry->size);
+      }
    }
    {
       const char *memname = find_mem_modifier_name(modifiers);
-      if (memname && *memname) {
+      if (memname && *memname && !return_is_split) {
          emit(&es_code, ".segment \"CODE.%s\"\n", memname);
       }
    }
@@ -380,7 +393,7 @@ void compile_function_decl(ASTNode *node) {
    emit(&es_code, "@fini:\n");
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
-   if (find_mem_modifier_name(modifiers)) {
+   if (find_mem_modifier_name(modifiers) && !return_is_split) {
       emit(&es_code, ".segment \"CODE\"\n");
    }
    current_call_graph_function = saved_call_graph_function;
@@ -1115,6 +1128,8 @@ static void compile_function_signature(ASTNode *node) {
    if (function_is_inline(node)) {
       return;
    }
+
+   emit_mem_region_metadata_for_modifiers(node, modifiers);
 
    if (!has_modifier(modifiers, "static")) {
       emit_function_abi_metadata(node, sym, false);

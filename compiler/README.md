@@ -642,7 +642,20 @@ bodies happen not to declare locals.
 
 ### Returns and `$$`
 
-A value-returning function owns an exact-sized hidden zero-page return object.
+A value-returning function owns an exact-sized hidden return object. It uses
+zero page by default. A writable split-address `mem` modifier on the function
+selects that region for the return object while leaving the function body's code
+placement automatic:
+
+```vcsc
+mem ports { $read_start:0x3003 $write_start:0x5007 $size:0x0008 $rw };
+
+ports uint16_t twice(uint16_t value) {
+   $$ := value + value; // store through ports' write alias
+   return;
+}
+```
+
 Legal return types are:
 
 - one- through four-byte ordinary binary integers;
@@ -660,9 +673,13 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-`return expression;` writes the same object. The callee ends with `RTS`; it does
-not place a language return value in A, X, or Y. After the call, a caller that
-uses the value copies it from the callee's return symbol.
+`return expression;` writes the same object. For split storage, assignments and
+compound assignments to `$$` use the write alias and reads use the read alias.
+The callee ends with `RTS`; it does not place a language return value in A, X,
+or Y. After the call, a caller that uses the value copies it from the return
+symbol's read alias. Declarations and definitions must agree on the result
+region; ABI metadata records the region and both window starts. A split modifier
+on a `void` function is rejected because there is no return object to place.
 
 ### Inline functions
 

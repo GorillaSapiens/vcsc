@@ -32,35 +32,44 @@ non-scalar objects. The stock interface and compiler/memory-return ABI expose
 ordinary binary integers through 32 bits. `bcd24_t` and `bcd32_t` are also legal return types.
 
 Inside a value-returning function, `$$` is the source-level return object. It is
-an exact-sized hidden callee-owned zero-page symbol named
-`function$__return`. `return expr;` writes the converted value to `$$`;
-`return;` leaves any value explicitly written there intact. The common epilogue
-for every value width is simply:
+an exact-sized hidden callee-owned symbol named `function$__return`. By default
+that symbol is in zero page. A writable split-address `mem` modifier on the
+function instead selects the return object's region:
+
+```
+mem ports { $read_start:0x3003 $write_start:0x5007 $size:0x0008 $rw };
+ports uint16_t sample(void);
+```
+
+This changes only the storage of the existing memory-return ABI; it does not
+introduce register returns or a second calling convention. `return expr;`
+writes the converted value to `$$`; `return;` leaves any value explicitly
+written there intact. For split storage, writes use the region's write alias and
+reads of `$$` use its read alias. The common epilogue for every value width is
+simply:
 
 rts
 
 The callee does not load A, X, or Y with the result. The return-object symbol is
 exported with every non-static definition. A separately compiled caller imports
-that zero-page symbol only when it consumes the call result.
+it only when it consumes the call result. Ordinary return symbols use zero-page
+imports; split return symbols use absolute imports and carry their region,
+read-start, and write-start in ABI metadata.
 
-Before an ordinary direct call, the compiler leases caller-owned scratch large
-enough for all converted arguments. It evaluates every argument left-to-right
-into that block before writing any callee parameter symbol. This protects an
-earlier argument when a later argument calls a sibling whose activation shares
-the callee's physical bytes. The lease is a compile-time choice of a fixed
+Before an ordinary direct call, arguments are evaluated left-to-right. A
+converted argument is copied directly into its callee-owned parameter as soon
+as it is safe. Only an earlier value which must survive a function call in a
+later argument remains in caller-owned scratch. Call-free argument lists use one
+reusable conversion slot sized for the largest argument rather than a block
+sized for the whole list. A scratch lease is a compile-time choice of a fixed
 symbol; it has no runtime pointer and emits no activation/deactivation
-instructions. Generated code addresses the selected object directly, for
-example:
+instructions.
 
-ldy #0
-lda __vcsc_scratch_0,y
-sta function$value,y
-jsr function
-
-If the enclosing expression consumes the value, the caller copies the exact
-return width directly from `function$__return` into its destination. No
-register preservation and no return-only scratch lease are required. Ignored
-return values require no copy.
+If the enclosing expression consumes the return value, the caller copies the
+exact width from the callee's return object's read address into its destination.
+For split storage the callee wrote the corresponding write alias. No register
+preservation and no return-only scratch lease are required. Ignored return
+values require no copy.
 
 Scratch remains pooled by function and lexical emission depth for arguments and
 other expression temporaries. Sequential uses in one function reuse a slot and

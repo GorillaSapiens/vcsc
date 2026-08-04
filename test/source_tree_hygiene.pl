@@ -93,6 +93,11 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
 -f File::Spec->catfile($test,'split_memory_generic_regions.pl') &&
 -f File::Spec->catfile($test,'superchip_parameters.pl') &&
 -f File::Spec->catfile($test,'split_memory_value_parameters.pl') &&
+-f File::Spec->catfile($test,'superchip_function_returns.pl') &&
+-f File::Spec->catfile($test,'split_memory_function_returns.pl') &&
+-f File::Spec->catfile($test,'split_memory_return_codegen_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_return_void_error_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_return_region_conflict_error_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_parameter_region_conflict_error_test.c26') &&
 -f File::Spec->catfile($test,'linker_startup_main_generic.pl') &&
 -f File::Spec->catfile($test,'split_memory_allocation_codegen_test.c26') &&
@@ -112,6 +117,7 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
 }
 index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
 index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
+index($bankswitching,'[x] 15. Add Superchip-backed function return storage.')>=0 &&
 index($bankswitching,'[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0

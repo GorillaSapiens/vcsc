@@ -24,6 +24,10 @@ bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator);
 bool return_type_has_value(const ASTNode *type, const ASTNode *declarator);
 bool function_has_return_object(const ASTNode *fn);
 bool function_return_symbol_name(const ASTNode *fn, char *buf, size_t bufsize);
+bool function_return_storage_addresses(const ASTNode *fn,
+                                       char *read_buf, size_t read_size,
+                                       char *write_buf, size_t write_size,
+                                       bool *is_zeropage_out, bool *is_split_out);
 void validate_function_return_type(const ASTNode *fn);
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee);
 void analyze_static_parameter_call_graph(void);

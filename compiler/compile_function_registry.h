@@ -10,6 +10,7 @@
 #include "ast.h"
 #include "compile_internal.h"
 
+const ASTNode *function_modifiers_node(const ASTNode *fn);
 bool function_has_body(const ASTNode *fn);
 bool function_is_inline(const ASTNode *fn);
 int function_fixed_param_count(const ASTNode *fn);

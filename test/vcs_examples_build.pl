@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
+# timeout: 30
 # expectstdout: vcs_examples_build ok: all recursively discovered editable examples compile and link
 
 use strict;

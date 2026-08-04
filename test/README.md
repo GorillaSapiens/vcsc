@@ -481,6 +481,19 @@ activation occupancy, both aliases, and deterministic overflow. The mapper-indep
 `banana`, `pair`, and `orange`, verifies reversed and noncontiguous alias layouts,
 and requires ABI mismatch diagnostics when parameter regions disagree.
 
+`superchip_function_returns.pl` exercises split-address function return objects
+under F8SC, F6SC, and F4SC from every physical startup bank. It covers one-
+through four-byte ordinary and packed-BCD results, explicit `$$` reads and
+writes, compound updates, bare returns, same-bank and cross-bank calls, exact
+physical overlay accounting, both aliases, and deterministic overflow. The
+mapper-independent `split_memory_function_returns.pl` separately compiles
+callers and definitions using `banana`, `pair`, and `orange`, including reversed
+and noncontiguous windows plus a split-address pointer return, and requires
+result-region ABI mismatch diagnostics.
+The compile-only split-return tests additionally lock absolute import/export,
+write-alias lowering, `void` rejection, and same-translation-unit declaration
+conflicts.
+
 `linker_startup_main_generic.pl` uses arbitrary logical bank names PEAR/BANANA
 and MEMORY names `pear_code`/`orange_code`. It makes ordinary CODE default to the
 non-startup bank, proves unqualified `main` is nevertheless pinned to the unique

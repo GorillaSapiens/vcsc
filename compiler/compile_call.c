@@ -29,25 +29,6 @@ static const ASTNode *inline_expansion_stack[INLINE_EXPANSION_MAX_DEPTH];
 static int inline_expansion_depth = 0;
 static int inline_expansion_counter = 0;
 
-//! @brief Copy staged argument bytes to an arbitrary writable address expression.
-static void emit_copy_scratch_to_address_expr(const char *write_expr,
-                                              int src_offset, int size) {
-   bool src_direct = src_offset >= 0 && src_offset + size <= 256;
-
-   if (!write_expr || !*write_expr || size <= 0) {
-      return;
-   }
-   if (!src_direct) {
-      emit_prepare_scratch_ptr(1, src_offset);
-   }
-   for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n",
-           src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
-      emit_store_a_to_expr_address(write_expr, i);
-   }
-}
-
 static void inline_expansion_push(const ASTNode *fn, const ASTNode *call_expr) {
    const char *name = declarator_name(function_declarator_node(fn));
 
@@ -333,6 +314,9 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    CompilerScratchLease scratch;
    char callee_sym[256];
    char return_sym[256];
+   char return_write_expr[320];
+   bool return_is_zeropage = true;
+   bool return_is_split = false;
 
    if (!function_symbol_name(fn, callee->strval, callee_sym, sizeof(callee_sym))) {
       return false;
@@ -459,11 +443,17 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    free(staged);
 
    if (dst && ret_size > 0) {
-      if (!function_return_symbol_name(fn, return_sym, sizeof(return_sym))) {
+      if (!function_return_storage_addresses(fn,
+                                             return_sym, sizeof(return_sym),
+                                             return_write_expr, sizeof(return_write_expr),
+                                             &return_is_zeropage, &return_is_split)) {
          return false;
       }
+      if (return_is_split) {
+         emit_mem_region_metadata_for_modifiers(fn, function_modifiers_node(fn));
+      }
       if (!function_has_body(fn)) {
-         remember_symbol_import_mode(return_sym, true);
+         remember_symbol_import_mode(return_sym, return_is_zeropage);
       }
    }
 

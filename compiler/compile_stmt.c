@@ -457,7 +457,36 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret) {
    char sym[256];
 
-   if (!ret || !entry_symbol_name(ctx, ret, sym, sizeof(sym))) {
+   if (!ret) {
+      return false;
+   }
+   if (entry_is_absolute_ref(ret)) {
+      StmtFixedScratch scratch;
+      ContextEntry target;
+      bool ok;
+
+      if (!entry_has_write_address(ret)) {
+         return false;
+      }
+      stmt_fixed_scratch_prepare(ctx, ret->size, &scratch);
+      stmt_fixed_scratch_activate(ctx, &scratch);
+      memset(&target, 0, sizeof(target));
+      target.name = "$return_value";
+      target.type = ret->type;
+      target.declarator = ret->declarator;
+      target.target_typed = true;
+      target.offset = 0;
+      target.size = ret->size;
+      ok = compile_expr_to_slot(expr, ctx, &target);
+      if (ok) {
+         emit_copy_scratch_to_address_expr(ret->write_expr, 0, ret->size);
+      }
+      stmt_fixed_scratch_deactivate(ctx, &scratch);
+      stmt_fixed_scratch_finish(&scratch);
+      return ok;
+   }
+
+   if (!entry_symbol_name(ctx, ret, sym, sizeof(sym))) {
       return false;
    }
    return compile_runtime_initializer_to_symbol(expr, ctx, ret->type, ret->declarator, sym, ret->size);

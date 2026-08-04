@@ -134,6 +134,49 @@ bool function_return_symbol_name(const ASTNode *fn, char *buf, size_t bufsize) {
    return format_user_asm_symbol(raw, buf, bufsize);
 }
 
+//! @brief Return the linker-visible read symbol and write alias for one function result object.
+bool function_return_storage_addresses(const ASTNode *fn,
+                                       char *read_buf, size_t read_size,
+                                       char *write_buf, size_t write_size,
+                                       bool *is_zeropage_out, bool *is_split_out) {
+   const ASTNode *modifiers = function_modifiers_node(fn);
+   bool is_split = modifiers_imply_split_address(modifiers);
+   int delta = 0;
+
+   if (!read_buf || read_size == 0 || !write_buf || write_size == 0 ||
+       !function_return_symbol_name(fn, read_buf, read_size)) {
+      return false;
+   }
+
+   if (is_split) {
+      if (!modifiers_split_address_delta(modifiers, &delta)) {
+         return false;
+      }
+      if (delta == 0) {
+         snprintf(write_buf, write_size, "%s", read_buf);
+      }
+      else {
+         snprintf(write_buf, write_size, "{%s %c %u}", read_buf,
+                  delta < 0 ? '-' : '+',
+                  (unsigned)(delta < 0 ? -delta : delta));
+      }
+   }
+   else {
+      snprintf(write_buf, write_size, "%s", read_buf);
+   }
+
+   if (is_zeropage_out) {
+      /* The established default result ABI is zero page. Split-address
+         result regions are allocated through their named MEMORY region and
+         use absolute addressing, just like split value parameters. */
+      *is_zeropage_out = !is_split;
+   }
+   if (is_split_out) {
+      *is_split_out = is_split;
+   }
+   return true;
+}
+
 //! @brief Reject function return types outside the VCSC memory-return ABI.
 void validate_function_return_type(const ASTNode *fn) {
    const ASTNode *type;
@@ -148,11 +191,20 @@ void validate_function_return_type(const ASTNode *fn) {
    type = function_return_type(fn);
    declarator = function_declarator_node(fn);
    return_decl = function_return_declarator_from_callable(declarator);
+   name = declarator_name(declarator);
+
+   if (modifiers_imply_split_address(function_modifiers_node(fn)) &&
+       return_type_is_void(type, return_decl)) {
+      error_user("[%s:%d.%d] void function '%s' cannot select split-address result region '%s' because it has no return object",
+                 fn->file, fn->line, fn->column,
+                 (name && *name) ? name : "<unnamed>",
+                 find_mem_modifier_name(function_modifiers_node(fn)));
+   }
+
    if (return_type_is_supported(type, return_decl)) {
       return;
    }
 
-   name = declarator_name(declarator);
    error_user("[%s:%d.%d] function '%s' has an unsupported return type; functions may return only void, a supported binary integer, a packed-BCD integer through bcd32_t, or a 16-bit pointer",
               fn->file, fn->line, fn->column,
               (name && *name) ? name : "<unnamed>");
@@ -424,8 +476,16 @@ void build_function_context(const ASTNode *node, Context *ctx) {
 
 
    if (function_has_return_object(node)) {
+      const ASTNode *modifiers = function_modifiers_node(node);
+      const ASTNode *return_type = function_return_type(node);
       ContextEntry *return_entry;
-      ctx_zeropage(ctx, node->children[0]->children[1], "$$");
+
+      if (modifiers_imply_split_address(modifiers)) {
+         ctx_static(ctx, return_type, "$$");
+      }
+      else {
+         ctx_zeropage(ctx, return_type, "$$");
+      }
       return_entry = (ContextEntry *) set_get(ctx->vars, "$$");
       if (!return_entry) {
          error_unreachable("internal missing memory return object");
@@ -440,6 +500,14 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       }
       return_entry->declarator = function_return_declarator_from_callable(declarator);
       return_entry->size = declarator_value_size(return_entry->type, return_entry->declarator);
+
+      if (modifiers_imply_split_address(modifiers)) {
+         char sym[256];
+         if (!entry_symbol_name(ctx, return_entry, sym, sizeof(sym))) {
+            error_unreachable("could not name split-address return object");
+         }
+         init_split_mem_entry_addresses_for_symbol(return_entry, sym, modifiers);
+      }
    }
 
 }

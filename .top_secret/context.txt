@@ -8397,3 +8397,43 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   temporary resume helper. Focused call-order, selective-staging, sibling-
   overlay, Superchip-parameter, and generic split-parameter tests pass. Staged
   `make installcheck` passes.
+
+2026-08-04 11:38:02 PDT, add generic split-address function return storage
+----------------------------------------------------------
+* Complete bankswitching roadmap item 15. A non-void function may select any
+  writable split-address `mem` region for its existing exact-sized hidden
+  `function$__return` object. The function body remains automatically placed;
+  item 16 will separate an explicit read-only code-region set from the writable
+  result region.
+* Derive the return object's read symbol, write expression, addressing mode, and
+  region-local activation segment from ordinary `mem` metadata. Split results
+  use absolute import/export; default results retain the established zero-page
+  ABI. No compiler or linker path recognizes the spelling `superchip` or
+  assumes a particular window order, distance, alignment, or size.
+* Lower `return expression;`, direct `$$` assignment, and compound `$$`
+  updates through the write alias. Reads inside the callee and caller result
+  copies use the read alias; a bare `return;` preserves the value already
+  stored. Carry the result region and both starts through same-translation-unit
+  signatures, separate-compilation ABI fingerprints, map output, and overflow
+  diagnostics. Reject split result storage on `void` functions.
+* Add `split_memory_function_returns.pl` using separately compiled `banana`,
+  `pair`, and `orange` regions with different capacities, reversed window
+  ordering, and noncontiguous aliases; it also covers a 16-bit pointer result.
+  Add `superchip_function_returns.pl` for F8SC/F6SC/F4SC one- through four-byte
+  ordinary and BCD results, explicit
+  `$$` write/read/update and bare-return paths, same-bank and generated
+  cross-bank calls, every physical startup bank, exact four-byte physical
+  overlay occupancy, alias coherence, and deterministic overflow. Add focused
+  compile-only checks for absolute import/export, void rejection, and region
+  conflicts.
+* Update compiler ABI/language documentation, linker activation and mem-region
+  documentation, VCS Superchip usage, test inventory, source-tree hygiene, and
+  the detailed bankswitching roadmap. Give the existing recursive example-build
+  regression an explicit 30-second timeout because it takes about nine seconds
+  on this build host rather than the runner's six-second default.
+* Verification: all 360 compile-only tests pass. The two new return regressions,
+  all generic split-region/Superchip allocation-local-static-parameter tests,
+  and source-tree hygiene pass. 222 of the 223 end-to-end/generic tests pass in
+  ordered chunks; the unrelated heavyweight `vcs_score_composition_raster.pl`
+  did not finish within the available execution window and produced no failure
+  before timeout. Staged `make installcheck` passes.
