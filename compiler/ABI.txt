@@ -157,8 +157,12 @@ and allocates no software-stack call frame. Argument conversion uses a live call
 
 Every function body owns one logical activation record containing its
 parameters, automatic locals, expression scratch, and return object when
-present. The linker overlays records by weighted call-graph lifetime within each
-physical memory region. No function may be active twice. The compiler rejects
+present. Automatic locals may select an ordinary writable memory region or a
+split-address region such as Superchip RAM. Split locals retain one physical
+allocation while generated loads use the read alias and stores and declaration
+initializers use the write alias. Inline-expansion-private locals obey the same
+rule. The linker overlays records by weighted call-graph lifetime independently
+within each physical memory region. No function may be active twice. The compiler rejects
 direct and mutual cycles inside a translation unit, and the linker rejects
 cycles completed across objects.
 

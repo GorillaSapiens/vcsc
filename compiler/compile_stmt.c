@@ -514,8 +514,15 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
    validate_nonreserved_implementation_name(name, node);
 
-   if (modifiers_imply_split_address(modifiers)) {
-      error_user("[%s:%d.%d] split-address mem region '%s' currently supports only persistent file-scope objects and arrays",
+   if (modifiers_imply_split_address(modifiers) &&
+       (has_modifier(modifiers, "ref") || addrspec != NULL)) {
+      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with 'ref' or an '@' address binding",
+                 node->file, node->line, node->column,
+                 find_mem_modifier_name(modifiers));
+   }
+   if (modifiers_imply_split_address(modifiers) &&
+       has_modifier(modifiers, "static")) {
+      error_user("[%s:%d.%d] split-address mem region '%s' currently supports automatic locals, not function-scope static objects",
                  node->file, node->line, node->column,
                  find_mem_modifier_name(modifiers));
    }
@@ -551,6 +558,9 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->is_absolute_ref = true;
       entry->read_expr = address_spec_read_expr(addrspec);
       entry->write_expr = address_spec_write_expr(addrspec);
+      entry->has_split_alias_delta = false;
+      entry->split_alias_delta = 0;
+      entry->target_typed = false;
       entry->type = type;
       entry->declarator = declarator;
       entry->size = size;
@@ -571,6 +581,14 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    if (entry != NULL) {
       entry->size = size;
       entry->declarator = declarator;
+      if (modifiers_imply_split_address(modifiers)) {
+         char symbol[256];
+         if (!entry_symbol_name(ctx, entry, symbol, sizeof(symbol))) {
+            error_unreachable("[%s:%d.%d] could not construct split-address local symbol for '%s'",
+                              node->file, node->line, node->column, name);
+         }
+         init_split_mem_entry_addresses_for_symbol(entry, symbol, modifiers);
+      }
    }
 }
 
@@ -668,6 +686,21 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
+   if (modifiers_imply_split_address(modifiers)) {
+      char segbuf[512];
+      if (is_empty(expression) && declaration_const_applies_to_object(modifiers, declarator)) {
+         error_user("[%s:%d.%d] 'const' missing initializer", node->file, node->line, node->column);
+      }
+      if (!entry->read_expr || !*entry->read_expr) {
+         error_unreachable("[%s:%d.%d] split-address local '%s' has no allocated read alias",
+                           node->file, node->line, node->column, name);
+      }
+      build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "BSS");
+      emit(&es_bss, ".segment \"%s\"\n", segbuf);
+      emit(&es_bss, "%s:\n", entry->read_expr);
+      emit(&es_bss, "\t.res %d\n", size);
+   }
+
    if (entry->is_absolute_ref) {
       StmtFixedScratch scratch;
       LValueRef lv;
@@ -718,6 +751,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          .is_absolute_ref = entry->is_absolute_ref,
          .read_expr = entry->read_expr,
          .write_expr = entry->write_expr,
+         .has_split_alias_delta = entry->has_split_alias_delta,
+         .split_alias_delta = entry->split_alias_delta,
          .offset = entry->offset,
          .size = entry->size
       };

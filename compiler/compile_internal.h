@@ -39,6 +39,8 @@ typedef struct ContextEntry {
    bool is_absolute_ref;
    const char *read_expr;
    const char *write_expr;
+   bool has_split_alias_delta;
+   int split_alias_delta;
    bool target_typed;
    int offset;
    int size;
@@ -75,6 +77,8 @@ typedef struct LValueRef {
    bool is_absolute_ref;
    const char *read_expr;
    const char *write_expr;
+   bool has_split_alias_delta;
+   int split_alias_delta;
    bool indirect;
    int deref_depth;
    bool needs_runtime_address;

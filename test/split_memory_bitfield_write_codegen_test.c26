@@ -1,0 +1,21 @@
+// vcsc-cc1 -I .
+// expectasm: lda #<{packed + 0}
+// expectasm: adc #$80
+// expectasm: adc #$ff
+// expectasm: lda (ptr0),y
+// expectasm: sta (ptr2),y
+// forbidasm: sta (ptr0),y
+
+include "machine_6502.c26"
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+struct Packed {
+   uint8_t low:4;
+   uint8_t high:4;
+};
+
+superchip Packed packed;
+
+void main(void) {
+   packed.low := 5;
+}

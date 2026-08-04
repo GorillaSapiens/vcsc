@@ -87,8 +87,13 @@ index($bankswitching,'ref uint8_t foo@[0xF080/0xF000];')>=0 &&
 index($bankswitching,'superchip uint8_t buffer[32];')>=0
    or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
+-f File::Spec->catfile($test,'superchip_locals.pl') &&
 -f File::Spec->catfile($test,'split_memory_allocation_codegen_test.c26') &&
--f File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_local_codegen_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_bitfield_write_codegen_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_static_local_error_test.c26') &&
+!-e File::Spec->catfile($test,'split_memory_local_error_test.c26') &&
+!-e File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
 index(slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26')),
       'mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };')>=0
    or die "automatic Superchip allocation implementation or regression coverage is missing\n";
@@ -97,10 +102,12 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
    $cfg_body =~ /superchip:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
       or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
 }
-index($bankswitching,'[ ] 13. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
+index($bankswitching,'[x] 13. Add Superchip-backed automatic local variables.')>=0 &&
+index($bankswitching,'[ ] 14. Add Superchip-backed value parameters.')>=0 &&
+index($bankswitching,'[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
-   or die "bankswitching plan lost const/function bank duplication or inline conflict rules\n";
+   or die "bankswitching plan lost completed Superchip locals or future bank duplication rules\n";
 index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
 index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&

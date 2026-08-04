@@ -1,0 +1,39 @@
+// vcsc-cc1 -I .
+// expectasm: .segment "BSS.superchip.__vcsc_activation$touch"
+// expectasm: touch$local:
+// expectasm: touch$buffer:
+// expectasm: touch$packed:
+// expectasm: __inline$0$bump$inline_local:
+// expectasm: lda  touch$local
+// expectasm: lda #<{{touch$local - 128} + 0}
+// expectasm: lda #<{{touch$buffer - 128} + 0}
+// expectasm: lda #<{touch$buffer + 0}
+// expectasm: adc #$80
+// expectasm: sta (ptr2),y
+// forbidasm: sta.z {touch$local - 128}
+
+include "machine_6502.c26"
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+struct Packed {
+   uint8_t low:4;
+   uint8_t high:4;
+};
+
+inline uint8_t bump(uint8_t value) {
+   superchip uint8_t inline_local := value;
+   inline_local++;
+   return inline_local;
+}
+
+void touch(void) {
+   superchip uint8_t local := 1;
+   superchip uint8_t buffer[4];
+   superchip Packed packed;
+   uint8_t index := 2;
+
+   local += 2;
+   buffer[index] := local;
+   packed.low := buffer[index];
+   local := bump(packed.low);
+}

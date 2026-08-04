@@ -884,11 +884,12 @@ when main roadmap item 29 becomes active.
          direction, persistence across calls in every logical bank, exact image
          sizes, and one 34-byte physical occupancy report. Authoritative Stella,
          installed-toolchain, and reset-lifecycle certification remains item 19.
-       * The current rejection of Superchip locals, parameters, and function
-         return storage is an implementation staging restriction, not intended
-         final language semantics. Items 13 through 16 remove those restrictions.
+       * Parameters and function return storage remain implementation staging
+         restrictions, not intended final language semantics. Items 14 through 16
+         remove those restrictions. Item 13 has removed the automatic-local
+         restriction.
 
-[ ] 13. Add Superchip-backed automatic local variables.
+[x] 13. Add Superchip-backed automatic local variables.
 
        * Permit ordinary local scalars, arrays, and other already-supported local
          object forms to select a split-address writable region, for example
@@ -896,10 +897,11 @@ when main roadmap item 29 becomes active.
        * Keep the existing non-reentrant, symbol-backed local-storage model. Reads
          use the region's read alias; writes and function-entry initializers use
          its write alias. No runtime stack or new lifetime mechanism is required.
-       * Lower compound assignment, increment/decrement, indexed access, and any
-         supported bitfield update as an explicit read-alias load followed by a
-         write-alias store; never emit a single-address 6502 read-modify-write for
-         a split-address object.
+       * Reuse the existing alias-aware lowering for assignment, compound
+         assignment, increment/decrement, and indexed access. Extend the formerly
+         rejected split-address bitfield update so it evaluates the lvalue once,
+         loads through the read alias, and stores through the write alias; never
+         emit a single-address 6502 read-modify-write for a split-address object.
        * Preserve region identity and both aliases through inline-expansion-private
          locals where inline locals are otherwise legal, and count each physical
          allocation only once in map and overflow reporting.
@@ -907,6 +909,26 @@ when main roadmap item 29 becomes active.
          expansions, cross-bank use, exact map occupancy, deterministic overflow,
          and rejection only where the underlying local object form is itself
          unsupported.
+
+       Completed 2026-08-04:
+
+       * Automatic scalars, arrays, structures, packed bitfields, and inline-
+         expansion-private locals may use a split writable region. They retain
+         fixed non-reentrant backing symbols in function activation layouts.
+       * Function-entry declaration initializers and every generated store use the
+         write alias; generated reads use the read alias. The existing alias-aware
+         assignment/index/increment paths are reused.
+       * Split bitfield writes now evaluate the destination once, copy the physical
+         storage byte through the read alias, edit it in compiler scratch, and
+         store it through the write alias.
+       * Linker activation zeroing now translates split activation destinations to
+         the write window. Map accounting counts each physical local byte once.
+       * F8SC, F6SC, and F4SC execution tests cover direct/runtime indexing,
+         initializers, compound assignment, increment, bitfields, inline locals,
+         repeated nested cross-bank calls, exact eleven-byte occupancy, every
+         physical startup bank, and deterministic activation overflow.
+       * Function-scope `static` split objects remain explicitly unsupported; they
+         have one-time initialization semantics and are not automatic locals.
 
 [ ] 14. Add Superchip-backed value parameters.
 

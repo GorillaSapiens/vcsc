@@ -4079,7 +4079,10 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
          piece->layout->run_addr = (uint16_t)addr;
          if (piece->needs_zero)
             add_zero_record(layout, piece->layout->name,
-                            piece->layout->run_addr, piece->layout->size);
+                            memory_runtime_write_address(cfg, regions[i],
+                                                         piece->layout->run_addr,
+                                                         piece->layout->size),
+                            piece->layout->size);
       }
    }
 

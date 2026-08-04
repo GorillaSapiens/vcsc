@@ -633,7 +633,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       if (ident) {
          ContextEntry *entry = ctx_lookup(ctx, ident);
          if (entry && entry_is_absolute_ref(entry)) {
-            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = entry->offset, .size = entry->size, .use_site = expr };
+            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };
             if (!entry_has_read_address(entry)) {
                error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
             }
@@ -708,6 +708,8 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                   .is_absolute_ref = entry->is_absolute_ref,
                   .read_expr = entry->read_expr,
                   .write_expr = entry->write_expr,
+                  .has_split_alias_delta = entry->has_split_alias_delta,
+                  .split_alias_delta = entry->split_alias_delta,
                   .base_offset = entry->offset,
                   .offset = entry->offset,
                   .size = entry->size,

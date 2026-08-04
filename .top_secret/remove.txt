@@ -1192,3 +1192,5 @@ examples/04_player_color_181/02_score_below/03_dynamic_xy/README.md
 examples/04_player_color_181/02_score_below/03_dynamic_xy/multicolor_score_below_dynamic_x_and_y_motion.c26
 test/nonref_address_warning_test.c26
 test/nonref_address_local_warning_test.c26
+test/split_memory_local_error_test.c26
+test/split_memory_bitfield_write_error_test.c26

@@ -366,6 +366,8 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
       out->is_absolute_ref = entry->is_absolute_ref;
       out->read_expr = entry->read_expr;
       out->write_expr = entry->write_expr;
+      out->has_split_alias_delta = entry->has_split_alias_delta;
+      out->split_alias_delta = entry->split_alias_delta;
       out->base_offset = entry->offset;
       out->offset = entry->offset;
       out->size = entry->is_ref
@@ -828,15 +830,6 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_REF) && lv->is_bitfield) {
       return false;
    }
-   if (mode == LVALUE_ACCESS_WRITE && lv->is_bitfield && lv->is_absolute_ref &&
-       lv->read_expr && lv->write_expr && strcmp(lv->read_expr, lv->write_expr)) {
-      const ASTNode *site = lv->use_site;
-      error_user("[%s:%d.%d] split-address bitfield '%s' cannot be written because bitfield stores require a read-modify-write through one address",
-                 site && site->file ? site->file : "<unknown>",
-                 site ? site->line : 0, site ? site->column : 0,
-                 lv->name ? lv->name : "<unnamed>");
-   }
-
    emit_lvalue_semantic_use(ctx, lv,
       mode == LVALUE_ACCESS_READ ? "read" :
       mode == LVALUE_ACCESS_WRITE ? "write" :
@@ -1143,6 +1136,88 @@ bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int s
    return true;
 }
 
+//! @brief Store source bits into a bitfield while honoring distinct read/write aliases.
+static bool emit_copy_symbol_to_bitfield_lvalue(Context *ctx, const LValueRef *dst,
+                                                const char *symbol, int symbol_offset) {
+   LValueFixedScratch storage;
+   char storage_symbol[64];
+   int storage_size;
+
+   if (!dst || !dst->is_bitfield || !symbol) {
+      return false;
+   }
+   storage_size = dst->bit_storage_size;
+   if (storage_size <= 0) {
+      storage_size = (dst->bit_offset + dst->bit_width + 7) / 8;
+   }
+   if (storage_size <= 0) {
+      return true;
+   }
+
+   lvalue_fixed_scratch_begin(ctx, storage_size, &storage);
+   snprintf(storage_symbol, sizeof(storage_symbol), "%s", storage.symbol);
+
+   /* Evaluate the lvalue address once through the read alias.  For an allocated
+      split-address object the write alias is the same effective address plus a
+      compile-time constant delta, so preserve that computed address in ptr2.
+      This avoids evaluating a runtime index twice. */
+   if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_READ)) {
+      lvalue_fixed_scratch_end(ctx, &storage);
+      return false;
+   }
+   emit(&es_code, "    lda ptr0\n");
+   emit(&es_code, "    sta ptr2\n");
+   emit(&es_code, "    lda ptr0+1\n");
+   emit(&es_code, "    sta ptr2+1\n");
+   if (dst->has_split_alias_delta) {
+      emit_add_immediate_to_ptr(2, dst->split_alias_delta);
+   }
+   else if (dst->is_absolute_ref && dst->read_expr && dst->write_expr &&
+            strcmp(dst->read_expr, dst->write_expr)) {
+      const ASTNode *site = dst->use_site;
+      lvalue_fixed_scratch_end(ctx, &storage);
+      error_user("[%s:%d.%d] split-address bitfield '%s' has unrelated read/write addresses; allocated split-memory bitfields require a constant alias delta",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 dst->name ? dst->name : "<unnamed>");
+   }
+
+   emit_lvalue_semantic_use(ctx, dst, "write");
+   emit_load_address_to_ptr(1, storage_symbol, 0);
+   emit_copy_ptr0_to_ptr1(storage_size);
+
+   for (int bit = 0; bit < dst->bit_width; bit++) {
+      int dst_byte = (dst->bit_offset + bit) / 8;
+      int dst_mask = 1 << ((dst->bit_offset + bit) % 8);
+      int src_byte = bit / 8;
+      int src_mask = 1 << (bit % 8);
+      const char *clear_label = next_label("bitfield_alias_store_clear");
+      const char *done_label = next_label("bitfield_alias_store_done");
+
+      emit_load_a_from_expr_address(symbol, symbol_offset + src_byte);
+      emit(&es_code, "    and #$%02x\n", src_mask & 0xff);
+      emit(&es_code, "    beq %s\n", clear_label);
+      emit_load_a_from_expr_address(storage_symbol, dst_byte);
+      emit(&es_code, "    ora #$%02x\n", dst_mask & 0xff);
+      emit_store_a_to_expr_address(storage_symbol, dst_byte);
+      emit(&es_code, "    jmp %s\n", done_label);
+      emit(&es_code, "%s:\n", clear_label);
+      emit_load_a_from_expr_address(storage_symbol, dst_byte);
+      emit(&es_code, "    and #$%02x\n", (0xff ^ dst_mask) & 0xff);
+      emit_store_a_to_expr_address(storage_symbol, dst_byte);
+      emit(&es_code, "%s:\n", done_label);
+   }
+
+   for (int i = 0; i < storage_size; i++) {
+      emit_load_a_from_expr_address(storage_symbol, i);
+      emit(&es_code, "    ldy #%d\n", i);
+      emit(&es_code, "    sta (ptr2),y\n");
+   }
+
+   lvalue_fixed_scratch_end(ctx, &storage);
+   return true;
+}
+
 //! @brief Emit copy from a fixed symbol to an lvalue without software-stack scratch.
 bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *symbol,
                                 int symbol_offset, int size) {
@@ -1155,35 +1230,11 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
    if (copy_size <= 0) {
       return true;
    }
+   if (dst->is_bitfield) {
+      return emit_copy_symbol_to_bitfield_lvalue(ctx, dst, symbol, symbol_offset);
+   }
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
       return false;
-   }
-
-   if (dst->is_bitfield) {
-      for (int bit = 0; bit < dst->bit_width; bit++) {
-         int dst_byte = (dst->bit_offset + bit) / 8;
-         int dst_mask = 1 << ((dst->bit_offset + bit) % 8);
-         int src_byte = bit / 8;
-         int src_mask = 1 << (bit % 8);
-         const char *clear_label = next_label("bitfield_symbol_store_clear");
-         const char *done_label = next_label("bitfield_symbol_store_done");
-         emit(&es_code, "    ldy #%d\n", symbol_offset + src_byte);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit(&es_code, "    and #$%02x\n", src_mask & 0xff);
-         emit(&es_code, "    beq %s\n", clear_label);
-         emit(&es_code, "    ldy #%d\n", dst_byte);
-         emit(&es_code, "    lda (ptr0),y\n");
-         emit(&es_code, "    ora #$%02x\n", dst_mask & 0xff);
-         emit(&es_code, "    sta (ptr0),y\n");
-         emit(&es_code, "    jmp %s\n", done_label);
-         emit(&es_code, "%s:\n", clear_label);
-         emit(&es_code, "    ldy #%d\n", dst_byte);
-         emit(&es_code, "    lda (ptr0),y\n");
-         emit(&es_code, "    and #$%02x\n", (0xff ^ dst_mask) & 0xff);
-         emit(&es_code, "    sta (ptr0),y\n");
-         emit(&es_code, "%s:\n", done_label);
-      }
-      return true;
    }
 
    for (int i = 0; i < copy_size; i++) {
@@ -1198,41 +1249,13 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
 //! @brief Emit copy scratch to bitfield lvalue for compiler lvalue lowering diagnostics or output files.
 static bool emit_copy_scratch_to_bitfield_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
    int copy_size = size < dst->size ? size : dst->size;
-   bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
+   char source_symbol[64];
 
    if (copy_size <= 0) {
       return true;
    }
-   if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
-      return false;
-   }
-   if (!src_direct) {
-      emit_prepare_scratch_ptr(1, src_offset);
-   }
-   for (int bit = 0; bit < dst->bit_width; bit++) {
-      int dst_byte = (dst->bit_offset + bit) / 8;
-      int dst_mask = 1 << ((dst->bit_offset + bit) % 8);
-      int src_byte = bit / 8;
-      int src_mask = 1 << (bit % 8);
-      const char *clear_label = next_label("bitfield_store_clear");
-      const char *done_label = next_label("bitfield_store_done");
-      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + src_byte) : src_byte);
-      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
-      emit(&es_code, "    and #$%02x\n", src_mask & 0xff);
-      emit(&es_code, "    beq %s\n", clear_label);
-      emit(&es_code, "    ldy #%d\n", dst_byte);
-      emit(&es_code, "    lda (ptr0),y\n");
-      emit(&es_code, "    ora #$%02x\n", dst_mask & 0xff);
-      emit(&es_code, "    sta (ptr0),y\n");
-      emit(&es_code, "    jmp %s\n", done_label);
-      emit(&es_code, "%s:\n", clear_label);
-      emit(&es_code, "    ldy #%d\n", dst_byte);
-      emit(&es_code, "    lda (ptr0),y\n");
-      emit(&es_code, "    and #$%02x\n", (0xff ^ dst_mask) & 0xff);
-      emit(&es_code, "    sta (ptr0),y\n");
-      emit(&es_code, "%s:\n", done_label);
-   }
-   return true;
+   snprintf(source_symbol, sizeof(source_symbol), "%s", compiler_scratch_active_symbol());
+   return emit_copy_symbol_to_bitfield_lvalue(ctx, dst, source_symbol, src_offset);
 }
 
 //! @brief Emit copy lvalue to scratch for compiler lvalue lowering diagnostics or output files.
@@ -1476,6 +1499,8 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
    out->is_absolute_ref = entry->is_absolute_ref;
    out->read_expr = entry->read_expr;
    out->write_expr = entry->write_expr;
+   out->has_split_alias_delta = entry->has_split_alias_delta;
+   out->split_alias_delta = entry->split_alias_delta;
    out->base_offset = entry->offset;
    out->offset = entry->offset;
    out->size = entry->is_ref

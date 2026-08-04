@@ -548,18 +548,16 @@ bool entry_is_absolute_ref(const ContextEntry *entry) {
 }
 
 //! @brief Attach symbolic read/write aliases for an allocated split-address object.
-static void init_split_mem_entry_addresses(ContextEntry *entry, const char *name,
-                                           const ASTNode *modifiers) {
-   char symbol[256];
+void init_split_mem_entry_addresses_for_symbol(ContextEntry *entry, const char *symbol,
+                                               const ASTNode *modifiers) {
    char write_expr[320];
    int delta = 0;
 
-   if (!entry || !name || !modifiers_imply_split_address(modifiers)) {
+   if (!entry || !symbol || !*symbol || !modifiers_imply_split_address(modifiers)) {
       return;
    }
-   if (!format_user_asm_symbol(name, symbol, sizeof(symbol)) ||
-       !modifiers_split_address_delta(modifiers, &delta)) {
-      error_unreachable("could not construct split-address aliases for '%s'", name ? name : "?");
+   if (!modifiers_split_address_delta(modifiers, &delta)) {
+      error_unreachable("could not construct split-address aliases for '%s'", symbol);
    }
    entry->is_absolute_ref = true;
    entry->read_expr = strdup(symbol);
@@ -571,9 +569,24 @@ static void init_split_mem_entry_addresses(ContextEntry *entry, const char *name
                delta < 0 ? '-' : '+', (unsigned)(delta < 0 ? -delta : delta));
       entry->write_expr = strdup(write_expr);
    }
+   entry->has_split_alias_delta = true;
+   entry->split_alias_delta = delta;
    if (!entry->read_expr || !entry->write_expr) {
-      error_unreachable("out of memory constructing split-address aliases for '%s'", name);
+      error_unreachable("out of memory constructing split-address aliases for '%s'", symbol);
    }
+}
+
+static void init_split_mem_entry_addresses(ContextEntry *entry, const char *name,
+                                           const ASTNode *modifiers) {
+   char symbol[256];
+
+   if (!entry || !name || !modifiers_imply_split_address(modifiers)) {
+      return;
+   }
+   if (!format_user_asm_symbol(name, symbol, sizeof(symbol))) {
+      error_unreachable("could not construct split-address aliases for '%s'", name);
+   }
+   init_split_mem_entry_addresses_for_symbol(entry, symbol, modifiers);
 }
 
 //! @brief Extract init context entry from global decl for compiler code-generation support.
@@ -1016,6 +1029,8 @@ void ctx_push(Context *ctx, const ASTNode *type, const char *name) {
    entry->is_absolute_ref = false;
    entry->read_expr = NULL;
    entry->write_expr = NULL;
+   entry->has_split_alias_delta = false;
+   entry->split_alias_delta = 0;
    entry->target_typed = false;
    entry->type = type;
    entry->declarator = NULL;
@@ -1063,6 +1078,8 @@ void ctx_static(Context *ctx, const ASTNode *type, const char *name) {
    entry->is_absolute_ref = false;
    entry->read_expr = NULL;
    entry->write_expr = NULL;
+   entry->has_split_alias_delta = false;
+   entry->split_alias_delta = 0;
    entry->target_typed = false;
    entry->type = type;
    entry->declarator = NULL;
@@ -1091,6 +1108,8 @@ void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name) {
    entry->is_absolute_ref = false;
    entry->read_expr = NULL;
    entry->write_expr = NULL;
+   entry->has_split_alias_delta = false;
+   entry->split_alias_delta = 0;
    entry->target_typed = false;
    entry->type = type;
    entry->declarator = NULL;

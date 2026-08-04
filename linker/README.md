@@ -423,8 +423,11 @@ after its caller's live activation bytes. Sibling functions and other functions
 that cannot be active simultaneously may therefore share addresses.
 
 The overlay is region-local: a function may own pieces in the default RAM,
-zero page, or a source-declared `mem` region, and each region is independently
-weighted along the call graph. Internal-linkage functions are qualified by
+zero page, or a source-declared `mem` region, including a shared split-address
+region such as Superchip RAM, and each region is independently weighted along
+the call graph. Split-region activation layouts use the read alias as their run
+address, the write alias for startup zeroing and generated stores, and consume
+each physical byte only once. Internal-linkage functions are qualified by
 object identity, so identically named static helpers in different translation
 units do not merge. Calls hidden inside assembly remain outside this analysis
 and must obey the integration contract's non-reentry rules.

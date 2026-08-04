@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260803_075115.tar.gz
+    vcsc.20260803_081346.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8235,3 +8235,37 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   cap); staged `make installcheck` passes; focused split-address and hygiene
   tests pass. Roadmap item 13, explicit multi-bank duplication for immutable
   objects and functions, is next.
+
+2026-08-04 02:07:16 PDT, add Superchip-backed automatic locals
+----------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 13. Automatic local scalars,
+  arrays, structures, packed bitfields, and inline-expansion-private locals may
+  select a split-address writable region such as `superchip` while retaining
+  VCSC's fixed non-reentrant activation-storage model.
+* Preserve region identity plus read/write aliases on local context entries and
+  lvalues. Reads use the read alias; assignments, declaration initializers,
+  compound operations, increments/decrements, and indexed writes use the write
+  alias. Existing alias-aware lowering handles ordinary operations.
+* Replace the former split-bitfield-write rejection with a two-alias sequence:
+  evaluate the destination once, load the physical storage through its read
+  alias, edit a compiler scratch copy, and store through the write alias. An
+  arbitrary explicit split ref still requires a known constant alias delta for
+  this generated operation.
+* Emit split automatic storage in per-function
+  `BSS.<region>.__vcsc_activation$<owner>` layouts, including private inline
+  locals. Fix activation BSS zero records so startup initialization targets a
+  split region's write window rather than its read-only window. Physical bytes
+  remain region-local activation-overlay storage and are counted once.
+* Add compile-only regressions for local declarations, direct/runtime indexing,
+  inline locals, alias-aware packed-bitfield writes, and the deliberate
+  function-scope-static restriction. Add `superchip_locals.pl`, which runs
+  F8SC/F6SC/F4SC from every physical startup bank and verifies initializers,
+  compounds, increments, bitfields, inline expansion, repeated nested
+  cross-bank calls, exact eleven-byte map occupancy, read/write alias coherence,
+  and deterministic overflow.
+* Update compiler ABI/storage documentation, linker activation documentation,
+  VCS Superchip usage documentation, detailed roadmap status, and source-tree
+  hygiene. Roadmap item 14, Superchip-backed value parameters, is next.
+* Verification: all 354 compile-only tests pass. All 216 end-to-end/generic
+  tests pass in ordered chunks, including every new Superchip-local execution
+  case. Staged `make installcheck` passes.

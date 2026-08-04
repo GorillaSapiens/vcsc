@@ -481,13 +481,20 @@ symbolic aliases in relocations rather than replacing the object with a fixed
 integer address; the linker therefore allocates each object once and can report
 both final addresses.
 
-Split-address allocation currently supports persistent file-scope objects and
-arrays. It is not valid on functions, parameters, or automatic locals. Taking
-the address, array-to-pointer decay, and passing one as a `ref` argument are
-rejected because one ordinary pointer cannot encode different load and store
-addresses. Direct indexing remains supported, including runtime array indexes.
-Bitfield reads are valid, but bitfield writes are rejected because their
-read-modify-write sequence would need both aliases simultaneously.
+Split-address allocation supports persistent file-scope objects and automatic
+local objects, including arrays and inline-expansion-private locals. Automatic
+local initializers run whenever control reaches the declaration, exactly as for
+ordinary locals, while their fixed backing bytes participate in the normal
+call-graph activation overlay. Loads use the read alias; stores and initializer
+writes use the write alias.
+
+Taking the address, array-to-pointer decay, and passing one as a `ref` argument
+remain rejected because one ordinary pointer cannot encode different load and
+store addresses. Direct indexing remains supported, including runtime array
+indexes. Compound assignment, increment/decrement, and bitfield updates load
+through the read alias and store through the write alias rather than using a
+single-address 6502 read-modify-write instruction. Function-scope `static`
+objects, parameters, and return storage in split regions remain later work.
 The selected linker `MEMORY` entry must use matching `read_start`,
 `write_start`, `size`, and `type = rw` values and must be shared rather than
 owned by a cartridge bank.
