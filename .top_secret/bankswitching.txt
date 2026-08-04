@@ -974,12 +974,14 @@ when main roadmap item 29 becomes active.
          no compiler or linker path recognizes the spelling `superchip`. The
          parameter remains an exact-sized callee-owned symbol in the function's
          region-local activation layout.
-       * Direct calls continue to evaluate and convert every argument left to
-         right into caller scratch. Only after all evaluations finish does the
-         caller copy a split parameter through its configured write alias, then
-         issue the ordinary `JSR`. Callee loads use the read alias and parameter
-         assignments use the write alias. Inline-expansion-private parameters use
-         the same alias-aware storage rule without gaining a callable ABI.
+       * Direct calls evaluate argument expressions left to right and use
+         selective caller staging. A converted argument is copied immediately to
+         its callee-owned object unless it must survive a function call in a later
+         argument; only those earlier values remain staged until all evaluations
+         finish. Split parameters use their configured write alias for either
+         copy path. Callee loads use the read alias and parameter assignments use
+         the write alias. Inline-expansion-private parameters use the same alias-
+         aware storage rule without gaining a callable ABI.
        * Function signatures and ABI fingerprints now include each value
          parameter's region identity; linker-visible fingerprints additionally
          carry the read and write starts plus ordinary type representation.
@@ -996,6 +998,11 @@ when main roadmap item 29 becomes active.
          `pair`, and `orange` regions with different sizes, noncontiguous aliases,
          and both alias orderings; it also proves linker-visible ABI mismatch
          diagnostics name the conflicting parameter regions.
+       * `call_selective_staging.pl` additionally proves call-free argument lists
+         reserve only one reusable slot sized for the largest argument, while a
+         nested-call list reserves exactly the values which cross a later call
+         plus that reusable slot. Existing sibling-overlay execution coverage
+         proves the reduced staging remains safe.
 
 [ ] 15. Add Superchip-backed function return storage.
 

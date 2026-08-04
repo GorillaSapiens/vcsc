@@ -261,6 +261,7 @@ typedef struct DirectCallArgStage {
    const ASTNode *declarator;
    int size;
    int offset;
+   bool must_stage;
    bool is_ref;
    bool is_zeropage;
    bool is_split;
@@ -268,7 +269,54 @@ typedef struct DirectCallArgStage {
    char write_expr[320];
 } DirectCallArgStage;
 
-//! @brief Lower an ordinary direct call using caller-owned argument staging.
+//! @brief Return whether evaluating an expression may execute an ordinary call.
+//!
+//! `sizeof` operands and registered compiler builtins are compile-time-only and
+//! therefore cannot clobber a pending callee activation.  Other call nodes are
+//! conservatively treated as runtime calls, including inline calls: an inline
+//! body may itself contain an ordinary call even when that fact is not visible
+//! from the call-site expression tree.
+static bool expr_may_execute_runtime_call(const ASTNode *expr) {
+   if (!expr || is_empty(expr)) {
+      return false;
+   }
+   expr = unwrap_expr_node(expr);
+   if (!expr || is_empty(expr)) {
+      return false;
+   }
+   if (!strcmp(expr->name, "sizeof")) {
+      return false;
+   }
+   if (!strcmp(expr->name, "()")) {
+      if (builtin_call_result_type_name(expr)) {
+         return false;
+      }
+      return true;
+   }
+   for (int i = 0; i < expr->count; i++) {
+      if (expr_may_execute_runtime_call(expr->children[i])) {
+         return true;
+      }
+   }
+   return false;
+}
+
+//! @brief Copy one converted argument from active scratch to its callee object.
+static void emit_direct_argument_copy(const DirectCallArgStage *item,
+                                      int scratch_offset) {
+   if (item->is_split) {
+      emit_copy_scratch_to_address_expr(item->write_expr,
+                                        scratch_offset,
+                                        item->size);
+   }
+   else {
+      emit_copy_scratch_to_symbol_offset(item->symbol, 0,
+                                         scratch_offset,
+                                         item->size);
+   }
+}
+
+//! @brief Lower an ordinary direct call using selective caller-owned staging.
 static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
                                        ASTNode *callee, ASTNode *args,
                                        const ASTNode *fn, const ASTNode *declarator,
@@ -277,6 +325,9 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    int arg_count = (args && !is_empty(args)) ? args->count : 0;
    int actual_index = 0;
    int staged_count = 0;
+   int staged_size = 0;
+   int direct_temp_size = 0;
+   int direct_temp_offset = 0;
    int total_size = 0;
    DirectCallArgStage *staged = NULL;
    CompilerScratchLease scratch;
@@ -294,10 +345,8 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
       }
    }
 
-   /* Reserve one caller-owned block for all arguments.  Earlier argument
-      values must survive calls made while evaluating later arguments; writing
-      callee-owned parameter symbols eagerly would make sibling activations
-      unsafe to overlay. */
+   /* Collect the fixed-parameter ABI objects before deciding which values must
+      remain in caller storage. */
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count && actual_index < arg_count; i++) {
          const ASTNode *parameter = params->children[i];
@@ -312,8 +361,6 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          item->declarator = parameter_declarator(parameter);
          item->is_ref = parameter_is_ref(parameter);
          item->size = parameter_storage_size(parameter);
-         item->offset = total_size;
-         total_size += item->size;
 
          if (!function_parameter_storage_addresses(fn, parameter, i,
                                                    item->symbol, sizeof(item->symbol),
@@ -335,6 +382,31 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
       }
    }
 
+   /* Preserve only arguments whose converted values must survive a runtime
+      call in a later argument.  Everything else can be copied to its callee-
+      owned parameter object immediately after evaluation.  This keeps the
+      language's left-to-right evaluation order while avoiding a whole-list
+      staging block for call-free suffixes. */
+   {
+      bool later_argument_may_call = false;
+      for (int i = staged_count - 1; i >= 0; i--) {
+         DirectCallArgStage *item = &staged[i];
+         item->must_stage = later_argument_may_call;
+         if (item->must_stage) {
+            item->offset = staged_size;
+            staged_size += item->size;
+         }
+         else if (item->size > direct_temp_size) {
+            direct_temp_size = item->size;
+         }
+         if (expr_may_execute_runtime_call(args->children[i])) {
+            later_argument_may_call = true;
+         }
+      }
+   }
+   direct_temp_offset = staged_size;
+   total_size = staged_size + direct_temp_size;
+
    if (staged_count > 0) {
       bool ok = true;
       compiler_scratch_acquire(ctx, total_size, &scratch);
@@ -343,6 +415,7 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
       for (int i = 0; i < staged_count; i++) {
          DirectCallArgStage *item = &staged[i];
          ContextEntry tmp;
+         int eval_offset = item->must_stage ? item->offset : direct_temp_offset;
 
          memset(&tmp, 0, sizeof(tmp));
          tmp.name = "$callarg";
@@ -350,12 +423,12 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          tmp.declarator = item->is_ref ? NULL
             : call_adjusted_parameter_declarator(item->declarator, false);
          tmp.target_typed = true;
-         tmp.offset = item->offset;
+         tmp.offset = eval_offset;
          tmp.size = item->size;
 
          if (item->is_ref) {
             ok = compile_ref_argument_to_slot(args->children[i], ctx,
-                                              item->offset, item->size);
+                                              eval_offset, item->size);
          }
          else {
             ok = compile_expr_to_slot(args->children[i], ctx, &tmp);
@@ -363,19 +436,15 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          if (!ok) {
             break;
          }
+         if (!item->must_stage) {
+            emit_direct_argument_copy(item, eval_offset);
+         }
       }
 
       if (ok) {
          for (int i = 0; i < staged_count; i++) {
-            if (staged[i].is_split) {
-               emit_copy_scratch_to_address_expr(staged[i].write_expr,
-                                                 staged[i].offset,
-                                                 staged[i].size);
-            }
-            else {
-               emit_copy_scratch_to_symbol_offset(staged[i].symbol, 0,
-                                                  staged[i].offset,
-                                                  staged[i].size);
+            if (staged[i].must_stage) {
+               emit_direct_argument_copy(&staged[i], staged[i].offset);
             }
          }
       }

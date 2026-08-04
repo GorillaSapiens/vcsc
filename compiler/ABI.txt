@@ -143,11 +143,17 @@ Every non-void parameter of a directly named function has a
 callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
 parameters explicitly assigned to a zero-page memory region use zero-page
 symbols. A value parameter may also select any named split-address writable
-region. The caller evaluates all arguments from left to right into caller-owned
-scratch, then writes the complete converted argument set to the corresponding
-callee symbols immediately before JSR. For a split parameter that final copy
-uses the region's write alias; callee loads use the read alias and callee stores
-use the write alias.
+region.
+
+The caller evaluates argument expressions from left to right. After conversion,
+an argument is copied immediately to its callee-owned parameter object unless
+its value must survive a function call in a later argument. Only those earlier
+values remain staged in caller-owned scratch. Once all argument expressions
+finish, the caller copies the staged values and issues JSR. Call-free argument
+lists therefore use one reusable conversion slot sized for the largest
+argument, rather than one block sized for the complete list. For a split
+parameter every final copy, immediate or delayed, uses the region's write
+alias; callee loads use the read alias and callee stores use the write alias.
 
 Parameters may use ordinary binary integers through four bytes and `bcd8_t`,
 `bcd16_t`, `bcd24_t`, or `bcd32_t`. Linker-visible ABI fingerprints distinguish
@@ -158,7 +164,12 @@ storage. A split-address `ref` parameter is rejected because the ordinary
 pointer/reference ABI carries only one address.
 
 A direct call therefore places no fixed parameter bytes on the software stack
-and allocates no software-stack call frame. Argument conversion uses a live caller-function `__vcsc_scratch_N` lease when needed. Return values are read directly from the callee-owned `function$__return` symbol; scratch belongs to the caller and is not part of the callee ABI.
+and allocates no software-stack call frame. Argument conversion uses a live
+caller-function `__vcsc_scratch_N` lease when needed; its reserved size is the
+bytes which must survive later calls plus one reusable slot for the largest
+remaining argument. Return values are read directly from the callee-owned
+`function$__return` symbol; scratch belongs to the caller and is not part of the
+callee ABI.
 
 Every function body owns one logical activation record containing its
 parameters, automatic locals, expression scratch, and return object when

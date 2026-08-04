@@ -327,8 +327,10 @@ bitfield updates are alias-aware: they load through the read port and store
 through the write port. Address-taking, pointer decay, and passing a split object to an ordinary
 `ref` remain rejected because the object has no single ordinary address.
 Split-address value parameters are supported: callers copy through the write
-alias after staging all arguments, while callees load through the read alias and
-store through the write alias. A split-address `ref` parameter remains rejected;
-return storage is the next roadmap step. The explicit `superchip_ram`
+alias using the ordinary selective-staging rule, while callees load through the
+read alias and store through the write alias. Only an argument which must
+survive a function call in a later argument remains in caller scratch. A
+split-address `ref` parameter remains rejected; return storage is the next
+roadmap step. The explicit `superchip_ram`
 declaration remains available when fixed-offset access to the complete window
 is preferable.

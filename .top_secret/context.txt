@@ -8368,3 +8368,32 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   rerun, and the remaining 57 tests passed in two ordered chunks. Focused
   startup-main, generic split-parameter, Superchip-parameter, fruit-region,
   image-model, and source-hygiene tests pass. Staged `make installcheck` passes.
+
+2026-08-04 08:16:42 PDT, make direct-call argument staging selective
+-----------------------------------------------------
+* Replace whole-list direct-call staging with a generic liveness rule. Argument
+  expressions still evaluate left-to-right, but a converted value is copied to
+  its callee-owned parameter object immediately unless a later argument may
+  execute a function call. Only values which must survive such a later call
+  remain in caller-owned scratch until all evaluations finish.
+* Keep one reusable conversion slot for the largest unstaged argument and place
+  preserved arguments before it in the same caller scratch lease. Call-free
+  lists therefore reserve the maximum argument width rather than the sum of all
+  widths; nested-call sites reserve only the crossing values plus that reusable
+  slot. Split-address parameters use the same generic immediate/delayed decision
+  and always copy through their configured write expression.
+* Treat ordinary and inline call expressions conservatively as possible runtime
+  calls; exclude compile-time compiler builtins and unevaluated sizeof operands.
+  This preserves sibling activation overlay safety, including self-target nested
+  calls, without hard-coding parameter regions or mapper names.
+* Add call_selective_staging.pl. It proves a 1+2+1+4-byte call-free list uses a
+  four-byte reusable slot, a nested-call list stages only the first byte plus
+  that four-byte slot, and a call in the first argument needs no preserved
+  prefix. Update call-order expectations, compiler/ABI, VCS, test, and detailed
+  bankswitching-roadmap documentation.
+* Verification: all 357 compile-only tests pass. All 221 end-to-end/generic
+  tests pass; the long suite was completed in ordered continuation chunks after
+  the execution timeout, with source-tree hygiene rerun after removing the
+  temporary resume helper. Focused call-order, selective-staging, sibling-
+  overlay, Superchip-parameter, and generic split-parameter tests pass. Staged
+  `make installcheck` passes.

@@ -573,10 +573,12 @@ Calls require a visible declaration and a directly named target.
 
 Arguments are evaluated left-to-right. Value arguments permit the normal
 integer widening and pointer conversions described above. `ref` arguments are
-strict exact-type lvalues. Ordinary calls stage every converted argument in the
-caller's activation before writing any callee parameter symbol; a function call
-inside a later argument therefore cannot clobber an earlier argument through
-sibling activation overlay.
+strict exact-type lvalues. Ordinary calls use selective staging. A converted
+argument is copied to its callee-owned parameter object immediately unless a
+later argument may execute a function call. Only values which must survive such
+a later call remain in caller-owned scratch, preventing sibling activation
+overlay from clobbering them without reserving space for the complete argument
+list.
 
 ### All parameters are static
 
@@ -606,9 +608,10 @@ void capture(fast uint16_t ordinary, ports uint16_t split) {
 }
 ```
 
-For a split-address value parameter, the caller still stages all converted
-arguments first, then copies that parameter through the configured write alias
-immediately before `JSR`. The callee reads through the read alias and writes
+For a split-address value parameter, the caller uses the same selective rule.
+A safe argument is copied immediately through the configured write alias; an
+argument which must survive a later call is copied through that alias after all
+argument expressions finish. The callee reads through the read alias and writes
 through the write alias. ABI metadata includes the region and both aliases, so
 separate declarations and definitions must agree. A split-address `ref`
 parameter is rejected because the ordinary reference ABI contains only one

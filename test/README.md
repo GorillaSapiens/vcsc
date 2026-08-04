@@ -465,11 +465,18 @@ compound operations, packed bitfields, alias-direction enforcement in the
 simulator, mirrored final contents, and per-region overflow diagnostics.
 
 
+`call_selective_staging.pl` proves direct calls do not reserve a whole argument
+list in caller scratch. Call-free lists use one reusable slot sized for the
+largest argument; when a later argument calls a function, only earlier values
+which must survive that call remain staged. It also checks that callee parameter
+writes occur at the earliest safe point without changing left-to-right argument
+evaluation.
+
 `superchip_parameters.pl` exercises split-address value parameters under F8SC,
 F6SC, and F4SC from every physical startup bank. It covers ordinary and BCD
-values from one through four bytes, left-to-right caller staging with nested
-calls, callee mutation, inline parameters, cross-bank calls, exact activation
-occupancy, both aliases, and deterministic overflow. The mapper-independent
+values from one through four bytes, selective left-to-right caller staging with
+nested calls, callee mutation, inline parameters, cross-bank calls, exact
+activation occupancy, both aliases, and deterministic overflow. The mapper-independent
 `split_memory_value_parameters.pl` separately compiles callers and callees using
 `banana`, `pair`, and `orange`, verifies reversed and noncontiguous alias layouts,
 and requires ABI mismatch diagnostics when parameter regions disagree.
