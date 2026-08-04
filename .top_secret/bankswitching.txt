@@ -888,9 +888,9 @@ when main roadmap item 29 becomes active.
          bank and prove initialized DATA, zeroed BSS, dynamic indexing, alias
          direction, persistence across calls in every logical bank, exact image
          sizes, and one 34-byte physical occupancy report. Authoritative Stella,
-         installed-toolchain, and reset-lifecycle certification remains item 19.
+         installed-toolchain, and reset-lifecycle certification remains item 23.
        * Parameters and function return storage remain implementation staging
-         restrictions, not intended final language semantics. Items 14 through 16
+         restrictions, not intended final language semantics. Items 14, 15, and 20
          remove those restrictions. Item 13 has removed the local-object
          restriction, including function-scope static storage.
 
@@ -962,8 +962,9 @@ when main roadmap item 29 becomes active.
          calls work identically within one translation unit, across separate
          compilation, and through generated cross-bank trampolines. Preserve the
          existing non-reentrancy and call-cycle rules for symbol-backed parameters.
-       * Do not conflate value parameters with ordinary `ref` parameters. A sound
-         split-address pointer/reference ABI remains a separate decision.
+       * Do not conflate value parameters with ordinary `ref` parameters.
+         Items 17 through 19 add directional one-address pointers and `ref`
+         binding rules without introducing a built-in fat-pointer ABI.
        * Test one- through four-byte values, BCD values, caller-side expression
          evaluation, callee reads and writes, repeated and nested calls, separate
          compilation, map accounting, and overflow diagnostics.
@@ -988,8 +989,9 @@ when main roadmap item 29 becomes active.
          Declarations and definitions therefore cannot disagree about split
          storage either within one translation unit or across separate builds,
          even when their value widths match.
-       * Split-address `ref` parameters remain rejected with a focused diagnostic:
-         a normal pointer cannot represent distinct load and store addresses.
+       * Split-address `ref` parameters remain rejected pending item 19, with a
+         focused diagnostic: a normal pointer cannot represent distinct load and
+         store addresses.
        * F8SC, F6SC, and F4SC tests cover one- through four-byte ordinary and BCD
          values, caller-side calls during argument evaluation, callee mutation,
          inline expansion, nested and cross-bank calls, every physical startup
@@ -1020,7 +1022,7 @@ when main roadmap item 29 becomes active.
          the callee must observe the value just written.
        * Carry the result region and both aliases through declarations, definitions,
          ABI metadata, separate compilation, generated cross-bank calls, map output,
-         activation layout, and deterministic overflow diagnostics. Item 16 handles
+         activation layout, and deterministic overflow diagnostics. Item 20 handles
          combining result storage with an explicit code-placement region.
        * Add execution tests which explicitly write `$$`, read it back, modify it,
          use a bare `return;`, and verify the caller receives the final value. Cover
@@ -1059,11 +1061,119 @@ when main roadmap item 29 becomes active.
          integer and pointer results, map/symbol checks, result-region ABI mismatch,
          and per-region overflow coverage.
        * A split result modifier currently selects only return storage; the function
-         body's code remains automatically placed. Item 16 adds the independent
+         body's code remains automatically placed. Item 20 adds the independent
          code-region/result-region partition needed to combine writable result
          storage with an explicit read-only code-placement modifier.
 
-[ ] 16. Generalize function region modifiers into a code-region set and one
+[ ] 16. Make `@[read_address/write_address]` imply an absolute external
+       object binding without `ref`.
+
+       * Accept declarations such as `uint8_t VSYNC @[none/0x00];`,
+         `uint8_t CXM0P @[0x30/none];`, and
+         `uint8_t SWCHA @[0x0280/0x0280];`. The address annotation itself means
+         that the object names pre-existing storage: allocate no bytes, emit no
+         initializer, and preserve the supplied read and write locations exactly.
+       * Reserve `ref` for parameter-passing semantics. Migrate the installed
+         hardware headers, examples, tests, and documentation away from
+         `ref T object @[read/write]`, then diagnose `ref` on an object definition
+         or declaration rather than retaining two spellings for the same binding.
+       * Preserve `none` independently on either side and carry every absolute
+         binding through the same generic lvalue metadata used by split `mem`
+         objects. Reads require a read location, writes require a write location,
+         and read-modify-write operations require both; do not special-case
+         hardware-register names or the `ref` spelling.
+       * Reject initializers, allocation modifiers, and other contradictory storage
+         requests on absolute external bindings. Require compatible redeclarations
+         and separate-compilation metadata to agree on type and both addresses.
+       * Add migration and diagnostic tests for readable-only, writable-only,
+         same-address read/write, and differing-address bindings, including array
+         and aggregate object declarations where those forms are already legal.
+
+[ ] 17. Add `writeonly` as the write-side access qualifier.
+
+       * Define `writeonly T *` as a one-address pointer through which the pointed-
+         to object may be written but not read. Permit copying and the ordinary
+         pointer comparison/arithmetic operations VCSC already supports, indexing
+         used as a store destination, and direct assignment through the pointer.
+       * Reject every operation which obtains a value through a `writeonly`
+         lvalue, including ordinary loads, compound assignment, increment/
+         decrement, and packed-bitfield updates which must preserve surrounding
+         bits. Keep `const` and `writeonly` mutually exclusive on the same pointee.
+       * Permit an ordinary readable/writable `T *` to convert implicitly to
+         `writeonly T *`, just as it may lose write capability when converted to
+         `const T *`. Reject implicit conversion from either restricted pointer
+         back to ordinary `T *` or between `const T *` and `writeonly T *`.
+       * Carry access qualification through declarations, assignments, casts if
+         supported, function signatures, ABI fingerprints, structure layout, and
+         separate compilation. The qualifier changes permitted access, not pointer
+         width: ordinary, `const`, and `writeonly` pointers remain one-address
+         pointers.
+       * Add positive store/index/arithmetic tests and focused diagnostics for
+         hidden reads, forbidden conversions, bitfield writes, qualification
+         mismatch across declarations, and attempts to combine `const` with
+         `writeonly`.
+
+[ ] 18. Add explicit read- and write-address projection operators `&?` and `&!`.
+
+       * Define `&?lvalue` to return the lvalue's read address as `const T *`, and
+         `&!lvalue` to return its write address as `writeonly T *`. Evaluate the
+         lvalue location once and do not load from or store to the object merely to
+         form either address.
+       * Drive both operators entirely from generic lvalue read/write metadata.
+         `&?` is an error when the read location is `none`; `&!` is an error when
+         the write location is `none`. This applies equally to named `mem` objects,
+         absolute bindings such as `uint8_t VSYNC @[none/0x00];`, array elements,
+         structure members, and dereferenced lvalues.
+       * Make no assumption about region spelling, window order, contiguity,
+         distance, alignment, or size. For an ordinary one-address object the two
+         projected pointer values may be numerically equal while retaining their
+         different access qualifications.
+       * Keep plain `&` for objects which have one conventional address compatible
+         with the resulting ordinary pointer type. Reject plain `&` when distinct
+         read and write locations cannot be represented by one pointer, and direct
+         the diagnostic to `&?` and `&!`. Keep implicit decay of a split-address
+         array invalid; use an explicit directional projection such as `&?array[0]`
+         or `&!array[0]`. Expressions such as `&?*p` and `&!*p` remain valid
+         compositional spellings when the dereferenced lvalue has the required
+         access path.
+       * Do not add a built-in split/fat pointer in this slice. A program which must
+         retain both addresses may place the two projections in an ordinary user-
+         defined structure. Leave a language-defined paired-pointer type deferred
+         until a concrete use case justifies its ABI and optimizer cost.
+       * Test ordinary, read-only, write-only, same-address, reversed-window, and
+         noncontiguous split objects using unrelated fruit-named regions and
+         explicit absolute bindings. Verify `none` diagnostics and ensure the
+         generated pointer is the exact configured read or write address.
+
+[ ] 19. Extend one-address `ref` parameters with directional access capability.
+
+       * Define three parameter contracts: `ref const T` accepts a readable lvalue
+         and passes its read address; `ref writeonly T` accepts a writable lvalue
+         and passes its write address; ordinary `ref T` accepts only an lvalue whose
+         read and write locations both exist and are identical.
+       * Continue to represent every `ref` argument with one ordinary pointer-sized
+         address. Do not create an implicit fat pointer and do not choose one side
+         of a genuinely split object for unqualified `ref T`.
+       * Enforce the declared capability inside the callee. `ref const T` may be
+         read but not written; `ref writeonly T` may be written but not read or
+         used for read-modify-write; `ref T` retains ordinary read/write behavior.
+         Select the argument address from the parameter type, never from callee-body
+         analysis, so separate compilation and ABI behavior remain deterministic.
+       * Permit calls such as `inspect(slug)` for `ref const T` and `output(slug)`
+         for `ref writeonly T` when `slug` is split, while rejecting `modify(slug)`
+         for ordinary `ref T`. Apply the same rules to absolute bindings with
+         `none`, for example allowing a writable-only VSYNC binding to a
+         `ref writeonly` parameter but rejecting readable or ordinary `ref` use.
+       * Include access capability in function type compatibility and ABI
+         fingerprints. Diagnose incompatible declarations, forbidden qualifier
+         conversions, non-lvalue arguments, missing access locations, and unequal
+         read/write addresses with the actual object and parameter names.
+       * Test same-TU and separately compiled calls, arrays and subobjects,
+         ordinary and split `mem` regions, absolute hardware-style bindings,
+         cross-bank calls, and both successful directional binding and every
+         rejected capability mismatch.
+
+[ ] 20. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.
 
        * Classify every named region modifier from its declared `mem` properties,
@@ -1080,18 +1190,18 @@ when main roadmap item 29 becomes active.
          modifiers. With no writable modifier, retain the normal default return
          region; with no read-only modifier, retain automatic code placement.
        * Permit the semantic representation of more than one read-only code region,
-         but until item 17 implements replication, reject a function which requests
+         but until item 21 implements replication, reject a function which requests
          more than one with a deterministic diagnostic stating that multi-region
-         code placement requires item 17. Do not partially duplicate or silently
+         code placement requires item 21. Do not partially duplicate or silently
          choose one region in this item.
        * Require declarations and definitions to agree independently on the code-
          region set and result-storage region. Map output must report the one actual
          code placement separately from the one return object.
        * Add order-independence and arbitrary-region-name tests, single-code-region
          plus writable-result tests, declaration/definition mismatch tests, and the
-         explicit deferred-multi-region diagnostic consumed by item 17.
+         explicit deferred-multi-region diagnostic consumed by item 21.
 
-[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.
+[ ] 21. Add explicit multi-bank duplication for immutable objects and functions.
 
        * Accept an order-insensitive set of named bank-region modifiers, for
          example `bank0 bank1 const uint8_t table[] := { ... };`, and emit one
@@ -1099,7 +1209,7 @@ when main roadmap item 29 becomes active.
        * Bind each ordinary reference to the copy in the referencing function's
          current bank.  A reference from a bank without a declared copy is an
          error; the copies need not share one low-twelve-bit offset.
-       * Permit the same syntax on functions, using item 16's region-role
+       * Permit the same syntax on functions, using item 20's region-role
          partition. Emit one function body per read-only region and resolve calls
          from a bank containing a copy to that local copy before considering a
          cross-bank trampoline. A writable modifier, when present, selects one
@@ -1117,7 +1227,7 @@ when main roadmap item 29 becomes active.
          `bank0 bank1 superchip` function form, function pointers remaining
          unsupported, and deterministic diagnostics for missing copies.
 
-[ ] 18. Coalesce a single returned automatic variable with `$$`.
+[ ] 22. Coalesce a single returned automatic variable with `$$`.
 
        * For a value-returning function where every reachable return is exactly
          `return variable;` for the same automatic local variable, allow that local
@@ -1147,7 +1257,7 @@ when main roadmap item 29 becomes active.
          regions differ, including distinct regions which happen to map to the same
          physical addresses. Update language, ABI, map, and optimization documentation.
 
-[ ] 19. Integrate automatic Superchip initialization and lifecycle tests.
+[ ] 23. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
          startup.
@@ -1159,7 +1269,7 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-[ ] 20. Add banked renderer or multisprite profiles only after the generic
+[ ] 24. Add banked renderer or multisprite profiles only after the generic
        cartridge tests are stable.
 
        * Keep mapper behavior out of renderer timing code except for explicit
@@ -1168,7 +1278,7 @@ when main roadmap item 29 becomes active.
        * Do not multiply cfg files into every renderer x mapper combination
          without first defining a maintainable composition mechanism.
 
-[ ] 21. Improve automatic placement heuristics without changing semantics.
+[ ] 25. Improve automatic placement heuristics without changing semantics.
 
        * Measure whether call-frequency weighting, component ordering, or local
          moves materially reduce bridge count, cycles, and hardware-stack cost.
@@ -1178,7 +1288,7 @@ when main roadmap item 29 becomes active.
        * Permit a simple-placement mode for debugging and reproducibility; never
          fall back to invented cross-bank data access.
 
-[ ] 22. Design the next mapper family separately.
+[ ] 26. Design the next mapper family separately.
 
        * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
          segmented schemes such as E0/E7 based on an actual project need.
@@ -1193,8 +1303,9 @@ The following are not settled by this document:
 * the exact size/location of the common bridge corridor;
 * whether non-public or future mapper profiles may use a startup bank other
   than BANK0 while still keeping public full-window profiles and `main` in BANK0;
-* whether a later split-address allocated object can participate in ordinary
-  `ref` parameter passing;
+* whether a concrete use case eventually justifies a built-in split/fat
+  pointer rather than explicit `&?`/`&!` projections stored in a user-defined
+  structure;
 * whether measured programs justify profile-guided edge weights, explicit
   same-bank groups, translation-unit preferences, or a deterministic local-search
   pass beyond the completed greedy placer.
