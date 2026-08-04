@@ -91,6 +91,10 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
 -f File::Spec->catfile($test,'superchip_static_locals.pl') &&
 -f File::Spec->catfile($test,'split_memory_generic_regions.pl') &&
+-f File::Spec->catfile($test,'superchip_parameters.pl') &&
+-f File::Spec->catfile($test,'split_memory_value_parameters.pl') &&
+-f File::Spec->catfile($test,'split_memory_parameter_region_conflict_error_test.c26') &&
+-f File::Spec->catfile($test,'linker_startup_main_generic.pl') &&
 -f File::Spec->catfile($test,'split_memory_allocation_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_local_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_bitfield_write_codegen_test.c26') &&
@@ -107,7 +111,7 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
       or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
 }
 index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
-index($bankswitching,'[ ] 14. Add Superchip-backed value parameters.')>=0 &&
+index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
 index($bankswitching,'[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
@@ -141,9 +145,10 @@ index($bankswitching,'[x] 9. Add F6 and F4 through the same implementation.')>=0
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_32k_f4.cfg') &&
 -f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
    or die "certified F6/F4 profiles or their regression test are missing\n";
-$bankswitching =~ /The linker pins unmarked\s+`main`/ &&
+$bankswitching =~ /linker pins its private layout to the unique BANKS entry marked `startup=yes`/ &&
+$bankswitching =~ /The compiler does not interpret names such\s+as `bank0`/ &&
 $bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
-   or die "bankswitching plan lost main/BANK0 or constrained automatic placement\n";
+   or die "bankswitching plan lost generic startup-main or constrained automatic placement\n";
 index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
    or die "bankswitching plan lost Superchip ROM-prefix reservation\n";

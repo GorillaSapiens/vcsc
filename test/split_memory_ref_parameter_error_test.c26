@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: ref parameter 1 of function 'touch' cannot use split-address mem region 'superchip'
+// expecterr: split-address value parameters have callee-owned storage
+// expecterr: split-address pointer/reference ABI is not defined
+
+include "machine_6502.c26"
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+void touch(ref superchip uint8_t value) {
+}
+
+void main(void) {
+}

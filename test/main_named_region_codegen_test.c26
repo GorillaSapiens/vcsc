@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectasm: .segment "CODE.orange_code"
+// expectasm: .proc main
+
+include "machine_6502.c26"
+mem orange_code { $start:0xD000 $size:0x0F00 $ro };
+
+orange_code void main(void) {
+}

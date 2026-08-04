@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260804_094120.tar.gz
+    vcsc.20260804_100321.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8321,3 +8321,50 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   F8SC/F6SC/F4SC allocation/local/static-local regressions. Staged
   `make installcheck` passes.
 
+
+2026-08-04 03:48:33 PDT, add generic startup-main placement and split value parameters
+---------------------------------------------------------------------------------------
+* Remove the compiler's spelling-based `bank0` rule for `main`. In a banked
+  configuration, unqualified `main` is now pinned by `vcsc-ld` to the unique
+  BANKS entry marked `startup=yes`, using that bank's ordinary allocatable ROM
+  MEMORY region. An explicitly qualified `main` is accepted only when its
+  MEMORY region belongs to the same startup bank; diagnostics report the actual
+  configured region and bank names.
+* Generalize mapper-table validation so logical bank names are labels rather
+  than required BANK0/BANK1 tokens. Physical file order and selector hotspots
+  remain derived from logical start addresses and mapper rules. Public profiles
+  retain their conventional BANK0 startup names without making those spellings
+  semantic.
+* Complete bankswitching roadmap item 14. Any split-address writable `mem`
+  region may back a value parameter. The parameter remains an exact-sized,
+  callee-owned symbol in its region-local activation layout. Callers evaluate
+  and convert all arguments left-to-right into scratch, then copy split
+  parameters through their write aliases immediately before JSR. Callee loads
+  use read aliases and callee stores use write aliases; inline parameters use
+  the same generic lowering.
+* Extend same-translation-unit function signatures with parameter region
+  identity and linker-visible ABI metadata with that identity plus read and
+  write starts. Declarations and definitions cannot silently disagree about
+  split storage. Keep split-address `ref` parameters rejected because the
+  ordinary pointer/reference ABI carries only one address.
+* Add `superchip_parameters.pl` for F8SC/F6SC/F4SC ordinary and BCD widths,
+  caller-side nested evaluation, mutation, inline and cross-bank calls, every
+  physical startup bank, exact 21-byte activation occupancy, alias coherence,
+  and deterministic overflow. Add mapper-independent
+  `split_memory_value_parameters.pl` using `banana`, `pair`, and `orange`, with
+  reversed and noncontiguous aliases, separate compilation, exact occupancy,
+  nested lifetimes, and ABI mismatch diagnostics.
+* Add `linker_startup_main_generic.pl`, using PEAR/BANANA logical banks and
+  `pear_code`/`orange_code` MEMORY regions. Its ordinary CODE fallback is the
+  non-startup bank, proving plain `main` follows `startup=yes`; it also proves
+  an explicit non-startup qualifier fails without leaking BANK0/BANK1 names.
+* Update compiler ABI/language documentation, linker placement and activation
+  documentation, VCS Superchip usage, test inventory, detailed roadmap status,
+  existing image-model and hygiene regressions, and the deletion ledger.
+  Bankswitching roadmap item 15, split-address function return storage, is next.
+* Verification: all 356 compile-only tests pass. All 221 end-to-end/generic
+  tests pass in ordered chunks; the first long run reached test 164 with only
+  two deliberately updated expectation tests failing, both were corrected and
+  rerun, and the remaining 57 tests passed in two ordered chunks. Focused
+  startup-main, generic split-parameter, Superchip-parameter, fruit-region,
+  image-model, and source-hygiene tests pass. Staged `make installcheck` passes.

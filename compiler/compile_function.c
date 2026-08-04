@@ -16,6 +16,7 @@
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_lvalue.h"
+#include "compile_support.h"
 #include "compile_function_registry.h"
 #include "compile_type.h"
 #include "emit.h"
@@ -28,7 +29,6 @@
 #include "xray.h"
 #include "lextern.h"
 
-void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
 
 typedef struct CallGraphNode {
    const ASTNode *fn;
@@ -197,6 +197,7 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
    memset(&callee_ctx, 0, sizeof(callee_ctx));
    callee_ctx.name = callee_sym;
 
+   memset(&pentry, 0, sizeof(pentry));
    pentry.name = (char *) pname;
    pentry.type = ptype;
    pentry.declarator = pdecl;
@@ -215,6 +216,52 @@ bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter,
    }
 
    return entry_symbol_name(&callee_ctx, &pentry, buf, bufsize);
+}
+
+//! @brief Return the linker-visible read symbol and write alias for one value parameter.
+bool function_parameter_storage_addresses(const ASTNode *fn, const ASTNode *parameter,
+                                          int index, char *read_buf, size_t read_size,
+                                          char *write_buf, size_t write_size,
+                                          bool *is_zeropage_out, bool *is_split_out) {
+   const ASTNode *decl_specs;
+   const ASTNode *modifiers;
+   bool is_zeropage = false;
+   int delta = 0;
+
+   if (!read_buf || read_size == 0 || !write_buf || write_size == 0 ||
+       !function_parameter_symbol_name(fn, parameter, index, read_buf, read_size,
+                                       &is_zeropage)) {
+      return false;
+   }
+
+   decl_specs = parameter_decl_specifiers(parameter);
+   modifiers = (decl_specs && decl_specs->count > 0) ? decl_specs->children[0] : NULL;
+   if (modifiers_imply_split_address(modifiers)) {
+      if (!modifiers_split_address_delta(modifiers, &delta)) {
+         return false;
+      }
+      if (delta == 0) {
+         snprintf(write_buf, write_size, "%s", read_buf);
+      }
+      else {
+         snprintf(write_buf, write_size, "{%s %c %u}", read_buf,
+                  delta < 0 ? '-' : '+',
+                  (unsigned)(delta < 0 ? -delta : delta));
+      }
+      if (is_split_out) {
+         *is_split_out = true;
+      }
+   }
+   else {
+      snprintf(write_buf, write_size, "%s", read_buf);
+      if (is_split_out) {
+         *is_split_out = false;
+      }
+   }
+   if (is_zeropage_out) {
+      *is_zeropage_out = is_zeropage;
+   }
+   return true;
 }
 
 //! @brief Handle implementation-reserved name logic for compiler function lowering.
@@ -304,6 +351,12 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
                     declaration_use_contract(modifiers) == DECL_USE_CONTRACT_REQUIRE ? "require" : "recommend");
       }
 
+      if (modifiers_imply_split_address(modifiers) && parameter_is_ref(parameter)) {
+         error_user("[%s:%d.%d] ref parameter %d of function '%s' cannot use split-address mem region '%s'; split-address value parameters have callee-owned storage, while a split-address pointer/reference ABI is not defined",
+                    parameter->file, parameter->line, parameter->column,
+                    i + 1, fname, find_mem_modifier_name(modifiers));
+      }
+
       if (!has_modifier((ASTNode *) modifiers, "static")) {
          continue;
       }
@@ -347,11 +400,6 @@ void build_function_context(const ASTNode *node, Context *ctx) {
             continue;
          }
 
-         if (modifiers_imply_split_address(modifiers)) {
-            error_user("[%s:%d.%d] split-address mem region '%s' currently supports only persistent file-scope objects and arrays, not parameters",
-                       parameter->file, parameter->line, parameter->column,
-                       find_mem_modifier_name(modifiers));
-         }
          slot_size = parameter_storage_size(parameter);
          if (modifiers_imply_zeropage(modifiers)) {
             ctx_zeropage(ctx, type, name);
@@ -363,6 +411,13 @@ void build_function_context(const ASTNode *node, Context *ctx) {
          entry->size = slot_size;
          entry->declarator = param_decl;
          entry->is_ref = parameter_is_ref(parameter);
+         if (modifiers_imply_split_address(modifiers)) {
+            char sym[256];
+            if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
+               error_unreachable("could not name split-address parameter '%s'", name);
+            }
+            init_split_mem_entry_addresses_for_symbol(entry, sym, modifiers);
+         }
          i++;
       }
    }
@@ -669,7 +724,10 @@ void emit_function_parameter_storage(const ASTNode *node, Context *ctx) {
       if (!entry) {
          continue;
       }
-      if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
+      if (entry->is_absolute_ref && entry->read_expr && *entry->read_expr) {
+         snprintf(sym, sizeof(sym), "%s", entry->read_expr);
+      }
+      else if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
          continue;
       }
 

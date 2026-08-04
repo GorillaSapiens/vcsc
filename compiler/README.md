@@ -598,14 +598,22 @@ the parameter symbol is placed:
 
 ```vcsc
 mem fast { $start:0x0080 $size:0x0010 $rw };
+mem ports { $read_start:0x3003 $write_start:0x5007 $size:0x0008 $rw };
 
-void capture(fast uint16_t value) {
-   // value lives in the fast region
+void capture(fast uint16_t ordinary, ports uint16_t split) {
+   // ordinary lives in fast
+   // split loads through ports' read alias and stores through its write alias
 }
 ```
 
-Combining `static` with a memory-region modifier is rejected as redundant and
-ambiguous.
+For a split-address value parameter, the caller still stages all converted
+arguments first, then copies that parameter through the configured write alias
+immediately before `JSR`. The callee reads through the read alias and writes
+through the write alias. ABI metadata includes the region and both aliases, so
+separate declarations and definitions must agree. A split-address `ref`
+parameter is rejected because the ordinary reference ABI contains only one
+address. Combining `static` with a memory-region modifier is rejected as
+redundant and ambiguous.
 
 ### Static activation and recursion
 

@@ -241,8 +241,11 @@ F4      0           BANK7      $1000-$1FFF   $1FF4
 ```
 
 Equivalently, `file_index(BANKn) = bank_count - 1 - n`, and the selector is the
-mapper's first hotspot plus that file index.  The linker validates the complete
-table, including VCSC `BANK0` as the sole startup bank and final file chunk.
+mapper's first hotspot plus that file index.  The linker validates the complete mapper table from logical starts and
+hotspots and requires exactly one entry marked `startup=yes`. Bank labels are
+configuration names rather than semantic `BANK0`/`BANK1` tokens; the public
+profiles retain those conventional labels and place their startup bank in the
+final file chunk.
 
 Every selector hotspot is reserved at the same low twelve-bit offset in every
 bank. An ordinary `ro` or `data` segment region covering any selector is
@@ -348,9 +351,12 @@ In a banked profile, compiler-private unmarked `CODE.__vcsc_function$...` and
 `RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are movable across
 the configured full-window banks. Explicit named source `mem` modifiers produce
 `CODE.region` or `RODATA.region` private layouts and are hard pins to that exact
-MEMORY region. `main`, startup/non-private runtime layouts, and private runtime
-functions using reserved implementation names beginning with `_` are pinned to
-the startup bank, which is BANK0 in the public profiles.
+MEMORY region. An unqualified `main`, startup/non-private runtime layouts, and
+private runtime functions using reserved implementation names beginning with
+`_` are pinned to the unique bank marked `startup=yes`. An explicitly qualified
+`main` is accepted only when that MEMORY region belongs to the same bank. The
+compiler does not interpret region names such as `bank0`; the public profiles
+merely use BANK0 as their conventional startup label.
 
 Before assigning addresses, the linker classifies relationships between ROM
 layouts:
@@ -425,9 +431,12 @@ that cannot be active simultaneously may therefore share addresses.
 The overlay is region-local: a function may own pieces in the default RAM,
 zero page, or a source-declared `mem` region, including a shared split-address
 region such as Superchip RAM, and each region is independently weighted along
-the call graph. Split-region activation layouts use the read alias as their run
-address, the write alias for startup zeroing and generated stores, and consume
-each physical byte only once. Internal-linkage functions are qualified by
+the call graph. Split-region activation layouts may contain parameters,
+automatic locals, return storage where supported, and compiler scratch. They use
+the read alias as their run address, the write alias for startup zeroing and
+generated stores, and consume each physical byte only once. Direct-call ABI
+metadata preserves split parameter region identity and both aliases across
+separate compilation. Internal-linkage functions are qualified by
 object identity, so identically named static helpers in different translation
 units do not merge. Calls hidden inside assembly remain outside this analysis
 and must obey the integration contract's non-reentry rules.

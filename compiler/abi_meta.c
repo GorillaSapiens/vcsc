@@ -221,14 +221,35 @@ static void append_storage_mode(StrBuf *fp, StrBuf *detail, const char *mode) {
    sb_appendf(detail, "%s ", mode ? mode : "unknown");
 }
 
-//! @brief Return storage mode for a parameter of a directly named function.
-static const char *function_parameter_storage_mode(const ASTNode *parameter) {
+//! @brief Format the complete symbol-storage ABI mode for one value parameter.
+static void function_parameter_storage_mode(const ASTNode *parameter,
+                                            char *buf, size_t buf_size) {
    const ASTNode *mods = parameter_decl_specifiers(parameter);
    const ASTNode *modifiers = (mods && mods->count > 0) ? mods->children[0] : NULL;
+   const char *memname = find_mem_modifier_name(modifiers);
+   unsigned int read_start = 0;
+   unsigned int write_start = 0;
 
-   if (parameter_is_ref(parameter))
-      return "ref";
-   return modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs";
+   if (!buf || buf_size == 0)
+      return;
+   if (parameter_is_ref(parameter)) {
+      snprintf(buf, buf_size, "ref");
+      return;
+   }
+   if (mem_decl_split_addresses(find_mem_modifier_node(modifiers),
+                                &read_start, &write_start)) {
+      snprintf(buf, buf_size, "symbol_split(region=%s,read=%04X,write=%04X)",
+               memname ? memname : "?", read_start, write_start);
+      return;
+   }
+   if (memname) {
+      snprintf(buf, buf_size, "%s(region=%s)",
+               modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs",
+               memname);
+      return;
+   }
+   snprintf(buf, buf_size, "%s",
+            modifiers_imply_zeropage(modifiers) ? "symbol_zp" : "symbol_abs");
 }
 
 static const char *global_storage_mode(const ASTNode *node, bool is_zeropage) {
@@ -527,7 +548,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
          const ASTNode *parameter = params->children[i];
          const ASTNode *ptype;
          const ASTNode *pdecl;
-         const char *mode;
+         char mode[256];
          char role[32];
 
          if (!parameter || parameter_is_void(parameter))
@@ -535,7 +556,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
 
          ptype = parameter_type(parameter);
          pdecl = call_adjusted_parameter_declarator(parameter_declarator(parameter), parameter_is_ref(parameter));
-         mode = function_parameter_storage_mode(parameter);
+         function_parameter_storage_mode(parameter, mode, sizeof(mode));
          snprintf(role, sizeof(role), "param%d", out_index++);
          emit_type_record("function", state, sym, role, mode, ptype, pdecl);
       }
@@ -584,6 +605,7 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
          const ASTNode *parameter = params->children[i];
          const ASTNode *ptype;
          const ASTNode *pdecl;
+         char mode[256];
 
          if (!parameter || parameter_is_void(parameter))
             continue;
@@ -592,7 +614,8 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
                                                     parameter_is_ref(parameter));
          sb_appendf(fp, ";param%d=", out_index);
          sb_appendf(detail, ", param%d=", out_index);
-         append_storage_mode(fp, detail, function_parameter_storage_mode(parameter));
+         function_parameter_storage_mode(parameter, mode, sizeof(mode));
+         append_storage_mode(fp, detail, mode);
          append_type_fingerprint(fp, detail, ptype, pdecl, &ctx);
          out_index++;
       }

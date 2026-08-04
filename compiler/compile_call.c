@@ -29,6 +29,25 @@ static const ASTNode *inline_expansion_stack[INLINE_EXPANSION_MAX_DEPTH];
 static int inline_expansion_depth = 0;
 static int inline_expansion_counter = 0;
 
+//! @brief Copy staged argument bytes to an arbitrary writable address expression.
+static void emit_copy_scratch_to_address_expr(const char *write_expr,
+                                              int src_offset, int size) {
+   bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+
+   if (!write_expr || !*write_expr || size <= 0) {
+      return;
+   }
+   if (!src_direct) {
+      emit_prepare_scratch_ptr(1, src_offset);
+   }
+   for (int i = 0; i < size; i++) {
+      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
+      emit(&es_code, "    lda %s,y\n",
+           src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+      emit_store_a_to_expr_address(write_expr, i);
+   }
+}
+
 static void inline_expansion_push(const ASTNode *fn, const ASTNode *call_expr) {
    const char *name = declarator_name(function_declarator_node(fn));
 
@@ -154,8 +173,17 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          }
          pname = parameter_name(parameter, i);
          pentry = ctx_lookup(&inline_ctx, pname);
-         if (!pentry || !entry_symbol_name(&inline_ctx, pentry,
-                                           param_sym, sizeof(param_sym))) {
+         if (!pentry) {
+            if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+            error_unreachable("[%s:%d.%d] missing inline parameter storage for '%s'",
+                              call_expr->file, call_expr->line, call_expr->column,
+                              pname ? pname : "?");
+         }
+         if (pentry->is_absolute_ref && pentry->read_expr && *pentry->read_expr) {
+            snprintf(param_sym, sizeof(param_sym), "%s", pentry->read_expr);
+         }
+         else if (!entry_symbol_name(&inline_ctx, pentry,
+                                     param_sym, sizeof(param_sym))) {
             if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
             error_unreachable("[%s:%d.%d] missing inline parameter storage for '%s'",
                               call_expr->file, call_expr->line, call_expr->column,
@@ -181,7 +209,12 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
             ok = compile_expr_to_slot(args->children[actual_index], caller_ctx, &tmp);
          }
          if (ok) {
-            emit_copy_scratch_to_symbol(param_sym, 0, psz);
+            if (pentry->is_absolute_ref && pentry->write_expr && *pentry->write_expr) {
+               emit_copy_scratch_to_address_expr(pentry->write_expr, 0, psz);
+            }
+            else {
+               emit_copy_scratch_to_symbol(param_sym, 0, psz);
+            }
          }
          compiler_scratch_deactivate(caller_ctx, &arg_scratch);
          if (!ok) {
@@ -230,7 +263,9 @@ typedef struct DirectCallArgStage {
    int offset;
    bool is_ref;
    bool is_zeropage;
+   bool is_split;
    char symbol[256];
+   char write_expr[320];
 } DirectCallArgStage;
 
 //! @brief Lower an ordinary direct call using caller-owned argument staging.
@@ -280,11 +315,18 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          item->offset = total_size;
          total_size += item->size;
 
-         if (!function_parameter_symbol_name(fn, parameter, i,
-                                             item->symbol, sizeof(item->symbol),
-                                             &item->is_zeropage)) {
+         if (!function_parameter_storage_addresses(fn, parameter, i,
+                                                   item->symbol, sizeof(item->symbol),
+                                                   item->write_expr, sizeof(item->write_expr),
+                                                   &item->is_zeropage, &item->is_split)) {
             free(staged);
             return false;
+         }
+         {
+            const ASTNode *decl_specs = parameter_decl_specifiers(parameter);
+            const ASTNode *modifiers = (decl_specs && decl_specs->count > 0)
+               ? decl_specs->children[0] : NULL;
+            emit_mem_region_metadata_for_modifiers(parameter, modifiers);
          }
          if (!function_has_body(fn)) {
             remember_symbol_import_mode(item->symbol, item->is_zeropage);
@@ -325,9 +367,16 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
 
       if (ok) {
          for (int i = 0; i < staged_count; i++) {
-            emit_copy_scratch_to_symbol_offset(staged[i].symbol, 0,
-                                               staged[i].offset,
-                                               staged[i].size);
+            if (staged[i].is_split) {
+               emit_copy_scratch_to_address_expr(staged[i].write_expr,
+                                                 staged[i].offset,
+                                                 staged[i].size);
+            }
+            else {
+               emit_copy_scratch_to_symbol_offset(staged[i].symbol, 0,
+                                                  staged[i].offset,
+                                                  staged[i].size);
+            }
          }
       }
 

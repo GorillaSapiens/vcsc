@@ -142,15 +142,20 @@ Direct fixed-parameter ABI
 Every non-void parameter of a directly named function has a
 callee-owned symbol. Ordinary parameters use BSS-backed absolute symbols;
 parameters explicitly assigned to a zero-page memory region use zero-page
-symbols. The caller evaluates all arguments from left to right into caller-owned
+symbols. A value parameter may also select any named split-address writable
+region. The caller evaluates all arguments from left to right into caller-owned
 scratch, then writes the complete converted argument set to the corresponding
-callee symbols immediately before JSR.
+callee symbols immediately before JSR. For a split parameter that final copy
+uses the region's write alias; callee loads use the read alias and callee stores
+use the write alias.
 
 Parameters may use ordinary binary integers through four bytes and `bcd8_t`,
-`bcd16_t`, `bcd24_t`, or `bcd32_t`. Linker-visible ABI
-fingerprints distinguish packed-BCD storage from same-sized ordinary unsigned
-integers, so separately compiled declarations cannot silently disagree about
-the representation.
+`bcd16_t`, `bcd24_t`, or `bcd32_t`. Linker-visible ABI fingerprints distinguish
+packed-BCD storage from same-sized ordinary unsigned integers and include a
+split value parameter's region identity plus read/write aliases, so separately
+compiled declarations cannot silently disagree about either representation or
+storage. A split-address `ref` parameter is rejected because the ordinary
+pointer/reference ABI carries only one address.
 
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion uses a live caller-function `__vcsc_scratch_N` lease when needed. Return values are read directly from the callee-owned `function$__return` symbol; scratch belongs to the caller and is not part of the callee ABI.

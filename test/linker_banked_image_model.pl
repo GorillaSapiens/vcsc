@@ -198,8 +198,8 @@ my $swapped_text = $valid_cfg;
 $swapped_text =~ s/(BANK0:.*?hotspot=)\$1FF9/${1}\$1FF8/;
 $swapped_text =~ s/(BANK1:.*?hotspot=)\$1FF8/${1}\$1FF9/;
 write_file($swapped_cfg, $swapped_text);
-require_fail('logical bank names confused with file indices',
-             'BANK0 (physical/file chunk 1) must use F8 selector hotspot $1FF9',
+require_fail('selector hotspots follow physical file chunks',
+             'BANK1 (physical/file chunk 0) must use F8 selector hotspot $1FF8',
              $vcsc, '-I', $include, '-T', $swapped_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'swapped.bin'), $src);

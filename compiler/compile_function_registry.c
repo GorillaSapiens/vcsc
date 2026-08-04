@@ -33,27 +33,6 @@ static const ASTNode *function_modifiers_node(const ASTNode *fn) {
    return NULL;
 }
 
-static bool memname_is_nonzero_numbered_bank(const char *name) {
-   const char *p;
-   unsigned int value = 0;
-
-   if (!name || strncmp(name, "bank", 4)) {
-      return false;
-   }
-   p = name + 4;
-   if (!*p) {
-      return false;
-   }
-   while (*p) {
-      if (!isdigit((unsigned char)*p)) {
-         return false;
-      }
-      value = value * 10u + (unsigned int)(*p - '0');
-      p++;
-   }
-   return value != 0;
-}
-
 bool function_has_body(const ASTNode *fn) {
    return fn && fn->count == 3;
 }
@@ -233,12 +212,22 @@ static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
       if (!aparam || !bparam) {
          return aparam == bparam;
       }
-      if (strcmp(type_name_from_node(parameter_type(aparam)),
-                 type_name_from_node(parameter_type(bparam))) ||
-          parameter_is_ref(aparam) != parameter_is_ref(bparam) ||
-          !declarator_signature_matches(parameter_declarator(aparam),
-                                        parameter_declarator(bparam))) {
-         return false;
+      {
+         const ASTNode *aspecs = parameter_decl_specifiers(aparam);
+         const ASTNode *bspecs = parameter_decl_specifiers(bparam);
+         const ASTNode *amods = (aspecs && aspecs->count > 0) ? aspecs->children[0] : NULL;
+         const ASTNode *bmods = (bspecs && bspecs->count > 0) ? bspecs->children[0] : NULL;
+         const char *amem = find_mem_modifier_name(amods);
+         const char *bmem = find_mem_modifier_name(bmods);
+
+         if (strcmp(type_name_from_node(parameter_type(aparam)),
+                    type_name_from_node(parameter_type(bparam))) ||
+             parameter_is_ref(aparam) != parameter_is_ref(bparam) ||
+             !declarator_signature_matches(parameter_declarator(aparam),
+                                           parameter_declarator(bparam)) ||
+             ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
+            return false;
+         }
       }
    }
    return true;
@@ -451,10 +440,6 @@ void remember_function(const ASTNode *node, const char *name) {
       if (function_is_inline(node) && memname) {
          error_user("[%s:%d.%d] inline function '%s' cannot use mem region '%s' because inline expansion has no independently placeable linker layout",
                     node->file, node->line, node->column, name, memname);
-      }
-      if (!strcmp(name, "main") && memname_is_nonzero_numbered_bank(memname)) {
-         error_user("[%s:%d.%d] entry function 'main' must reside in mem region 'bank0', not '%s'",
-                    node->file, node->line, node->column, memname);
       }
    }
    if (!functions) {

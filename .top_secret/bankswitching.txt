@@ -421,11 +421,16 @@ their existing DATA/BSS behavior.
 
 Unmarked private `CODE.__vcsc_function$...` and
 `RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are candidates for
-automatic placement. `main` may be unmarked or explicitly marked `bank0`; an
-explicit numbered nonzero bank on `main` is rejected. The linker pins unmarked
-`main`, startup/non-private runtime material, and private runtime functions whose
-reserved implementation names begin with `_` to the configured startup bank,
-which is BANK0 in the public full-window profiles.
+automatic placement. Source-level `main` normally remains unqualified: the
+linker pins its private layout to the unique BANKS entry marked `startup=yes`
+and chooses that bank's ordinary allocatable ROM region. An explicit read-only
+`mem` modifier on `main` is permitted only when its MEMORY region belongs to
+that same configured startup bank. The compiler does not interpret names such
+as `bank0`; only the linker has the BANKS/MEMORY relationship needed to enforce
+the rule. Startup/non-private runtime material and private runtime functions
+whose reserved implementation names begin with `_` are pinned by the same
+startup-bank property. The public full-window profiles happen to call that bank
+BANK0, but neither placement nor diagnostics depend on that spelling.
 
 The implemented placement policy is constrained and deterministic:
 
@@ -945,7 +950,7 @@ when main roadmap item 29 becomes active.
          reporting are driven by `mem`/cfg attributes rather than the region name
          or a fixed `$F000/$F080` ordering.
 
-[ ] 14. Add Superchip-backed value parameters.
+[x] 14. Add Superchip-backed value parameters.
 
        * Permit a value parameter to select the split-address writable region, for
          example `void consume(superchip uint16_t value)`.
@@ -962,6 +967,35 @@ when main roadmap item 29 becomes active.
        * Test one- through four-byte values, BCD values, caller-side expression
          evaluation, callee reads and writes, repeated and nested calls, separate
          compilation, map accounting, and overflow diagnostics.
+
+       Completed 2026-08-04:
+
+       * Any named split-address writable `mem` region may back a value parameter;
+         no compiler or linker path recognizes the spelling `superchip`. The
+         parameter remains an exact-sized callee-owned symbol in the function's
+         region-local activation layout.
+       * Direct calls continue to evaluate and convert every argument left to
+         right into caller scratch. Only after all evaluations finish does the
+         caller copy a split parameter through its configured write alias, then
+         issue the ordinary `JSR`. Callee loads use the read alias and parameter
+         assignments use the write alias. Inline-expansion-private parameters use
+         the same alias-aware storage rule without gaining a callable ABI.
+       * Function signatures and ABI fingerprints now include each value
+         parameter's region identity; linker-visible fingerprints additionally
+         carry the read and write starts plus ordinary type representation.
+         Declarations and definitions therefore cannot disagree about split
+         storage either within one translation unit or across separate builds,
+         even when their value widths match.
+       * Split-address `ref` parameters remain rejected with a focused diagnostic:
+         a normal pointer cannot represent distinct load and store addresses.
+       * F8SC, F6SC, and F4SC tests cover one- through four-byte ordinary and BCD
+         values, caller-side calls during argument evaluation, callee mutation,
+         inline expansion, nested and cross-bank calls, every physical startup
+         bank, exact twenty-one-byte activation occupancy, and deterministic
+         overflow. A separately compiled mapper-independent test uses `banana`,
+         `pair`, and `orange` regions with different sizes, noncontiguous aliases,
+         and both alias orderings; it also proves linker-visible ABI mismatch
+         diagnostics name the conflicting parameter regions.
 
 [ ] 15. Add Superchip-backed function return storage.
 

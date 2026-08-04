@@ -1,8 +1,0 @@
-// vcsc-cc1 -I .
-// expectfail
-// expecterr: entry function 'main' must reside in mem region 'bank0', not 'bank1'
-include "machine_6502.c26"
-mem bank1 { $start:0xD000 $size:0x1000 $ro };
-
-bank1 void main(void) {
-}

@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for function 'mismatch'
+
+include "machine_6502.c26"
+mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0004 $rw };
+mem pair   { $read_start:0x6205 $write_start:0x2201 $size:0x0004 $rw };
+
+void mismatch(banana uint16_t value);
+void mismatch(pair uint16_t value) {
+}

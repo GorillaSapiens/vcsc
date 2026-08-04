@@ -464,6 +464,22 @@ automatic locals, function-scope statics, runtime initialization, arrays,
 compound operations, packed bitfields, alias-direction enforcement in the
 simulator, mirrored final contents, and per-region overflow diagnostics.
 
+
+`superchip_parameters.pl` exercises split-address value parameters under F8SC,
+F6SC, and F4SC from every physical startup bank. It covers ordinary and BCD
+values from one through four bytes, left-to-right caller staging with nested
+calls, callee mutation, inline parameters, cross-bank calls, exact activation
+occupancy, both aliases, and deterministic overflow. The mapper-independent
+`split_memory_value_parameters.pl` separately compiles callers and callees using
+`banana`, `pair`, and `orange`, verifies reversed and noncontiguous alias layouts,
+and requires ABI mismatch diagnostics when parameter regions disagree.
+
+`linker_startup_main_generic.pl` uses arbitrary logical bank names PEAR/BANANA
+and MEMORY names `pear_code`/`orange_code`. It makes ordinary CODE default to the
+non-startup bank, proves unqualified `main` is nevertheless pinned to the unique
+`startup=yes` bank, and verifies an explicit non-startup qualifier is rejected
+using only configured names.
+
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
 duplicate deletion-ledger entries, any deleted path that reappears, displaced

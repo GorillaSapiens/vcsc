@@ -981,38 +981,33 @@ static void validate_linker_config(linker_config_t *cfg)
          exit(1);
       }
       for (i = 0; i < expected_count; ++i) {
-         char expected_name[MAX_NAME];
-         const cartridge_bank_t *bank;
-         size_t file_index = expected_count - 1u - i;
-         uint16_t expected_start = (uint16_t)(0xF000u - (uint16_t)(i * 0x2000u));
+         const cartridge_bank_t *bank = NULL;
+         size_t j;
+         size_t file_index = i;
+         uint16_t expected_start = (uint16_t)(0xF000u -
+            (uint16_t)((expected_count - 1u - file_index) * 0x2000u));
          uint16_t expected_hotspot =
             (uint16_t)(first_file_hotspot + (uint16_t)file_index);
 
-         /* BANKn is VCSC's descending logical namespace.  Mapper hotspots
-            instead increase with zero-based physical/file chunk index.  Since
-            BANK0 is emitted last, its file index is expected_count-1 and it
-            uses the final hotspot in the mapper range. */
-         snprintf(expected_name, sizeof(expected_name), "BANK%zu", i);
-         bank = find_cartridge_bank(cfg, expected_name);
-         if (!bank) {
-            fprintf(stderr, "vcsc-ld: mapper %s is missing %s\n",
-                    cfg->mapper, expected_name);
-            exit(1);
+         /* Bank names are policy-free labels.  Physical/file order is the
+            ascending logical-address order used by write_flat_binary(), and
+            mapper selector hotspots increase with that file index. */
+         for (j = 0; j < cfg->bank_count; ++j) {
+            if (cfg->banks[j].start == expected_start) {
+               bank = &cfg->banks[j];
+               break;
+            }
          }
-         if (bank->start != expected_start) {
+         if (!bank) {
             fprintf(stderr,
-                    "vcsc-ld: %s must start at $%04X for descending mirrored-bank order\n",
-                    bank->name, expected_start);
+                    "vcsc-ld: mapper %s is missing its physical/file chunk %zu logical bank at $%04X\n",
+                    cfg->mapper, file_index, expected_start);
             exit(1);
          }
          if (bank->hotspot != expected_hotspot) {
             fprintf(stderr,
                     "vcsc-ld: %s (physical/file chunk %zu) must use %s selector hotspot $%04X\n",
                     bank->name, file_index, cfg->mapper, expected_hotspot);
-            exit(1);
-         }
-         if ((i == 0 && !bank->startup) || (i != 0 && bank->startup)) {
-            fprintf(stderr, "vcsc-ld: BANK0 must be the sole startup bank\n");
             exit(1);
          }
       }
@@ -3522,7 +3517,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          char base[MAX_NAME];
          const char *function_name;
          int automatic;
-         int mandatory = 0;
+         int is_main = 0;
+         int reserved_runtime = 0;
 
          if (lay->segid != O26_SEG_TEXT || lay->size == 0)
             continue;
@@ -3534,9 +3530,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             continue;
          automatic = bank_placement_layout_is_automatic_candidate(lay);
          function_name = call_graph_layout_function_name(lay);
-         if (function_name &&
-             (strcmp(function_name, "main") == 0 || function_name[0] == '_'))
-            mandatory = 1;
+         is_main = function_name && strcmp(function_name, "main") == 0;
+         reserved_runtime = function_name && function_name[0] == '_';
 
          items = (bank_placement_item_t *)xrealloc(items,
             (item_count + 1) * sizeof(*items));
@@ -3547,10 +3542,28 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          items[item_count].configured_bank = bank;
          items[item_count].stable_order = item_count;
          items[item_count].parent = (int)item_count;
-         if (!automatic || mandatory) {
-            const cartridge_bank_t *pin_bank = mandatory ? startup : bank;
+         if (is_main) {
+            const memory_region_t *pin_memory;
+            if (!automatic && bank != startup) {
+               fprintf(stderr,
+                       "vcsc-ld: entry function 'main' is placed in MEMORY region '%s', which belongs to non-startup bank '%s'; the configured startup bank is '%s'\n",
+                       memory->name, bank->name, startup->name);
+               exit(1);
+            }
+            pin_memory = automatic ? bank_placement_auto_memory(cfg, startup) : memory;
+            if (!pin_memory) {
+               fprintf(stderr,
+                       "vcsc-ld: startup bank '%s' has no ordinary allocatable ROM MEMORY region for entry function 'main'\n",
+                       startup->name);
+               exit(1);
+            }
+            bank_placement_pin_item(&items[item_count], startup,
+                                    pin_memory, 1);
+         }
+         else if (!automatic || reserved_runtime) {
+            const cartridge_bank_t *pin_bank = reserved_runtime ? startup : bank;
             const memory_region_t *pin_memory = memory;
-            if (mandatory && bank != startup)
+            if (reserved_runtime && bank != startup)
                pin_memory = bank_placement_auto_memory(cfg, startup);
             bank_placement_pin_item(&items[item_count], pin_bank,
                                     pin_memory, 1);

@@ -259,8 +259,10 @@ bank1 void remote_code(void) {
 }
 ```
 
-`main`, startup, and required runtime material remain in BANK0.  Direct
-cross-bank `JSR` and `JMP` are rewritten through the replicated common table;
+Plain `void main(void)` needs no bank qualifier. The linker pins it, startup,
+and required runtime material to the profile's unique `startup=yes` bank (BANK0
+in these public profiles). Direct cross-bank `JSR` and `JMP` are rewritten
+through the replicated common table;
 cross-bank ROM data references remain errors.
 
 Notes:
@@ -293,16 +295,17 @@ mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 ref uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
-Applications may allocate persistent globals, arrays, automatic locals, and
-function-scope static locals directly:
+Applications may allocate persistent globals, arrays, automatic locals,
+function-scope static locals, and value parameters directly:
 
 ```c
 superchip uint8_t foo;
 superchip uint8_t buffer[32];
 
-void update(void) {
+void update(superchip uint16_t value) {
    superchip uint8_t scratch := foo;
    static superchip uint8_t calls;
+   value += 1; // caller writes $F000 alias; this load/store uses both aliases
    scratch++;
    calls++;
    foo := scratch;
@@ -321,7 +324,11 @@ bytes are shared by every ROM bank and counted once in the map.
 
 Direct and runtime indexing, compound assignment, increment/decrement, and
 bitfield updates are alias-aware: they load through the read port and store
-through the write port. Address-taking, pointer decay, and `ref` passing remain
-rejected because the object has no single ordinary address. Split-address
-parameters and return storage remain later work. The explicit `superchip_ram` declaration remains available when
-fixed-offset access to the complete window is preferable.
+through the write port. Address-taking, pointer decay, and passing a split object to an ordinary
+`ref` remain rejected because the object has no single ordinary address.
+Split-address value parameters are supported: callers copy through the write
+alias after staging all arguments, while callees load through the read alias and
+store through the write alias. A split-address `ref` parameter remains rejected;
+return storage is the next roadmap step. The explicit `superchip_ram`
+declaration remains available when fixed-offset access to the complete window
+is preferable.

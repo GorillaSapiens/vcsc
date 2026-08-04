@@ -15,6 +15,10 @@
 bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter);
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
                                     char *buf, size_t bufsize, bool *is_zeropage_out);
+bool function_parameter_storage_addresses(const ASTNode *fn, const ASTNode *parameter,
+                                          int index, char *read_buf, size_t read_size,
+                                          char *write_buf, size_t write_size,
+                                          bool *is_zeropage_out, bool *is_split_out);
 bool return_type_is_void(const ASTNode *type, const ASTNode *declarator);
 bool return_type_is_supported(const ASTNode *type, const ASTNode *declarator);
 bool return_type_has_value(const ASTNode *type, const ASTNode *declarator);
