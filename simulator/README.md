@@ -193,9 +193,19 @@ jsr $ffff
 
 This exits with status 0.
 
-Superchip mapper support
-------------------------
-With F8SC/F6SC/F4SC cfg files, `vcsc-sim` models one shared 128-byte cartridge
-RAM. Writes to the mirrored `$1000-$107F` window update it and reads from
-`$1080-$10FF` return it regardless of the selected ROM bank. `--dump-on-stop`
-mirrors the final values at the canonical BANK0 read aliases `$F080-$F0FF`.
+Split-address memory and Superchip mapper support
+-------------------------------------------------
+Any cfg `MEMORY` entry with both `read_start` and `write_start` is modeled as
+one physical byte array with two CPU windows. The region name, window order,
+window spacing, alignment, and size are not special-cased. Reads must use the
+declared read window and writes must use the declared write window; the
+simulator reports a directional-access error if generated code uses the wrong
+alias. `--dump-on-stop` mirrors the final bytes into both declared windows so
+the two aliases can be inspected directly.
+
+With F8SC/F6SC/F4SC cfg files, the ordinary `superchip` entry therefore models
+the shared 128-byte cartridge RAM without a compiler-specific name hook. The
+mapper still provides the real cartridge mirroring: writes to the physical
+`$1000-$107F` port update the storage and reads from `$1080-$10FF` return it
+regardless of the selected ROM bank. The canonical BANK0 dump aliases remain
+`$F000-$F07F` and `$F080-$F0FF`.

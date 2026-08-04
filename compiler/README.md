@@ -487,7 +487,9 @@ Loads from these objects use the read alias. Stores, runtime initializer writes,
 and startup BSS clearing use the write alias. The compiler preserves both
 symbolic aliases in relocations rather than replacing the object with a fixed
 integer address; the linker therefore allocates each object once and can report
-both final addresses.
+both final addresses. Neither the region name nor the relative order, spacing,
+alignment, or size of the two windows is significant; those facts come entirely
+from the `mem` declaration and matching linker `MEMORY` entry.
 
 Split-address allocation supports persistent file-scope objects and automatic
 local objects, including arrays and inline-expansion-private locals. Automatic
@@ -502,7 +504,9 @@ store addresses. Direct indexing remains supported, including runtime array
 indexes. Compound assignment, increment/decrement, and bitfield updates load
 through the read alias and store through the write alias rather than using a
 single-address 6502 read-modify-write instruction. Function-scope `static`
-objects, parameters, and return storage in split regions remain later work.
+objects use persistent split-region BSS/DATA storage and the existing one-time
+startup initialization paths. Parameters and return storage in split regions
+remain later work.
 The selected linker `MEMORY` entry must use matching `read_start`,
 `write_start`, `size`, and `type = rw` values and must be shared rather than
 owned by a cartridge bank.

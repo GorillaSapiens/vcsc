@@ -454,6 +454,16 @@ the write alias, persistence across repeated calls, packed-bitfield updates,
 exact physical occupancy, and execution from every physical startup bank under
 F8SC, F6SC, and F4SC.
 
+`split_memory_generic_regions.pl` proves that split-address storage is driven by
+ordinary `mem` and cfg metadata rather than by the spelling `superchip` or by
+the Superchip window layout. It uses unrelated regions named `banana`, `pair`,
+and `orange`, with sizes of 7, 9, and 5 bytes, unaligned and widely separated
+windows, and a `pair` region whose read window is above its write window. The
+test checks compiler metadata, linker placement and exact occupancy, globals,
+automatic locals, function-scope statics, runtime initialization, arrays,
+compound operations, packed bitfields, alias-direction enforcement in the
+simulator, mirrored final contents, and per-region overflow diagnostics.
+
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
 duplicate deletion-ledger entries, any deleted path that reappears, displaced

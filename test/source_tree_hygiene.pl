@@ -76,7 +76,8 @@ index($top_make,'--stop-pc=0x$$sim_done')>=0
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
 index($sim_readme,'mapper=F8')>=0 &&
-index($sim_readme,'Stella remains the independent authority')>=0
+index($sim_readme,'Stella remains the independent authority')>=0 &&
+index($sim_readme,'The region name, window order,')>=0
    or die "simulator documentation lost banked cfg/file-index semantics\n";
 index($bankswitching,'[x] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan no longer records completed automatic Superchip allocation\n";
@@ -88,7 +89,8 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
    or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
-	-f File::Spec->catfile($test,'superchip_static_locals.pl') &&
+-f File::Spec->catfile($test,'superchip_static_locals.pl') &&
+-f File::Spec->catfile($test,'split_memory_generic_regions.pl') &&
 -f File::Spec->catfile($test,'split_memory_allocation_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_local_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_bitfield_write_codegen_test.c26') &&

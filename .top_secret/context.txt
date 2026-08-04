@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260804_091400.tar.gz
+    vcsc.20260804_094120.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8293,3 +8293,31 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: all 354 compile-only tests pass; all 217 end-to-end/generic
   tests pass in ordered chunks; focused static-Superchip and hygiene tests pass;
   staged `make installcheck` passes.
+
+2026-08-04 03:02:03 PDT, prove generic split-address memory regions
+--------------------------------------------------------------------
+* Add `split_memory_generic_regions.pl`, a mapper-independent execution test
+  using regions named `banana`, `pair`, and `orange` rather than `superchip`.
+  Their windows use different sizes, unaligned starts, wide noncontiguous
+  spacing, and both read-below-write and read-above-write ordering.
+* Exercise persistent globals, automatic activation storage, function-scope
+  static storage, BSS clearing, DATA copying, runtime initialization, arrays,
+  compound operations, increment, packed-bitfield updates, exact occupancy,
+  and deterministic per-region overflow. The compiler metadata and linker map
+  are checked for every declared name, address pair, and size.
+* Generalize `vcsc-sim` split-address modeling. It now discovers every shared
+  `MEMORY` entry with `read_start` and `write_start`, allocates one physical
+  byte array per region, maps reads and writes through their declared aliases,
+  mirrors both windows for memory dumps, and reports wrong-direction accesses.
+  F8SC/F6SC/F4SC continue to obtain their 128-byte behavior from the cfg's
+  ordinary `superchip` entry; only the mapper name remains hardware-specific.
+* Update compiler, linker, simulator, test, detailed-roadmap, and source-tree
+  hygiene documentation to state that region names, window order, spacing,
+  alignment, and capacity come from `mem`/cfg attributes rather than a fixed
+  Superchip layout. Roadmap item 14, Superchip-backed value parameters, remains
+  next.
+* Verification: all 354 compile-only tests pass. All 218 end-to-end/generic
+  tests pass in ordered chunks, including the new fruit-region test and all
+  F8SC/F6SC/F4SC allocation/local/static-local regressions. Staged
+  `make installcheck` passes.
+

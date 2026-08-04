@@ -439,6 +439,12 @@ Objects produced by `vcsc-cc1` include hidden metadata for each `mem` region tha
 
 The linker rejects the image if the config is missing the region, or if the source and cfg disagree about its address, size, or type. Ordinary regions compare `start`, `size`, and `type`. Split-address regions compare `read_start`, `write_start`, `size`, and `type`; they must be `rw` and shared rather than assigned to one cartridge bank. Diagnostics report both sides and identify the mismatched property.
 
+Split-address handling is name-agnostic. The read window may be above or below
+the write window, the aliases need not be adjacent or page-aligned, and each
+region keeps its declared size. Allocation and overflow accounting use one
+physical high-water mark for the region rather than inferring any Superchip-
+specific `$80` delta or 128-byte capacity.
+
 Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used. Split-address DATA/BSS layouts use the read window as their canonical run address. Startup copy/zero records are translated to the corresponding write window.
 
 

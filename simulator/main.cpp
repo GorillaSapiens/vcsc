@@ -34,7 +34,9 @@ static constexpr size_t MAX_NAME = 128;
 
 struct memory_region_t {
    uint16_t start;
+   uint16_t write_start;
    uint16_t size;
+   int has_write_start;
    char type[8];
    int define_yes;
    char name[MAX_NAME];
@@ -57,7 +59,7 @@ struct simulator_config_t {
    size_t bank_count;
    char mapper[16];
    int cartridge_banked;
-   int superchip;
+   int superchip_mapper;
    size_t startup_bank;
 };
 
@@ -82,7 +84,7 @@ struct simulator_options_t {
 static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
 static size_t g_selected_bank = 0;
-static uint8_t g_superchip_ram[128];
+static std::vector<std::vector<uint8_t>> g_split_memory;
 
 void trace_regs(void);
 void trace_disasm(uint16_t pc);
@@ -169,13 +171,22 @@ static parse_result_t parse_number(const char *s) {
 static void parse_memory_property(memory_region_t *mem_region, const char *key, const char *value) {
    parse_result_t n;
 
-   if (str_ieq(key, "start")) {
+   if (str_ieq(key, "start") || str_ieq(key, "read_start")) {
       n = parse_number(value);
       if (!n.ok || n.value > 0xFFFFu) {
-         fprintf(stderr, "vcsc-sim: bad memory start '%s'\n", value);
+         fprintf(stderr, "vcsc-sim: bad memory read start '%s'\n", value);
          exit(1);
       }
       mem_region->start = (uint16_t)n.value;
+   }
+   else if (str_ieq(key, "write_start")) {
+      n = parse_number(value);
+      if (!n.ok || n.value > 0xFFFFu) {
+         fprintf(stderr, "vcsc-sim: bad memory write start '%s'\n", value);
+         exit(1);
+      }
+      mem_region->write_start = (uint16_t)n.value;
+      mem_region->has_write_start = 1;
    }
    else if (str_ieq(key, "size")) {
       n = parse_number(value);
@@ -346,11 +357,11 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
    if (cfg->bank_count != 0) {
       size_t startup_count = 0;
       cfg->cartridge_banked = 1;
-      cfg->superchip = str_ieq(cfg->mapper, "F8SC") ||
-                       str_ieq(cfg->mapper, "F6SC") ||
-                       str_ieq(cfg->mapper, "F4SC");
+      cfg->superchip_mapper = str_ieq(cfg->mapper, "F8SC") ||
+                              str_ieq(cfg->mapper, "F6SC") ||
+                              str_ieq(cfg->mapper, "F4SC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
-            str_ieq(cfg->mapper, "F4") || cfg->superchip)) {
+            str_ieq(cfg->mapper, "F4") || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -371,6 +382,32 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (startup_count != 1) {
          fprintf(stderr, "vcsc-sim: banked config must name exactly one startup bank\n");
+         exit(1);
+      }
+   }
+
+   for (size_t i = 0; i < cfg->mem_count; ++i) {
+      memory_region_t *mem_region = &cfg->mem[i];
+      if (!mem_region->has_write_start)
+         continue;
+      if (!str_ieq(mem_region->type, "rw")) {
+         fprintf(stderr,
+                 "vcsc-sim: split-address MEMORY region '%s' is not type=rw\n",
+                 mem_region->name);
+         exit(1);
+      }
+      if (mem_region->bank_name[0]) {
+         fprintf(stderr,
+                 "vcsc-sim: split-address MEMORY region '%s' must be shared\n",
+                 mem_region->name);
+         exit(1);
+      }
+      if (mem_region->size == 0 ||
+          (uint32_t)mem_region->start + mem_region->size > 0x10000u ||
+          (uint32_t)mem_region->write_start + mem_region->size > 0x10000u) {
+         fprintf(stderr,
+                 "vcsc-sim: split-address MEMORY region '%s' has an invalid window\n",
+                 mem_region->name);
          exit(1);
       }
    }
@@ -675,27 +712,61 @@ void load_intel_hex(const char *filename) {
    }
 }
 
-static int superchip_read_offset(uint16_t addr, uint8_t *offset) {
-   uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
-   if (!g_cfg_loaded || !g_cfg.superchip || canonical < 0x1080u || canonical > 0x10FFu)
-      return 0;
-   *offset = (uint8_t)(canonical - 0x1080u);
-   return 1;
+static uint16_t split_window_address(uint16_t addr) {
+   return g_cfg.cartridge_banked ? (uint16_t)(addr & 0x1FFFu) : addr;
 }
 
-static int superchip_write_offset(uint16_t addr, uint8_t *offset) {
-   uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
-   if (!g_cfg_loaded || !g_cfg.superchip || canonical < 0x1000u || canonical > 0x107Fu)
+static int split_memory_offset(uint16_t addr,
+                               int write_window,
+                               size_t *region_index,
+                               uint16_t *offset) {
+   uint16_t canonical;
+
+   if (!g_cfg_loaded)
       return 0;
-   *offset = (uint8_t)(canonical - 0x1000u);
-   return 1;
+   canonical = split_window_address(addr);
+   for (size_t i = 0; i < g_cfg.mem_count; ++i) {
+      const memory_region_t *mem_region = &g_cfg.mem[i];
+      uint16_t base;
+      uint32_t end;
+
+      if (!mem_region->has_write_start)
+         continue;
+      base = write_window ? mem_region->write_start : mem_region->start;
+      base = split_window_address(base);
+      end = (uint32_t)base + mem_region->size;
+      if (canonical < base || (uint32_t)canonical >= end)
+         continue;
+      *region_index = i;
+      *offset = (uint16_t)(canonical - base);
+      return 1;
+   }
+   return 0;
 }
 
-static void mirror_superchip_byte(uint8_t offset, uint8_t value) {
-   /* The canonical BANK0 aliases make --dump-on-stop useful without changing
-      the raw cartridge mapping.  Those bytes are RAM ports, not executable ROM. */
-   mem[0xF000u + offset] = value;
-   mem[0xF080u + offset] = value;
+static void mirror_split_byte(size_t region_index, uint16_t offset, uint8_t value) {
+   const memory_region_t *mem_region = &g_cfg.mem[region_index];
+   uint32_t read_addr = (uint32_t)mem_region->start + offset;
+   uint32_t write_addr = (uint32_t)mem_region->write_start + offset;
+
+   g_split_memory[region_index][offset] = value;
+   mem[read_addr] = value;
+   mem[write_addr] = value;
+}
+
+static void initialize_split_memory(void) {
+   g_split_memory.clear();
+   g_split_memory.resize(g_cfg.mem_count);
+   if (!g_cfg_loaded)
+      return;
+   for (size_t i = 0; i < g_cfg.mem_count; ++i) {
+      const memory_region_t *mem_region = &g_cfg.mem[i];
+      if (!mem_region->has_write_start)
+         continue;
+      g_split_memory[i].assign(mem_region->size, 0);
+      for (uint16_t offset = 0; offset < mem_region->size; ++offset)
+         mirror_split_byte(i, offset, 0);
+   }
 }
 
 static int cartridge_window_address(uint16_t addr) {
@@ -729,9 +800,10 @@ static uint16_t selected_bank_address(uint16_t addr) {
 }
 
 static uint8_t peek_mem(uint16_t addr) {
-   uint8_t offset;
-   if (superchip_read_offset(addr, &offset))
-      return g_superchip_ram[offset];
+   size_t region_index;
+   uint16_t offset;
+   if (split_memory_offset(addr, 0, &region_index, &offset))
+      return g_split_memory[region_index][offset];
    if (cartridge_window_address(addr))
       return mem[selected_bank_address(addr)];
    return mem[addr];
@@ -755,16 +827,12 @@ static void load_raw_binary(const char *filename) {
       const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
       memcpy(mem + bank->start, bytes.data() + file_index * bank->size, bank->size);
    }
-   if (g_cfg.superchip) {
-      memset(g_superchip_ram, 0, sizeof(g_superchip_ram));
-      for (size_t i = 0; i < sizeof(g_superchip_ram); ++i)
-         mirror_superchip_byte((uint8_t)i, 0);
-   }
 }
 
 void write_cb(uint16_t addr, uint8_t val) {
    size_t selected;
-   uint8_t offset;
+   size_t region_index;
+   uint16_t offset;
    if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
 
@@ -772,10 +840,17 @@ void write_cb(uint16_t addr, uint8_t val) {
       g_selected_bank = selected;
       return;
    }
-   if (superchip_write_offset(addr, &offset)) {
-      g_superchip_ram[offset] = val;
-      mirror_superchip_byte(offset, val);
+   if (split_memory_offset(addr, 1, &region_index, &offset)) {
+      mirror_split_byte(region_index, offset, val);
       return;
+   }
+   if (split_memory_offset(addr, 0, &region_index, &offset)) {
+      fprintf(stderr,
+              "vcsc-sim: write to read alias of split-address MEMORY region '%s' at $%04X\n",
+              g_cfg.mem[region_index].name, addr);
+      trace_regs();
+      trace_disasm(gpc);
+      exit(1);
    }
    if (cartridge_window_address(addr)) {
       fprintf(stderr, "vcsc-sim: write to read-only cartridge memory at $%04X\n", addr);
@@ -788,6 +863,19 @@ void write_cb(uint16_t addr, uint8_t val) {
 
 uint8_t read_cb(uint16_t addr) {
    size_t selected;
+   size_t write_region_index;
+   size_t read_region_index;
+   uint16_t write_offset;
+   uint16_t read_offset;
+   if (split_memory_offset(addr, 1, &write_region_index, &write_offset) &&
+       !split_memory_offset(addr, 0, &read_region_index, &read_offset)) {
+      fprintf(stderr,
+              "vcsc-sim: read from write alias of split-address MEMORY region '%s' at $%04X\n",
+              g_cfg.mem[write_region_index].name, addr);
+      trace_regs();
+      trace_disasm(gpc);
+      exit(1);
+   }
    uint8_t value = peek_mem(addr);
    if (trace_ops & TRACE_OP_READS) {
       if (cartridge_window_address(addr))
@@ -944,6 +1032,8 @@ int main (int argc, char **argv) {
       load_raw_binary(opts.image_path);
    else
       load_intel_hex(opts.image_path);
+
+   initialize_split_memory();
 
    if (g_cfg_loaded && g_cfg.cartridge_banked) {
       if (opts.start_bank_set) {

@@ -937,6 +937,13 @@ when main roadmap item 29 becomes active.
          nonconstant initializers run once in the translation-unit startup
          initializer; all destinations use the write alias. F8SC/F6SC/F4SC tests
          prove persistence across repeated calls and every physical startup bank.
+       * A mapper-independent regression uses `banana`, `pair`, and `orange`
+         split regions with different sizes, unaligned and noncontiguous aliases,
+         and both read-above-write and read-below-write layouts. It proves that
+         compiler metadata, linker allocation, activation/static storage, startup
+         initialization, bitfield lowering, simulator aliasing, and overflow
+         reporting are driven by `mem`/cfg attributes rather than the region name
+         or a fixed `$F000/$F080` ordering.
 
 [ ] 14. Add Superchip-backed value parameters.
 
