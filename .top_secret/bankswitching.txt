@@ -1113,14 +1113,19 @@ when main roadmap item 29 becomes active.
          mismatch across declarations, and attempts to combine `const` with
          `writeonly`.
 
-[ ] 18. Add explicit read- and write-address projection operators `&?` and `&!`.
+[ ] 18. Add explicit read- and write-address projection operators `&<` and `&>`.
 
-       * Define `&?lvalue` to return the lvalue's read address as `const T *`, and
-         `&!lvalue` to return its write address as `writeonly T *`. Evaluate the
+       * Define `&<lvalue` to return the lvalue's read address as `const T *`, and
+         `&>lvalue` to return its write address as `writeonly T *`. Evaluate the
          lvalue location once and do not load from or store to the object merely to
          form either address.
+       * Lex `&<` and `&>` as indivisible multi-character unary operators with
+         the same precedence and associativity as ordinary unary `&`. Require the
+         characters to be adjacent: `& <foo` and `& >foo` are not alternate
+         spellings, and neither spaced form creates a competing unary-address
+         interpretation.
        * Drive both operators entirely from generic lvalue read/write metadata.
-         `&?` is an error when the read location is `none`; `&!` is an error when
+         `&<` is an error when the read location is `none`; `&>` is an error when
          the write location is `none`. This applies equally to named `mem` objects,
          absolute bindings such as `uint8_t VSYNC @[none/0x00];`, array elements,
          structure members, and dereferenced lvalues.
@@ -1131,9 +1136,9 @@ when main roadmap item 29 becomes active.
        * Keep plain `&` for objects which have one conventional address compatible
          with the resulting ordinary pointer type. Reject plain `&` when distinct
          read and write locations cannot be represented by one pointer, and direct
-         the diagnostic to `&?` and `&!`. Keep implicit decay of a split-address
-         array invalid; use an explicit directional projection such as `&?array[0]`
-         or `&!array[0]`. Expressions such as `&?*p` and `&!*p` remain valid
+         the diagnostic to `&<` and `&>`. Keep implicit decay of a split-address
+         array invalid; use an explicit directional projection such as `&<array[0]`
+         or `&>array[0]`. Expressions such as `&<*p` and `&>*p` remain valid
          compositional spellings when the dereferenced lvalue has the required
          access path.
        * Do not add a built-in split/fat pointer in this slice. A program which must
@@ -1304,7 +1309,7 @@ The following are not settled by this document:
 * whether non-public or future mapper profiles may use a startup bank other
   than BANK0 while still keeping public full-window profiles and `main` in BANK0;
 * whether a concrete use case eventually justifies a built-in split/fat
-  pointer rather than explicit `&?`/`&!` projections stored in a user-defined
+  pointer rather than explicit `&<`/`&>` projections stored in a user-defined
   structure;
 * whether measured programs justify profile-guided edge weights, explicit
   same-bank groups, translation-unit preferences, or a deterministic local-search
