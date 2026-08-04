@@ -293,8 +293,8 @@ mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 ref uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
-Applications may allocate persistent globals, arrays, and automatic locals
-directly:
+Applications may allocate persistent globals, arrays, automatic locals, and
+function-scope static locals directly:
 
 ```c
 superchip uint8_t foo;
@@ -302,22 +302,26 @@ superchip uint8_t buffer[32];
 
 void update(void) {
    superchip uint8_t scratch := foo;
+   static superchip uint8_t calls;
    scratch++;
+   calls++;
    foo := scratch;
 }
 ```
 
 VCSC split addresses are always ordered read then write. Loads use
-`$F080-$F0FF`; stores, initializer copies, BSS clearing, and automatic-local
-initializer writes use `$F000-$F07F`. Automatic locals keep VCSC's fixed,
-non-reentrant backing storage and participate in the call-graph activation
-overlay; inline expansions receive private local symbols. The 128 physical bytes
-are shared by every ROM bank and counted once in the map.
+`$F080-$F0FF`; stores, initializer copies, BSS clearing, and local initializer
+writes use `$F000-$F07F`. Automatic locals keep VCSC's fixed, non-reentrant
+backing storage and participate in the call-graph activation overlay; inline
+expansions receive private local symbols. Function-scope `static superchip`
+objects instead occupy persistent `BSS.superchip` or `DATA.superchip` storage.
+Their constant and runtime initializers run through the ordinary startup paths
+exactly once, not whenever control reaches the declaration. The 128 physical
+bytes are shared by every ROM bank and counted once in the map.
 
 Direct and runtime indexing, compound assignment, increment/decrement, and
 bitfield updates are alias-aware: they load through the read port and store
 through the write port. Address-taking, pointer decay, and `ref` passing remain
 rejected because the object has no single ordinary address. Split-address
-parameters, return storage, and function-scope `static` objects remain later
-work. The explicit `superchip_ram` declaration remains available when
+parameters and return storage remain later work. The explicit `superchip_ram` declaration remains available when
 fixed-offset access to the complete window is preferable.

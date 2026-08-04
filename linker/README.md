@@ -657,10 +657,12 @@ superchip: read_start = $F080, write_start = $F000,
            size = $0080, type = rw, define = yes;
 ```
 
-Source objects in `BSS.superchip` and `DATA.superchip` are allocated once in the
-read window. Relocations from every ROM bank may target either alias without
-being mistaken for cross-bank ROM references. Loads resolve to `$F080-$F0FF`;
-stores and startup DATA/BSS writes resolve to `$F000-$F07F`. The map reports
-physical occupancy once and prints both `run` and `write` addresses for each
-allocated object. Existing explicit `@[read_address/write_address]` refs remain
-available for fixed-address access.
+Source objects in `BSS.superchip` and `DATA.superchip`, including
+function-scope static locals, are allocated once in the read window. Static
+locals use persistent layouts rather than call-graph activation overlays.
+Relocations from every ROM bank may target either alias without being mistaken
+for cross-bank ROM references. Loads resolve to `$F080-$F0FF`; stores and
+startup DATA/BSS or runtime-initializer writes resolve to `$F000-$F07F`. The map
+reports physical occupancy once and prints both `run` and `write` addresses for
+each allocated object. Existing explicit `@[read_address/write_address]` refs
+remain available for fixed-address access.

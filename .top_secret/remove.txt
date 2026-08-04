@@ -1194,3 +1194,4 @@ test/nonref_address_warning_test.c26
 test/nonref_address_local_warning_test.c26
 test/split_memory_local_error_test.c26
 test/split_memory_bitfield_write_error_test.c26
+test/split_memory_static_local_error_test.c26

@@ -886,17 +886,21 @@ when main roadmap item 29 becomes active.
          installed-toolchain, and reset-lifecycle certification remains item 19.
        * Parameters and function return storage remain implementation staging
          restrictions, not intended final language semantics. Items 14 through 16
-         remove those restrictions. Item 13 has removed the automatic-local
-         restriction.
+         remove those restrictions. Item 13 has removed the local-object
+         restriction, including function-scope static storage.
 
-[x] 13. Add Superchip-backed automatic local variables.
+[x] 13. Add Superchip-backed local variables.
 
-       * Permit ordinary local scalars, arrays, and other already-supported local
-         object forms to select a split-address writable region, for example
-         `superchip uint8_t scratch;` inside a function body.
-       * Keep the existing non-reentrant, symbol-backed local-storage model. Reads
-         use the region's read alias; writes and function-entry initializers use
-         its write alias. No runtime stack or new lifetime mechanism is required.
+       * Permit ordinary automatic and function-scope `static` scalars, arrays,
+         and other already-supported local object forms to select a split-address
+         writable region, for example `superchip uint8_t scratch;` or
+         `static superchip uint8_t calls;` inside a function body.
+       * Keep the existing non-reentrant, symbol-backed automatic-local model.
+         Reads use the region's read alias; writes and function-entry initializers
+         use its write alias. No runtime stack or new lifetime mechanism is
+         required. Function-scope static objects instead use persistent
+         `BSS.<region>` or `DATA.<region>` storage and the existing one-time
+         startup initialization machinery.
        * Reuse the existing alias-aware lowering for assignment, compound
          assignment, increment/decrement, and indexed access. Extend the formerly
          rejected split-address bitfield update so it evaluates the lvalue once,
@@ -927,8 +931,12 @@ when main roadmap item 29 becomes active.
          initializers, compound assignment, increment, bitfields, inline locals,
          repeated nested cross-bank calls, exact eleven-byte occupancy, every
          physical startup bank, and deterministic activation overflow.
-       * Function-scope `static` split objects remain explicitly unsupported; they
-         have one-time initialization semantics and are not automatic locals.
+       * Function-scope `static` split objects use persistent `BSS.superchip` or
+         `DATA.superchip`, never activation overlays. Uninitialized storage is
+         cleared at startup, link-time initializers use the DATA copy path, and
+         nonconstant initializers run once in the translation-unit startup
+         initializer; all destinations use the write alias. F8SC/F6SC/F4SC tests
+         prove persistence across repeated calls and every physical startup bank.
 
 [ ] 14. Add Superchip-backed value parameters.
 

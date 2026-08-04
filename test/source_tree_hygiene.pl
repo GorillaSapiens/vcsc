@@ -88,10 +88,12 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
    or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
+	-f File::Spec->catfile($test,'superchip_static_locals.pl') &&
 -f File::Spec->catfile($test,'split_memory_allocation_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_local_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_bitfield_write_codegen_test.c26') &&
--f File::Spec->catfile($test,'split_memory_static_local_error_test.c26') &&
+-f File::Spec->catfile($test,'split_memory_static_local_codegen_test.c26') &&
+	!-e File::Spec->catfile($test,'split_memory_static_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
 index(slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26')),
@@ -102,7 +104,7 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
    $cfg_body =~ /superchip:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
       or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
 }
-index($bankswitching,'[x] 13. Add Superchip-backed automatic local variables.')>=0 &&
+index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
 index($bankswitching,'[ ] 14. Add Superchip-backed value parameters.')>=0 &&
 index($bankswitching,'[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&

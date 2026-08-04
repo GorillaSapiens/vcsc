@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260803_081346.tar.gz
+    vcsc.20260804_091400.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8269,3 +8269,27 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: all 354 compile-only tests pass. All 216 end-to-end/generic
   tests pass in ordered chunks, including every new Superchip-local execution
   case. Staged `make installcheck` passes.
+
+2026-08-04 02:40:44 PDT, complete function-scope static Superchip locals
+------------------------------------------------------------------------
+* Complete the previously omitted function-scope `static superchip` portion of
+  bankswitching roadmap item 13. Static split-address locals use persistent
+  `BSS.superchip` or `DATA.superchip` storage and never consume or overlap
+  the owning function's activation overlay.
+* Reuse the established one-time static-local initialization semantics. An
+  uninitialized object is cleared at startup, a constant initializer uses the
+  startup DATA-copy path, and a nonconstant initializer runs once in the
+  translation unit's startup initializer. Every destination uses the region's
+  write alias while subsequent reads use its read alias.
+* Add compile and end-to-end coverage for uninitialized, constant-initialized,
+  and runtime-initialized static Superchip scalars, arrays, and packed
+  bitfields. The execution test calls the function repeatedly across banks,
+  starts F8SC/F6SC/F4SC from every physical bank, checks exact alias contents,
+  and requires six bytes of persistent physical occupancy with no activation
+  allocation.
+* Update compiler, linker, VCS, test, detailed-roadmap, deletion-ledger, and
+  source-tree-hygiene documentation. Roadmap item 14, Superchip-backed value
+  parameters, remains next.
+* Verification: all 354 compile-only tests pass; all 217 end-to-end/generic
+  tests pass in ordered chunks; focused static-Superchip and hygiene tests pass;
+  staged `make installcheck` passes.

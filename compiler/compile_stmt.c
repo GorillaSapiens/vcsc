@@ -520,12 +520,6 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
                  node->file, node->line, node->column,
                  find_mem_modifier_name(modifiers));
    }
-   if (modifiers_imply_split_address(modifiers) &&
-       has_modifier(modifiers, "static")) {
-      error_user("[%s:%d.%d] split-address mem region '%s' currently supports automatic locals, not function-scope static objects",
-                 node->file, node->line, node->column,
-                 find_mem_modifier_name(modifiers));
-   }
    emit_mem_region_metadata_for_modifiers(node, modifiers);
 
    if (has_modifier(modifiers, "inline")) {
@@ -686,7 +680,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
-   if (modifiers_imply_split_address(modifiers)) {
+   if (modifiers_imply_split_address(modifiers) &&
+       !has_modifier(modifiers, "static")) {
       char segbuf[512];
       if (is_empty(expression) && declaration_const_applies_to_object(modifiers, declarator)) {
          error_user("[%s:%d.%d] 'const' missing initializer", node->file, node->line, node->column);
@@ -701,7 +696,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       emit(&es_bss, "\t.res %d\n", size);
    }
 
-   if (entry->is_absolute_ref) {
+   if (entry->is_absolute_ref && !has_modifier(modifiers, "static")) {
       StmtFixedScratch scratch;
       LValueRef lv;
       bool ok;
@@ -769,7 +764,16 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    {
       char sym[256];
       EmitSink *sink;
-      if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
+      if (modifiers_imply_split_address(modifiers) &&
+          has_modifier(modifiers, "static")) {
+         if (!entry->read_expr || !*entry->read_expr ||
+             !entry->write_expr || !*entry->write_expr) {
+            error_unreachable("[%s:%d.%d] split-address static local '%s' has incomplete allocated aliases",
+                              node->file, node->line, node->column, name);
+         }
+         snprintf(sym, sizeof(sym), "%s", entry->read_expr);
+      }
+      else if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
          error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
          return;
       }
@@ -854,7 +858,16 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             }
             emit(sink, "%s:\n", sym);
             emit(sink, "\t.res %d\n", size);
-            remember_pending_global_init(name, sym, type, declarator, expression, size, entry->is_zeropage, false, NULL, NULL);
+            if (modifiers_imply_split_address(modifiers)) {
+               remember_pending_global_init(name, sym, type, declarator, expression,
+                                            size, false, true,
+                                            entry->read_expr, entry->write_expr);
+            }
+            else {
+               remember_pending_global_init(name, sym, type, declarator, expression,
+                                            size, entry->is_zeropage, false,
+                                            NULL, NULL);
+            }
          }
       }
       return;

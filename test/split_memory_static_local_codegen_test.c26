@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasm: .segment "BSS.superchip"
+// expectasm: hold$zero:
+// expectasm: hold$runtime:
+// expectasm: .segment "DATA.superchip"
+// expectasm: hold$fixed:
+// expectasm: hold$values:
+// expectasm: lda  hold$zero
+// expectasm: sta  {hold$runtime - 128}
+// forbidasm: BSS.superchip.__vcsc_activation$hold
+// forbidasm: sta.z {hold$zero - 128}
+
+include "machine_6502.c26"
+mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+
+uint8_t runtime_seed(void) {
+   return 0x20;
+}
+
+uint8_t hold(void) {
+   static superchip uint8_t zero;
+   static superchip uint8_t fixed := 4;
+   static superchip uint8_t runtime := runtime_seed();
+   static superchip uint8_t values[2] := { 9, 10 };
+
+   zero++;
+   fixed += zero;
+   runtime++;
+   values[0]++;
+   return fixed + runtime + values[0] + values[1];
+}

@@ -381,7 +381,15 @@ uint16_t count_once(void) {
 ```
 
 A function-scope `static` object is initialized once, either as static data or
-by a startup initializer when its expression needs runtime code.
+by a startup initializer when its expression needs runtime code. It may select
+any writable named memory region supported for persistent objects, including a
+split-address region such as `superchip`. Such an object lives in persistent
+`BSS.<region>` or `DATA.<region>` storage, never in the owning function's
+activation overlay. An uninitialized object is cleared during startup, a
+link-time initializer is copied during startup, and a runtime initializer runs
+from the translation unit's startup initializer exactly once. Split-address
+reads use the read alias and every initialization or later write uses the write
+alias.
 
 Local arrays reserve their complete size in the owning activation. After all
 objects and archive members are selected, `vcsc-ld` overlays mutually exclusive

@@ -445,6 +445,15 @@ poisoned FAIL reference—rejects hidden empty-stem sidecars, and catches broken
 shell command substitutions which would otherwise print misleading
 `/bin/sh: ...: not found` messages while still producing cartridges.
 
+
+`split_memory_static_local_codegen_test.c26` and
+`superchip_static_locals.pl` cover function-scope `static superchip` storage.
+They require persistent `BSS.superchip`/`DATA.superchip` layouts rather than an
+activation overlay, startup-only zero/constant/runtime initialization through
+the write alias, persistence across repeated calls, packed-bitfield updates,
+exact physical occupancy, and execution from every physical startup bank under
+F8SC, F6SC, and F4SC.
+
 `source_tree_hygiene.pl` rejects stranded test/support files, assembler
 fixtures absent from the fixture suite, byte-identical duplicate test assets,
 duplicate deletion-ledger entries, any deleted path that reappears, displaced
