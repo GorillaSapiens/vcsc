@@ -115,9 +115,19 @@ sub check_matrix_dump {
    $mem->[$sym->{stack_before}]==$mem->[$sym->{stack_after}]
       or die "$mapper direct-JMP path changed the hardware stack\n";
    if ($sc) {
-      my $expected=$banks*$banks+$banks+1;
-      $mem->[0xF080]==0x5A && $mem->[0xF081]==$expected && $mem->[0xF0FF]==0xA5
-         or die "$mapper Superchip aliases/persistence/count are wrong\n";
+      $mem->[$sym->{sc_bss_head}]==0xC3 &&
+      $mem->[$sym->{sc_data_head}]==0x3C &&
+      $mem->[$sym->{sc_count}]==0x96 &&
+      $mem->[$sym->{sc_bss}]==0x69 &&
+      $mem->[$sym->{sc_bss}+123]==0xA6 &&
+      $mem->[$sym->{sc_data_tail}]==0x69
+         or die "$mapper Superchip reset lifecycle did not finish in the expected poisoned state\n";
+      for my $read ($sym->{sc_bss_head},$sym->{sc_count},$sym->{sc_bss},
+                    $sym->{sc_bss}+123,$sym->{sc_data_head},$sym->{sc_data_tail}) {
+         $mem->[$read-0x80]==$mem->[$read]
+            or die sprintf("%s Superchip read/write aliases disagree at %04X/%04X\n",
+                           $mapper,$read,$read-0x80);
+      }
    }
 }
 
@@ -165,15 +175,34 @@ sub run_simulator_matrix {
       if ($sc) {
          $map =~ /^\s*superchip\s+used=128 bytes\b.*\bobjects=128 bytes\b/m
             or die "$mapper diagnostic does not own the complete Superchip region\n$map";
-         $map =~ /^\s*BSS\.superchip\.__vcsc_object\$diagnostic_superchip_ram\s+run=\$F080 write=\$F000 size=\$0080\b/m
-            or die "$mapper diagnostic Superchip probe is not allocator-owned\n$map";
+         $map =~ /^STARTUP INITIALIZATION\n\s+policy=every-reset bss=zero data=copy-through-write-alias$/m
+            or die "$mapper map does not define the reset-time Superchip initialization policy\n$map";
+         for my $required (
+            qr/^\s+COPY DATA\.superchip\.__vcsc_object\$diagnostic_superchip_data_head\s+load=\$[0-9A-F]{4} read=\$F0FE write=\$F07E size=\$0001 split=yes$/m,
+            qr/^\s+COPY DATA\.superchip\.__vcsc_object\$diagnostic_superchip_data_tail\s+load=\$[0-9A-F]{4} read=\$F0FF write=\$F07F size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_bss_head\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_count\s+read=\$F081 write=\$F001 size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_bss\s+read=\$F082 write=\$F002 size=\$007C split=yes$/m,
+         ) {
+            $map =~ $required
+               or die "$mapper map does not report complete Superchip DATA/BSS startup initialization\n$map";
+         }
       }
       my %sym=map { $_ => map_symbol($map,$_) }
          qw(simulator_done failure signature source_seen current_source current_destination
             call_count transition_count nested_count stack_before stack_after);
+      if ($sc) {
+         $sym{sc_bss_head}=map_symbol($map,'diagnostic_superchip_bss_head');
+         $sym{sc_data_head}=map_symbol($map,'diagnostic_superchip_data_head');
+         $sym{sc_count}=map_symbol($map,'diagnostic_superchip_count');
+         $sym{sc_bss}=map_symbol($map,'diagnostic_superchip_bss');
+         $sym{sc_data_tail}=map_symbol($map,'diagnostic_superchip_data_tail');
+      }
       for my $physical_start (0..$banks-1) {
+         my @lifecycle=$sc ? ('--split-fill=0xA7',
+                                    sprintf('--reset-on-pc=0x%04X',$sym{simulator_done})) : ();
          my($out,$err)=require_ok("simulate $mapper from physical bank $physical_start",
-            $sim,'-T',$cfg,"--start-bank=$physical_start",
+            $sim,'-T',$cfg,"--start-bank=$physical_start",@lifecycle,
             sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
          $err eq '' or die "$mapper simulator wrote stderr:\n$err";
          check_matrix_dump($mapper,$banks,\%sym,parse_dump($out),$sc);
@@ -235,7 +264,8 @@ sub run_stella_certification {
       my($graded,$last_grade_error)=(0,'');
       for my $attempt (1..3) {
          unlink glob(File::Spec->catfile($snapdir,'*.png'));
-         require_ok("snapshot $label attempt $attempt",$perl,$keys);
+         my @key_args=$arg{reset} ? ('--reset') : ();
+         require_ok("snapshot $label attempt $attempt",$perl,$keys,@key_args);
          my @png;
          for (1..40) {
             @png=grep { -s $_ } glob(File::Spec->catfile($snapdir,'*.png'));
@@ -260,15 +290,15 @@ sub run_stella_certification {
    };
 
    for my $profile (profiles()) {
-      my($mapper,$banks)=@$profile;
+      my($mapper,$banks,undef,$sc)=@$profile;
       my @runs;
       for my $physical_start (0..$banks-1) {
          push @runs,{label=>lc($mapper)."_forced_start_$physical_start",
-                     mapper=>$mapper,start=>$physical_start};
+                     mapper=>$mapper,start=>$physical_start,reset=>$sc};
       }
       for my $trial (0..$banks-1) {
          push @runs,{label=>lc($mapper)."_random_start_$trial",
-                     mapper=>$mapper,random=>1};
+                     mapper=>$mapper,random=>1,reset=>$sc};
       }
       @runs=grep { $selected->($_->{label}) } @runs;
       next unless @runs; # A focused filter must not build unrelated cartridges.
@@ -279,9 +309,9 @@ sub run_stella_certification {
       }
    }
    if ($selected->('poisoned_failure')) {
-      my $profile=[F8=>2=>'vcs_8k_f8.cfg'=>0];
+      my $profile=[F8SC=>2=>'vcs_8k_f8sc.cfg'=>1];
       my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
-      $run_one->(label=>'poisoned_failure',mapper=>'F8',start=>0,
+      $run_one->(label=>'poisoned_failure',mapper=>'F8SC',start=>0,reset=>1,
                  rom=>$rom,result=>'fail');
    }
    print "Stella bank switching certification passed\n";
@@ -294,10 +324,17 @@ my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $source=File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26');
 my $source_text=read_file($source);
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_ram\s*\[128\]\s*;/
-   or die "diagnostic Superchip probe is not an allocator-owned 128-byte object\n";
-$source_text !~ /diagnostic_superchip_ram\s*\[128\]\s*\@\[/
-   or die "diagnostic Superchip probe still uses a non-owning absolute alias\n";
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_bss_head\s*;/ &&
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_data_head\s*:=\s*0x5A\s*;/ &&
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_count\s*;/ &&
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_bss\s*\[124\]\s*;/ &&
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_data_tail\s*:=\s*0xA5\s*;/
+   or die "diagnostic Superchip probe does not own the mixed 128-byte BSS/DATA region\n";
+$source_text !~ /diagnostic_superchip_ram/
+   or die "diagnostic still uses the obsolete raw Superchip probe\n";
+$source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
+$source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
+   or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
 $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
    or die "diagnostic PASS glyph is not the default-font P\n";
 $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s

@@ -156,8 +156,13 @@ directly through their linker-resolved `__vcsc_scratch_N` symbols. A purpose-
 specific `ptr0`/`ptr1` indirect address is prepared only when a dynamic or
 out-of-range offset actually requires one.
 
-Reset/startup initializes the 6502 hardware stack, DATA, BSS, and init tables.
-There is no runtime frame pointer or software stack pointer. The runtime exposes
+Every entry through reset/startup initializes the 6502 hardware stack, copies
+DATA, clears BSS, and walks init tables. Copy and zero records carry the runtime
+write address, so split-address storage is initialized through its write alias;
+its readable alias is reporting and subsequent-load metadata. Mapper bank
+switches do not run startup and preserve shared writable storage, while a reset
+reestablishes every allocated object's declared initial state. There is no
+runtime frame pointer or software stack pointer. The runtime exposes
 exactly eight independently linked zero-page bytes: one byte each for `arg0`
 and `arg1`, plus two bytes each for `ptr0` through `ptr2`. Startup selects the
 complete set. Fixed-width shifts, multiplication, division, and remainder use

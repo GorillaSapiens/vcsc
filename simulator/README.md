@@ -28,6 +28,8 @@ Supported forms include:
 ./vcsc-sim -T libraries/vcs/vcs_16k_f6.cfg --start-bank=0 game.bin
 ./vcsc-sim -T libraries/vcs/vcs_32k_f4.cfg \
   --start-bank=7 --stop-pc=0xF234 --dump-on-stop game.bin
+./vcsc-sim -T libraries/vcs/vcs_8k_f8sc.cfg --split-fill=0xA7 \
+  --reset-on-pc=0xF234 --stop-pc=0xF234 --dump-on-stop game.bin
 ```
 
 Options added for banked diagnostics are:
@@ -38,7 +40,15 @@ Options added for banked diagnostics are:
 - `--stop-pc=ADDR` exits successfully before executing the instruction at
   `ADDR`.
 - `--dump-on-stop` emits the complete logical 64K memory array as Intel HEX when
-  `--stop-pc` fires.  Tests use this to inspect RIOT RAM signatures.
+  `--stop-pc` fires. Tests use this to inspect RIOT and cartridge RAM signatures.
+- `--split-fill=BYTE` fills every configured shared split-address region before
+  the initial CPU reset. It is a hostile-initial-state test aid; zero remains the
+  default for compatibility, but programs must not depend on either value.
+- `--reset-on-pc=ADDR` performs one CPU reset immediately before executing
+  `ADDR`, preserving ordinary and split-address RAM. The reset vector is fetched
+  through the currently selected cartridge bank, so the generated reset bridge
+  and startup initialization run exactly as they do after a console reset. A
+  matching `--stop-pc` therefore stops on the second arrival.
 
 The trace argument is parsed with `strtoul(..., 0)`, so decimal, hex, and octal
 forms all work.
@@ -82,8 +92,11 @@ banked image, the simulator additionally:
 A raw `.bin` therefore requires a banked cfg.  An Intel HEX image can still be
 used when logical bank ranges are already represented explicitly.
 
-`--start-bank` defaults to the cfg entry marked `startup=yes`.  Tests explicitly
-run every physical start index to prove the generated reset bridges.
+`--start-bank` defaults to the cfg entry marked `startup=yes`. Tests explicitly
+run every physical start index to prove the generated reset bridges. Split RAM
+persists across mapper hotspot changes and `--reset-on-pc`; only startup code
+changes it after reset. The simulator's initial fill is not a hardware power-on
+contract.
 
 The simulator deliberately does not model TIA video, audio, or analogue
 behavior.  The public bank-transition diagnostic is also run under Stella from

@@ -18,8 +18,10 @@ workspace expected by generated code.
 - `vcsc-rt0.s26`
   - exports `__reset`
   - initializes the 6502 hardware stack
-  - copies `DATA` from ROM to RAM using `__copy_table`
-  - zeros `BSS` using `__zero_table`
+  - copies every `DATA` object from ROM to its runtime write address using
+    `__copy_table`
+  - zeros every `BSS` object through its runtime write address using
+    `__zero_table`
   - walks the linker-generated `__init_table`
   - calls `main`
   - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
@@ -29,6 +31,13 @@ workspace expected by generated code.
   - `_vcsc_ptr0` through `_vcsc_ptr2` are two bytes each
   - startup selects the complete eight-byte set
   - multiplication, division, and remainder require no additional runtime RAM
+
+The complete startup sequence runs after every entry through `__reset`, not only
+at cartridge power-on. For a split-address region such as Superchip RAM, table
+records contain the write-window address, so DATA copies and BSS clearing never
+read from or write through the wrong alias. A reset deliberately restores all
+allocated persistent BSS/DATA objects to their declared startup state; ordinary
+bank switches do not invoke startup and preserve them.
 
 The VCS 6507 has no connected hardware IRQ or NMI inputs. The stock runtime
 therefore has no compiled interrupt-handler ABI or interrupt-entry library.

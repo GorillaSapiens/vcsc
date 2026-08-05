@@ -36,8 +36,8 @@ f4sc.bin: $(SOURCE)
 		-T $(VCS_DIR)/vcs_32k_f4sc.cfg -Map f4sc.map $(SOURCE) -o $@
 
 poisoned.bin: $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -DPOISONED_RESULT \
-		-T $(VCS_DIR)/vcs_8k_f8.cfg -Map poisoned.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DPOISONED_RESULT \
+		-T $(VCS_DIR)/vcs_8k_f8sc.cfg -Map poisoned.map $(SOURCE) -o $@
 
 clean:
 	rm -f f8.* f6.* f4.* f8sc.* f6sc.* f4sc.* poisoned.* \

@@ -459,7 +459,10 @@ from `libraries/vcs/bankswitching_diagnostic_suite.c26`. Each image executes its
 complete ordered source-bank to destination-bank direct-JMP matrix internally.
 The normal `make test` path runs each image in cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
-the nested cross-bank call, and hardware-stack balance. The optional
+the nested cross-bank call, and hardware-stack balance. Superchip runs prefill
+the shared RAM with `$A7`, validate mixed BSS/DATA startup through the write
+window, execute and poison the region, perform one CPU reset while preserving
+RAM, and require a second complete PASS before dumping memory. The optional
 authoritative mode is:
 
 ```sh
@@ -470,7 +473,10 @@ It runs the same three ordinary and three Superchip matrix images in Stella,
 grades the stable green **P** frame versus the dark-red **F** failure frame,
 including the exact default-font P silhouette rather than just its color/area,
 forces every physical startup bank, and also runs one randomized developer-mode
-startup trial per physical bank.  The
+startup trial per physical bank. For each SC run the key helper waits for the
+first result, sends Stella's F2 console-reset key, waits for the second result,
+and snapshots that post-reset frame. The poisoned FAIL reference is now F8SC and
+uses the same reset path, avoiding another public diagnostic cartridge. The
 headless runner requires Xvfb and `xkbcomp`; its snapshot-key and PNG-grading
 helpers are Perl and require no Python installation or Python modules.  Failed
 runs leave `.stella-bank-test/` intact for inspection.
@@ -482,6 +488,12 @@ poisoned FAIL reference—rejects hidden empty-stem sidecars, and catches broken
 shell command substitutions which would otherwise print misleading
 `/bin/sh: ...: not found` messages while still producing cartridges.
 
+
+`superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
+hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`
+section to list each DATA copy and BSS clear with exact read/write aliases. Its
+stable overflow fixture still fills all 128 bytes and requires the linker to
+name the first object that does not fit.
 
 `split_memory_static_local_codegen_test.c26` and
 `superchip_static_locals.pl` cover function-scope `static superchip` storage.
@@ -729,13 +741,13 @@ output names, per-sidecar disable switches, high-level driver passthrough, and
 protection against overwriting a same-stem linker script. ROM-specific Stella
 `.script` files remain user-owned and are intentionally not generated.
 
-`vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding F8SC/F6SC/F4SC
-profiles. It checks every allocatable bank region begins at `$x100` with size
-`$0E00`, rejects deliberately malformed cfgs which expose the RAM-port prefix
-to ordinary ROM placement, verifies reserved 256-byte prefixes and exact image
-sizes, executes each complete-matrix diagnostic from every physical startup
-bank in the mapper-aware simulator, and validates the canonical `$F080-$F0FF`
-read aliases plus a matrix-wide persistence count. `stella-bank-test`
-independently runs the same three SC images from every forced and randomized
-physical startup bank. `VCSC_STELLA_FILTER` limits execution when a focused
-Stella rerun is needed.
+`vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
+F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
+`$x100` with size `$0E00`, rejects cfgs which expose the RAM-port prefix to ROM,
+verifies exact images, map-reported startup records, hostile initial RAM, both
+aliases, bank-switch persistence, poison-before-result, and reinitialization on
+a reset which preserves RAM externally. `stella-bank-test` independently runs
+the same SC lifecycle from every forced and randomized physical startup bank.
+`VCSC_STELLA_FILTER` limits focused Stella reruns. Staged `make installcheck`
+uses the installed compiler, profile, diagnostic source, and simulator options
+to prove the same second-arrival reset lifecycle and a zero final failure byte.

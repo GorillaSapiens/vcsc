@@ -794,7 +794,7 @@ when main roadmap item 29 becomes active.
          background/white-F frame. The P and F are the exact default ASCII
          glyphs, loaded through ordinary indexed syntax which must remain
          absolute for relocatable ROM, and changed only on a scanline boundary.
-         The public example also emits one deliberately poisoned F8 image and
+         The public example also emits one deliberately poisoned F8SC image and
          every displayed result frame is exactly 262 scanlines.
        * Run the complete matrix in Stella, force every physical startup bank,
          and run developer-mode randomized startup-bank trials.  The top-level
@@ -1393,7 +1393,7 @@ when main roadmap item 29 becomes active.
          compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
          roadmap documentation.
 
-[ ] 23. Integrate automatic Superchip initialization and lifecycle tests.
+[x] 23. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
          startup.
@@ -1404,6 +1404,29 @@ when main roadmap item 29 becomes active.
          initialization, alias direction, persistence, and overflow handling.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
+
+       Completed 2026-08-05:
+
+       * Generalize linker startup records to carry distinct readable and writable
+         runtime addresses. DATA copies and BSS clears use the write alias, while
+         `STARTUP INITIALIZATION` map output reports load/read/write addresses,
+         size, split status, and the explicit every-reset policy.
+       * Define the lifecycle: physical power-on contents are unspecified; every
+         entry through reset restores all allocated BSS/DATA declarations; mapper
+         bank switches preserve shared Superchip bytes; unallocated bytes have no
+         VCSC contract. Keep automatic locals in the already completed call-graph
+         activation overlay rather than inventing a separate SC overlay policy.
+       * Extend `vcsc-sim` with hostile split-memory fill and one-shot reset-at-PC
+         controls. The reset preserves RAM and current bank selection before the
+         vector fetch, exercising the real generated reset bridge and startup path.
+       * Fold lifecycle coverage into the existing six complete-matrix diagnostic
+         cartridges. SC builds own all 128 bytes as mixed BSS and DATA, validate
+         startup, aliases, bounds, and matrix-wide persistence, poison the region,
+         reset, and require a second PASS. Convert the existing poisoned reference
+         to F8SC instead of adding an eighth cartridge.
+       * Make Stella press console Reset before snapshotting every SC result and
+         grade the second PASS/FAIL frame. Add installed-toolchain, map, hostile-
+         fill, reset, overflow, documentation, and source-hygiene coverage.
 
 [ ] 24. Add banked renderer or multisprite profiles only after the generic
        cartridge tests are stable.

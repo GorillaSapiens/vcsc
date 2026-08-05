@@ -51,7 +51,7 @@ $bankswitching =~ /one cartridge\s+per mapper rather than one cartridge per tran
 $bankswitching =~ /stable final green-background\/white-P or dark-red-\s*background\/white-F frame/ &&
 $bankswitching =~ /exact default ASCII\s+glyphs/ &&
 $bankswitching =~ /ordinary indexed syntax which must remain\s+absolute for relocatable ROM/ &&
-$bankswitching =~ /deliberately poisoned F8 image/ &&
+$bankswitching =~ /deliberately poisoned F8SC image/ &&
 $bankswitching =~ /exactly 262 scanlines/ &&
 $bankswitching =~ /proving read-window\/write-window\s+direction/
    or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
@@ -71,14 +71,18 @@ index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
 index($top_make,'install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
-index($top_make,'--stop-pc=0x$$sim_done')>=0
+index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
+index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&
+index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0
    or die "top-level installed simulator/Stella bank diagnostics are incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
 index($sim_readme,'mapper=F8')>=0 &&
 index($sim_readme,'Stella remains the independent authority')>=0 &&
-index($sim_readme,'The region name, window order,')>=0
-   or die "simulator documentation lost banked cfg/file-index semantics\n";
+index($sim_readme,'The region name, window order,')>=0 &&
+index($sim_readme,'--reset-on-pc=ADDR')>=0 &&
+index($sim_readme,'--split-fill=BYTE')>=0
+   or die "simulator documentation lost banked cfg/file-index/reset semantics\n";
 index($bankswitching,'[x] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan no longer records completed automatic Superchip allocation\n";
 index($bankswitching,'mem superchip {')>=0 &&
@@ -135,10 +139,11 @@ index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
 index($bankswitching,'[x] 15. Add Superchip-backed function return storage.')>=0 &&
 index($bankswitching,'[x] 21. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'[x] 22. Coalesce a single returned automatic variable with `$$`.')>=0 &&
+index($bankswitching,'[x] 23. Integrate automatic Superchip initialization and lifecycle tests.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0 &&
 index($bankswitching,'RETURN COALESCING')>=0
-   or die "bankswitching plan lost completed Superchip locals, bank duplication, or return coalescing rules\n";
+   or die "bankswitching plan lost completed Superchip locals, bank duplication, return coalescing, or lifecycle rules\n";
 my $compiler_readme=slurp(File::Spec->catfile($repo,'compiler','README.md'));
 my $abi_text=slurp(File::Spec->catfile($repo,'compiler','ABI.txt'));
 my $linker_readme=slurp(File::Spec->catfile($repo,'linker','README.md'));
@@ -395,9 +400,18 @@ index($superchip_header,'$size:0x0080')>=0
 index($superchip_header,'superchip_ram')<0
    or die "superchip.c26 must not publish a whole-window alias\n";
 my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26'));
-index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_ram[128]')>=0 &&
-index($superchip_diagnostic,'diagnostic_superchip_ram[128]@[')<0
-   or die "bankswitching diagnostic lost its allocator-owned Superchip probe\n";
+index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_bss_head;')>=0 &&
+index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
+index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_bss[124];')>=0 &&
+index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_data_tail := 0xA5;')>=0 &&
+index($superchip_diagnostic,'validate_superchip_startup')>=0 &&
+index($superchip_diagnostic,'poison_superchip_before_result')>=0 &&
+index($superchip_diagnostic,'diagnostic_superchip_ram')<0
+   or die "bankswitching diagnostic lost its mixed allocator-owned Superchip lifecycle probe\n";
+my $snapshot_keys=slurp(File::Spec->catfile($test,'stella_snapshot_keys.pl'));
+index($snapshot_keys,"'--reset'")>=0 &&
+index($snapshot_keys,"function_keycode('F2')")>=0
+   or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&

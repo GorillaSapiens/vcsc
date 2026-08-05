@@ -315,9 +315,17 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"` -eq 8192; \
 	sc_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
-	test -n "$$sc_done"; \
+	sc_failure=`awk '$$2 == "failure" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
+	test -n "$$sc_done"; test -n "$$sc_failure"; \
+	grep -q "policy=every-reset bss=zero data=copy-through-write-alias" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"; \
+	"$$stage_bin/vcsc-sim" --help | grep -q -- "--reset-on-pc=ADDR"; \
+	"$$stage_bin/vcsc-sim" --help | grep -q -- "--split-fill=BYTE"; \
 	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8sc.cfg" --start-bank=0 \
-	  --stop-pc=0x$$sc_done "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
+	  --split-fill=0xA7 --reset-on-pc=0x$$sc_done --stop-pc=0x$$sc_done \
+	  --dump-on-stop "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin" \
+	  > "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
+	perl -e '$$w=hex(shift); while (<>) { next unless /^:([0-9A-Fa-f]{2})([0-9A-Fa-f]{4})00([0-9A-Fa-f]*)/; ($$n,$$a,$$d)=(hex($$1),hex($$2),$$3); if ($$w >= $$a && $$w < $$a+$$n) { exit(hex(substr($$d,2*($$w-$$a),2)) == 0 ? 0 : 1); } } exit 2' \
+	  "$$sc_failure" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/03_score" \
 	  "$(CURDIR)/examples/01_basic/03_score/score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \

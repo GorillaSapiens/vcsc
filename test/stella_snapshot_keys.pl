@@ -1,5 +1,6 @@
 #!/usr/bin/perl
-# Focus the largest mapped X11 window and send F12 to make Stella save a snapshot.
+# Focus the largest mapped X11 window, optionally send F2 to reset the console,
+# then send F12 to make Stella save a snapshot.
 # This intentionally speaks the small X11 protocol subset directly so the test
 # suite does not depend on Python, python-xlib, xdotool, or a non-core Perl X11
 # binding merely to press one key in its private Xvfb server.
@@ -125,18 +126,21 @@ sub find_executable {
    return undef;
 }
 
-sub f12_keycode {
+sub function_keycode {
+   my($key)=@_;
+   $key =~ /^F(\d{1,2})$/ or die "unsupported function key '$key'\n";
+   my $symbol=sprintf('FK%02d',$1);
    my $xkbcomp=find_executable('xkbcomp')
-      or die "xkbcomp is required to discover the F12 keycode\n";
+      or die "xkbcomp is required to discover the $key keycode\n";
    my $display=$ENV{DISPLAY} // die "DISPLAY is not set\n";
    open(my $fh,'-|',$xkbcomp,$display,'-')
       or die "run xkbcomp: $!\n";
    my $keycode;
    while (my $line=<$fh>) {
-      $keycode=$1 if $line =~ /<FK12>\s*=\s*(\d+)\s*;/;
+      $keycode=$1 if $line =~ /<\Q$symbol\E>\s*=\s*(\d+)\s*;/;
    }
    close($fh) or die "xkbcomp failed while reading the X11 keymap\n";
-   defined($keycode) or die "X11 keyboard mapping has no F12 key\n";
+   defined($keycode) or die "X11 keyboard mapping has no $key key\n";
    return $keycode;
 }
 
@@ -147,6 +151,12 @@ sub key_event {
       1,1,1,1,0,1,0);
 }
 
+my $reset=0;
+for my $arg (@ARGV) {
+   if ($arg eq '--reset') { $reset=1; }
+   else { die "usage: $0 [--reset]\n"; }
+}
+
 my($x,$root)=x_connect();
 my $window;
 for (1..100) {
@@ -155,15 +165,29 @@ for (1..100) {
    sleep(0.05);
 }
 defined($window) or die "no mapped Stella window appeared\n";
-my $keycode=f12_keycode();
+my $f12=function_keycode('F12');
+my $f2=$reset ? function_keycode('F2') : undef;
 
 # SetInputFocus: RevertToParent=2, CurrentTime=0.
 send_request($x,42,2,pack('VV',$window,0),0);
 # Complete-matrix bank diagnostics can execute for several video frames
 # before settling on their PASS/FAIL display, especially in F4/F4SC.
 sleep(1.00);
+if ($reset) {
+   for my $type (2,3) { # KeyPress, KeyRelease
+      my $event=key_event($type,$f2,$root,$window);
+      send_request($x,25,1,pack('VV',$window,0).$event,0);
+   }
+   # Superchip diagnostics poison their RAM after the first result frame.  The
+   # second PASS/FAIL frame therefore certifies startup reinitialization after
+   # Stella's real console-reset path.
+   # Stella may expose one or more partial frames while a reset asserted from a
+   # randomized physical bank traverses the vector bridge and the diagnostic
+   # rebuilds its status frame. Wait well beyond that transient before F12.
+   sleep(2.00);
+}
 for my $type (2,3) { # KeyPress, KeyRelease
-   my $event=key_event($type,$keycode,$root,$window);
+   my $event=key_event($type,$f12,$root,$window);
    send_request($x,25,1,pack('VV',$window,0).$event,0);
 }
 sleep(0.35);

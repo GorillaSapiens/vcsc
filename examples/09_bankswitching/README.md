@@ -14,5 +14,8 @@ and hardware-stack balance.
 
 The source is parameterized so one editable cartridge produces six mapper
 diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
-poisoned F8 image which renders the known FAIL result. Each mapper diagnostic
-executes its complete ordered direct bank-transition matrix internally.
+poisoned F8SC image which renders the known FAIL result. The SC diagnostics also
+certify hostile initial RAM, mixed BSS/DATA startup, bank-switch persistence,
+and reinitialization after console reset without adding more cartridges. Each
+mapper diagnostic executes its complete ordered direct bank-transition matrix
+internally.

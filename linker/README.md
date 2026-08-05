@@ -111,6 +111,8 @@ Vector order is the normal 6502 order:
 - `__bss_start`
 - `__bss_end`
 - `__bss_size`
+- `__copy_table`
+- `__zero_table`
 - `__init_table`
 - `__stack_start`
 - `__stack_top`
@@ -137,7 +139,19 @@ bss = __bss_start
 bss_end = __bss_end
 ```
 
-If there is no initialized DATA or no BSS, the corresponding size symbol will be zero. `__stack_start` and `__stack_top` mark the bottom and top bytes of the remaining free RAM arena. The stock runtime provides neither a software stack, a frame pointer, nor a heap allocator.
+The legacy contiguous DATA/BSS symbols remain available when applicable.
+`__copy_table` and `__zero_table` are the authoritative object-by-object startup
+records. Each copy record contains ROM load address, runtime write address, and
+size; each zero record contains runtime write address and size. Consequently a
+split-address object is allocated once but initialized through its write alias.
+The map's `STARTUP INITIALIZATION` section reports each object's load, readable
+runtime address, writable runtime address, size, and `split=yes` when the aliases
+differ. Its policy line is `every-reset bss=zero data=copy-through-write-alias`.
+
+If there is no initialized DATA or no BSS, the corresponding table is empty and
+the legacy size symbol is zero. `__stack_start` and `__stack_top` mark the bottom
+and top bytes of the remaining free RAM arena. The stock runtime provides neither
+a software stack, a frame pointer, nor a heap allocator.
 
 ## Linker script requirement
 

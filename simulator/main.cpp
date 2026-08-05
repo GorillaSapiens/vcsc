@@ -78,6 +78,10 @@ struct simulator_options_t {
    int start_bank_set;
    uint16_t stop_pc;
    int stop_pc_set;
+   uint16_t reset_on_pc;
+   int reset_on_pc_set;
+   uint8_t split_fill;
+   int split_fill_set;
    int dump_on_stop;
 };
 
@@ -102,6 +106,8 @@ static void usage(FILE *fp) {
       "  --script=FILE        Same as -T FILE\n"
       "  --start-bank=N       Begin in physical/file bank N (banked cfg only)\n"
       "  --stop-pc=ADDR       Exit successfully before executing ADDR\n"
+      "  --reset-on-pc=ADDR   Reset once before executing ADDR, preserving RAM\n"
+      "  --split-fill=BYTE    Pre-fill split-address memory before CPU reset\n"
       "  --dump-on-stop       Dump memory as Intel HEX when --stop-pc fires\n"
       "  -h, --help           Show this help text\n"
       "  -V, --version        Show version information\n"
@@ -565,6 +571,48 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          opts->stop_pc = (uint16_t)parsed.value;
          opts->stop_pc_set = 1;
       }
+      else if (strncmp(arg, "--reset-on-pc=", 14) == 0) {
+         const char *value = arg + 14;
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
+            fprintf(stderr, "vcsc-sim: bad reset PC '%s'\n", value);
+            exit(1);
+         }
+         opts->reset_on_pc = (uint16_t)parsed.value;
+         opts->reset_on_pc_set = 1;
+      }
+      else if (strcmp(arg, "--reset-on-pc") == 0) {
+         const char *value;
+         assign_option_value(&value, "", &argi, argc, argv, "--reset-on-pc");
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFFFu) {
+            fprintf(stderr, "vcsc-sim: bad reset PC '%s'\n", value);
+            exit(1);
+         }
+         opts->reset_on_pc = (uint16_t)parsed.value;
+         opts->reset_on_pc_set = 1;
+      }
+      else if (strncmp(arg, "--split-fill=", 13) == 0) {
+         const char *value = arg + 13;
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFu) {
+            fprintf(stderr, "vcsc-sim: bad split-memory fill byte '%s'\n", value);
+            exit(1);
+         }
+         opts->split_fill = (uint8_t)parsed.value;
+         opts->split_fill_set = 1;
+      }
+      else if (strcmp(arg, "--split-fill") == 0) {
+         const char *value;
+         assign_option_value(&value, "", &argi, argc, argv, "--split-fill");
+         parse_result_t parsed = parse_number(value);
+         if (!parsed.ok || value[parsed.pos] != '\0' || parsed.value > 0xFFu) {
+            fprintf(stderr, "vcsc-sim: bad split-memory fill byte '%s'\n", value);
+            exit(1);
+         }
+         opts->split_fill = (uint8_t)parsed.value;
+         opts->split_fill_set = 1;
+      }
       else if (strcmp(arg, "--dump-on-stop") == 0) {
          opts->dump_on_stop = 1;
       }
@@ -754,7 +802,7 @@ static void mirror_split_byte(size_t region_index, uint16_t offset, uint8_t valu
    mem[write_addr] = value;
 }
 
-static void initialize_split_memory(void) {
+static void initialize_split_memory(uint8_t fill) {
    g_split_memory.clear();
    g_split_memory.resize(g_cfg.mem_count);
    if (!g_cfg_loaded)
@@ -763,9 +811,9 @@ static void initialize_split_memory(void) {
       const memory_region_t *mem_region = &g_cfg.mem[i];
       if (!mem_region->has_write_start)
          continue;
-      g_split_memory[i].assign(mem_region->size, 0);
+      g_split_memory[i].assign(mem_region->size, fill);
       for (uint16_t offset = 0; offset < mem_region->size; ++offset)
-         mirror_split_byte(i, offset, 0);
+         mirror_split_byte(i, offset, fill);
    }
 }
 
@@ -1033,7 +1081,7 @@ int main (int argc, char **argv) {
    else
       load_intel_hex(opts.image_path);
 
-   initialize_split_memory();
+   initialize_split_memory(opts.split_fill_set ? opts.split_fill : 0);
 
    if (g_cfg_loaded && g_cfg.cartridge_banked) {
       if (opts.start_bank_set) {
@@ -1057,8 +1105,14 @@ int main (int argc, char **argv) {
 
    cpu->Reset();
 
+   int reset_on_pc_done = 0;
    while (1) {
       gpc = cpu->GetPC();
+      if (opts.reset_on_pc_set && !reset_on_pc_done && gpc == opts.reset_on_pc) {
+         cpu->Reset();
+         reset_on_pc_done = 1;
+         continue;
+      }
       if (opts.stop_pc_set && gpc == opts.stop_pc) {
          if (opts.dump_on_stop)
             dump_mem_as_intel_hex();

@@ -155,6 +155,17 @@ for my $profile (@profiles) {
       or die "$mapper map does not describe the shared split-address region\n";
    $map =~ /^\s*superchip\s+used=34 bytes\b.*\bobjects=34 bytes\b.*\bhardware-stack=0 bytes\s*$/m
       or die "$mapper map does not count the 34 physical Superchip bytes exactly once\n";
+   $map =~ /^STARTUP INITIALIZATION\n\s+policy=every-reset bss=zero data=copy-through-write-alias$/m
+      or die "$mapper map does not describe the reset-time initialization policy\n";
+   for my $required (
+      qr/^\s+COPY DATA\.superchip\.__vcsc_object\$initialized_scalar\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
+      qr/^\s+COPY DATA\.superchip\.__vcsc_object\$seeded\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
+      qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$scalar\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
+      qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$zeroed\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
+   ) {
+      $map =~ $required
+         or die "$mapper map omits a Superchip DATA copy or BSS clear record\n$map";
+   }
    my $object_count = 0;
    while ($map =~ /^\s+(?:BSS|DATA)\.superchip\.__vcsc_object\$\S+\s+(?:load=\$[0-9A-F]{4}\s+)?run=\$([0-9A-F]{4}) write=\$([0-9A-F]{4}) size=\$([0-9A-F]{4})\b/mg) {
       my ($read, $write, $size) = (hex($1), hex($2), hex($3));
@@ -170,7 +181,7 @@ for my $profile (@profiles) {
    my $result = parse_symbol($sym, 'result');
    for my $physical_start (0 .. $banks - 1) {
       my ($dump, $err) = require_ok("simulate $mapper from physical bank $physical_start",
-         $sim, '-T', $cfg, "--start-bank=$physical_start",
+         $sim, '-T', $cfg, "--start-bank=$physical_start", '--split-fill=0xA7',
          sprintf('--stop-pc=0x%04X', $done), '--dump-on-stop', $bin);
       $err eq '' or die "$mapper simulator wrote stderr:\n$err";
       my $mem = parse_dump($dump);

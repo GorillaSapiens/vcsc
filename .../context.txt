@@ -8748,3 +8748,40 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   Final source-tree hygiene and staged `make installcheck` pass. Bankswitching
   roadmap item 23, automatic Superchip initialization and lifecycle tests, is
   next.
+
+2026-08-05 10:12:49 PDT, integrate automatic Superchip initialization and reset lifecycle
+----------------------------------------------------------------------------
+* Complete bankswitching roadmap item 23 by extending linker startup records
+  with distinct readable and writable runtime aliases. DATA initialization and
+  BSS clearing now write through the write window, while the new `STARTUP
+  INITIALIZATION` map section reports load/read/write addresses, byte counts,
+  split status, and the every-reset policy.
+* Define Superchip lifecycle semantics explicitly: physical power-on contents
+  are unspecified; every normal reset re-clears allocated BSS and recopies
+  allocated DATA; mapper bank switches preserve the shared 128 physical bytes;
+  unallocated bytes remain outside the VCSC contract.
+* Extend `vcsc-sim` with `--split-fill` hostile initialization and one-shot
+  `--reset-on-pc` support which preserves RAM and mapper state before fetching
+  the reset vector. Use those controls in source-tree and installed-toolchain
+  diagnostics so a zero-initialized simulator cannot conceal a missing BSS clear.
+* Consolidate Superchip lifecycle coverage into the existing diagnostic-cart
+  family rather than adding carts. Each SC build owns all 128 bytes as mixed
+  BSS and DATA, validates startup aliases, bounds, and bank-switch persistence,
+  poisons the region, performs a real reset, and must display PASS again. Convert
+  the existing deliberately poisoned reference to F8SC, keeping seven public
+  diagnostic cartridges total.
+* Extend Stella snapshot automation to press console Reset for SC diagnostics
+  and grade the settled second frame. A randomized F8SC run exposed a transient
+  partial-frame capture with a one-second post-reset delay; use a two-second
+  settling interval. All forced and randomized F4SC, F6SC, and F8SC cases plus
+  the poisoned F8SC reference pass in Stella.
+* Update compiler, ABI, linker, runtime, simulator, VCS-library, example,
+  test-inventory, source-hygiene, and bankswitching-roadmap documentation; leave
+  the project-wide top-level README unchanged.
+* Verification: all 434 compile-only tests pass. All 241 end-to-end/generic
+  tests pass in the ordered run plus exact continuation chunks. Focused
+  Superchip allocation, diagnostic, example, and hygiene tests pass; staged
+  `make installcheck` passes; and every SC Stella diagnostic case passes in
+  bounded forced/randomized chunks. Bankswitching roadmap item 24, adding a
+  banked renderer or multisprite profile only after generic cart stability, is
+  next.

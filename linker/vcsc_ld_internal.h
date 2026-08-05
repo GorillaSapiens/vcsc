@@ -301,13 +301,15 @@ typedef struct {
 typedef struct {
    char *name;
    uint16_t load_addr;
-   uint16_t run_addr;
+   uint16_t read_addr;
+   uint16_t write_addr;
    uint16_t size;
 } copy_record_t;
 
 typedef struct {
    char *name;
-   uint16_t run_addr;
+   uint16_t read_addr;
+   uint16_t write_addr;
    uint16_t size;
 } zero_record_t;
 

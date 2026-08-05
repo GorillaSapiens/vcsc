@@ -68,10 +68,11 @@ ROM; each `GRP0` update is aligned to `WSYNC`, and the complete frame is exactly
 The editable wrapper and Makefile live under
 `examples/09_bankswitching/01_diagnostic/`. A normal build emits the six mapper
 images—F8, F6, F4, F8SC, F6SC, and F4SC—plus `poisoned.bin`, a deliberately
-failing F8 image for inspecting and grading the FAIL frame. The normal simulator
-regression runs the six mapper images from every physical startup bank. The
-Stella certification runs those six with forced and developer-mode randomized
-startup banks and separately grades the poisoned FAIL image.
+failing F8SC image for inspecting and grading the FAIL frame. The normal
+simulator regression runs the six mapper images from every physical startup
+bank; SC runs begin with hostile RAM, poison it, reset, and pass a second time.
+Stella runs the same forced and randomized startup-bank matrix and presses
+console Reset before grading each SC frame, including the poisoned FAIL image.
 
 ## NTSC color matching
 
@@ -303,7 +304,11 @@ The public `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`
 profiles use the same logical-bank and hotspot order as F8/F6/F4 while reserving
 the first 256 bytes of every physical 4K chunk for the shared 128-byte
 Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K
-chunks are still emitted.
+chunks are still emitted. Hardware power-on contents are unspecified. VCSC
+startup therefore clears every allocated Superchip BSS object and copies every
+allocated DATA initializer through `$F000-$F07F` on every reset. Mapper switches
+preserve the shared physical bytes; reset intentionally reinitializes them.
+Unallocated bytes have no compiler/runtime lifecycle guarantee.
 
 Include `superchip.c26` after `vcs.c26` to obtain the allocatable named
 region:
@@ -382,8 +387,13 @@ Directional ref capability is part of same-translation-unit function
 compatibility and linker-visible ABI fingerprints, while ordinary `ref T` still
 requires a single
 shared address.
-Absolute bindings may not overlap the allocator-managed Superchip
-windows, so raw persistence probes must own storage through `superchip` just
-like ordinary application objects. The diagnostic suite therefore allocates
-its complete 128-byte probe array rather than publishing or using a non-owning
-whole-window alias.
+Absolute bindings may not overlap the allocator-managed Superchip windows,
+so persistence probes must own storage through `superchip` like ordinary
+application objects. The maintained diagnostic suite occupies all 128 bytes as
+mixed BSS and DATA, starts the simulator from a hostile nonzero fill, checks
+initialization and aliases throughout the complete bank-transition matrix,
+poisons the region, resets without clearing RAM externally, and passes only if
+startup restores the declarations. Stella performs the same poison/reset/pass
+lifecycle with its console-reset key. The map lists every copy and clear in
+`STARTUP INITIALIZATION`; deterministic allocation overflow remains a linker
+error naming the object which does not fit.

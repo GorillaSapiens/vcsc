@@ -571,8 +571,9 @@ increment/decrement, and bitfield updates load through the read alias and store
 through the write alias rather than using a single-address 6502
 read-modify-write instruction.
 
-Function-scope `static` objects use persistent split-region BSS/DATA storage and
-the existing one-time startup initialization paths. Value parameters and hidden
+Function-scope `static` objects use persistent split-region BSS/DATA storage.
+Every reset clears their BSS or copies their DATA initializer through the write
+alias; bank switches preserve the bytes between resets. Value parameters and hidden
 function return objects may also select a split writable region; callers store
 arguments and returned expressions through the write alias, while callees and
 callers read through the read alias.

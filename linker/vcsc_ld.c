@@ -2880,7 +2880,8 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
 }
 
 //! @brief Add copy record to linker layout and image writer state, growing storage or preserving uniqueness as needed.
-static void add_copy_record(layout_t *layout, const char *name, uint16_t load_addr, uint16_t run_addr, uint16_t size)
+static void add_copy_record(layout_t *layout, const char *name, uint16_t load_addr,
+                            uint16_t read_addr, uint16_t write_addr, uint16_t size)
 {
    if (size == 0)
       return;
@@ -2888,20 +2889,23 @@ static void add_copy_record(layout_t *layout, const char *name, uint16_t load_ad
       (layout->copy_record_count + 1) * sizeof(*layout->copy_records));
    layout->copy_records[layout->copy_record_count].name = xstrdup(name ? name : "DATA");
    layout->copy_records[layout->copy_record_count].load_addr = load_addr;
-   layout->copy_records[layout->copy_record_count].run_addr = run_addr;
+   layout->copy_records[layout->copy_record_count].read_addr = read_addr;
+   layout->copy_records[layout->copy_record_count].write_addr = write_addr;
    layout->copy_records[layout->copy_record_count].size = size;
    layout->copy_record_count++;
 }
 
 //! @brief Add zero record to linker layout and image writer state, growing storage or preserving uniqueness as needed.
-static void add_zero_record(layout_t *layout, const char *name, uint16_t run_addr, uint16_t size)
+static void add_zero_record(layout_t *layout, const char *name,
+                            uint16_t read_addr, uint16_t write_addr, uint16_t size)
 {
    if (size == 0)
       return;
    layout->zero_records = (zero_record_t *)xrealloc(layout->zero_records,
       (layout->zero_record_count + 1) * sizeof(*layout->zero_records));
    layout->zero_records[layout->zero_record_count].name = xstrdup(name ? name : "BSS");
-   layout->zero_records[layout->zero_record_count].run_addr = run_addr;
+   layout->zero_records[layout->zero_record_count].read_addr = read_addr;
+   layout->zero_records[layout->zero_record_count].write_addr = write_addr;
    layout->zero_records[layout->zero_record_count].size = size;
    layout->zero_record_count++;
 }
@@ -5018,6 +5022,7 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
          piece->layout->run_addr = (uint16_t)addr;
          if (piece->needs_zero)
             add_zero_record(layout, piece->layout->name,
+                            piece->layout->run_addr,
                             memory_runtime_write_address(cfg, regions[i],
                                                          piece->layout->run_addr,
                                                          piece->layout->size),
@@ -5137,7 +5142,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
-               add_copy_record(layout, lay->name, lay->load_addr,
+               add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                lay->size);
                break;
@@ -5147,7 +5152,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
-               add_zero_record(layout, lay->name,
+               add_zero_record(layout, lay->name, lay->run_addr,
                                memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                lay->size);
                break;
@@ -5158,11 +5163,11 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
                   lay, lay->name, obj->origin);
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
-                  add_copy_record(layout, lay->name, lay->load_addr,
+                  add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
                else if (strstr(lay->name, ".__vcsc_object$") != NULL)
-                  add_zero_record(layout, lay->name,
+                  add_zero_record(layout, lay->name, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
                break;
@@ -5695,8 +5700,8 @@ static void build_copy_table_image(const layout_t *layout, uint8_t *table)
       const copy_record_t *rec = &layout->copy_records[i];
       table[out++] = (uint8_t)(rec->load_addr & 0xFFu);
       table[out++] = (uint8_t)((rec->load_addr >> 8) & 0xFFu);
-      table[out++] = (uint8_t)(rec->run_addr & 0xFFu);
-      table[out++] = (uint8_t)((rec->run_addr >> 8) & 0xFFu);
+      table[out++] = (uint8_t)(rec->write_addr & 0xFFu);
+      table[out++] = (uint8_t)((rec->write_addr >> 8) & 0xFFu);
       table[out++] = (uint8_t)(rec->size & 0xFFu);
       table[out++] = (uint8_t)((rec->size >> 8) & 0xFFu);
    }
@@ -5711,8 +5716,8 @@ static void build_zero_table_image(const layout_t *layout, uint8_t *table)
    memset(table, 0, layout->zero_table_size);
    for (i = 0; i < layout->zero_record_count; ++i) {
       const zero_record_t *rec = &layout->zero_records[i];
-      table[out++] = (uint8_t)(rec->run_addr & 0xFFu);
-      table[out++] = (uint8_t)((rec->run_addr >> 8) & 0xFFu);
+      table[out++] = (uint8_t)(rec->write_addr & 0xFFu);
+      table[out++] = (uint8_t)((rec->write_addr >> 8) & 0xFFu);
       table[out++] = (uint8_t)(rec->size & 0xFFu);
       table[out++] = (uint8_t)((rec->size >> 8) & 0xFFu);
    }
@@ -6672,6 +6677,21 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                  (unsigned)effective_start, (unsigned)effective_end,
                  ((effective_start & 0xff00u) == (effective_end & 0xff00u)) ? "same" : "crossing");
       }
+   }
+
+   fprintf(fp, "\nSTARTUP INITIALIZATION\n");
+   fprintf(fp, "  policy=every-reset bss=zero data=copy-through-write-alias\n");
+   for (i = 0; i < layout->copy_record_count; ++i) {
+      const copy_record_t *rec = &layout->copy_records[i];
+      fprintf(fp, "  COPY %-48s load=$%04X read=$%04X write=$%04X size=$%04X%s\n",
+              rec->name, rec->load_addr, rec->read_addr, rec->write_addr, rec->size,
+              rec->read_addr != rec->write_addr ? " split=yes" : "");
+   }
+   for (i = 0; i < layout->zero_record_count; ++i) {
+      const zero_record_t *rec = &layout->zero_records[i];
+      fprintf(fp, "  ZERO %-48s read=$%04X write=$%04X size=$%04X%s\n",
+              rec->name, rec->read_addr, rec->write_addr, rec->size,
+              rec->read_addr != rec->write_addr ? " split=yes" : "");
    }
 
    fprintf(fp, "\nTABLES\n");
