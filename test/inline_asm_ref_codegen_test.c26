@@ -11,10 +11,10 @@
 
 include "machine_6502.c26"
 
-ref uint8_t RO @[0x30/none];
-ref uint8_t WO @[none/0x00];
-ref uint8_t RW @[0x80/0x80];
-ref uint8_t frame @[0x44/0x44];
+uint8_t RO @[0x30/none];
+uint8_t WO @[none/0x00];
+uint8_t RW @[0x80/0x80];
+uint8_t frame @[0x44/0x44];
 
 void main(void) {
    asm lda RO;

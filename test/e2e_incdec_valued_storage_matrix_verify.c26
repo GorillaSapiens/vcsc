@@ -22,7 +22,7 @@ uint8_t *q8;
 uint16_t *p16;
 uint16_t *q16;
 Bits bits;
-ref uint8_t absbyte@[0x0600/0x0600];
+uint8_t absbyte@[0x0600/0x0600];
 
 void fail(uint8_t code) {
    asm ldy #0;

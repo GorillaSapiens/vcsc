@@ -1,0 +1,5 @@
+include "machine_6502.c26"
+uint8_t PORT @[0x20/0x31];
+void absolute_binding_other(void) {
+   PORT := 1;
+}

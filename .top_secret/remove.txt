@@ -1196,3 +1196,12 @@ test/split_memory_local_error_test.c26
 test/split_memory_bitfield_write_error_test.c26
 test/split_memory_static_local_error_test.c26
 test/main_nonzero_bank_error_test.c26
+test/nonref_address_requires_ref_error_test.c26
+test/nonref_address_local_requires_ref_error_test.c26
+test/absolute_ref_codegen_test.c26
+test/absolute_ref_member_codegen_test.c26
+test/absolute_ref_readonly_error_test.c26
+test/absolute_ref_split_address_error_test.c26
+test/aggregate_too_many_absolute_ref_initializer_error_test.c26
+test/e2e_global_absolute_ref_init.c26
+test/global_absolute_ref_init_codegen_test.c26

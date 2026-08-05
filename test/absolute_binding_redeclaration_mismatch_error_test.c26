@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for object 'PORT'
+include "machine_6502.c26"
+
+uint8_t PORT @[0x20/0x30];
+uint8_t PORT @[0x20/0x31];
+void main(void) {}

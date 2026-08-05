@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'ref' applies only to function parameters
+include "machine_6502.c26"
+
+ref uint8_t object;
+void main(void) {}

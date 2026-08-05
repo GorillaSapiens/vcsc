@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: absolute external binding 'direct' cannot have an initializer
+include "machine_6502.c26"
+
+int16_t direct@0x0600 := 7;
+void main(void) {}

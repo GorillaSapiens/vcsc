@@ -10,6 +10,7 @@ include "machine_6502.c26"
 
 void test(uint8_t *out, uint8_t source) {
    uint16_t widened := source;
-   ref uint8_t port@0x0080 := source;
+   uint8_t port@0x0080;
+   port := source;
    *out := widened;
 }

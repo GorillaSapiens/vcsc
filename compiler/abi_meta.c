@@ -277,11 +277,66 @@ static void function_return_storage_mode(const ASTNode *fn, char *buf, size_t bu
    snprintf(buf, buf_size, "return_memory");
 }
 
-static const char *global_storage_mode(const ASTNode *node, bool is_zeropage) {
-   const ASTNode *modifiers = node && node->count > 0 ? node->children[0] : NULL;
-   if (modifiers && has_modifier((ASTNode *)modifiers, "ref"))
-      return "absolute_ref";
-   return is_zeropage ? "zeropage" : "memory";
+//! @brief Return one declaration item's absolute address specification, if any.
+static const ASTNode *global_address_spec(const ASTNode *node) {
+   const ASTNode *subitem;
+
+   if (!node || node->count < 3)
+      return NULL;
+   subitem = node->children[2];
+   if (!subitem || strcmp(subitem->name, "decl_subitem") || subitem->count < 2)
+      return NULL;
+   return subitem->children[1];
+}
+
+//! @brief Return one read/write address term as source text, or none.
+static const char *abi_address_term(const ASTNode *spec, int index) {
+   if (!spec || is_empty(spec))
+      return NULL;
+   if (!strcmp(spec->name, "rw_addr_spec")) {
+      if (index < 0 || index >= spec->count || !spec->children[index] ||
+          is_empty(spec->children[index]))
+         return NULL;
+      return spec->children[index]->strval;
+   }
+   return spec->strval;
+}
+
+//! @brief Canonicalize one absolute address term for ABI fingerprints.
+static void format_abi_address_term(char *buf, size_t buf_size, const char *text) {
+   char *end = NULL;
+   unsigned long long value;
+
+   if (!buf || buf_size == 0)
+      return;
+   if (!text) {
+      snprintf(buf, buf_size, "none");
+      return;
+   }
+   value = strtoull(text, &end, 0);
+   if (end && *end == '\0' && value <= 0xFFFFull) {
+      snprintf(buf, buf_size, "0x%04llX", value);
+      return;
+   }
+   snprintf(buf, buf_size, "%s", text);
+}
+
+//! @brief Format the storage ABI mode for a file-scope object or absolute binding.
+static void global_storage_mode(const ASTNode *node, bool is_zeropage,
+                                char *buf, size_t buf_size) {
+   const ASTNode *spec = global_address_spec(node);
+   char read_expr[96];
+   char write_expr[96];
+
+   if (!buf || buf_size == 0)
+      return;
+   if (!spec) {
+      snprintf(buf, buf_size, "%s", is_zeropage ? "zeropage" : "memory");
+      return;
+   }
+   format_abi_address_term(read_expr, sizeof(read_expr), abi_address_term(spec, 0));
+   format_abi_address_term(write_expr, sizeof(write_expr), abi_address_term(spec, 1));
+   snprintf(buf, buf_size, "absolute_binding(read=%s,write=%s)", read_expr, write_expr);
 }
 
 //! @brief Return array bound text data used by abi meta; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -596,7 +651,7 @@ void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_
    const ASTNode *type;
    const ASTNode *declarator;
    const char *state = is_definition ? "definition" : "declaration";
-   const char *mode;
+   char mode[256];
 
    if (!node || node->count < 3 || !symname || !*symname)
       return;
@@ -605,7 +660,7 @@ void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_
    declarator = node->children[2] && !strcmp(node->children[2]->name, "decl_subitem")
       ? node->children[2]->children[0]
       : node->children[2];
-   mode = global_storage_mode(node, is_zeropage);
+   global_storage_mode(node, is_zeropage, mode, sizeof(mode));
    emit_type_record("global", state, symname, "object", mode, type, declarator);
 }
 
@@ -785,6 +840,7 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    FingerprintCtx ctx;
    StrBuf fp;
    StrBuf detail;
+   char mode[256];
 
    if (!node || node->count < 3 || !symname || !*symname)
       return;
@@ -803,7 +859,8 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    memset(&ctx, 0, sizeof(ctx));
    sb_init(&fp);
    sb_init(&detail);
-   append_storage_mode(&fp, &detail, global_storage_mode(node, is_zeropage));
+   global_storage_mode(node, is_zeropage, mode, sizeof(mode));
+   append_storage_mode(&fp, &detail, mode);
    append_type_fingerprint(&fp, &detail, type, declarator, &ctx);
    emit_contract_metadata_symbol("object", strength, symname, origin, node,
                                  fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");

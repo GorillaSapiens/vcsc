@@ -11,7 +11,7 @@ Current transitional function ABI
 This document describes the ABI while the compiler is being reduced for the
 Atari 2600. Fixed parameters and named automatic locals use callee-owned
 symbols. Ordinary direct calls, truth tests, comparisons, simple fixed-symbol
-assignments, casts, absolute-reference conversion, built-in increment/decrement,
+assignments, casts, absolute-binding conversion, built-in increment/decrement,
 compound assignment, pointer/index lvalues, braced and runtime-global
 initializers, bit-field helpers, switch expressions, and all builtin operator
 families use function/depth-pooled fixed scratch. Compiler source emits no
@@ -196,6 +196,28 @@ target is directly named, allowing compiler/linker call-graph analysis to see
 every edge. Function-pointer declarators and function names used as values are
 compile-time errors, and the `_callptr0` runtime trampoline no longer exists.
 
+
+Absolute external binding ABI
+-----------------------------
+
+A file-scope or block-scope object declared with `@[read/write]` is a non-owning
+absolute external binding. The annotation itself supplies the object's access
+locations; `ref` is not an object-storage modifier and is reserved for function
+parameters. Absolute bindings allocate no BSS, DATA, zero-page, or named-region
+bytes and cannot have initializers or allocation/linkage modifiers.
+
+Every file-scope absolute binding emits ordinary global ABI metadata as a
+declaration. Its canonical storage mode contains both address terms, with
+numeric spellings normalized to 16-bit hexadecimal form, followed by the normal
+object type fingerprint. The linker therefore rejects separately compiled
+translation units which disagree about either address or the object type even
+though the binding has no allocated program symbol. `none` is preserved
+independently for the read and write side.
+
+The metadata records are carried as absolute `.o26` exports. The object format
+already stores the export count in 16 bits; the assembler writer accepts that
+full range so installed hardware-binding headers do not impose a 255-export
+ceiling on translation units which also emit substantial function ABI metadata.
 
 Variadic functions
 ------------------

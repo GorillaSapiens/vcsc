@@ -1,9 +1,9 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: inline asm 'LDA' reads from write-only ref 'WO'
+// expecterr: inline asm 'LDA' reads from write-only absolute binding 'WO'
 
 include "machine_6502.c26"
-ref uint8_t WO @[none/0x00];
+uint8_t WO @[none/0x00];
 void main(void) {
    asm lda WO;
 }

@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// object: e2e_absolute_binding_abi_mismatch_fail__other.c26
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for global symbol 'PORT' object type
+// expectlinkerr: absolute_binding(read=0x0020,write=0x0030)
+// expectlinkerr: absolute_binding(read=0x0020,write=0x0031)
+include "machine_6502.c26"
+
+uint8_t PORT @[0x20/0x30];
+extern void absolute_binding_other(void);
+void main(void) {
+   absolute_binding_other();
+}

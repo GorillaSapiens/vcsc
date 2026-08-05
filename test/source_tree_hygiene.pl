@@ -84,7 +84,7 @@ index($bankswitching,'[x] 12. Add Automatic allocation of variables into Superch
 index($bankswitching,'mem superchip {')>=0 &&
 index($bankswitching,'$read_start:  0xF080')>=0 &&
 index($bankswitching,'$write_start: 0xF000')>=0 &&
-index($bankswitching,'ref uint8_t foo@[0xF080/0xF000];')>=0 &&
+index($bankswitching,'uint8_t foo@[0xF080/0xF000];')>=0 &&
 index($bankswitching,'superchip uint8_t buffer[32];')>=0
    or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
@@ -95,6 +95,11 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
 -f File::Spec->catfile($test,'split_memory_value_parameters.pl') &&
 -f File::Spec->catfile($test,'superchip_function_returns.pl') &&
 -f File::Spec->catfile($test,'split_memory_function_returns.pl') &&
+-f File::Spec->catfile($test,'absolute_binding_global_compile_test.c26') &&
+-f File::Spec->catfile($test,'absolute_binding_local_compile_test.c26') &&
+-f File::Spec->catfile($test,'absolute_binding_array_codegen_test.c26') &&
+-f File::Spec->catfile($test,'e2e_absolute_binding_abi_mismatch_fail.c26') &&
+-f File::Spec->catfile($test,'ref_object_absolute_binding_error_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_return_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_return_void_error_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_return_region_conflict_error_test.c26') &&
@@ -118,7 +123,7 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
 index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
 index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
 index($bankswitching,'[x] 15. Add Superchip-backed function return storage.')>=0 &&
-index($bankswitching,'[ ] 17. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
+index($bankswitching,'[ ] 21. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
    or die "bankswitching plan lost completed Superchip locals or future bank duplication rules\n";
@@ -363,8 +368,8 @@ for my $required (qw(
 my $superchip_header=slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26'));
 index($superchip_header,'superchip_ram[128]@[0xF080/0xF000]')>=0
    or die "superchip.c26 lost @[read/write] alias order\n";
-index($bankswitching,'[x] 11. Add explicit-ref Superchip profiles.')>=0
-   or die "explicit-ref Superchip roadmap item is not complete\n";
+index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0
+   or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&
 index($top_make,'libraries/vcs/superchip.c26')>=0
    or die "Superchip profiles/header are not installed and uninstalled\n";

@@ -3,57 +3,57 @@
 
 include "machine_6502.c26"
 
-ref int8_t lsl_s0@0x0300;
-ref int8_t lsl_s1@0x0301;
-ref int8_t lsl_s2@0x0302;
-ref int8_t lsl_d0@0x0303;
-ref int8_t lsl_d1@0x0304;
-ref int8_t lsl_d2@0x0305;
+int8_t lsl_s0@0x0300;
+int8_t lsl_s1@0x0301;
+int8_t lsl_s2@0x0302;
+int8_t lsl_d0@0x0303;
+int8_t lsl_d1@0x0304;
+int8_t lsl_d2@0x0305;
 
-ref int8_t lsr_s0@0x0310;
-ref int8_t lsr_s1@0x0311;
-ref int8_t lsr_s2@0x0312;
-ref int8_t lsr_d0@0x0313;
-ref int8_t lsr_d1@0x0314;
-ref int8_t lsr_d2@0x0315;
+int8_t lsr_s0@0x0310;
+int8_t lsr_s1@0x0311;
+int8_t lsr_s2@0x0312;
+int8_t lsr_d0@0x0313;
+int8_t lsr_d1@0x0314;
+int8_t lsr_d2@0x0315;
 
-ref int8_t asr_s0@0x0320;
-ref int8_t asr_s1@0x0321;
-ref int8_t asr_s2@0x0322;
-ref int8_t asr_d0@0x0323;
-ref int8_t asr_d1@0x0324;
-ref int8_t asr_d2@0x0325;
+int8_t asr_s0@0x0320;
+int8_t asr_s1@0x0321;
+int8_t asr_s2@0x0322;
+int8_t asr_d0@0x0323;
+int8_t asr_d1@0x0324;
+int8_t asr_d2@0x0325;
 
 
-ref int8_t lsl17_s0@0x0330;
-ref int8_t lsl17_s1@0x0331;
-ref int8_t lsl17_s2@0x0332;
-ref int8_t lsl17_s3@0x0333;
-ref int8_t lsl17_d0@0x0334;
-ref int8_t lsl17_d1@0x0335;
-ref int8_t lsl17_d2@0x0336;
-ref int8_t lsl17_d3@0x0337;
+int8_t lsl17_s0@0x0330;
+int8_t lsl17_s1@0x0331;
+int8_t lsl17_s2@0x0332;
+int8_t lsl17_s3@0x0333;
+int8_t lsl17_d0@0x0334;
+int8_t lsl17_d1@0x0335;
+int8_t lsl17_d2@0x0336;
+int8_t lsl17_d3@0x0337;
 
-ref int8_t lsl1_s0@0x0340;
-ref int8_t lsl1_s1@0x0341;
-ref int8_t lsl1_s2@0x0342;
-ref int8_t lsl1_d0@0x0343;
-ref int8_t lsl1_d1@0x0344;
-ref int8_t lsl1_d2@0x0345;
+int8_t lsl1_s0@0x0340;
+int8_t lsl1_s1@0x0341;
+int8_t lsl1_s2@0x0342;
+int8_t lsl1_d0@0x0343;
+int8_t lsl1_d1@0x0344;
+int8_t lsl1_d2@0x0345;
 
-ref int8_t lsr1_s0@0x0350;
-ref int8_t lsr1_s1@0x0351;
-ref int8_t lsr1_s2@0x0352;
-ref int8_t lsr1_d0@0x0353;
-ref int8_t lsr1_d1@0x0354;
-ref int8_t lsr1_d2@0x0355;
+int8_t lsr1_s0@0x0350;
+int8_t lsr1_s1@0x0351;
+int8_t lsr1_s2@0x0352;
+int8_t lsr1_d0@0x0353;
+int8_t lsr1_d1@0x0354;
+int8_t lsr1_d2@0x0355;
 
-ref int8_t asr1_s0@0x0360;
-ref int8_t asr1_s1@0x0361;
-ref int8_t asr1_s2@0x0362;
-ref int8_t asr1_d0@0x0363;
-ref int8_t asr1_d1@0x0364;
-ref int8_t asr1_d2@0x0365;
+int8_t asr1_s0@0x0360;
+int8_t asr1_s1@0x0361;
+int8_t asr1_s2@0x0362;
+int8_t asr1_d0@0x0363;
+int8_t asr1_d1@0x0364;
+int8_t asr1_d2@0x0365;
 
 void pass(void) {
    asm lda #$ff;

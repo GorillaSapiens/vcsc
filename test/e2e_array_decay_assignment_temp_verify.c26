@@ -9,7 +9,7 @@ int8_t *gbytep;
 int16_t *gwordp;
 static int8_t *sgbytep;
 static int16_t *sgwordp;
-ref int8_t gfailcode@[none/0x02f0];
+int8_t gfailcode@[none/0x02f0];
 
 void fail(int8_t code) {
    gfailcode := code;

@@ -3,9 +3,9 @@
 
 include "machine_6502.c26"
 
-ref uint8_t discard_probe@0x80;
-ref uint8_t discard_probe1@0x81;
-ref uint8_t discard_probe2@0x82;
+uint8_t discard_probe@0x80;
+uint8_t discard_probe1@0x81;
+uint8_t discard_probe2@0x82;
 uint8_t calls;
 uint8_t value;
 

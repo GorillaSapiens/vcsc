@@ -8437,3 +8437,42 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   ordered chunks; the unrelated heavyweight `vcs_score_composition_raster.pl`
   did not finish within the available execution window and produced no failure
   before timeout. Staged `make installcheck` passes.
+
+
+2026-08-04 19:13:18 PDT, make address annotations imply absolute external bindings
+--------------------------------------------------------------------------
+* Complete bankswitching roadmap item 16. A file-scope or block-scope
+  `@[read/write]` annotation now defines a non-owning absolute external binding
+  by itself. The compiler allocates no storage and emits no initializer for the
+  binding. Installed TIA, RIOT, and Superchip headers, examples, tests, and
+  documentation now use declarations such as
+  `uint8_t VSYNC @[none/0x00];` without an object-level `ref` modifier.
+* Reserve `ref` for function parameters. Diagnose it on file-scope objects,
+  local objects, functions, and aggregate members. Absolute bindings reject
+  initializers, `static`, `extern`, `page`, named `mem` placement, use
+  contracts, and `@[none/none]` while preserving either one-sided `none`.
+* Keep access lowering generic. Direct, indexed, member, aggregate, array, and
+  inline-assembly uses continue to consume the lvalue's independent read and
+  write expressions; no code recognizes a hardware-register name, the spelling
+  `superchip`, window order, adjacency, or distance.
+* Compare same-translation-unit redeclarations by canonical address value, so
+  equivalent numeric spellings agree. Emit linker-visible global ABI metadata
+  containing the canonical read address, write address, and object type; force
+  an otherwise-unused companion object into the mismatch regression so the
+  linker proves different bindings fail across separate compilation.
+* Raise the assembler's obsolete 255-export writer ceiling to the full 16-bit
+  count already encoded by the `.o26` format. Absolute-binding metadata from the
+  installed VCS headers can therefore coexist with large function/return ABI
+  fixtures without suppressing records or failing object generation.
+* Preserve automatic split-memory initialization separately from true absolute
+  bindings. A focused fruit-region regression caught and prevented an early
+  return from skipping initialization of split-address automatic locals.
+* Rename absolute-binding tests away from the obsolete absolute-ref terminology,
+  update the deletion ledger and coverage fixture, and extend compiler language,
+  ABI, VCS, test-inventory, roadmap, and source-hygiene documentation.
+* Verification: all 372 compile-only tests pass. All 223 end-to-end/generic
+  tests pass in ordered chunks, including generic fruit regions, Superchip
+  locals/parameters/returns, every VCS renderer and profile regression, the
+  cross-translation-unit absolute-binding mismatch, and source-tree hygiene.
+  Staged `make installcheck` passes. Bankswitching roadmap item 17,
+  the `writeonly` access qualifier, is next.

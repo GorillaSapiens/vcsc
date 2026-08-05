@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: absolute external binding 'PORT' cannot use allocation or linkage modifiers
+include "machine_6502.c26"
+
+static uint8_t PORT @[0x20/0x20];
+void main(void) {}

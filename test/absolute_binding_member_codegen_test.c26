@@ -10,7 +10,7 @@ struct Pair {
    uint8_t c;
 };
 
-ref Pair regs@[0x0200/0x0200];
+Pair regs@[0x0200/0x0200];
 
 int16_t main(void) {
    uint8_t x := regs.b;

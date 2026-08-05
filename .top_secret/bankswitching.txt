@@ -494,14 +494,14 @@ originating object. The `TRAMPOLINES` section then reports the actual generated
 bridges. This makes placement reproducible and auditable rather than linker
 astrology.
 
-Superchip RAM using existing split-address references
+Superchip RAM using split-address absolute bindings
 -----------------------------------------------------
-VCSC already supports split read/write absolute references:
+VCSC supports split read/write absolute external bindings:
 
-    ref uint8_t object@[read_address/write_address];
+    uint8_t object@[read_address/write_address];
 
 Loads use the first address and stores use the second. Taking the address of a
-split-address ref is already rejected. That is enough for explicit Superchip
+split-address binding is rejected. That is enough for explicit Superchip
 RAM aliases without inventing a new pointer representation.
 
 The SC cfg profiles reserve the bank prefix used by the RAM ports and keep
@@ -511,13 +511,13 @@ of each logical bank. Even though allocation begins at $x100, the output writer
 still emits a complete 4K bank and fills the reserved $x000-$x0FF prefix, so the
 finished F8SC/F6SC/F4SC images remain 8K/16K/32K respectively.
 
-The 128 bytes of cartridge RAM are shared across bank switches. Explicit refs
+The 128 bytes of cartridge RAM are shared across bank switches. Explicit bindings
 may name each byte or array using the scheme's read and write windows. The
 scheme-specific VCS header should provide constants or helpers so applications
 do not repeat magic port addresses.
 
 Automatic allocation of variables into Superchip RAM is a required later
-roadmap item, not a prerequisite for the first explicit-ref SC cartridge. It
+roadmap item, not a prerequisite for the first explicit-binding SC cartridge. It
 will require more than cfg entries because an allocated object has one logical
 identity but separate load and store addresses. The compiler/object/linker
 contract must preserve both aliases for each allocated object:
@@ -548,11 +548,11 @@ Applications then request ordinary allocated objects in that region:
     superchip uint8_t foo;
     superchip uint8_t buffer[32];
 
-The ordering is deliberately the same as the already implemented explicit-ref
+The ordering is deliberately the same as the absolute-binding
 syntax: `@[read_address/write_address]`.  Thus the explicit spelling equivalent
 to the first allocated byte is:
 
-    ref uint8_t foo@[0xF080/0xF000];
+    uint8_t foo@[0xF080/0xF000];
 
 Loads use `$F080+offset`; stores, BSS clearing, and initializer copies use
 `$F000+offset`.  The source header supplies the region name and aliases so an
@@ -836,13 +836,13 @@ when main roadmap item 29 becomes active.
          direction, initialization, bounds, and Superchip persistence across
          every bank transition.
 
-[x] 11. Add explicit-ref Superchip profiles.
+[x] 11. Add explicit-binding Superchip profiles.
 
        * Add `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`.
        * Begin ordinary ROM allocation at $x100 in every bank, reserve the RAM
          port prefix, and still emit a complete 4K physical bank.
        * Publish scheme constants/helpers for existing
-         `ref uint8_t object@[read/write]` declarations.
+         `uint8_t object@[read/write]` declarations.
        * Verify shared 128-byte persistence across every bank switch and exact
          8K/16K/32K output sizes, using Stella diagnostic cartridges in addition
          to structural linker tests.
@@ -862,9 +862,9 @@ when main roadmap item 29 becomes active.
          $size:0x80 $rw };` through the SC machine/profile header and allocate
          objects with ordinary named-region syntax such as
          `superchip uint8_t foo;` and `superchip uint8_t buffer[32];`.
-       * Lock the existing split-address order: explicit refs are
+       * Lock the existing split-address order: explicit bindings use
          `@[read_address/write_address]`, so the first SC byte is equivalent to
-         `ref uint8_t foo@[0xF080/0xF000];`.  Loads use the read alias; stores,
+         `uint8_t foo@[0xF080/0xF000];`.  Loads use the read alias; stores,
          initializer copies, and BSS clearing use the write alias.
        * Preserve both aliases through compiler metadata, o26, linker layout,
          loads, stores, initialization, and map output while treating the region
@@ -1065,7 +1065,7 @@ when main roadmap item 29 becomes active.
          code-region/result-region partition needed to combine writable result
          storage with an explicit read-only code-placement modifier.
 
-[ ] 16. Make `@[read_address/write_address]` imply an absolute external
+[x] 16. Make `@[read_address/write_address]` imply an absolute external
        object binding without `ref`.
 
        * Accept declarations such as `uint8_t VSYNC @[none/0x00];`,
@@ -1088,6 +1088,28 @@ when main roadmap item 29 becomes active.
        * Add migration and diagnostic tests for readable-only, writable-only,
          same-address read/write, and differing-address bindings, including array
          and aggregate object declarations where those forms are already legal.
+       * Implemented file-scope and block-scope `@...` declarations as non-owning
+         absolute bindings without `ref`; installed TIA, RIOT, and Superchip
+         headers and all examples now use the shorter spelling. Object-level and
+         function-level `ref` are diagnosed, while parameter `ref` remains intact.
+       * Absolute bindings allocate no segment bytes, reject initializers and
+         storage/linkage/use-contract modifiers, preserve `none` independently,
+         and retain the existing generic direct/index/member/inline-assembly
+         read/write lowering. Aggregate members cannot themselves carry an
+         absolute binding, but aggregate and array objects may.
+       * Same-translation-unit redeclarations compare canonical numeric addresses
+         as values rather than spellings. Linker-visible ABI fingerprints record
+         the object type plus canonical read and write addresses, so separately
+         compiled declarations with different locations fail deterministically.
+       * Because installed hardware headers now contribute ABI records for every
+         absolute binding, the assembler's `.o26` export writer now honors the
+         format's existing 16-bit export count instead of imposing an unrelated
+         255-symbol ceiling. This preserves complete metadata even in large generated
+         overflow fixtures and ordinary translation units which include `vcs.c26`.
+       * Coverage includes global and local bindings, readable-only, writable-only,
+         same-address and split-address objects, arrays and aggregate objects,
+         legacy `ref` diagnostics, contradictory modifiers, forbidden
+         initialization, compatible redeclarations, and cross-object ABI mismatch.
 
 [ ] 17. Add `writeonly` as the write-side access qualifier.
 

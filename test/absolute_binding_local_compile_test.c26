@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectasm: lda  $10
+// expectasm: sta  $10
+include "machine_6502.c26"
+
+int8_t sink;
+void main(void) {
+   int8_t port@0x10;
+   sink := port;
+   port := sink;
+}

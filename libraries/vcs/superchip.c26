@@ -13,4 +13,4 @@
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 
 // Explicit whole-window alias retained for applications that want fixed refs.
-ref uint8_t superchip_ram[128]@[0xF080/0xF000];
+uint8_t superchip_ram[128]@[0xF080/0xF000];

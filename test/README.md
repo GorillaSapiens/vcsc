@@ -647,7 +647,7 @@ output names, per-sidecar disable switches, high-level driver passthrough, and
 protection against overwriting a same-stem linker script. ROM-specific Stella
 `.script` files remain user-owned and are intentionally not generated.
 
-`vcs_bankswitching_diagnostic.pl` also certifies the explicit-ref F8SC/F6SC/F4SC
+`vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding F8SC/F6SC/F4SC
 profiles. It checks every allocatable bank region begins at `$x100` with size
 `$0E00`, rejects deliberately malformed cfgs which expose the RAM-port prefix
 to ordinary ROM placement, verifies reserved 256-byte prefixes and exact image

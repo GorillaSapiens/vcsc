@@ -91,7 +91,7 @@ static void emit_copy_ptr0_relative_to_slot(int ptr_offset, const ContextEntry *
 //!
 //! This is deliberately narrow: both operands must be direct fields of the same
 //! dynamic array element, with structurally identical index expressions and no
-//! pointer dereference, bitfield, conversion, or absolute-ref semantics.  Those
+//! pointer dereference, bitfield, conversion, or absolute-binding semantics.  Those
 //! restrictions make reusing ptr0 side-effect-free and mechanically safe.
 static CommonLValuePairResult compile_common_indexed_lvalue_pair(Context *ctx,
                                                                  ASTNode *lhs_expr,
@@ -786,10 +786,10 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       emit_lvalue_semantic_use(ctx, &lv, "write");
       if (lv.is_absolute_ref) {
          if (!lv.read_expr) {
-            error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, lv.name ? lv.name : "<unnamed>");
+            error_user("[%s:%d.%d] absolute external binding '%s' is write-only", expr->file, expr->line, expr->column, lv.name ? lv.name : "<unnamed>");
          }
          if (!lv.write_expr) {
-            error_user("[%s:%d.%d] absolute ref '%s' is read-only", expr->file, expr->line, expr->column, lv.name ? lv.name : "<unnamed>");
+            error_user("[%s:%d.%d] absolute external binding '%s' is read-only", expr->file, expr->line, expr->column, lv.name ? lv.name : "<unnamed>");
          }
       }
       classify_incdec_lvalue_expr(expr, &inc, &pre);

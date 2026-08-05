@@ -40,7 +40,7 @@ struct coverbits { int16_t mantissa:23; int16_t exponent:8; int16_t sign:1; };
 
 static int16_t q[12] @ 27;
 static int16_t qq[12] @ symbol;
-ref int16_t splitrw@[none/27];
+int16_t splitrw@[none/27];
 int16_t r[12] @ 27 := { .x := 1, 1, 1 };
 int16_t s[12] @ 27 := { 1, 1, 1 };
 int16_t five := 5;
@@ -53,6 +53,7 @@ require recommend int16_t required_dominates_coverage;
 
 extern int16_t foreign(int16_t x);
 extern int16_t foreign_add(int16_t a, int16_t b);
+extern void foreign_ref(ref int16_t x);
 
 int8_t *exy := "this is a test";
 int8_t exy  := '\f';

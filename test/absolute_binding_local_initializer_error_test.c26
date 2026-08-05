@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// phase: compile
+// expectfail
+// expecterr: absolute external binding 'local_port' cannot have an initializer
+include "machine_6502.c26"
+
+void main(void) {
+   uint8_t local_port@[none/0x0608] := 52;
+}

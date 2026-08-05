@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: aggregate member 'bad' cannot use an absolute address binding
+include "machine_6502.c26"
+struct Bad { uint8_t bad@0x20; };
+void main(void) {}

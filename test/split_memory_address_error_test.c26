@@ -1,6 +1,6 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: absolute ref 'foo' does not have a single address
+// expecterr: absolute external binding 'foo' does not have a single address
 // expecterr: address-taking, pointer decay, and ref passing are not supported for split-address objects
 
 include "machine_6502.c26"

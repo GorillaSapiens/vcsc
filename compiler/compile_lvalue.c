@@ -39,7 +39,7 @@ static void lvalue_fixed_scratch_end(Context *ctx, LValueFixedScratch *scratch) 
    compiler_scratch_release(scratch);
 }
 
-//! @brief Handle absolute ref supports direct access logic for compiler lvalue lowering.
+//! @brief Handle absolute external binding supports direct access logic for compiler lvalue lowering.
 static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
    return lv && lv->is_absolute_ref && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address;
 }
@@ -848,7 +848,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
             if (lv->read_expr && lv->write_expr) {
                if (strcmp(lv->read_expr, lv->write_expr)) {
                   const ASTNode *site = lv->use_site;
-                  error_user("[%s:%d.%d] absolute ref '%s' does not have a single address; address-taking, pointer decay, and ref passing are not supported for split-address objects (read %s, write %s)",
+                  error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address; address-taking, pointer decay, and ref passing are not supported for split-address objects (read %s, write %s)",
                              site && site->file ? site->file : "<unknown>",
                              site ? site->line : 0, site ? site->column : 0,
                              lv->name ? lv->name : "<unnamed>",

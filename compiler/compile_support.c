@@ -542,7 +542,7 @@ bool entry_has_write_address(const ContextEntry *entry) {
    return entry && entry->is_absolute_ref && entry->write_expr && *entry->write_expr;
 }
 
-//! @brief Return whether entry is absolute ref in compiler code-generation support.
+//! @brief Return whether entry is absolute external binding in compiler code-generation support.
 bool entry_is_absolute_ref(const ContextEntry *entry) {
    return entry && entry->is_absolute_ref;
 }
@@ -616,7 +616,7 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->is_zeropage = modifiers_imply_zeropage((ASTNode *) modifiers);
    entry->is_global = true;
    entry->is_ref = false;
-   entry->is_absolute_ref = has_modifier((ASTNode *) modifiers, "ref") && addrspec != NULL;
+   entry->is_absolute_ref = addrspec != NULL;
    entry->read_expr = address_spec_read_expr(addrspec);
    entry->write_expr = address_spec_write_expr(addrspec);
    init_split_mem_entry_addresses(entry, name, modifiers);
@@ -707,7 +707,7 @@ void emit_store_a_to_expr_address(const char *expr, int addend) {
    }
 }
 
-//! @brief Handle absolute ref supports direct access logic for compiler code-generation support.
+//! @brief Handle absolute external binding supports direct access logic for compiler code-generation support.
 static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
    return lv && lv->is_absolute_ref && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address;
 }

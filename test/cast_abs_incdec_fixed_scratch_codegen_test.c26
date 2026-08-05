@@ -11,12 +11,12 @@
 include "machine_6502.c26"
 
 
-ref uint8_t global_abs@[0x0600/0x0600];
+uint8_t global_abs@[0x0600/0x0600];
 uint8_t counter;
 uint16_t result;
 
 void exercise(void) {
-   ref uint8_t local_abs@[0x0601/0x0601];
+   uint8_t local_abs@[0x0601/0x0601];
 
    result := global_abs;
    result := local_abs;

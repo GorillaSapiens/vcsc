@@ -1507,7 +1507,7 @@ static int write_exports(FILE *fp, const o26_export_t *e)
    for (p = e; p; p = p->next)
       count++;
 
-   if (count > 255) {
+   if (count > 0xFFFFu) {
       fprintf(stderr, "too many exported symbols for current o26 writer\n");
       return 0;
    }

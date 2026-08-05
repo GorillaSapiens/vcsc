@@ -534,27 +534,35 @@ void swap(ref int16_t a, ref int16_t b) {
 }
 ```
 
-The caller passes an address. Reads and writes in the callee dereference it.
+The caller passes one address. Reads and writes in the callee dereference it.
 The argument must be an lvalue of the exact declared type. The parameter's
-backing symbol is pointer-sized.
+backing symbol is pointer-sized. `ref` is reserved for function parameters; it
+is not an object-storage modifier.
 
-Absolute `ref` declarations bind source names to memory-mapped addresses:
+## Absolute external bindings
+
+An address annotation binds a source name directly to pre-existing storage:
 
 ```vcsc
-ref uint8_t port@0x10;
-ref uint8_t status@STATUS_REG;
-ref uint8_t write_only@[none/0x00];
-ref uint8_t read_only@[0x30/none];
-ref uint16_t split@[0x100/0x180];
+uint8_t port@0x10;
+uint8_t status@STATUS_REG;
+uint8_t write_only@[none/0x00];
+uint8_t read_only@[0x30/none];
+uint16_t split@[0x100/0x180];
 ```
 
-`@address` is shorthand for `@[address/address]`. Loads use the read address;
-stores use the write address. Reading a write-only ref, writing a read-only ref,
-or taking the address of a split-address ref is rejected. Every `@...` address
-binding requires a `ref` declaration; ordinary allocated objects cannot carry
-an ignored or advisory placement annotation. An address binding with no usable
-side (`@none` or `@[none/none]`) is also rejected on a `ref`. The address terms
-are single integer literals or identifiers, not arbitrary expressions.
+`@address` is shorthand for `@[address/address]`. The annotation itself means
+that the compiler allocates no storage and emits no initializer. Loads use the
+read address; stores use the write address. Reading a write-only binding,
+writing a read-only binding, or taking one ordinary address of a split-address
+binding is rejected. An annotation with no usable side (`@none` or
+`@[none/none]`) is invalid. Address terms are single integer literals or
+identifiers, not arbitrary expressions.
+
+Absolute external bindings cannot have initializers or allocation/linkage
+modifiers such as `static`, `extern`, `page`, or a named `mem` region. Compatible
+redeclarations must agree on the type and both addresses; ABI metadata preserves
+those facts for separate-compilation checking.
 
 ## Functions and calls
 
@@ -951,6 +959,6 @@ linker must find a legal address or reject the link. A non-inline function defin
 so the linker knows its exact boundary and size. Ordinary functions receive the
 same soft containment preference. `page` on a function definition upgrades that
 function to hard containment; declarations without a body reject `page` because
-the final size is not yet known. Locals, extern data declarations, absolute refs,
+the final size is not yet known. Locals, extern data declarations, absolute external bindings,
 and named `mem` data regions do not yet accept the hard `page` modifier. Ordinary
 objects in named `mem` regions still receive private soft-placement segments.

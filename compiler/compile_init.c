@@ -871,7 +871,7 @@ void emit_runtime_global_init_function(void) {
       if (entry->is_absolute_ref) {
          LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = false, .is_zeropage = false, .is_global = true, .is_ref = true, .is_absolute_ref = true, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = 0, .size = entry->size };
          if (!emit_copy_scratch_to_lvalue(&ctx, &lv, 0, entry->size)) {
-            error_user("[%s:%d.%d] could not store runtime initializer for absolute ref '%s'",
+            error_user("[%s:%d.%d] could not store runtime initializer for absolute external binding '%s'",
                   entry->expression->file, entry->expression->line, entry->expression->column, entry->name);
          }
       }

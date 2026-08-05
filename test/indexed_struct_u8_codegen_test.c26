@@ -22,7 +22,7 @@ struct MusicStep {
 const MusicStep music[32] := { { 0, 0, 0, 0 } };
 uint8_t music_index := 0;
 uint8_t music_counter := 0;
-ref uint8_t AUDV0 @[none/0x19];
+uint8_t AUDV0 @[none/0x19];
 
 void main(void) {
    music_counter++;

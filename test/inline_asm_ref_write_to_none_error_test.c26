@@ -1,9 +1,9 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: inline asm 'STA' writes to read-only ref 'RO'
+// expecterr: inline asm 'STA' writes to read-only absolute binding 'RO'
 
 include "machine_6502.c26"
-ref uint8_t RO @[0x30/none];
+uint8_t RO @[0x30/none];
 void main(void) {
    asm sta RO;
 }

@@ -9,13 +9,13 @@
 // mirror of the same physical bytes and must not be declared as extra memory.
 
 // RIOT I/O and timer registers.
-ref uint8_t SWCHA @[0x0280/0x0280];
-ref uint8_t SWACNT@[0x0281/0x0281];
-ref uint8_t SWCHB @[0x0282/0x0282];
-ref uint8_t SWBCNT@[0x0283/0x0283];
-ref uint8_t INTIM @[0x0284/none];
-ref uint8_t TIMINT@[0x0285/none];
-ref uint8_t TIM1T @[none/0x0294];
-ref uint8_t TIM8T @[none/0x0295];
-ref uint8_t TIM64T@[none/0x0296];
-ref uint8_t T1024T@[none/0x0297];
+uint8_t SWCHA @[0x0280/0x0280];
+uint8_t SWACNT@[0x0281/0x0281];
+uint8_t SWCHB @[0x0282/0x0282];
+uint8_t SWBCNT@[0x0283/0x0283];
+uint8_t INTIM @[0x0284/none];
+uint8_t TIMINT@[0x0285/none];
+uint8_t TIM1T @[none/0x0294];
+uint8_t TIM8T @[none/0x0295];
+uint8_t TIM64T@[none/0x0296];
+uint8_t T1024T@[none/0x0297];

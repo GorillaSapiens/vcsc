@@ -20,7 +20,7 @@ void fail(int16_t code) {
    asm jsr $ffff;
 }
 
-ref int8_t gfailcode@[none/0x02f0];
+int8_t gfailcode@[none/0x02f0];
 
 int16_t f(int16_t a) {
    int16_t x;

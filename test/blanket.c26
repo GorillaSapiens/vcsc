@@ -76,7 +76,7 @@ zeropage const ref static int16_t ic, id;
 
 zeropage int16_t ie @ 12;
 zeropage int16_t ie @ ia;
-ref int16_t splitrw@[none/12];
+int16_t splitrw@[none/12];
 
 int16_t ig := 5`int16_t;
 

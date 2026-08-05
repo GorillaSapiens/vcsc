@@ -764,7 +764,7 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    return true;
 }
 
-//! @brief Copy one byte directly from an lvalue into a write-only/read-write absolute ref.
+//! @brief Copy one byte directly from an lvalue into a write-only/read-write absolute external binding.
 //!
 //! This avoids allocating a one-byte BSS object merely to bridge an indexed
 //! source and a memory-mapped VCS register.
@@ -796,7 +796,7 @@ static bool compile_direct_byte_lvalue_to_absolute_ref(Context *ctx,
    return true;
 }
 
-//! @brief Store a fixed assignment value into a simple absolute ref without pointer setup.
+//! @brief Store a fixed assignment value into a simple absolute external binding without pointer setup.
 static bool emit_fixed_assignment_value_to_lvalue(Context *ctx, const LValueRef *dst,
                                                   const char *symbol, int size) {
    return emit_copy_preserved_symbol_to_lvalue(ctx, dst, symbol, size);
@@ -1025,7 +1025,7 @@ static bool compile_discarded_simple_assignment_chain(Context *ctx, ASTNode *nod
       }
       if (targets[count].is_absolute_ref &&
           (!targets[count].write_expr || !*targets[count].write_expr)) {
-         error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+         error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
                     cursor->file ? cursor->file : "<unknown>", cursor->line,
                     cursor->column,
                     targets[count].name ? targets[count].name : "<unnamed>");
@@ -1112,7 +1112,7 @@ static bool validate_discard_store_lvalue(const ASTNode *site, const LValueRef *
       return false;
    }
    if (lv->is_absolute_ref && (!lv->write_expr || !*lv->write_expr)) {
-      error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+      error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
                  site->file, site->line, site->column,
                  lv->name ? lv->name : "<unnamed>");
       return true;
@@ -1356,15 +1356,15 @@ void compile_expr(ASTNode *node, Context *ctx) {
 
    if (lv.is_absolute_ref && (!op || !strcmp(op, ":="))) {
       if (!entry_has_write_address(dst)) {
-         error_user("[%s:%d.%d] absolute ref '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
+         error_user("[%s:%d.%d] absolute external binding '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
       }
    }
    else if (lv.is_absolute_ref) {
       if (!entry_has_read_address(dst)) {
-         error_user("[%s:%d.%d] absolute ref '%s' is write-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
+         error_user("[%s:%d.%d] absolute external binding '%s' is write-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
       }
       if (!entry_has_write_address(dst)) {
-         error_user("[%s:%d.%d] absolute ref '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
+         error_user("[%s:%d.%d] absolute external binding '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
       }
    }
 

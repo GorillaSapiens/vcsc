@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'ref' applies only to function parameters, not to function 'bad'
+include "machine_6502.c26"
+ref void bad(void) {}

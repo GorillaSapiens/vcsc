@@ -292,7 +292,7 @@ named region and the explicit whole-window alias:
 
 ```c
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
-ref uint8_t superchip_ram[128]@[0xF080/0xF000];
+uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
 Applications may allocate persistent globals, arrays, automatic locals,

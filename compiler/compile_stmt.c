@@ -181,14 +181,14 @@ static bool address_spec_has_write(const ASTNode *node) {
    return address_spec_write_expr(node) != NULL;
 }
 
-//! @brief Reject an address binding on a declaration that is not a ref.
-static void diagnose_address_spec_without_ref(const ASTNode *node, const char *name) {
+//! @brief Reject the legacy object-level ref spelling now reserved for parameters.
+static void diagnose_ref_object_modifier(const ASTNode *node, const char *name) {
    if (!node) {
       error_unreachable("internal error: !node in %s %s:%d\n",
          __func__, __FILE__, __LINE__);
       return;
    }
-   error_user("[%s:%d.%d] '@' address binding on declaration '%s' requires 'ref'",
+   error_user("[%s:%d.%d] 'ref' applies only to function parameters; absolute external binding '%s' must use '@[read/write]' without 'ref'",
       node->file, node->line, node->column, name ? name : "?");
 }
 
@@ -539,13 +539,16 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    ASTNode *declarator = (ASTNode *) stmt_decl_node_declarator(node);
    const ASTNode *addrspec = decl_node_address_spec(node);
    const char *name    = declarator_name(declarator);
+   ASTNode *expression = node->children[node->count - 1];
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
    validate_nonreserved_implementation_name(name, node);
 
-   if (modifiers_imply_split_address(modifiers) &&
-       (has_modifier(modifiers, "ref") || addrspec != NULL)) {
-      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with 'ref' or an '@' address binding",
+   if (has_modifier(modifiers, "ref")) {
+      diagnose_ref_object_modifier(node, name);
+   }
+   if (modifiers_imply_split_address(modifiers) && addrspec != NULL) {
+      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with an '@' absolute binding",
                  node->file, node->line, node->column,
                  find_mem_modifier_name(modifiers));
    }
@@ -560,13 +563,19 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
-   if (addrspec != NULL && !has_modifier(modifiers, "ref")) {
-      diagnose_address_spec_without_ref(addrspec, name);
-   }
-
-   if (has_modifier(modifiers, "ref") && addrspec != NULL) {
+   if (addrspec != NULL) {
+      if (has_modifier(modifiers, "static") || has_modifier(modifiers, "extern") ||
+          has_modifier(modifiers, "page") || modifiers_imply_mem_storage(modifiers) ||
+          declaration_has_use_contract(modifiers)) {
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot use allocation, linkage, or use-contract modifiers",
+               node->file, node->line, node->column, name);
+      }
+      if (!is_empty(expression)) {
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot have an initializer",
+               node->file, node->line, node->column, name);
+      }
       if (!address_spec_has_read(addrspec) && !address_spec_has_write(addrspec)) {
-         error_user("[%s:%d.%d] absolute ref '%s' cannot use none for both read and write address",
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot use none for both read and write address",
                node->file, node->line, node->column, name);
       }
       entry = (ContextEntry *) malloc(sizeof(ContextEntry));
@@ -675,6 +684,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    ASTNode *modifiers  = node->children[0];
    ASTNode *type       = node->children[1];
    ASTNode *declarator = (ASTNode *) stmt_decl_node_declarator(node);
+   const ASTNode *addrspec = decl_node_address_spec(node);
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
    validate_nonreserved_implementation_name(name, node);
@@ -723,6 +733,10 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       emit(&es_bss, ".segment \"%s\"\n", segbuf);
       emit(&es_bss, "%s:\n", entry->read_expr);
       emit(&es_bss, "\t.res %d\n", size);
+   }
+
+   if (addrspec != NULL) {
+      return;
    }
 
    if (entry->is_absolute_ref && !has_modifier(modifiers, "static")) {
@@ -1313,7 +1327,7 @@ static InlineAsmRefAccess inline_asm_opcode_access(const char *mnemonic) {
    return INLINE_ASM_REF_UNKNOWN;
 }
 
-//! @brief Resolve a source identifier to an absolute ref visible at an inline-assembly statement.
+//! @brief Resolve a source identifier to an absolute external binding visible at an inline-assembly statement.
 static bool inline_asm_lookup_absolute_ref(Context *ctx, const char *name, ContextEntry *out) {
    ContextEntry *local;
    const ASTNode *global;
@@ -1332,7 +1346,7 @@ static bool inline_asm_lookup_absolute_ref(Context *ctx, const char *name, Conte
    return global && init_context_entry_from_global_decl(out, name, global) && out->is_absolute_ref;
 }
 
-//! @brief Select the legal address expression for one inline-assembly absolute-ref use.
+//! @brief Select the legal address expression for one inline-assembly absolute-binding use.
 static const char *inline_asm_ref_address(const ASTNode *node, const char *mnemonic,
                                           InlineAsmRefAccess access, const ContextEntry *entry,
                                           char *buf, size_t buf_size) {
@@ -1346,7 +1360,7 @@ static const char *inline_asm_ref_address(const ASTNode *node, const char *mnemo
    switch (access) {
       case INLINE_ASM_REF_READ:
          if (!read_expr) {
-            error_user("[%s:%d.%d] inline asm '%s' reads from write-only ref '%s'",
+            error_user("[%s:%d.%d] inline asm '%s' reads from write-only absolute binding '%s'",
                        node->file, node->line, node->column, mnemonic, entry->name);
          }
          snprintf(buf, buf_size, "%s", read_expr);
@@ -1354,7 +1368,7 @@ static const char *inline_asm_ref_address(const ASTNode *node, const char *mnemo
 
       case INLINE_ASM_REF_WRITE:
          if (!write_expr) {
-            error_user("[%s:%d.%d] inline asm '%s' writes to read-only ref '%s'",
+            error_user("[%s:%d.%d] inline asm '%s' writes to read-only absolute binding '%s'",
                        node->file, node->line, node->column, mnemonic, entry->name);
          }
          snprintf(buf, buf_size, "%s", write_expr);
@@ -1366,7 +1380,7 @@ static const char *inline_asm_ref_address(const ASTNode *node, const char *mnemo
                        node->file, node->line, node->column, mnemonic, entry->name);
          }
          if (strcmp(read_expr, write_expr)) {
-            error_user("[%s:%d.%d] inline asm read-modify-write '%s' cannot use split-address ref '%s' (%s read, %s write)",
+            error_user("[%s:%d.%d] inline asm read-modify-write '%s' cannot use split-address absolute binding '%s' (%s read, %s write)",
                        node->file, node->line, node->column, mnemonic, entry->name, read_expr, write_expr);
          }
          snprintf(buf, buf_size, "%s", read_expr);
@@ -1408,7 +1422,7 @@ static void inline_asm_append(char **buf, size_t *len, size_t *cap, const char *
    (*buf)[*len] = '\0';
 }
 
-//! @brief Resolve absolute-ref source names in one inline assembly statement.
+//! @brief Resolve absolute-binding source names in one inline assembly statement.
 static char *rewrite_inline_asm_refs(const ASTNode *node, Context *ctx, const char *line) {
    const char *p = line;
    const char *mnemonic_start;

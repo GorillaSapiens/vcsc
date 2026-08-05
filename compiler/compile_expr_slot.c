@@ -125,7 +125,7 @@ static bool compile_simple_assignment_chain_to_slot(ASTNode *expr, Context *ctx,
       }
       if (targets[count].is_absolute_ref &&
           (!targets[count].write_expr || !*targets[count].write_expr)) {
-         error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+         error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
                     cursor->file ? cursor->file : "<unknown>", cursor->line,
                     cursor->column,
                     targets[count].name ? targets[count].name : "<unnamed>");
@@ -480,7 +480,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       /* A simple assignment expression has the converted value written to its
        * left operand.  Preserve that value while it is still in compiler
        * scratch instead of storing it and then reading the lvalue back.  The
-       * readback is both unnecessary and invalid for write-only absolute refs
+       * readback is both unnecessary and invalid for write-only absolute external bindings
        * such as TIA registers.  Bitfields retain the store/readback path below
        * because their expression value must reflect width truncation and signed
        * extension performed by the bitfield accessors. */
@@ -491,7 +491,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          int value_size = lv.size;
 
          if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
-            error_user("[%s:%d.%d] absolute ref '%s' is read-only",
+            error_user("[%s:%d.%d] absolute external binding '%s' is read-only",
                        expr->file ? expr->file : "<unknown>", expr->line, expr->column,
                        lv.name ? lv.name : "<unnamed>");
          }
@@ -635,7 +635,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
          if (entry && entry_is_absolute_ref(entry)) {
             LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };
             if (!entry_has_read_address(entry)) {
-               error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
+               error_user("[%s:%d.%d] absolute external binding '%s' is write-only", expr->file, expr->line, expr->column, ident);
             }
             if (dst->size == lv.size && dst->type == lv.type) {
                return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
@@ -727,7 +727,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                if (init_context_entry_from_global_decl(&gentry, ident, g) && entry_is_absolute_ref(&gentry)) {
                   LValueRef lv = { .name = gentry.name, .type = gentry.type, .declarator = gentry.declarator, .base_type = gentry.type, .base_declarator = gentry.declarator, .is_static = gentry.is_static, .is_zeropage = gentry.is_zeropage, .is_global = gentry.is_global, .is_ref = gentry.is_ref, .is_absolute_ref = gentry.is_absolute_ref, .read_expr = gentry.read_expr, .write_expr = gentry.write_expr, .offset = gentry.offset, .size = gentry.size, .use_site = expr };
                   if (!entry_has_read_address(&gentry)) {
-                     error_user("[%s:%d.%d] absolute ref '%s' is write-only", expr->file, expr->line, expr->column, ident);
+                     error_user("[%s:%d.%d] absolute external binding '%s' is write-only", expr->file, expr->line, expr->column, ident);
                   }
                   if (dst->size == lv.size && dst->type == lv.type) {
                      return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
@@ -784,7 +784,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       if (inner && !strcmp(inner->name, "lvalue") && resolve_lvalue(ctx, inner, &lv)) {
          if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
             if (lv.is_absolute_ref) {
-               error_user("[%s:%d.%d] absolute ref '%s' does not have a single address", inner->file, inner->line, inner->column, lv.name ? lv.name : "<unnamed>");
+               error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address", inner->file, inner->line, inner->column, lv.name ? lv.name : "<unnamed>");
             }
             return false;
          }

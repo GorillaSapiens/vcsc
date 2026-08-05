@@ -19,8 +19,8 @@
 
 include "vcs.c26"
 
-ref uint8_t split_register@[0x10/0x20];
-ref uint8_t split_sink@[none/0x21];
+uint8_t split_register@[0x10/0x20];
+uint8_t split_sink@[none/0x21];
 
 void main(void) {
    NUSIZ1 := NUSIZ0 := 3;

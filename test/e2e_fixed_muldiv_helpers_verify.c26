@@ -3,14 +3,14 @@
 
 include "machine_6502.c26"
 
-ref uint8_t a0@0x0300;
-ref uint8_t a1@0x0301;
-ref uint8_t b0@0x0302;
-ref uint8_t b1@0x0303;
-ref uint8_t r0@0x0304;
-ref uint8_t r1@0x0305;
-ref uint8_t r2@0x0306;
-ref uint8_t r3@0x0307;
+uint8_t a0@0x0300;
+uint8_t a1@0x0301;
+uint8_t b0@0x0302;
+uint8_t b1@0x0303;
+uint8_t r0@0x0304;
+uint8_t r1@0x0305;
+uint8_t r2@0x0306;
+uint8_t r3@0x0307;
 
 void fail(uint8_t code) {
    asm ldy #0;

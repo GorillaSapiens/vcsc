@@ -264,15 +264,48 @@ static bool address_spec_has_write(const ASTNode *node) {
    return address_spec_write_expr(node) != NULL;
 }
 
-//! @brief Reject an address binding on a declaration that is not a ref.
-static void diagnose_address_spec_without_ref(const ASTNode *node, const char *name) {
+//! @brief Reject the legacy object-level ref spelling now reserved for parameters.
+static void diagnose_ref_object_modifier(const ASTNode *node, const char *name) {
    if (!node) {
       error_unreachable("internal error: !node in %s %s:%d\n",
          __func__, __FILE__, __LINE__);
       return;
    }
-   error_user("[%s:%d.%d] '@' address binding on declaration '%s' requires 'ref'",
+   error_user("[%s:%d.%d] 'ref' applies only to function parameters; absolute external binding '%s' must use '@[read/write]' without 'ref'",
       node->file, node->line, node->column, name ? name : "?");
+}
+
+//! @brief Return whether two address expressions denote the same source-level address.
+static bool address_exprs_equal(const char *a, const char *b) {
+   char *aend = NULL;
+   char *bend = NULL;
+   unsigned long long av;
+   unsigned long long bv;
+
+   if ((a == NULL) != (b == NULL)) {
+      return false;
+   }
+   if (!a && !b) {
+      return true;
+   }
+   av = strtoull(a, &aend, 0);
+   bv = strtoull(b, &bend, 0);
+   if (aend && *aend == '\0' && bend && *bend == '\0') {
+      return av == bv;
+   }
+   return !strcmp(a, b);
+}
+
+//! @brief Return whether two absolute address specifications are identical.
+static bool address_specs_equal(const ASTNode *a, const ASTNode *b) {
+   if ((a == NULL) != (b == NULL)) {
+      return false;
+   }
+   if (!a && !b) {
+      return true;
+   }
+   return address_exprs_equal(address_spec_read_expr(a), address_spec_read_expr(b)) &&
+          address_exprs_equal(address_spec_write_expr(a), address_spec_write_expr(b));
 }
 
 //! @brief Lower function decl from AST/semantic state into generated assembly or linker-visible metadata.
@@ -291,6 +324,10 @@ void compile_function_decl(ASTNode *node) {
    char return_sym[256];
    char return_write_expr[320];
 
+   if (has_modifier(modifiers, "ref")) {
+      error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to function '%s'",
+                 node->file, node->line, node->column, name ? name : "?");
+   }
    validate_function_return_type(node);
    remember_function(node, name);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
@@ -717,15 +754,23 @@ static void validate_aggregate_member_use_contracts(const ASTNode *node) {
    for (int i = 1; node && i < node->count; i++) {
       const ASTNode *member = node->children[i];
       const ASTNode *modifiers = (member && member->count > 0) ? member->children[0] : NULL;
-      const ASTNode *declarator = (member && member->count > 2) ? member->children[2] : NULL;
-      const char *name;
-      if (!declaration_has_use_contract(modifiers)) {
-         continue;
+      const ASTNode *subitem = (member && member->count > 2) ? member->children[2] : NULL;
+      const ASTNode *declarator = decl_subitem_declarator(subitem);
+      const ASTNode *addrspec = decl_subitem_address_spec(subitem);
+      const char *name = declarator ? declarator_name(declarator) : NULL;
+      if (has_modifier((ASTNode *)modifiers, "ref")) {
+         error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to aggregate member '%s'",
+                    member->file, member->line, member->column, name ? name : "?");
       }
-      name = declarator ? declarator_name(declarator) : NULL;
-      error_user("[%s:%d.%d] aggregate member '%s' cannot use '%s'; use contracts apply only to file-scope objects and functions",
-                 member->file, member->line, member->column, name ? name : "?",
-                 declaration_use_contract(modifiers) == DECL_USE_CONTRACT_REQUIRE ? "require" : "recommend");
+      if (addrspec) {
+         error_user("[%s:%d.%d] aggregate member '%s' cannot use an absolute address binding",
+                    member->file, member->line, member->column, name ? name : "?");
+      }
+      if (declaration_has_use_contract(modifiers)) {
+         error_user("[%s:%d.%d] aggregate member '%s' cannot use '%s'; use contracts apply only to file-scope objects and functions",
+                    member->file, member->line, member->column, name ? name : "?",
+                    declaration_use_contract(modifiers) == DECL_USE_CONTRACT_REQUIRE ? "require" : "recommend");
+      }
    }
 }
 
@@ -765,7 +810,7 @@ static void restore_object_segment(EmitSink *sink, const char *base_segment) {
 //! @brief Return whether one file-scope object declaration allocates or binds the object.
 static bool global_object_is_definition(const ASTNode *node) {
    const ASTNode *modifiers = (node && node->count > 0) ? node->children[0] : NULL;
-   return !has_modifier((ASTNode *)modifiers, "extern");
+   return !has_modifier((ASTNode *)modifiers, "extern") && decl_node_address_spec(node) == NULL;
 }
 
 //! @brief Return whether two object declarations have the same source-level storage ABI.
@@ -780,6 +825,8 @@ static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
    const char *bname = type_name_from_node(btype);
    const char *amem = find_mem_modifier_name(amod);
    const char *bmem = find_mem_modifier_name(bmod);
+   const ASTNode *aaddr = decl_node_address_spec(a);
+   const ASTNode *baddr = decl_node_address_spec(b);
 
    if (!aname || !bname || strcmp(aname, bname) ||
        !declarator_signature_matches(adecl, bdecl)) {
@@ -787,8 +834,8 @@ static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
    }
    if (has_modifier((ASTNode *)amod, "static") != has_modifier((ASTNode *)bmod, "static") ||
        declaration_const_applies_to_object(amod, adecl) != declaration_const_applies_to_object(bmod, bdecl) ||
-       has_modifier((ASTNode *)amod, "ref") != has_modifier((ASTNode *)bmod, "ref") ||
-       modifiers_imply_zeropage(amod) != modifiers_imply_zeropage(bmod)) {
+       modifiers_imply_zeropage(amod) != modifiers_imply_zeropage(bmod) ||
+       !address_specs_equal(aaddr, baddr)) {
       return false;
    }
    if ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem))) {
@@ -823,6 +870,9 @@ void predeclare_top_level_objects(ASTNode *program) {
          modifiers = node->children[0];
          name = declarator_name(declarator);
          validate_nonreserved_implementation_name(name, node);
+         if (has_modifier((ASTNode *)modifiers, "ref")) {
+            diagnose_ref_object_modifier(node, name);
+         }
          if (!name) {
             error_user("[%s:%d.%d] unnamed file-scope object declaration is not supported",
                        node->file, node->line, node->column);
@@ -883,7 +933,7 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_split_mem = modifiers_imply_split_address(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
-   bool is_absolute_ref = is_ref && addrspec != NULL;
+   bool is_absolute_binding = addrspec != NULL;
    int size = declarator_storage_size(type, declarator);
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
@@ -892,8 +942,8 @@ void compile_global_decl_item(ASTNode *node) {
       error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
                  node->file, node->line, node->column);
    }
-   if (is_split_mem && (is_ref || addrspec != NULL)) {
-      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with 'ref' or an '@' address binding",
+   if (is_split_mem && (is_ref || is_absolute_binding)) {
+      error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with an '@' absolute binding",
                  node->file, node->line, node->column,
                  find_mem_modifier_name(modifiers));
    }
@@ -901,18 +951,13 @@ void compile_global_decl_item(ASTNode *node) {
       error_user("[%s:%d.%d] object '%s' placed in a $ro mem region must be const",
                  node->file, node->line, node->column, name);
    }
-   if (is_page && (is_extern || is_absolute_ref)) {
+   if (is_page && (is_extern || is_absolute_binding)) {
       error_user("[%s:%d.%d] 'page' requires a file-scope data-object definition",
                  node->file, node->line, node->column);
    }
 
-   if (addrspec != NULL && !is_ref) {
-      diagnose_address_spec_without_ref(addrspec, name);
-   }
-
-   if (is_ref && !is_absolute_ref) {
-      error_user("[%s:%d.%d] 'ref' not allowed in global declaration without an absolute address binding",
-            node->file, node->line, node->column);
+   if (is_ref) {
+      diagnose_ref_object_modifier(node, name);
    }
 
    if (selected != node) {
@@ -921,32 +966,24 @@ void compile_global_decl_item(ASTNode *node) {
    emit_mem_region_metadata_for_modifiers(node, modifiers);
    emit_global_contract_metadata(node, symname, is_zeropage);
 
-   if (is_absolute_ref) {
+   if (is_absolute_binding) {
       if (!address_spec_has_read(addrspec) && !address_spec_has_write(addrspec)) {
-         error_user("[%s:%d.%d] absolute ref '%s' cannot use none for both read and write address",
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot use none for both read and write address",
                node->file, node->line, node->column, name);
       }
-      if (is_extern) {
-         error_user("[%s:%d.%d] 'extern' not allowed on absolute ref '%s'",
+      if (is_extern || is_static || is_page || modifiers_imply_mem_storage(modifiers)) {
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot use allocation or linkage modifiers",
+               node->file, node->line, node->column, name);
+      }
+      if (declaration_has_use_contract(modifiers)) {
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot use a file-scope use contract",
                node->file, node->line, node->column, name);
       }
       if (!is_empty(expression)) {
-         ASTNode *runtime_expr = (ASTNode *) unwrap_expr_node(expression);
-         if (!address_spec_has_write(addrspec)) {
-            error_user("[%s:%d.%d] global absolute ref '%s' with initializer must be writable",
-                  node->file, node->line, node->column, name);
-         }
-         remember_pending_global_init(name,
-                                      NULL,
-                                      type,
-                                      declarator,
-                                      runtime_expr ? runtime_expr : expression,
-                                      size,
-                                      false,
-                                      true,
-                                      address_spec_read_expr(addrspec),
-                                      address_spec_write_expr(addrspec));
+         error_user("[%s:%d.%d] absolute external binding '%s' cannot have an initializer",
+               node->file, node->line, node->column, name);
       }
+      emit_global_abi_metadata(node, symname, false, false);
       return;
    }
 

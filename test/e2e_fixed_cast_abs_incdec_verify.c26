@@ -13,7 +13,7 @@ struct Bits {
 u8 gv;
 u8 arr[2];
 Bits bits;
-ref u8 absbyte@[0x0600/0x0600];
+u8 absbyte@[0x0600/0x0600];
 
 void pass(void) {
    asm lda #$ff;

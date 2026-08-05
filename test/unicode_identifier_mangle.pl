@@ -80,7 +80,7 @@ my $e2e_src = File::Spec->catfile($tmp, 'unicode_e2e.c26');
 write_utf8($e2e_src, <<'EOF');
 include "machine_6502.c26"
 
-ref uint8_t gfailcode@[none/0x02f0];
+uint8_t gfailcode@[none/0x02f0];
 
 void pass(void) {
    asm lda #$ff;

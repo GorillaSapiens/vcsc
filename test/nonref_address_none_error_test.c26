@@ -1,6 +1,6 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: '@' address binding on declaration 'foo' requires 'ref'
+// expecterr: absolute external binding 'foo' cannot use none for both read and write address
 include "machine_6502.c26"
 
 uint8_t foo@none;
