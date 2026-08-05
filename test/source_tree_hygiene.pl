@@ -153,6 +153,20 @@ index($abi_text,'Returned-local coalescing')>=0 &&
 index($linker_readme,'`RETURN COALESCING` is descriptive')>=0 &&
 index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
+index($bankswitching,'[x] 24. Define generic C26 cartridge-output and bank topology.')>=0 &&
+index($bankswitching,'[ ] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
+index($bankswitching,'Completed 2026-08-05:')>=0 &&
+-f File::Spec->catfile($test,'cartridge_bank_metadata_codegen_test.c26') &&
+-f File::Spec->catfile($test,'cartridge_generated_pair_error_test.c26') &&
+-f File::Spec->catfile($test,'bank_missing_topology_field_error_test.c26') &&
+-f File::Spec->catfile($test,'linker_c26_cartridge_topology.pl') &&
+index($compiler_readme,'### Cartridge-output topology')>=0 &&
+index($compiler_readme,'`bank` and `mem` have separate namespaces')>=0 &&
+index($abi_text,'Cartridge topology metadata')>=0 &&
+index($linker_readme,'### C26 cartridge topology metadata')>=0 &&
+index($linker_readme,'C26 CARTRIDGE TOPOLOGY')>=0 &&
+index($test_readme,'linker_c26_cartridge_topology.pl')>=0
+   or die "C26 cartridge topology implementation, documentation, or regression coverage is incomplete\n";
 index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
 index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&

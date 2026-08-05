@@ -157,7 +157,9 @@ void enforce_template_hygiene(ASTNode *program) {
       ASTNode *node = program->children[i];
       if (!node)
          continue;
-      if (!strcmp(node->name, "mem_decl_stmt"))
+      if (!strcmp(node->name, "bank_decl_stmt"))
+         require_hygienic_template_name(node->children[0], "bank name");
+      else if (!strcmp(node->name, "mem_decl_stmt"))
          require_hygienic_template_name(node->children[0], "memory name");
       else if (!strcmp(node->name, "type_decl_stmt")) {
          if (node->children[0] && node->children[0]->strval &&
@@ -456,6 +458,182 @@ void compile_function_decl(ASTNode *node) {
    }
    current_call_graph_function = saved_call_graph_function;
    current_call_graph_node = saved_call_graph_node;
+}
+
+#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
+#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
+
+static Set *emitted_topology_metadata;
+
+//! @brief Parse one numeric topology flag and reject malformed or duplicate values.
+static bool topology_parse_numeric_flag(const ASTNode *origin, const char *text,
+                                        const char *key, unsigned long maximum,
+                                        bool *seen, unsigned int *value) {
+   size_t key_len;
+   char *end = NULL;
+   unsigned long parsed;
+
+   if (!text || !key || !seen || !value)
+      return false;
+   key_len = strlen(key);
+   if (strncmp(text, key, key_len) || text[key_len] != ':')
+      return false;
+   if (*seen) {
+      error_user("[%s:%d.%d] %s declaration repeats '%s'",
+                 origin->file, origin->line, origin->column,
+                 origin->name && !strcmp(origin->name, "bank_decl_stmt") ? "bank" : "cartridge",
+                 key);
+   }
+   parsed = strtoul(text + key_len + 1, &end, 0);
+   if (!end || end == text + key_len + 1 || *end || parsed > maximum) {
+      error_user("[%s:%d.%d] invalid topology flag '%s'",
+                 origin->file, origin->line, origin->column, text);
+   }
+   *seen = true;
+   *value = (unsigned int)parsed;
+   return true;
+}
+
+//! @brief Emit one deduplicated absolute metadata symbol.
+static void emit_topology_metadata_symbol(const char *symbol) {
+   if (!emitted_topology_metadata)
+      emitted_topology_metadata = new_set();
+   if (set_get(emitted_topology_metadata, symbol))
+      return;
+   set_add(emitted_topology_metadata, strdup(symbol), (void *)1);
+   emit(&es_export, "%s = 0\n", symbol);
+   emit(&es_export, ".export %s\n", symbol);
+}
+
+//! @brief Encode a declaration location using symbol-safe hexadecimal bytes.
+static char *topology_source_suffix(const ASTNode *node) {
+   const unsigned char *src = (const unsigned char *)((node && node->file) ? node->file : "?");
+   size_t src_len = strlen((const char *)src);
+   size_t cap = 2u * src_len + 32u;
+   char *suffix = (char *)malloc(cap);
+   char *out;
+   if (!suffix)
+      error_unreachable("out of memory");
+   out = suffix;
+   *out++ = '$';
+   *out++ = 'Q';
+   while (*src) {
+      static const char hex[] = "0123456789ABCDEF";
+      *out++ = hex[*src >> 4];
+      *out++ = hex[*src & 15u];
+      src++;
+   }
+   snprintf(out, cap - (size_t)(out - suffix), "$N%08X$C%08X",
+            node ? (unsigned int)node->line : 0u,
+            node ? (unsigned int)node->column : 0u);
+   return suffix;
+}
+
+//! @brief Lower one output-wide cartridge declaration to linker-visible metadata.
+void compile_cartridge_decl_stmt(ASTNode *node) {
+   const ASTNode *flags = node && node->count ? node->children[0] : NULL;
+   enum { FILL, TRAMP_O, TRAMP_Z, BRIDGE_O, BRIDGE_Z, VECTORS_O, VECTORS_Z, FIELD_COUNT };
+   static const char *keys[FIELD_COUNT] = {
+      "$fill", "$trampoline_offset", "$trampoline_size",
+      "$vector_bridge_offset", "$vector_bridge_size",
+      "$vectors_offset", "$vectors_size"
+   };
+   bool seen[FIELD_COUNT] = { false };
+   unsigned int value[FIELD_COUNT] = { 0 };
+   unsigned int mask = 0;
+   char symbol[4096];
+   char *source_suffix;
+
+   for (int i = 0; flags && !is_empty(flags) && i < flags->count; i++) {
+      const char *text = flags->children[i]->strval;
+      bool matched = false;
+      for (int f = 0; f < FIELD_COUNT; f++) {
+         unsigned long max = f == FILL ? 0xffu : 0xffffu;
+         if (topology_parse_numeric_flag(node, text, keys[f], max,
+                                         &seen[f], &value[f])) {
+            matched = true;
+            break;
+         }
+      }
+      if (!matched)
+         error_user("[%s:%d.%d] cartridge declaration has unknown flag '%s'",
+                    node->file, node->line, node->column, text ? text : "?");
+   }
+   if (!seen[FILL])
+      error_user("[%s:%d.%d] cartridge declaration requires '$fill:'",
+                 node->file, node->line, node->column);
+   if (seen[TRAMP_O] != seen[TRAMP_Z] || seen[BRIDGE_O] != seen[BRIDGE_Z] ||
+       seen[VECTORS_O] != seen[VECTORS_Z]) {
+      error_user("[%s:%d.%d] cartridge generated ranges require matching offset and size flags",
+                 node->file, node->line, node->column);
+   }
+   for (int f = 0; f < FIELD_COUNT; f++)
+      if (seen[f]) mask |= 1u << f;
+   source_suffix = topology_source_suffix(node);
+   snprintf(symbol, sizeof(symbol),
+            CARTRIDGE_TOPOLOGY_META_PREFIX "P%02X$F%02X$T%04X$Z%04X$B%04X$Y%04X$V%04X$W%04X%s",
+            mask, value[FILL], value[TRAMP_O], value[TRAMP_Z],
+            value[BRIDGE_O], value[BRIDGE_Z], value[VECTORS_O], value[VECTORS_Z],
+            source_suffix);
+   free(source_suffix);
+   emit_topology_metadata_symbol(symbol);
+}
+
+//! @brief Lower one physical output-bank declaration to linker-visible metadata.
+void compile_bank_decl_stmt(ASTNode *node) {
+   const char *name = node && node->count > 0 ? node->children[0]->strval : NULL;
+   const ASTNode *flags = node && node->count > 1 ? node->children[1] : NULL;
+   enum { IMAGE_Z, FILE_I, IMAGE_O, LINK_S, CPU_S, MAP_Z, SELECT_A, FIELD_COUNT };
+   static const char *keys[FIELD_COUNT] = {
+      "$image_size", "$file_index", "$image_offset", "$link_start",
+      "$cpu_start", "$map_size", "$select_access"
+   };
+   bool seen[FIELD_COUNT] = { false };
+   unsigned int value[FIELD_COUNT] = { 0 };
+   bool startup = false;
+   char symbol[4096];
+   char *source_suffix;
+
+   if (!name || !*name)
+      error_user("[%s:%d.%d] bank declaration requires a name",
+                 node->file, node->line, node->column);
+   for (int i = 0; flags && !is_empty(flags) && i < flags->count; i++) {
+      const char *text = flags->children[i]->strval;
+      bool matched = false;
+      if (text && !strcmp(text, "$startup")) {
+         if (startup)
+            error_user("[%s:%d.%d] bank '%s' repeats '$startup'",
+                       node->file, node->line, node->column, name);
+         startup = true;
+         continue;
+      }
+      for (int f = 0; f < FIELD_COUNT; f++) {
+         if (topology_parse_numeric_flag(node, text, keys[f], 0xffffu,
+                                         &seen[f], &value[f])) {
+            matched = true;
+            break;
+         }
+      }
+      if (!matched)
+         error_user("[%s:%d.%d] bank '%s' has unknown flag '%s'",
+                    node->file, node->line, node->column, name, text ? text : "?");
+   }
+   for (int f = 0; f < SELECT_A; f++) {
+      if (!seen[f])
+         error_user("[%s:%d.%d] bank '%s' requires '%s:'",
+                    node->file, node->line, node->column, name, keys[f]);
+   }
+   if (value[IMAGE_Z] == 0 || value[MAP_Z] == 0)
+      error_user("[%s:%d.%d] bank '%s' image and mapped sizes must be nonzero",
+                 node->file, node->line, node->column, name);
+   source_suffix = topology_source_suffix(node);
+   snprintf(symbol, sizeof(symbol),
+            BANK_TOPOLOGY_META_PREFIX "%s$I%04X$F%04X$O%04X$L%04X$C%04X$M%04X$P%d$S%04X$U%d%s",
+            name, value[IMAGE_Z], value[FILE_I], value[IMAGE_O], value[LINK_S],
+            value[CPU_S], value[MAP_Z], seen[SELECT_A] ? 1 : 0,
+            value[SELECT_A], startup ? 1 : 0, source_suffix);
+   free(source_suffix);
+   emit_topology_metadata_symbol(symbol);
 }
 
 //! @brief Lower mem decl stmt from AST/semantic state into generated assembly or linker-visible metadata.

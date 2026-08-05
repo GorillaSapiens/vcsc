@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cartridge generated ranges require matching offset and size flags
+include "machine_6502.c26"
+cartridge { $fill:0xff $trampoline_offset:0x0f00 };

@@ -68,7 +68,9 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token AND_ASSIGN
 %token ARROW
 %token ASSIGN
+%token BANK
 %token BREAK
+%token CARTRIDGE
 %token CASE
 %token CONST
 %token CONTINUE
@@ -135,7 +137,10 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> bitwise_or_expr
 %type <node> bitwise_xor_expr
 %type <node> block
+%type <node> bank_decl_stmt
+%type <node> bank_name
 %type <node> break_stmt
+%type <node> cartridge_decl_stmt
 %type <node> cast_type
 %type <node> case_block
 %type <node> case_choice
@@ -249,6 +254,8 @@ program_item:
   | template_stmt                            { COVER; $$ = $1; }
   | xform_decl_stmt                          { COVER; $$ = $1; register_xform($$->children[0]->strval, $$->children[1]); }
   | mem_decl_stmt                            { COVER; $$ = $1; }
+  | cartridge_decl_stmt                      { COVER; $$ = $1; }
+  | bank_decl_stmt                           { COVER; $$ = $1; }
   | type_decl_stmt                           { COVER; $$ = $1; }
   | typedef_decl_stmt                        { COVER; $$ = $1; }
   | enum_decl_stmt                           { COVER; $$ = $1; }
@@ -304,6 +311,19 @@ xform_item:
 
 mem_decl_stmt:
     MEM IDENTIFIER '{' opt_flags '}' ';'     { COVER; if (register_memname($2) < 0) YYABORT; $$ = MAKE_NODE(make_identifier_leaf($2), $4); }
+  ;
+
+cartridge_decl_stmt:
+    CARTRIDGE '{' opt_flags '}' ';'          { COVER; $$ = MAKE_NODE($3); }
+  ;
+
+bank_name:
+    IDENTIFIER                               { COVER; $$ = make_identifier_leaf($1); }
+  | MEMNAME                                  { COVER; $$ = make_identifier_leaf($1); }
+  ;
+
+bank_decl_stmt:
+    BANK bank_name '{' opt_flags '}' ';'     { COVER; $$ = MAKE_NODE($2, $4); }
   ;
 
 type_decl_stmt:

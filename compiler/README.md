@@ -424,6 +424,52 @@ representation: all three pointer forms remain one 16-bit address. Pointer
 access qualification is part of function and object ABI fingerprints, including
 aggregate members and separately compiled declarations.
 
+### Cartridge-output topology
+
+C26 may describe physical output chunks independently of allocatable `mem`
+regions. The output-wide declaration gives the fill byte and, for a
+selector-controlled cartridge, the linker-generated corridors:
+
+```vcsc
+cartridge {
+   $fill:0xff
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+```
+
+Each physical chunk has a named `bank` declaration:
+
+```vcsc
+bank bank0 {
+   $image_size:0x1000 $file_index:1 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff9 $startup
+};
+```
+
+`$image_size`, `$file_index`, `$image_offset`, `$link_start`, `$cpu_start`, and
+`$map_size` are required. `$select_access` and bare `$startup` are optional. A
+bank without `$select_access` is directly mapped; a bank with it is
+selector-controlled. Direct banks do not acquire generated switching code.
+Selector-controlled topologies require exactly one startup bank. Mixing direct
+and selector-controlled banks is rejected until a separate window model is
+defined.
+
+`bank` and `mem` have separate namespaces, so both declarations may be named
+`bank1`. Source placement modifiers always refer to `mem bank1`; a `bank bank1`
+name is only a topology handle. No behavior is inferred from either spelling.
+Identical declarations in separate translation units merge, while conflicts are
+link errors naming both objects.
+
+The compiler emits versioned absolute metadata exports; it emits no cartridge
+instructions itself. During the cfg migration, `-T` still supplies allocator and
+segment rules. A selector-controlled C26 topology must match the retained cfg,
+while a direct topology may package ordinary nonbanked cfg regions into physical
+chunks in declared `$file_index` order. The linker map reports the resulting
+`C26 CARTRIDGE TOPOLOGY`.
+
 ### Memory regions
 
 A source file may declare named storage regions:

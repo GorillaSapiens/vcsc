@@ -52,6 +52,8 @@
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
+#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
+#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
 
 #define MAX_NAME 128
 #define MAX_PATH 512
@@ -96,6 +98,37 @@ typedef struct {
    int startup;
 } cartridge_bank_t;
 
+//! One C26-declared physical output/mapping unit.
+typedef struct {
+   char name[MAX_NAME];
+   uint16_t image_size;
+   uint16_t file_index;
+   uint16_t image_offset;
+   uint16_t link_start;
+   uint16_t cpu_start;
+   uint16_t map_size;
+   int has_selector;
+   uint16_t select_access;
+   int startup;
+   char source[MAX_PATH];
+   char declaration[MAX_PATH + 32];
+} topology_bank_t;
+
+//! Output-wide C26 cartridge metadata.
+typedef struct {
+   int present;
+   uint8_t present_mask;
+   uint8_t fill_value;
+   uint16_t trampoline_offset;
+   uint16_t trampoline_size;
+   uint16_t vector_bridge_offset;
+   uint16_t vector_bridge_size;
+   uint16_t vectors_offset;
+   uint16_t vectors_size;
+   char source[MAX_PATH];
+   char declaration[MAX_PATH + 32];
+} topology_cartridge_t;
+
 //! Complete in-memory linker configuration.
 typedef struct {
    memory_region_t *mem;
@@ -104,6 +137,9 @@ typedef struct {
    size_t seg_count;
    cartridge_bank_t *banks;
    size_t bank_count;
+   topology_cartridge_t topology_cartridge;
+   topology_bank_t *topology_banks;
+   size_t topology_bank_count;
    char mapper[MAX_NAME];
    uint8_t cartridge_fill_value;
    uint16_t vector_bridge_offset;

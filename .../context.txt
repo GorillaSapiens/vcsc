@@ -8785,3 +8785,42 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   bounded forced/randomized chunks. Bankswitching roadmap item 24, adding a
   banked renderer or multisprite profile only after generic cart stability, is
   next.
+
+2026-08-05 13:40:34 PDT, define generic C26 cartridge-output and bank topology
+--------------------------------------------------------------------------------
+* Repair the bankswitching-roadmap overlay damage by restoring the detailed
+  completion summaries for items 19 through 23, restoring the deliberately
+  poisoned diagnostic to F8SC, and restoring the description of the already
+  implemented public cfg profiles. Preserve the overlay's useful direct-bank
+  design additions.
+* Complete bankswitching roadmap item 24 by adding explicit C26
+  `cartridge { ... };` and `bank name { ... };` declarations in namespaces
+  separate from `mem`. Carry versioned topology metadata through o26 with the
+  original source path and location, merge identical declarations across
+  translation units, and diagnose conflicts using both source declarations.
+* Represent each physical output unit with explicit image size, file index,
+  image offset, synthetic link mapping, CPU-visible mapping, optional
+  `$select_access`, and optional `$startup`. Validate dense file ordering,
+  mapping and generated-range bounds, selector validity and uniqueness,
+  nonoverlap, and selector-startup cardinality without deriving semantics from
+  declaration names.
+* Package selector-free direct banks in declared file order with ordinary
+  absolute calls and references and no hotspot, bridge, or trampoline code.
+  Preserve existing selector-controlled F8 bridge and trampoline behavior while
+  cfg files remain the transitional allocator description, and require C26
+  topology to agree semantically with that cfg.
+* Add compiler metadata/error cases, grammar coverage, separate-compilation
+  merge/conflict diagnostics, direct two-chunk packaging, switched F8
+  integration, malformed-topology checks, map reporting, test inventory, and
+  source-tree hygiene coverage. Update compiler, ABI, linker, test, and
+  bankswitching documentation; leave the project-wide top-level README
+  unchanged.
+* Verification: all 437 compile-only tests pass. All 242 end-to-end/generic
+  cases are covered and pass in the ordered run plus exact continuation chunks;
+  the unusually large score/raster certification was completed in two exact
+  internal phases after the execution window expired. The staged installed
+  toolchain passes every installcheck operation; its final 40-cartridge loop was
+  completed from the same staging tree in bounded continuation chunks after 14
+  cartridges had passed before the execution-window cutoff. Source-tree hygiene
+  passes. Bankswitching roadmap item 25, authoritative `mem` declarations and
+  inferred output-bank ownership, is next.

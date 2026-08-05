@@ -132,7 +132,7 @@ startup-bank rule as a separate decision.
 
 Current cfg implementation model
 --------------------------------
-Add separate public linker configurations for the common schemes:
+The implemented system has separate public linker configurations for the common schemes:
 
     vcs_8k_f8.cfg
     vcs_16k_f6.cfg
@@ -1067,7 +1067,7 @@ when main roadmap item 29 becomes active.
          background/white-F frame. The P and F are the exact default ASCII
          glyphs, loaded through ordinary indexed syntax which must remain
          absolute for relocatable ROM, and changed only on a scanline boundary.
-         The public example also emits one deliberately poisoned F8 image and
+         The public example also emits one deliberately poisoned F8SC image and
          every displayed result frame is exactly 262 scanlines.
        * Run the complete matrix in Stella, force every physical startup bank,
          and run developer-mode randomized startup-bank trials.  The top-level
@@ -1507,6 +1507,21 @@ when main roadmap item 29 becomes active.
          cross-bank calls, and both successful directional binding and every
          rejected capability mismatch.
 
+       Completed 2026-08-05:
+       * Add `ref const T`, `ref writeonly T`, and ordinary `ref T` as distinct
+         one-address contracts. Call lowering selects the read alias, write alias,
+         or one proven shared address from the formal parameter capability; it
+         never manufactures a fat pointer or guesses one side for ordinary `ref`.
+       * Carry ref capability through callee lvalue checks, forwarding conversions,
+         same-translation-unit function compatibility, and linker ABI metadata.
+         Read/write refs may narrow to either restricted form; restricted refs may
+         neither regain read/write access nor exchange const/writeonly capability.
+       * Add exact-address execution, inline and separately compiled calls, arrays,
+         structures and members, generic reversed/noncontiguous split regions,
+         one-sided and split absolute bindings, same-TU and cross-object mismatch
+         diagnostics, forbidden-operation tests, and an F8 cross-bank trampoline
+         regression.
+
 [x] 20. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.
 
@@ -1535,6 +1550,22 @@ when main roadmap item 29 becomes active.
          plus writable-result tests, declaration/definition mismatch tests, and the
          explicit deferred-multi-region diagnostic consumed by item 21.
 
+       Completed 2026-08-05:
+       * Classify every named function modifier from its `mem` declaration:
+         read-only regions form the code-placement set and one writable region
+         selects the hidden result object. Modifier spelling and order have no
+         semantic role; ordinary and split-address writable regions both work.
+       * Emit code and result storage independently, preserve automatic/default
+         placement when either role is absent, and compare the two facts
+         independently in same-translation-unit compatibility and linker ABI
+         metadata. Map output now shows the actual CODE layout separately from
+         ordinary or split return-object activation storage.
+       * Reject duplicate modifiers, multiple writable result regions, writable
+         storage on `void`, inline region contracts, and multiple read-only code
+         regions with the explicit item-21 deferral diagnostic. Add arbitrary-name,
+         order-independence, code-plus-result, ordinary/split result, map-placement,
+         and separate-object ABI mismatch coverage.
+
 [x] 21. Add explicit multi-bank duplication for immutable objects and functions.
 
        * Accept an order-insensitive set of named bank-region modifiers, for
@@ -1560,6 +1591,30 @@ when main roadmap item 29 becomes active.
          and test local binding, mixed pinned/unpinned callers, the complete
          `bank0 bank1 superchip` function form, function pointers remaining
          unsupported, and deterministic diagnostics for missing copies.
+
+       Completed 2026-08-05:
+       * Accept order-insensitive multi-region `$ro` contracts for immutable
+         file-scope objects and non-inline functions. Emit one compiler body or
+         initializer plus linker-visible replication metadata, then materialize
+         independently placed private copies in every named bank region.
+       * Resolve object relocations to the copy in the referencing function's bank
+         and constrain automatic readers to banks with a local copy. Diagnose a
+         pinned reader whose bank has no object copy. Resolve direct function calls
+         to a local body first, with deterministic cross-bank trampoline fallback
+         to the primary body when the caller's bank has no copy.
+       * Preserve one logical symbol and one optional shared writable result object
+         across all function bodies. Compare sorted function code-region sets,
+         result storage, and replicated-object region sets in same-translation-unit
+         and linker ABI contracts. Keep function pointers unsupported.
+       * Reject duplicate regions, mutable object duplication, non-read-only or
+         split-address replica regions, inline region contracts, and unusable
+         unbanked/missing linker regions. Report every physical copy, load address,
+         per-symbol cost, and aggregate replicated-ROM cost in the map.
+       * Add F8SC local-copy and `bank0 bank1 superchip` execution, mixed automatic
+         placement, F6 missing-copy/fallback and three-copy execution, separate-
+         object matching, independent ABI mismatch, and compiler rejection coverage.
+         Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene,
+         and roadmap documentation.
 
 [x] 22. Coalesce a single returned automatic variable with `$$`.
 
@@ -1591,6 +1646,26 @@ when main roadmap item 29 becomes active.
          regions differ, including distinct regions which happen to map to the same
          physical addresses. Update language, ABI, map, and optimization documentation.
 
+       Completed 2026-08-05:
+       * Detect a single automatic local named by every return expression and alias
+         it with the existing hidden return object only after exact type, const,
+         pointer-access, width, named-region, placement-class, and split-alias
+         checks. Keep by-value uses eligible while treating address-taking, `ref`
+         binding, explicit `$$`, and inline assembly as observable escape hazards.
+       * Emit no separate local allocation and no final return copy. Preserve the
+         `function$__return` symbol and all existing caller behavior. Ordinary
+         zero-page, named absolute, and split-address result storage all use the
+         same activation-overlay allocation; split writes and reads retain their
+         distinct aliases.
+       * Add relocated linker metadata and a `RETURN COALESCING` map section with
+         function, local, ABI return symbol, region, read/write addresses, width,
+         and defining object. Count the physical storage once.
+       * Add straight-line, branched, one- through four-byte binary and packed-BCD,
+         ordinary absolute, Superchip-style split, safe by-value, and deterministic
+         fallback coverage for every required mismatch or escape case. Update the
+         compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
+         roadmap documentation.
+
 [x] 23. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
@@ -1603,7 +1678,30 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-[ ] 24. Define generic C26 cartridge-output and bank topology.
+       Completed 2026-08-05:
+
+       * Generalize linker startup records to carry distinct readable and writable
+         runtime addresses. DATA copies and BSS clears use the write alias, while
+         `STARTUP INITIALIZATION` map output reports load/read/write addresses,
+         size, split status, and the explicit every-reset policy.
+       * Define the lifecycle: physical power-on contents are unspecified; every
+         entry through reset restores all allocated BSS/DATA declarations; mapper
+         bank switches preserve shared Superchip bytes; unallocated bytes have no
+         VCSC contract. Keep automatic locals in the already completed call-graph
+         activation overlay rather than inventing a separate SC overlay policy.
+       * Extend `vcsc-sim` with hostile split-memory fill and one-shot reset-at-PC
+         controls. The reset preserves RAM and current bank selection before the
+         vector fetch, exercising the real generated reset bridge and startup path.
+       * Fold lifecycle coverage into the existing six complete-matrix diagnostic
+         cartridges. SC builds own all 128 bytes as mixed BSS and DATA, validate
+         startup, aliases, bounds, and matrix-wide persistence, poison the region,
+         reset, and require a second PASS. Convert the existing poisoned reference
+         to F8SC instead of adding an eighth cartridge.
+       * Make Stella press console Reset before snapshotting every SC result and
+         grade the second PASS/FAIL frame. Add installed-toolchain, map, hostile-
+         fill, reset, overflow, documentation, and source-hygiene coverage.
+
+[x] 24. Define generic C26 cartridge-output and bank topology.
 
        * Add separate `cartridge` and `bank` declaration namespaces to C26 and
          carry their complete declarations through compiler metadata and o26.
@@ -1631,6 +1729,28 @@ when main roadmap item 29 becomes active.
        * Add parser, metadata, malformed-topology, separate-compilation, direct-
          bank packaging, switched-bank, map, and source-hygiene tests. Keep current
          cfg behavior available during migration.
+
+       Completed 2026-08-05:
+       * Add exact C26 `cartridge { ... };` and `bank name { ... };` syntax
+         with separate `bank` and `mem` namespaces. Emit fixed-version compiler
+         metadata for fill/generated ranges and each bank's physical image, file
+         index, image offset, synthetic link mapping, CPU mapping, selector, and
+         startup status. Identical declarations merge across translation units;
+         conflicting declarations identify both defining objects.
+       * Validate dense unique file indices, image/mapping bounds, nonoverlapping
+         link mappings, direct CPU mappings, selector ranges and uniqueness,
+         generated-range bounds/overlap, and selector startup cardinality. Keep
+         direct banks selector-free and reject mixed direct/selector topologies
+         until an explicit window model exists.
+       * Package direct-bank output in declared file order without generating any
+         selector, bridge, or trampoline code. For selector-controlled topology,
+         require semantic agreement with the retained cfg during migration and use
+         the declared image layout for flat output while preserving existing F8
+         bridge/trampoline behavior.
+       * Add `C26 CARTRIDGE TOPOLOGY` map reporting, parser/metadata/error coverage,
+         same-name `bank`/`mem` coverage, separate-compilation merge/conflict tests,
+         direct two-chunk packaging and absolute cross-chunk calls, switched F8
+         integration, malformed-topology diagnostics, and grammar coverage.
 
 [ ] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.
 
@@ -1740,8 +1860,6 @@ Decisions intentionally deferred
 --------------------------------
 The following are not settled by this document:
 
-* the final parser spelling for C26 `cartridge`/`bank` declarations; roadmap
-  item 24 must lock syntax while preserving the explicit facts described above;
 * whether cfg remains a supported generic escape hatch after all public VCS
   profiles migrate, or becomes test-only compatibility code;
 * whether a future self-describing image container is warranted beyond the

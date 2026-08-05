@@ -181,6 +181,18 @@ static void compile(ASTNode *program) {
 
    for (int i = 0; i < program->count; i++) {
       ASTNode *node = program->children[i];
+      if (!strcmp(node->name, "cartridge_decl_stmt")) {
+         node->handled = true;
+         compile_cartridge_decl_stmt(node);
+      }
+      else if (!strcmp(node->name, "bank_decl_stmt")) {
+         node->handled = true;
+         compile_bank_decl_stmt(node);
+      }
+   }
+
+   for (int i = 0; i < program->count; i++) {
+      ASTNode *node = program->children[i];
       if (!strcmp(node->name, "mem_decl_stmt")) {
          node->handled = true;
          compile_mem_decl_stmt(node);

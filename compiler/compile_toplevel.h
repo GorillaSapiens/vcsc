@@ -7,6 +7,8 @@
 
 #include "ast.h"
 
+void compile_cartridge_decl_stmt(ASTNode *node);
+void compile_bank_decl_stmt(ASTNode *node);
 void compile_mem_decl_stmt(ASTNode *node);
 void compile_type_decl_stmt(ASTNode *node);
 void compile_typedef_decl_stmt(ASTNode *node);

@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: bank 'missing' requires '$map_size:'
+include "machine_6502.c26"
+cartridge { $fill:0xff };
+bank missing {
+   $image_size:0x1000
+   $file_index:0
+   $image_offset:0
+   $link_start:0xf000
+   $cpu_start:0xf000
+};

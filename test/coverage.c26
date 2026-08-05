@@ -1,6 +1,16 @@
 // vcsc-cc1 -X coverage -X dumpast
 
 include "machine_6502.c26"
+
+cartridge { $fill:0xff };
+bank coverage_fresh {
+   $image_size:0x1000 $file_index:0 $image_offset:0
+   $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000
+};
+bank rom {
+   $image_size:0x1000 $file_index:1 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+};
 template "fixtures/templates/coverage_empty.c26" as coverage_template
 
 typedef int16_t coverage_int;

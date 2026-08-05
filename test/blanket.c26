@@ -15,6 +15,16 @@ struct coverbits { int16_t mantissa:23; int16_t exponent:8; int16_t sign:1; };
 
 mem nulspace { };
 
+cartridge { $fill:0xff };
+bank coverage_fresh {
+   $image_size:0x1000 $file_index:0 $image_offset:0
+   $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000
+};
+bank nulspace {
+   $image_size:0x1000 $file_index:1 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+};
+
 struct node {
    int16_t data;
    node *next := 0;

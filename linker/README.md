@@ -185,6 +185,53 @@ silently ignored. It understands:
   `trampolinesize = SIZE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
 - `start`, `size`, `hotspot`, and `startup = yes/no` on a named `BANKS` entry
 
+### C26 cartridge topology metadata
+
+The compiler may carry an explicit output topology in ordinary `.o26` metadata:
+
+```vcsc
+cartridge { $fill:0xff };
+
+bank low {
+   $image_size:0x1000 $file_index:0 $image_offset:0
+   $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000
+};
+
+bank rom {
+   $image_size:0x1000 $file_index:1 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+};
+```
+
+A bank without `$select_access` is directly mapped. All direct CPU mappings must
+be nonoverlapping, no startup bank is permitted, and cross-chunk calls, jumps,
+and data references remain ordinary absolute operations. Flat output is emitted
+in `$file_index` order with each physical chunk padded to `$image_size` using the
+cartridge fill byte. No selector, vector bridge, or trampoline is generated merely
+because multiple direct banks exist.
+
+A bank with `$select_access` is selector-controlled. All banks in the current
+selector model must have the same full-window shape, selectors must be unique
+within `$1000-$1fff`, exactly one bank must carry `$startup`, and the cartridge
+must supply bounded, nonoverlapping trampoline, vector-bridge, and vector ranges.
+The current implementation deliberately rejects a mixture of direct and
+selector-controlled banks; independently switched windows require a later
+explicit window/device model.
+
+After lazy archive selection, identical topology declarations merge across
+objects. Conflicting declarations identify both origins. The linker validates
+dense unique file indices, image offsets and mapped bounds, nonoverlapping
+synthetic link mappings, direct CPU mappings, selectors, startup cardinality,
+and generated ranges. The map contains a `C26 CARTRIDGE TOPOLOGY` section with
+the output size, fill, generated ranges, physical order, mappings, access mode,
+selector, startup status, and defining object.
+
+This is transitional with respect to cfg files. C26 topology is authoritative
+for physical output packaging, but cfg `MEMORY` and `SEGMENTS` still provide
+allocation and routing until roadmap item 25. Selector-controlled topology must
+semantically match the retained banked cfg; direct topology may be combined only
+with a nonbanked cfg. Public VCS profile migration is roadmap item 26.
+
 ### Full-window banked image foundation
 
 The first bank-aware image model uses the descending mirrored logical ranges

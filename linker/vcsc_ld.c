@@ -158,6 +158,15 @@ static int symbol_backed_metadata_has_prefix(const char *name)
 }
 
 //! @brief Return whether mem-region metadata has prefix in linker layout and image writer.
+static int topology_metadata_has_prefix(const char *name)
+{
+   return name &&
+      (strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
+               sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+       strncmp(name, BANK_TOPOLOGY_META_PREFIX,
+               sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0);
+}
+
 static int mem_region_metadata_has_prefix(const char *name)
 {
    return name &&
@@ -195,7 +204,8 @@ static int semantic_use_metadata_has_prefix(const char *name)
 static int reserved_metadata_has_prefix(const char *name)
 {
    return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
-          mem_region_metadata_has_prefix(name) || replica_metadata_has_prefix(name) ||
+          mem_region_metadata_has_prefix(name) || topology_metadata_has_prefix(name) ||
+          replica_metadata_has_prefix(name) ||
           return_coalesce_metadata_has_prefix(name) ||
           contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
 }
@@ -408,6 +418,413 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
    memcpy(type, tmark + 2, type_len + 1);
    *has_write_start = split;
    return 1;
+}
+
+//! @brief Decode an optional compiler-emitted C26 declaration location.
+static int parse_topology_source_suffix(const char *suffix, char *out, size_t out_size)
+{
+   const char *line_mark;
+   const char *col_mark;
+   size_t hex_len;
+   size_t file_len;
+   unsigned int line;
+   unsigned int column;
+   size_t i;
+   char file[MAX_PATH];
+
+   if (!out || out_size == 0)
+      return 0;
+   out[0] = '\0';
+   if (!suffix || !*suffix)
+      return 1;
+   if (strncmp(suffix, "$Q", 2))
+      return 0;
+   line_mark = strstr(suffix + 2, "$N");
+   if (!line_mark)
+      return 0;
+   col_mark = strstr(line_mark + 2, "$C");
+   if (!col_mark || col_mark != line_mark + 10 || strlen(col_mark + 2) != 8)
+      return 0;
+   hex_len = (size_t)(line_mark - (suffix + 2));
+   if (hex_len & 1u)
+      return 0;
+   file_len = hex_len / 2u;
+   if (file_len >= sizeof(file))
+      return 0;
+   for (i = 0; i < file_len; ++i) {
+      unsigned int byte;
+      if (sscanf(suffix + 2 + 2u * i, "%2X", &byte) != 1)
+         return 0;
+      file[i] = (char)byte;
+   }
+   file[file_len] = '\0';
+   if (sscanf(line_mark + 2, "%8X", &line) != 1 ||
+       sscanf(col_mark + 2, "%8X", &column) != 1)
+      return 0;
+   snprintf(out, out_size, "%s:%u.%u", file, line, column);
+   return 1;
+}
+
+//! @brief Parse one compiler-emitted cartridge topology declaration.
+static int parse_cartridge_topology_metadata(const char *name,
+                                             topology_cartridge_t *out)
+{
+   const char *p;
+   unsigned int mask, fill, to, ts, bo, bs, vo, vs;
+   int consumed = 0;
+   if (!name || !out || strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
+                                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1))
+      return 0;
+   p = name + sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1;
+   if (sscanf(p, "P%2X$F%2X$T%4X$Z%4X$B%4X$Y%4X$V%4X$W%4X%n",
+              &mask, &fill, &to, &ts, &bo, &bs, &vo, &vs, &consumed) != 8)
+      return -1;
+   memset(out, 0, sizeof(*out));
+   if (!parse_topology_source_suffix(p + consumed, out->declaration,
+                                     sizeof(out->declaration)))
+      return -1;
+   out->present = 1;
+   out->present_mask = (uint8_t)mask;
+   out->fill_value = (uint8_t)fill;
+   out->trampoline_offset = (uint16_t)to;
+   out->trampoline_size = (uint16_t)ts;
+   out->vector_bridge_offset = (uint16_t)bo;
+   out->vector_bridge_size = (uint16_t)bs;
+   out->vectors_offset = (uint16_t)vo;
+   out->vectors_size = (uint16_t)vs;
+   return 1;
+}
+
+//! @brief Parse one compiler-emitted bank topology declaration.
+static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out)
+{
+   const char *p;
+   const char *mark;
+   size_t name_len;
+   unsigned int iz, fi, io, ls, cs, ms, sp, sa, su;
+   int consumed = 0;
+   if (!symbol || !out || strncmp(symbol, BANK_TOPOLOGY_META_PREFIX,
+                                  sizeof(BANK_TOPOLOGY_META_PREFIX) - 1))
+      return 0;
+   p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX) - 1;
+   mark = strstr(p, "$I");
+   if (!mark || mark == p)
+      return -1;
+   name_len = (size_t)(mark - p);
+   if (name_len >= sizeof(out->name))
+      return -1;
+   if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X%n",
+              &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su, &consumed) != 9 ||
+       sp > 1u || su > 1u)
+      return -1;
+   memset(out, 0, sizeof(*out));
+   if (!parse_topology_source_suffix(mark + consumed, out->declaration,
+                                     sizeof(out->declaration)))
+      return -1;
+   memcpy(out->name, p, name_len);
+   out->name[name_len] = '\0';
+   out->image_size = (uint16_t)iz;
+   out->file_index = (uint16_t)fi;
+   out->image_offset = (uint16_t)io;
+   out->link_start = (uint16_t)ls;
+   out->cpu_start = (uint16_t)cs;
+   out->map_size = (uint16_t)ms;
+   out->has_selector = (int)sp;
+   out->select_access = (uint16_t)sa;
+   out->startup = (int)su;
+   return 1;
+}
+
+static int topology_cartridge_equal(const topology_cartridge_t *a,
+                                    const topology_cartridge_t *b)
+{
+   return a->present_mask == b->present_mask &&
+          a->fill_value == b->fill_value &&
+          a->trampoline_offset == b->trampoline_offset &&
+          a->trampoline_size == b->trampoline_size &&
+          a->vector_bridge_offset == b->vector_bridge_offset &&
+          a->vector_bridge_size == b->vector_bridge_size &&
+          a->vectors_offset == b->vectors_offset &&
+          a->vectors_size == b->vectors_size;
+}
+
+static int topology_bank_equal(const topology_bank_t *a, const topology_bank_t *b)
+{
+   return a->image_size == b->image_size &&
+          a->file_index == b->file_index &&
+          a->image_offset == b->image_offset &&
+          a->link_start == b->link_start &&
+          a->cpu_start == b->cpu_start &&
+          a->map_size == b->map_size &&
+          a->has_selector == b->has_selector &&
+          a->select_access == b->select_access &&
+          a->startup == b->startup;
+}
+
+//! @brief Merge selected objects' C26 cartridge/bank declarations.
+static void collect_c26_topology(linker_config_t *cfg, const input_set_t *in)
+{
+   size_t i;
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->export_count; ++j) {
+         const char *symbol = obj->exports[j].name;
+         topology_cartridge_t cart;
+         topology_bank_t bank;
+         int parsed = parse_cartridge_topology_metadata(symbol, &cart);
+         if (parsed < 0) {
+            fprintf(stderr, "vcsc-ld: malformed cartridge topology metadata in %s\n",
+                    obj->origin);
+            exit(1);
+         }
+         if (parsed > 0) {
+            snprintf(cart.source, sizeof(cart.source), "%s", obj->origin);
+            if (!cfg->topology_cartridge.present)
+               cfg->topology_cartridge = cart;
+            else if (!topology_cartridge_equal(&cfg->topology_cartridge, &cart)) {
+               fprintf(stderr,
+                       "vcsc-ld: conflicting cartridge declarations at %s (%s) and %s (%s)\n",
+                       cfg->topology_cartridge.declaration[0] ? cfg->topology_cartridge.declaration : "<unknown>",
+                       cfg->topology_cartridge.source,
+                       cart.declaration[0] ? cart.declaration : "<unknown>", obj->origin);
+               exit(1);
+            }
+            continue;
+         }
+         parsed = parse_bank_topology_metadata(symbol, &bank);
+         if (parsed < 0) {
+            fprintf(stderr, "vcsc-ld: malformed bank topology metadata in %s\n",
+                    obj->origin);
+            exit(1);
+         }
+         if (parsed > 0) {
+            topology_bank_t *existing = NULL;
+            size_t k;
+            snprintf(bank.source, sizeof(bank.source), "%s", obj->origin);
+            for (k = 0; k < cfg->topology_bank_count; ++k) {
+               if (!strcmp(cfg->topology_banks[k].name, bank.name)) {
+                  existing = &cfg->topology_banks[k];
+                  break;
+               }
+            }
+            if (existing) {
+               if (!topology_bank_equal(existing, &bank)) {
+                  fprintf(stderr,
+                          "vcsc-ld: conflicting bank declaration '%s' at %s (%s) and %s (%s)\n",
+                          bank.name,
+                          existing->declaration[0] ? existing->declaration : "<unknown>", existing->source,
+                          bank.declaration[0] ? bank.declaration : "<unknown>", obj->origin);
+                  exit(1);
+               }
+            }
+            else {
+               cfg->topology_banks = (topology_bank_t *)xrealloc(
+                  cfg->topology_banks,
+                  (cfg->topology_bank_count + 1u) * sizeof(*cfg->topology_banks));
+               cfg->topology_banks[cfg->topology_bank_count++] = bank;
+            }
+         }
+      }
+   }
+}
+
+static int ranges_overlap_u32(uint32_t a, uint32_t as, uint32_t b, uint32_t bs)
+{
+   return as && bs && a < b + bs && b < a + as;
+}
+
+static size_t cfg_bank_file_index(const linker_config_t *cfg,
+                                  const cartridge_bank_t *bank)
+{
+   size_t index = 0;
+   size_t i;
+   for (i = 0; i < cfg->bank_count; ++i)
+      if (cfg->banks[i].start < bank->start)
+         index++;
+   return index;
+}
+
+//! @brief Validate generic C26 topology independently and against retained cfg hardware data.
+static void validate_c26_topology(linker_config_t *cfg)
+{
+   size_t i, j;
+   size_t selector_count = 0;
+   size_t startup_count = 0;
+   const unsigned int complete_generated_mask = 0x7fu;
+
+   if (cfg->topology_bank_count == 0) {
+      if (cfg->topology_cartridge.present) {
+         fprintf(stderr, "vcsc-ld: cartridge declaration requires at least one bank declaration\n");
+         exit(1);
+      }
+      return;
+   }
+   if (!cfg->topology_cartridge.present) {
+      fprintf(stderr, "vcsc-ld: C26 bank declarations require one cartridge declaration\n");
+      exit(1);
+   }
+
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      topology_bank_t *bank = &cfg->topology_banks[i];
+      uint32_t link_end = (uint32_t)bank->link_start + bank->map_size;
+      uint32_t cpu_end = (uint32_t)bank->cpu_start + bank->map_size;
+      uint32_t image_end = (uint32_t)bank->image_offset + bank->map_size;
+      if (!bank->image_size || !bank->map_size || image_end > bank->image_size ||
+          link_end > 0x10000u || cpu_end > 0x10000u) {
+         fprintf(stderr, "vcsc-ld: bank '%s' has a mapped range outside its image or 6502 address space\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->file_index >= cfg->topology_bank_count) {
+         fprintf(stderr, "vcsc-ld: bank '%s' file index %u is outside dense range 0-%zu\n",
+                 bank->name, (unsigned)bank->file_index,
+                 cfg->topology_bank_count - 1u);
+         exit(1);
+      }
+      selector_count += bank->has_selector ? 1u : 0u;
+      startup_count += bank->startup ? 1u : 0u;
+      if (bank->has_selector &&
+          (bank->select_access < 0x1000u || bank->select_access > 0x1fffu)) {
+         fprintf(stderr, "vcsc-ld: bank '%s' selector $%04X is outside $1000-$1FFF\n",
+                 bank->name, bank->select_access);
+         exit(1);
+      }
+      for (j = i + 1; j < cfg->topology_bank_count; ++j) {
+         topology_bank_t *other = &cfg->topology_banks[j];
+         if (bank->file_index == other->file_index) {
+            fprintf(stderr, "vcsc-ld: banks '%s' and '%s' duplicate file index %u\n",
+                    bank->name, other->name, (unsigned)bank->file_index);
+            exit(1);
+         }
+         if (ranges_overlap_u32(bank->link_start, bank->map_size,
+                                other->link_start, other->map_size)) {
+            fprintf(stderr, "vcsc-ld: bank link mappings '%s' and '%s' overlap\n",
+                    bank->name, other->name);
+            exit(1);
+         }
+         if (!bank->has_selector && !other->has_selector &&
+             ranges_overlap_u32(bank->cpu_start, bank->map_size,
+                                other->cpu_start, other->map_size)) {
+            fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
+                    bank->name, other->name);
+            exit(1);
+         }
+         if (bank->has_selector && other->has_selector &&
+             bank->select_access == other->select_access) {
+            fprintf(stderr, "vcsc-ld: banks '%s' and '%s' duplicate selector $%04X\n",
+                    bank->name, other->name, bank->select_access);
+            exit(1);
+         }
+      }
+   }
+
+   if (selector_count && selector_count != cfg->topology_bank_count) {
+      fprintf(stderr, "vcsc-ld: mixed direct and selector-controlled banks require a future window/device model\n");
+      exit(1);
+   }
+   if (selector_count) {
+      if (startup_count != 1u) {
+         fprintf(stderr, "vcsc-ld: selector-controlled topology requires exactly one startup bank\n");
+         exit(1);
+      }
+      if ((cfg->topology_cartridge.present_mask & complete_generated_mask) !=
+          complete_generated_mask) {
+         fprintf(stderr, "vcsc-ld: selector-controlled topology requires all trampoline, vector-bridge, and vector ranges\n");
+         exit(1);
+      }
+      for (i = 1; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *a = &cfg->topology_banks[0];
+         const topology_bank_t *b = &cfg->topology_banks[i];
+         if (a->image_size != b->image_size || a->image_offset != b->image_offset ||
+             a->cpu_start != b->cpu_start || a->map_size != b->map_size) {
+            fprintf(stderr, "vcsc-ld: selector-controlled banks must share one full-window image/mapping shape\n");
+            exit(1);
+         }
+      }
+   }
+   else if (startup_count != 0u) {
+      fprintf(stderr, "vcsc-ld: directly mapped topology must not mark a startup bank\n");
+      exit(1);
+   }
+
+   {
+      const topology_cartridge_t *cart = &cfg->topology_cartridge;
+      uint32_t ro[3] = { cart->trampoline_offset, cart->vector_bridge_offset,
+                         cart->vectors_offset };
+      uint32_t rz[3] = { cart->trampoline_size, cart->vector_bridge_size,
+                         cart->vectors_size };
+      unsigned int bits[3] = { 0x06u, 0x18u, 0x60u };
+      for (i = 0; i < 3; ++i) {
+         if (!(cart->present_mask & bits[i]))
+            continue;
+         for (j = 0; j < cfg->topology_bank_count; ++j) {
+            const topology_bank_t *bank = &cfg->topology_banks[j];
+            if (ro[i] + rz[i] > bank->image_size) {
+               fprintf(stderr, "vcsc-ld: generated cartridge range exceeds bank '%s' image size\n",
+                       bank->name);
+               exit(1);
+            }
+            if (selector_count &&
+                (ro[i] < bank->image_offset ||
+                 ro[i] + rz[i] > (uint32_t)bank->image_offset + bank->map_size)) {
+               fprintf(stderr, "vcsc-ld: generated cartridge range lies outside bank '%s' mapped image window\n",
+                       bank->name);
+               exit(1);
+            }
+         }
+         for (j = i + 1; j < 3; ++j) {
+            if ((cart->present_mask & bits[j]) &&
+                ranges_overlap_u32(ro[i], rz[i], ro[j], rz[j])) {
+               fprintf(stderr, "vcsc-ld: generated cartridge ranges overlap\n");
+               exit(1);
+            }
+         }
+      }
+   }
+
+   if (selector_count) {
+      if (!cfg->cartridge_banked) {
+         fprintf(stderr, "vcsc-ld: selector-controlled C26 topology still requires a matching cfg during migration\n");
+         exit(1);
+      }
+      if (cfg->bank_count != cfg->topology_bank_count) {
+         fprintf(stderr, "vcsc-ld: C26 topology has %zu banks but cfg has %zu\n",
+                 cfg->topology_bank_count, cfg->bank_count);
+         exit(1);
+      }
+      if (cfg->cartridge_fill_value != cfg->topology_cartridge.fill_value ||
+          cfg->trampoline_offset != cfg->topology_cartridge.trampoline_offset ||
+          cfg->trampoline_size != cfg->topology_cartridge.trampoline_size ||
+          cfg->vector_bridge_offset != cfg->topology_cartridge.vector_bridge_offset ||
+          cfg->topology_cartridge.vector_bridge_size != VECTOR_BRIDGE_SIZE ||
+          cfg->topology_cartridge.vectors_offset != 0x0ffau ||
+          cfg->topology_cartridge.vectors_size != 6u) {
+         fprintf(stderr, "vcsc-ld: C26 cartridge declaration disagrees with retained cfg generated ranges\n");
+         exit(1);
+      }
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *top = &cfg->topology_banks[i];
+         const cartridge_bank_t *legacy = NULL;
+         for (j = 0; j < cfg->bank_count; ++j)
+            if (cfg->banks[j].hotspot == top->select_access)
+               legacy = &cfg->banks[j];
+         if (!legacy || legacy->size != top->image_size ||
+             top->map_size != (uint16_t)(legacy->size - top->image_offset) ||
+             (uint32_t)legacy->start + top->image_offset != top->link_start ||
+             top->cpu_start != (uint16_t)(0xf000u + top->image_offset) ||
+             cfg_bank_file_index(cfg, legacy) != top->file_index ||
+             legacy->startup != top->startup) {
+            fprintf(stderr, "vcsc-ld: C26 bank '%s' disagrees with retained cfg topology\n",
+                    top->name);
+            exit(1);
+         }
+      }
+   }
+   else if (cfg->cartridge_banked) {
+      fprintf(stderr, "vcsc-ld: direct C26 topology cannot be combined with a banked cfg\n");
+      exit(1);
+   }
 }
 
 //! @brief Validate compiler mem declarations against linker cfg MEMORY entries.
@@ -5729,7 +6146,7 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
    const memory_region_t *rom = find_memory(cfg, "ROM");
    size_t i;
    uint16_t reset, nmi, irqbrk;
-   if (!cfg->cartridge_banked && !rom) {
+   if (!cfg->cartridge_banked && !cfg->topology_bank_count && !rom) {
       fprintf(stderr, "vcsc-ld: ROM memory region not found\n");
       exit(1);
    }
@@ -5988,6 +6405,18 @@ static uint32_t cartridge_bank_file_offset(const linker_config_t *cfg,
    return offset;
 }
 
+//! @brief Compare C26 topology-bank pointers by explicit file index.
+static int compare_topology_bank_file_index(const void *lhs, const void *rhs)
+{
+   const topology_bank_t *const *a = (const topology_bank_t *const *)lhs;
+   const topology_bank_t *const *b = (const topology_bank_t *const *)rhs;
+   if ((*a)->file_index < (*b)->file_index)
+      return -1;
+   if ((*a)->file_index > (*b)->file_index)
+      return 1;
+   return strcmp((*a)->name, (*b)->name);
+}
+
 //! @brief Write one byte and terminate with a useful diagnostic on failure.
 static void write_binary_byte(FILE *fp, const char *path, uint8_t byte)
 {
@@ -6011,7 +6440,33 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
       exit(1);
    }
 
-   if (cfg->cartridge_banked) {
+   if (cfg->topology_bank_count) {
+      const topology_bank_t **order;
+      size_t i;
+      order = (const topology_bank_t **)xmalloc(
+         cfg->topology_bank_count * sizeof(*order));
+      for (i = 0; i < cfg->topology_bank_count; ++i)
+         order[i] = &cfg->topology_banks[i];
+      qsort(order, cfg->topology_bank_count, sizeof(*order),
+            compare_topology_bank_file_index);
+
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *bank = order[i];
+         uint32_t offset;
+         for (offset = 0; offset < bank->image_size; ++offset) {
+            uint8_t byte = cfg->topology_cartridge.fill_value;
+            if (offset >= bank->image_offset &&
+                offset < (uint32_t)bank->image_offset + bank->map_size) {
+               uint32_t logical = (uint32_t)bank->link_start +
+                                  (offset - bank->image_offset);
+               if (used[logical])
+                  byte = image[logical];
+            }
+            write_binary_byte(fp, path, byte);
+         }
+      }
+      free(order);
+   } else if (cfg->cartridge_banked) {
       const cartridge_bank_t **order;
       size_t i;
       order = (const cartridge_bank_t **)xmalloc(
@@ -6405,6 +6860,44 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    if (!fp) {
       fprintf(stderr, "vcsc-ld: cannot create '%s': %s\n", path, strerror(errno));
       exit(1);
+   }
+
+   if (cfg->topology_bank_count) {
+      uint32_t output_size = 0;
+      const topology_cartridge_t *cart = &cfg->topology_cartridge;
+      for (i = 0; i < cfg->topology_bank_count; ++i)
+         output_size += cfg->topology_banks[i].image_size;
+      fprintf(fp, "C26 CARTRIDGE TOPOLOGY\n");
+      fprintf(fp, "  output-size=$%08" PRIX32 " fill=$%02X",
+              output_size, cart->fill_value);
+      if (cart->present_mask & 0x06u)
+         fprintf(fp, " trampoline=$%04X size=$%04X",
+                 cart->trampoline_offset, cart->trampoline_size);
+      if (cart->present_mask & 0x18u)
+         fprintf(fp, " vector-bridge=$%04X size=$%04X",
+                 cart->vector_bridge_offset, cart->vector_bridge_size);
+      if (cart->present_mask & 0x60u)
+         fprintf(fp, " vectors=$%04X size=$%04X",
+                 cart->vectors_offset, cart->vectors_size);
+      fprintf(fp, " declaration=%s source=%s\n",
+              cart->declaration[0] ? cart->declaration : "<unknown>",
+              cart->source[0] ? cart->source : "<unknown>");
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *bank = &cfg->topology_banks[i];
+         fprintf(fp,
+                 "  %-12s file-index=%u image-size=$%04X image-offset=$%04X link=$%04X cpu=$%04X map-size=$%04X mode=%s",
+                 bank->name, (unsigned)bank->file_index, bank->image_size,
+                 bank->image_offset, bank->link_start, bank->cpu_start,
+                 bank->map_size, bank->has_selector ? "selector" : "direct");
+         if (bank->has_selector)
+            fprintf(fp, " select-access=$%04X", bank->select_access);
+         if (bank->startup)
+            fprintf(fp, " startup=yes");
+         fprintf(fp, " declaration=%s source=%s\n",
+                 bank->declaration[0] ? bank->declaration : "<unknown>",
+                 bank->source);
+      }
+      fprintf(fp, "\n");
    }
 
    if (cfg->cartridge_banked) {
@@ -7230,13 +7723,15 @@ int main(int argc, char **argv)
       return 1;
    }
    parse_cfg_file(&cfg, cfg_path);
-   if (cfg.cartridge_banked && !ends_with(hex_path, ".bin")) {
-      fprintf(stderr,
-              "vcsc-ld: banked cartridge profiles require a flat .bin output\n");
-      return 1;
-   }
 
    select_needed_objects(&inputs);
+   collect_c26_topology(&cfg, &inputs);
+   validate_c26_topology(&cfg);
+   if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
+      fprintf(stderr,
+              "vcsc-ld: cartridge topology requires a flat .bin output\n");
+      return 1;
+   }
    validate_abi_metadata(&inputs);
    validate_absolute_binding_memory_regions(&cfg, &inputs);
    validate_mem_region_metadata(&cfg, &inputs);

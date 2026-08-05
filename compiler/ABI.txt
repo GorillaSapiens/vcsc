@@ -360,6 +360,28 @@ already stores the export count in 16 bits; the assembler writer accepts that
 full range so installed hardware-binding headers do not impose a 255-export
 ceiling on translation units which also emit substantial function ABI metadata.
 
+Cartridge topology metadata
+---------------------------
+
+File-scope `cartridge` and `bank` declarations emit reserved absolute `.o26`
+exports. They describe output packaging and physical mapping; they do not create
+source-visible objects, storage, or executable instructions.
+
+The output-wide record begins with `__cartmeta$V1$` and canonically records the
+presence mask, fill byte, and optional offset/size pairs for the trampoline,
+vector bridge, and vectors. Each bank record begins with `__bankmeta$V1$` and
+records the bank name, physical image size, physical file index, mapped image
+offset, synthetic link start, CPU-visible start, mapped size, optional selector
+access address, and startup bit. Numeric values are normalized to fixed-width
+hexadecimal fields, so byte-identical declarations from separate translation
+units produce identical exports.
+
+`bank` and `mem` names occupy separate namespaces. A topology bank name has no
+placement or ABI meaning for source declarations. The linker merges matching
+records after archive selection and rejects conflicting declarations. These
+metadata prefixes are reserved and are excluded from ordinary global-symbol and
+ABI/type matching.
+
 Variadic functions
 ------------------
 

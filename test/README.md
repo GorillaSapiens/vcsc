@@ -152,6 +152,17 @@ F8 `$1FF8` selecting the first chunk and `$1FF9` selecting the BANK0/home chunk,
 replicated bridge/vector bytes, map file offsets, and byte-for-byte preservation
 of a stock `vcs_4k.cfg` fixture.
 
+`cartridge_bank_metadata_codegen_test.c26` locks the exact versioned
+compiler metadata for output-wide cartridge properties, direct and selector-
+controlled banks, and separate `bank`/`mem` namespaces with the same identifier.
+The companion rejection tests cover incomplete bank declarations and unmatched
+generated-range offset/size pairs. `linker_c26_cartridge_topology.pl` packages a
+two-chunk direct image in explicit file order, checks fill and an ordinary
+absolute cross-chunk call with no trampoline section, retains F8 selector and
+trampoline behavior through the transitional cfg match, merges identical
+separate declarations, and rejects conflicting declarations, duplicate file
+indices, and missing selector startup.
+
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
 then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every
 possible initially selected bank. It locks the common eighteen-byte
