@@ -1095,7 +1095,7 @@ when main roadmap item 29 becomes active.
          boundary checks, local-binding coverage, and an external-hole cfg for
          tests that intentionally model raw helper buffers outside managed memory.
 
-[ ] 17. Add `writeonly` as the write-side access qualifier.
+[x] 17. Add `writeonly` as the write-side access qualifier.
 
        * Define `writeonly T *` as a one-address pointer through which the pointed-
          to object may be written but not read. Permit copying and the ordinary
@@ -1118,6 +1118,31 @@ when main roadmap item 29 becomes active.
          hidden reads, forbidden conversions, bitfield writes, qualification
          mismatch across declarations, and attempts to combine `const` with
          `writeonly`.
+
+       Completed 2026-08-04:
+
+       * `writeonly T *` is a real one-address pointer capability. Pointer values
+         remain two bytes and retain ordinary copy, comparison, indexing, and
+         arithmetic behavior, while dereference is accepted only as a pure store
+         destination.
+       * Generic lvalue access checks reject loads through `writeonly`, stores
+         through `const`, and hidden reads caused by compound assignment,
+         increment/decrement, or packed-bitfield preservation. The rules follow
+         pointer-derived lvalue metadata rather than symbol or region names.
+       * Ordinary read/write pointers implicitly convert to either `const` or
+         `writeonly`. Restricted pointers cannot implicitly regain full access or
+         convert between the read-only and write-only forms. `const writeonly`
+         and non-pointer `writeonly` declarations are diagnosed.
+       * Access capability is preserved through locals, globals, expressions,
+         assignments, initializers, returns, value parameters, aggregate members,
+         declarations, and separate-compilation ABI fingerprints. Function and
+         object redeclarations must agree independently of the unchanged pointer
+         width.
+       * Compile-only coverage exercises stores, indexing, arithmetic, comparison,
+         every forbidden read/conversion, aggregate and function mismatches, and
+         file-scope pointer expressions. End-to-end execution proves generated
+         stores and the two-byte representation; linker failures prove pointer and
+         aggregate ABI qualification mismatches across translation units.
 
 [ ] 18. Add explicit read- and write-address projection operators `&<` and `&>`.
 

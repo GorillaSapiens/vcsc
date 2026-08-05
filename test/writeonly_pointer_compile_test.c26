@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+include "machine_6502.c26"
+
+uint8_t bytes[4];
+struct Sink { writeonly uint8_t *output; };
+struct Byte { uint8_t value; };
+
+void stores(writeonly uint8_t *p, uint8_t *ordinary) {
+   writeonly uint8_t *copy;
+   copy := ordinary;
+   *p := 1;
+   p[1] := 2;
+   p++;
+   p += 1;
+   copy := p;
+   if (copy == p) {
+      copy[0] := 3;
+   }
+   {
+      Sink sink;
+      Byte byte;
+      writeonly Byte *byte_output;
+      sink.output := ordinary;
+      *sink.output := 4;
+      byte_output := &byte;
+      byte_output->value := 5;
+   }
+}
+
+void main(void) {
+   stores(bytes, bytes);
+}

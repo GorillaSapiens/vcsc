@@ -101,6 +101,19 @@ DeclarationUseContract declaration_symbol_use_contract(DeclarationContractSymbol
                                                         const char *name,
                                                         const ASTNode **origin_out);
 bool declaration_const_applies_to_object(const ASTNode *modifiers, const ASTNode *declarator);
+PointerAccessQualifier declaration_pointer_access(const ASTNode *modifiers,
+                                                  const ASTNode *declarator);
+const char *pointer_access_qualifier_name(PointerAccessQualifier qualifier);
+bool pointer_access_implicit_conversion_allowed(PointerAccessQualifier dst,
+                                                PointerAccessQualifier src);
+void validate_pointer_access_conversion(const ASTNode *origin,
+                                       PointerAccessQualifier dst,
+                                       PointerAccessQualifier src,
+                                       const char *what);
+void validate_declaration_access_qualifiers(const ASTNode *origin,
+                                            const ASTNode *modifiers,
+                                            const ASTNode *declarator,
+                                            const char *what);
 int get_size(const char *type);
 int type_size_from_node(const ASTNode *type);
 int declarator_value_size(const ASTNode *type, const ASTNode *declarator);

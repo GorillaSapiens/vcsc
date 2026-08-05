@@ -1395,6 +1395,80 @@ bool declaration_const_applies_to_object(const ASTNode *modifiers, const ASTNode
    return declarator_pointer_depth(declarator) <= 0;
 }
 
+//! @brief Return the access capability carried by a one-address pointer declaration.
+PointerAccessQualifier declaration_pointer_access(const ASTNode *modifiers,
+                                                  const ASTNode *declarator) {
+   if (!declarator || declarator_pointer_depth(declarator) <= 0) {
+      return POINTER_ACCESS_READWRITE;
+   }
+   if (has_modifier((ASTNode *)modifiers, "writeonly")) {
+      return POINTER_ACCESS_WRITEONLY;
+   }
+   if (has_modifier((ASTNode *)modifiers, "const")) {
+      return POINTER_ACCESS_READONLY;
+   }
+   return POINTER_ACCESS_READWRITE;
+}
+
+//! @brief Return a stable user-facing name for one pointer access capability.
+const char *pointer_access_qualifier_name(PointerAccessQualifier qualifier) {
+   switch (qualifier) {
+      case POINTER_ACCESS_READONLY: return "const";
+      case POINTER_ACCESS_WRITEONLY: return "writeonly";
+      default: return "read/write";
+   }
+}
+
+//! @brief Return whether a pointer value may lose capability in one implicit conversion.
+bool pointer_access_implicit_conversion_allowed(PointerAccessQualifier dst,
+                                                PointerAccessQualifier src) {
+   if (dst == src) {
+      return true;
+   }
+   return src == POINTER_ACCESS_READWRITE &&
+          (dst == POINTER_ACCESS_READONLY || dst == POINTER_ACCESS_WRITEONLY);
+}
+
+//! @brief Diagnose an implicit pointer conversion which would invent or exchange access capability.
+void validate_pointer_access_conversion(const ASTNode *origin,
+                                       PointerAccessQualifier dst,
+                                       PointerAccessQualifier src,
+                                       const char *what) {
+   if (pointer_access_implicit_conversion_allowed(dst, src)) {
+      return;
+   }
+   error_user("[%s:%d.%d] cannot implicitly convert %s pointer to %s pointer%s%s",
+              origin && origin->file ? origin->file : "<unknown>",
+              origin ? origin->line : 0, origin ? origin->column : 0,
+              pointer_access_qualifier_name(src),
+              pointer_access_qualifier_name(dst),
+              what && *what ? " for " : "",
+              what && *what ? what : "");
+}
+
+//! @brief Validate const/writeonly placement for one declaration.
+void validate_declaration_access_qualifiers(const ASTNode *origin,
+                                            const ASTNode *modifiers,
+                                            const ASTNode *declarator,
+                                            const char *what) {
+   bool is_const = has_modifier((ASTNode *)modifiers, "const");
+   bool is_writeonly = has_modifier((ASTNode *)modifiers, "writeonly");
+   const char *description = (what && *what) ? what : "declaration";
+
+   if (is_const && is_writeonly) {
+      error_user("[%s:%d.%d] %s cannot combine 'const' and 'writeonly' on the same pointed-to object",
+                 origin && origin->file ? origin->file : "<unknown>",
+                 origin ? origin->line : 0, origin ? origin->column : 0,
+                 description);
+   }
+   if (is_writeonly && (!declarator || declarator_pointer_depth(declarator) <= 0)) {
+      error_user("[%s:%d.%d] 'writeonly' applies only to a pointed-to object; %s must declare at least one pointer level",
+                 origin && origin->file ? origin->file : "<unknown>",
+                 origin ? origin->line : 0, origin ? origin->column : 0,
+                 description);
+   }
+}
+
 //! @brief Parse flag u64 into the normalized representation used by compiler type system.
 static bool parse_flag_u64(const ASTNode *flags, const char *prefix, unsigned long long *out) {
    size_t prefix_len;

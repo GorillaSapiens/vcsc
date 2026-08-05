@@ -14,9 +14,11 @@ ASTNode *expr_ternary_true(ASTNode *expr);
 ASTNode *expr_ternary_false(ASTNode *expr);
 const ASTNode *cast_expr_target_type(const ASTNode *expr);
 const ASTNode *cast_expr_target_declarator(const ASTNode *expr);
+const ASTNode *cast_expr_target_modifiers(const ASTNode *expr);
 bool is_identifier_spelling(const char *s);
 const ASTNode *expr_value_type(ASTNode *expr, Context *ctx);
 const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx);
+PointerAccessQualifier expr_pointer_access(ASTNode *expr, Context *ctx);
 const char *expr_bare_identifier_name(ASTNode *expr);
 
 #endif

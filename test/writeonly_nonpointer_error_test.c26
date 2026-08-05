@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'writeonly' applies only to a pointed-to object
+include "machine_6502.c26"
+writeonly uint8_t value;
+void main(void) {}

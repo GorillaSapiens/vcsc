@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for function 'sink'
+include "machine_6502.c26"
+void sink(writeonly uint8_t *p);
+void sink(uint8_t *p);
+void main(void) {}

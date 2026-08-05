@@ -17,6 +17,7 @@
 #include "compile_declarator.h"
 #include "compile_function.h"
 #include "compile_init.h"
+#include "compile_expr_info.h"
 #include "compile_internal.h"
 #include "compile_function_registry.h"
 #include "compile_stmt.h"
@@ -762,6 +763,8 @@ static void validate_aggregate_member_use_contracts(const ASTNode *node) {
          error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to aggregate member '%s'",
                     member->file, member->line, member->column, name ? name : "?");
       }
+      validate_declaration_access_qualifiers(member, modifiers, declarator,
+                                              "aggregate member declaration");
       if (addrspec) {
          error_user("[%s:%d.%d] aggregate member '%s' cannot use an absolute address binding",
                     member->file, member->line, member->column, name ? name : "?");
@@ -834,6 +837,7 @@ static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
    }
    if (has_modifier((ASTNode *)amod, "static") != has_modifier((ASTNode *)bmod, "static") ||
        declaration_const_applies_to_object(amod, adecl) != declaration_const_applies_to_object(bmod, bdecl) ||
+       declaration_pointer_access(amod, adecl) != declaration_pointer_access(bmod, bdecl) ||
        modifiers_imply_zeropage(amod) != modifiers_imply_zeropage(bmod) ||
        !address_specs_equal(aaddr, baddr)) {
       return false;
@@ -870,6 +874,8 @@ void predeclare_top_level_objects(ASTNode *program) {
          modifiers = node->children[0];
          name = declarator_name(declarator);
          validate_nonreserved_implementation_name(name, node);
+         validate_declaration_access_qualifiers(node, modifiers, declarator,
+                                                "file-scope object declaration");
          if (has_modifier((ASTNode *)modifiers, "ref")) {
             diagnose_ref_object_modifier(node, name);
          }
@@ -911,6 +917,8 @@ void compile_global_decl_item(ASTNode *node) {
    const char *name    = declarator_name(declarator);
    ASTNode *expression = node->children[node->count - 1];
    validate_nonreserved_implementation_name(name, node);
+   validate_declaration_access_qualifiers(node, modifiers, declarator,
+                                          "file-scope object declaration");
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
 
@@ -1042,6 +1050,18 @@ void compile_global_decl_item(ASTNode *node) {
    }
 
    uexpr = (ASTNode *) unwrap_expr_node(expression);
+
+   if (declarator_pointer_depth(declarator) > 0 &&
+       !integer_literal_is_zero_expr(expression)) {
+      const ASTNode *src_type = NULL;
+      const ASTNode *src_decl = NULL;
+      expr_match_signature(expression, NULL, &src_type, &src_decl);
+      if (src_type && src_decl && declarator_pointer_depth(src_decl) > 0) {
+         validate_pointer_access_conversion(expression,
+            declaration_pointer_access(modifiers, declarator),
+            expr_pointer_access(expression, NULL), "file-scope initializer");
+      }
+   }
 
    {
       char symbuf[256];

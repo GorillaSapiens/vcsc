@@ -71,6 +71,7 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
                                           const ASTNode *declarator,
                                           int size,
                                           bool target_typed,
+                                          PointerAccessQualifier pointer_access,
                                           char *symbol,
                                           size_t symbol_size,
                                           int *allocated_size,
@@ -89,6 +90,7 @@ static bool compile_expr_to_fixed_scratch(ASTNode *expr, Context *ctx,
    tmp.type = type;
    tmp.declarator = declarator;
    tmp.target_typed = target_typed;
+   tmp.pointer_access = pointer_access;
    tmp.offset = 0;
    tmp.size = size;
 
@@ -532,7 +534,8 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
    }
 
    if (!compile_expr_to_fixed_scratch(expr, ctx, type, declarator, size,
-                                      declarator != NULL, scratch_sym,
+                                      declarator != NULL, POINTER_ACCESS_READWRITE,
+                                      scratch_sym,
                                       sizeof(scratch_sym), NULL, &scratch)) {
       return false;
    }
@@ -1314,7 +1317,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
          size = 1;
       }
       if (!compile_expr_to_fixed_scratch(node, ctx, type, NULL, size,
-                                         false, scratch_sym,
+                                         false, POINTER_ACCESS_READWRITE, scratch_sym,
                                          sizeof(scratch_sym), NULL, &scratch)) {
          error_user("[%s:%d.%d] invalid expression", node->file, node->line, node->column);
          return;
@@ -1343,7 +1346,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
       error_unresolved_assignment_target(ctx, node->children[1], node);
       return;
    }
-   dst_store = (ContextEntry){ .name = lv.name, .type = lv.type, .declarator = lv.declarator, .is_static = lv.is_static, .is_zeropage = lv.is_zeropage, .is_global = lv.is_global, .is_ref = lv.is_ref, .is_absolute_ref = lv.is_absolute_ref, .read_expr = lv.read_expr, .write_expr = lv.write_expr, .target_typed = true, .offset = lv.offset, .size = lv.size };
+   dst_store = (ContextEntry){ .name = lv.name, .type = lv.type, .declarator = lv.declarator, .is_static = lv.is_static, .is_zeropage = lv.is_zeropage, .is_global = lv.is_global, .is_ref = lv.is_ref, .is_absolute_ref = lv.is_absolute_ref, .read_expr = lv.read_expr, .write_expr = lv.write_expr, .target_typed = true,
+      .pointer_access = lv.pointer_access, .offset = lv.offset, .size = lv.size };
    dst = &dst_store;
 
    if (!op || !strcmp(op, ":=")) {
@@ -1365,6 +1369,19 @@ void compile_expr(ASTNode *node, Context *ctx) {
       }
       if (!entry_has_write_address(dst)) {
          error_user("[%s:%d.%d] absolute external binding '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
+      }
+   }
+
+   if ((!op || !strcmp(op, ":=")) && dst->declarator &&
+       declarator_pointer_depth(dst->declarator) > 0 &&
+       !integer_literal_is_zero_expr(rhs)) {
+      const ASTNode *src_type = NULL;
+      const ASTNode *src_decl = NULL;
+      expr_match_signature(rhs, ctx, &src_type, &src_decl);
+      if (src_type && src_decl && declarator_pointer_depth(src_decl) > 0) {
+         validate_pointer_access_conversion(rhs, dst->pointer_access,
+                                            expr_pointer_access(rhs, ctx),
+                                            "assignment");
       }
    }
 
@@ -1453,7 +1470,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
          char scratch_sym[96];
          CompilerScratchLease scratch;
          if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
-                                            dst->size, true, scratch_sym,
+                                            dst->size, true, dst->pointer_access,
+                                            scratch_sym,
                                             sizeof(scratch_sym), NULL, &scratch)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;
@@ -1471,7 +1489,8 @@ void compile_expr(ASTNode *node, Context *ctx) {
             tmp_size = 1;
          }
          if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
-                                            tmp_size, true, scratch_sym,
+                                            tmp_size, true, dst->pointer_access,
+                                            scratch_sym,
                                             sizeof(scratch_sym), NULL, &scratch)) {
             error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
             return;

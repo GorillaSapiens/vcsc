@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260804_100321.tar.gz
+    vcsc.20260804_203033.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -124,8 +124,9 @@ Settled final-language decisions
   reserved type names. Programs may introduce them as transparent typedef
   aliases, for example `typedef int16_t int;`.
 * String literals are NUL-terminated `uint8_t` arrays stored in cartridge ROM.
-  They decay to `uint8_t *` in pointer initializers; writing through such a
-  pointer is invalid even though `const` is not yet enforced by the type system.
+  They decay to `uint8_t *` in pointer initializers. Pointer access qualifiers
+  are enforced: `const T *` rejects stores and `writeonly T *` rejects loads and
+  hidden read-modify-write operations.
 * No float or double.
 * The stock VCS headers expose canonical signed and unsigned 8-, 16-, 24-,
   and 32-bit ordinary types. The compiler core handles user-declared ordinary
@@ -8524,3 +8525,29 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   pass; the long suite was completed in ordered continuation chunks after the
   execution windows, including every VCS renderer/profile regression and the new
   overlap checks. Staged `make installcheck` passes.
+
+2026-08-04 21:59:33 PDT, add the writeonly one-address pointer capability
+-------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 17 with `writeonly T *`, the write-side
+  counterpart to `const T *`. The qualifier changes permitted access and ABI
+  compatibility without changing the target's two-byte pointer representation.
+* Carry pointer access capability through declarations, context/lvalue metadata,
+  expression propagation, assignments and initializers, returns, value
+  parameters, aggregate fields, same-translation-unit compatibility, and
+  linker-visible ABI fingerprints. Fix global-expression qualification to use
+  the canonical global context-entry initializer rather than inspecting AST
+  children ad hoc.
+* Reject reads through writeonly pointers, writes through const pointers, and
+  hidden reads from compound assignment, pointed-to increment/decrement, and
+  packed-bitfield preservation. Permit ordinary pointers to narrow implicitly to
+  const or writeonly; reject implicit capability recovery and const/writeonly
+  cross-conversion, `const writeonly`, and non-pointer writeonly declarations.
+* Add positive compile/execution coverage plus focused conversion, lvalue,
+  redeclaration, aggregate ABI, function ABI, and global-expression failures.
+  Update compiler, ABI, test-inventory, and bankswitching roadmap documentation.
+* Verification: all 390 compile-only tests pass. All 227 end-to-end/generic
+  tests pass in ordered continuation chunks, including the new execution and
+  cross-object ABI cases, every split-memory/bankswitching profile, and the full
+  renderer suite. Staged `make installcheck` passes.
+* Bankswitching roadmap item 18, the generic `&<` and `&>` directional address
+  projections, is next.

@@ -197,6 +197,32 @@ every edge. Function-pointer declarators and function names used as values are
 compile-time errors, and the `_callptr0` runtime trampoline no longer exists.
 
 
+One-address pointer access qualification
+----------------------------------------
+
+Ordinary `T *`, `const T *`, and `writeonly T *` all use the target's normal
+16-bit pointer representation. The qualifier constrains access through the
+pointer rather than changing storage width or byte order:
+
+* `T *` permits reads, writes, and read-modify-write operations.
+* `const T *` permits reads but rejects stores through the pointer.
+* `writeonly T *` permits pure stores but rejects loads and every operation
+  which performs a hidden read, including compound assignment,
+  increment/decrement of the pointed-to object, and packed-bitfield updates.
+
+An ordinary pointer may implicitly lose capability by conversion to either
+restricted form. A restricted pointer cannot implicitly regain read/write
+capability, and `const` and `writeonly` pointers do not implicitly convert to one
+another. Pointer arithmetic, comparison, and copying preserve the qualifier.
+
+Access qualification is part of the canonical type fingerprint for globals,
+function returns, value parameters, use contracts, and aggregate members. The
+linker therefore rejects separately compiled declarations which disagree on
+pointer capability even though all forms occupy the same two bytes. The
+qualifier is not a storage region and does not alter call-graph activation
+accounting.
+
+
 Absolute external binding ABI
 -----------------------------
 

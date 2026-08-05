@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for object 'sink'
+include "machine_6502.c26"
+extern writeonly uint8_t *sink;
+extern uint8_t *sink;
+void main(void) {}

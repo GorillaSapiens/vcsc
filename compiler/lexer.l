@@ -2205,6 +2205,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "typedef"       return TYPEDEF;
 "union"         return UNION;
 "while"         return WHILE;
+"writeonly"     return WRITEONLY;
 "xform"         return XFORM;
 
 operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {

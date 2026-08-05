@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// object: e2e_abi_writeonly_struct_mismatch_fail__def.c26
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'use_holder' parameter 0
+// expectlinkerr: writeonly pointer
+// expectlinkerr: read/write pointer
+include "machine_6502.c26"
+struct Holder { writeonly uint8_t *p; };
+void use_holder(Holder h);
+void main(void) { Holder h; use_holder(h); }

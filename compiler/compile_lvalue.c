@@ -26,6 +26,57 @@
 
 typedef CompilerScratchLease LValueFixedScratch;
 
+static bool lvalue_access_reaches_qualified_pointee(const LValueRef *lv) {
+   return lv && lv->pointer_access_depth > 0 &&
+          lv->pointer_access_dereferences >= lv->pointer_access_depth;
+}
+
+static void lvalue_note_pointer_dereference(LValueRef *lv) {
+   if (!lv) {
+      return;
+   }
+   lv->pointer_access_dereferences++;
+   if (!lvalue_access_reaches_qualified_pointee(lv)) {
+      return;
+   }
+   if (lv->pointer_access == POINTER_ACCESS_WRITEONLY) {
+      lv->pointer_path_read_forbidden = true;
+   }
+   else if (lv->pointer_access == POINTER_ACCESS_READONLY) {
+      lv->pointer_path_write_forbidden = true;
+   }
+}
+
+//! @brief Reject a load through a write-only pointer-derived lvalue.
+void require_lvalue_readable(const LValueRef *lv) {
+   const ASTNode *site;
+   if (!lv || (!lv->pointer_path_read_forbidden &&
+       !(lvalue_access_reaches_qualified_pointee(lv) &&
+         lv->pointer_access == POINTER_ACCESS_WRITEONLY))) {
+      return;
+   }
+   site = lv->use_site;
+   error_user("[%s:%d.%d] cannot read through writeonly pointer '%s'",
+              site && site->file ? site->file : "<unknown>",
+              site ? site->line : 0, site ? site->column : 0,
+              lv->name ? lv->name : "<unnamed>");
+}
+
+//! @brief Reject a store through a const pointer-derived lvalue.
+void require_lvalue_writable(const LValueRef *lv) {
+   const ASTNode *site;
+   if (!lv || (!lv->pointer_path_write_forbidden &&
+       !(lvalue_access_reaches_qualified_pointee(lv) &&
+         lv->pointer_access == POINTER_ACCESS_READONLY))) {
+      return;
+   }
+   site = lv->use_site;
+   error_user("[%s:%d.%d] cannot write through const pointer '%s'",
+              site && site->file ? site->file : "<unknown>",
+              site ? site->line : 0, site ? site->column : 0,
+              lv->name ? lv->name : "<unnamed>");
+}
+
 //! @brief Begin and activate fixed-address lvalue scratch.
 static void lvalue_fixed_scratch_begin(Context *ctx, int reserved,
                                        LValueFixedScratch *scratch) {
@@ -55,6 +106,7 @@ bool emit_load_direct_byte_lvalue_to_a(Context *ctx, const LValueRef *src) {
        src->needs_runtime_address) {
       return false;
    }
+   require_lvalue_readable(src);
 
    if (src->is_absolute_ref) {
       if (!src->read_expr || !*src->read_expr) {
@@ -97,6 +149,7 @@ bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
        dst->needs_runtime_address) {
       return false;
    }
+   require_lvalue_writable(dst);
 
    if (dst->is_absolute_ref) {
       if (!dst->write_expr || !*dst->write_expr) {
@@ -136,6 +189,10 @@ bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
 
    if (!dst || !symbol || size <= 0) {
       return false;
+   }
+   require_lvalue_writable(dst);
+   if (dst->is_bitfield) {
+      require_lvalue_readable(dst);
    }
 
    if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
@@ -192,6 +249,7 @@ bool find_aggregate_member_info(const ASTNode *type, const char *member, Aggrega
    is_union = !strcmp(agg->name, "union_decl_stmt");
    for (int i = 1; i < agg->count; i++) {
       const ASTNode *field = agg->children[i];
+      const ASTNode *fmods;
       const ASTNode *ftype;
       const ASTNode *fdecl;
       const char *fname;
@@ -203,6 +261,7 @@ bool find_aggregate_member_info(const ASTNode *type, const char *member, Aggrega
       if (!field || field->count < 3) {
          continue;
       }
+      fmods = field->children[0];
       ftype = field->children[1];
       fdecl = field->children[2];
       fname = declarator_name(fdecl);
@@ -236,6 +295,7 @@ bool find_aggregate_member_info(const ASTNode *type, const char *member, Aggrega
             out->bit_width = bit_width;
             out->storage_size = storage_size;
             out->is_bitfield = bit_width > 0;
+            out->pointer_access = declaration_pointer_access(fmods, fdecl);
          }
          return true;
       }
@@ -368,6 +428,9 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
       out->write_expr = entry->write_expr;
       out->has_split_alias_delta = entry->has_split_alias_delta;
       out->split_alias_delta = entry->split_alias_delta;
+      out->pointer_access = entry->pointer_access;
+      out->pointer_access_depth = declarator_pointer_depth(entry->declarator);
+      out->pointer_access_dereferences = 0;
       out->base_offset = entry->offset;
       out->offset = entry->offset;
       out->size = entry->is_ref
@@ -827,6 +890,15 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if (!lv) {
       return false;
    }
+   if (mode == LVALUE_ACCESS_READ) {
+      require_lvalue_readable(lv);
+   }
+   else if (mode == LVALUE_ACCESS_WRITE) {
+      require_lvalue_writable(lv);
+      if (lv->is_bitfield) {
+         require_lvalue_readable(lv);
+      }
+   }
    if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_REF) && lv->is_bitfield) {
       return false;
    }
@@ -1043,6 +1115,7 @@ static bool emit_copy_bitfield_lvalue_to_scratch(Context *ctx, int dst_offset, c
 //! @brief Emit copy bitfield lvalue to a fixed symbol without software-stack scratch.
 bool emit_copy_bitfield_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset,
                                          const LValueRef *src, int size) {
+   require_lvalue_readable(src);
    int copy_size = size < src->size ? size : src->size;
    bool is_signed;
    int src_byte_offset;
@@ -1221,6 +1294,10 @@ static bool emit_copy_symbol_to_bitfield_lvalue(Context *ctx, const LValueRef *d
 //! @brief Emit copy from a fixed symbol to an lvalue without software-stack scratch.
 bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *symbol,
                                 int symbol_offset, int size) {
+   require_lvalue_writable(dst);
+   if (dst && dst->is_bitfield) {
+      require_lvalue_readable(dst);
+   }
    int copy_size;
 
    if (!dst || !symbol) {
@@ -1260,6 +1337,7 @@ static bool emit_copy_scratch_to_bitfield_lvalue(Context *ctx, const LValueRef *
 
 //! @brief Emit copy lvalue to scratch for compiler lvalue lowering diagnostics or output files.
 bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size) {
+   require_lvalue_readable(src);
    int copy_size = size < src->size ? size : src->size;
    bool dst_direct = dst_offset >= 0 && dst_offset + copy_size <= 256;
    int saved_locals = ctx ? ctx->locals : 0;
@@ -1317,6 +1395,10 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
 
 //! @brief Emit copy scratch to lvalue for compiler lvalue lowering diagnostics or output files.
 bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
+   require_lvalue_writable(dst);
+   if (dst && dst->is_bitfield) {
+      require_lvalue_readable(dst);
+   }
    int copy_size = size < dst->size ? size : dst->size;
    bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
    int saved_locals = ctx ? ctx->locals : 0;
@@ -1389,6 +1471,7 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
       }
       if (declarator_pointer_depth(out->declarator) > 0) {
          out->indirect = true;
+         lvalue_note_pointer_dereference(out);
          if (idx->kind == AST_INTEGER && !out->needs_runtime_address) {
             out->ptr_adjust += atoi(idx->strval) * elem_size;
          }
@@ -1440,6 +1523,7 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
                   out->name ? out->name : "<unnamed>");
          }
          out->indirect = true;
+         lvalue_note_pointer_dereference(out);
          if (!out->needs_runtime_address) {
             out->ptr_adjust += info.byte_offset;
          }
@@ -1454,6 +1538,9 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
       }
       out->type = info.type;
       out->declarator = info.declarator;
+      out->pointer_access = info.pointer_access;
+      out->pointer_access_depth = declarator_pointer_depth(info.declarator);
+      out->pointer_access_dereferences = 0;
       out->size = declarator_storage_size(info.type, info.declarator);
       out->is_bitfield = info.is_bitfield;
       out->bit_offset = info.bit_offset;
@@ -1501,6 +1588,9 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
    out->write_expr = entry->write_expr;
    out->has_split_alias_delta = entry->has_split_alias_delta;
    out->split_alias_delta = entry->split_alias_delta;
+   out->pointer_access = entry->pointer_access;
+   out->pointer_access_depth = declarator_pointer_depth(entry->declarator);
+   out->pointer_access_dereferences = 0;
    out->base_offset = entry->offset;
    out->offset = entry->offset;
    out->size = entry->is_ref
@@ -1572,6 +1662,7 @@ static bool resolve_lvalue_base(Context *ctx, ASTNode *base, LValueRef *out) {
       out->size = out->declarator ? declarator_storage_size(out->type, out->declarator) : get_size(type_name_from_node(out->type));
       out->indirect = true;
       out->deref_depth++;
+      lvalue_note_pointer_dereference(out);
       return true;
    }
 
@@ -1598,6 +1689,9 @@ bool resolve_lvalue(Context *ctx, ASTNode *node, LValueRef *out) {
       return false;
    }
 
-   return resolve_lvalue_suffixes(ctx, node->children[1], out);
+   if (!resolve_lvalue_suffixes(ctx, node->children[1], out)) {
+      return false;
+   }
+   return true;
 }
 

@@ -473,6 +473,17 @@ write windows. `external_binding_holes.cfg` keeps legacy helper-buffer tests
 honest by placing their deliberate external addresses outside all managed
 `MEMORY` entries.
 
+The `writeonly_*` compile tests and `e2e_writeonly_pointer_verify.c26` cover the
+one-address write-side pointer qualifier. They prove pure stores, indexing,
+pointer copying/comparison/arithmetic, ordinary-to-writeonly conversion, and the
+unchanged two-byte representation. Focused failures reject loads, compound and
+increment operations, packed-bitfield writes which require a preserving read,
+`const writeonly`, non-pointer use, restricted-to-ordinary and const/writeonly
+cross-conversions, and same-translation-unit signature mismatches. Separate
+pointer and aggregate ABI mismatch fixtures prove the qualifier is retained in
+linker-visible fingerprints; a dedicated global-expression test prevents a
+file-scope writeonly value from being misclassified as an ordinary pointer.
+
 
 `call_selective_staging.pl` proves direct calls do not reserve a whole argument
 list in caller scratch. Call-free lists use one reusable slot sized for the

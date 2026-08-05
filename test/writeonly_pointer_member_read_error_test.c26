@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot read through writeonly pointer 'p'
+include "machine_6502.c26"
+struct Byte { uint8_t value; };
+void main(void) { Byte byte; writeonly Byte *p; uint8_t value; p := &byte; value := p->value; }

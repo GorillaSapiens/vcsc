@@ -213,7 +213,10 @@ static const ASTNode *effective_base_type_node(const ASTNode *type) {
    return name ? get_typename_node(name) : NULL;
 }
 
-static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *type, const ASTNode *declarator, FingerprintCtx *ctx);
+static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *type,
+                                    const ASTNode *declarator,
+                                    PointerAccessQualifier pointer_access,
+                                    FingerprintCtx *ctx);
 
 //! @brief Add storage mode to abi meta state, growing storage or preserving uniqueness as needed.
 static void append_storage_mode(StrBuf *fp, StrBuf *detail, const char *mode) {
@@ -467,7 +470,11 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
 
          sb_init(&subfp);
          sb_init(&subdetail);
-         append_type_fingerprint(&subfp, &subdetail, ftype, fdecl, ctx);
+         {
+            const ASTNode *fmods = (field->count > 0) ? field->children[0] : NULL;
+            append_type_fingerprint(&subfp, &subdetail, ftype, fdecl,
+                                    declaration_pointer_access(fmods, fdecl), ctx);
+         }
 
          if (i > 1) {
             sb_append(fp, ",");
@@ -513,18 +520,22 @@ static void append_base_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNo
 }
 
 //! @brief Add type fingerprint to abi meta state, growing storage or preserving uniqueness as needed.
-static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *type, const ASTNode *declarator, FingerprintCtx *ctx) {
+static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *type,
+                                    const ASTNode *declarator,
+                                    PointerAccessQualifier pointer_access,
+                                    FingerprintCtx *ctx) {
    const ASTNode *next_decl;
    const char *bound;
 
    if (declarator && declarator_pointer_depth(declarator) > 0) {
       next_decl = declarator_after_deref(declarator);
-      sb_append(fp, "ptr(");
-      sb_append(detail, "pointer(");
+      sb_appendf(fp, "ptr(access=%s;", pointer_access_qualifier_name(pointer_access));
+      sb_appendf(detail, "%s pointer(", pointer_access_qualifier_name(pointer_access));
       append_builtin_pointer_machine(fp, detail);
       sb_append(fp, ";to=");
       sb_append(detail, ", to=");
-      append_type_fingerprint(fp, detail, type, next_decl, ctx);
+      append_type_fingerprint(fp, detail, type, next_decl,
+                              POINTER_ACCESS_READWRITE, ctx);
       sb_append(fp, ")");
       sb_append(detail, ")");
       return;
@@ -535,7 +546,7 @@ static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *t
       bound = array_bound_text(declarator);
       sb_appendf(fp, "array(n=%s;of=", bound ? bound : "?");
       sb_appendf(detail, "array[%s] of ", bound ? bound : "?");
-      append_type_fingerprint(fp, detail, type, next_decl, ctx);
+      append_type_fingerprint(fp, detail, type, next_decl, pointer_access, ctx);
       sb_append(fp, ")");
       return;
    }
@@ -625,7 +636,7 @@ void emit_absolute_binding_region_guard_metadata(const ASTNode *node,
 //! @brief Emit type record for abi meta diagnostics or output files.
 static void emit_type_record(const char *kind, const char *state, const char *symbol,
                              const char *role, const char *mode, const ASTNode *type,
-                             const ASTNode *declarator) {
+                             const ASTNode *declarator, const ASTNode *modifiers) {
    StrBuf fp;
    StrBuf detail;
    FingerprintCtx ctx;
@@ -634,7 +645,8 @@ static void emit_type_record(const char *kind, const char *state, const char *sy
    sb_init(&fp);
    sb_init(&detail);
    append_storage_mode(&fp, &detail, mode);
-   append_type_fingerprint(&fp, &detail, type, declarator, &ctx);
+   append_type_fingerprint(&fp, &detail, type, declarator,
+                           declaration_pointer_access(modifiers, declarator), &ctx);
    emit_metadata_symbol(kind, state, symbol, role, fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
 
    free(ctx.names);
@@ -665,7 +677,7 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
       char return_mode[256];
       function_return_storage_mode(fn, return_mode, sizeof(return_mode));
       emit_type_record("function", state, sym, "return",
-                       return_mode, ret_type, ret_decl);
+                       return_mode, ret_type, ret_decl, function_modifiers_node(fn));
    }
 
    if (params && !is_empty(params)) {
@@ -684,7 +696,11 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
          pdecl = call_adjusted_parameter_declarator(parameter_declarator(parameter), parameter_is_ref(parameter));
          function_parameter_storage_mode(parameter, mode, sizeof(mode));
          snprintf(role, sizeof(role), "param%d", out_index++);
-         emit_type_record("function", state, sym, role, mode, ptype, pdecl);
+         {
+            const ASTNode *specs = parameter_decl_specifiers(parameter);
+            const ASTNode *mods = (specs && specs->count > 0) ? specs->children[0] : NULL;
+            emit_type_record("function", state, sym, role, mode, ptype, pdecl, mods);
+         }
       }
    }
 }
@@ -704,7 +720,8 @@ void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_
       ? node->children[2]->children[0]
       : node->children[2];
    global_storage_mode(node, is_zeropage, mode, sizeof(mode));
-   emit_type_record("global", state, symname, "object", mode, type, declarator);
+   emit_type_record("global", state, symname, "object", mode, type, declarator,
+                    node->children[0]);
 }
 
 
@@ -727,7 +744,8 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
       function_return_storage_mode(fn, return_mode, sizeof(return_mode));
       append_storage_mode(fp, detail, return_mode);
    }
-   append_type_fingerprint(fp, detail, ret_type, ret_decl, &ctx);
+   append_type_fingerprint(fp, detail, ret_type, ret_decl,
+                           declaration_pointer_access(function_modifiers_node(fn), ret_decl), &ctx);
 
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count; i++) {
@@ -745,7 +763,12 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
          sb_appendf(detail, ", param%d=", out_index);
          function_parameter_storage_mode(parameter, mode, sizeof(mode));
          append_storage_mode(fp, detail, mode);
-         append_type_fingerprint(fp, detail, ptype, pdecl, &ctx);
+         {
+            const ASTNode *specs = parameter_decl_specifiers(parameter);
+            const ASTNode *mods = (specs && specs->count > 0) ? specs->children[0] : NULL;
+            append_type_fingerprint(fp, detail, ptype, pdecl,
+                                    declaration_pointer_access(mods, pdecl), &ctx);
+         }
          out_index++;
       }
    }
@@ -904,7 +927,8 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    sb_init(&detail);
    global_storage_mode(node, is_zeropage, mode, sizeof(mode));
    append_storage_mode(&fp, &detail, mode);
-   append_type_fingerprint(&fp, &detail, type, declarator, &ctx);
+   append_type_fingerprint(&fp, &detail, type, declarator,
+                           declaration_pointer_access(node->children[0], declarator), &ctx);
    emit_contract_metadata_symbol("object", strength, symname, origin, node,
                                  fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
    free(ctx.names);

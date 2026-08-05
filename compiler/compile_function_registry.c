@@ -11,6 +11,7 @@
 #include "ast.h"
 #include "builtin.h"
 #include "compile_declarator.h"
+#include "compile_expr_info.h"
 #include "compile_function_registry.h"
 #include "compile_internal.h"
 #include "compile_type.h"
@@ -123,12 +124,16 @@ static bool parameter_accepts_argument(const ASTNode *parameter,
                                        const ASTNode *actual_type,
                                        const ASTNode *actual_decl,
                                        bool actual_lvalue,
-                                       const ASTNode *actual_expr) {
+                                       const ASTNode *actual_expr,
+                                       Context *ctx) {
    const ASTNode *formal_type = parameter_type(parameter);
    const ASTNode *formal_decl = call_adjusted_parameter_declarator(
          parameter_declarator(parameter), parameter_is_ref(parameter));
    const char *formal_name;
    const char *actual_name;
+   const ASTNode *decl_specs = parameter_decl_specifiers(parameter);
+   const ASTNode *modifiers = (decl_specs && decl_specs->count > 0) ? decl_specs->children[0] : NULL;
+   PointerAccessQualifier formal_access = declaration_pointer_access(modifiers, formal_decl);
    bool decl_match;
 
    if (!formal_type || !actual_type) {
@@ -158,10 +163,17 @@ static bool parameter_accepts_argument(const ASTNode *parameter,
    decl_match = actual_decl ? declarator_signature_matches(actual_decl, formal_decl)
                             : declarator_is_plain_value(formal_decl);
    if (!strcmp(formal_name, actual_name) && decl_match) {
+      if (formal_decl && actual_decl && declarator_pointer_depth(formal_decl) > 0 &&
+          declarator_pointer_depth(actual_decl) > 0 &&
+          !pointer_access_implicit_conversion_allowed(formal_access,
+                                                       expr_pointer_access((ASTNode *)actual_expr, ctx))) {
+         return false;
+      }
       return true;
    }
    if (object_pointer_to_void_pointer_allowed(formal_type, formal_decl, actual_type, actual_decl)) {
-      return true;
+      return pointer_access_implicit_conversion_allowed(formal_access,
+                 expr_pointer_access((ASTNode *)actual_expr, ctx));
    }
    if (integer_promotion_allowed(actual_type, actual_decl, formal_type, formal_decl)) {
       return true;
@@ -225,6 +237,8 @@ static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
              parameter_is_ref(aparam) != parameter_is_ref(bparam) ||
              !declarator_signature_matches(parameter_declarator(aparam),
                                            parameter_declarator(bparam)) ||
+             declaration_pointer_access(amods, parameter_declarator(aparam)) !=
+             declaration_pointer_access(bmods, parameter_declarator(bparam)) ||
              ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
             return false;
          }
@@ -268,6 +282,8 @@ static bool function_same_declaration(const ASTNode *a, const ASTNode *b) {
           has_modifier((ASTNode *)amod, "static") !=
           has_modifier((ASTNode *)bmod, "static") ||
           function_is_inline(a) != function_is_inline(b) ||
+          declaration_pointer_access(amod, function_return_declarator_from_callable(adecl)) !=
+          declaration_pointer_access(bmod, function_return_declarator_from_callable(bdecl)) ||
           ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
          return false;
       }
@@ -388,7 +404,7 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
                        actual_index + 1, name);
          }
          if (!parameter_accepts_argument(parameter, actual_type, actual_decl,
-                                         actual_lvalue, actual_expr)) {
+                                         actual_lvalue, actual_expr, ctx)) {
             long long constant_value = 0;
             const ASTNode *param_type = parameter_type(parameter);
             if (type_is_bcd_integer(param_type) &&
@@ -415,6 +431,9 @@ void remember_function(const ASTNode *node, const char *name) {
 
    validate_function_nonreserved_implementation_names(node);
    validate_function_parameter_storage_modifiers(node);
+   validate_declaration_access_qualifiers(node, modifiers,
+      function_return_declarator_from_callable(function_declarator_node(node)),
+      "function return declaration");
    if (!name) {
       error_user("[%s:%d.%d] unnamed function declaration is not supported here",
                  node->file, node->line, node->column);

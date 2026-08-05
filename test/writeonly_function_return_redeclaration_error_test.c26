@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: conflicting declarations for function 'source'
+include "machine_6502.c26"
+writeonly uint8_t *source(void);
+uint8_t *source(void);
+void main(void) {}

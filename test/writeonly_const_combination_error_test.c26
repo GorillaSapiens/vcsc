@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot combine 'const' and 'writeonly'
+include "machine_6502.c26"
+const writeonly uint8_t *p;
+void main(void) {}

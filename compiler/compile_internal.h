@@ -28,6 +28,12 @@ typedef struct InitConstValue {
    const char *int_text;
 } InitConstValue;
 
+typedef enum PointerAccessQualifier {
+   POINTER_ACCESS_READWRITE = 0,
+   POINTER_ACCESS_READONLY,
+   POINTER_ACCESS_WRITEONLY
+} PointerAccessQualifier;
+
 typedef struct ContextEntry {
    const char *name;
    const ASTNode *type;
@@ -42,6 +48,7 @@ typedef struct ContextEntry {
    bool has_split_alias_delta;
    int split_alias_delta;
    bool target_typed;
+   PointerAccessQualifier pointer_access;
    int offset;
    int size;
 } ContextEntry;
@@ -87,6 +94,11 @@ typedef struct LValueRef {
    int size;
    int ptr_adjust;
    bool is_bitfield;
+   PointerAccessQualifier pointer_access;
+   int pointer_access_depth;
+   int pointer_access_dereferences;
+   bool pointer_path_read_forbidden;
+   bool pointer_path_write_forbidden;
    const ASTNode *use_site;
    int bit_offset;
    int bit_width;
@@ -101,6 +113,7 @@ typedef struct AggregateMemberInfo {
    int bit_width;
    int storage_size;
    bool is_bitfield;
+   PointerAccessQualifier pointer_access;
 } AggregateMemberInfo;
 
 extern EmitSink es_header;

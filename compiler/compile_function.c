@@ -390,6 +390,9 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
          continue;
       }
 
+      validate_declaration_access_qualifiers(parameter, modifiers, pdecl,
+                                             "function parameter declaration");
+
       if (has_modifier((ASTNode *)modifiers, "inline")) {
          error_user("[%s:%d.%d] parameter %d of function '%s' cannot use 'inline'",
                     parameter->file, parameter->line, parameter->column,
@@ -463,6 +466,7 @@ void build_function_context(const ASTNode *node, Context *ctx) {
          entry->size = slot_size;
          entry->declarator = param_decl;
          entry->is_ref = parameter_is_ref(parameter);
+         entry->pointer_access = declaration_pointer_access(modifiers, param_decl);
          if (modifiers_imply_split_address(modifiers)) {
             char sym[256];
             if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {
@@ -500,6 +504,8 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       }
       return_entry->declarator = function_return_declarator_from_callable(declarator);
       return_entry->size = declarator_value_size(return_entry->type, return_entry->declarator);
+      return_entry->pointer_access = declaration_pointer_access(modifiers,
+                                                                return_entry->declarator);
 
       if (modifiers_imply_split_address(modifiers)) {
          char sym[256];

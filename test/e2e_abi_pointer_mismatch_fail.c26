@@ -2,8 +2,8 @@
 // object: e2e_abi_pointer_mismatch_fail__def.c26
 // expectlinkfail
 // expectlinkerr: ABI/type fingerprint mismatch for function symbol 'helper' parameter 0
-// expectlinkerr: e2e_abi_pointer_mismatch_fail.o26: declaration -> symbol_abs pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=1))
-// expectlinkerr: e2e_abi_pointer_mismatch_fail__def.o26: definition -> symbol_abs pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=2, little-endian))
+// expectlinkerr: e2e_abi_pointer_mismatch_fail.o26: declaration -> symbol_abs read/write pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=1))
+// expectlinkerr: e2e_abi_pointer_mismatch_fail__def.o26: definition -> symbol_abs read/write pointer(pointer_machine(size=2, plain, little-endian), to=signed_integer(size=2, little-endian))
 include "machine_6502.c26"
 
 int8_t *helper(int8_t *p);

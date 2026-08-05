@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot implicitly convert const pointer to writeonly pointer
+include "machine_6502.c26"
+void main(void) { const uint8_t *r; writeonly uint8_t *p; p := r; }

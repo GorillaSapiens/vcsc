@@ -108,6 +108,26 @@ const ASTNode *cast_expr_target_declarator(const ASTNode *expr) {
    return cast_type->children[1];
 }
 
+//! @brief Return the modifiers attached to a cast target type.
+const ASTNode *cast_expr_target_modifiers(const ASTNode *expr) {
+   const ASTNode *cast_type;
+   const ASTNode *specifiers;
+
+   expr = unwrap_expr_node(expr);
+   if (!expr || strcmp(expr->name, "cast") || expr->count < 2) {
+      return NULL;
+   }
+   cast_type = expr->children[0];
+   if (!cast_type || strcmp(cast_type->name, "cast_type") || cast_type->count < 2) {
+      return NULL;
+   }
+   specifiers = cast_type->children[0];
+   if (!specifiers || specifiers->count < 1) {
+      return NULL;
+   }
+   return specifiers->children[0];
+}
+
 //! @brief Return whether identifier spelling applies in compile expr info.
 bool is_identifier_spelling(const char *s) {
    int i;
@@ -179,6 +199,9 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
    }
 
    if (!strcmp(expr->name, "cast")) {
+      validate_declaration_access_qualifiers(expr, cast_expr_target_modifiers(expr),
+                                             cast_expr_target_declarator(expr),
+                                             "cast target type");
       return cast_expr_target_type(expr);
    }
 
@@ -401,4 +424,92 @@ const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx) {
    }
 
    return NULL;
+}
+
+
+//! @brief Return the access capability carried by a pointer-valued expression.
+PointerAccessQualifier expr_pointer_access(ASTNode *expr, Context *ctx) {
+   const ASTNode *decl;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || is_empty(expr)) {
+      return POINTER_ACCESS_READWRITE;
+   }
+
+   {
+      const char *ident = expr_bare_identifier_name(expr);
+      if (ident) {
+         ContextEntry *entry = ctx_lookup(ctx, ident);
+         if (entry) {
+            return entry->pointer_access;
+         }
+         {
+            const ASTNode *g = global_decl_lookup(ident);
+            ContextEntry global_entry;
+            if (g && init_context_entry_from_global_decl(&global_entry, ident, g)) {
+               return global_entry.pointer_access;
+            }
+         }
+      }
+   }
+
+   if (!strcmp(expr->name, "cast")) {
+      return declaration_pointer_access(cast_expr_target_modifiers(expr),
+                                        cast_expr_target_declarator(expr));
+   }
+
+   if (!strcmp(expr->name, "lvalue")) {
+      LValueRef lv;
+      if (resolve_lvalue(ctx, expr, &lv)) {
+         return lv.pointer_access;
+      }
+   }
+
+   if (!strcmp(expr->name, "()")) {
+      ASTNode *callee = expr->children[0];
+      ASTNode *args = (expr->count > 1) ? expr->children[1] : NULL;
+      const char *callee_name = expr_bare_identifier_name(callee);
+      const ASTNode *fn = callee_name
+         ? resolve_function_call_target(callee_name, expr, args, ctx) : NULL;
+      if (fn) {
+         return declaration_pointer_access(function_modifiers_node(fn),
+            function_return_declarator_from_callable(function_declarator_node(fn)));
+      }
+   }
+
+   if (!strcmp(expr->name, "comma_expr") && expr->count > 0) {
+      return expr_pointer_access(expr->children[expr->count - 1], ctx);
+   }
+
+   if (expr_is_ternary_node(expr)) {
+      PointerAccessQualifier a = expr_pointer_access(expr_ternary_true(expr), ctx);
+      PointerAccessQualifier b = expr_pointer_access(expr_ternary_false(expr), ctx);
+      if (a == b) {
+         return a;
+      }
+      if (a == POINTER_ACCESS_READWRITE) {
+         return b;
+      }
+      if (b == POINTER_ACCESS_READWRITE) {
+         return a;
+      }
+      error_user("[%s:%d.%d] conditional expression combines incompatible const and writeonly pointer values",
+                 expr->file, expr->line, expr->column);
+   }
+
+   if (expr->count == 2 && (!strcmp(expr->name, "+") || !strcmp(expr->name, "-"))) {
+      const ASTNode *lhs_decl = expr_value_declarator(expr->children[0], ctx);
+      const ASTNode *rhs_decl = expr_value_declarator(expr->children[1], ctx);
+      if (lhs_decl && declarator_pointer_depth(lhs_decl) > 0) {
+         return expr_pointer_access(expr->children[0], ctx);
+      }
+      if (!strcmp(expr->name, "+") && rhs_decl && declarator_pointer_depth(rhs_decl) > 0) {
+         return expr_pointer_access(expr->children[1], ctx);
+      }
+   }
+
+   /* Address-of and string/array decay create ordinary one-address pointers. */
+   decl = expr_value_declarator(expr, ctx);
+   (void)decl;
+   return POINTER_ACCESS_READWRITE;
 }

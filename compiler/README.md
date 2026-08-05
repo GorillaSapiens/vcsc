@@ -396,11 +396,33 @@ objects and archive members are selected, `vcsc-ld` overlays mutually exclusive
 function activations by call-graph lifetime. Caller and callee bytes remain
 distinct; sibling functions may occupy the same physical addresses.
 
-### `const`
+### Access-qualified pointers
 
 For a non-pointer object, `const` requires an initializer and prohibits later
-writes. In `const uint8_t *p`, the pointed-to bytes are const while the pointer
-object remains mutable. C's `uint8_t * const p` spelling is not supported.
+writes. In `const uint8_t *p`, the pointed-to bytes are readable but cannot be
+written through `p`; the pointer object itself remains mutable. C's
+`uint8_t * const p` spelling is not supported.
+
+`writeonly` is the write-side counterpart for a one-address pointer:
+
+```vcsc
+writeonly uint8_t *output;
+```
+
+The pointer value may be copied, compared, indexed, incremented, decremented,
+and adjusted with the ordinary pointer operations. Dereferencing it is valid
+only as a pure store destination. A load, compound assignment,
+increment/decrement of the pointed-to object, or packed-bitfield update is an
+error because each obtains or preserves a value by reading through the pointer.
+`const` and `writeonly` cannot qualify the same pointed-to object.
+
+An ordinary readable/writable pointer converts implicitly to either restricted
+form. Neither restricted pointer converts implicitly back to an ordinary
+pointer, and `const T *` and `writeonly T *` do not convert implicitly to one
+another. These qualifiers change access capability and type compatibility, not
+representation: all three pointer forms remain one 16-bit address. Pointer
+access qualification is part of function and object ABI fingerprints, including
+aggregate members and separately compiled declarations.
 
 ### Memory regions
 
@@ -498,24 +520,29 @@ ordinary locals, while their fixed backing bytes participate in the normal
 call-graph activation overlay. Loads use the read alias; stores and initializer
 writes use the write alias.
 
-Taking the address, array-to-pointer decay, and passing one as a `ref` argument
-remain rejected because one ordinary pointer cannot encode different load and
-store addresses. Direct indexing remains supported, including runtime array
-indexes. Compound assignment, increment/decrement, and bitfield updates load
-through the read alias and store through the write alias rather than using a
-single-address 6502 read-modify-write instruction. Function-scope `static`
-objects use persistent split-region BSS/DATA storage and the existing one-time
-startup initialization paths. Parameters and return storage in split regions
-remain later work.
+Taking the address, array-to-pointer decay, and passing one as an ordinary
+`ref` argument remain rejected because one ordinary pointer cannot encode
+different load and store addresses. Direct indexing remains supported,
+including runtime array indexes. Compound assignment, increment/decrement, and
+bitfield updates load through the read alias and store through the write alias
+rather than using a single-address 6502 read-modify-write instruction.
+Function-scope `static` objects use persistent split-region BSS/DATA storage and
+the existing one-time startup initialization paths. Value parameters and hidden
+function return objects may also select a split writable region; callers store
+arguments and returned expressions through the write alias, while callees and
+callers read through the read alias. Directional address projections and
+one-address directional `ref` binding remain separate roadmap work.
 The selected linker `MEMORY` entry must use matching `read_start`,
 `write_start`, `size`, and `type = rw` values and must be shared rather than
 owned by a cartridge bank.
 
 ### Pointers and arrays
 
-Pointers are 16-bit addresses. Arrays decay to pointers to their first element
-in pointer-valued expressions and assignments. Pointer addition and subtraction
-scale by the pointed-to element size.
+Pointers are 16-bit addresses. `const` and `writeonly` restrict access through
+that address without changing its width. Arrays decay to pointers to their first
+element in pointer-valued expressions and assignments when the array has one
+ordinary representable address. Pointer addition and subtraction scale by the
+pointed-to element size.
 
 Subtracting compatible pointers produces an `int16_t` element count. Pointers
 to incompatible element types cannot be subtracted. Typed object pointers may

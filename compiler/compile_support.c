@@ -619,6 +619,7 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->is_absolute_ref = addrspec != NULL;
    entry->read_expr = address_spec_read_expr(addrspec);
    entry->write_expr = address_spec_write_expr(addrspec);
+   entry->pointer_access = declaration_pointer_access(modifiers, declarator);
    init_split_mem_entry_addresses(entry, name, modifiers);
    entry->offset = 0;
    entry->size = declarator_storage_size(type, declarator);
@@ -1050,6 +1051,7 @@ void ctx_push(Context *ctx, const ASTNode *type, const char *name) {
    entry->has_split_alias_delta = false;
    entry->split_alias_delta = 0;
    entry->target_typed = false;
+   entry->pointer_access = POINTER_ACCESS_READWRITE;
    entry->type = type;
    entry->declarator = NULL;
    entry->size = get_size(type_name_from_node(type));
@@ -1099,6 +1101,7 @@ void ctx_static(Context *ctx, const ASTNode *type, const char *name) {
    entry->has_split_alias_delta = false;
    entry->split_alias_delta = 0;
    entry->target_typed = false;
+   entry->pointer_access = POINTER_ACCESS_READWRITE;
    entry->type = type;
    entry->declarator = NULL;
    entry->size = get_size(type_name_from_node(type));
@@ -1129,6 +1132,7 @@ void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name) {
    entry->has_split_alias_delta = false;
    entry->split_alias_delta = 0;
    entry->target_typed = false;
+   entry->pointer_access = POINTER_ACCESS_READWRITE;
    entry->type = type;
    entry->declarator = NULL;
    entry->size = get_size(type_name_from_node(type));

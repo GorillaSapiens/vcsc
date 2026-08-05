@@ -1,0 +1,3 @@
+include "machine_6502.c26"
+struct Holder { uint8_t *p; };
+void use_holder(Holder h) { }

@@ -1,0 +1,39 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+uint8_t bytes[4];
+writeonly uint8_t *global_sink := bytes;
+
+writeonly uint8_t *get_sink(void) {
+   return bytes;
+}
+
+void fill(writeonly uint8_t *p) {
+   *p := 0x11;
+   p++;
+   *p := 0x22;
+   p[1] := 0x33;
+   p += 1;
+   p[1] := 0x44;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   uint8_t *ordinary;
+   ordinary := bytes;
+   global_sink := get_sink();
+   fill(global_sink);
+   if (sizeof(writeonly uint8_t *) != 2) { asm lda #$ff; asm ldx #1; asm ldy #0; asm jsr $ffff; }
+   if (bytes[0] != 0x11) { asm lda #$ff; asm ldx #2; asm ldy #0; asm jsr $ffff; }
+   if (bytes[1] != 0x22) { asm lda #$ff; asm ldx #3; asm ldy #0; asm jsr $ffff; }
+   if (bytes[2] != 0x33) { asm lda #$ff; asm ldx #4; asm ldy #0; asm jsr $ffff; }
+   if (bytes[3] != 0x44) { asm lda #$ff; asm ldx #5; asm ldy #0; asm jsr $ffff; }
+   pass();
+}

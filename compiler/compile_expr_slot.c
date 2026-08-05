@@ -429,6 +429,19 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       return true;
    }
 
+   if (dst && dst->target_typed && dst->declarator &&
+       declarator_pointer_depth(dst->declarator) > 0 &&
+       !integer_literal_is_zero_expr(expr)) {
+      const ASTNode *src_type = NULL;
+      const ASTNode *src_decl = NULL;
+      expr_match_signature(expr, ctx, &src_type, &src_decl);
+      if (src_type && src_decl && declarator_pointer_depth(src_decl) > 0) {
+         validate_pointer_access_conversion(expr, dst->pointer_access,
+                                            expr_pointer_access(expr, ctx),
+                                            "pointer value");
+      }
+   }
+
    if (dst && dst->type && (!dst->declarator || declarator_is_plain_value(dst->declarator))) {
       const ASTNode *literal_type = literal_annotation_type(expr);
       bool constant_without_bcd_type = expr_is_integer_constant_expr(expr, NULL) &&
@@ -510,6 +523,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                                  .declarator = lv.declarator,
                                  .is_static = false, .is_zeropage = false,
                                  .is_global = false, .target_typed = true,
+                                 .pointer_access = lv.pointer_access,
                                  .offset = 0, .size = value_size };
          if (!compile_expr_to_slot(rhs, ctx, &value)) {
             slot_fixed_scratch_abort(ctx, &scratch);

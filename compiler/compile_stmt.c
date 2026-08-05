@@ -14,6 +14,7 @@
 #include "abi_meta.h"
 #include "compile.h"
 #include "compile_init.h"
+#include "compile_expr_info.h"
 #include "compile_internal.h"
 #include "compile_support.h"
 #include "compile_lvalue.h"
@@ -88,7 +89,8 @@ static void stmt_fixed_scratch_finish(StmtFixedScratch *scratch) {
 static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
 static void compile_local_decl_item(ASTNode *node, Context *ctx);
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
-      const ASTNode *type, const ASTNode *declarator, const char *symbol, int size);
+      const ASTNode *type, const ASTNode *declarator,
+      PointerAccessQualifier pointer_access, const char *symbol, int size);
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret);
 static void compile_if_stmt(ASTNode *node, Context *ctx);
 static void compile_while_stmt(ASTNode *node, Context *ctx);
@@ -410,7 +412,8 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
 
 //! @brief Evaluate a runtime initializer in temporary frame scratch and copy it to a fixed symbol.
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
-      const ASTNode *type, const ASTNode *declarator, const char *symbol, int size) {
+      const ASTNode *type, const ASTNode *declarator,
+      PointerAccessQualifier pointer_access, const char *symbol, int size) {
    StmtFixedScratch scratch;
    bool ok;
 
@@ -440,6 +443,7 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
          .is_zeropage = false,
          .is_global = false,
          .target_typed = true,
+         .pointer_access = pointer_access,
          .offset = 0,
          .size = size
       };
@@ -475,6 +479,7 @@ static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEn
       target.name = "$return_value";
       target.type = ret->type;
       target.declarator = ret->declarator;
+      target.pointer_access = ret->pointer_access;
       target.target_typed = true;
       target.offset = 0;
       target.size = ret->size;
@@ -490,7 +495,8 @@ static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEn
    if (!entry_symbol_name(ctx, ret, sym, sizeof(sym))) {
       return false;
    }
-   return compile_runtime_initializer_to_symbol(expr, ctx, ret->type, ret->declarator, sym, ret->size);
+   return compile_runtime_initializer_to_symbol(expr, ctx, ret->type, ret->declarator,
+                                                ret->pointer_access, sym, ret->size);
 }
 
 //! @brief Lower break stmt from AST/semantic state into generated assembly or linker-visible metadata.
@@ -544,6 +550,8 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    int size            = declarator_storage_size(type, declarator);
    ContextEntry *entry = (ContextEntry *) set_get(ctx->vars, name);
    validate_nonreserved_implementation_name(name, node);
+   validate_declaration_access_qualifiers(node, modifiers, declarator,
+                                          "local object declaration");
 
    if (has_modifier(modifiers, "ref")) {
       diagnose_ref_object_modifier(node, name);
@@ -598,6 +606,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->has_split_alias_delta = false;
       entry->split_alias_delta = 0;
       entry->target_typed = false;
+      entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       entry->type = type;
       entry->declarator = declarator;
       entry->size = size;
@@ -618,6 +627,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    if (entry != NULL) {
       entry->size = size;
       entry->declarator = declarator;
+      entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       if (modifiers_imply_split_address(modifiers)) {
          char symbol[256];
          if (!entry_symbol_name(ctx, entry, symbol, sizeof(symbol))) {
@@ -724,6 +734,18 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
+   if (!is_empty(expression) && declarator_pointer_depth(declarator) > 0 &&
+       !integer_literal_is_zero_expr(expression)) {
+      const ASTNode *src_type = NULL;
+      const ASTNode *src_decl = NULL;
+      expr_match_signature(expression, ctx, &src_type, &src_decl);
+      if (src_type && src_decl && declarator_pointer_depth(src_decl) > 0) {
+         validate_pointer_access_conversion(expression, entry->pointer_access,
+                                            expr_pointer_access(expression, ctx),
+                                            "local initializer");
+      }
+   }
+
    if (modifiers_imply_split_address(modifiers) &&
        !has_modifier(modifiers, "static")) {
       char segbuf[512];
@@ -769,6 +791,7 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             .is_zeropage = false,
             .is_global = false,
             .target_typed = true,
+            .pointer_access = entry->pointer_access,
             .offset = 0,
             .size = size
          };
@@ -845,7 +868,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          emit(sink, "\t.res %d\n", size);
 
          if (!is_empty(expression) &&
-             !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator, sym, size)) {
+             !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator,
+                                                   entry->pointer_access, sym, size)) {
             error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
          }
          return;

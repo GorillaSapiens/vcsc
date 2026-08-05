@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot implicitly convert writeonly pointer to read/write pointer
+include "machine_6502.c26"
+struct Sink { writeonly uint8_t *output; };
+Sink sink;
+void main(void) { uint8_t *p; p := sink.output; }

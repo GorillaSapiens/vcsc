@@ -116,6 +116,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token TYPEDEF
 %token UNION
 %token WHILE
+%token WRITEONLY
 %token XFORM
 %token XOR_ASSIGN
 
@@ -381,6 +382,7 @@ modifier:
   | REF                                      { COVER; $$ = make_identifier_leaf("ref"); }
   | REQUIRE                                  { COVER; $$ = make_identifier_leaf("require"); }
   | STATIC                                   { COVER; $$ = make_identifier_leaf("static"); }
+  | WRITEONLY                                { COVER; $$ = make_identifier_leaf("writeonly"); }
   | MEMNAME                                  { COVER; $$ = make_identifier_leaf($1); }
   ;
 

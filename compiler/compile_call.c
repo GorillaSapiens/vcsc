@@ -176,6 +176,11 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          tmp.type = parameter_is_ref(parameter) ? required_typename_node("*") : ptype;
          tmp.declarator = parameter_is_ref(parameter)
             ? NULL : call_adjusted_parameter_declarator(pdecl, false);
+         {
+            const ASTNode *specs = parameter_decl_specifiers(parameter);
+            const ASTNode *mods = (specs && specs->count > 0) ? specs->children[0] : NULL;
+            tmp.pointer_access = declaration_pointer_access(mods, tmp.declarator);
+         }
          tmp.target_typed = true;
          tmp.size = psz;
 
@@ -406,6 +411,11 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          tmp.type = item->is_ref ? required_typename_node("*") : item->type;
          tmp.declarator = item->is_ref ? NULL
             : call_adjusted_parameter_declarator(item->declarator, false);
+         if (!item->is_ref) {
+            const ASTNode *specs = parameter_decl_specifiers(item->parameter);
+            const ASTNode *mods = (specs && specs->count > 0) ? specs->children[0] : NULL;
+            tmp.pointer_access = declaration_pointer_access(mods, tmp.declarator);
+         }
          tmp.target_typed = true;
          tmp.offset = eval_offset;
          tmp.size = item->size;
