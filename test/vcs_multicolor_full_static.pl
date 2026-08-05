@@ -96,7 +96,7 @@ my $pixel_exe=File::Spec->catfile($tmp,'multicolor_full_static_pixels');
 $rc==0 && !$sig or die "player_color_192 interactive example pixel harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "player_color_192 interactive example pixel harness build wrote output\n$out$err";
 my @zp=map { map_zp($map,$_) } qw(game_object_x game_player0_y game_player1_y game_ball_y);
-($rc,$sig,$out,$err)=capture($pixel_exe,'static',$bin,@zp);
+($rc,$sig,$out,$err)=capture($pixel_exe,'static-alien',$bin,@zp);
 $rc==0 && !$sig or die "player_color_192 interactive example pixel raster failed\n$out$err";
 $out eq "vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n"
    or die "unexpected player_color_192 interactive example pixel output: $out";

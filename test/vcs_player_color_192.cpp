@@ -285,11 +285,17 @@ uint8_t expected_display_value(const std::vector<uint8_t> &values,int first,int 
 }
 void verify_object_pixel_raster(const std::string &mode) {
    if (frame_writes.empty()) fail("missing object pixel trace");
-   const std::vector<uint8_t> p0{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
-   const std::vector<uint8_t> p1{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
-   const int p0_first=mode=="static" ? 166 : 204;
-   const int p1_first=mode=="static" ? 112 : 206;
-   const int ball_first=mode=="static" ? 126 : 214;
+   const bool alien_sprites=mode=="static-alien";
+   const std::vector<uint8_t> p0=alien_sprites
+      ? std::vector<uint8_t>{{0x66,0x3c,0x7e,0xdb,0xff,0xbd,0xa5,0x42}}
+      : std::vector<uint8_t>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
+   const std::vector<uint8_t> p1=alien_sprites
+      ? std::vector<uint8_t>{{0x3c,0x66,0xff,0xdb,0xff,0x24,0x5a,0xa5}}
+      : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
+   const bool static_scene=mode!="terminal";
+   const int p0_first=static_scene ? 166 : 204;
+   const int p1_first=static_scene ? 112 : 206;
+   const int ball_first=static_scene ? 126 : 214;
    const std::array<unsigned,3> x{{44,108,78}};
    const uint64_t phase=(frame_writes.front().beam_cycle+kCyclesPerLine-
                          frame_writes.front().cycle)%kCyclesPerLine;
@@ -375,14 +381,15 @@ void verify_boundaries() {
 
 int main(int argc,char **argv) {
    if (argc!=7) {
-      std::fprintf(stderr,"usage: %s static|terminal ROM object_x p0_y p1_y ball_y\n",argv[0]);
+      std::fprintf(stderr,"usage: %s static|static-alien|terminal ROM object_x p0_y p1_y ball_y\n",argv[0]);
       return 2;
    }
    const std::string mode=argv[1];
-   if (mode!="static" && mode!="terminal") fail("mode must be static or terminal");
+   if (mode!="static" && mode!="static-alien" && mode!="terminal")
+      fail("mode must be static, static-alien, or terminal");
    y_address={{parse_zp(argv[4]),parse_zp(argv[5]),parse_zp(argv[6])}};
-   expected_y=mode=="static" ? std::array<uint8_t,3>{{70,42,45}} :
-                               std::array<uint8_t,3>{{89,89,89}};
+   expected_y=mode!="terminal" ? std::array<uint8_t,3>{{70,42,45}} :
+                                  std::array<uint8_t,3>{{89,89,89}};
 
    std::memset(memory_image,0,sizeof(memory_image));
    memory_image[0x0280] = 0xff;
@@ -414,9 +421,14 @@ int main(int argc,char **argv) {
       if ((event.address==kEnam0 || event.address==kEnam1) && (event.value&2))
          fail("missile enable became active");
 
-   const std::vector<uint8_t> p0{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
-   const std::vector<uint8_t> p1{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
-   if (mode=="static") {
+   const bool alien_sprites=mode=="static-alien";
+   const std::vector<uint8_t> p0=alien_sprites
+      ? std::vector<uint8_t>{{0x66,0x3c,0x7e,0xdb,0xff,0xbd,0xa5,0x42}}
+      : std::vector<uint8_t>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
+   const std::vector<uint8_t> p1=alien_sprites
+      ? std::vector<uint8_t>{{0x3c,0x66,0xff,0xdb,0xff,0x24,0x5a,0xa5}}
+      : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
+   if (mode!="terminal") {
       expect_nonzero_lines(kGrp0,{164,166,168,170,172,174,176,178},p0,"static P0");
       expect_nonzero_lines(kGrp1,{112,114,116,118,119,121,124,126},p1,"static P1");
       expect_nonzero_lines(kEnabl,{125,127,129,131},{2,2,2,2},"static Ball");

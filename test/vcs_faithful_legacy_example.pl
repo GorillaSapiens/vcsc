@@ -87,7 +87,7 @@ my $harness=File::Spec->catfile($tmp,'vcs_faithful_legacy_example_compare');
 $rc==0 && !$sig or die "oracle comparator build failed\n$out$err";
 $out eq '' && $err eq '' or die "oracle comparator build wrote output\n$out$err";
 
-($rc,$sig,$out,$err)=capture($harness,$bin,'264','--sprites');
+($rc,$sig,$out,$err)=capture($harness,$bin,'264','--alien-sprites');
 $rc==0 && !$sig or die "faithful legacy interactive example faithful sprite/frame check failed\n$out$err";
 $out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n"
    or die "unexpected faithful sprite/frame output: $out";

@@ -193,7 +193,7 @@ TraceMachine *TraceMachine::active_ = nullptr;
 } // namespace
 
 
-void validate_sprite_oracle(const std::vector<Event> &events) {
+void validate_sprite_oracle(const std::vector<Event> &events, bool alien_sprites) {
    struct RowWrite { uint64_t line; uint8_t value; };
    std::vector<RowWrite> p0_rows;
    std::vector<RowWrite> p1_rows;
@@ -202,8 +202,12 @@ void validate_sprite_oracle(const std::vector<Event> &events) {
       if (event.address == 0x001b) p0_rows.push_back({event.line, event.value});
       if (event.address == 0x001c) p1_rows.push_back({event.line, event.value});
    }
-   const uint8_t expected_p0[] = {0x3c,0x66,0x66,0x66,0x7e,0x66,0x66,0x3c};
-   const uint8_t expected_p1[] = {0x7c,0x66,0x66,0x66,0x7c,0x66,0x66,0x7c};
+   const uint8_t legacy_p0[] = {0x3c,0x66,0x66,0x66,0x7e,0x66,0x66,0x3c};
+   const uint8_t legacy_p1[] = {0x7c,0x66,0x66,0x66,0x7c,0x66,0x66,0x7c};
+   const uint8_t alien_p0[] = {0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66};
+   const uint8_t alien_p1[] = {0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c};
+   const uint8_t *expected_p0 = alien_sprites ? alien_p0 : legacy_p0;
+   const uint8_t *expected_p1 = alien_sprites ? alien_p1 : legacy_p1;
    if (p0_rows.size() != 8 || p1_rows.size() != 8) {
       std::fprintf(stderr,
          "vcs_faithful_legacy_compare: sprite row counts are P0=%zu P1=%zu; expected 8 each\n",
@@ -264,17 +268,20 @@ uint64_t parse_raw_lines(const char *text) {
 }
 
 int main(int argc, char **argv) {
-   if (argc == 4 && std::strcmp(argv[3], "--sprites") == 0) {
+   if (argc == 4 &&
+       (std::strcmp(argv[3], "--sprites") == 0 ||
+        std::strcmp(argv[3], "--alien-sprites") == 0)) {
       TraceMachine machine(argv[1]);
       const std::vector<Event> events =
          machine.run(parse_raw_lines(argv[2]), "oracle");
-      validate_sprite_oracle(events);
+      validate_sprite_oracle(events,
+         std::strcmp(argv[3], "--alien-sprites") == 0);
       return 0;
    }
    if (argc != 5) {
       std::fprintf(stderr,
          "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n"
-         "       %s ROM.bin RAW_LINES --sprites\n", argv[0], argv[0]);
+         "       %s ROM.bin RAW_LINES --sprites|--alien-sprites\n", argv[0], argv[0]);
       return 2;
    }
    TraceMachine old_machine(argv[1]);
