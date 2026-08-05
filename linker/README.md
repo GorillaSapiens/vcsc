@@ -454,13 +454,16 @@ region keeps its declared size. Allocation and overflow accounting use one
 physical high-water mark for the region rather than inferring any Superchip-
 specific `$80` delta or 128-byte capacity.
 
-A non-void function may select one writable split-address region for its hidden
-`function$__return` object. The compiler emits that object in the function's
-activation segment for the selected region, exports its read address, and records
-the region plus both window starts in the function ABI. The linker overlays and
-counts it exactly like any other region-local activation piece. Map output shows
-both `run=` and `write=` addresses, and separately compiled declarations and
-definitions with different result regions are rejected before layout.
+A non-void function may select one writable ordinary or split-address region for
+its hidden `function$__return` object. The compiler emits that object in the
+function's activation segment for the selected region and records the region
+independently from code placement in the function ABI. Ordinary regions use their
+declared run address and address size. Split regions export the read address and
+record both window starts. The linker overlays and counts either form exactly
+like any other region-local activation piece. Map output reports the result
+layout separately from the function's CODE layout; split results show both
+`run=` and `write=`. Separately compiled declarations and definitions with
+different result regions are rejected before layout.
 
 Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used. Split-address DATA/BSS layouts use the read window as their canonical run address. Startup copy/zero records are translated to the corresponding write window.
 
@@ -657,6 +660,15 @@ represented as independent private layouts. Ordinary functions use
 uses `CODE.bank1.__vcsc_function$NAME`. The linker first looks for the longest
 matching segment rule, so `CODE.bank1` controls that private layout before the
 ordinary `CODE` fallback is considered.
+
+Function modifiers are property-classified by the compiler: an order-insensitive
+set of `$ro` regions is the code-placement ABI fact, while one `$rw` region is the
+independent return-storage fact. The current compiler emits at most one body and
+rejects code-region sets larger than one pending item 21. Linker ABI diagnostics
+therefore report `code regions` mismatches separately from `return type` storage
+mismatches. A cfg that pins source region `orchard` must provide a matching
+`CODE.orchard` segment rule; named return segments continue to resolve through
+their matching writable MEMORY region.
 
 Their map entries therefore report exact function size and page status.
 Functions up to 256 bytes are kept within one page when an existing hole permits

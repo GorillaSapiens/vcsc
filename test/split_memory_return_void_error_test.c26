@@ -1,6 +1,6 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: void function 'bad' cannot select split-address result region 'banana'
+// expecterr: void function 'bad' cannot select writable result region 'banana' because it has no return object
 include "machine_6502.c26"
 mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0004 $rw };
 banana void bad(void) {}

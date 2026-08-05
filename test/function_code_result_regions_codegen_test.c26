@@ -1,0 +1,32 @@
+// vcsc-cc1 -I .
+// expectasm: __memmeta$V1$orchard$SD000$Z1000$Tro = 0
+// expectasm: __memmeta$V1$basket$S0080$Z0020$Trw = 0
+// expectasm: __memmeta$V2$mirror$R3003$W5007$Z0004$Trw = 0
+// expectasm: function$declaration$ordinary$code_regions$regionsQ3DQ5BorchardQ5D
+// expectasm: function$declaration$ordinary$return$modeQ3Dreturn_regionQ28regionQ3DbasketQ2CaddressQ3DzeropageQ29
+// expectasm: function$definition$ordinary$code_regions$regionsQ3DQ5BorchardQ5D
+// expectasm: function$definition$ordinary$return$modeQ3Dreturn_regionQ28regionQ3DbasketQ2CaddressQ3DzeropageQ29
+// expectasm: function$definition$split$code_regions$regionsQ3DQ5BorchardQ5D
+// expectasm: function$definition$split$return$modeQ3Dreturn_splitQ28regionQ3DmirrorQ2CreadQ3D3003Q2CwriteQ3D5007Q29
+// expectasmordered: .segment "ZEROPAGE.basket.__vcsc_activation$ordinary"
+// expectasmordered: ordinary$__return:
+// expectasmordered: .segment "BSS.mirror.__vcsc_activation$split"
+// expectasmordered: split$__return:
+// expectasmordered: .segment "CODE.orchard"
+// expectasmordered: .proc ordinary
+// expectasmordered: .segment "CODE"
+// expectasmordered: .segment "CODE.orchard"
+// expectasmordered: .proc split
+// expectasmordered: .segment "CODE"
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+mem basket  { $start:0x0080 $size:0x0020 $rw };
+mem mirror  { $read_start:0x3003 $write_start:0x5007 $size:0x0004 $rw };
+
+orchard basket uint8_t ordinary(void);
+basket orchard uint8_t ordinary(void) { return 0x5a; }
+mirror orchard uint16_t split(void) { return 0x1234; }
+void main(void) {
+   uint8_t a := ordinary();
+   uint16_t b := split();
+}

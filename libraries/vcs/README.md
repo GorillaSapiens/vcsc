@@ -338,16 +338,19 @@ read/write address.
 A split object may bind to `ref const T`, which passes its `$F080` read alias, or
 `ref writeonly T`, which passes its `$F000` write alias. Both remain ordinary
 one-address reference arguments; no fat pointer is introduced. Split-address
-value parameters are supported: callers copy through the write alias using the ordinary selective-staging rule, while callees load through the
+value parameters are supported: callers copy through the write alias using the
+ordinary selective-staging rule, while callees load through the
 read alias and store through the write alias. Only an argument which must
 survive a function call in a later argument remains in caller scratch. A
 non-void function may likewise use `superchip` to place its exact-sized hidden
 return object in the shared window. `return expression;` and assignments to `$$`
-write through `$F000`, while callee and caller reads use `$F080`. The function
-body itself remains automatically placed; combining a writable result region
-with an explicit code region is the next roadmap item. Directional ref
-capability is part of same-translation-unit function compatibility and
-linker-visible ABI fingerprints, while ordinary `ref T` still requires a single
+write through `$F000`, while callee and caller reads use `$F080`. A separate
+read-only bank modifier may independently pin the function body, for example
+`bank1 superchip uint16_t sample(void)`. Modifier order is irrelevant; the body
+uses `CODE.bank1` while `sample$__return` remains in shared Superchip RAM.
+Directional ref capability is part of same-translation-unit function
+compatibility and linker-visible ABI fingerprints, while ordinary `ref T` still
+requires a single
 shared address.
 Absolute bindings may not overlap the allocator-managed Superchip
 windows, so raw persistence probes must own storage through `superchip` just

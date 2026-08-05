@@ -102,6 +102,15 @@ linker placement, page containment, source/linker region metadata agreement,
 ordinary `CODE` restoration, and the Superchip-safe `$D100+$0E00` allocatable
 interval. Companion rejection tests cover conflicting declaration/definition
 regions, inline placement, and explicit nonzero-bank placement of `main`.
+`function_code_result_regions_codegen_test.c26` and
+`function_code_result_region_placement.pl` cover the generalized function-region
+contract: arbitrary names, order-independent `$ro` code plus `$rw` result
+modifiers, ordinary and split result storage, separate CODE/return map entries,
+and independent metadata. Companion tests reject duplicate regions, multiple
+writable results, writable storage on `void`, and the explicitly deferred
+multiple-code-region form. The `e2e_function_*_region_abi_mismatch_fail` pairs
+prove that separate-object code-region and result-region disagreements diagnose
+different ABI roles.
 `readonly_mem_object_codegen_test.c26` locks source-level `$ro` object emission
 as `RODATA.region.__vcsc_object$NAME`; companion tests reject mutable definitions
 and runtime-only initializers in read-only named regions.
@@ -536,8 +545,8 @@ callers and definitions using `banana`, `pair`, and `orange`, including reversed
 and noncontiguous windows plus a split-address pointer return, and requires
 result-region ABI mismatch diagnostics.
 The compile-only split-return tests additionally lock absolute import/export,
-write-alias lowering, `void` rejection, and same-translation-unit declaration
-conflicts.
+write-alias lowering, generalized writable-result `void` rejection, and
+same-translation-unit declaration conflicts.
 
 `linker_startup_main_generic.pl` uses arbitrary logical bank names PEAR/BANANA
 and MEMORY names `pear_code`/`orange_code`. It makes ordinary CODE default to the

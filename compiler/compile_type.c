@@ -1592,6 +1592,27 @@ bool mem_decl_is_readonly(const ASTNode *mem_decl) {
    return false;
 }
 
+//! @brief Return whether one named mem declaration describes writable storage.
+bool mem_decl_is_writable(const ASTNode *mem_decl) {
+   const ASTNode *flags;
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2) {
+      return false;
+   }
+   flags = mem_decl->children[1];
+   if (!flags || is_empty(flags)) {
+      return false;
+   }
+   for (int i = 0; i < flags->count; i++) {
+      const char *text = (flags->children[i] && flags->children[i]->strval)
+         ? flags->children[i]->strval : NULL;
+      if (text && !strcmp(text, "$rw")) {
+         return true;
+      }
+   }
+   return false;
+}
+
 //! @brief Return the read/write alias starts for one split-address mem declaration.
 bool mem_decl_split_addresses(const ASTNode *mem_decl, unsigned int *read_start, unsigned int *write_start) {
    const ASTNode *flags;

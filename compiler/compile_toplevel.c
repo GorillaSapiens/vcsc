@@ -21,6 +21,7 @@
 #include "compile_internal.h"
 #include "compile_function_registry.h"
 #include "compile_stmt.h"
+#include "compile_support.h"
 #include "compile_toplevel.h"
 #include "compile_type.h"
 #include "emit.h"
@@ -32,9 +33,6 @@
 #include "typename.h"
 #include "xray.h"
 #include "lextern.h"
-
-void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
-static const ASTNode *decl_node_declarator(const ASTNode *node);
 
 //! @brief Return whether one original source identifier uses the required template prefix.
 static bool template_source_name_is_hygienic(const ASTNode *name) {
@@ -217,14 +215,6 @@ static const ASTNode *decl_subitem_address_spec(const ASTNode *node) {
    return node->children[1];
 }
 
-//! @brief Return decl node declarator data used by compile toplevel; returned pointers alias existing storage unless explicitly allocated by the function name.
-static const ASTNode *decl_node_declarator(const ASTNode *node) {
-   if (!node || node->count < 3) {
-      return NULL;
-   }
-   return decl_subitem_declarator(node->children[2]);
-}
-
 //! @brief Return decl node address spec data used by compile toplevel; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const ASTNode *decl_node_address_spec(const ASTNode *node) {
    if (!node || node->count < 3) {
@@ -321,6 +311,8 @@ void compile_function_decl(ASTNode *node) {
    bool has_return_object;
    bool return_is_zeropage = true;
    bool return_is_split = false;
+   const char *code_region_name;
+   const char *result_region_name;
    ContextEntry *return_entry;
    char return_sym[256];
    char return_write_expr[320];
@@ -331,6 +323,8 @@ void compile_function_decl(ASTNode *node) {
    }
    validate_function_return_type(node);
    remember_function(node, name);
+   code_region_name = function_single_code_region_name(node);
+   result_region_name = function_result_region_name(node);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
@@ -391,12 +385,17 @@ void compile_function_decl(ASTNode *node) {
    }
 
    emit_function_parameter_storage(node, &ctx);
-   emit_mem_region_metadata_for_modifiers(node, modifiers);
+   if (code_region_name) {
+      emit_mem_region_metadata_for_name(node, code_region_name);
+   }
+   if (result_region_name) {
+      emit_mem_region_metadata_for_name(node, result_region_name);
+   }
    if (has_return_object) {
       char segbuf[512];
-      build_activation_storage_segment(segbuf, sizeof(segbuf), &ctx,
-                                       return_is_split ? modifiers : NULL,
-                                       return_is_zeropage ? "ZEROPAGE" : "BSS");
+      build_activation_storage_segment_for_region(segbuf, sizeof(segbuf), &ctx,
+                                                  result_region_name,
+                                                  return_is_zeropage ? "ZEROPAGE" : "BSS");
       if (return_is_zeropage) {
          emit(&es_zp, ".segment \"%s\"\n", segbuf);
          emit(&es_zp, "%s:\n", return_sym);
@@ -408,11 +407,8 @@ void compile_function_decl(ASTNode *node) {
          emit(&es_bss, "\t.res %d\n", return_entry->size);
       }
    }
-   {
-      const char *memname = find_mem_modifier_name(modifiers);
-      if (memname && *memname && !return_is_split) {
-         emit(&es_code, ".segment \"CODE.%s\"\n", memname);
-      }
+   if (code_region_name && *code_region_name) {
+      emit(&es_code, ".segment \"CODE.%s\"\n", code_region_name);
    }
    emit(&es_code, ".proc %s\n", sym);
    if (has_modifier(modifiers, "page")) {
@@ -431,7 +427,7 @@ void compile_function_decl(ASTNode *node) {
    emit(&es_code, "@fini:\n");
    emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
-   if (find_mem_modifier_name(modifiers) && !return_is_split) {
+   if (code_region_name) {
       emit(&es_code, ".segment \"CODE\"\n");
    }
    current_call_graph_function = saved_call_graph_function;
@@ -1190,7 +1186,17 @@ static void compile_function_signature(ASTNode *node) {
       return;
    }
 
-   emit_mem_region_metadata_for_modifiers(node, modifiers);
+   {
+      FunctionRegionSpec regions;
+      function_region_spec_collect(node, &regions);
+      for (size_t i = 0; i < regions.code_region_count; i++) {
+         emit_mem_region_metadata_for_name(node, regions.code_regions[i]);
+      }
+      if (regions.result_region) {
+         emit_mem_region_metadata_for_name(node, regions.result_region);
+      }
+      function_region_spec_release(&regions);
+   }
 
    if (!has_modifier(modifiers, "static")) {
       emit_function_abi_metadata(node, sym, false);

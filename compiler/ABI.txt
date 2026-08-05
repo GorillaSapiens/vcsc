@@ -33,8 +33,8 @@ ordinary binary integers through 32 bits. `bcd24_t` and `bcd32_t` are also legal
 
 Inside a value-returning function, `$$` is the source-level return object. It is
 an exact-sized hidden callee-owned symbol named `function$__return`. By default
-that symbol is in zero page. A writable split-address `mem` modifier on the
-function instead selects the return object's region:
+that symbol is in zero page. One writable `mem` modifier on the function instead
+selects the return object's region; the region may be ordinary or split-address:
 
 ```
 mem ports { $read_start:0x3003 $write_start:0x5007 $size:0x0008 $rw };
@@ -44,17 +44,38 @@ ports uint16_t sample(void);
 This changes only the storage of the existing memory-return ABI; it does not
 introduce register returns or a second calling convention. `return expr;`
 writes the converted value to `$$`; `return;` leaves any value explicitly
-written there intact. For split storage, writes use the region's write alias and
-reads of `$$` use its read alias. The common epilogue for every value width is
-simply:
+written there intact. Ordinary named result storage uses the declared address
+and may be zero-page or absolute. For split storage, writes use the region's
+write alias and reads of `$$` use its read alias. The common epilogue for every
+value width is simply:
 
 rts
 
 The callee does not load A, X, or Y with the result. The return-object symbol is
 exported with every non-static definition. A separately compiled caller imports
-it only when it consumes the call result. Ordinary return symbols use zero-page
-imports; split return symbols use absolute imports and carry their region,
-read-start, and write-start in ABI metadata.
+it only when it consumes the call result. Default and named zero-page return
+symbols use zero-page imports. Named absolute and split return symbols use
+absolute imports. Function ABI metadata records the result-region identity and
+address class, or for split storage the region, read-start, and write-start.
+
+Function region contract
+------------------------
+
+Named function modifiers are classified by their `mem` attributes, never by
+special spellings. Read-only modifiers form an order-insensitive code-placement
+set. One writable modifier, when present, selects the hidden return object's
+storage independently of code placement. Thus declarations equivalent to
+`bank0 superchip uint8_t sample(void)` and
+`superchip bank0 uint8_t sample(void)` have the same ABI contract: code in
+`bank0`, result storage in `superchip`.
+
+With no read-only modifier, code placement remains automatic. With no writable
+modifier, return storage remains the ordinary default. A writable modifier is
+invalid on `void`, and at most one writable region is permitted. The ABI can
+represent a set of read-only regions, but the compiler currently rejects more
+than one with an explicit item-21 diagnostic because function replication is not
+yet implemented. Same-translation-unit compatibility and linker metadata compare
+the code-region set and result-storage region as separate facts.
 
 Before an ordinary direct call, arguments are evaluated left-to-right. A
 converted argument is copied directly into its callee-owned parameter as soon

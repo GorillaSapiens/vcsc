@@ -1249,7 +1249,7 @@ when main roadmap item 29 becomes active.
          diagnostics, forbidden-operation tests, and an F8 cross-bank trampoline
          regression.
 
-[ ] 20. Generalize function region modifiers into a code-region set and one
+[x] 20. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.
 
        * Classify every named region modifier from its declared `mem` properties,
@@ -1276,6 +1276,22 @@ when main roadmap item 29 becomes active.
        * Add order-independence and arbitrary-region-name tests, single-code-region
          plus writable-result tests, declaration/definition mismatch tests, and the
          explicit deferred-multi-region diagnostic consumed by item 21.
+
+       Completed 2026-08-05:
+       * Classify every named function modifier from its `mem` declaration:
+         read-only regions form the code-placement set and one writable region
+         selects the hidden result object. Modifier spelling and order have no
+         semantic role; ordinary and split-address writable regions both work.
+       * Emit code and result storage independently, preserve automatic/default
+         placement when either role is absent, and compare the two facts
+         independently in same-translation-unit compatibility and linker ABI
+         metadata. Map output now shows the actual CODE layout separately from
+         ordinary or split return-object activation storage.
+       * Reject duplicate modifiers, multiple writable result regions, writable
+         storage on `void`, inline region contracts, and multiple read-only code
+         regions with the explicit item-21 deferral diagnostic. Add arbitrary-name,
+         order-independence, code-plus-result, ordinary/split result, map-placement,
+         and separate-object ABI mismatch coverage.
 
 [ ] 21. Add explicit multi-bank duplication for immutable objects and functions.
 

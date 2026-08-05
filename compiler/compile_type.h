@@ -67,6 +67,7 @@ const char *find_mem_modifier_name(const ASTNode *modifiers);
 const ASTNode *find_mem_modifier_node(const ASTNode *modifiers);
 bool mem_decl_is_zeropage(const ASTNode *mem_decl);
 bool mem_decl_is_readonly(const ASTNode *mem_decl);
+bool mem_decl_is_writable(const ASTNode *mem_decl);
 bool mem_decl_split_addresses(const ASTNode *mem_decl, unsigned int *read_start, unsigned int *write_start);
 bool modifiers_imply_split_address(const ASTNode *modifiers);
 bool modifiers_split_address_delta(const ASTNode *modifiers, int *delta);

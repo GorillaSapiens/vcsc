@@ -12,9 +12,11 @@
 #include "builtin.h"
 #include "compile_declarator.h"
 #include "compile_expr_info.h"
+#include "compile_function.h"
 #include "compile_function_registry.h"
 #include "compile_internal.h"
 #include "compile_type.h"
+#include "memname.h"
 #include "messages.h"
 #include "set.h"
 
@@ -40,6 +42,195 @@ bool function_has_body(const ASTNode *fn) {
 
 bool function_is_inline(const ASTNode *fn) {
    return has_modifier((ASTNode *)function_modifiers_node(fn), "inline");
+}
+
+//! @brief Collect the independently classified code and result regions of one function.
+void function_region_spec_collect(const ASTNode *fn, FunctionRegionSpec *spec) {
+   const ASTNode *modifiers = function_modifiers_node(fn);
+
+   if (!spec) {
+      return;
+   }
+   memset(spec, 0, sizeof(*spec));
+   if (!modifiers || is_empty(modifiers)) {
+      return;
+   }
+
+   spec->code_regions = calloc((size_t)modifiers->count, sizeof(*spec->code_regions));
+   if (!spec->code_regions) {
+      error_unreachable("out of memory collecting function memory regions");
+   }
+
+   for (int i = 0; i < modifiers->count; i++) {
+      const ASTNode *modifier = modifiers->children[i];
+      const char *name = (modifier && modifier->strval) ? modifier->strval : NULL;
+      const ASTNode *mem_decl;
+      bool is_ro;
+      bool is_rw;
+
+      if (!name || !memname_exists(name)) {
+         continue;
+      }
+      mem_decl = get_memname_node(name);
+      is_ro = mem_decl_is_readonly(mem_decl);
+      is_rw = mem_decl_is_writable(mem_decl);
+      if (is_ro && !is_rw) {
+         spec->code_regions[spec->code_region_count++] = name;
+      }
+      else if (is_rw && !is_ro && !spec->result_region) {
+         spec->result_region = name;
+      }
+   }
+}
+
+//! @brief Release temporary storage owned by one function region specification.
+void function_region_spec_release(FunctionRegionSpec *spec) {
+   if (!spec) {
+      return;
+   }
+   free(spec->code_regions);
+   memset(spec, 0, sizeof(*spec));
+}
+
+//! @brief Return the sole code-placement region selected by a function, if any.
+const char *function_single_code_region_name(const ASTNode *fn) {
+   FunctionRegionSpec spec;
+   const char *ret = NULL;
+
+   function_region_spec_collect(fn, &spec);
+   if (spec.code_region_count == 1) {
+      ret = spec.code_regions[0];
+   }
+   function_region_spec_release(&spec);
+   return ret;
+}
+
+//! @brief Return the writable hidden-result region selected by a function, if any.
+const char *function_result_region_name(const ASTNode *fn) {
+   FunctionRegionSpec spec;
+   const char *ret;
+
+   function_region_spec_collect(fn, &spec);
+   ret = spec.result_region;
+   function_region_spec_release(&spec);
+   return ret;
+}
+
+//! @brief Return the writable hidden-result region declaration selected by a function.
+const ASTNode *function_result_region_node(const ASTNode *fn) {
+   const char *name = function_result_region_name(fn);
+   return name ? get_memname_node(name) : NULL;
+}
+
+//! @brief Return whether two source-order-insensitive function region contracts agree.
+bool function_region_contract_matches(const ASTNode *a, const ASTNode *b) {
+   FunctionRegionSpec aspec;
+   FunctionRegionSpec bspec;
+   bool equal = true;
+
+   function_region_spec_collect(a, &aspec);
+   function_region_spec_collect(b, &bspec);
+   if ((aspec.result_region == NULL) != (bspec.result_region == NULL) ||
+       (aspec.result_region && strcmp(aspec.result_region, bspec.result_region)) ||
+       aspec.code_region_count != bspec.code_region_count) {
+      equal = false;
+   }
+   for (size_t i = 0; equal && i < aspec.code_region_count; i++) {
+      bool found = false;
+      for (size_t j = 0; j < bspec.code_region_count; j++) {
+         if (!strcmp(aspec.code_regions[i], bspec.code_regions[j])) {
+            found = true;
+            break;
+         }
+      }
+      if (!found) {
+         equal = false;
+      }
+   }
+   function_region_spec_release(&aspec);
+   function_region_spec_release(&bspec);
+   return equal;
+}
+
+//! @brief Validate named function regions after classifying them from mem properties.
+void validate_function_region_modifiers(const ASTNode *fn) {
+   const ASTNode *modifiers = function_modifiers_node(fn);
+   const ASTNode *return_decl;
+   const char *fname;
+   const char *result_region = NULL;
+   const char *first_code_region = NULL;
+   size_t code_region_count = 0;
+
+   if (!fn || !modifiers || is_empty(modifiers)) {
+      return;
+   }
+   fname = declarator_name(function_declarator_node(fn));
+   if (!fname || !*fname) {
+      fname = "<unnamed>";
+   }
+   return_decl = function_return_declarator_from_callable(function_declarator_node(fn));
+
+   for (int i = 0; i < modifiers->count; i++) {
+      const ASTNode *modifier = modifiers->children[i];
+      const char *name = (modifier && modifier->strval) ? modifier->strval : NULL;
+      const ASTNode *mem_decl;
+      bool is_ro;
+      bool is_rw;
+
+      if (!name || !memname_exists(name)) {
+         continue;
+      }
+      for (int j = 0; j < i; j++) {
+         const ASTNode *previous = modifiers->children[j];
+         if (previous && previous->strval && !strcmp(previous->strval, name)) {
+            error_user("[%s:%d.%d] function '%s' repeats mem region modifier '%s'",
+                       fn->file, fn->line, fn->column, fname, name);
+         }
+      }
+
+      mem_decl = get_memname_node(name);
+      if (!mem_decl) {
+         error_user("[%s:%d.%d] function '%s' uses unknown mem region modifier '%s'",
+                    fn->file, fn->line, fn->column, fname, name);
+      }
+      is_ro = mem_decl_is_readonly(mem_decl);
+      is_rw = mem_decl_is_writable(mem_decl);
+      if (is_ro == is_rw) {
+         error_user("[%s:%d.%d] mem region '%s' used by function '%s' must declare exactly one of $ro or $rw",
+                    fn->file, fn->line, fn->column, name, fname);
+      }
+      if (is_ro) {
+         if (mem_decl_split_addresses(mem_decl, NULL, NULL)) {
+            error_user("[%s:%d.%d] read-only code region '%s' for function '%s' cannot use split read/write aliases",
+                       fn->file, fn->line, fn->column, name, fname);
+         }
+         if (!first_code_region) {
+            first_code_region = name;
+         }
+         code_region_count++;
+      }
+      else {
+         if (result_region) {
+            error_user("[%s:%d.%d] function '%s' selects multiple writable result regions '%s' and '%s'; at most one is allowed",
+                       fn->file, fn->line, fn->column, fname, result_region, name);
+         }
+         result_region = name;
+      }
+   }
+
+   if (result_region && return_type_is_void(function_return_type(fn), return_decl)) {
+      error_user("[%s:%d.%d] void function '%s' cannot select writable result region '%s' because it has no return object",
+                 fn->file, fn->line, fn->column, fname, result_region);
+   }
+   if (function_is_inline(fn) && (code_region_count > 0 || result_region)) {
+      error_user("[%s:%d.%d] inline function '%s' cannot use mem region '%s' because inline expansion has no independently placeable linker layout",
+                 fn->file, fn->line, fn->column, fname,
+                 first_code_region ? first_code_region : result_region);
+   }
+   if (code_region_count > 1) {
+      error_user("[%s:%d.%d] function '%s' requests %zu read-only code regions; multi-region code placement requires bankswitching roadmap item 21",
+                 fn->file, fn->line, fn->column, fname, code_region_count);
+   }
 }
 
 int function_fixed_param_count(const ASTNode *fn) {
@@ -274,8 +465,6 @@ static bool function_same_declaration(const ASTNode *a, const ASTNode *b) {
    {
       const ASTNode *amod = function_modifiers_node(a);
       const ASTNode *bmod = function_modifiers_node(b);
-      const char *amem = find_mem_modifier_name(amod);
-      const char *bmem = find_mem_modifier_name(bmod);
 
       if (declarator_pointer_depth(adecl) != declarator_pointer_depth(bdecl) ||
           !declarator_array_signature_matches_from(adecl, bdecl, 3) ||
@@ -284,7 +473,7 @@ static bool function_same_declaration(const ASTNode *a, const ASTNode *b) {
           function_is_inline(a) != function_is_inline(b) ||
           declaration_pointer_access(amod, function_return_declarator_from_callable(adecl)) !=
           declaration_pointer_access(bmod, function_return_declarator_from_callable(bdecl)) ||
-          ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
+          !function_region_contract_matches(a, b)) {
          return false;
       }
    }
@@ -439,6 +628,7 @@ void remember_function(const ASTNode *node, const char *name) {
 
    validate_function_nonreserved_implementation_names(node);
    validate_function_parameter_storage_modifiers(node);
+   validate_function_region_modifiers(node);
    validate_declaration_access_qualifiers(node, modifiers,
       function_return_declarator_from_callable(function_declarator_node(node)),
       "function return declaration");
@@ -461,13 +651,6 @@ void remember_function(const ASTNode *node, const char *name) {
    if (function_is_inline(node) && !strcmp(name, "main")) {
       error_user("[%s:%d.%d] entry function 'main' cannot be inline because startup requires a linker-visible symbol",
                  node->file, node->line, node->column);
-   }
-   {
-      const char *memname = find_mem_modifier_name(modifiers);
-      if (function_is_inline(node) && memname) {
-         error_user("[%s:%d.%d] inline function '%s' cannot use mem region '%s' because inline expansion has no independently placeable linker layout",
-                    node->file, node->line, node->column, name, memname);
-      }
    }
    if (!functions) {
       functions = new_set();

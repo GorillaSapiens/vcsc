@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// object: e2e_function_result_region_abi_mismatch_fail__def.c26
+// linkcfg: e2e_function_region_abi__regions.cfg
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'produce' return type
+// expectlinkerr: return_region(region=basket,address=absolute)
+// expectlinkerr: return_region(region=crate,address=absolute)
+include "machine_6502.c26"
+mem basket { $start:0x0200 $size:0x0010 $rw };
+mem crate  { $start:0x0210 $size:0x0010 $rw };
+basket uint8_t produce(void);
+void main(void) { uint8_t value := produce(); }

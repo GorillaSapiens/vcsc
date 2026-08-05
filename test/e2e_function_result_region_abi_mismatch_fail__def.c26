@@ -1,0 +1,4 @@
+include "machine_6502.c26"
+mem basket { $start:0x0200 $size:0x0010 $rw };
+mem crate  { $start:0x0210 $size:0x0010 $rw };
+crate uint8_t produce(void) { return 1; }

@@ -451,22 +451,35 @@ at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
 keeps absolute-family addressing. Named zero-page regions continue to use their
 own ZEROPAGE layouts.
 
-Named regions also place non-inline function definitions. This reuses the same
-declaration-modifier syntax rather than adding bank-specific keywords:
+Named regions also describe non-inline function code and return-object
+placement. The compiler classifies each modifier from the region's declared
+properties rather than its name: a `$ro` region selects code placement, while
+one `$rw` region selects the hidden return object's storage. Their order is not
+significant:
 
 ```vcsc
 mem bank1 { $start:0xD000 $size:0x1000 $ro };
+mem fast_result { $start:0x0080 $size:0x0010 $rw };
 
-bank1 void update_level(void) {
+bank1 fast_result uint8_t update_level(void) {
    // emitted in CODE.bank1
+   // update_level$__return is in fast_result
+   return 1;
 }
 ```
 
-A function declaration and definition must agree on the named region. Inline
-functions cannot use one because their expansions have no independently
-placeable linker layout. For numbered bank regions, `main` may be unmarked or
-use `bank0`; explicitly placing it in `bank1` or another nonzero numbered bank
-is rejected.
+A declaration may spell the same contract as `fast_result bank1`; declarations
+and definitions must agree independently on the order-insensitive code-region
+set and the writable result region. With no `$ro` modifier, code placement stays
+automatic. With no `$rw` modifier, the return object keeps its default placement.
+At most one writable result region is allowed, and a `void` function cannot
+select one. The compiler can represent multiple read-only code regions in the
+contract, but rejects them until function replication is implemented by
+bankswitching roadmap item 21 rather than silently choosing one. Inline functions
+cannot use any named region because their expansions have no independently
+placeable linker layout. For numbered bank regions, `main` may be unmarked or use
+`bank0`; explicitly placing it in `bank1` or another nonzero numbered bank is
+rejected.
 
 A constant object may use the same named read-only region:
 
@@ -747,14 +760,15 @@ bodies happen not to declare locals.
 ### Returns and `$$`
 
 A value-returning function owns an exact-sized hidden return object. It uses
-zero page by default. A writable split-address `mem` modifier on the function
-selects that region for the return object while leaving the function body's code
-placement automatic:
+zero page by default. One writable `mem` modifier on the function selects that
+region for the return object. A separate read-only modifier may independently
+select code placement:
 
 ```vcsc
 mem ports { $read_start:0x3003 $write_start:0x5007 $size:0x0008 $rw };
+mem orchard { $start:0xD000 $size:0x1000 $ro };
 
-ports uint16_t twice(uint16_t value) {
+orchard ports uint16_t twice(uint16_t value) {
    $$ := value + value; // store through ports' write alias
    return;
 }
@@ -777,13 +791,17 @@ uint16_t twice(uint16_t value) {
 }
 ```
 
-`return expression;` writes the same object. For split storage, assignments and
-compound assignments to `$$` use the write alias and reads use the read alias.
+`return expression;` writes the same object. An ordinary writable region uses
+its declared address and may be zero-page or absolute. For split storage,
+assignments and compound assignments to `$$` use the write alias and reads use
+the read alias.
 The callee ends with `RTS`; it does not place a language return value in A, X,
 or Y. After the call, a caller that uses the value copies it from the return
-symbol's read alias. Declarations and definitions must agree on the result
-region; ABI metadata records the region and both window starts. A split modifier
-on a `void` function is rejected because there is no return object to place.
+symbol's read address. Declarations and definitions must agree independently on
+the result region and code-region set. ABI metadata records an ordinary result
+region's identity/address class or a split region's identity and both window
+starts. Any writable modifier on a `void` function is rejected because there is
+no return object to place.
 
 ### Inline functions
 

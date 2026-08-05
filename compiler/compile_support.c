@@ -262,20 +262,35 @@ void build_activation_storage_segment(char *buf, size_t bufsize,
                                       const Context *ctx,
                                       const ASTNode *modifiers,
                                       const char *base_segment) {
-   const char *owner = (ctx && ctx->activation_owner) ? ctx->activation_owner : NULL;
    const char *memname = find_mem_modifier_name(modifiers);
+
+   build_activation_storage_segment_for_region(buf, bufsize, ctx, memname,
+                                               base_segment);
+}
+
+//! @brief Build a function-activation segment with an explicitly classified region.
+void build_activation_storage_segment_for_region(char *buf, size_t bufsize,
+                                                 const Context *ctx,
+                                                 const char *region_name,
+                                                 const char *base_segment) {
+   const char *owner = (ctx && ctx->activation_owner) ? ctx->activation_owner : NULL;
 
    if (!buf || bufsize == 0 || !base_segment) {
       return;
    }
    if (!owner || !*owner) {
-      build_named_storage_segment(buf, bufsize, modifiers, base_segment);
+      if (region_name && *region_name) {
+         snprintf(buf, bufsize, "%s.%s", base_segment, region_name);
+      }
+      else {
+         snprintf(buf, bufsize, "%s", base_segment);
+      }
       return;
    }
 
-   if (modifiers_imply_mem_storage(modifiers) && memname && *memname) {
+   if (region_name && *region_name) {
       snprintf(buf, bufsize, "%s.%s.__vcsc_activation$%s",
-               base_segment, memname, owner);
+               base_segment, region_name, owner);
    }
    else {
       snprintf(buf, bufsize, "%s.__vcsc_activation$%s",
@@ -363,8 +378,7 @@ static const char *mem_metadata_type_flag(const ASTNode *flags) {
 }
 
 //! @brief Emit object metadata describing a used compiler mem region for later linker cfg validation.
-void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers) {
-   const char *name;
+void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) {
    const ASTNode *mem_decl;
    const ASTNode *flags;
    unsigned int start = 0;
@@ -381,7 +395,6 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
    const char *type;
    char sym[320];
 
-   name = find_mem_modifier_name(modifiers);
    if (!name) {
       return;
    }
@@ -460,6 +473,11 @@ void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode
       emit(&es_export, ".segmentaddrsize \"BSS.%s\", absolute\n", name);
       emit(&es_export, ".segmentaddrsize \"DATA.%s\", absolute\n", name);
    }
+}
+
+//! @brief Emit metadata for the sole named region on an ordinary declaration.
+void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers) {
+   emit_mem_region_metadata_for_name(origin, find_mem_modifier_name(modifiers));
 }
 
 //! @brief Return global decl lookup data used by compiler code-generation support; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -559,6 +577,37 @@ void init_split_mem_entry_addresses_for_symbol(ContextEntry *entry, const char *
    if (!modifiers_split_address_delta(modifiers, &delta)) {
       error_unreachable("could not construct split-address aliases for '%s'", symbol);
    }
+   entry->is_absolute_ref = true;
+   entry->read_expr = strdup(symbol);
+   if (delta == 0) {
+      entry->write_expr = strdup(symbol);
+   }
+   else {
+      snprintf(write_expr, sizeof(write_expr), "{%s %c %u}", symbol,
+               delta < 0 ? '-' : '+', (unsigned)(delta < 0 ? -delta : delta));
+      entry->write_expr = strdup(write_expr);
+   }
+   entry->has_split_alias_delta = true;
+   entry->split_alias_delta = delta;
+   if (!entry->read_expr || !entry->write_expr) {
+      error_unreachable("out of memory constructing split-address aliases for '%s'", symbol);
+   }
+}
+
+//! @brief Attach symbolic aliases using one explicitly classified split region.
+void init_split_mem_entry_addresses_for_region(ContextEntry *entry, const char *symbol,
+                                               const char *region_name) {
+   const ASTNode *mem_decl = region_name ? get_memname_node(region_name) : NULL;
+   unsigned int read_start = 0;
+   unsigned int write_start = 0;
+   char write_expr[320];
+   int delta;
+
+   if (!entry || !symbol || !*symbol ||
+       !mem_decl_split_addresses(mem_decl, &read_start, &write_start)) {
+      return;
+   }
+   delta = (int)write_start - (int)read_start;
    entry->is_absolute_ref = true;
    entry->read_expr = strdup(symbol);
    if (delta == 0) {

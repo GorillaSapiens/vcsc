@@ -319,6 +319,8 @@ static const char *role_display(const char *role)
       return "summary";
    if (!strcmp(role, "return"))
       return "return type";
+   if (!strcmp(role, "code_regions"))
+      return "code regions";
    if (!strcmp(role, "object"))
       return "object type";
    if (strncmp(role, "param", 5) == 0) {

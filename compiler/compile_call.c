@@ -464,8 +464,11 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
                                              &return_is_zeropage, &return_is_split)) {
          return false;
       }
-      if (return_is_split) {
-         emit_mem_region_metadata_for_modifiers(fn, function_modifiers_node(fn));
+      {
+         const char *result_region = function_result_region_name(fn);
+         if (result_region) {
+            emit_mem_region_metadata_for_name(fn, result_region);
+         }
       }
       if (!function_has_body(fn)) {
          remember_symbol_import_mode(return_sym, return_is_zeropage);

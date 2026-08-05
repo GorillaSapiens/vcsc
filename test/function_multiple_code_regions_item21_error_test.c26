@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function 'bad' requests 2 read-only code regions; multi-region code placement requires bankswitching roadmap item 21
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+mem grove   { $start:0xC000 $size:0x1000 $ro };
+orchard grove uint8_t bad(void) { return 1; }

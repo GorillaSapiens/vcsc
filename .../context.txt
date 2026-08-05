@@ -8644,3 +8644,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   hygiene and staged `make installcheck` pass. Bankswitching roadmap item 20,
   generic function code/result region classification, is next.
 
+
+2026-08-05 05:19:06 PDT, generalize function code and result region contracts
+------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 20 by classifying every named function
+  modifier from the referenced `mem` declaration rather than its spelling or
+  source order. Read-only regions form the code-placement set, while at most one
+  writable region independently selects the hidden return object's storage.
+* Preserve automatic code placement and default zero-page return storage when
+  the corresponding region role is absent. Support ordinary zero-page,
+  ordinary absolute, and split-address writable result regions alongside one
+  read-only code region without conflating their linker segments or ABI facts.
+* Require declarations and definitions to agree independently on the
+  order-insensitive code-region set and result-storage region in both
+  same-translation-unit checks and linker-visible ABI metadata. Map output now
+  reports the actual function CODE placement separately from its ordinary or
+  split return-object activation storage.
+* Reject duplicate region modifiers, multiple writable result regions,
+  writable result storage on `void`, named regions on inline functions, and
+  multiple read-only code regions with the deterministic item-21 deferral
+  diagnostic rather than choosing or partially duplicating a body.
+* Add arbitrary-name and order-independence code-generation coverage, ordinary
+  and split result placement tests, separate code/result ABI mismatch tests,
+  map-layout checks, and focused rejection tests. Update `compiler/README.md`,
+  `compiler/ABI.txt`, `linker/README.md`, `libraries/vcs/README.md`,
+  `test/README.md`, and `.../bankswitching.txt`; leave the project-wide
+  top-level README unchanged.
+* Verification: all 425 compile-only tests pass. All 235 end-to-end/generic
+  tests pass in explicit ordered continuation chunks, including every new item-20
+  case, the complete bankswitching/linker inventory, and all renderer/profile
+  tests. Source-tree hygiene and staged `make installcheck` pass.
+* Bankswitching roadmap item 21, explicit multi-bank duplication for immutable
+  objects and functions, is next.

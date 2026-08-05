@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function 'bad' selects multiple writable result regions 'basket' and 'crate'; at most one is allowed
+include "machine_6502.c26"
+mem basket { $start:0x0080 $size:0x0010 $rw };
+mem crate  { $start:0x0090 $size:0x0010 $rw };
+basket crate uint8_t bad(void) { return 1; }

@@ -260,8 +260,8 @@ static void function_parameter_storage_mode(const ASTNode *parameter,
 static void function_return_storage_mode(const ASTNode *fn, char *buf, size_t buf_size) {
    const ASTNode *ret_type = function_return_type(fn);
    const ASTNode *ret_decl = function_return_declarator_from_callable(function_declarator_node(fn));
-   const ASTNode *modifiers = function_modifiers_node(fn);
-   const char *memname = find_mem_modifier_name(modifiers);
+   const char *memname = function_result_region_name(fn);
+   const ASTNode *mem_decl = function_result_region_node(fn);
    unsigned int read_start = 0;
    unsigned int write_start = 0;
 
@@ -272,13 +272,60 @@ static void function_return_storage_mode(const ASTNode *fn, char *buf, size_t bu
       snprintf(buf, buf_size, "return_void");
       return;
    }
-   if (mem_decl_split_addresses(find_mem_modifier_node(modifiers),
-                                &read_start, &write_start)) {
+   if (mem_decl_split_addresses(mem_decl, &read_start, &write_start)) {
       snprintf(buf, buf_size, "return_split(region=%s,read=%04X,write=%04X)",
                memname ? memname : "?", read_start, write_start);
       return;
    }
+   if (memname) {
+      snprintf(buf, buf_size, "return_region(region=%s,address=%s)",
+               memname, mem_decl_is_zeropage(mem_decl) ? "zeropage" : "absolute");
+      return;
+   }
    snprintf(buf, buf_size, "return_memory");
+}
+
+//! @brief Compare region-name pointers by their source spelling.
+static int compare_region_names(const void *a, const void *b) {
+   const char *const *aname = (const char *const *)a;
+   const char *const *bname = (const char *const *)b;
+   return strcmp(*aname, *bname);
+}
+
+//! @brief Format the order-insensitive code-region set of one function.
+static void function_code_region_mode(const ASTNode *fn, char *fp_buf, size_t fp_size,
+                                      char *detail_buf, size_t detail_size) {
+   FunctionRegionSpec spec;
+   StrBuf fp;
+   StrBuf detail;
+   char *fp_text;
+   char *detail_text;
+
+   if (!fp_buf || fp_size == 0 || !detail_buf || detail_size == 0) {
+      return;
+   }
+   sb_init(&fp);
+   sb_init(&detail);
+   function_region_spec_collect(fn, &spec);
+   if (spec.code_region_count > 1) {
+      qsort(spec.code_regions, spec.code_region_count, sizeof(*spec.code_regions),
+            compare_region_names);
+   }
+   sb_append(&fp, "regions=[");
+   sb_append(&detail, "code regions [");
+   for (size_t i = 0; i < spec.code_region_count; i++) {
+      sb_appendf(&fp, "%s%s", i ? "," : "", spec.code_regions[i]);
+      sb_appendf(&detail, "%s%s", i ? ", " : "", spec.code_regions[i]);
+   }
+   sb_append(&fp, "]");
+   sb_append(&detail, "]");
+   fp_text = sb_take(&fp);
+   detail_text = sb_take(&detail);
+   snprintf(fp_buf, fp_size, "%s", fp_text);
+   snprintf(detail_buf, detail_size, "%s", detail_text);
+   free(fp_text);
+   free(detail_text);
+   function_region_spec_release(&spec);
 }
 
 //! @brief Return one declaration item's absolute address specification, if any.
@@ -675,6 +722,14 @@ void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_defi
    snprintf(summary_detail, sizeof(summary_detail), "parameters=%d", fixed_count);
    emit_metadata_symbol("function", state, sym, "summary", summary_fp, summary_detail);
    {
+      char code_fp[512];
+      char code_detail[512];
+      function_code_region_mode(fn, code_fp, sizeof(code_fp),
+                                code_detail, sizeof(code_detail));
+      emit_metadata_symbol("function", state, sym, "code_regions",
+                           code_fp, code_detail);
+   }
+   {
       char return_mode[256];
       function_return_storage_mode(fn, return_mode, sizeof(return_mode));
       emit_type_record("function", state, sym, "return",
@@ -738,8 +793,16 @@ static void append_function_contract_fingerprint(StrBuf *fp, StrBuf *detail,
    int out_index = 0;
 
    memset(&ctx, 0, sizeof(ctx));
-   sb_appendf(fp, "function(params=%d;return=", fixed_count);
-   sb_appendf(detail, "function(parameters=%d, return=", fixed_count);
+   sb_appendf(fp, "function(params=%d;", fixed_count);
+   sb_appendf(detail, "function(parameters=%d, ", fixed_count);
+   {
+      char code_fp[512];
+      char code_detail[512];
+      function_code_region_mode(fn, code_fp, sizeof(code_fp),
+                                code_detail, sizeof(code_detail));
+      sb_appendf(fp, "code_%s;return=", code_fp);
+      sb_appendf(detail, "%s, return=", code_detail);
+   }
    {
       char return_mode[256];
       function_return_storage_mode(fn, return_mode, sizeof(return_mode));

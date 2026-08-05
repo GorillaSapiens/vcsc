@@ -139,8 +139,8 @@ bool function_return_storage_addresses(const ASTNode *fn,
                                        char *read_buf, size_t read_size,
                                        char *write_buf, size_t write_size,
                                        bool *is_zeropage_out, bool *is_split_out) {
-   const ASTNode *modifiers = function_modifiers_node(fn);
-   bool is_split = modifiers_imply_split_address(modifiers);
+   const ASTNode *result_region = function_result_region_node(fn);
+   bool is_split = mem_decl_split_addresses(result_region, NULL, NULL);
    int delta = 0;
 
    if (!read_buf || read_size == 0 || !write_buf || write_size == 0 ||
@@ -149,9 +149,12 @@ bool function_return_storage_addresses(const ASTNode *fn,
    }
 
    if (is_split) {
-      if (!modifiers_split_address_delta(modifiers, &delta)) {
+      unsigned int read_start = 0;
+      unsigned int write_start = 0;
+      if (!mem_decl_split_addresses(result_region, &read_start, &write_start)) {
          return false;
       }
+      delta = (int)write_start - (int)read_start;
       if (delta == 0) {
          snprintf(write_buf, write_size, "%s", read_buf);
       }
@@ -166,10 +169,9 @@ bool function_return_storage_addresses(const ASTNode *fn,
    }
 
    if (is_zeropage_out) {
-      /* The established default result ABI is zero page. Split-address
-         result regions are allocated through their named MEMORY region and
-         use absolute addressing, just like split value parameters. */
-      *is_zeropage_out = !is_split;
+      /* The established default result ABI is zero page. An explicitly
+         selected writable region uses its declared address class. */
+      *is_zeropage_out = result_region ? mem_decl_is_zeropage(result_region) : true;
    }
    if (is_split_out) {
       *is_split_out = is_split;
@@ -192,14 +194,6 @@ void validate_function_return_type(const ASTNode *fn) {
    declarator = function_declarator_node(fn);
    return_decl = function_return_declarator_from_callable(declarator);
    name = declarator_name(declarator);
-
-   if (modifiers_imply_split_address(function_modifiers_node(fn)) &&
-       return_type_is_void(type, return_decl)) {
-      error_user("[%s:%d.%d] void function '%s' cannot select split-address result region '%s' because it has no return object",
-                 fn->file, fn->line, fn->column,
-                 (name && *name) ? name : "<unnamed>",
-                 find_mem_modifier_name(function_modifiers_node(fn)));
-   }
 
    if (return_type_is_supported(type, return_decl)) {
       return;
@@ -491,11 +485,12 @@ void build_function_context(const ASTNode *node, Context *ctx) {
 
 
    if (function_has_return_object(node)) {
-      const ASTNode *modifiers = function_modifiers_node(node);
+      const char *result_region_name = function_result_region_name(node);
+      const ASTNode *result_region = function_result_region_node(node);
       const ASTNode *return_type = function_return_type(node);
       ContextEntry *return_entry;
 
-      if (modifiers_imply_split_address(modifiers)) {
+      if (result_region && !mem_decl_is_zeropage(result_region)) {
          ctx_static(ctx, return_type, "$$");
       }
       else {
@@ -515,15 +510,16 @@ void build_function_context(const ASTNode *node, Context *ctx) {
       }
       return_entry->declarator = function_return_declarator_from_callable(declarator);
       return_entry->size = declarator_value_size(return_entry->type, return_entry->declarator);
-      return_entry->pointer_access = declaration_pointer_access(modifiers,
+      return_entry->pointer_access = declaration_pointer_access(function_modifiers_node(node),
                                                                 return_entry->declarator);
 
-      if (modifiers_imply_split_address(modifiers)) {
+      if (mem_decl_split_addresses(result_region, NULL, NULL)) {
          char sym[256];
          if (!entry_symbol_name(ctx, return_entry, sym, sizeof(sym))) {
             error_unreachable("could not name split-address return object");
          }
-         init_split_mem_entry_addresses_for_symbol(return_entry, sym, modifiers);
+         init_split_mem_entry_addresses_for_region(return_entry, sym,
+                                                   result_region_name);
       }
    }
 
