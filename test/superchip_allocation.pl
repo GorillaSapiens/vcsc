@@ -145,13 +145,13 @@ for my $profile (@profiles) {
    my $cfg = File::Spec->catfile($vcs, $cfg_name);
    write_file($src, source_for_profile($banks));
    require_ok("build $mapper allocated Superchip test",
-      $driver, '-I', $vcs, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
       $src, '-o', $bin);
    -s $bin == $banks * 4096
       or die "$mapper output is not exactly " . ($banks * 4096) . " bytes\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\s*$/m
+   $map =~ /^\s*superchip\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes.*$/m
       or die "$mapper map does not describe the shared split-address region\n";
    $map =~ /^\s*superchip\s+used=34 bytes\b.*\bobjects=34 bytes\b.*\bhardware-stack=0 bytes\s*$/m
       or die "$mapper map does not count the 34 physical Superchip bytes exactly once\n";
@@ -213,21 +213,29 @@ void main(void) { probe := 1; while (1) {} }
 PROBE
 my $base_cfg = read_file(File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'));
 my @mismatches = (
-   ['read_start', qr/read_start mismatch/, sub { my $x = shift; $x =~ s/(superchip:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
-   ['write_start', qr/write-alias mismatch/, sub { my $x = shift; $x =~ s/(superchip:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
-   ['size', qr/size mismatch/, sub { my $x = shift; $x =~ s/(superchip:.*?size\s*=\s*)\$0080/$1\$007F/i or die "cannot mutate size\n"; return $x; }],
-   ['banked', qr/split-address MEMORY region 'superchip' must be shared/, sub { my $x = shift; $x =~ s/(superchip:.*?define\s*=\s*yes)/$1, bank = BANK0/i or die "cannot bank split region\n"; return $x; }],
+   ['read_start', sub { my $x = shift; $x =~ s/(superchip:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
+   ['write_start', sub { my $x = shift; $x =~ s/(superchip:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
+   ['size', sub { my $x = shift; $x =~ s/(superchip:.*?size\s*=\s*)\$0080/$1\$007F/i or die "cannot mutate size\n"; return $x; }],
+   ['banked', sub { my $x = shift; $x =~ s/(superchip:.*?define\s*=\s*yes)/$1, bank = BANK0/i or die "cannot bank split region\n"; return $x; }],
 );
+my $probe_baseline = File::Spec->catfile($tmp, 'split_baseline.bin');
+my ($base_rc, $base_sig, $base_out, $base_err) = run_capture(
+   $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+   $probe_src, '-o', $probe_baseline);
+$base_rc == 0 && !$base_sig
+   or die "authoritative Superchip baseline failed\n$base_out\n$base_err";
+my $probe_bytes = read_file($probe_baseline);
 for my $case (@mismatches) {
-   my ($name, $pattern, $mutate) = @$case;
+   my ($name, $mutate) = @$case;
    my $cfg = File::Spec->catfile($tmp, "split_$name.cfg");
+   my $bin = File::Spec->catfile($tmp, "split_$name.bin");
    write_file($cfg, $mutate->($base_cfg));
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-T', $cfg, $probe_src,
-      '-o', File::Spec->catfile($tmp, "split_$name.bin"));
-   $rc != 0 && !$sig or die "split $name mismatch unexpectedly linked\n$out\n$err";
-   $err =~ $pattern
-      or die "split $name mismatch did not produce its specific diagnostic\n$err";
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, $probe_src,
+      '-o', $bin);
+   $rc == 0 && !$sig or die "C26-authoritative split $name link failed\n$out\n$err";
+   read_file($bin) eq $probe_bytes
+      or die "stale cfg split $name changed the authoritative C26 image\n";
 }
 
 # Allocation order and the named object in the overflow diagnostic are stable.
@@ -241,7 +249,7 @@ void main(void) { while (1) {} }
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "split_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip overflow attempt $attempt unexpectedly linked\n$out\n$err";
    $err =~ /superchip overflow while placing BSS\.superchip\.__vcsc_object\$spill\b.*\bin superchip\b/s

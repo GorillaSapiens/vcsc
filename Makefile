@@ -267,6 +267,8 @@ installcheck: tools
 	test -f "$$stage_vcs/bankswitching_diagnostic_suite.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
+	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
@@ -275,7 +277,7 @@ installcheck: tools
 	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	grep -q "BANK1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
+	  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
@@ -289,6 +291,8 @@ installcheck: tools
 	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
 	test -f "$$stage_vcs/vcs_16k_f6.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
+	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs_16k_f6.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
@@ -298,6 +302,8 @@ installcheck: tools
 	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00003000.*startup=yes" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
 	test -f "$$stage_vcs/vcs_32k_f4.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
+	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs_32k_f4.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
@@ -308,7 +314,7 @@ installcheck: tools
 	test -f "$$stage_vcs/superchip.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
+	  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs_8k_f8sc.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
@@ -469,7 +475,7 @@ installcheck: tools
 	  echo "mutable standard-renderer playfield unexpectedly linked" >&2; exit 1; \
 	fi; \
 	test ! -s "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout"; \
-	grep -q "RAM overflow" "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; \
+	grep -q "ram overflow" "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_renderer_contract_rom_smoke.c26" \

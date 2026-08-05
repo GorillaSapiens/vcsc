@@ -90,6 +90,8 @@ my $source_bin = File::Spec->catfile($tmp, 'f8-source.bin');
 my $source_map = File::Spec->catfile($tmp, 'f8-source.map');
 require_ok('compile public F8 source diagnostic',
            $driver, '-I', File::Spec->catdir($repo, 'test'),
+           '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK',
+           '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM',
            '-T', $cfg, '-Map', $source_map, '-o', $source_bin, $fixture);
 my $source_image = slurp($source_bin);
 my $source_map_text = slurp($source_map);

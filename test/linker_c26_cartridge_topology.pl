@@ -98,8 +98,8 @@ TOPO
 my $direct_src = File::Spec->catfile($tmp, 'direct.c26');
 my $direct_bin = File::Spec->catfile($tmp, 'direct.bin');
 my $direct_map = File::Spec->catfile($tmp, 'direct.map');
-write_file($direct_src, qq{include "machine_6502.c26"\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
-require_ok('direct topology link', $vcsc, '-I', $include, '-T', $direct_cfg,
+write_file($direct_src, qq{include "machine_6502.c26"\nmem rom { \$start:0xf000 \$size:0x0ffa \$ro \$priority:1 };\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
+require_ok('direct topology link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $direct_cfg,
            '-Map', $direct_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $direct_bin, $direct_src);
 my $direct_image = slurp($direct_bin);

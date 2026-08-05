@@ -112,7 +112,7 @@ void main(void) {
 }
 SRC
 
-require_ok('build replicated F8SC image', $driver, '-I', $vcs, '-T', $cfg,
+require_ok('build replicated F8SC image', $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg,
            '-Map', $map_path, '-o', $bin, $src);
 my $map = slurp($map_path);
 my $rom = slurp($bin);

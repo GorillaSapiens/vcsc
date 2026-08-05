@@ -163,6 +163,17 @@ trampoline behavior through the transitional cfg match, merges identical
 separate declarations, and rejects conflicting declarations, duplicate file
 indices, and missing selector startup.
 
+`linker_c26_mem_authority.pl` links a direct two-chunk cartridge with an empty
+cfg and proves that complete C26 `mem` declarations create allocator regions and
+ordinary segment routes. Deliberately mismatched bank and mem names verify
+ownership comes from synthetic-range containment. Its F8SC half uses a cfg with
+only legacy mapper mechanics, classifies bank ROM as switched and Superchip
+aliases as shared, checks direct `$F000/$F080` accesses plus the real cross-bank
+trampoline, and requires byte-identical output from the current full cfg. It also
+covers cross-object declaration conflicts with both C26 locations and ambiguous
+multi-owner containment. The four former `e2e_mem_region_cfg_*_mismatch` cases
+now prove stale or missing cfg allocator entries are ignored in favor of C26.
+
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
 then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every
 possible initially selected bank. It locks the common eighteen-byte
@@ -502,9 +513,11 @@ shell command substitutions which would otherwise print misleading
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`
-section to list each DATA copy and BSS clear with exact read/write aliases. Its
-stable overflow fixture still fills all 128 bytes and requires the linker to
-name the first object that does not fit.
+section to list each DATA copy and BSS clear with exact read/write aliases. It
+also mutates the legacy cfg read alias, write alias, size, and bank tag and
+requires every stale variant to produce the same bytes as the authoritative C26
+`mem superchip` declaration. Its stable overflow fixture still fills all 128
+bytes and requires the linker to name the first object that does not fit.
 
 `split_memory_static_local_codegen_test.c26` and
 `superchip_static_locals.pl` cover function-scope `static superchip` storage.
@@ -515,7 +528,7 @@ exact physical occupancy, and execution from every physical startup bank under
 F8SC, F6SC, and F4SC.
 
 `split_memory_generic_regions.pl` proves that split-address storage is driven by
-ordinary `mem` and cfg metadata rather than by the spelling `superchip` or by
+authoritative ordinary `mem` metadata rather than by the spelling `superchip` or by
 the Superchip window layout. It uses unrelated regions named `banana`, `pair`,
 and `orange`, with sizes of 7, 9, and 5 bytes, unaligned and widely separated
 windows, and a `pair` region whose read window is above its write window. The

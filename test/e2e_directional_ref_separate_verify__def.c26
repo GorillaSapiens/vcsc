@@ -1,5 +1,8 @@
 include "machine_6502.c26"
 
+mem ram { $start:0x0200 $size:0x1E00 $rw $priority:2 };
+mem rom { $start:0x8000 $size:0x8000 $ro $priority:1 };
+
 uint8_t remote_inspect(ref const uint8_t value) {
    return value;
 }

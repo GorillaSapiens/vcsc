@@ -66,7 +66,14 @@ ROM; each `GRP0` update is aligned to `WSYNC`, and the complete frame is exactly
 262 scanlines.
 
 The editable wrapper and Makefile live under
-`examples/09_bankswitching/01_diagnostic/`. A normal build emits the six mapper
+`examples/09_bankswitching/01_diagnostic/`. Banked builds pass
+`-DVCS_NO_DEFAULT_ROM` so `vcs.c26` contributes the machine types and shared RIOT
+RAM but not the unbanked `mem rom`; each mapper source then declares only its
+actual allocatable bank ranges. The default unbanked declaration is
+`mem rom { $start:0xF000 $size:0x0FFA $ro ... };`, excluding the six vector
+bytes from allocation.
+
+A normal build emits the six mapper
 images—F8, F6, F4, F8SC, F6SC, and F4SC—plus `poisoned.bin`, a deliberately
 failing F8SC image for inspecting and grading the FAIL frame. The normal
 simulator regression runs the six mapper images from every physical startup

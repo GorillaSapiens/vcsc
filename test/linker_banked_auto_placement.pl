@@ -231,6 +231,9 @@ SEGMENTS {
 CFG
 write_file($source_c26, <<'C26');
 include "machine_6502.c26"
+mem ZEROPAGE { $start:0x0000 $size:0x0080 $rw $priority:3 };
+mem RAM { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem ROM { $start:0xF000 $size:0x0100 $ro $priority:2 };
 mem bank1 { $start:0xD000 $size:0x0100 $ro };
 
 bank1 const uint8_t bank1_table := 0x42;
@@ -261,7 +264,7 @@ write_file($handlers_s26, <<'ASM');
 .endproc
 ASM
 require_ok('compile source-level placement fixture',
-   $cc1, '-quiet', '-I', $test_inc, $source_c26, '-o', $source_s26);
+   $cc1, '-quiet', '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', $source_c26, '-o', $source_s26);
 require_ok('assemble source-level placement fixture',
    $as, '-I', $runtime_inc, '-o', $source_obj, $source_s26);
 require_ok('assemble source-level reset fixture',

@@ -69,6 +69,9 @@ my $map = File::Spec->catfile($tmp, 'banked.map');
 
 write_file($src, <<'SRC');
 include "machine_6502.c26"
+mem ZEROPAGE { $start:0x0000 $size:0x0080 $rw $priority:3 };
+mem RAM { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem ROM { $start:0xF000 $size:0x0F00 $ro $priority:2 };
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
 
 bank1 void placed(void) {
@@ -126,7 +129,7 @@ $dummy_segments}
 CFG
 write_file($cfg, $valid_cfg);
 
-require_ok('banked F8 link', $vcsc, '-I', $include, '-T', $cfg,
+require_ok('banked F8 link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg,
            '-Map', $map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $bin, $src);
 my $image = slurp($bin);
@@ -171,7 +174,7 @@ my $missing_trampoline_cfg = File::Spec->catfile($tmp, 'missing-trampoline.cfg')
 //m;
 write_file($missing_trampoline_cfg, $missing_trampoline_text);
 require_fail('missing trampoline offset', 'requires CARTRIDGE trampoline and trampolinesize',
-             $vcsc, '-I', $include, '-T', $missing_trampoline_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $missing_trampoline_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'missing-trampoline.bin'), $src);
 
@@ -181,7 +184,7 @@ $trampoline_vectors_text =~ s/trampoline = \$0F00;/trampoline = \$0FFA;/;
 $trampoline_vectors_text =~ s/trampolinesize = \$00E0;/trampolinesize = \$0001;/;
 write_file($trampoline_vectors_cfg, $trampoline_vectors_text);
 require_fail('trampoline over per-bank vectors', 'overlaps the per-bank vectors',
-             $vcsc, '-I', $include, '-T', $trampoline_vectors_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $trampoline_vectors_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'trampoline-vectors.bin'), $src);
 
@@ -189,7 +192,7 @@ my $unknown_cfg = File::Spec->catfile($tmp, 'unknown.cfg');
 (my $unknown_text = $valid_cfg) =~ s/hotspot=\$1FF8/hotpsot=\$1FF8/;
 write_file($unknown_cfg, $unknown_text);
 require_fail('unknown bank property', "unknown BANKS property 'hotpsot'",
-             $vcsc, '-I', $include, '-T', $unknown_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $unknown_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'unknown.bin'), $src);
 
@@ -200,7 +203,7 @@ $swapped_text =~ s/(BANK1:.*?hotspot=)\$1FF8/${1}\$1FF9/;
 write_file($swapped_cfg, $swapped_text);
 require_fail('selector hotspots follow physical file chunks',
              'BANK1 (physical/file chunk 0) must use F8 selector hotspot $1FF8',
-             $vcsc, '-I', $include, '-T', $swapped_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $swapped_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'swapped.bin'), $src);
 
@@ -210,7 +213,7 @@ $hotspot_text =~ s/   BANK1_TAIL: start=\$DFF2, size=\$0008, bank=BANK1;/   bank
 $hotspot_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_tail, type=ro;/;
 write_file($hotspot_cfg, $hotspot_text);
 require_fail('ordinary code over bank hotspot', 'covers reserved bank hotspot $DFF9',
-             $vcsc, '-I', $include, '-T', $hotspot_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $hotspot_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'hotspot.bin'), $src);
 
@@ -220,7 +223,7 @@ $trampoline_text =~ s/   BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0, bank=BANK1
 $trampoline_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_trampoline, type=ro;/;
 write_file($trampoline_cfg, $trampoline_text);
 require_fail('ordinary code over common trampoline corridor', 'covers reserved trampoline $DF00-$DFDF',
-             $vcsc, '-I', $include, '-T', $trampoline_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $trampoline_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'trampoline.bin'), $src);
 
@@ -231,7 +234,7 @@ $bridge_text =~ s/   BANK1_TRAMPOLINE: start=\$DF00, size=\$00E0, bank=BANK1;
 $bridge_text =~ s/   UNUSED00: load=ROM, type=ro;/   UNUSED00: load=bank1_bridge, type=ro;/;
 write_file($bridge_cfg, $bridge_text);
 require_fail('ordinary code over vector bridge', 'covers reserved vector bridge $DFE0-$DFF1',
-             $vcsc, '-I', $include, '-T', $bridge_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $bridge_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'bridge.bin'), $src);
 
@@ -239,9 +242,13 @@ my $unbanked_src = File::Spec->catfile($tmp, 'unbanked.c26');
 my $unbanked_bin = File::Spec->catfile($tmp, 'unbanked.bin');
 write_file($unbanked_src, <<'SRC');
 include "machine_6502.c26"
+mem RAM { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem ROM { $start:0xF000 $size:0x0FFA $ro $priority:1 };
 void main(void) { asm nop; }
 SRC
 require_ok('unbanked compatibility link', $vcsc, '-I', $include,
+           '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK',
+           '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM',
            '-T', $stock_cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
            '-o', $unbanked_bin, $unbanked_src);
 my $unbanked = slurp($unbanked_bin);

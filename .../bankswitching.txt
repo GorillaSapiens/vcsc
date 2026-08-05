@@ -1752,7 +1752,7 @@ when main roadmap item 29 becomes active.
          direct two-chunk packaging and absolute cross-chunk calls, switched F8
          integration, malformed-topology diagnostics, and grammar coverage.
 
-[ ] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.
+[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.
 
        * Adopt the allocatable-bytes-only interpretation of `mem`. Do not include
          RAM-port prefixes, trampoline corridors, bridges, vectors, selector bytes,
@@ -1778,6 +1778,40 @@ when main roadmap item 29 becomes active.
        * Report each region's inferred output bank and direct/switched/shared mode
          in the map and add differential tests against current cfg MEMORY/SEGMENTS
          results.
+
+       Completed 2026-08-05:
+       * Emit one versioned authoritative metadata record for every complete C26
+         `mem` declaration, even when no object currently uses the region. Merge
+         identical declarations after archive selection and reject cross-object
+         conflicts with both original C26 locations. Preserve empty policy-only
+         `mem name { };` declarations without creating allocator bytes.
+       * Create or overwrite linker allocator regions from C26 start/read/write,
+         size, access type, and priority. Repeated cfg MEMORY entries retain only
+         migration-era operational properties such as call-stack reservation,
+         file backing, and fill policy; stale addresses, sizes, types, or absent
+         entries no longer override source declarations.
+       * Infer output ownership solely by unique containment of a region's complete
+         synthetic range in one C26 bank mapping. Record direct, switched, or
+         shared mode independently from names and CPU-visible aliases; diagnose
+         ambiguous containment with the candidate bank names. Selector-controlled
+         owners are matched to the retained mapper mechanics by declared hotspot
+         during migration.
+       * Synthesize STARTUP, CODE, RODATA, DATA, BSS, ZEROPAGE, and every ordinary
+         region-suffixed route from authoritative memory metadata. Choose defaults
+         by source priority and startup-bank ownership, preserve explicit cfg
+         alignment/start constraints, retain split read/write aliases, and keep
+         deterministic region-local activation allocation.
+       * Adopt allocatable-bytes-only VCS ROM declarations: the unbanked default is
+         `$F000-$FFF9`; banked diagnostics suppress it and declare their actual
+         ordinary or SC bank ranges. F8SC topology maps switched ROM from `$x100`,
+         so Superchip `$F080/$F000` remains ownerless/shared and its generated
+         loads/stores contain no hotspot access.
+       * Add an allocator-free direct-bank link, mismatched bank/mem-name coverage,
+         a minimal-hardware-only F8SC cfg, direct Superchip alias byte checks, real
+         switched-call coverage, full-cfg/minimal-cfg byte equality, unused and
+         separate-object declaration metadata, stale/missing cfg success cases,
+         ambiguous-owner diagnostics, map reporting, installed diagnostic builds,
+         documentation, and source-tree hygiene checks.
 
 [ ] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.
 

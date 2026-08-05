@@ -91,7 +91,7 @@ require_re($map,qr/^\s*RENDERER_CODE\s+load=\$F300\s+size=\$0300\b/m,
    'renderer code is not fixed at the page-aligned F300..F5FF window');
 require_re($map,qr/^\s*RENDERER_RODATA\s+load=\$F600\s+size=\$0058\b/m,
    'score table is not fixed at the page-aligned F600 window');
-require_re($map,qr/region=RAM\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+require_re($map,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
    'map lost the standard renderer hook-aware stack allowance');
 map_symbol($map,'vcs_standard_renderer_drawscreen')==0xf300
    or die "standard renderer entry moved from F300\n";

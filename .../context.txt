@@ -8824,3 +8824,46 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   cartridges had passed before the execution-window cutoff. Source-tree hygiene
   passes. Bankswitching roadmap item 25, authoritative `mem` declarations and
   inferred output-bank ownership, is next.
+
+2026-08-05 14:53:15 PDT, make C26 mem declarations authoritative and infer output ownership
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 25 by emitting one versioned metadata
+  record for every complete C26 `mem` declaration, including unused regions,
+  and merging those declarations after archive selection. Diagnose conflicting
+  declarations with both original C26 source locations while keeping empty
+  policy-only declarations nonallocating.
+* Make C26 start/read/write aliases, size, access type, priority, and source
+  spelling authoritative over duplicated cfg MEMORY allocator facts. Retain
+  only migration-era cfg operational properties such as call-stack reservation,
+  file/fill behavior, and generated mapper corridors. Stale or missing cfg
+  allocator entries now link using the C26 declaration instead of overriding it.
+* Synthesize ordinary STARTUP, CODE, RODATA, DATA, BSS, ZEROPAGE, private-layout,
+  and named-region routes from authoritative memory metadata. Select defaults by
+  source priority and startup-bank ownership, preserve explicit cfg alignment
+  and start constraints, and retain deterministic split-address placement.
+* Infer direct, switched, or shared output ownership solely from unique
+  containment in C26 bank synthetic link ranges. Never infer from names or CPU
+  mirrors. Clear stale cfg bank tags from authoritative writable and split
+  regions, so Superchip remains shared and emits direct $F000/$F080 accesses
+  with no selector code.
+* Adopt allocatable-bytes-only default memory declarations. Generic 6502 source
+  defaults now match the generic cfg allocator, VCS unbanked ROM excludes the
+  six vector bytes, and custom/banked tests explicitly suppress broad defaults
+  and declare their real allocator ranges. Maps and diagnostics preserve the
+  authoritative source spelling.
+* Add allocator-free direct-bank and minimal-hardware F8SC links, mismatched
+  bank/mem-name ownership tests, full-cfg/minimal-cfg byte equality, unused and
+  separate-object metadata, stale cfg read/write/size/type/bank-tag success
+  cases, ambiguous-containment diagnostics, direct Superchip byte checks,
+  switched-call coverage, map reporting, documentation, test inventory, and
+  source-tree hygiene requirements. Leave the top-level README unchanged.
+* Verification: all 437 compile-only tests pass. All 243 end-to-end/generic
+  cases are accounted for and pass in exact ordered chunks; the heavyweight
+  score/raster certification completed its 32 public builds and first 44 of 80
+  generated fixtures before the execution window, then completed fixtures
+  45-80 and mixed placement in a continuation using the same tree. Source-tree
+  hygiene passes. The staged installed toolchain completed every installcheck
+  prerequisite; its final 40-cartridge loop passed seven entries before the
+  execution window and the remaining 33 were completed in bounded continuation
+  chunks from the same staging tree. Bankswitching roadmap item 26, migrating
+  cartridge profiles to C26 topology files, is next.

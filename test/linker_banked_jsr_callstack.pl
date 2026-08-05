@@ -60,8 +60,10 @@ my $map = File::Spec->catfile($tmp, 'weighted.map');
 
 write_file($src, <<'SRC');
 include "machine_6502.c26"
+mem ZEROPAGE { $start:0x0000 $size:0x0080 $rw $priority:3 };
+mem ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
-mem ROM { $start:0xF000 $size:0x0F00 $ro };
+mem ROM { $start:0xF000 $size:0x0F00 $ro $priority:2 };
 
 ROM void home_leaf(void) {
    asm nop;
@@ -115,11 +117,11 @@ SEGMENTS {
 CFG
 
 require_ok('compile and link weighted banked call graph',
-           $vcsc, '-I', $include, '-T', $cfg, '-Map', $map,
+           $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map,
            '-o', $bin, $src);
 my $map_text = slurp($map);
 length(slurp($bin)) == 8192 or die "weighted banked program was not 8K\n";
-$map_text =~ /CALL STACK\n  region=RAM depth=3 bytes=\$000A physical=\$00F6-\$00FF extra=\$0000 weighted-depth=5 bank-extra-slots=2/
+$map_text =~ /CALL STACK\n  region=ram depth=3 bytes=\$000A physical=\$00F6-\$00FF extra=\$0000 weighted-depth=5 bank-extra-slots=2/
    or die "cross-bank edges did not add two weighted return-address slots\n$map_text";
 $map_text =~ /^\s*\$0003\s+__call_stack_depth\b/m
    or die "ordinary source call depth symbol is wrong\n$map_text";

@@ -639,6 +639,7 @@ void compile_bank_decl_stmt(ASTNode *node) {
 //! @brief Lower mem decl stmt from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_mem_decl_stmt(ASTNode *node) {
    attach_memname(node->children[0]->strval, node);
+   emit_mem_declaration_metadata(node);
 }
 
 //! @brief Lower type decl stmt from AST/semantic state into generated assembly or linker-visible metadata.

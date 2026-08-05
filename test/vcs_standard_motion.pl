@@ -65,7 +65,7 @@ my $map=read_file($mapfile);
 my $strong_hook=map_any_symbol($map,'vcs_standard_overscan_hook');
 my $weak_hook=map_any_symbol($map,'__weak_vcs_standard_overscan_hook');
 $strong_hook != $weak_hook or die "strong overscan hook did not override weak fallback\n";
-$map =~ /region=RAM\s+depth=5\s+bytes=\$000E\s+physical=\$00F2-\$00FF\s+extra=\$0004/
+$map =~ /region=ram\s+depth=5\s+bytes=\$000E\s+physical=\$00F2-\$00FF\s+extra=\$0004/
    or die "motion cartridge stack map does not include main -> drawscreen -> hook -> update -> move\n";
 my @zp=map { map_symbol($map,$_) } qw(
    vcs_standard_object_x

@@ -1,8 +1,11 @@
-// vcsc-cc1 -I .
+// vcsc-cc1 -I . -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM
 // linkcfg: external_binding_holes.cfg
 // expectexit: 0
 
 include "machine_6502.c26"
+
+mem ram { $start:0x0800 $size:0x1800 $rw $priority:2 };
+mem rom { $start:0x2000 $size:0xE000 $ro $priority:1 };
 
 uint8_t a0@0x0300;
 uint8_t a1@0x0301;

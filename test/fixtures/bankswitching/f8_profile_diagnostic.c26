@@ -2,7 +2,8 @@ include "machine_6502.c26"
 
 // These names and spans match libraries/vcs/vcs_8k_f8.cfg.  Unmarked code is
 // automatically placed; named modifiers are hard pins.
-mem bank0 { $start:0xF000 $size:0x0F00 $ro };
+mem ram   { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem bank0 { $start:0xF000 $size:0x0F00 $ro $priority:2 };
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
 
 uint8_t result;

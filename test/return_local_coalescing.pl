@@ -94,6 +94,7 @@ CFG
 
 write_file($source, <<'SOURCE');
 include "machine_6502.c26"
+mem rom { $start:0x8000 $size:0x8000 $ro $priority:1 };
 mem result_ram { $start:0x2200 $size:0x0020 $rw };
 mem superchip { $read_start:0x3003 $write_start:0x5007 $size:0x0040 $rw };
 
@@ -177,7 +178,7 @@ void main(void) {
 SOURCE
 
 require_ok('build return-local coalescing fixture',
-   $driver, '-I', $test_inc, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+   $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
    $source, '-o', $hex);
 
 my $map = read_file($map_path);

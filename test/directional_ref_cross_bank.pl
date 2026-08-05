@@ -66,6 +66,8 @@ my $map = File::Spec->catfile($tmp, 'directional_ref_cross_bank.map');
 write_file($src, <<'SRC');
 include "machine_6502.c26"
 
+mem ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem rom { $start:0xF000 $size:0x0F00 $ro $priority:2 };
 mem bank1 { $start:0xD000 $size:0x0F00 $ro };
 
 uint8_t input @[0x0280/none];
@@ -81,7 +83,7 @@ void main(void) {
 SRC
 
 require_ok('compile cross-bank directional ref source',
-           $cc1, '-I', $include, '-o', $asm, $src);
+           $cc1, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-o', $asm, $src);
 my $asm_text = slurp($asm);
 $asm_text =~ /modeQ3DrefQ28accessQ3DconstQ29/
    or die "const ref capability missing from compiler ABI metadata\n";
@@ -93,7 +95,7 @@ $asm_text =~ /lda #<\{\$0380 \+ 0\}.*?sta remote\$sink,y/s
    or die "caller did not pass the writable binding address to remote sink\n$asm_text";
 
 require_ok('link cross-bank directional ref cartridge',
-           $vcsc, '-I', $include, '-T', $cfg, '-Map', $map,
+           $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map,
            '-o', $bin, $src);
 length(slurp($bin)) == 8192
    or die "directional-ref F8 cartridge was not 8K\n";

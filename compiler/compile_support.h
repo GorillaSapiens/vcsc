@@ -57,6 +57,7 @@ void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, i
 void remember_symbol_import_mode(const char *name, bool is_zeropage);
 void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
 void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name);
+void emit_mem_declaration_metadata(const ASTNode *mem_decl);
 void emit_copy_symbol_to_scratch_convert_offset(int dst_offset, int dst_size, const ASTNode *dst_type,
                                            const char *symbol, int src_offset, int src_size,
                                            const ASTNode *src_type);

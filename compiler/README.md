@@ -464,11 +464,13 @@ Identical declarations in separate translation units merge, while conflicts are
 link errors naming both objects.
 
 The compiler emits versioned absolute metadata exports; it emits no cartridge
-instructions itself. During the cfg migration, `-T` still supplies allocator and
-segment rules. A selector-controlled C26 topology must match the retained cfg,
-while a direct topology may package ordinary nonbanked cfg regions into physical
-chunks in declared `$file_index` order. The linker map reports the resulting
-`C26 CARTRIDGE TOPOLOGY`.
+instructions itself. Complete `mem` declarations are emitted independently of
+whether a translation unit places an object in the region. During migration,
+`-T` may still supply mapper mechanics and component-specific constraints, but
+C26 `mem` metadata supplies allocator facts and ordinary segment routing. A
+selector-controlled C26 topology must still match the retained cfg hardware
+model until the public profile migration in roadmap item 26. The linker map
+reports the resulting `C26 CARTRIDGE TOPOLOGY`.
 
 ### Memory regions
 
@@ -480,10 +482,22 @@ mem fast { $start:0x0080 $size:0x0010 $rw };
 fast uint16_t counter;
 ```
 
-A used region must provide `$start`, either `$size` or `$end`, and exactly one
-of `$rw` or `$ro`. The compiler emits metadata and the linker verifies that the
-linker configuration defines the same start, size, and access type.
+An allocatable region must provide `$start`, either `$size` or `$end`, and
+exactly one of `$rw` or `$ro`. Split-address writable storage instead provides
+`$read_start`, `$write_start`, size/end, and `$rw`. A completely empty `mem`
+declaration remains available as a policy-only name and creates no allocator
+region.
 
+Complete declarations are authoritative linker metadata even when no object in
+the declaring translation unit currently uses the region. Identical declarations
+merge across objects; conflicting declarations are link errors naming both C26
+locations. A repeated cfg `MEMORY` entry is compatibility input only: its
+allocator address, size, access type, priority, and ordinary routes are replaced
+by the C26 declaration, while operational cfg properties such as stack
+reservation may remain during migration.
+
+`mem` describes allocatable bytes only. It excludes RAM-port prefixes,
+trampoline corridors, bridges, vectors, selector bytes, and physical fill holes.
 A region is treated as zero page when its declared address range fits entirely
 within `$0000..$00ff`; the region's name has no special meaning.
 
@@ -596,9 +610,9 @@ Loads from these objects use the read alias. Stores, runtime initializer writes,
 and startup BSS clearing use the write alias. The compiler preserves both
 symbolic aliases in relocations rather than replacing the object with a fixed
 integer address; the linker therefore allocates each object once and can report
-both final addresses. Neither the region name nor the relative order, spacing,
-alignment, or size of the two windows is significant; those facts come entirely
-from the `mem` declaration and matching linker `MEMORY` entry.
+both final addresses. Neither the region name nor the relative order, spacing, alignment, or size
+of the two windows is significant; those facts come entirely from the
+source-level `mem` declaration.
 
 Split-address allocation supports persistent file-scope objects and automatic
 local objects, including arrays and inline-expansion-private locals. Automatic
@@ -647,9 +661,10 @@ address, and ordinary `ref T` requires both addresses to exist and compare
 equal. All three contracts pass one pointer-sized address; none creates a fat
 pointer.
 
-The selected linker `MEMORY` entry must use matching `read_start`,
-`write_start`, `size`, and `type = rw` values and must be shared rather than
-owned by a cartridge bank.
+The linker classifies a region as output-owned only when its complete
+synthetic allocation range lies inside exactly one C26 `bank` mapping. Split
+aliases such as Superchip `$F080/$F000` lie outside F8SC's `$x100` ROM mappings,
+so they remain shared and never trigger a selector transition.
 
 ### Pointers and arrays
 

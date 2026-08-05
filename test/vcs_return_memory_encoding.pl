@@ -140,7 +140,7 @@ my $return16_fini_off=asm_symbol($asmap,'return16::@fini');
 my $return24_fini_off=asm_symbol($asmap,'return24::@fini');
 my $return32_fini_off=asm_symbol($asmap,'return32::@fini');
 
-$ldmap =~ /MEMORY\s+.*?ROM\s+start=\$([0-9A-Fa-f]+)/s
+$ldmap =~ /MEMORY\s+.*?rom\s+start=\$([0-9A-Fa-f]+)/s
    or die "linker map is missing ROM start\n";
 my $rom_start=hex($1);
 

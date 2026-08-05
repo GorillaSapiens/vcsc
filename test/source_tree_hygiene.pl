@@ -154,7 +154,7 @@ index($linker_readme,'`RETURN COALESCING` is descriptive')>=0 &&
 index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
 index($bankswitching,'[x] 24. Define generic C26 cartridge-output and bank topology.')>=0 &&
-index($bankswitching,'[ ] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
+index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
 index($bankswitching,'Completed 2026-08-05:')>=0 &&
 -f File::Spec->catfile($test,'cartridge_bank_metadata_codegen_test.c26') &&
 -f File::Spec->catfile($test,'cartridge_generated_pair_error_test.c26') &&
@@ -167,6 +167,26 @@ index($linker_readme,'### C26 cartridge topology metadata')>=0 &&
 index($linker_readme,'C26 CARTRIDGE TOPOLOGY')>=0 &&
 index($test_readme,'linker_c26_cartridge_topology.pl')>=0
    or die "C26 cartridge topology implementation, documentation, or regression coverage is incomplete\n";
+index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
+index($bankswitching,'[ ] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.')>=0 &&
+-f File::Spec->catfile($test,'linker_c26_mem_authority.pl') &&
+index($compiler_readme,'Complete declarations are authoritative linker metadata')>=0 &&
+index($abi_text,'Authoritative memory-region metadata')>=0 &&
+index($linker_readme,'## Authoritative C26 memory regions')>=0 &&
+index($test_readme,'linker_c26_mem_authority.pl')>=0
+   or die "authoritative C26 mem implementation, ownership inference, documentation, or regression coverage is incomplete\n";
+my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
+index($vcs_machine,'mem rom      { $start:0xF000 $size:0x0FFA $ro $priority:1 };')>=0
+   or die "vcs.c26 lost its allocatable-bytes-only unbanked ROM declaration\n";
+index(slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26')),'#define VCS_NO_DEFAULT_ROM')<0 &&
+index(slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile')),
+      '-DVCS_NO_DEFAULT_ROM')>=0
+   or die "banked diagnostics must suppress the unbanked ROM declaration through the compiler command line\n";
+for my $name (qw(missing size start type)) {
+   my $body=slurp(File::Spec->catfile($test,"e2e_mem_region_cfg_${name}_mismatch.c26"));
+   index($body,'expectlinkfail')<0
+      or die "stale cfg $name regression still expects C26 allocator metadata to lose\n";
+}
 index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
 index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&

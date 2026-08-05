@@ -24,7 +24,7 @@ sub read_file {
    local $/; my $d=<$f>; close($f); return defined($d)?$d:'';
 }
 sub used_rom {
-   my($out)=@_; $out =~ /^  ROM\s+used=(\d+) bytes\b/m or die "missing ROM usage:\n$out";
+   my($out)=@_; $out =~ /^  rom\s+used=(\d+) bytes\b/m or die "missing ROM usage:\n$out";
    return 0+$1;
 }
 sub map_symbol {

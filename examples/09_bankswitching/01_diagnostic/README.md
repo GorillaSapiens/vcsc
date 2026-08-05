@@ -12,7 +12,7 @@
 
 ```sh
 ../../../driver/vcsc -I ../../../libraries/vcs \
-  -DMAPPER_BANKS=8 \
+  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=8 \
   -T ../../../libraries/vcs/vcs_32k_f4.cfg \
   -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```

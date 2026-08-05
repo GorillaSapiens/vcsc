@@ -118,7 +118,7 @@ for my $profile (@profiles) {
    my $cfg = File::Spec->catfile($vcs, $cfg_name);
    write_file($src, $source);
    require_ok("build $mapper static-Superchip-local test",
-      $driver, '-I', $vcs, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path, $src, '-o', $bin);
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path, $src, '-o', $bin);
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);

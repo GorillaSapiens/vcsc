@@ -95,9 +95,9 @@ length($score)==128 or die "internal expected score is not 128 bytes\n";
 index($rom,$score)>=0 or die "ROM does not contain the expected 128-byte score table\n";
 
 my $map_text=read_file($map);
-$map_text =~ /RAM\s+start=\$0080\s+size=\$007A\s+type=rw/
+$map_text =~ /ram\s+start=\$0080\s+size=\$007A\s+type=rw/
    or die "map does not expose the call-graph-sized RIOT RAM arena\n";
-$map_text =~ /region=RAM\s+depth=3\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
+$map_text =~ /region=ram\s+depth=3\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
    or die "map does not report the expected three-level hardware-stack reserve\n";
 $map_text =~ /__stack_top\s+\$00F9/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";

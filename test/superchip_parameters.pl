@@ -148,7 +148,7 @@ for my $profile (@profiles) {
    my $cfg = File::Spec->catfile($vcs, $cfg_name);
    write_file($src, $source);
    require_ok("build $mapper Superchip-parameter test",
-      $driver, '-I', $vcs, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
       $src, '-o', $bin);
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
@@ -207,7 +207,7 @@ write_file($overflow_src,
    "void main(void) { too_many(" . join(', ', @args) . "); while (true) {} }\n");
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "parameter_overflow_$attempt.bin"));
    $rc != 0 && !$sig
       or die "Superchip parameter overflow attempt $attempt unexpectedly linked\n$out\n$err";

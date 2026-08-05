@@ -115,6 +115,7 @@ CFG
 write_file($src, <<'SOURCE');
 include "machine_6502.c26"
 
+mem rom { $start:0x8000 $size:0x8000 $ro $priority:1 };
 mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0007 $rw };
 mem pair   { $read_start:0x6205 $write_start:0x2201 $size:0x0009 $rw };
 mem orange { $read_start:0x7102 $write_start:0x4A11 $size:0x0005 $rw };
@@ -173,7 +174,7 @@ void main(void) {
 SOURCE
 
 require_ok('compile generic split-address fruit source',
-   File::Spec->catfile($repo, 'compiler', 'vcsc-cc1'), '-quiet', '-I', $test_inc,
+   File::Spec->catfile($repo, 'compiler', 'vcsc-cc1'), '-quiet', '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM',
    $src, '-o', $asm_path);
 my $assembly = read_file($asm_path);
 for my $metadata (
@@ -187,14 +188,14 @@ index($assembly, 'superchip') < 0
    or die "generic fruit source unexpectedly produced a Superchip-named implementation artifact\n";
 
 require_ok('link generic split-address fruit source',
-   $driver, '-I', $test_inc, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+   $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
    $src, '-o', $hex);
 
 my $map = read_file($map_path);
 for my $line (
-   qr/^\s*banana\s+read_start=\$3003 write_start=\$5007 size=\$0007 type=rw shared=yes\s*$/m,
-   qr/^\s*pair\s+read_start=\$6205 write_start=\$2201 size=\$0009 type=rw shared=yes\s*$/m,
-   qr/^\s*orange\s+read_start=\$7102 write_start=\$4A11 size=\$0005 type=rw shared=yes\s*$/m,
+   qr/^\s*banana\s+read_start=\$3003 write_start=\$5007 size=\$0007 type=rw shared=yes.*$/m,
+   qr/^\s*pair\s+read_start=\$6205 write_start=\$2201 size=\$0009 type=rw shared=yes.*$/m,
+   qr/^\s*orange\s+read_start=\$7102 write_start=\$4A11 size=\$0005 type=rw shared=yes.*$/m,
    qr/^\s*banana\s+used=7 bytes\b.*\bobjects=7 bytes\b/m,
    qr/^\s*pair\s+used=9 bytes\b.*\bobjects=9 bytes\b/m,
    qr/^\s*orange\s+used=5 bytes\b.*\bobjects=5 bytes\b/m,
@@ -234,7 +235,7 @@ for my $case (
       . qq{mem orange { \$read_start:0x7102 \$write_start:0x4A11 \$size:0x0005 \$rw };\n}
       . "$name uint8_t full[$count];\nvoid main(void) { while (1) {} }\n");
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $test_inc, '-T', $cfg, $overflow_src, '-o', $overflow_hex);
+      $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, $overflow_src, '-o', $overflow_hex);
    $rc != 0 && !$sig or die "$name overflow unexpectedly linked\n$out\n$err";
    $err =~ $pattern or die "$name overflow did not identify its region\n$err";
 }

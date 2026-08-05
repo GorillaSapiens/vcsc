@@ -97,7 +97,7 @@ uint8_t result;
 void simulator_done(void) { while (true) {} }
 void main(void) { result := from_bank2(); simulator_done(); }
 SRC
-require_ok('build F6 replicated function fallback', $driver, '-I', $vcs,
+require_ok('build F6 replicated function fallback', $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM',
            '-T', $cfg, '-Map', $good_map_path, '-o', $good_bin, $good_src);
 my $map = slurp($good_map_path);
 $map =~ /kind=function symbol=replicated copies=2/
@@ -135,7 +135,7 @@ uint8_t result3;
 void simulator_done3(void) { while (true) {} }
 void main(void) { result3 := function3(0) + caller1() + caller2(); simulator_done3(); }
 SRC
-require_ok('build three-copy F6 image', $driver, '-I', $vcs, '-T', $cfg,
+require_ok('build three-copy F6 image', $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg,
            '-Map', $three_map_path, '-o', $three_bin, $three_src);
 my $three_map = slurp($three_map_path);
 $three_map =~ /kind=function symbol=function3 copies=3/
@@ -170,7 +170,7 @@ void main(void) { uint8_t value := illegal_reader(); }
 SRC
 my $err = require_fail('link pinned reader without a local object copy',
    "pinned layout CODE.bank2.__vcsc_function\$illegal_reader",
-   $driver, '-I', $vcs, '-T', $cfg, '-o', $bad_bin, $bad_src);
+   $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-o', $bad_bin, $bad_src);
 index($err, 'requires bank BANK2, which has no local copy') >= 0
    or die "missing-copy diagnostic omitted BANK2 locality\n$err";
 

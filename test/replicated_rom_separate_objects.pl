@@ -57,7 +57,7 @@ void main(void) {
    simulator_done();
 }
 SRC
-require_ok('link separately compiled replicas',$driver,'-I',$vcs,'-T',$cfg,'-Map',$map_path,'-o',$bin,$caller,$defs);
+require_ok('link separately compiled replicas',$driver,'-I',$vcs,'-DVCS_NO_DEFAULT_ROM','-T',$cfg,'-Map',$map_path,'-o',$bin,$caller,$defs);
 my $map=slurp($map_path);
 $map =~ /kind=function symbol=shared_function copies=2/ or die "missing function copies\n$map";
 $map =~ /kind=object symbol=shared_table copies=2/ or die "missing object copies\n$map";

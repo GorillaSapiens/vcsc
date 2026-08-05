@@ -174,6 +174,12 @@ static int mem_region_metadata_has_prefix(const char *name)
        strncmp(name, MEM_REGION_SPLIT_META_PREFIX, sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0);
 }
 
+static int mem_declaration_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, MEM_DECL_META_PREFIX,
+                          sizeof(MEM_DECL_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether immutable ROM-replication metadata has its reserved prefix.
 static int replica_metadata_has_prefix(const char *name)
 {
@@ -204,7 +210,8 @@ static int semantic_use_metadata_has_prefix(const char *name)
 static int reserved_metadata_has_prefix(const char *name)
 {
    return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
-          mem_region_metadata_has_prefix(name) || topology_metadata_has_prefix(name) ||
+          mem_region_metadata_has_prefix(name) || mem_declaration_metadata_has_prefix(name) ||
+          topology_metadata_has_prefix(name) ||
           replica_metadata_has_prefix(name) ||
           return_coalesce_metadata_has_prefix(name) ||
           contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
@@ -341,6 +348,10 @@ static const memory_region_t *find_memory(const linker_config_t *cfg, const char
    return NULL;
 }
 
+static int parse_topology_source_suffix(const char *suffix, char *out, size_t out_size);
+static memory_region_t *append_memory_region(linker_config_t *cfg);
+static segment_rule_t *append_segment_rule(linker_config_t *cfg);
+
 //! @brief Parse exactly four hexadecimal digits from mem-region metadata.
 static int parse_hex4(const char *s, uint16_t *out)
 {
@@ -463,6 +474,61 @@ static int parse_topology_source_suffix(const char *suffix, char *out, size_t ou
       return 0;
    snprintf(out, out_size, "%s:%u.%u", file, line, column);
    return 1;
+}
+
+//! @brief Parse one compiler-emitted authoritative C26 mem declaration.
+static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *out)
+{
+   const char *p;
+   const char *mark;
+   size_t name_len;
+   unsigned int read_start, write_start, size, split, priority;
+   char type_code;
+   int consumed = 0;
+
+   if (!symbol || !out || strncmp(symbol, MEM_DECL_META_PREFIX,
+                                  sizeof(MEM_DECL_META_PREFIX) - 1))
+      return 0;
+   p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   mark = strstr(p, "$R");
+   if (!mark || mark == p)
+      return -1;
+   name_len = (size_t)(mark - p);
+   if (name_len >= sizeof(out->name))
+      return -1;
+   if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
+              &read_start, &write_start, &size, &split, &type_code,
+              &priority, &consumed) != 6 || split > 1u ||
+       (type_code != 'W' && type_code != 'O'))
+      return -1;
+
+   memset(out, 0, sizeof(*out));
+   memcpy(out->name, p, name_len);
+   out->name[name_len] = '\0';
+   out->start = (uint16_t)read_start;
+   out->write_start = (uint16_t)write_start;
+   out->has_write_start = (int)split;
+   out->size = (uint16_t)size;
+   out->physical_size = (uint16_t)size;
+   snprintf(out->type, sizeof(out->type), "%s", type_code == 'W' ? "rw" : "ro");
+   out->priority = (int32_t)priority;
+   out->compiler_declared = 1;
+   out->define_yes = 1;
+   if (!parse_topology_source_suffix(mark + consumed, out->declaration,
+                                     sizeof(out->declaration)))
+      return -1;
+   return 1;
+}
+
+static int mem_declaration_equal(const memory_region_t *a,
+                                 const memory_region_t *b)
+{
+   return a->start == b->start &&
+          a->write_start == b->write_start &&
+          a->has_write_start == b->has_write_start &&
+          a->size == b->size &&
+          str_ieq(a->type, b->type) &&
+          a->priority == b->priority;
 }
 
 //! @brief Parse one compiler-emitted cartridge topology declaration.
@@ -623,6 +689,299 @@ static void collect_c26_topology(linker_config_t *cfg, const input_set_t *in)
                   cfg->topology_banks,
                   (cfg->topology_bank_count + 1u) * sizeof(*cfg->topology_banks));
                cfg->topology_banks[cfg->topology_bank_count++] = bank;
+            }
+         }
+      }
+   }
+}
+
+//! @brief Return mutable MEMORY entry by name.
+static memory_region_t *find_memory_mutable(linker_config_t *cfg, const char *name)
+{
+   size_t i;
+   for (i = 0; cfg && name && i < cfg->mem_count; ++i)
+      if (str_ieq(cfg->mem[i].name, name))
+         return &cfg->mem[i];
+   return NULL;
+}
+
+//! @brief Merge authoritative C26 mem declarations into the parsed cfg table.
+static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t *in)
+{
+   size_t i;
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->export_count; ++j) {
+         memory_region_t decl;
+         memory_region_t *mem;
+         int parsed = parse_mem_declaration_metadata(obj->exports[j].name, &decl);
+         if (parsed < 0) {
+            fprintf(stderr, "vcsc-ld: malformed C26 mem declaration metadata in %s\n",
+                    obj->origin);
+            exit(1);
+         }
+         if (!parsed)
+            continue;
+         snprintf(decl.source, sizeof(decl.source), "%s", obj->origin);
+         mem = find_memory_mutable(cfg, decl.name);
+         if (mem && mem->compiler_declared) {
+            if (!mem_declaration_equal(mem, &decl)) {
+               fprintf(stderr,
+                       "vcsc-ld: conflicting mem declaration '%s' at %s (%s) and %s (%s)\n",
+                       decl.name,
+                       mem->declaration[0] ? mem->declaration : "<unknown>",
+                       mem->source[0] ? mem->source : "<unknown>",
+                       decl.declaration[0] ? decl.declaration : "<unknown>",
+                       obj->origin);
+               exit(1);
+            }
+            continue;
+         }
+         if (mem) {
+            int callstack_callgraph = mem->callstack_callgraph;
+            uint16_t callstack_extra = mem->callstack_extra;
+            char file[MAX_PATH];
+            char bank_name[MAX_NAME];
+            int fill_yes = mem->fill_yes;
+            uint8_t fill_value = mem->fill_value;
+            int has_fill_value = mem->has_fill_value;
+            snprintf(file, sizeof(file), "%s", mem->file);
+            snprintf(bank_name, sizeof(bank_name), "%s", mem->bank_name);
+            *mem = decl;
+            mem->define_yes = 1;
+            mem->callstack_callgraph = callstack_callgraph;
+            mem->callstack_extra = callstack_extra;
+            snprintf(mem->file, sizeof(mem->file), "%s", file);
+            snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", bank_name);
+            mem->fill_yes = fill_yes;
+            mem->fill_value = fill_value;
+            mem->has_fill_value = has_fill_value;
+         }
+         else {
+            mem = append_memory_region(cfg);
+            *mem = decl;
+         }
+      }
+   }
+}
+
+//! @brief Find topology bank whose selector corresponds to one retained cfg bank.
+static const cartridge_bank_t *legacy_bank_for_topology(const linker_config_t *cfg,
+                                                        const topology_bank_t *top)
+{
+   size_t i;
+   if (!cfg || !top || !top->has_selector)
+      return NULL;
+   for (i = 0; i < cfg->bank_count; ++i)
+      if (cfg->banks[i].hotspot == top->select_access)
+         return &cfg->banks[i];
+   return NULL;
+}
+
+//! @brief Infer output owner from unique containment in synthetic topology ranges.
+static void infer_c26_mem_output_ownership(linker_config_t *cfg)
+{
+   size_t i;
+   if (cfg->topology_bank_count == 0) {
+      for (i = 0; i < cfg->mem_count; ++i) {
+         memory_region_t *mem = &cfg->mem[i];
+         if (!mem->compiler_declared)
+            continue;
+         mem->output_bank_name[0] = '\0';
+         mem->output_mode = MEM_OUTPUT_SHARED;
+         if (mem->has_write_start || !str_ieq(mem->type, "ro")) {
+            mem->bank_name[0] = '\0';
+            continue;
+         }
+         if (!mem->bank_name[0])
+            continue;
+         snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
+                  mem->bank_name);
+         mem->output_mode = MEM_OUTPUT_SWITCHED;
+      }
+      return;
+   }
+   for (i = 0; i < cfg->mem_count; ++i) {
+      memory_region_t *mem = &cfg->mem[i];
+      const topology_bank_t *owner = NULL;
+      size_t matches = 0;
+      size_t j;
+      uint32_t mem_end;
+
+      if (!mem->compiler_declared)
+         continue;
+      mem->bank_name[0] = '\0';
+      mem->output_bank_name[0] = '\0';
+      mem->output_mode = MEM_OUTPUT_SHARED;
+      mem_end = (uint32_t)mem->start + mem->size;
+      for (j = 0; j < cfg->topology_bank_count; ++j) {
+         const topology_bank_t *bank = &cfg->topology_banks[j];
+         uint32_t bank_end = (uint32_t)bank->link_start + bank->map_size;
+         if (mem->start >= bank->link_start && mem_end <= bank_end) {
+            owner = bank;
+            matches++;
+         }
+      }
+      if (matches > 1) {
+         int first = 1;
+         fprintf(stderr,
+                 "vcsc-ld: mem region '%s' at $%04X-$%04X is contained by multiple output banks: ",
+                 mem->name, mem->start, (uint16_t)(mem_end - 1u));
+         for (j = 0; j < cfg->topology_bank_count; ++j) {
+            const topology_bank_t *bank = &cfg->topology_banks[j];
+            uint32_t bank_end = (uint32_t)bank->link_start + bank->map_size;
+            if (mem->start >= bank->link_start && mem_end <= bank_end) {
+               fprintf(stderr, "%s%s", first ? "" : ", ", bank->name);
+               first = 0;
+            }
+         }
+         fputc('\n', stderr);
+         exit(1);
+      }
+      if (matches == 1) {
+         const cartridge_bank_t *legacy;
+         snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
+                  owner->name);
+         mem->output_mode = owner->has_selector ? MEM_OUTPUT_SWITCHED
+                                                : MEM_OUTPUT_DIRECT;
+         legacy = legacy_bank_for_topology(cfg, owner);
+         if (legacy)
+            snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", legacy->name);
+      }
+   }
+}
+
+static int memory_region_is_zeropage_range(const memory_region_t *mem)
+{
+   return mem && !mem->has_write_start &&
+          (uint32_t)mem->start + mem->size <= 0x100u;
+}
+
+static int memory_is_in_startup_topology_bank(const linker_config_t *cfg,
+                                              const memory_region_t *mem)
+{
+   size_t i;
+   if (!cfg || !mem || !mem->output_bank_name[0])
+      return 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i)
+      if (cfg->topology_banks[i].startup &&
+          !strcmp(cfg->topology_banks[i].name, mem->output_bank_name))
+         return 1;
+   return 0;
+}
+
+//! @brief Select a deterministic highest-priority compiler-declared region.
+static const memory_region_t *select_default_declared_memory(const linker_config_t *cfg,
+                                                             const char *type,
+                                                             int zeropage_only,
+                                                             int startup_only)
+{
+   const memory_region_t *best = NULL;
+   size_t i;
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      if (!mem->compiler_declared || !str_ieq(mem->type, type))
+         continue;
+      if (zeropage_only && !memory_region_is_zeropage_range(mem))
+         continue;
+      if (startup_only && !memory_is_in_startup_topology_bank(cfg, mem))
+         continue;
+      if (!best || mem->priority > best->priority ||
+          (mem->priority == best->priority && strcmp(mem->name, best->name) < 0))
+         best = mem;
+   }
+   return best;
+}
+
+static segment_rule_t *find_segment_rule_mutable(linker_config_t *cfg,
+                                                  const char *name)
+{
+   size_t i;
+   for (i = 0; cfg && name && i < cfg->seg_count; ++i)
+      if (str_ieq(cfg->seg[i].name, name))
+         return &cfg->seg[i];
+   return NULL;
+}
+
+//! @brief Create or authoritatively reroute one ordinary segment rule.
+static void synthesize_segment_rule(linker_config_t *cfg, const char *name,
+                                    const char *load, const char *run,
+                                    const char *type)
+{
+   segment_rule_t *seg;
+   if (!name || !load || !type)
+      return;
+   seg = find_segment_rule_mutable(cfg, name);
+   if (!seg) {
+      seg = append_segment_rule(cfg);
+      snprintf(seg->name, sizeof(seg->name), "%s", name);
+   }
+   snprintf(seg->load_name, sizeof(seg->load_name), "%s", load);
+   if (run && *run)
+      snprintf(seg->run_name, sizeof(seg->run_name), "%s", run);
+   else
+      seg->run_name[0] = '\0';
+   snprintf(seg->type, sizeof(seg->type), "%s", type);
+   seg->define_yes = 1;
+}
+
+//! @brief Synthesize ordinary placement routes from authoritative C26 mem data.
+static void synthesize_c26_segment_rules(linker_config_t *cfg)
+{
+   const memory_region_t *default_ro;
+   const memory_region_t *default_rw;
+   const memory_region_t *default_zp;
+   int have_startup_topology = 0;
+   size_t i;
+
+   for (i = 0; i < cfg->topology_bank_count; ++i)
+      if (cfg->topology_banks[i].startup)
+         have_startup_topology = 1;
+   default_ro = have_startup_topology
+      ? select_default_declared_memory(cfg, "ro", 0, 1) : NULL;
+   if (!default_ro)
+      default_ro = select_default_declared_memory(cfg, "ro", 0, 0);
+   default_rw = select_default_declared_memory(cfg, "rw", 0, 0);
+   default_zp = select_default_declared_memory(cfg, "rw", 1, 0);
+
+   if (default_ro) {
+      synthesize_segment_rule(cfg, "STARTUP", default_ro->name, NULL, "ro");
+      synthesize_segment_rule(cfg, "CODE", default_ro->name, NULL, "ro");
+      synthesize_segment_rule(cfg, "RODATA", default_ro->name, NULL, "ro");
+   }
+   if (default_rw) {
+      synthesize_segment_rule(cfg, "BSS", default_rw->name, NULL, "bss");
+      if (default_ro)
+         synthesize_segment_rule(cfg, "DATA", default_ro->name,
+                                 default_rw->name, "data");
+   }
+   if (default_zp && default_ro)
+      synthesize_segment_rule(cfg, "ZEROPAGE", default_ro->name,
+                              default_zp->name, "zp");
+
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      char name[2 * MAX_NAME];
+      if (!mem->compiler_declared)
+         continue;
+      if (str_ieq(mem->type, "ro")) {
+         snprintf(name, sizeof(name), "CODE.%s", mem->name);
+         synthesize_segment_rule(cfg, name, mem->name, NULL, "ro");
+         snprintf(name, sizeof(name), "RODATA.%s", mem->name);
+         synthesize_segment_rule(cfg, name, mem->name, NULL, "ro");
+      }
+      else if (str_ieq(mem->type, "rw")) {
+         snprintf(name, sizeof(name), "BSS.%s", mem->name);
+         synthesize_segment_rule(cfg, name, mem->name, NULL, "bss");
+         if (default_ro) {
+            snprintf(name, sizeof(name), "DATA.%s", mem->name);
+            synthesize_segment_rule(cfg, name, default_ro->name,
+                                    mem->name, "data");
+            if (memory_region_is_zeropage_range(mem)) {
+               snprintf(name, sizeof(name), "ZEROPAGE.%s", mem->name);
+               synthesize_segment_rule(cfg, name, default_ro->name,
+                                       mem->name, "zp");
             }
          }
       }
@@ -929,7 +1288,7 @@ static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg
 {
    const segment_rule_t *rule = find_segment_rule(cfg, name);
    static const char *const private_suffixes[] = {
-      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_page$", NULL
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$", NULL
    };
    char base[MAX_NAME];
    const char *dot;
@@ -1502,9 +1861,9 @@ static void validate_linker_config(linker_config_t *cfg)
                break;
             }
          }
-         if (cartridge_output) {
+         if (cartridge_output && !mem->compiler_declared) {
             fprintf(stderr,
-                    "vcsc-ld: banked cartridge MEMORY region '%s' must name bank=...\n",
+                    "vcsc-ld: banked cartridge cfg-only MEMORY region '%s' must name bank=...\n",
                     mem->name);
             exit(1);
          }
@@ -1731,7 +2090,6 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
       exit(1);
    }
 
-   validate_linker_config(cfg);
 }
 
 
@@ -4198,7 +4556,7 @@ static const memory_region_t *bank_placement_layout_memory(const linker_config_t
 static int bank_placement_private_base(const char *name, char *base, size_t base_size)
 {
    static const char *const markers[] = {
-      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_page$", NULL
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$", NULL
    };
    size_t i;
 
@@ -6631,8 +6989,12 @@ static int memory_region_is_cartridge_rom(const linker_config_t *cfg,
 
    if (cfg == NULL || mem == NULL)
       return 0;
-   if (str_ieq(mem->type, "ro"))
+   if (str_ieq(mem->type, "ro")) {
+      if (cfg->topology_bank_count && mem->compiler_declared &&
+          mem->output_mode == MEM_OUTPUT_SHARED)
+         return 0;
       return 1;
+   }
    for (i = 0; i < cfg->seg_count; ++i) {
       const segment_rule_t *seg = &cfg->seg[i];
       if (!str_ieq(seg->load_name, mem->name))
@@ -6935,7 +7297,16 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          fprintf(fp, "  %-10s start=$%04X size=$%04X type=%s",
             cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].size, cfg->mem[i].type);
       }
-      if (cfg->mem[i].bank_name[0])
+      if (cfg->mem[i].compiler_declared) {
+         const char *mode = cfg->mem[i].output_mode == MEM_OUTPUT_SWITCHED ? "switched" :
+                            cfg->mem[i].output_mode == MEM_OUTPUT_DIRECT ? "direct" : "shared";
+         fprintf(fp, " priority=%" PRId32 " output-bank=%s mode=%s declaration=%s",
+                 cfg->mem[i].priority,
+                 cfg->mem[i].output_bank_name[0] ? cfg->mem[i].output_bank_name : "<none>",
+                 mode,
+                 cfg->mem[i].declaration[0] ? cfg->mem[i].declaration : "<unknown>");
+      }
+      else if (cfg->mem[i].bank_name[0])
          fprintf(fp, " bank=%s", cfg->mem[i].bank_name);
       fputc('\n', fp);
    }
@@ -7726,6 +8097,10 @@ int main(int argc, char **argv)
 
    select_needed_objects(&inputs);
    collect_c26_topology(&cfg, &inputs);
+   collect_c26_mem_declarations(&cfg, &inputs);
+   infer_c26_mem_output_ownership(&cfg);
+   synthesize_c26_segment_rules(&cfg);
+   validate_linker_config(&cfg);
    validate_c26_topology(&cfg);
    if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,

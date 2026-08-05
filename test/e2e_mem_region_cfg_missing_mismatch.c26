@@ -1,9 +1,5 @@
 // vcsc-cc1 -I .
 // linkcfg: e2e_mem_region_cfg_missing_mismatch__bad.cfg
-// expectlinkfail
-// expectlinkerr: mem region 'banana' declared by
-// expectlinkerr: is not present in linker cfg MEMORY
-// expectlinkerr: Add a MEMORY entry named 'banana' or change the VCSC source mem declaration
 include "machine_6502.c26"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 

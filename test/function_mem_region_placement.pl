@@ -61,6 +61,9 @@ my $include = File::Spec->catfile($repo, 'test');
 
 write_file($src, <<'SRC');
 include "machine_6502.c26"
+mem zeropage { $start:0x0000 $size:0x0080 $rw $priority:3 };
+mem ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem rom { $start:0xF000 $size:0x1000 $ro $priority:1 };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 
 bank1 page void placed(void) {
@@ -88,7 +91,7 @@ SEGMENTS {
 }
 CFG
 
-require_ok('function-region assembly emission', $vcsc, '-S', '-I', $include,
+require_ok('function-region assembly emission', $vcsc, '-S', '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', 
            '-o', $asm, $src);
 my $assembly = slurp($asm);
 $assembly =~ /\.segment "CODE\.bank1"\s+\.proc placed\s+\.pagecontain/s
@@ -98,7 +101,7 @@ $assembly =~ /\.endproc\s+\.segment "CODE"\s+\.proc main/s
 $assembly =~ /__memmeta\$V1\$bank1\$SD100\$Z0E00\$Tro/
    or die "compiler omitted Superchip-sized bank1 metadata\n";
 
-require_ok('function-region link', $vcsc, '-I', $include, '-T', $cfg,
+require_ok('function-region link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg,
            '-Map', $map, '-o', $hex, $src);
 my $map_text = slurp($map);
 $map_text =~ /CODE\.bank1\.__vcsc_function\$placed\s+load=\$D100\s+size=\$0002\s+page=hard/

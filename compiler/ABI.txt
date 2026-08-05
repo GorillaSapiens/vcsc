@@ -360,6 +360,26 @@ already stores the export count in 16 bits; the assembler writer accepts that
 full range so installed hardware-binding headers do not impose a 255-export
 ceiling on translation units which also emit substantial function ABI metadata.
 
+
+Authoritative memory-region metadata
+------------------------------------
+
+Every complete source-level `mem` declaration emits one reserved absolute
+`.o26` export beginning with `__memdecl$V1$`, whether or not that translation
+unit currently places an object in the region. The canonical record contains
+the region name, read/ordinary start, write start, physical size, split-address
+bit, read-only/read-write type, signed priority, and declaration source
+location. Numeric values use fixed-width hexadecimal fields. Empty policy-only
+`mem name { };` declarations emit no allocator record.
+
+The linker merges byte-identical records after archive selection and rejects
+conflicts with both original C26 locations. These records are authoritative for
+allocator geometry and ordinary segment routing; legacy cfg MEMORY entries may
+retain only migration-era operational properties. The metadata prefix is
+reserved and never becomes a program global. Older use-site `__memmeta$V1$` and
+`__memmeta$V2$` records remain accepted as consistency metadata during the cfg
+transition.
+
 Cartridge topology metadata
 ---------------------------
 

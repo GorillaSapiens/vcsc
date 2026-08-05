@@ -308,6 +308,62 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
+#define MEM_DECL_META_PREFIX "__memdecl$V1$"
+
+//! @brief Encode one declaration location for linker diagnostics.
+static char *mem_metadata_source_suffix(const ASTNode *node) {
+   static const char hex[] = "0123456789ABCDEF";
+   const char *file = node && node->file ? node->file : "?";
+   size_t file_len = strlen(file);
+   size_t cap = 2u * file_len + 32u;
+   char *out = (char *)malloc(cap);
+   size_t pos = 0;
+
+   if (!out) {
+      error_unreachable("out of memory encoding mem declaration source location");
+   }
+   out[pos++] = '$';
+   out[pos++] = 'Q';
+   for (size_t i = 0; i < file_len; ++i) {
+      unsigned char c = (unsigned char)file[i];
+      out[pos++] = hex[c >> 4];
+      out[pos++] = hex[c & 0x0f];
+   }
+   snprintf(out + pos, cap - pos, "$N%08X$C%08X",
+            node ? (unsigned)node->line : 0u,
+            node ? (unsigned)node->column : 0u);
+   return out;
+}
+
+//! @brief Read the optional signed priority from one mem declaration.
+static int32_t mem_metadata_priority_flag(const ASTNode *flags) {
+   int32_t priority = 0;
+   bool found = false;
+
+   if (!flags || is_empty(flags)) {
+      return 0;
+   }
+   for (int i = 0; i < flags->count; ++i) {
+      const char *text = flags->children[i] && flags->children[i]->strval
+         ? flags->children[i]->strval : NULL;
+      char *end = NULL;
+      long value;
+      if (!text || strncmp(text, "$priority:", 10)) {
+         continue;
+      }
+      value = strtol(text + 10, &end, 0);
+      if (!end || *end != '\0' || value < INT32_MIN || value > INT32_MAX) {
+         error_user("invalid mem priority flag '%s'", text);
+      }
+      if (found) {
+         error_user("mem declaration has multiple priority flags");
+      }
+      priority = (int32_t)value;
+      found = true;
+   }
+   return priority;
+}
+
 static Set *emitted_mem_region_metadata = NULL;
 
 //! @brief Parse unsigned integer flag from a mem declaration flag list.
@@ -375,6 +431,93 @@ static const char *mem_metadata_type_flag(const ASTNode *flags) {
       return "ro";
    }
    return NULL;
+}
+
+//! @brief Emit authoritative linker metadata for one complete C26 mem declaration.
+void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
+   const ASTNode *flags;
+   const char *name;
+   const char *type;
+   unsigned int start = 0;
+   unsigned int read_start = 0;
+   unsigned int write_start = 0;
+   unsigned int size = 0;
+   unsigned int end = 0;
+   bool have_start;
+   bool have_read_start;
+   bool have_write_start;
+   bool have_size;
+   bool have_end;
+   bool split;
+   bool has_allocation_flag;
+   int32_t priority;
+   char *source_suffix;
+   char symbol[640];
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2 ||
+       !mem_decl->children[0] || !mem_decl->children[0]->strval) {
+      return;
+   }
+   name = mem_decl->children[0]->strval;
+   flags = mem_decl->children[1];
+   have_start = mem_metadata_parse_u16_flag(flags, "$start:", &start);
+   have_read_start = mem_metadata_parse_u16_flag(flags, "$read_start:", &read_start);
+   have_write_start = mem_metadata_parse_u16_flag(flags, "$write_start:", &write_start);
+   have_size = mem_metadata_parse_u16_flag(flags, "$size:", &size);
+   have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
+   type = mem_metadata_type_flag(flags);
+   split = have_read_start || have_write_start;
+   priority = mem_metadata_priority_flag(flags);
+   has_allocation_flag = have_start || have_read_start || have_write_start ||
+      have_size || have_end || type != NULL || priority != 0;
+
+   /* Retain the old ability to declare an empty policy-only mem name. It does
+      not describe allocatable bytes and therefore emits no linker region. */
+   if (!has_allocation_flag) {
+      return;
+   }
+
+   if (split) {
+      if (have_start || !have_read_start || !have_write_start ||
+          (!have_size && !have_end) || !type || strcmp(type, "rw")) {
+         error_user("[%s:%d.%d] split-address mem region '%s' must declare $read_start, $write_start, $size or $end, and exactly $rw (not $start/$ro)",
+                    mem_decl->file, mem_decl->line, mem_decl->column, name);
+      }
+      start = read_start;
+   }
+   else if (!have_start || (!have_size && !have_end) || !type ||
+            !strcmp(type, "conflict")) {
+      error_user("[%s:%d.%d] mem region '%s' must declare $start plus $size or $end and exactly one of $rw/$ro",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+   if (have_size && have_end) {
+      error_user("[%s:%d.%d] mem region '%s' may declare $size or $end, not both",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+   if (!have_size) {
+      if (end < start) {
+         error_user("[%s:%d.%d] mem region '%s' has $end below its read/start address",
+                    mem_decl->file, mem_decl->line, mem_decl->column, name);
+      }
+      size = end - start;
+   }
+   if (!size || size > 0x10000u || start + size > 0x10000u ||
+       (split && write_start + size > 0x10000u)) {
+      error_user("[%s:%d.%d] mem region '%s' is empty or extends outside the 6502 address space",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+
+   source_suffix = mem_metadata_source_suffix(mem_decl);
+   snprintf(symbol, sizeof(symbol),
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X%s",
+            name, start & 0xffffu,
+            (split ? write_start : start) & 0xffffu,
+            size & 0xffffu, split ? 1 : 0,
+            !strcmp(type, "rw") ? 'W' : 'O',
+            (unsigned int)priority, source_suffix);
+   free(source_suffix);
+   emit(&es_export, "%s = 0\n", symbol);
+   emit(&es_export, ".export %s\n", symbol);
 }
 
 //! @brief Emit object metadata describing a used compiler mem region for later linker cfg validation.

@@ -226,11 +226,15 @@ and generated ranges. The map contains a `C26 CARTRIDGE TOPOLOGY` section with
 the output size, fill, generated ranges, physical order, mappings, access mode,
 selector, startup status, and defining object.
 
-This is transitional with respect to cfg files. C26 topology is authoritative
-for physical output packaging, but cfg `MEMORY` and `SEGMENTS` still provide
-allocation and routing until roadmap item 25. Selector-controlled topology must
-semantically match the retained banked cfg; direct topology may be combined only
-with a nonbanked cfg. Public VCS profile migration is roadmap item 26.
+C26 topology is authoritative for physical output packaging, and complete C26
+`mem` declarations are authoritative for allocator geometry and ordinary segment
+routing. During migration, cfg may still provide legacy mapper mechanics and
+component-specific operational properties such as call-stack reservation.
+A legacy cfg bank tag cannot turn an authoritative writable or split-address
+C26 region into bank-local storage; those regions remain shared and their stale
+cfg bank association is discarded. Selector-controlled topology must
+semantically match the retained hardware model until the public VCS profile
+migration in roadmap item 26.
 
 ### Full-window banked image foundation
 
@@ -503,11 +507,31 @@ units do not merge. Calls hidden inside assembly remain outside this analysis
 and must obey the integration contract's non-reentry rules.
 
 It is not trying to be a full `ld65` config parser.
-## Compiler mem-region validation
+## Authoritative C26 memory regions
 
-Objects produced by `vcsc-cc1` include hidden metadata for each `mem` region that was used for symbol-backed storage. Before layout, `vcsc-ld` compares that metadata with the config `MEMORY` table.
+Every complete C26 `mem` declaration is carried in hidden object metadata even
+when the declaring translation unit does not currently allocate an object there.
+After archive selection, `vcsc-ld` merges identical declarations and rejects
+conflicts with both original C26 source locations. These declarations create or
+overwrite allocator regions before cfg validation and layout. A cfg `MEMORY`
+entry is no longer required, and stale cfg start, size, type, or missing-region
+facts do not override source.
 
-The linker rejects the image if the config is missing the region, or if the source and cfg disagree about its address, size, or type. Ordinary regions compare `start`, `size`, and `type`. Split-address regions compare `read_start`, `write_start`, `size`, and `type`; they must be `rw` and shared rather than assigned to one cartridge bank. Diagnostics report both sides and identify the mismatched property.
+Compatibility cfg entries may temporarily retain operational properties such as
+`callstack`, `callstack_extra`, file backing, or fill policy. Their allocator
+geometry is replaced by the source declaration. The linker synthesizes ordinary
+`STARTUP`, `CODE`, `RODATA`, `DATA`, `BSS`, `ZEROPAGE`, and region-suffixed rules
+from access type, priority, zero-page range, and startup-bank ownership while
+preserving explicit alignment and start constraints on existing rules.
+
+For each source-declared region, output ownership is inferred only from unique
+containment of its complete synthetic allocation range inside one C26 bank's
+`link_start..link_start+map_size` range. One owner yields `direct` or `switched`
+according to that bank's selector mode; no owner yields `shared`; multiple owners
+are an error naming the candidate banks. Names and CPU-visible mirrors are never
+used for inference. Direct owners use ordinary absolute references. Distinct
+selector-controlled owners use the existing bridge/trampoline machinery. Shared
+regions never cause a transition.
 
 Split-address handling is name-agnostic. The read window may be above or below
 the write window, the aliases need not be adjacent or page-aligned, and each
@@ -526,7 +550,10 @@ layout separately from the function's CODE layout; split results show both
 `run=` and `write=`. Separately compiled declarations and definitions with
 different result regions are rejected before layout.
 
-Named zero-page regions use suffixed zero-page segments such as `ZEROPAGE.register`, so the cfg must contain a matching `MEMORY` entry for the region name when such a region is used. Split-address DATA/BSS layouts use the read window as their canonical run address. Startup copy/zero records are translated to the corresponding write window.
+Named zero-page regions use synthesized suffixed segments such as
+`ZEROPAGE.register`; no matching cfg `MEMORY` or `SEGMENTS` entry is required.
+Split-address DATA/BSS layouts use the read window as their canonical run address.
+Startup copy/zero records are translated to the corresponding write window.
 
 
 ## Segment mapping
@@ -583,7 +610,9 @@ MEMORY USAGE
 ```
 
 When you request a map file, `vcsc-ld` writes the same unified memory-usage section plus:
-- effective memory regions after any call-graph stack reservation
+- effective memory regions after any call-graph stack reservation, including
+  each C26 region's declaration location, priority, inferred output bank, and
+  direct/switched/shared mode
 - deterministic bank-placement components, pins, automatic assignments, cut
   weights, and concrete MEMORY regions for banked profiles
 - object placement and generated cross-bank trampoline entries
@@ -736,10 +765,10 @@ ordinary `CODE` fallback is considered.
 Function modifiers are property-classified by the compiler: an order-insensitive
 set of `$ro` regions is the code-placement ABI fact, while one `$rw` region is the
 independent return-storage fact. Linker ABI diagnostics report `code regions`
-mismatches separately from `return type` storage mismatches. A cfg that pins
-source region `orchard` must provide a matching `CODE.orchard` segment rule;
-named return segments continue to resolve through their matching writable MEMORY
-region.
+mismatches separately from `return type` storage mismatches. The linker synthesizes `CODE.orchard`, `RODATA.orchard`, and the corresponding
+writable region routes directly from authoritative C26 declarations. Existing cfg
+rules may retain component-specific alignment or start constraints during
+migration, but they do not choose a different allocator region.
 
 For a multi-region code contract, compiler metadata identifies one logical
 function and every requested `$ro` region. The linker clones the compiler's

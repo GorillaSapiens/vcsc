@@ -84,7 +84,7 @@ sub build_matrix_rom {
    my $stem=lc($mapper).'_matrix';
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
    my $map_path=File::Spec->catfile($tmp,"$stem.map");
-   my @defs=("-DMAPPER_BANKS=$banks");
+   my @defs=('-DVCS_NO_DEFAULT_ROM',"-DMAPPER_BANKS=$banks");
    push @defs,'-DSUPERCHIP_TEST' if $sc;
    push @defs,'-DSIMULATOR_TEST' if $simulator;
    push @defs,'-DPOISONED_RESULT' if $poisoned;

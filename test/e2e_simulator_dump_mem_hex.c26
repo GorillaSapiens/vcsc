@@ -1,4 +1,4 @@
-// vcsc-cc1 -I .
+// vcsc-cc1 -I . -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM
 // linkcfg: external_binding_holes.cfg
 // expectsim: ---8<--- BEGIN MEMORY DUMP ---8<---
 // expectsim: :100300000102030405060708090A0B0C0D0E0F1065
@@ -7,6 +7,9 @@
 // expectexit: 0
 
 include "machine_6502.c26"
+
+mem ram { $start:0x0800 $size:0x1800 $rw $priority:2 };
+mem rom { $start:0x2000 $size:0xE000 $ro $priority:1 };
 
 int8_t m0@0x0300;
 int8_t m1@0x0301;

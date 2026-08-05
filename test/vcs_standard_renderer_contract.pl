@@ -162,9 +162,9 @@ my $rom_map=build_smoke(
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.map'));
 
-require_re($rom_map,qr/RAM\s+start=\$0080\s+size=\$0076\s+type=rw/,
+require_re($rom_map,qr/ram\s+start=\$0080\s+size=\$0076\s+type=rw/,
    'profile did not reserve six call-graph bytes plus four supplementary bytes');
-require_re($rom_map,qr/region=RAM\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+require_re($rom_map,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
    'map does not report the hook-aware four-byte supplementary allowance');
 symbol_addr($rom_map,'__call_stack_depth') == 3
    or die "__call_stack_depth does not include drawscreen -> overscan hook\n";

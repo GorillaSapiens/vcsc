@@ -97,6 +97,7 @@ SEGMENTS {
 CFG
 
 my $mem_decls = <<'MEM';
+mem rom { $start:0x8000 $size:0x8000 $ro $priority:1 };
 mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0002 $rw };
 mem pair   { $read_start:0x6205 $write_start:0x2201 $size:0x0004 $rw };
 mem orange { $read_start:0x7102 $write_start:0x4A11 $size:0x0003 $rw };
@@ -146,7 +147,7 @@ orange uint24_t orange_value(void) {
 DEFS
 
 require_ok('build separately compiled generic split-return fixture',
-   $driver, '-I', $test_inc, '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+   $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
    $main, $defs, '-o', $hex);
 
 my $map = read_file($map_path);
@@ -216,7 +217,7 @@ $mem_decls
 pair uint24_t mismatch(void) { return 1; }
 BADDEF
 my ($bad_rc, $bad_sig, $bad_out, $bad_err) = run_capture(
-   $driver, '-I', $test_inc, '-T', $cfg, $bad_main, $bad_def,
+   $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, $bad_main, $bad_def,
    '-o', File::Spec->catfile($tmp, 'bad.hex'));
 $bad_rc != 0 && !$bad_sig
    or die "split-return ABI mismatch unexpectedly linked\n$bad_out\n$bad_err";
@@ -235,7 +236,7 @@ void main(void) { uint32_t v := too_big(); }
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $test_inc, '-T', $cfg, $overflow,
+      $driver, '-I', $test_inc, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, $overflow,
       '-o', File::Spec->catfile($tmp, "overflow_$attempt.hex"));
    $rc != 0 && !$sig
       or die "split-return overflow attempt $attempt unexpectedly linked\n$out\n$err";

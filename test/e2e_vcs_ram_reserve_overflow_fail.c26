@@ -1,7 +1,7 @@
 // vcsc-cc1 -I ../libraries/vcs
 // linkcfg: ../libraries/vcs/vcs_4k.cfg
 // expectlinkfail
-// expectlinkerr: RAM overflow while placing BSS
+// expectlinkerr: ram overflow while placing BSS
 
 include "vcs.c26"
 

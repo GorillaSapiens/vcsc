@@ -52,6 +52,7 @@
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
+#define MEM_DECL_META_PREFIX "__memdecl$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
 #define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
 
@@ -74,8 +75,18 @@ typedef struct {
    uint8_t fill_value;
    int has_fill_value;
    char bank_name[MAX_NAME];
+   char output_bank_name[MAX_NAME];
+   uint8_t output_mode;
+   int compiler_declared;
+   int32_t priority;
+   char declaration[MAX_PATH + 32];
+   char source[MAX_PATH];
    char name[MAX_NAME];
 } memory_region_t;
+
+#define MEM_OUTPUT_SHARED   0
+#define MEM_OUTPUT_DIRECT   1
+#define MEM_OUTPUT_SWITCHED 2
 
 //! Segment placement rule parsed from a linker configuration file.
 typedef struct {

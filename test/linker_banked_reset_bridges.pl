@@ -191,6 +191,9 @@ my $include = File::Spec->catfile($repo, 'test');
 my $src = File::Spec->catfile($tmp, 'reset.c26');
 write_file($src, <<'SRC');
 include "machine_6502.c26"
+mem ZEROPAGE { $start:0x0000 $size:0x0080 $rw $priority:3 };
+mem RAM { $start:0x0080 $size:0x0080 $rw $priority:2 };
+mem ROM { $start:0xF000 $size:0x0F00 $ro $priority:2 };
 void main(void) { asm nop; }
 SRC
 
@@ -209,7 +212,7 @@ for my $mapper (qw(F8 F6 F4)) {
    my $bin = File::Spec->catfile($tmp, lc($mapper) . '.bin');
    my $map_path = File::Spec->catfile($tmp, lc($mapper) . '.map');
    write_file($cfg, make_cfg($mapper, 0x0FE0));
-   require_ok("$mapper reset-bridge link", $vcsc, '-I', $include,
+   require_ok("$mapper reset-bridge link", $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM',
               '-T', $cfg, '-Map', $map_path,
               '--no-sym', '--no-list', '--no-cfg', '-o', $bin, $src);
    my $image = slurp($bin);
@@ -253,14 +256,14 @@ my $missing_text = make_cfg('F8', 0x0FE0);
 $missing_text =~ s/^\s*vectorbridge\s*=.*\n//m;
 write_file($missing_cfg, $missing_text);
 require_fail('missing vectorbridge', 'requires CARTRIDGE vectorbridge',
-             $vcsc, '-I', $include, '-T', $missing_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $missing_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'missing.bin'), $src);
 
 my $selector_cfg = File::Spec->catfile($tmp, 'selector-overlap.cfg');
 write_file($selector_cfg, make_cfg('F8', 0x0FE8));
 require_fail('vector bridge over selector', 'overlaps BANK0 selector hotspot $1FF9',
-             $vcsc, '-I', $include, '-T', $selector_cfg,
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $selector_cfg,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'selector.bin'), $src);
 
