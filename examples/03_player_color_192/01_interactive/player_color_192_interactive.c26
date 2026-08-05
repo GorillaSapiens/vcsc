@@ -45,27 +45,27 @@ template "renderers/player_color_192/player_color_192.c26" as game
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(
+      0b.XX..XX.,
+      0b..XXXX..,
       0b.XXXXXX.,
-      0bXX....XX,
-      0bXX.X..XX,
-      0bXX..X.XX,
-      0bXX...XXX,
-      0bXX....XX,
-      0bXX....XX,
-      0b.XXXXXX.
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0bX.X..X.X,
+      0b.X....X.
    )
 };
 
 page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(
-      0bXXXXXXX.,
-      0bXX....XX,
-      0bXX....XX,
-      0bXXXXXXX.,
-      0bXX....XX,
-      0bXX....XX,
-      0bXX....XX,
-      0bXXXXXXX.
+      0b..XXXX..,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX.X..X.X
    )
 };
 

@@ -25,27 +25,27 @@ uint8_t legacy_playfield[48] := {
 
 page const uint8_t p0g[8] := {
    legacy_SPRITE_GLYPH(
+      0b.XX..XX.,
       0b..XXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
       0b.XXXXXX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b..XXXX..
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0bX.X..X.X,
+      0b.X....X.
    )
 };
 
 page const uint8_t p1g[8] := {
    legacy_SPRITE_GLYPH(
-      0b.XXXXX..,
+      0b..XXXX..,
       0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX.X..X.X
    )
 };
 

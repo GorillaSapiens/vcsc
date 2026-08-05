@@ -18,27 +18,27 @@ page const uint8_t game_playfield[44] := {
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(
+      0b.XX..XX.,
       0b..XXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
       0b.XXXXXX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b..XXXX..
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0bX.X..X.X,
+      0b.X....X.
    )
 };
 
 page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(
-      0b.XXXXX..,
+      0b..XXXX..,
       0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX.X..X.X
    )
 };
 

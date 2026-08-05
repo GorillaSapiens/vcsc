@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260804_203033.tar.gz
+    vcsc.20260805_050007.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8551,3 +8551,21 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   renderer suite. Staged `make installcheck` passes.
 * Bankswitching roadmap item 18, the generic `&<` and `&>` directional address
   projections, is next.
+
+2026-08-04 22:33:26 PDT, unify interactive player glyphs as edge-touching space invaders
+-----------------------------------------------------------------------------------------
+* Replace the interactive-example player glyphs everywhere they are defined so
+  every interactive cartridge uses the same `P0` bitmap and the same distinct
+  `P1` bitmap. Both new 8x8 sprites are space-invader-style aliens rather than
+  letterforms.
+* Apply the new shared alien silhouettes to the faithful legacy interactive
+  example, the 192-line player-color and all-five interactives, the common
+  181-line helper sources, and the duplicated 181-line score-above/score-below
+  interactive cartridges in the official and unofficial player-color and
+  all-five trees.
+* Ensure each alien sprite has at least one lit pixel on the top, bottom, left,
+  and right edges of the 8x8 cell so edge cases remain visually obvious when
+  checking width and clipping behavior.
+* Verification: staged tools build successfully and every example leaf Makefile
+  builds cleanly after a per-example `make clean`, covering the full public
+  example tree and all interactive cartridges.
