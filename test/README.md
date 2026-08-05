@@ -127,6 +127,18 @@ three-copy F6 placement. `replicated_rom_separate_objects.pl` and the
 order-insensitive matching, and independent function/object replica-set ABI
 mismatches.
 
+`return_local_coalesce_codegen_test.c26` covers straight-line and branched
+coalescing for one- through four-byte binary and packed-BCD values, plus safe
+by-value use. `return_local_coalesce_split_codegen_test.c26` locks split-address
+read/write lowering and absence of a separate local symbol. The fallback test
+covers different returned locals, non-variable expressions, explicit `$$`,
+address and `ref` escape, type/const mismatch, default-versus-zero-page storage,
+and distinct explicit regions with identical numeric addresses.
+`return_local_coalescing.pl` verifies caller-visible binary and BCD results,
+branched execution, ordinary zero-page and absolute named storage, split-address
+runtime aliases, exact one-allocation activation sizes, preserved
+`function$__return` symbols, and `RETURN COALESCING` map records.
+
 `readonly_mem_object_codegen_test.c26` locks source-level `$ro` object emission
 as `RODATA.region.__vcsc_object$NAME`; companion tests reject mutable definitions
 and runtime-only initializers in read-only named regions.

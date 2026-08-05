@@ -12,6 +12,8 @@
 
 #include "ast.h"
 #include "compile.h"
+#include "compile_declarator.h"
+#include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_init.h"
 #include "compile_internal.h"
@@ -435,6 +437,279 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
                  parameter->file, parameter->line, parameter->column,
                  i + 1, fname, memname, memname);
    }
+}
+
+
+//! Item-22 conservative whole-body scan state.
+typedef struct ReturnCoalesceScan {
+   const char *candidate_name;
+   int return_count;
+   bool invalid_return;
+   bool explicit_return_object_use;
+   bool address_may_escape;
+   const ASTNode *candidate_decl;
+   int candidate_decl_count;
+} ReturnCoalesceScan;
+
+//! @brief Return whether a subtree contains one exact identifier spelling.
+static bool ast_contains_identifier(const ASTNode *node, const char *name) {
+   if (!node || !name) {
+      return false;
+   }
+   if (node->kind == AST_IDENTIFIER && node->strval && !strcmp(node->strval, name)) {
+      return true;
+   }
+   for (int i = 0; i < node->count; i++) {
+      if (ast_contains_identifier(node->children[i], name)) {
+         return true;
+      }
+   }
+   return false;
+}
+
+//! @brief Collect the one source variable named by every return expression.
+static void scan_return_coalesce_returns(const ASTNode *node, ReturnCoalesceScan *scan) {
+   if (!node || !scan) {
+      return;
+   }
+   if (!strcmp(node->name, "return_stmt")) {
+      ASTNode *expr = node->count > 0 ? node->children[0] : NULL;
+      const char *name = expr ? expr_bare_identifier_name(expr) : NULL;
+      scan->return_count++;
+      if (!name || !*name) {
+         scan->invalid_return = true;
+      }
+      else if (!scan->candidate_name) {
+         scan->candidate_name = name;
+      }
+      else if (strcmp(scan->candidate_name, name)) {
+         scan->invalid_return = true;
+      }
+      return;
+   }
+   for (int i = 0; i < node->count; i++) {
+      scan_return_coalesce_returns(node->children[i], scan);
+   }
+}
+
+//! @brief Return one local declaration item's explicit address specification.
+static const ASTNode *return_coalesce_decl_address_spec(const ASTNode *decl) {
+   const ASTNode *subitem;
+   if (!decl || decl->count <= 2) {
+      return NULL;
+   }
+   subitem = decl->children[2];
+   if (!subitem || strcmp(subitem->name, "decl_subitem") || subitem->count <= 1) {
+      return NULL;
+   }
+   return subitem->children[1];
+}
+
+//! @brief Find the candidate declaration and reject observable aliasing hazards.
+static void scan_return_coalesce_hazards(const ASTNode *node, ReturnCoalesceScan *scan) {
+   if (!node || !scan || !scan->candidate_name) {
+      return;
+   }
+   if (node->kind == AST_IDENTIFIER && node->strval && !strcmp(node->strval, "$$")) {
+      scan->explicit_return_object_use = true;
+   }
+   if (!strcmp(node->name, "decl_item")) {
+      const ASTNode *decl = decl_node_declarator(node);
+      const char *name = decl ? declarator_name(decl) : NULL;
+      if (name && !strcmp(name, scan->candidate_name)) {
+         scan->candidate_decl = node;
+         scan->candidate_decl_count++;
+      }
+   }
+   if ((!strcmp(node->name, "&") || !strcmp(node->name, "&<") ||
+        !strcmp(node->name, "&>")) &&
+       ast_contains_identifier(node, scan->candidate_name)) {
+      scan->address_may_escape = true;
+   }
+   /* Passing the value is harmless; binding it to a ref parameter exposes
+      the local's address and therefore makes coalescing observable. Function
+      signatures are predeclared before body lowering, so direct calls can be
+      classified here without duplicating expression lowering. Unknown call
+      forms remain conservative. */
+   if (!strcmp(node->name, "()") && node->count > 1 &&
+       ast_contains_identifier(node->children[1], scan->candidate_name)) {
+      const ASTNode *callee = unwrap_expr_node(node->children[0]);
+      const char *callee_name = expr_bare_identifier_name((ASTNode *)callee);
+      const ASTNode *fn = callee_name
+         ? resolve_function_designator_target(callee_name) : NULL;
+      const ASTNode *params = fn
+         ? declarator_parameter_list(function_declarator_node(fn)) : NULL;
+      const ASTNode *args = node->children[1];
+      int actual_index = 0;
+      bool classified = false;
+
+      if (fn && params && !is_empty(params) && args && !is_empty(args)) {
+         for (int i = 0; i < params->count && actual_index < args->count; i++) {
+            const ASTNode *parameter = params->children[i];
+            if (!parameter || parameter_is_void(parameter) || !parameter_type(parameter)) {
+               continue;
+            }
+            if (ast_contains_identifier(args->children[actual_index], scan->candidate_name)) {
+               classified = true;
+               if (parameter_is_ref(parameter)) {
+                  scan->address_may_escape = true;
+               }
+            }
+            actual_index++;
+         }
+      }
+      if (!classified) {
+         scan->address_may_escape = true;
+      }
+   }
+   /* Inline assembly can name or retain an address outside the typed lvalue
+      analysis. Keep the optimization conservative in its presence. */
+   if (node->kind == AST_ASM) {
+      scan->address_may_escape = true;
+   }
+   for (int i = 0; i < node->count; i++) {
+      scan_return_coalesce_hazards(node->children[i], scan);
+   }
+}
+
+//! @brief Return whether local and hidden result have exactly matching value types.
+static bool return_coalesce_types_match(const ASTNode *fn, const ASTNode *local_decl) {
+   const ASTNode *local_type;
+   const ASTNode *local_declarator;
+   const ASTNode *return_type;
+   const ASTNode *return_declarator;
+   const char *local_name;
+   const char *return_name;
+
+   if (!fn || !local_decl || local_decl->count < 3) {
+      return false;
+   }
+   local_type = local_decl->children[1];
+   local_declarator = decl_node_declarator(local_decl);
+   return_type = function_return_type(fn);
+   return_declarator = function_return_declarator_from_callable(function_declarator_node(fn));
+   local_name = type_name_from_node(local_type);
+   return_name = type_name_from_node(return_type);
+   if (!local_type || !local_declarator || !return_type || !return_declarator ||
+       !local_name || !return_name || strcmp(local_name, return_name)) {
+      return false;
+   }
+   if (!declarator_signature_matches(local_declarator, return_declarator)) {
+      return false;
+   }
+   if (declarator_storage_size(local_type, local_declarator) !=
+       declarator_value_size(return_type, return_declarator)) {
+      return false;
+   }
+   if (declaration_const_applies_to_object(local_decl->children[0], local_declarator) !=
+       declaration_const_applies_to_object(function_modifiers_node(fn), return_declarator)) {
+      return false;
+   }
+   return declaration_pointer_access(local_decl->children[0], local_declarator) ==
+          declaration_pointer_access(function_modifiers_node(fn), return_declarator);
+}
+
+//! @brief Return whether local and hidden result resolve to one identical allocation contract.
+static bool return_coalesce_storage_matches(const ASTNode *fn, const ASTNode *local_decl) {
+   ASTNode *modifiers;
+   const ASTNode *local_mem;
+   const ASTNode *return_mem;
+   const char *local_region;
+   const char *return_region;
+   unsigned int local_read = 0;
+   unsigned int local_write = 0;
+   unsigned int return_read = 0;
+   unsigned int return_write = 0;
+   bool local_split;
+   bool return_split;
+   bool local_zp;
+   bool return_zp;
+
+   if (!fn || !local_decl || local_decl->count < 3) {
+      return false;
+   }
+   modifiers = local_decl->children[0];
+   if (!modifiers || has_modifier(modifiers, "static") ||
+       has_modifier(modifiers, "extern") || has_modifier(modifiers, "ref") ||
+       has_modifier(modifiers, "inline") || has_modifier(modifiers, "page") ||
+       declaration_has_use_contract(modifiers) ||
+       return_coalesce_decl_address_spec(local_decl)) {
+      return false;
+   }
+
+   local_region = find_mem_modifier_name(modifiers);
+   return_region = function_result_region_name(fn);
+   if ((local_region == NULL) != (return_region == NULL) ||
+       (local_region && strcmp(local_region, return_region))) {
+      return false;
+   }
+
+   local_mem = find_mem_modifier_node(modifiers);
+   return_mem = function_result_region_node(fn);
+   local_zp = mem_decl_is_zeropage(local_mem);
+   return_zp = return_mem ? mem_decl_is_zeropage(return_mem) : true;
+   if (local_zp != return_zp) {
+      return false;
+   }
+
+   local_split = mem_decl_split_addresses(local_mem, &local_read, &local_write);
+   return_split = mem_decl_split_addresses(return_mem, &return_read, &return_write);
+   if (local_split != return_split) {
+      return false;
+   }
+   if (local_split && (local_read != return_read || local_write != return_write)) {
+      return false;
+   }
+   return true;
+}
+
+//! @brief Plan safe coalescing of one returned automatic local with the hidden result object.
+void plan_function_return_coalescing(const ASTNode *fn, const ASTNode *body, Context *ctx) {
+   ReturnCoalesceScan scan;
+
+   if (!ctx) {
+      return;
+   }
+   ctx->coalesced_return_local = NULL;
+   ctx->coalesced_return_decl = NULL;
+   if (!fn || !body || is_empty(body) || function_is_inline(fn) ||
+       !function_has_return_object(fn)) {
+      return;
+   }
+
+   memset(&scan, 0, sizeof(scan));
+   scan_return_coalesce_returns(body, &scan);
+   if (scan.return_count <= 0 || scan.invalid_return || !scan.candidate_name) {
+      return;
+   }
+   scan_return_coalesce_hazards(body, &scan);
+   if (scan.explicit_return_object_use || scan.address_may_escape ||
+       scan.candidate_decl_count != 1 || !scan.candidate_decl ||
+       !return_coalesce_types_match(fn, scan.candidate_decl) ||
+       !return_coalesce_storage_matches(fn, scan.candidate_decl)) {
+      return;
+   }
+
+   ctx->coalesced_return_local = strdup(scan.candidate_name);
+   if (!ctx->coalesced_return_local) {
+      error_unreachable("out of memory");
+   }
+   ctx->coalesced_return_decl = scan.candidate_decl;
+}
+
+//! @brief Return whether this exact local declaration owns no separate allocation.
+bool context_local_decl_is_coalesced_return(const Context *ctx, const ASTNode *decl) {
+   return ctx && ctx->coalesced_return_decl && ctx->coalesced_return_decl == decl;
+}
+
+//! @brief Return whether one return expression is the planned coalesced source local.
+bool context_return_expr_is_coalesced_local(const Context *ctx, ASTNode *expr) {
+   const char *name;
+   if (!ctx || !ctx->coalesced_return_local || !expr) {
+      return false;
+   }
+   name = expr_bare_identifier_name(expr);
+   return name && !strcmp(name, ctx->coalesced_return_local);
 }
 
 //! @brief Handle build function context logic for compiler function lowering.

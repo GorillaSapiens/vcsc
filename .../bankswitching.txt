@@ -1343,7 +1343,7 @@ when main roadmap item 29 becomes active.
          Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene,
          and roadmap documentation.
 
-[ ] 22. Coalesce a single returned automatic variable with `$$`.
+[x] 22. Coalesce a single returned automatic variable with `$$`.
 
        * For a value-returning function where every reachable return is exactly
          `return variable;` for the same automatic local variable, allow that local
@@ -1372,6 +1372,26 @@ when main roadmap item 29 becomes active.
          any storage-specification mismatch. Include same-type locals whose explicit
          regions differ, including distinct regions which happen to map to the same
          physical addresses. Update language, ABI, map, and optimization documentation.
+
+       Completed 2026-08-05:
+       * Detect a single automatic local named by every return expression and alias
+         it with the existing hidden return object only after exact type, const,
+         pointer-access, width, named-region, placement-class, and split-alias
+         checks. Keep by-value uses eligible while treating address-taking, `ref`
+         binding, explicit `$$`, and inline assembly as observable escape hazards.
+       * Emit no separate local allocation and no final return copy. Preserve the
+         `function$__return` symbol and all existing caller behavior. Ordinary
+         zero-page, named absolute, and split-address result storage all use the
+         same activation-overlay allocation; split writes and reads retain their
+         distinct aliases.
+       * Add relocated linker metadata and a `RETURN COALESCING` map section with
+         function, local, ABI return symbol, region, read/write addresses, width,
+         and defining object. Count the physical storage once.
+       * Add straight-line, branched, one- through four-byte binary and packed-BCD,
+         ordinary absolute, Superchip-style split, safe by-value, and deterministic
+         fallback coverage for every required mismatch or escape case. Update the
+         compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
+         roadmap documentation.
 
 [ ] 23. Integrate automatic Superchip initialization and lifecycle tests.
 

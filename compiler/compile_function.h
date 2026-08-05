@@ -11,6 +11,7 @@
 #include "compile_internal.h"
 
 #define SYMBOL_BACKED_META_PREFIX "__sbpmeta$"
+#define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 
 bool function_parameter_uses_symbol_storage(const ASTNode *fn, const ASTNode *parameter);
 bool function_parameter_symbol_name(const ASTNode *fn, const ASTNode *parameter, int index,
@@ -32,5 +33,9 @@ void validate_function_return_type(const ASTNode *fn);
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee);
 void analyze_static_parameter_call_graph(void);
 void emit_symbol_backed_call_graph_metadata(void);
+
+void plan_function_return_coalescing(const ASTNode *fn, const ASTNode *body, Context *ctx);
+bool context_local_decl_is_coalesced_return(const Context *ctx, const ASTNode *decl);
+bool context_return_expr_is_coalesced_local(const Context *ctx, ASTNode *expr);
 
 #endif

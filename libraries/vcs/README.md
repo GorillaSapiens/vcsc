@@ -368,6 +368,16 @@ example `bank0 bank1 superchip uint16_t sample(void)`. Modifier order is
 irrelevant; bodies use `CODE.bank0` and `CODE.bank1` while every copy shares the
 single `sample$__return` object in Superchip RAM. A bank-local call is preferred;
 a caller in another bank may use a normal trampoline to the primary copy.
+
+A Superchip result function may declare one automatic local in the same
+`superchip` region and return that local on every return path. When its type and
+storage contract match exactly and its address does not escape, VCSC aliases the
+local with `function$__return`: initialization and later stores use `$F000`,
+reads use `$F080`, no second Superchip allocation is made, and the final copy is
+omitted. Explicit `$$` access, a `ref` escape, a different region name, or any
+other contract mismatch retains the normal separate local and result objects.
+The map's `RETURN COALESCING` section records the optimization and both aliases.
+
 Directional ref capability is part of same-translation-unit function
 compatibility and linker-visible ABI fingerprints, while ordinary `ref T` still
 requires a single

@@ -13,8 +13,13 @@
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
 #define REPLICA_META_PREFIX "__replicameta$V1$"
+#define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 
 void emit_replica_metadata(char kind, const char *symbol, const char *region);
+char *emit_return_coalesce_metadata(const char *function_symbol,
+                                     const char *local_name,
+                                     const char *return_symbol,
+                                     const char *region_name, int size);
 void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_definition);
 void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_definition, bool is_zeropage);
 void emit_absolute_binding_region_guard_metadata(const ASTNode *node,

@@ -654,6 +654,51 @@ void emit_replica_metadata(char kind, const char *symbol, const char *region) {
    free(name.buf);
 }
 
+
+//! @brief Export and return one linker-visible label for a coalesced return object.
+char *emit_return_coalesce_metadata(const char *function_symbol,
+                                    const char *local_name,
+                                    const char *return_symbol,
+                                    const char *region_name, int size) {
+   char *enc_function;
+   char *enc_local;
+   char *enc_return;
+   char *enc_region;
+   StrBuf name;
+
+   if (!function_symbol || !*function_symbol || !local_name || !*local_name ||
+       !return_symbol || !*return_symbol || size <= 0) {
+      return NULL;
+   }
+   enc_function = meta_encode(function_symbol);
+   enc_local = meta_encode(local_name);
+   enc_return = meta_encode(return_symbol);
+   enc_region = meta_encode(region_name ? region_name : "");
+   sb_init(&name);
+   sb_append(&name, RETURN_COALESCE_META_PREFIX);
+   sb_append(&name, enc_function);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_local);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_return);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_region);
+   sb_appendf(&name, "$%d", size);
+
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+   }
+
+   free(enc_function);
+   free(enc_local);
+   free(enc_return);
+   free(enc_region);
+   return name.buf;
+}
+
 //! @brief Emit metadata symbol for abi meta diagnostics or output files.
 static void emit_metadata_symbol(const char *kind, const char *state, const char *symbol,
                                  const char *role, const char *fingerprint, const char *detail) {

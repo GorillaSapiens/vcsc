@@ -69,6 +69,11 @@ typedef struct Context {
    const char *continue_label;
    const char *return_label;
    const char *inline_label_prefix;
+   /* Optional item-22 plan: one automatic source local aliases the hidden
+      return object. The declaration pointer identifies the exact local whose
+      separate storage emission must be suppressed. */
+   const char *coalesced_return_local;
+   const ASTNode *coalesced_return_decl;
 } Context;
 
 typedef struct LValueRef {

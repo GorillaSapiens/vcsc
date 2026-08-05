@@ -530,6 +530,17 @@ When you request a map file, `vcsc-ld` writes the same unified memory-usage sect
   and physical range
 - linker-generated symbols
 - all resolved global symbols
+- a `RETURN COALESCING` section for each automatic local sharing its function's
+  hidden return object, including the source local, ABI symbol, region, relocated
+  read/write aliases, width, and defining object
+
+`RETURN COALESCING` is descriptive rather than a second allocation request. The
+compiler places a reserved metadata label at the same relocated address as
+`function$__return`; the linker reports that address after activation-overlay
+placement. Split-address regions therefore show the physical read alias and its
+corresponding write alias, while writable-memory occupancy is still counted
+once. The metadata symbol itself is reserved and does not appear as an ordinary
+user global.
 
 A call-graph-sized image also exports `__call_stack_depth`,
 `__call_stack_extra`, `__call_stack_size`, `__call_stack_start`, and

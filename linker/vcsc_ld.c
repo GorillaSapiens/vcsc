@@ -172,6 +172,13 @@ static int replica_metadata_has_prefix(const char *name)
       sizeof(REPLICA_META_PREFIX) - 1) == 0;
 }
 
+//! @brief Return whether return-local coalescing metadata has its reserved prefix.
+static int return_coalesce_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, RETURN_COALESCE_META_PREFIX,
+      sizeof(RETURN_COALESCE_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether declaration-contract metadata has its reserved prefix.
 static int contract_metadata_has_prefix(const char *name)
 {
@@ -189,6 +196,7 @@ static int reserved_metadata_has_prefix(const char *name)
 {
    return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
           mem_region_metadata_has_prefix(name) || replica_metadata_has_prefix(name) ||
+          return_coalesce_metadata_has_prefix(name) ||
           contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
 }
 
@@ -3037,6 +3045,50 @@ static char *replica_meta_decode(const char *text, size_t length)
    }
    decoded[out] = '\0';
    return decoded;
+}
+
+
+//! @brief Parse one compiler-emitted return-local coalescing record.
+static int return_coalesce_metadata_parse(const char *name,
+                                          char **function_out,
+                                          char **local_out,
+                                          char **return_out,
+                                          char **region_out,
+                                          int *size_out)
+{
+   const char *p;
+   const char *sep1;
+   const char *sep2;
+   const char *sep3;
+   const char *sep4;
+   char *end = NULL;
+   long size;
+
+   if (!return_coalesce_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(RETURN_COALESCE_META_PREFIX) - 1;
+   sep1 = strchr(p, '$');
+   sep2 = sep1 ? strchr(sep1 + 1, '$') : NULL;
+   sep3 = sep2 ? strchr(sep2 + 1, '$') : NULL;
+   sep4 = sep3 ? strchr(sep3 + 1, '$') : NULL;
+   if (!sep1 || sep1 == p || !sep2 || sep2 == sep1 + 1 ||
+       !sep3 || sep3 == sep2 + 1 || !sep4 || !sep4[1] ||
+       strchr(sep4 + 1, '$'))
+      return 0;
+   size = strtol(sep4 + 1, &end, 10);
+   if (!end || *end || size <= 0 || size > 0x7fff)
+      return 0;
+   if (function_out)
+      *function_out = replica_meta_decode(p, (size_t)(sep1 - p));
+   if (local_out)
+      *local_out = replica_meta_decode(sep1 + 1, (size_t)(sep2 - sep1 - 1));
+   if (return_out)
+      *return_out = replica_meta_decode(sep2 + 1, (size_t)(sep3 - sep2 - 1));
+   if (region_out)
+      *region_out = replica_meta_decode(sep3 + 1, (size_t)(sep4 - sep3 - 1));
+   if (size_out)
+      *size_out = (int)size;
+   return 1;
 }
 
 //! @brief Parse one compiler-emitted immutable ROM-replication record.
@@ -6281,6 +6333,61 @@ static void write_ram_usage(FILE *fp, const linker_config_t *cfg,
    }
 }
 
+
+//! @brief Report item-22 automatic locals which share their function return allocation.
+static void write_return_coalescing(FILE *fp, const linker_config_t *cfg,
+                                    const input_set_t *in)
+{
+   int wrote_header = 0;
+   size_t i;
+
+   if (!fp || !cfg || !in)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->export_count; ++j) {
+         const symbol_t *exp = &obj->exports[j];
+         char *function = NULL;
+         char *local = NULL;
+         char *return_symbol = NULL;
+         char *region = NULL;
+         int size = 0;
+         uint16_t read_addr;
+         uint16_t write_addr;
+
+         if (!return_coalesce_metadata_has_prefix(exp->name))
+            continue;
+         if (!return_coalesce_metadata_parse(exp->name, &function, &local,
+                                             &return_symbol, &region, &size)) {
+            fprintf(stderr, "vcsc-ld: malformed return-coalescing metadata symbol '%s' in %s\n",
+                    exp->name, obj->origin);
+            exit(1);
+         }
+         if (exp->segid == O26_SEG_ABS)
+            read_addr = exp->value;
+         else
+            read_addr = object_runtime_addr_for_value(obj, exp->segid, exp->value);
+         write_addr = (region && *region)
+            ? memory_runtime_write_address(cfg, region, read_addr, (uint16_t)size)
+            : read_addr;
+         if (!wrote_header) {
+            fprintf(fp, "\nRETURN COALESCING\n");
+            wrote_header = 1;
+         }
+         fprintf(fp,
+                 "  function=%s local=%s return=%s region=%s read=$%04X write=$%04X bytes=%d object=%s\n",
+                 function, local, return_symbol,
+                 region && *region ? region : "<default>",
+                 read_addr, write_addr, size, obj->origin);
+         free(function);
+         free(local);
+         free(return_symbol);
+         free(region);
+      }
+   }
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in,
                            const layout_t *layout, const uint8_t *used)
@@ -6338,6 +6445,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "\nMEMORY USAGE\n");
    write_cartridge_rom_usage(fp, cfg, used, "  ");
    write_ram_usage(fp, cfg, in, layout, "  ");
+   write_return_coalescing(fp, cfg, in);
 
    if (cfg->cartridge_banked) {
       uint16_t max_component = 0;

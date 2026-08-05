@@ -15,6 +15,7 @@
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_expr_info.h"
+#include "compile_function.h"
 #include "compile_internal.h"
 #include "compile_support.h"
 #include "compile_lvalue.h"
@@ -572,6 +573,31 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       return;
    }
 
+   if (context_local_decl_is_coalesced_return(ctx, node)) {
+      ContextEntry *ret = (ContextEntry *) set_get(ctx->vars, "$$");
+      if (!ret) {
+         error_unreachable("coalesced return local '%s' has no hidden return object", name);
+      }
+      entry = (ContextEntry *) calloc(1, sizeof(ContextEntry));
+      if (!entry) {
+         error_unreachable("out of memory");
+      }
+      *entry = *ret;
+      entry->name = strdup(ret->name);
+      if (!entry->name) {
+         error_unreachable("out of memory");
+      }
+      entry->type = type;
+      entry->declarator = declarator;
+      entry->is_ref = false;
+      entry->is_global = false;
+      entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
+      entry->pointer_access = declaration_pointer_access(modifiers, declarator);
+      entry->size = size;
+      set_add(ctx->vars, strdup(name), entry);
+      return;
+   }
+
    if (addrspec != NULL) {
       if (has_modifier(modifiers, "static") || has_modifier(modifiers, "extern") ||
           has_modifier(modifiers, "page") || modifiers_imply_mem_storage(modifiers) ||
@@ -749,7 +775,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    }
 
    if (modifiers_imply_split_address(modifiers) &&
-       !has_modifier(modifiers, "static")) {
+       !has_modifier(modifiers, "static") &&
+       !context_local_decl_is_coalesced_return(ctx, node)) {
       char segbuf[512];
       if (is_empty(expression) && declaration_const_applies_to_object(modifiers, declarator)) {
          error_user("[%s:%d.%d] 'const' missing initializer", node->file, node->line, node->column);
@@ -854,20 +881,22 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
       /* Non-static source locals retain automatic initialization semantics,
          but their storage is a fixed per-function symbol. */
       if (!has_modifier(modifiers, "static")) {
-         if (entry->is_zeropage) {
-            char segbuf[512];
-            build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "ZEROPAGE");
-            sink = &es_zp;
-            emit(sink, ".segment \"%s\"\n", segbuf);
+         if (!context_local_decl_is_coalesced_return(ctx, node)) {
+            if (entry->is_zeropage) {
+               char segbuf[512];
+               build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "ZEROPAGE");
+               sink = &es_zp;
+               emit(sink, ".segment \"%s\"\n", segbuf);
+            }
+            else {
+               char segbuf[512];
+               build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "BSS");
+               sink = &es_bss;
+               emit(sink, ".segment \"%s\"\n", segbuf);
+            }
+            emit(sink, "%s:\n", sym);
+            emit(sink, "\t.res %d\n", size);
          }
-         else {
-            char segbuf[512];
-            build_activation_storage_segment(segbuf, sizeof(segbuf), ctx, modifiers, "BSS");
-            sink = &es_bss;
-            emit(sink, ".segment \"%s\"\n", segbuf);
-         }
-         emit(sink, "%s:\n", sym);
-         emit(sink, "\t.res %d\n", size);
 
          if (!is_empty(expression) &&
              !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator,
@@ -1294,7 +1323,8 @@ static void compile_return_stmt(ASTNode *node, Context *ctx) {
       error_user("[%s:%d.%d] void function cannot return a value", node->file, node->line, node->column);
    }
 
-   if (!compile_expr_to_return_object(expr, ctx, ret)) {
+   if (!context_return_expr_is_coalesced_local(ctx, expr) &&
+       !compile_expr_to_return_object(expr, ctx, ret)) {
       error_user("[%s:%d.%d] invalid return expression", node->file, node->line, node->column);
    }
    emit(&es_code, "    jmp %s\n", return_label);

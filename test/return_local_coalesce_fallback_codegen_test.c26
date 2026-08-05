@@ -1,0 +1,70 @@
+// vcsc-cc1 -I .
+// forbidasm: __coalescemeta$V1$
+// expectasm: different_vars$left:
+// expectasm: different_vars$right:
+// expectasm: expression_return$result_expr:
+// expectasm: explicit_return_object$result_dollar:
+// expectasm: escaped_address$result_escape:
+// expectasm: type_mismatch$result_type:
+// expectasm: storage_mismatch$result_storage:
+// expectasm: equal_address_regions$result_equal_region:
+// expectasm: const_mismatch$result_const:
+// expectasm: ref_argument$result_ref:
+include "machine_6502.c26"
+
+mem same_a { $start:0x0020 $size:0x0010 $rw };
+mem same_b { $start:0x0020 $size:0x0010 $rw };
+
+uint8_t choose;
+uint8_t *escaped_pointer;
+void observe_ref(ref uint8_t value);
+
+zeropage uint8_t different_vars(void) {
+   zeropage uint8_t left := 1;
+   zeropage uint8_t right := 2;
+   if (choose) { return left; }
+   return right;
+}
+
+zeropage uint8_t expression_return(void) {
+   zeropage uint8_t result_expr := 3;
+   return result_expr + 0;
+}
+
+zeropage uint8_t explicit_return_object(void) {
+   zeropage uint8_t result_dollar := 4;
+   $$ := 9;
+   return result_dollar;
+}
+
+zeropage uint8_t escaped_address(void) {
+   zeropage uint8_t result_escape := 5;
+   escaped_pointer := &result_escape;
+   return result_escape;
+}
+
+zeropage uint16_t type_mismatch(void) {
+   zeropage uint8_t result_type := 6;
+   return result_type;
+}
+
+zeropage uint8_t storage_mismatch(void) {
+   uint8_t result_storage := 7;
+   return result_storage;
+}
+
+same_a uint8_t equal_address_regions(void) {
+   same_b uint8_t result_equal_region := 8;
+   return result_equal_region;
+}
+
+zeropage uint8_t const_mismatch(void) {
+   zeropage const uint8_t result_const := 9;
+   return result_const;
+}
+
+zeropage uint8_t ref_argument(void) {
+   zeropage uint8_t result_ref := 10;
+   observe_ref(result_ref);
+   return result_ref;
+}

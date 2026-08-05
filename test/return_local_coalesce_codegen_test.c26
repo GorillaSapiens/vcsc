@@ -1,0 +1,74 @@
+// vcsc-cc1 -I .
+// expectasm: __coalescemeta$V1$straight8$result8$straight8Q24__return$zeropage$1
+// expectasm: __coalescemeta$V1$branched16$result16$branched16Q24__return$zeropage$2
+// expectasm: __coalescemeta$V1$value24$result24$value24Q24__return$zeropage$3
+// expectasm: __coalescemeta$V1$value32$result32$value32Q24__return$zeropage$4
+// expectasm: __coalescemeta$V1$bcd8_value$bcd8_result$bcd8_valueQ24__return$zeropage$1
+// expectasm: __coalescemeta$V1$bcd16_value$bcd16_result$bcd16_valueQ24__return$zeropage$2
+// expectasm: __coalescemeta$V1$bcd24_value$bcd24_result$bcd24_valueQ24__return$zeropage$3
+// expectasm: __coalescemeta$V1$bcd32_value$bcd32_result$bcd32_valueQ24__return$zeropage$4
+// expectasm: __coalescemeta$V1$by_value_use$by_value_result$by_value_useQ24__return$zeropage$1
+// forbidasm: straight8$result8:
+// forbidasm: branched16$result16:
+// forbidasm: value24$result24:
+// forbidasm: value32$result32:
+// forbidasm: bcd8_value$bcd8_result:
+// forbidasm: bcd16_value$bcd16_result:
+// forbidasm: bcd24_value$bcd24_result:
+// forbidasm: bcd32_value$bcd32_result:
+// forbidasm: by_value_use$by_value_result:
+include "machine_6502.c26"
+
+uint8_t selector;
+void observe_value(uint8_t value);
+
+zeropage uint8_t straight8(void) {
+   zeropage uint8_t result8 := 0x5a;
+   return result8;
+}
+
+zeropage uint16_t branched16(void) {
+   zeropage uint16_t result16 := 0x1234;
+   if (selector) {
+      result16 := 0xabcd;
+      return result16;
+   }
+   result16 += 1;
+   return result16;
+}
+
+zeropage uint24_t value24(void) {
+   zeropage uint24_t result24 := 0x345678;
+   return result24;
+}
+
+zeropage uint32_t value32(void) {
+   zeropage uint32_t result32 := 0x12345678;
+   return result32;
+}
+
+zeropage bcd8_t bcd8_value(void) {
+   zeropage bcd8_t bcd8_result := 42;
+   return bcd8_result;
+}
+
+zeropage bcd16_t bcd16_value(void) {
+   zeropage bcd16_t bcd16_result := 1234;
+   return bcd16_result;
+}
+
+zeropage bcd24_t bcd24_value(void) {
+   zeropage bcd24_t bcd24_result := 123456;
+   return bcd24_result;
+}
+
+zeropage bcd32_t bcd32_value(void) {
+   zeropage bcd32_t bcd32_result := 12345678;
+   return bcd32_result;
+}
+
+zeropage uint8_t by_value_use(void) {
+   zeropage uint8_t by_value_result := 77;
+   observe_value(by_value_result);
+   return by_value_result;
+}

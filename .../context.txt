@@ -8713,3 +8713,38 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   104 passed in explicit continuation chunks. Source-tree hygiene and staged
   `make installcheck` pass. Bankswitching roadmap item 22, coalescing one
   returned automatic variable with `$$`, is next.
+
+2026-08-05 09:27:24 PDT, coalesce one returned automatic local with the hidden return object
+--------------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 22 by recognizing value-returning
+  functions whose returns all name one automatic local and, only when exact
+  type and resolved storage contracts match, binding that local and
+  `function$__return` to one allocation. Suppress both the separate local
+  reservation and the final return copy while preserving the public return
+  symbol and caller ABI.
+* Require exact agreement in type, width, const and pointer-access properties,
+  named memory-region identity, zero-page versus absolute placement, and the
+  complete split read/write alias mapping. Keep the existing separate objects
+  and copy for distinct return variables, expression returns, explicit `$$`
+  access, address escape, `ref` binding, inline assembly, or any type/storage
+  mismatch. Safe by-value uses do not disable the optimization.
+* Support ordinary zero-page, ordinary absolute, and Superchip-style split
+  result storage. Split coalesced locals write through the write alias and read
+  through the read alias, with the physical activation allocation counted once.
+* Add relocated `__coalescemeta` labels and a `RETURN COALESCING` map section
+  reporting function, local, ABI return symbol, region, exact read/write
+  addresses, width, and defining object. Fix an intermediate implementation bug
+  where an exported absolute equate lost relocation and appeared as address
+  `$0000`; the final metadata is a real label colocated with the allocation.
+* Add focused code-generation and runtime coverage for straight-line and
+  branched paths, one- through four-byte binary and packed-BCD values, ordinary
+  absolute and split storage, safe by-value calls, and every required fallback.
+  Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
+  bankswitching-roadmap documentation; leave the project-wide top-level README
+  unchanged.
+* Verification: all 434 compile-only tests pass. The complete 241-test
+  end-to-end/generic inventory passes: tests 1-136 passed in the initial ordered
+  run and tests 137-241 passed in exact harness-selected continuation chunks.
+  Final source-tree hygiene and staged `make installcheck` pass. Bankswitching
+  roadmap item 23, automatic Superchip initialization and lifecycle tests, is
+  next.

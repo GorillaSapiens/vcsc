@@ -316,6 +316,7 @@ void compile_function_decl(ASTNode *node) {
    ContextEntry *return_entry;
    char return_sym[256];
    char return_write_expr[320];
+   char *return_coalesce_meta = NULL;
 
    if (has_modifier(modifiers, "ref")) {
       error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to function '%s'",
@@ -364,6 +365,7 @@ void compile_function_decl(ASTNode *node) {
    ctx.return_label = "@fini";
    ctx.inline_label_prefix = NULL;
    build_function_context(node, &ctx);
+   plan_function_return_coalescing(node, body, &ctx);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
    current_call_graph_node = call_graph_node_index_for_function(node);
@@ -382,6 +384,12 @@ void compile_function_decl(ASTNode *node) {
       else if (!entry_symbol_name(&ctx, return_entry, return_sym, sizeof(return_sym))) {
          error_unreachable("[%s:%d.%d] invalid memory return symbol", node->file, node->line, node->column);
       }
+   }
+
+   if (has_return_object && ctx.coalesced_return_local) {
+      return_coalesce_meta = emit_return_coalesce_metadata(
+         sym, ctx.coalesced_return_local, return_sym, result_region_name,
+         return_entry->size);
    }
 
    emit_function_parameter_storage(node, &ctx);
@@ -406,14 +414,22 @@ void compile_function_decl(ASTNode *node) {
                                                   return_is_zeropage ? "ZEROPAGE" : "BSS");
       if (return_is_zeropage) {
          emit(&es_zp, ".segment \"%s\"\n", segbuf);
+         if (return_coalesce_meta) {
+            emit(&es_zp, "%s:\n", return_coalesce_meta);
+         }
          emit(&es_zp, "%s:\n", return_sym);
          emit(&es_zp, "\t.res %d\n", return_entry->size);
       }
       else {
          emit(&es_bss, ".segment \"%s\"\n", segbuf);
+         if (return_coalesce_meta) {
+            emit(&es_bss, "%s:\n", return_coalesce_meta);
+         }
          emit(&es_bss, "%s:\n", return_sym);
          emit(&es_bss, "\t.res %d\n", return_entry->size);
       }
+      free(return_coalesce_meta);
+      return_coalesce_meta = NULL;
    }
    if (code_region_name && *code_region_name) {
       emit(&es_code, ".segment \"CODE.%s\"\n", code_region_name);

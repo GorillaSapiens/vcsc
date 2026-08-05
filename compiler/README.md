@@ -823,6 +823,19 @@ uint16_t twice(uint16_t value) {
 its declared address and may be zero-page or absolute. For split storage,
 assignments and compound assignments to `$$` use the write alias and reads use
 the read alias.
+
+When every return expression in a non-inline value-returning function is the
+same automatic local, the compiler may bind that local directly to `$$`. This
+removes the local's separate allocation and the final copy. Coalescing requires
+an exact type match and an exact storage contract: the same named region,
+zero-page versus absolute placement, and the same complete split read/write
+mapping. Distinct region names never match merely because their current
+addresses happen to be equal. The optimization also requires no explicit `$$`
+access and no escape of the local's address. Passing the local by value is safe;
+binding it to a `ref` parameter, taking its address, or exposing it to inline
+assembly forces the normal separate objects and copy. The public
+`function$__return` symbol remains the allocation's ABI name.
+
 The callee ends with `RTS`; it does not place a language return value in A, X,
 or Y. After the call, a caller that uses the value copies it from the return
 symbol's read address. Declarations and definitions must agree independently on

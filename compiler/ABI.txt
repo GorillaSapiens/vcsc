@@ -58,6 +58,33 @@ symbols use zero-page imports. Named absolute and split return symbols use
 absolute imports. Function ABI metadata records the result-region identity and
 address class, or for split storage the region, read-start, and write-start.
 
+Returned-local coalescing
+-------------------------
+
+A non-inline value-returning function may use the hidden return object as the
+backing storage for one automatic local when every return expression is exactly
+that same local. The local and `$$` then name one allocation and the compiler
+omits the final local-to-return copy. This is an internal allocation
+optimization, not a second ABI: the externally visible symbol remains
+`function$__return`, callers use the same read address and width, and replicated
+function bodies still share the same one result object.
+
+The compiler proves exact compatibility before coalescing. Value type,
+declarator shape, top-level const qualification, pointer access capability,
+size, named-memory identity, zero-page/absolute placement, and the complete
+split read/write mapping must all match. An explicit local region and function
+result region must have the same name even if two declarations currently use
+identical numeric addresses. The optimization is disabled when returns name
+different locals or an expression, when source explicitly accesses `$$`, when
+the local's address may escape through address-taking or `ref`, or when inline
+assembly prevents typed escape analysis. Passing the local by value does not
+itself prevent coalescing.
+
+For split-address storage, the one allocation retains its two aliases: local and
+`$$` reads use the read window, while initialization and later writes use the
+write window. Linker metadata is reporting-only and records the function, source
+local, ABI return symbol, region, width, and the relocated allocation address.
+
 Replicated immutable object contract
 ------------------------------------
 
