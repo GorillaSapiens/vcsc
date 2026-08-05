@@ -323,7 +323,7 @@ void compile_function_decl(ASTNode *node) {
    }
    validate_function_return_type(node);
    remember_function(node, name);
-   code_region_name = function_single_code_region_name(node);
+   code_region_name = function_primary_code_region_name(node);
    result_region_name = function_result_region_name(node);
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
@@ -385,8 +385,16 @@ void compile_function_decl(ASTNode *node) {
    }
 
    emit_function_parameter_storage(node, &ctx);
-   if (code_region_name) {
-      emit_mem_region_metadata_for_name(node, code_region_name);
+   {
+      FunctionRegionSpec regions;
+      function_region_spec_collect(node, &regions);
+      for (size_t i = 0; i < regions.code_region_count; i++) {
+         emit_mem_region_metadata_for_name(node, regions.code_regions[i]);
+         if (regions.code_region_count > 1) {
+            emit_replica_metadata('F', sym, regions.code_regions[i]);
+         }
+      }
+      function_region_spec_release(&regions);
    }
    if (result_region_name) {
       emit_mem_region_metadata_for_name(node, result_region_name);
@@ -790,6 +798,134 @@ void compile_union_decl_stmt(ASTNode *node) {
 }
 
 
+//! @brief Return the number of named mem modifiers on one file-scope object.
+static size_t global_object_region_count(const ASTNode *modifiers) {
+   MemRegionSet set;
+   size_t count;
+   mem_region_set_collect(modifiers, &set);
+   count = set.count;
+   mem_region_set_release(&set);
+   return count;
+}
+
+//! @brief Return the deterministic primary region used for the emitted source copy.
+static const char *global_object_primary_region(const ASTNode *modifiers) {
+   return mem_region_set_first_sorted(modifiers);
+}
+
+//! @brief Return whether one object has exactly one region and that region is zero page.
+static bool global_object_single_region_is_zeropage(const ASTNode *modifiers) {
+   MemRegionSet set;
+   bool result = false;
+   mem_region_set_collect(modifiers, &set);
+   if (set.count == 1) {
+      result = mem_decl_is_zeropage(get_memname_node(set.names[0]));
+   }
+   mem_region_set_release(&set);
+   return result;
+}
+
+//! @brief Return whether every named region on an object is read-only.
+static bool global_object_regions_are_readonly(const ASTNode *modifiers) {
+   MemRegionSet set;
+   bool result = false;
+   mem_region_set_collect(modifiers, &set);
+   if (set.count > 0) {
+      result = true;
+      for (size_t i = 0; i < set.count; i++) {
+         const ASTNode *mem_decl = get_memname_node(set.names[i]);
+         if (!mem_decl_is_readonly(mem_decl) || mem_decl_is_writable(mem_decl)) {
+            result = false;
+            break;
+         }
+      }
+   }
+   mem_region_set_release(&set);
+   return result;
+}
+
+//! @brief Return whether one object has exactly one split-address region.
+static bool global_object_single_region_is_split(const ASTNode *modifiers) {
+   MemRegionSet set;
+   bool result = false;
+   mem_region_set_collect(modifiers, &set);
+   if (set.count == 1) {
+      result = mem_decl_split_addresses(get_memname_node(set.names[0]), NULL, NULL);
+   }
+   mem_region_set_release(&set);
+   return result;
+}
+
+//! @brief Emit every mem declaration used by one object for cfg validation.
+static void emit_global_object_region_metadata(const ASTNode *node,
+                                               const ASTNode *modifiers) {
+   MemRegionSet set;
+   mem_region_set_collect(modifiers, &set);
+   mem_region_set_sort(&set);
+   for (size_t i = 0; i < set.count; i++) {
+      emit_mem_region_metadata_for_name(node, set.names[i]);
+   }
+   mem_region_set_release(&set);
+}
+
+//! @brief Build a named storage segment from one already-selected region.
+static void build_storage_segment_for_region(char *buf, size_t bufsize,
+                                             const char *region,
+                                             const char *base_segment) {
+   if (!buf || bufsize == 0) {
+      return;
+   }
+   if (region && *region) {
+      snprintf(buf, bufsize, "%s.%s", base_segment, region);
+   }
+   else {
+      snprintf(buf, bufsize, "%s", base_segment);
+   }
+}
+
+//! @brief Validate immutable multi-region object replication contracts.
+static void validate_global_object_region_modifiers(const ASTNode *node,
+                                                    const ASTNode *modifiers,
+                                                    const ASTNode *declarator,
+                                                    const char *name) {
+   MemRegionSet set;
+   mem_region_set_collect(modifiers, &set);
+   if (set.count == 0) {
+      mem_region_set_release(&set);
+      return;
+   }
+   for (size_t i = 0; i < set.count; i++) {
+      for (size_t j = 0; j < i; j++) {
+         if (!strcmp(set.names[i], set.names[j])) {
+            error_user("[%s:%d.%d] object '%s' repeats mem region modifier '%s'",
+                       node->file, node->line, node->column,
+                       name ? name : "<unnamed>", set.names[i]);
+         }
+      }
+   }
+   if (set.count > 1) {
+      if (!declaration_const_applies_to_object(modifiers, declarator)) {
+         error_user("[%s:%d.%d] mutable object '%s' cannot be duplicated across mem regions; multi-region object placement requires const immutable storage",
+                    node->file, node->line, node->column,
+                    name ? name : "<unnamed>");
+      }
+      for (size_t i = 0; i < set.count; i++) {
+         const ASTNode *mem_decl = get_memname_node(set.names[i]);
+         if (!mem_decl || !mem_decl_is_readonly(mem_decl) || mem_decl_is_writable(mem_decl)) {
+            error_user("[%s:%d.%d] duplicated object '%s' uses mem region '%s', but every replicated object region must declare exactly $ro",
+                       node->file, node->line, node->column,
+                       name ? name : "<unnamed>", set.names[i]);
+         }
+         if (mem_decl_split_addresses(mem_decl, NULL, NULL)) {
+            error_user("[%s:%d.%d] duplicated object '%s' cannot use split-address mem region '%s'",
+                       node->file, node->line, node->column,
+                       name ? name : "<unnamed>", set.names[i]);
+         }
+      }
+   }
+   mem_region_set_release(&set);
+}
+
 //! @brief Select a unique compiler-owned segment for one file-scope data object.
 static void emit_data_object_segment(EmitSink *sink, const char *base_segment,
                                      const char *symname, bool hard_page, int size) {
@@ -822,8 +958,6 @@ static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
    const ASTNode *bdecl = decl_node_declarator(b);
    const char *aname = type_name_from_node(atype);
    const char *bname = type_name_from_node(btype);
-   const char *amem = find_mem_modifier_name(amod);
-   const char *bmem = find_mem_modifier_name(bmod);
    const ASTNode *aaddr = decl_node_address_spec(a);
    const ASTNode *baddr = decl_node_address_spec(b);
 
@@ -834,11 +968,11 @@ static bool global_object_same_declaration(const ASTNode *a, const ASTNode *b) {
    if (has_modifier((ASTNode *)amod, "static") != has_modifier((ASTNode *)bmod, "static") ||
        declaration_const_applies_to_object(amod, adecl) != declaration_const_applies_to_object(bmod, bdecl) ||
        declaration_pointer_access(amod, adecl) != declaration_pointer_access(bmod, bdecl) ||
-       modifiers_imply_zeropage(amod) != modifiers_imply_zeropage(bmod) ||
+       global_object_single_region_is_zeropage(amod) != global_object_single_region_is_zeropage(bmod) ||
        !address_specs_equal(aaddr, baddr)) {
       return false;
    }
-   if ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem))) {
+   if (!mem_region_sets_equal(amod, bmod)) {
       return false;
    }
    return true;
@@ -872,6 +1006,7 @@ void predeclare_top_level_objects(ASTNode *program) {
          validate_nonreserved_implementation_name(name, node);
          validate_declaration_access_qualifiers(node, modifiers, declarator,
                                                 "file-scope object declaration");
+         validate_global_object_region_modifiers(node, modifiers, declarator, name);
          if (has_modifier((ASTNode *)modifiers, "ref")) {
             diagnose_ref_object_modifier(node, name);
          }
@@ -915,6 +1050,7 @@ void compile_global_decl_item(ASTNode *node) {
    validate_nonreserved_implementation_name(name, node);
    validate_declaration_access_qualifiers(node, modifiers, declarator,
                                           "file-scope object declaration");
+   validate_global_object_region_modifiers(node, modifiers, declarator, name);
    ASTNode *uexpr;
    EmitSink init_es = EMIT_INIT;
 
@@ -932,9 +1068,11 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_extern = has_modifier(modifiers, "extern");
    bool is_const = declaration_const_applies_to_object(modifiers, declarator);
    bool is_static = has_modifier(modifiers, "static");
-   bool is_zeropage = modifiers_imply_zeropage(modifiers);
-   bool is_readonly_mem = modifiers_imply_readonly_mem(modifiers);
-   bool is_split_mem = modifiers_imply_split_address(modifiers);
+   size_t region_count = global_object_region_count(modifiers);
+   const char *primary_region = global_object_primary_region(modifiers);
+   bool is_zeropage = global_object_single_region_is_zeropage(modifiers);
+   bool is_readonly_mem = global_object_regions_are_readonly(modifiers);
+   bool is_split_mem = global_object_single_region_is_split(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
    bool is_absolute_binding = addrspec != NULL;
@@ -942,14 +1080,14 @@ void compile_global_decl_item(ASTNode *node) {
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
 
-   if (is_page && modifiers_imply_mem_storage(modifiers)) {
+   if (is_page && region_count > 0) {
       error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
                  node->file, node->line, node->column);
    }
    if (is_split_mem && (is_ref || is_absolute_binding)) {
       error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with an '@' absolute binding",
                  node->file, node->line, node->column,
-                 find_mem_modifier_name(modifiers));
+                 primary_region ? primary_region : "<unknown>");
    }
    if (is_readonly_mem && !is_const && !is_extern) {
       error_user("[%s:%d.%d] object '%s' placed in a $ro mem region must be const",
@@ -967,7 +1105,7 @@ void compile_global_decl_item(ASTNode *node) {
    if (selected != node) {
       return;
    }
-   emit_mem_region_metadata_for_modifiers(node, modifiers);
+   emit_global_object_region_metadata(node, modifiers);
    emit_global_contract_metadata(node, symname, is_zeropage);
 
    if (is_absolute_binding) {
@@ -975,7 +1113,7 @@ void compile_global_decl_item(ASTNode *node) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use none for both read and write address",
                node->file, node->line, node->column, name);
       }
-      if (is_extern || is_static || is_page || modifiers_imply_mem_storage(modifiers)) {
+      if (is_extern || is_static || is_page || region_count > 0) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use allocation or linkage modifiers",
                node->file, node->line, node->column, name);
       }
@@ -1021,6 +1159,16 @@ void compile_global_decl_item(ASTNode *node) {
       emit_global_abi_metadata(node, symname, true, is_zeropage);
    }
 
+   if (region_count > 1) {
+      MemRegionSet regions;
+      mem_region_set_collect(modifiers, &regions);
+      mem_region_set_sort(&regions);
+      for (size_t i = 0; i < regions.count; i++) {
+         emit_replica_metadata('O', symname, regions.names[i]);
+      }
+      mem_region_set_release(&regions);
+   }
+
    if (is_empty(expression)) {
       if (is_const) {
          error_user("[%s:%d.%d] 'const' missing initializer",
@@ -1028,7 +1176,7 @@ void compile_global_decl_item(ASTNode *node) {
       }
       if (is_zeropage) {
          char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+         build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
          emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
@@ -1036,7 +1184,7 @@ void compile_global_decl_item(ASTNode *node) {
       }
       else {
          char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+         build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
          emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
@@ -1066,23 +1214,23 @@ void compile_global_decl_item(ASTNode *node) {
       if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size)) {
          if (is_zeropage) {
             char segbuf[256];
-            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+            build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
             emit_data_object_segment(&es_zpdata, segbuf, symname, is_page, size);
             emit(&es_zpdata, "%s:\n", symname);
             emit_sink_append(&es_zpdata, &init_es);
             restore_object_segment(&es_zpdata, segbuf);
          }
-         else if (modifiers_imply_mem_storage(modifiers) && is_const && is_readonly_mem) {
+         else if (region_count > 0 && is_const && is_readonly_mem) {
             char segbuf[256];
-            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "RODATA");
+            build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "RODATA");
             emit_data_object_segment(&es_rodata, segbuf, symname, is_page, size);
             emit(&es_rodata, "%s:\n", symname);
             emit_sink_append(&es_rodata, &init_es);
             restore_object_segment(&es_rodata, segbuf);
          }
-         else if (modifiers_imply_mem_storage(modifiers)) {
+         else if (region_count > 0) {
             char segbuf[256];
-            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "DATA");
+            build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "DATA");
             emit_data_object_segment(&es_data, segbuf, symname, is_page, size);
             emit(&es_data, "%s:\n", symname);
             emit_sink_append(&es_data, &init_es);
@@ -1106,7 +1254,7 @@ void compile_global_decl_item(ASTNode *node) {
 
       if (is_zeropage) {
          char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "ZEROPAGE");
+         build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
          emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
@@ -1114,7 +1262,7 @@ void compile_global_decl_item(ASTNode *node) {
       }
       else {
          char segbuf[256];
-         build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+         build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
          emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);

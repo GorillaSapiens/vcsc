@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: duplicated object 'table' uses mem region 'basket', but every replicated object region must declare exactly $ro
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+mem basket  { $start:0x0200 $size:0x0010 $rw };
+orchard basket const uint8_t table[2] := { 1, 2 };

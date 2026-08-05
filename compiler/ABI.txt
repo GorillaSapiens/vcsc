@@ -58,6 +58,18 @@ symbols use zero-page imports. Named absolute and split return symbols use
 absolute imports. Function ABI metadata records the result-region identity and
 address class, or for split storage the region, read-start, and write-start.
 
+Replicated immutable object contract
+------------------------------------
+
+A file-scope `const` object with more than one named `$ro` modifier is one logical
+object with one physical ROM copy in each listed region. Its ABI metadata records
+`replicated_ro(regions=[...])` using a sorted region set, so declaration order is
+not significant. Every reference is relocated to the copy in the referencing
+function's bank. A bank-pinned reference with no local copy is invalid; no
+cross-bank data load or fat address is synthesized. The copies may have different
+low-twelve-bit offsets. Mutable duplication, writable or split-address regions,
+and duplicate region names are rejected.
+
 Function region contract
 ------------------------
 
@@ -71,11 +83,20 @@ storage independently of code placement. Thus declarations equivalent to
 
 With no read-only modifier, code placement remains automatic. With no writable
 modifier, return storage remains the ordinary default. A writable modifier is
-invalid on `void`, and at most one writable region is permitted. The ABI can
-represent a set of read-only regions, but the compiler currently rejects more
-than one with an explicit item-21 diagnostic because function replication is not
-yet implemented. Same-translation-unit compatibility and linker metadata compare
-the code-region set and result-storage region as separate facts.
+invalid on `void`, and at most one writable region is permitted.
+
+A code-region set containing more than one `$ro` region is an explicit
+replication contract. The compiler emits one logical function definition plus
+replication metadata for every region; the linker materializes an identical body
+in each listed ROM region. A direct call binds to the copy in the caller's bank
+when one exists. Otherwise the normal cross-bank call machinery may target the
+deterministic primary copy. One optional writable result region remains a single
+shared hidden return object for all bodies. It is never replicated as code.
+
+Same-translation-unit compatibility and linker metadata compare the
+order-insensitive code-region set and result-storage region as separate facts.
+Changing either is an ABI mismatch. Function pointers remain unsupported, so no
+runtime representation for selecting among replicated body addresses is defined.
 
 Before an ordinary direct call, arguments are evaluated left-to-right. A
 converted argument is copied directly into its callee-owned parameter as soon

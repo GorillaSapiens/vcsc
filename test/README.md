@@ -107,10 +107,26 @@ regions, inline placement, and explicit nonzero-bank placement of `main`.
 contract: arbitrary names, order-independent `$ro` code plus `$rw` result
 modifiers, ordinary and split result storage, separate CODE/return map entries,
 and independent metadata. Companion tests reject duplicate regions, multiple
-writable results, writable storage on `void`, and the explicitly deferred
-multiple-code-region form. The `e2e_function_*_region_abi_mismatch_fail` pairs
-prove that separate-object code-region and result-region disagreements diagnose
-different ABI roles.
+writable results, and writable storage on `void`. The
+`e2e_function_*_region_abi_mismatch_fail` pairs prove that separate-object
+code-region and result-region disagreements diagnose different ABI roles.
+
+`function_multiple_code_regions_codegen_test.c26`,
+`object_multiple_ro_regions_codegen_test.c26`, and their rejection companions
+cover the item-21 source contract: order-insensitive function body sets, one
+shared writable result region, immutable object sets, duplicate names,
+non-read-only regions, mutable duplication, redeclaration mismatch, and function
+pointers remaining unsupported. `replicated_rom_placement.pl` verifies F8SC
+bank-local function and object binding, mixed pinned/automatic callers,
+independent copy offsets and bytes, a complete `bank0 bank1 superchip` function,
+one shared return object, map physical-cost accounting, and the absence of
+unnecessary trampolines. `replicated_rom_missing_copy.pl` covers deterministic
+object missing-copy errors, function fallback from a bank without a body, and
+three-copy F6 placement. `replicated_rom_separate_objects.pl` and the
+`e2e_*_replica_region_abi_mismatch_fail` pairs cover separate compilation,
+order-insensitive matching, and independent function/object replica-set ABI
+mismatches.
+
 `readonly_mem_object_codegen_test.c26` locks source-level `$ro` object emission
 as `RODATA.region.__vcsc_object$NAME`; companion tests reject mutable definitions
 and runtime-only initializers in read-only named regions.

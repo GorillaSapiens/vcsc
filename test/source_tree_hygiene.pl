@@ -109,6 +109,12 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
 -f File::Spec->catfile($test,'split_memory_local_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_bitfield_write_codegen_test.c26') &&
 -f File::Spec->catfile($test,'split_memory_static_local_codegen_test.c26') &&
+-f File::Spec->catfile($test,'function_multiple_code_regions_codegen_test.c26') &&
+-f File::Spec->catfile($test,'object_multiple_ro_regions_codegen_test.c26') &&
+-f File::Spec->catfile($test,'replicated_rom_placement.pl') &&
+-f File::Spec->catfile($test,'replicated_rom_missing_copy.pl') &&
+-f File::Spec->catfile($test,'replicated_rom_separate_objects.pl') &&
+!-e File::Spec->catfile($test,'function_multiple_code_regions_item21_error_test.c26') &&
 	!-e File::Spec->catfile($test,'split_memory_static_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
@@ -123,10 +129,10 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
 index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
 index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
 index($bankswitching,'[x] 15. Add Superchip-backed function return storage.')>=0 &&
-index($bankswitching,'[ ] 21. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
+index($bankswitching,'[x] 21. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
 index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
 index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0
-   or die "bankswitching plan lost completed Superchip locals or future bank duplication rules\n";
+   or die "bankswitching plan lost completed Superchip locals or bank duplication rules\n";
 index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
 index($bankswitching,'STA  destination_hotspot')>=0 &&
 index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&

@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: object 'table' repeats mem region modifier 'orchard'
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+orchard orchard const uint8_t table[2] := { 1, 2 };

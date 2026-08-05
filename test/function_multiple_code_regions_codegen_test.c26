@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: .export __replicameta$V1$F$replicated$grove
+// expectasm: .export __replicameta$V1$F$replicated$orchard
+// expectasm: .segment "BSS.basket.__vcsc_activation$replicated"
+// expectasm: .segment "CODE.grove"
+// expectasm: .proc replicated
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+mem grove   { $start:0xC000 $size:0x1000 $ro };
+mem basket  { $start:0x0200 $size:0x0010 $rw };
+orchard basket grove uint8_t replicated(uint8_t value);
+grove orchard basket uint8_t replicated(uint8_t value) { return value + 1; }

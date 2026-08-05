@@ -22,6 +22,7 @@ bool function_is_inline(const ASTNode *fn);
 int function_fixed_param_count(const ASTNode *fn);
 void function_region_spec_collect(const ASTNode *fn, FunctionRegionSpec *spec);
 void function_region_spec_release(FunctionRegionSpec *spec);
+const char *function_primary_code_region_name(const ASTNode *fn);
 const char *function_single_code_region_name(const ASTNode *fn);
 const char *function_result_region_name(const ASTNode *fn);
 const ASTNode *function_result_region_node(const ASTNode *fn);

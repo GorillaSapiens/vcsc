@@ -44,6 +44,13 @@ bool function_is_inline(const ASTNode *fn) {
    return has_modifier((ASTNode *)function_modifiers_node(fn), "inline");
 }
 
+//! @brief Compare function code-region names for deterministic order-insensitive emission.
+static int compare_function_region_names(const void *a, const void *b) {
+   const char *const *aname = (const char *const *)a;
+   const char *const *bname = (const char *const *)b;
+   return strcmp(*aname, *bname);
+}
+
 //! @brief Collect the independently classified code and result regions of one function.
 void function_region_spec_collect(const ASTNode *fn, FunctionRegionSpec *spec) {
    const ASTNode *modifiers = function_modifiers_node(fn);
@@ -81,6 +88,10 @@ void function_region_spec_collect(const ASTNode *fn, FunctionRegionSpec *spec) {
          spec->result_region = name;
       }
    }
+   if (spec->code_region_count > 1) {
+      qsort(spec->code_regions, spec->code_region_count,
+            sizeof(*spec->code_regions), compare_function_region_names);
+   }
 }
 
 //! @brief Release temporary storage owned by one function region specification.
@@ -90,6 +101,19 @@ void function_region_spec_release(FunctionRegionSpec *spec) {
    }
    free(spec->code_regions);
    memset(spec, 0, sizeof(*spec));
+}
+
+//! @brief Return the deterministic primary emitted code region, if any.
+const char *function_primary_code_region_name(const ASTNode *fn) {
+   FunctionRegionSpec spec;
+   const char *ret = NULL;
+
+   function_region_spec_collect(fn, &spec);
+   if (spec.code_region_count > 0) {
+      ret = spec.code_regions[0];
+   }
+   function_region_spec_release(&spec);
+   return ret;
 }
 
 //! @brief Return the sole code-placement region selected by a function, if any.
@@ -226,10 +250,6 @@ void validate_function_region_modifiers(const ASTNode *fn) {
       error_user("[%s:%d.%d] inline function '%s' cannot use mem region '%s' because inline expansion has no independently placeable linker layout",
                  fn->file, fn->line, fn->column, fname,
                  first_code_region ? first_code_region : result_region);
-   }
-   if (code_region_count > 1) {
-      error_user("[%s:%d.%d] function '%s' requests %zu read-only code regions; multi-region code placement requires bankswitching roadmap item 21",
-                 fn->file, fn->line, fn->column, fname, code_region_count);
    }
 }
 

@@ -63,6 +63,17 @@ const ASTNode *flag_cast_target_type(ASTNode *expr, Context *ctx);
 const ASTNode *flag_cast_target_declarator(ASTNode *expr, Context *ctx);
 int flag_cast_target_size(ASTNode *expr, Context *ctx);
 const ASTNode *literal_annotation_type(const ASTNode *expr);
+typedef struct MemRegionSet {
+   const char **names;
+   size_t count;
+} MemRegionSet;
+
+void mem_region_set_collect(const ASTNode *modifiers, MemRegionSet *set);
+void mem_region_set_sort(MemRegionSet *set);
+void mem_region_set_release(MemRegionSet *set);
+bool mem_region_sets_equal(const ASTNode *a, const ASTNode *b);
+const char *mem_region_set_first_sorted(const ASTNode *modifiers);
+
 const char *find_mem_modifier_name(const ASTNode *modifiers);
 const ASTNode *find_mem_modifier_node(const ASTNode *modifiers);
 bool mem_decl_is_zeropage(const ASTNode *mem_decl);

@@ -1499,6 +1499,88 @@ static bool parse_flag_u64(const ASTNode *flags, const char *prefix, unsigned lo
    return false;
 }
 
+//! @brief Compare mem region names for deterministic order-insensitive contracts.
+static int compare_mem_region_names(const void *a, const void *b) {
+   const char *const *aname = (const char *const *)a;
+   const char *const *bname = (const char *const *)b;
+   return strcmp(*aname, *bname);
+}
+
+//! @brief Collect all named mem modifiers without imposing a single-region policy.
+void mem_region_set_collect(const ASTNode *modifiers, MemRegionSet *set) {
+   if (!set) {
+      return;
+   }
+   memset(set, 0, sizeof(*set));
+   if (!modifiers || is_empty(modifiers)) {
+      return;
+   }
+   set->names = calloc((size_t)modifiers->count, sizeof(*set->names));
+   if (!set->names) {
+      error_unreachable("out of memory collecting memory-region modifiers");
+   }
+   for (int i = 0; i < modifiers->count; i++) {
+      const ASTNode *item = modifiers->children[i];
+      const char *name = (item && item->strval) ? item->strval : NULL;
+      if (name && memname_exists(name)) {
+         set->names[set->count++] = name;
+      }
+   }
+}
+
+//! @brief Sort one collected mem-region set by source spelling.
+void mem_region_set_sort(MemRegionSet *set) {
+   if (set && set->count > 1) {
+      qsort(set->names, set->count, sizeof(*set->names), compare_mem_region_names);
+   }
+}
+
+//! @brief Release storage owned by one collected mem-region set.
+void mem_region_set_release(MemRegionSet *set) {
+   if (!set) {
+      return;
+   }
+   free(set->names);
+   memset(set, 0, sizeof(*set));
+}
+
+//! @brief Return whether two modifier lists name the same order-insensitive mem-region set.
+bool mem_region_sets_equal(const ASTNode *a, const ASTNode *b) {
+   MemRegionSet aset;
+   MemRegionSet bset;
+   bool equal = true;
+
+   mem_region_set_collect(a, &aset);
+   mem_region_set_collect(b, &bset);
+   mem_region_set_sort(&aset);
+   mem_region_set_sort(&bset);
+   if (aset.count != bset.count) {
+      equal = false;
+   }
+   for (size_t i = 0; equal && i < aset.count; i++) {
+      if (strcmp(aset.names[i], bset.names[i])) {
+         equal = false;
+      }
+   }
+   mem_region_set_release(&aset);
+   mem_region_set_release(&bset);
+   return equal;
+}
+
+//! @brief Return the lexicographically first named mem region, if any.
+const char *mem_region_set_first_sorted(const ASTNode *modifiers) {
+   MemRegionSet set;
+   const char *name = NULL;
+
+   mem_region_set_collect(modifiers, &set);
+   mem_region_set_sort(&set);
+   if (set.count > 0) {
+      name = set.names[0];
+   }
+   mem_region_set_release(&set);
+   return name;
+}
+
 //! @brief Find mem modifier name in compiler type system tables without transferring ownership.
 const char *find_mem_modifier_name(const ASTNode *modifiers) {
    const char *found = NULL;

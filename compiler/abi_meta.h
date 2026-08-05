@@ -12,7 +12,9 @@
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
+#define REPLICA_META_PREFIX "__replicameta$V1$"
 
+void emit_replica_metadata(char kind, const char *symbol, const char *region);
 void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_definition);
 void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_definition, bool is_zeropage);
 void emit_absolute_binding_region_guard_metadata(const ASTNode *node,

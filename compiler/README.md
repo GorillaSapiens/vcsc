@@ -473,27 +473,55 @@ and definitions must agree independently on the order-insensitive code-region
 set and the writable result region. With no `$ro` modifier, code placement stays
 automatic. With no `$rw` modifier, the return object keeps its default placement.
 At most one writable result region is allowed, and a `void` function cannot
-select one. The compiler can represent multiple read-only code regions in the
-contract, but rejects them until function replication is implemented by
-bankswitching roadmap item 21 rather than silently choosing one. Inline functions
-cannot use any named region because their expansions have no independently
-placeable linker layout. For numbered bank regions, `main` may be unmarked or use
-`bank0`; explicitly placing it in `bank1` or another nonzero numbered bank is
-rejected.
+select one.
 
-A constant object may use the same named read-only region:
+Multiple `$ro` modifiers explicitly replicate one non-inline function body into
+each named ROM region. Calls from a bank containing a copy bind to that local
+body before the linker considers a cross-bank trampoline. A call from another
+bank may use the primary copy through the ordinary trampoline path. One optional
+`$rw` modifier still names a single shared hidden return object rather than a
+body copy:
+
+```vcsc
+bank0 bank1 superchip uint8_t lookup(uint8_t index) {
+   return level_table[index];
+}
+```
+
+Here `lookup` has a body in both `CODE.bank0` and `CODE.bank1`, but only one
+`lookup$__return` in `superchip`. Region order is immaterial in declarations and
+definitions. Inline functions cannot use any named region because their
+expansions have no independently placeable linker layout. For numbered bank
+regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
+or another nonzero numbered bank is rejected.
+
+A constant object may use one named read-only region:
 
 ```vcsc
 bank1 const uint8_t level_table[4] := { 1, 2, 3, 4 };
 ```
 
-The compiler emits that definition in the independently placeable private
-layout `RODATA.bank1.__vcsc_object$level_table`, allowing the linker to treat it
-as a hard BANK1 pin. A definition in a `$ro` region must be `const` and its
-initializer must be representable entirely at link time. It cannot require a
-startup write or silently become DATA/BSS in a read-only cartridge region.
-Unmarked private CODE and RODATA layouts remain eligible for deterministic
-automatic bank placement by a bank-aware linker configuration.
+or an order-insensitive set of read-only regions for explicit immutable
+replication:
+
+```vcsc
+bank0 bank1 const uint8_t level_table[4] := { 1, 2, 3, 4 };
+```
+
+The single-region form emits
+`RODATA.bank1.__vcsc_object$level_table`. The multi-region form emits one
+byte-identical private layout in every listed region. A reference from code in a
+bank containing a copy resolves to that bank-local layout; a pinned reference
+from a bank without a declared copy is an error. Copies are independently placed
+and need not have the same low-twelve-bit offset. Mutable objects, split-address
+regions, duplicate region names, and non-`$ro` regions are rejected for
+multi-region object placement because no coherence protocol exists.
+
+Every `$ro` definition must be `const` and its initializer must be representable
+entirely at link time. It cannot require a startup write or silently become
+DATA/BSS in a read-only cartridge region. Unmarked private CODE and RODATA
+layouts remain eligible for deterministic automatic bank placement by a
+bank-aware linker configuration.
 
 For a Superchip bank, the source region describes only allocatable ROM. Exclude
 the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`

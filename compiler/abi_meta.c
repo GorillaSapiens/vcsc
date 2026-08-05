@@ -382,6 +382,26 @@ static void global_storage_mode(const ASTNode *node, bool is_zeropage,
    if (!buf || buf_size == 0)
       return;
    if (!spec) {
+      MemRegionSet regions;
+      size_t used;
+      mem_region_set_collect(node && node->count > 0 ? node->children[0] : NULL,
+                             &regions);
+      mem_region_set_sort(&regions);
+      if (regions.count > 1) {
+         used = (size_t)snprintf(buf, buf_size, "replicated_ro(regions=[");
+         for (size_t i = 0; i < regions.count && used < buf_size; ++i) {
+            int wrote = snprintf(buf + used, buf_size - used, "%s%s",
+                                 i ? "," : "", regions.names[i]);
+            if (wrote < 0)
+               break;
+            used += (size_t)wrote;
+         }
+         if (used < buf_size)
+            snprintf(buf + used, buf_size - used, "])");
+         mem_region_set_release(&regions);
+         return;
+      }
+      mem_region_set_release(&regions);
       snprintf(buf, buf_size, "%s", is_zeropage ? "zeropage" : "memory");
       return;
    }
@@ -600,6 +620,38 @@ static void append_type_fingerprint(StrBuf *fp, StrBuf *detail, const ASTNode *t
    }
 
    append_base_type_fingerprint(fp, detail, type, ctx);
+}
+
+//! @brief Emit one linker-visible replication record for a logical symbol and ROM region.
+void emit_replica_metadata(char kind, const char *symbol, const char *region) {
+   char *enc_symbol;
+   char *enc_region;
+   StrBuf name;
+
+   if ((kind != 'F' && kind != 'O') || !symbol || !*symbol || !region || !*region) {
+      return;
+   }
+   enc_symbol = meta_encode(symbol);
+   enc_region = meta_encode(region);
+   sb_init(&name);
+   sb_append(&name, REPLICA_META_PREFIX);
+   sb_append_ch(&name, kind);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_symbol);
+   sb_append_ch(&name, '$');
+   sb_append(&name, enc_region);
+
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+      emit(&es_export, "%s = 0\n", name.buf);
+   }
+
+   free(enc_symbol);
+   free(enc_region);
+   free(name.buf);
 }
 
 //! @brief Emit metadata symbol for abi meta diagnostics or output files.

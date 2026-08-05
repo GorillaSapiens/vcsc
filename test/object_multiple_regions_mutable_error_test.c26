@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: mutable object 'table' cannot be duplicated across mem regions
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x1000 $ro };
+mem grove   { $start:0xC000 $size:0x1000 $ro };
+orchard grove uint8_t table[2] := { 1, 2 };

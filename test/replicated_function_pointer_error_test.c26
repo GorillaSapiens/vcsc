@@ -1,0 +1,8 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function pointers are not supported; call 'replicated' directly
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x0800 $ro };
+mem grove   { $start:0xD800 $size:0x0800 $ro };
+orchard grove uint8_t replicated(void) { return 1; }
+uint8_t *pointer := replicated;

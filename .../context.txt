@@ -8676,3 +8676,40 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   tests. Source-tree hygiene and staged `make installcheck` pass.
 * Bankswitching roadmap item 21, explicit multi-bank duplication for immutable
   objects and functions, is next.
+
+2026-08-05 06:12:11 PDT, add explicit multi-bank immutable ROM replication
+--------------------------------------------------------------------------
+* Complete bankswitching roadmap item 21 with order-insensitive multi-region
+  `$ro` contracts for immutable file-scope objects and non-inline functions.
+  The compiler emits one logical body or initializer plus replication metadata;
+  the linker materializes independently placed private copies in every named
+  bank-owned read-only region.
+* Bind object references to the copy in the referencing function's bank and
+  constrain automatic readers to banks containing a copy. Diagnose pinned
+  readers with no local object copy. Bind direct calls to a local function body
+  first, while callers in other banks may use the ordinary cross-bank trampoline
+  to the deterministic primary body.
+* Preserve one logical symbol, activation record, and optional shared writable
+  return object across all replicated function bodies. Compare sorted function
+  code-region sets, result-storage regions, and replicated-object region sets in
+  same-translation-unit and linker-visible ABI contracts. Keep function pointers
+  unsupported.
+* Reject duplicate regions, mutable object duplication, non-read-only or split-
+  address replica regions, inline region contracts, and unusable linker regions.
+  Add a `REPLICATED ROM` map section reporting every copy, its bank and load
+  address, bytes per copy, per-symbol physical cost, and aggregate physical cost.
+* Fix the item-20 declaration-contract metadata regression reported during this
+  work: the canonical void-function test now includes the independently added
+  empty `code_regions=[]` field instead of expecting the obsolete signature.
+* Add F8SC local-copy and complete `bank0 bank1 superchip` execution, mixed
+  pinned/automatic placement, F6 function fallback and three-copy execution,
+  deterministic object missing-copy diagnostics, separate compilation, ABI-
+  mismatch, source rejection, and map-accounting coverage. Update
+  `compiler/README.md`, `compiler/ABI.txt`, `linker/README.md`,
+  `libraries/vcs/README.md`, `test/README.md`, source-tree hygiene, and
+  `.../bankswitching.txt`; leave the project-wide top-level README unchanged.
+* Verification: all 431 compile-only tests pass. All 240 end-to-end/generic tests
+  pass: tests 1-136 passed before the execution-window cutoff and the remaining
+  104 passed in explicit continuation chunks. Source-tree hygiene and staged
+  `make installcheck` pass. Bankswitching roadmap item 22, coalescing one
+  returned automatic variable with `$$`, is next.

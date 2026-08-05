@@ -663,12 +663,33 @@ ordinary `CODE` fallback is considered.
 
 Function modifiers are property-classified by the compiler: an order-insensitive
 set of `$ro` regions is the code-placement ABI fact, while one `$rw` region is the
-independent return-storage fact. The current compiler emits at most one body and
-rejects code-region sets larger than one pending item 21. Linker ABI diagnostics
-therefore report `code regions` mismatches separately from `return type` storage
-mismatches. A cfg that pins source region `orchard` must provide a matching
-`CODE.orchard` segment rule; named return segments continue to resolve through
-their matching writable MEMORY region.
+independent return-storage fact. Linker ABI diagnostics report `code regions`
+mismatches separately from `return type` storage mismatches. A cfg that pins
+source region `orchard` must provide a matching `CODE.orchard` segment rule;
+named return segments continue to resolve through their matching writable MEMORY
+region.
+
+For a multi-region code contract, compiler metadata identifies one logical
+function and every requested `$ro` region. The linker clones the compiler's
+private body layout and its relocations into each named region. A direct `JSR` or
+`JMP` from a bank containing a copy resolves to that local body; only a caller
+without a local copy falls back to the deterministic primary body through the
+ordinary cross-bank trampoline. All copies continue to use the one activation
+record and optional shared named return object.
+
+A multi-region `const` object is handled similarly. Each physical RODATA copy is
+placed independently, and a relocation binds to the copy in the referencing
+layout's bank. A pinned source bank without an object copy is a hard error rather
+than a cross-bank ROM-data access. Automatic placement constrains an unpinned
+referencing component to banks containing a copy. Copies need not share an
+offset within their banks.
+
+The map's `REPLICATED ROM` section lists every logical replicated symbol, each
+region/bank/load-address/layout copy, bytes per copy, per-symbol physical total,
+and the total physical ROM consumed by all extra copies. Replication metadata is
+validated against bank-owned read-only MEMORY regions; it is rejected for
+unbanked layouts, writable regions, missing segment rules, and ambiguous or
+contradictory definitions.
 
 Their map entries therefore report exact function size and page status.
 Functions up to 256 bytes are kept within one page when an existing hole permits

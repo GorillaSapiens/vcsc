@@ -262,8 +262,26 @@ bank1 void remote_code(void) {
 Plain `void main(void)` needs no bank qualifier. The linker pins it, startup,
 and required runtime material to the profile's unique `startup=yes` bank (BANK0
 in these public profiles). Direct cross-bank `JSR` and `JMP` are rewritten
-through the replicated common table;
-cross-bank ROM data references remain errors.
+through the replicated common table. Ordinary cross-bank ROM data references
+remain errors.
+
+Immutable code and data that must be directly available in several banks can be
+replicated explicitly:
+
+```vcsc
+bank0 bank1 const uint8_t table[2] := { 0x31, 0x42 };
+
+bank0 bank1 uint8_t lookup(uint8_t index) {
+   return table[index];
+}
+```
+
+The modifier set is order-insensitive. The linker emits one object and function
+copy in each listed bank, binds a caller or data reference to its bank-local copy,
+and reports every copy and its physical ROM cost in the map. Object references
+from a bank without a listed copy are errors. Function calls from such a bank may
+fall back to a replicated body in another bank through the ordinary trampoline.
+Copies are independently packed and need not occupy the same offset.
 
 Notes:
 
@@ -344,10 +362,12 @@ read alias and store through the write alias. Only an argument which must
 survive a function call in a later argument remains in caller scratch. A
 non-void function may likewise use `superchip` to place its exact-sized hidden
 return object in the shared window. `return expression;` and assignments to `$$`
-write through `$F000`, while callee and caller reads use `$F080`. A separate
-read-only bank modifier may independently pin the function body, for example
-`bank1 superchip uint16_t sample(void)`. Modifier order is irrelevant; the body
-uses `CODE.bank1` while `sample$__return` remains in shared Superchip RAM.
+write through `$F000`, while callee and caller reads use `$F080`. One or more separate
+read-only bank modifiers may independently select function-body copies, for
+example `bank0 bank1 superchip uint16_t sample(void)`. Modifier order is
+irrelevant; bodies use `CODE.bank0` and `CODE.bank1` while every copy shares the
+single `sample$__return` object in Superchip RAM. A bank-local call is preferred;
+a caller in another bank may use a normal trampoline to the primary copy.
 Directional ref capability is part of same-translation-unit function
 compatibility and linker-visible ABI fingerprints, while ordinary `ref T` still
 requires a single

@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// object: e2e_function_replica_region_abi_mismatch_fail__def.c26
+// linkcfg: e2e_function_region_abi__regions.cfg
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'placed' code regions
+// expectlinkerr: code regions [grove, orchard]
+// expectlinkerr: code regions [orchard]
+include "machine_6502.c26"
+mem orchard { $start:0xD000 $size:0x0800 $ro };
+mem grove   { $start:0xD800 $size:0x0800 $ro };
+orchard grove uint8_t placed(void);
+void main(void) { uint8_t value := placed(); }

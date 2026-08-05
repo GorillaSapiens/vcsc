@@ -48,6 +48,7 @@
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
+#define REPLICA_META_PREFIX "__replicameta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
@@ -239,6 +240,19 @@ typedef struct {
    size_t index;
 } input_ref_t;
 
+//! One logical immutable object or function replicated into named ROM regions.
+typedef struct {
+   char kind;
+   char *symbol;
+   object_file_t *obj;
+   uint16_t original_layout_index;
+   uint16_t symbol_offset;
+   int externally_visible;
+   char **regions;
+   uint16_t *layout_indices;
+   size_t copy_count;
+} replica_group_t;
+
 //! All linker inputs after loading archives and command-line objects.
 typedef struct {
    object_file_t *objects;
@@ -249,6 +263,8 @@ typedef struct {
    size_t archive_count;
    input_ref_t *order;
    size_t order_count;
+   replica_group_t *replicas;
+   size_t replica_count;
 } input_set_t;
 
 typedef struct {

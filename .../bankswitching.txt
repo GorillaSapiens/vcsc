@@ -1293,7 +1293,7 @@ when main roadmap item 29 becomes active.
          order-independence, code-plus-result, ordinary/split result, map-placement,
          and separate-object ABI mismatch coverage.
 
-[ ] 21. Add explicit multi-bank duplication for immutable objects and functions.
+[x] 21. Add explicit multi-bank duplication for immutable objects and functions.
 
        * Accept an order-insensitive set of named bank-region modifiers, for
          example `bank0 bank1 const uint8_t table[] := { ... };`, and emit one
@@ -1318,6 +1318,30 @@ when main roadmap item 29 becomes active.
          and test local binding, mixed pinned/unpinned callers, the complete
          `bank0 bank1 superchip` function form, function pointers remaining
          unsupported, and deterministic diagnostics for missing copies.
+
+       Completed 2026-08-05:
+       * Accept order-insensitive multi-region `$ro` contracts for immutable
+         file-scope objects and non-inline functions. Emit one compiler body or
+         initializer plus linker-visible replication metadata, then materialize
+         independently placed private copies in every named bank region.
+       * Resolve object relocations to the copy in the referencing function's bank
+         and constrain automatic readers to banks with a local copy. Diagnose a
+         pinned reader whose bank has no object copy. Resolve direct function calls
+         to a local body first, with deterministic cross-bank trampoline fallback
+         to the primary body when the caller's bank has no copy.
+       * Preserve one logical symbol and one optional shared writable result object
+         across all function bodies. Compare sorted function code-region sets,
+         result storage, and replicated-object region sets in same-translation-unit
+         and linker ABI contracts. Keep function pointers unsupported.
+       * Reject duplicate regions, mutable object duplication, non-read-only or
+         split-address replica regions, inline region contracts, and unusable
+         unbanked/missing linker regions. Report every physical copy, load address,
+         per-symbol cost, and aggregate replicated-ROM cost in the map.
+       * Add F8SC local-copy and `bank0 bank1 superchip` execution, mixed automatic
+         placement, F6 missing-copy/fallback and three-copy execution, separate-
+         object matching, independent ABI mismatch, and compiler rejection coverage.
+         Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene,
+         and roadmap documentation.
 
 [ ] 22. Coalesce a single returned automatic variable with `$$`.
 

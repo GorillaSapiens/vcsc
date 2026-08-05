@@ -662,7 +662,13 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->type = type;
    entry->declarator = declarator;
    entry->is_static = false;
-   entry->is_zeropage = modifiers_imply_zeropage((ASTNode *) modifiers);
+   {
+      MemRegionSet regions;
+      mem_region_set_collect(modifiers, &regions);
+      entry->is_zeropage = regions.count == 1 &&
+         mem_decl_is_zeropage(get_memname_node(regions.names[0]));
+      mem_region_set_release(&regions);
+   }
    entry->is_global = true;
    entry->is_ref = false;
    entry->is_absolute_ref = addrspec != NULL;
@@ -670,7 +676,14 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->write_expr = address_spec_write_expr(addrspec);
    entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
    entry->pointer_access = declaration_pointer_access(modifiers, declarator);
-   init_split_mem_entry_addresses(entry, name, modifiers);
+   {
+      MemRegionSet regions;
+      mem_region_set_collect(modifiers, &regions);
+      if (regions.count <= 1) {
+         init_split_mem_entry_addresses(entry, name, modifiers);
+      }
+      mem_region_set_release(&regions);
+   }
    entry->offset = 0;
    entry->size = declarator_storage_size(type, declarator);
    return true;

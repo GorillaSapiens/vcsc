@@ -165,6 +165,13 @@ static int mem_region_metadata_has_prefix(const char *name)
        strncmp(name, MEM_REGION_SPLIT_META_PREFIX, sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0);
 }
 
+//! @brief Return whether immutable ROM-replication metadata has its reserved prefix.
+static int replica_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, REPLICA_META_PREFIX,
+      sizeof(REPLICA_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether declaration-contract metadata has its reserved prefix.
 static int contract_metadata_has_prefix(const char *name)
 {
@@ -181,8 +188,8 @@ static int semantic_use_metadata_has_prefix(const char *name)
 static int reserved_metadata_has_prefix(const char *name)
 {
    return symbol_backed_metadata_has_prefix(name) || abi_metadata_has_prefix(name) ||
-          mem_region_metadata_has_prefix(name) || contract_metadata_has_prefix(name) ||
-          semantic_use_metadata_has_prefix(name);
+          mem_region_metadata_has_prefix(name) || replica_metadata_has_prefix(name) ||
+          contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
 }
 
 //! @brief Handle symbol backed metadata parse function logic for linker layout and image writer.
@@ -3006,6 +3013,658 @@ static const object_layout_t *find_layout_for_image_offset(const object_file_t *
    return NULL;
 }
 
+//! @brief Decode one QXX-escaped metadata field emitted by the compiler.
+static char *replica_meta_decode(const char *text, size_t length)
+{
+   char *decoded = (char *)xmalloc(length + 1);
+   size_t out = 0;
+   size_t i;
+
+   for (i = 0; i < length; ++i) {
+      if (text[i] == 'Q' && i + 2 < length &&
+          isxdigit((unsigned char)text[i + 1]) &&
+          isxdigit((unsigned char)text[i + 2])) {
+         char hex[3];
+         hex[0] = text[i + 1];
+         hex[1] = text[i + 2];
+         hex[2] = '\0';
+         decoded[out++] = (char)strtoul(hex, NULL, 16);
+         i += 2;
+      }
+      else {
+         decoded[out++] = text[i];
+      }
+   }
+   decoded[out] = '\0';
+   return decoded;
+}
+
+//! @brief Parse one compiler-emitted immutable ROM-replication record.
+static int replica_metadata_parse(const char *name, char *kind_out,
+                                  char **symbol_out, char **region_out)
+{
+   const char *p;
+   const char *sep;
+   char kind;
+
+   if (!replica_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(REPLICA_META_PREFIX) - 1;
+   kind = *p++;
+   if ((kind != 'F' && kind != 'O') || *p++ != '$')
+      return 0;
+   sep = strchr(p, '$');
+   if (!sep || sep == p || !sep[1] || strchr(sep + 1, '$'))
+      return 0;
+   if (kind_out)
+      *kind_out = kind;
+   if (symbol_out)
+      *symbol_out = replica_meta_decode(p, (size_t)(sep - p));
+   if (region_out)
+      *region_out = replica_meta_decode(sep + 1, strlen(sep + 1));
+   return 1;
+}
+
+//! @brief Compare one pair of replica region names for deterministic emission.
+static int compare_replica_regions(const void *a, const void *b)
+{
+   const char *const *aname = (const char *const *)a;
+   const char *const *bname = (const char *const *)b;
+   return strcmp(*aname, *bname);
+}
+
+//! @brief Find one replication group owned by one selected input object.
+static replica_group_t *find_replica_group_in_object(input_set_t *in,
+                                                      object_file_t *obj,
+                                                      char kind,
+                                                      const char *symbol)
+{
+   size_t i;
+   for (i = 0; i < in->replica_count; ++i) {
+      replica_group_t *group = &in->replicas[i];
+      if (group->obj == obj && group->kind == kind &&
+          strcmp(group->symbol, symbol) == 0)
+         return group;
+   }
+   return NULL;
+}
+
+//! @brief Find an externally visible replication group by logical symbol.
+static const replica_group_t *find_replica_group_by_symbol(const input_set_t *in,
+                                                            const char *symbol)
+{
+   char *weak;
+   size_t pass;
+   size_t i;
+
+   if (!in || !symbol)
+      return NULL;
+   weak = make_weak_name(symbol);
+   for (pass = 0; pass < 2; ++pass) {
+      const char *wanted = pass == 0 ? symbol : weak;
+      for (i = 0; i < in->replica_count; ++i) {
+         const replica_group_t *group = &in->replicas[i];
+         if (group->externally_visible && strcmp(group->symbol, wanted) == 0) {
+            free(weak);
+            return group;
+         }
+      }
+   }
+   free(weak);
+   return NULL;
+}
+
+//! @brief Find a replication group containing one exact object layout.
+static const replica_group_t *find_replica_group_by_layout(const input_set_t *in,
+                                                            const object_file_t *obj,
+                                                            uint16_t layout_index,
+                                                            size_t *copy_index_out)
+{
+   size_t i, j;
+   if (copy_index_out)
+      *copy_index_out = 0;
+   if (!in || !obj)
+      return NULL;
+   for (i = 0; i < in->replica_count; ++i) {
+      const replica_group_t *group = &in->replicas[i];
+      if (group->obj != obj)
+         continue;
+      for (j = 0; j < group->copy_count; ++j) {
+         if (group->layout_indices[j] == layout_index) {
+            if (copy_index_out)
+               *copy_index_out = j;
+            return group;
+         }
+      }
+   }
+   return NULL;
+}
+
+//! @brief Find the copy index for one source region name.
+static int replica_copy_index_for_region(const replica_group_t *group,
+                                         const char *region)
+{
+   size_t i;
+   if (!group || !region)
+      return -1;
+   for (i = 0; i < group->copy_count; ++i) {
+      if (strcmp(group->regions[i], region) == 0)
+         return (int)i;
+   }
+   return -1;
+}
+
+//! @brief Find the logical cartridge bank containing one replica copy.
+static const cartridge_bank_t *replica_copy_bank(const linker_config_t *cfg,
+                                                  const replica_group_t *group,
+                                                  size_t copy_index)
+{
+   const memory_region_t *memory;
+   if (!cfg || !group || copy_index >= group->copy_count)
+      return NULL;
+   memory = find_memory(cfg, group->regions[copy_index]);
+   if (!memory || !memory->bank_name[0])
+      return NULL;
+   return find_cartridge_bank(cfg, memory->bank_name);
+}
+
+//! @brief Find the copy whose declared region belongs to one logical bank.
+static int replica_copy_index_for_bank(const linker_config_t *cfg,
+                                       const replica_group_t *group,
+                                       const cartridge_bank_t *bank)
+{
+   size_t i;
+   if (!cfg || !group || !bank)
+      return -1;
+   for (i = 0; i < group->copy_count; ++i) {
+      if (replica_copy_bank(cfg, group, i) == bank)
+         return (int)i;
+   }
+   return -1;
+}
+
+//! @brief Return the bit mask of banks containing declared copies.
+static uint64_t replica_bank_mask(const linker_config_t *cfg,
+                                  const replica_group_t *group)
+{
+   uint64_t mask = 0;
+   size_t i, j;
+   if (!cfg || !group || cfg->bank_count > 64)
+      return 0;
+   for (i = 0; i < group->copy_count; ++i) {
+      const cartridge_bank_t *bank = replica_copy_bank(cfg, group, i);
+      if (!bank)
+         continue;
+      for (j = 0; j < cfg->bank_count; ++j) {
+         if (&cfg->banks[j] == bank) {
+            mask |= UINT64_C(1) << j;
+            break;
+         }
+      }
+   }
+   return mask;
+}
+
+//! @brief Return the layout index for an exact layout pointer.
+static uint16_t replica_layout_index(const object_file_t *obj,
+                                     const object_layout_t *layout)
+{
+   ptrdiff_t index;
+   if (!obj || !layout)
+      return UINT16_MAX;
+   index = layout - obj->layouts;
+   if (index < 0 || (size_t)index >= obj->layout_count || index > UINT16_MAX)
+      return UINT16_MAX;
+   return (uint16_t)index;
+}
+
+//! @brief Locate the original compiler-emitted private layout for one group.
+static int locate_replica_original_layout(replica_group_t *group)
+{
+   object_file_t *obj = group->obj;
+   const char *marker = group->kind == 'F'
+      ? ".__vcsc_function$" : ".__vcsc_object$";
+   size_t marker_len = strlen(marker);
+   size_t i;
+
+   group->externally_visible = 0;
+   group->symbol_offset = 0;
+   for (i = 0; i < obj->export_count; ++i) {
+      const symbol_t *sym = &obj->exports[i];
+      const object_layout_t *layout;
+      if (strcmp(sym->name, group->symbol) != 0 || sym->segid != O26_SEG_TEXT)
+         continue;
+      layout = find_layout_for_value(obj, sym->segid, sym->value);
+      if (!layout)
+         continue;
+      group->original_layout_index = replica_layout_index(obj, layout);
+      group->symbol_offset = (uint16_t)(sym->value - layout->packed_base);
+      group->externally_visible = 1;
+      return 1;
+   }
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *layout = &obj->layouts[i];
+      const char *suffix = strstr(layout->name, marker);
+      if (suffix && strcmp(suffix + marker_len, group->symbol) == 0) {
+         group->original_layout_index = (uint16_t)i;
+         return 1;
+      }
+   }
+   return 0;
+}
+
+//! @brief Construct the private layout name for one physical replica.
+static char *replica_layout_name(const object_layout_t *original,
+                                 const char *region)
+{
+   const char *marker;
+   const char *dot;
+   size_t root_len;
+   size_t need;
+   char *name;
+
+   marker = strstr(original->name, ".__vcsc_function$");
+   if (!marker)
+      marker = strstr(original->name, ".__vcsc_object$");
+   if (!marker)
+      marker = strstr(original->name, ".__vcsc_page$");
+   if (!marker)
+      return NULL;
+   dot = strchr(original->name, '.');
+   root_len = dot ? (size_t)(dot - original->name) : (size_t)(marker - original->name);
+   need = root_len + 1 + strlen(region) + strlen(marker) + 1;
+   name = (char *)xmalloc(need);
+   snprintf(name, need, "%.*s.%s%s", (int)root_len, original->name, region, marker);
+   return name;
+}
+
+//! @brief Return the next nonoverlapping packed base for one object segment.
+static uint16_t replica_next_packed_base(const object_file_t *obj, uint8_t segid,
+                                         uint16_t size)
+{
+   uint32_t end = 0;
+   size_t i;
+   for (i = 0; i < obj->layout_count; ++i) {
+      const object_layout_t *layout = &obj->layouts[i];
+      uint32_t candidate;
+      if (layout->segid != segid)
+         continue;
+      candidate = (uint32_t)layout->packed_base + layout->size;
+      if (candidate > end)
+         end = candidate;
+   }
+   if (end + size > 0x10000u) {
+      fprintf(stderr, "vcsc-ld: replicated layouts exceed the 16-bit packed object range in %s\n",
+              obj->origin);
+      exit(1);
+   }
+   return (uint16_t)end;
+}
+
+//! @brief Append one physical byte/layout copy and return its new layout index.
+static uint16_t append_replica_layout(object_file_t *obj,
+                                      uint16_t original_index,
+                                      const char *region)
+{
+   object_layout_t original = obj->layouts[original_index];
+   object_layout_t copy = original;
+   o26_segment_t *segment;
+   size_t new_image_base;
+   char *new_name;
+
+   if (original.image_segid == O26_SEG_TEXT)
+      segment = &obj->text;
+   else if (original.image_segid == O26_SEG_DATA)
+      segment = &obj->data;
+   else {
+      fprintf(stderr, "vcsc-ld: replicated layout '%s' in %s has no ROM image\n",
+              original.name, obj->origin);
+      exit(1);
+   }
+   if ((uint32_t)original.image_base + original.size > segment->length) {
+      fprintf(stderr, "vcsc-ld: replicated layout '%s' exceeds its packed image in %s\n",
+              original.name, obj->origin);
+      exit(1);
+   }
+   new_image_base = segment->length;
+   if (new_image_base + original.size > 0x10000u) {
+      fprintf(stderr, "vcsc-ld: replicated image exceeds the 16-bit object range in %s\n",
+              obj->origin);
+      exit(1);
+   }
+   segment->data = (uint8_t *)xrealloc(segment->data,
+      new_image_base + original.size);
+   memmove(segment->data + new_image_base,
+           segment->data + original.image_base, original.size);
+   segment->length = new_image_base + original.size;
+
+   new_name = replica_layout_name(&original, region);
+   if (!new_name) {
+      fprintf(stderr, "vcsc-ld: cannot replicate non-private layout '%s' in %s\n",
+              original.name, obj->origin);
+      exit(1);
+   }
+   copy.name = new_name;
+   copy.image_base = (uint16_t)new_image_base;
+   copy.packed_base = replica_next_packed_base(obj, original.segid, original.size);
+   copy.load_addr = 0;
+   copy.run_addr = 0;
+   copy.placement_memory[0] = '\0';
+   copy.placement_bank[0] = '\0';
+   copy.placement_component = 0;
+   copy.placement_mode = BANK_PLACEMENT_NONE;
+   copy.placement_component_pinned = 0;
+   copy.placement_component_bytes = 0;
+   copy.placement_cut_weight = 0;
+
+   obj->layouts = (object_layout_t *)xrealloc(obj->layouts,
+      (obj->layout_count + 1) * sizeof(*obj->layouts));
+   obj->layouts[obj->layout_count] = copy;
+   return (uint16_t)obj->layout_count++;
+}
+
+//! @brief Read the packed affine value carried by one relocation.
+static uint16_t replica_reloc_word(const o26_segment_t *segment,
+                                   const reloc_t *reloc)
+{
+   switch (reloc->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+      case O26_RTYPE_WORD:
+         return (uint16_t)(segment->data[reloc->offset] |
+                           (segment->data[reloc->offset + 1] << 8));
+      case O26_RTYPE_LOW:
+         return (uint16_t)(segment->data[reloc->offset] |
+                           ((reloc->has_aux_low ? reloc->aux_low : 0) << 8));
+      case O26_RTYPE_HIGH:
+         return (uint16_t)((reloc->has_aux_low ? reloc->aux_low : 0) |
+                           (segment->data[reloc->offset] << 8));
+   }
+   return segment->data[reloc->offset];
+}
+
+//! @brief Rewrite one copied relocation's packed affine target.
+static void replica_set_reloc_word(o26_segment_t *segment, reloc_t *reloc,
+                                   uint16_t value)
+{
+   switch (reloc->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+      case O26_RTYPE_WORD:
+         segment->data[reloc->offset] = (uint8_t)(value & 0xffu);
+         segment->data[reloc->offset + 1] = (uint8_t)(value >> 8);
+         break;
+      case O26_RTYPE_LOW:
+         segment->data[reloc->offset] = (uint8_t)(value & 0xffu);
+         reloc->aux_low = (uint8_t)(value >> 8);
+         reloc->has_aux_low = 1;
+         break;
+      case O26_RTYPE_HIGH:
+         reloc->aux_low = (uint8_t)(value & 0xffu);
+         reloc->has_aux_low = 1;
+         segment->data[reloc->offset] = (uint8_t)(value >> 8);
+         break;
+   }
+}
+
+//! @brief Duplicate all relocations originating inside one replicated layout.
+static void duplicate_replica_relocations(input_set_t *in,
+                                          replica_group_t *source_group,
+                                          size_t source_copy,
+                                          size_t original_text_reloc_count,
+                                          size_t original_data_reloc_count)
+{
+   object_file_t *obj = source_group->obj;
+   const object_layout_t *source_original =
+      &obj->layouts[source_group->original_layout_index];
+   const object_layout_t *source_copy_layout =
+      &obj->layouts[source_group->layout_indices[source_copy]];
+   o26_segment_t *segment = source_original->image_segid == O26_SEG_TEXT
+      ? &obj->text : &obj->data;
+   size_t original_reloc_count = source_original->image_segid == O26_SEG_TEXT
+      ? original_text_reloc_count : original_data_reloc_count;
+   uint32_t image_delta = (uint32_t)source_copy_layout->image_base -
+                          source_original->image_base;
+   size_t i;
+
+   for (i = 0; i < original_reloc_count; ++i) {
+      const reloc_t *original_reloc = &segment->relocs[i];
+      reloc_t copy;
+      const replica_group_t *target_group = NULL;
+      uint16_t target_original_index = UINT16_MAX;
+      int target_copy = -1;
+      uint16_t packed_delta = 0;
+      uint16_t word;
+
+      if (original_reloc->offset < source_original->image_base ||
+          original_reloc->offset >= (uint32_t)source_original->image_base +
+                                    source_original->size)
+         continue;
+      copy = *original_reloc;
+      copy.offset += image_delta;
+      word = replica_reloc_word(segment, original_reloc);
+
+      if (copy.has_layout_index) {
+         target_original_index = copy.layout_index;
+         target_group = find_replica_group_by_layout(in, obj,
+            target_original_index, NULL);
+      }
+      else if (copy.segid == O26_SEG_TEXT) {
+         const object_layout_t *target_layout =
+            find_layout_for_value(obj, copy.segid, word);
+         if (target_layout) {
+            target_original_index = replica_layout_index(obj, target_layout);
+            target_group = find_replica_group_by_layout(in, obj,
+               target_original_index, NULL);
+         }
+      }
+      if (target_group) {
+         target_copy = replica_copy_index_for_region(target_group,
+            source_group->regions[source_copy]);
+         if (target_copy >= 0) {
+            const object_layout_t *target_original =
+               &obj->layouts[target_group->original_layout_index];
+            const object_layout_t *target_copy_layout =
+               &obj->layouts[target_group->layout_indices[target_copy]];
+            packed_delta = (uint16_t)(target_copy_layout->packed_base -
+                                      target_original->packed_base);
+            if (copy.has_layout_index)
+               copy.layout_index = target_group->layout_indices[target_copy];
+            word = (uint16_t)(word + packed_delta);
+         }
+      }
+
+      segment->relocs = (reloc_t *)xrealloc(segment->relocs,
+         (segment->reloc_count + 1) * sizeof(*segment->relocs));
+      segment->relocs[segment->reloc_count] = copy;
+      replica_set_reloc_word(segment, &segment->relocs[segment->reloc_count], word);
+      segment->reloc_count++;
+   }
+}
+
+//! @brief Duplicate retained branch metadata originating inside one replica.
+static void duplicate_replica_branches(input_set_t *in,
+                                       replica_group_t *source_group,
+                                       size_t source_copy,
+                                       size_t original_branch_count)
+{
+   object_file_t *obj = source_group->obj;
+   const object_layout_t *source_original =
+      &obj->layouts[source_group->original_layout_index];
+   const object_layout_t *source_copy_layout =
+      &obj->layouts[source_group->layout_indices[source_copy]];
+   uint16_t source_delta = (uint16_t)(source_copy_layout->packed_base -
+                                      source_original->packed_base);
+   size_t i;
+
+   for (i = 0; i < original_branch_count; ++i) {
+      branch_t copy = obj->branches[i];
+      const object_layout_t *target_layout;
+      const replica_group_t *target_group;
+      uint16_t target_index;
+      int target_copy;
+
+      if (copy.segid != source_original->segid ||
+          copy.source < source_original->packed_base ||
+          copy.source >= (uint32_t)source_original->packed_base +
+                         source_original->size)
+         continue;
+      copy.source = (uint16_t)(copy.source + source_delta);
+      target_layout = find_layout_for_value(obj, copy.segid, copy.target);
+      target_index = replica_layout_index(obj, target_layout);
+      target_group = target_index == UINT16_MAX ? NULL :
+         find_replica_group_by_layout(in, obj, target_index, NULL);
+      if (target_group) {
+         target_copy = replica_copy_index_for_region(target_group,
+            source_group->regions[source_copy]);
+         if (target_copy >= 0) {
+            const object_layout_t *target_original =
+               &obj->layouts[target_group->original_layout_index];
+            const object_layout_t *target_copy_layout =
+               &obj->layouts[target_group->layout_indices[target_copy]];
+            copy.target = (uint16_t)(copy.target +
+               target_copy_layout->packed_base - target_original->packed_base);
+         }
+      }
+      else if (target_layout == source_original) {
+         copy.target = (uint16_t)(copy.target + source_delta);
+      }
+      obj->branches = (branch_t *)xrealloc(obj->branches,
+         (obj->branch_count + 1) * sizeof(*obj->branches));
+      obj->branches[obj->branch_count++] = copy;
+   }
+}
+
+//! @brief Parse replication metadata and materialize independent packed copies.
+static void prepare_replicated_rom(const linker_config_t *cfg, input_set_t *in)
+{
+   size_t *original_text_reloc_counts;
+   size_t *original_data_reloc_counts;
+   size_t *original_branch_counts;
+   size_t i, j;
+
+   if (!cfg || !in)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->export_count; ++j) {
+         char kind = 0;
+         char *symbol = NULL;
+         char *region = NULL;
+         replica_group_t *group;
+         if (!replica_metadata_has_prefix(obj->exports[j].name))
+            continue;
+         if (!replica_metadata_parse(obj->exports[j].name, &kind,
+                                     &symbol, &region)) {
+            fprintf(stderr, "vcsc-ld: malformed replication metadata symbol '%s' in %s\n",
+                    obj->exports[j].name, obj->origin);
+            exit(1);
+         }
+         group = find_replica_group_in_object(in, obj, kind, symbol);
+         if (!group) {
+            in->replicas = (replica_group_t *)xrealloc(in->replicas,
+               (in->replica_count + 1) * sizeof(*in->replicas));
+            group = &in->replicas[in->replica_count++];
+            memset(group, 0, sizeof(*group));
+            group->kind = kind;
+            group->symbol = symbol;
+            group->obj = obj;
+            symbol = NULL;
+         }
+         for (size_t r = 0; r < group->copy_count; ++r) {
+            if (strcmp(group->regions[r], region) == 0) {
+               fprintf(stderr,
+                       "vcsc-ld: duplicate replication region '%s' for %s '%s' in %s\n",
+                       region, kind == 'F' ? "function" : "object",
+                       group->symbol, obj->origin);
+               exit(1);
+            }
+         }
+         group->regions = (char **)xrealloc(group->regions,
+            (group->copy_count + 1) * sizeof(*group->regions));
+         group->regions[group->copy_count++] = region;
+         free(symbol);
+      }
+   }
+   if (in->replica_count == 0)
+      return;
+   if (!cfg->cartridge_banked) {
+      fprintf(stderr, "vcsc-ld: replicated ROM objects/functions require a banked cartridge profile\n");
+      exit(1);
+   }
+   if (cfg->bank_count > 64) {
+      fprintf(stderr, "vcsc-ld: replicated ROM placement supports at most 64 logical banks\n");
+      exit(1);
+   }
+
+   for (i = 0; i < in->replica_count; ++i) {
+      replica_group_t *group = &in->replicas[i];
+      if (group->copy_count < 2) {
+         fprintf(stderr, "vcsc-ld: replication metadata for '%s' names fewer than two regions\n",
+                 group->symbol);
+         exit(1);
+      }
+      qsort(group->regions, group->copy_count, sizeof(*group->regions),
+            compare_replica_regions);
+      for (j = 0; j < group->copy_count; ++j) {
+         const memory_region_t *memory = find_memory(cfg, group->regions[j]);
+         if (!memory) {
+            fprintf(stderr, "vcsc-ld: replicated %s '%s' names unknown MEMORY region '%s'\n",
+                    group->kind == 'F' ? "function" : "object",
+                    group->symbol, group->regions[j]);
+            exit(1);
+         }
+         if (!str_ieq(memory->type, "ro") || !memory->bank_name[0]) {
+            fprintf(stderr,
+                    "vcsc-ld: replicated %s '%s' region '%s' must be read-only ROM owned by one cartridge bank\n",
+                    group->kind == 'F' ? "function" : "object",
+                    group->symbol, group->regions[j]);
+            exit(1);
+         }
+      }
+      if (!locate_replica_original_layout(group)) {
+         fprintf(stderr, "vcsc-ld: cannot locate original private layout for replicated %s '%s' in %s\n",
+                 group->kind == 'F' ? "function" : "object",
+                 group->symbol, group->obj->origin);
+         exit(1);
+      }
+      group->layout_indices = (uint16_t *)xcalloc(group->copy_count,
+                                                   sizeof(*group->layout_indices));
+      group->layout_indices[0] = group->original_layout_index;
+   }
+
+   original_text_reloc_counts = (size_t *)xcalloc(in->object_count,
+                                                   sizeof(*original_text_reloc_counts));
+   original_data_reloc_counts = (size_t *)xcalloc(in->object_count,
+                                                   sizeof(*original_data_reloc_counts));
+   original_branch_counts = (size_t *)xcalloc(in->object_count,
+                                               sizeof(*original_branch_counts));
+   for (i = 0; i < in->object_count; ++i) {
+      original_text_reloc_counts[i] = in->objects[i].text.reloc_count;
+      original_data_reloc_counts[i] = in->objects[i].data.reloc_count;
+      original_branch_counts[i] = in->objects[i].branch_count;
+   }
+
+   for (i = 0; i < in->replica_count; ++i) {
+      replica_group_t *group = &in->replicas[i];
+      for (j = 1; j < group->copy_count; ++j) {
+         group->layout_indices[j] = append_replica_layout(group->obj,
+            group->original_layout_index, group->regions[j]);
+      }
+   }
+   for (i = 0; i < in->replica_count; ++i) {
+      replica_group_t *group = &in->replicas[i];
+      size_t object_index = (size_t)(group->obj - in->objects);
+      for (j = 1; j < group->copy_count; ++j) {
+         duplicate_replica_relocations(in, group, j,
+            original_text_reloc_counts[object_index],
+            original_data_reloc_counts[object_index]);
+         duplicate_replica_branches(in, group, j,
+            original_branch_counts[object_index]);
+      }
+   }
+
+   free(original_text_reloc_counts);
+   free(original_data_reloc_counts);
+   free(original_branch_counts);
+}
+
 typedef struct {
    object_file_t *obj;
    object_layout_t *layout;
@@ -3014,6 +3673,7 @@ typedef struct {
    const memory_region_t *pin_memory;
    const cartridge_bank_t *pin_bank;
    size_t stable_order;
+   uint64_t allowed_bank_mask;
    int parent;
    int rank;
    int directly_pinned;
@@ -3033,6 +3693,7 @@ typedef struct {
    uint32_t degree;
    uint32_t cut_weight;
    const cartridge_bank_t *bank;
+   uint64_t allowed_bank_mask;
    int pinned;
    int assigned;
 } bank_placement_component_t;
@@ -3243,6 +3904,7 @@ static const object_layout_t *bank_placement_export_layout(const input_set_t *in
 typedef struct {
    const object_layout_t *layout;
    const cartridge_bank_t *fixed_bank;
+   const replica_group_t *replica;
 } bank_placement_target_t;
 
 //! @brief Resolve the ownership relevant to pre-layout same-bank and call edges.
@@ -3260,6 +3922,8 @@ static bank_placement_target_t bank_placement_reloc_target(const linker_config_t
       const symbol_t *symbol = NULL;
       if (reloc->undef_index >= obj->undef_count)
          return result;
+      result.replica = find_replica_group_by_symbol(in,
+         obj->undefs[reloc->undef_index]);
       result.layout = bank_placement_export_layout(in,
          obj->undefs[reloc->undef_index], &provider, &symbol);
       if (!result.layout && symbol && symbol->segid == O26_SEG_ABS)
@@ -3269,12 +3933,18 @@ static bank_placement_target_t bank_placement_reloc_target(const linker_config_t
    }
    if (reloc->has_layout_index) {
       if (reloc->layout_index < obj->layout_count &&
-          obj->layouts[reloc->layout_index].segid == O26_SEG_TEXT)
+          obj->layouts[reloc->layout_index].segid == O26_SEG_TEXT) {
          result.layout = &obj->layouts[reloc->layout_index];
+         result.replica = find_replica_group_by_layout(in, obj,
+            reloc->layout_index, NULL);
+      }
       return result;
    }
    if (reloc->segid == O26_SEG_TEXT) {
       result.layout = find_layout_for_value(obj, reloc->segid, current_word);
+      if (result.layout)
+         result.replica = find_replica_group_by_layout(in, obj,
+            replica_layout_index(obj, result.layout), NULL);
       return result;
    }
    if (reloc->segid == O26_SEG_ABS)
@@ -3396,6 +4066,51 @@ static int bank_placement_bank_precedes(const cartridge_bank_t *a,
    return strcmp(a->name, b->name) < 0;
 }
 
+//! @brief Return one bank's bit in a validated at-most-64-bank profile.
+static uint64_t bank_placement_bank_bit(const linker_config_t *cfg,
+                                        const cartridge_bank_t *bank)
+{
+   size_t i;
+   if (!cfg || !bank || cfg->bank_count > 64)
+      return 0;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      if (&cfg->banks[i] == bank)
+         return UINT64_C(1) << i;
+   }
+   return 0;
+}
+
+//! @brief Print the declared region set for a replicated symbol diagnostic.
+static void bank_placement_print_replica_regions(const replica_group_t *group)
+{
+   size_t i;
+   fputc('[', stderr);
+   for (i = 0; group && i < group->copy_count; ++i)
+      fprintf(stderr, "%s%s", i ? "," : "", group->regions[i]);
+   fputc(']', stderr);
+}
+
+//! @brief Restrict one movable source to banks that contain a target replica.
+static void bank_placement_restrict_to_replica(const linker_config_t *cfg,
+                                               bank_placement_item_t *item,
+                                               const replica_group_t *group)
+{
+   uint64_t mask;
+   if (!item || !group)
+      return;
+   mask = replica_bank_mask(cfg, group);
+   item->allowed_bank_mask &= mask;
+   if (item->allowed_bank_mask == 0) {
+      fprintf(stderr,
+              "vcsc-ld: layout %s from %s has no bank in common with replicated %s '%s' declared in regions ",
+              item->layout->name, item->obj->origin,
+              group->kind == 'F' ? "function" : "object", group->symbol);
+      bank_placement_print_replica_regions(group);
+      fputc('\n', stderr);
+      exit(1);
+   }
+}
+
 //! @brief Reserve fixed ROM data images and generated startup tables before auto packing.
 static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
                                              const input_set_t *in,
@@ -3449,8 +4164,15 @@ static void bank_placement_assign_component(const linker_config_t *cfg,
                                             size_t *budget_count)
 {
    const memory_region_t *auto_memory = bank_placement_auto_memory(cfg, bank);
+   uint64_t bank_bit = bank_placement_bank_bit(cfg, bank);
    size_t i;
 
+   if (!bank_bit || !(component->allowed_bank_mask & bank_bit)) {
+      fprintf(stderr,
+              "vcsc-ld: bank %s does not satisfy replicated-data locality for hard component %u\n",
+              bank ? bank->name : "<none>", component->id);
+      exit(1);
+   }
    for (i = 0; i < item_count; ++i) {
       const memory_region_t *memory;
       if (bank_placement_root(items, (int)i) != component->root)
@@ -3541,6 +4263,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          items[item_count].configured_memory = memory;
          items[item_count].configured_bank = bank;
          items[item_count].stable_order = item_count;
+         items[item_count].allowed_bank_mask = cfg->bank_count == 64
+            ? UINT64_MAX : ((UINT64_C(1) << cfg->bank_count) - 1u);
          items[item_count].parent = (int)item_count;
          if (is_main) {
             const memory_region_t *pin_memory;
@@ -3607,10 +4331,40 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             if ((control == O26_RTYPE_CONTROL_JSR ||
                  control == O26_RTYPE_CONTROL_JMP) &&
                 !(reloc->type & O26_RTYPE_INDIRECT_JMP)) {
+               /* A replicated function is a soft preference only.  Runtime
+                  relocation selects a source-bank-local copy when present and
+                  otherwise uses the primary copy through a trampoline. */
                bank_placement_add_edge(&edges, &edge_count,
                   source_item, target_item,
                   control == O26_RTYPE_CONTROL_JSR ? BANK_JSR_ENTRY_SIZE
                                                    : BANK_JMP_ENTRY_SIZE);
+               continue;
+            }
+
+            if (target.replica) {
+               if (source_item >= 0) {
+                  bank_placement_restrict_to_replica(cfg,
+                     &items[source_item], target.replica);
+               }
+               else {
+                  const memory_region_t *source_memory =
+                     bank_placement_layout_memory(cfg, source_layout);
+                  const cartridge_bank_t *source_bank =
+                     source_memory && source_memory->bank_name[0]
+                        ? find_cartridge_bank(cfg, source_memory->bank_name) : NULL;
+                  if (source_bank &&
+                      replica_copy_index_for_bank(cfg, target.replica,
+                                                  source_bank) < 0) {
+                     fprintf(stderr,
+                             "vcsc-ld: layout %s from %s in bank %s references replicated %s '%s' with no local copy; declared regions ",
+                             source_layout->name, obj->origin, source_bank->name,
+                             target.replica->kind == 'F' ? "function" : "object",
+                             target.replica->symbol);
+                     bank_placement_print_replica_regions(target.replica);
+                     fputc('\n', stderr);
+                     exit(1);
+                  }
+               }
                continue;
             }
 
@@ -3664,7 +4418,16 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          components[component_count].root = root;
          components[component_count].id = (uint16_t)component_count;
          components[component_count].stable_order = items[i].stable_order;
+         components[component_count].allowed_bank_mask = cfg->bank_count == 64
+            ? UINT64_MAX : ((UINT64_C(1) << cfg->bank_count) - 1u);
          component_count++;
+      }
+      components[c].allowed_bank_mask &= items[i].allowed_bank_mask;
+      if (components[c].allowed_bank_mask == 0) {
+         fprintf(stderr,
+                 "vcsc-ld: hard bank-placement component %u has no bank satisfying all replicated-data locality requirements\n",
+                 components[c].id);
+         exit(1);
       }
       components[c].bytes += items[i].layout->size;
       if (items[i].stable_order < components[c].stable_order)
@@ -3680,6 +4443,14 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          }
          components[c].bank = items[i].pin_bank;
          components[c].pinned = 1;
+         if (!(components[c].allowed_bank_mask &
+               bank_placement_bank_bit(cfg, items[i].pin_bank))) {
+            fprintf(stderr,
+                    "vcsc-ld: pinned layout %s from %s requires bank %s, which has no local copy for one of its replicated-data references\n",
+                    items[i].layout->name, items[i].obj->origin,
+                    items[i].pin_bank->name);
+            exit(1);
+         }
       }
    }
 
@@ -3743,6 +4514,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          uint32_t cut = 0;
          size_t e;
 
+         if (!(next->allowed_bank_mask & (UINT64_C(1) << i)))
+            continue;
          if (!memory || bank_placement_budget_free(&budgets, &budget_count, memory) < next->bytes)
             continue;
          for (e = 0; e < edge_count; ++e) {
@@ -3832,23 +4605,78 @@ typedef struct {
    const object_layout_t *owner_layout;
 } resolved_reloc_target_t;
 
+//! @brief Report a reference from a bank that lacks a required local replica.
+static void report_missing_local_replica(const object_file_t *obj,
+                                         const object_layout_t *source_layout,
+                                         const cartridge_bank_t *source_bank,
+                                         const replica_group_t *group)
+{
+   fprintf(stderr,
+           "vcsc-ld: layout %s from %s in bank %s references replicated %s '%s' with no local copy; declared regions ",
+           source_layout ? source_layout->name : "<unknown>", obj->origin,
+           source_bank ? source_bank->name : "<none>",
+           group->kind == 'F' ? "function" : "object", group->symbol);
+   bank_placement_print_replica_regions(group);
+   fputc('\n', stderr);
+   exit(1);
+}
+
+//! @brief Return whether a missing function copy may use the ordinary trampoline path.
+static int replica_relocation_may_trampoline(const replica_group_t *group,
+                                             const reloc_t *reloc)
+{
+   uint8_t control;
+   if (!group || group->kind != 'F' || !reloc ||
+       (reloc->type & O26_RTYPE_INDIRECT_JMP))
+      return 0;
+   control = reloc->type & O26_RTYPE_CONTROL_MASK;
+   return control == O26_RTYPE_CONTROL_JSR ||
+          control == O26_RTYPE_CONTROL_JMP;
+}
+
 //! @brief Resolve one relocation while retaining the symbol/layout address used for bank identity.
-static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
+static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
+                                                    const linker_config_t *cfg,
+                                                    const object_file_t *obj,
                                                     const reloc_t *r,
                                                     uint16_t current_word,
-                                                    const layout_t *layout)
+                                                    const layout_t *layout,
+                                                    uint8_t image_segid)
 {
    resolved_reloc_target_t result;
+   const object_layout_t *source_layout =
+      find_layout_for_image_offset(obj, image_segid, r->offset);
+   const cartridge_bank_t *source_bank = NULL;
 
    memset(&result, 0, sizeof(result));
    result.name = "<local relocation>";
+   if (source_layout)
+      source_bank = cartridge_bank_for_address(cfg, source_layout->load_addr);
 
    if (r->segid == O26_SEG_UNDEF) {
       const global_symbol_t *global;
+      const replica_group_t *group;
+      int copy_index;
       if (r->undef_index >= obj->undef_count) {
          fprintf(stderr, "vcsc-ld: bad undefined-symbol index in %s\n", obj->origin);
          exit(1);
       }
+      group = find_replica_group_by_symbol(in, obj->undefs[r->undef_index]);
+      copy_index = source_bank ? replica_copy_index_for_bank(cfg, group, source_bank) : -1;
+      if (group && copy_index >= 0) {
+         const object_layout_t *copy =
+            &group->obj->layouts[group->layout_indices[copy_index]];
+         result.address = (uint16_t)(copy->load_addr + group->symbol_offset +
+                                     current_word);
+         result.owner_address = (uint16_t)(copy->load_addr + group->symbol_offset);
+         result.segid = O26_SEG_TEXT;
+         result.name = group->symbol;
+         result.owner_layout = copy;
+         return result;
+      }
+      if (group && source_bank && !replica_relocation_may_trampoline(group, r))
+         report_missing_local_replica(obj, source_layout, source_bank, group);
+
       global = lookup_global_symbol(layout, obj->undefs[r->undef_index]);
       result.address = (uint16_t)(global->addr + current_word);
       result.owner_address = global->addr;
@@ -3859,7 +4687,10 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
 
    if (r->has_layout_index) {
       const object_layout_t *lay;
+      const replica_group_t *group;
       uint16_t base;
+      uint16_t offset;
+      int copy_index;
       if (r->layout_index >= obj->layout_count) {
          fprintf(stderr, "vcsc-ld: relocation layout index %u is out of range in %s\n",
                  (unsigned)r->layout_index, obj->origin);
@@ -3872,6 +4703,29 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
                  lay->name, (unsigned)lay->segid, (unsigned)r->segid, obj->origin);
          exit(1);
       }
+      group = find_replica_group_by_layout(in, obj, r->layout_index, NULL);
+      copy_index = source_bank ? replica_copy_index_for_bank(cfg, group, source_bank) : -1;
+      if (group && copy_index >= 0) {
+         const object_layout_t *copy =
+            &obj->layouts[group->layout_indices[copy_index]];
+         if (current_word < lay->packed_base ||
+             (uint32_t)(current_word - lay->packed_base) >= lay->size) {
+            fprintf(stderr,
+                    "vcsc-ld: replicated relocation value $%04X is outside layout '%s' in %s\n",
+                    current_word, lay->name, obj->origin);
+            exit(1);
+         }
+         offset = (uint16_t)(current_word - lay->packed_base);
+         result.address = (uint16_t)(copy->load_addr + offset);
+         result.owner_address = copy->load_addr;
+         result.segid = r->segid;
+         result.name = group->symbol;
+         result.owner_layout = copy;
+         return result;
+      }
+      if (group && source_bank && !replica_relocation_may_trampoline(group, r))
+         report_missing_local_replica(obj, source_layout, source_bank, group);
+
       base = (r->segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
       result.address = object_runtime_addr_for_layout_value(obj, r->layout_index,
                                                             r->segid, current_word);
@@ -3895,6 +4749,26 @@ static resolved_reloc_target_t resolve_reloc_target(const object_file_t *obj,
       fprintf(stderr, "vcsc-ld: could not map packed relocation value $%04X in %s for segment %u\n",
               current_word, obj->origin, (unsigned)r->segid);
       exit(1);
+   }
+   if (r->segid == O26_SEG_TEXT) {
+      uint16_t target_index = replica_layout_index(obj, result.owner_layout);
+      const replica_group_t *group =
+         find_replica_group_by_layout(in, obj, target_index, NULL);
+      int copy_index = source_bank
+         ? replica_copy_index_for_bank(cfg, group, source_bank) : -1;
+      if (group && copy_index >= 0) {
+         const object_layout_t *copy =
+            &obj->layouts[group->layout_indices[copy_index]];
+         uint16_t offset = (uint16_t)(current_word - result.owner_layout->packed_base);
+         result.address = (uint16_t)(copy->load_addr + offset);
+         result.owner_address = copy->load_addr;
+         result.segid = r->segid;
+         result.name = group->symbol;
+         result.owner_layout = copy;
+         return result;
+      }
+      if (group && source_bank && !replica_relocation_may_trampoline(group, r))
+         report_missing_local_replica(obj, source_layout, source_bank, group);
    }
    result.owner_address = (r->segid == O26_SEG_TEXT)
       ? result.owner_layout->load_addr : result.owner_layout->run_addr;
@@ -4557,7 +5431,8 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
 }
 
 //! @brief Handle apply segment relocs logic for linker layout and image writer.
-static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
+static void apply_segment_relocs(const input_set_t *in,
+                                 object_file_t *obj, o26_segment_t *seg,
                                  layout_t *layout,
                                  const linker_config_t *cfg,
                                  uint8_t image_segid,
@@ -4599,7 +5474,8 @@ static void apply_segment_relocs(object_file_t *obj, o26_segment_t *seg,
             break;
       }
 
-      target = resolve_reloc_target(obj, r, current_word, layout);
+      target = resolve_reloc_target(in, cfg, obj, r, current_word, layout,
+                                    image_segid);
       resolved_address = rewrite_banked_relocation(cfg, obj, image_segid, r,
                                                    &target, layout);
 
@@ -4633,9 +5509,9 @@ static void resolve_all(input_set_t *in, layout_t *layout,
 {
    size_t i;
    for (i = 0; i < in->object_count; ++i) {
-      apply_segment_relocs(&in->objects[i], &in->objects[i].text, layout, cfg,
+      apply_segment_relocs(in, &in->objects[i], &in->objects[i].text, layout, cfg,
                            O26_SEG_TEXT, "text");
-      apply_segment_relocs(&in->objects[i], &in->objects[i].data, layout, cfg,
+      apply_segment_relocs(in, &in->objects[i], &in->objects[i].data, layout, cfg,
                            O26_SEG_DATA, "data");
    }
 }
@@ -5528,6 +6404,35 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          }
       }
 
+      if (in->replica_count > 0) {
+         uint32_t grand_total = 0;
+         fprintf(fp, "\nREPLICATED ROM\n");
+         for (i = 0; i < in->replica_count; ++i) {
+            const replica_group_t *group = &in->replicas[i];
+            const object_layout_t *original =
+               &group->obj->layouts[group->original_layout_index];
+            uint32_t total = (uint32_t)original->size * (uint32_t)group->copy_count;
+            size_t copy_index;
+            grand_total += total;
+            fprintf(fp,
+                    "  kind=%s symbol=%s copies=%zu bytes-each=$%04X physical-total=$%08" PRIX32 " object=%s\n",
+                    group->kind == 'F' ? "function" : "object",
+                    group->symbol, group->copy_count, original->size, total,
+                    group->obj->origin);
+            for (copy_index = 0; copy_index < group->copy_count; ++copy_index) {
+               const object_layout_t *copy =
+                  &group->obj->layouts[group->layout_indices[copy_index]];
+               const cartridge_bank_t *bank =
+                  replica_copy_bank(cfg, group, copy_index);
+               fprintf(fp,
+                       "     region=%-12s bank=%-8s load=$%04X size=$%04X layout=%s\n",
+                       group->regions[copy_index], bank ? bank->name : "<none>",
+                       copy->load_addr, copy->size, copy->name);
+            }
+         }
+         fprintf(fp, "  physical-total-all=$%08" PRIX32 "\n", grand_total);
+      }
+
       size_t jmp_count = 0;
       size_t jsr_count = 0;
       for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
@@ -6207,6 +7112,7 @@ int main(int argc, char **argv)
    validate_abi_metadata(&inputs);
    validate_absolute_binding_memory_regions(&cfg, &inputs);
    validate_mem_region_metadata(&cfg, &inputs);
+   prepare_replicated_rom(&cfg, &inputs);
    assign_automatic_bank_placements(&cfg, &inputs);
    {
       uint16_t weighted_call_depth = 0;
@@ -6249,6 +7155,15 @@ int main(int argc, char **argv)
    free(list_output.owned_default);
    free(cfg_output.owned_default);
 
+   for (i = 0; i < inputs.replica_count; ++i) {
+      size_t j;
+      free(inputs.replicas[i].symbol);
+      for (j = 0; j < inputs.replicas[i].copy_count; ++j)
+         free(inputs.replicas[i].regions[j]);
+      free(inputs.replicas[i].regions);
+      free(inputs.replicas[i].layout_indices);
+   }
+   free(inputs.replicas);
    for (i = 0; i < inputs.object_count; ++i)
       free_object(&inputs.objects[i]);
    free(inputs.objects);
