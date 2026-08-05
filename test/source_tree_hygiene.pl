@@ -23,7 +23,7 @@ my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 my %readme_heading=(
    'README.md' => '# VCSC Toolchain',
    'test/README.md' => '# Test harness notes',
-   '.top_secret/README.md' => '# For Developer Eyes Only',
+   '.../README.md' => '# For Developer Eyes Only',
 );
 for my $rel (sort keys %readme_heading) {
    my $path=File::Spec->catfile($repo,split('/', $rel));
@@ -31,11 +31,11 @@ for my $rel (sort keys %readme_heading) {
    index($body,$readme_heading{$rel})>=0
       or die "$rel has the wrong primary heading; expected $readme_heading{$rel}\n";
 }
-index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `instruction.txt`')>=0
-   or die ".top_secret/README.md does not document instruction.txt\n";
-index(slurp(File::Spec->catfile($repo,'.top_secret','README.md')),'### `bankswitching.txt`')>=0
-   or die ".top_secret/README.md does not document bankswitching.txt\n";
-my $bankswitching=slurp(File::Spec->catfile($repo,'.top_secret','bankswitching.txt'));
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `instruction.txt`')>=0
+   or die ".../README.md does not document instruction.txt\n";
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
+   or die ".../README.md does not document bankswitching.txt\n";
+my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
 index($bankswitching,'BANK0                $F000-$FFFF')>=0
    or die "bankswitching plan lost descending BANK0 logical origin\n";
 index($bankswitching,'VCSC BANK0 is always the final 4K chunk in the file')>=0
@@ -202,7 +202,7 @@ my $component_guide=slurp(File::Spec->catfile(
    $repo,'libraries','vcs','renderers','COMPONENT_CONVERSION.md'));
 index($component_guide,'Retirement of these working profiles is not a completion')>=0
    or die "component guide restored retirement as a roadmap gate\n";
-my $context=slurp(File::Spec->catfile($repo,'.top_secret','context.txt'));
+my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 $context !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
 $context =~ /^Current next action: 23\b/m
@@ -343,7 +343,7 @@ for my $paths (values %hashes) {
 }
 @duplicates and die "byte-identical source/test files remain:\n".join("\n",sort @duplicates)."\n";
 
-my $ledger=File::Spec->catfile($repo,'.top_secret','remove.txt');
+my $ledger=File::Spec->catfile($repo,'...','remove.txt');
 my %seen;
 my %generated_paths=('compiler/coverage_map.h'=>1);
 my(@duplicate_ledger,@resurrected);
@@ -366,8 +366,16 @@ for my $required (qw(
       or die "missing required Superchip file $required\n";
 }
 my $superchip_header=slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26'));
-index($superchip_header,'superchip_ram[128]@[0xF080/0xF000]')>=0
-   or die "superchip.c26 lost @[read/write] alias order\n";
+index($superchip_header,'mem superchip')>=0 &&
+index($superchip_header,'$read_start:0xF080')>=0 &&
+index($superchip_header,'$write_start:0xF000')>=0 &&
+index($superchip_header,'$size:0x0080')>=0
+   or die "superchip.c26 lost the allocatable split-memory region\n";
+index($superchip_header,'superchip_ram')<0
+   or die "superchip.c26 must not publish a whole-window alias\n";
+my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26'));
+index($superchip_diagnostic,'diagnostic_superchip_ram[128]@[0xF080/0xF000]')>=0
+   or die "bankswitching diagnostic lost its private raw Superchip alias\n";
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&

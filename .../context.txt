@@ -9,7 +9,7 @@ VCSC PROJECT CONTEXT
 Purpose
 -------
 This is the durable handoff file for continuing the project after a chat
-restart. It lives at `.top_secret/context.txt`. When asked to "look at
+restart. It lives at `.../context.txt`. When asked to "look at
 context.txt and figure out what to do next":
 
 1. Read this file first.
@@ -17,10 +17,10 @@ context.txt and figure out what to do next":
 3. Continue with the first unfinished item in "Immediate TODO" unless the user
    gives newer instructions.
 4. Update this file after every meaningful change or decision.
-5. Keep `.top_secret/remove.txt` accurate. It contains one repository-relative path
+5. Keep `.../remove.txt` accurate. It contains one repository-relative path
    per intentionally deleted file, suitable for:
 
-       rm `cat .top_secret/remove.txt`
+       rm `cat .../remove.txt`
 
    Exception: when the user explicitly requests erasing a proper name from the
    project, obsolete paths containing that name are not retained in the ledger.
@@ -8476,3 +8476,24 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   cross-translation-unit absolute-binding mismatch, and source-tree hygiene.
   Staged `make installcheck` passes. Bankswitching roadmap item 17,
   the `writeonly` access qualifier, is next.
+
+2026-08-04 19:35:00 PDT, remove the public Superchip raw alias and rename developer records
+-------------------------------------------------------------------------------------------
+* Remove the non-owning `superchip_ram[128]@[0xF080/0xF000]` whole-window alias
+  from the installed `superchip.c26` header. The allocatable generic
+  `mem superchip` definition remains the complete public interface, so ordinary
+  allocator-managed objects are not visually or semantically shadowed by a
+  header-provided alias covering the same physical bytes.
+* Give `bankswitching_diagnostic_suite.c26` its own private
+  `diagnostic_superchip_ram` absolute binding. The diagnostic still probes the
+  complete read and write windows and shared persistence, while ordinary users
+  see only allocator-backed Superchip storage unless they deliberately declare
+  a raw non-owning binding themselves.
+* Rename the developer-only `.top_secret/` directory to `.../`, update active
+  tests and maintenance references, document the intentionally terse name, and
+  record the five renamed old paths in `.../remove.txt`.
+* Update VCS and roadmap documentation plus source-tree hygiene checks to enforce
+  the public-region/private-diagnostic-alias split.
+* Verification: all 372 compile-only tests pass. Focused source-tree hygiene,
+  branding, source-suffix migration, bankswitching-diagnostic, and example-build
+  end-to-end tests pass. Staged `make installcheck` passes.

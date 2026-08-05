@@ -279,7 +279,7 @@ Notes:
 - `legacy-basic-renderers/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_RENDERER_CONVERSION.md` for the staged conversion inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.
 
-### Superchip profiles and explicit RAM aliases
+### Superchip profiles and allocatable RAM
 
 The public `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`
 profiles use the same logical-bank and hotspot order as F8/F6/F4 while reserving
@@ -287,12 +287,11 @@ the first 256 bytes of every physical 4K chunk for the shared 128-byte
 Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K
 chunks are still emitted.
 
-Include `superchip.c26` after `vcs.c26` to obtain both the allocatable
-named region and the explicit whole-window alias:
+Include `superchip.c26` after `vcs.c26` to obtain the allocatable named
+region:
 
 ```c
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
-uint8_t superchip_ram[128]@[0xF080/0xF000];
 ```
 
 Applications may allocate persistent globals, arrays, automatic locals,
@@ -345,5 +344,6 @@ write through `$F000`, while callee and caller reads use `$F080`. The function
 body itself remains automatically placed; combining a writable result region
 with an explicit code region is the next roadmap item. A split-address `ref`
 parameter remains rejected because an ordinary pointer carries only one
-address. The explicit `superchip_ram` declaration remains available when fixed-
-offset access to the complete window is preferable.
+address. Code that deliberately needs a raw fixed-offset view may declare its
+own non-owning absolute binding, but the public header does not publish a
+whole-window alias that silently overlaps allocator-managed objects.

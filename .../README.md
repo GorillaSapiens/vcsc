@@ -7,7 +7,7 @@
 
 # For Developer Eyes Only
 
-This directory is **for developer eyes only**. Its contents are project-maintenance records, not user documentation or installed toolchain data. They stay in the source tree so work can continue consistently across development sessions without presenting internal process files as part of the public interface.
+The deliberately terse directory name is `...`. This directory is **for developer eyes only**. Its contents are project-maintenance records, not user documentation or installed toolchain data. They stay in the source tree so work can continue consistently across development sessions without presenting internal process files as part of the public interface.
 
 ## Files
 

@@ -95,20 +95,23 @@ for my $parts (
    !-e $path or die "obsolete branded path remains: $path\n";
 }
 
-my $top_secret = File::Spec->catdir($repo, '.top_secret');
-opendir(my $top_secret_dh, $top_secret) or die "could not open $top_secret: $!\n";
-my @top_secret_extra = sort grep {
+my $obsolete_developer_records = File::Spec->catdir($repo, '.top_secret');
+!-e $obsolete_developer_records or die "obsolete developer-record directory remains: $obsolete_developer_records\n";
+
+my $developer_records = File::Spec->catdir($repo, '...');
+opendir(my $developer_records_dh, $developer_records) or die "could not open $developer_records: $!\n";
+my @developer_records_extra = sort grep {
    $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'bankswitching.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
-} readdir($top_secret_dh);
-closedir($top_secret_dh);
-@top_secret_extra and die "unexpected developer-only files remain: @top_secret_extra\n";
+} readdir($developer_records_dh);
+closedir($developer_records_dh);
+@developer_records_extra and die "unexpected developer-only files remain: @developer_records_extra\n";
 
 for my $parts (
-   [qw(.top_secret README.md)],
-   [qw(.top_secret context.txt)],
-   [qw(.top_secret bankswitching.txt)],
-   [qw(.top_secret remove.txt)],
-   [qw(.top_secret instruction.txt)],
+   [qw(... README.md)],
+   [qw(... context.txt)],
+   [qw(... bankswitching.txt)],
+   [qw(... remove.txt)],
+   [qw(... instruction.txt)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required developer-only record is missing: $path\n";
@@ -150,7 +153,7 @@ find({
       return if $rel !~ /(?:Makefile|\.(?:c|h|cpp|l|y|pl|md|txt|dox|c26|s|asm|inc|cfg))$/;
       my $data = slurp($path);
       push @unneeded_upstream_name, $rel if $data =~ /\Q$upstream_name\E/i;
-      return if $rel eq '.top_secret/context.txt' || $rel eq '.top_secret/remove.txt';
+      return if $rel eq '.../context.txt' || $rel eq '.../remove.txt';
       push @old_branding, $rel if $data =~ /(?:n65|libraries\/nlib|\bnlib\.(?:l26|inc)\b|\/opt\/n(?:\/|\b))/;
    },
 }, $repo);
@@ -171,7 +174,7 @@ for my $path (@markdown) {
    my $prefix = "```text\n$banner\n```\n\n";
    index($data, $prefix) == 0 or die "documentation lacks VCSC FIGlet banner: $path\n";
 }
-for my $rel ('compiler/ABI.txt', '.top_secret/context.txt',
+for my $rel ('compiler/ABI.txt', '.../context.txt',
              'libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt') {
    my $path = File::Spec->catfile($repo, split('/', $rel));
    my $data = slurp($path);

@@ -6,11 +6,9 @@
 //     superchip uint8_t buffer[32];
 //
 // The read alias comes first and the write alias second, matching VCSC's
-// existing @[read_address/write_address] split-ref syntax.  The physical RAM
+// existing @[read_address/write_address] split-address syntax.  The physical RAM
 // is shared across every selected F8SC/F6SC/F4SC ROM bank.  Include this file
 // after vcs.c26 when linking with an SC profile.
 
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 
-// Explicit whole-window alias retained for applications that want fixed refs.
-uint8_t superchip_ram[128]@[0xF080/0xF000];

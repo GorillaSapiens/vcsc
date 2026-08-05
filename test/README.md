@@ -506,10 +506,10 @@ duplicate deletion-ledger entries, any deleted path that reappears, displaced
 core README files, and broken relative Markdown links.
 
 `vcsc_branding.pl` also enforces the developer-record quarantine:
-`.top_secret/context.txt`, `.top_secret/bankswitching.txt`,
-`.top_secret/instruction.txt`, `.top_secret/remove.txt`, and their explanatory
-README occupy that internal role, while the obsolete top-level notes and
-software-stack snapshot must remain absent. `source_tree_hygiene.pl` locks the
+`.../context.txt`, `.../bankswitching.txt`,
+`.../instruction.txt`, `.../remove.txt`, and their explanatory
+README occupy that internal role, while the old `.top_secret/` directory,
+obsolete top-level notes, and software-stack snapshot must remain absent. `source_tree_hygiene.pl` locks the
 bankswitching plan's descending logical-bank convention, lowest-address-first
 file order, early per-bank reset work, completed byte-identical direct-`JMP` and JSR-to-indirect-JMP
 trampoline table with weighted call-stack accounting, `main`-in-BANK0

@@ -6,7 +6,7 @@ Status
 This is the detailed design and implementation roadmap for the broad project
 roadmap items covering 8K-and-larger cartridge bankswitching and Superchip RAM.
 It is an internal planning document, not installed user documentation. The
-main roadmap in `.top_secret/context.txt` remains authoritative for project
+main roadmap in `.../context.txt` remains authoritative for project
 ordering; this file owns the detailed order within those milestones.
 
 The first implementation family is the ordinary full-window Atari schemes:
@@ -847,8 +847,9 @@ when main roadmap item 29 becomes active.
          8K/16K/32K output sizes, using Stella diagnostic cartridges in addition
          to structural linker tests.
        * Implemented profiles reserve `$x000-$x0FF`, allocate ordinary ROM only
-         in `$x100-$xEFF`, install `superchip.c26` with
-         `superchip_ram[128]@[0xF080/0xF000]`, and reject SC cfgs whose bank-owned
+         in `$x100-$xEFF`, install `superchip.c26` with the allocatable
+         `mem superchip` region, keep the diagnostic suite's whole-window
+         absolute alias private to that suite, and reject SC cfgs whose bank-owned
          read-only regions overlap the RAM ports. Structural tests also mutate
          each public profile to expose the prefix and require the linker to
          reject it. The three Superchip diagnostic cartridges internally run

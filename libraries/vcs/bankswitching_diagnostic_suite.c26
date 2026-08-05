@@ -10,6 +10,9 @@
 include "vcs.c26"
 #ifdef SUPERCHIP_TEST
 include "superchip.c26"
+
+// Private raw alias used only to probe the complete Superchip window.
+uint8_t diagnostic_superchip_ram[128]@[0xF080/0xF000];
 #endif
 
 #ifndef MAPPER_BANKS
@@ -215,10 +218,10 @@ bank0 void simulator_done(void) {
 
 bank1 void nested_leaf1(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD1;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    nested_count := nested_count + 1;
    signature := 0xA1;
@@ -226,10 +229,10 @@ bank1 void nested_leaf1(void) {
 
 bank0 void call_target0(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD0;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    nested_leaf1();
    signature := 0x40;
@@ -238,10 +241,10 @@ bank0 void call_target0(void) {
 
 bank0 void jump_target0(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD0;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -258,10 +261,10 @@ bank0 void jump_target0(void) {
 #if MAPPER_BANKS > 1
 bank1 void call_target1(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD1;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x41;
    call_count := call_count + 1;
@@ -269,10 +272,10 @@ bank1 void call_target1(void) {
 
 bank1 void jump_target1(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD1;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -291,10 +294,10 @@ bank1 void jump_target1(void) {
 #if MAPPER_BANKS > 2
 bank2 void call_target2(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD2;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x42;
    call_count := call_count + 1;
@@ -302,10 +305,10 @@ bank2 void call_target2(void) {
 
 bank2 void jump_target2(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD2;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -321,10 +324,10 @@ bank2 void jump_target2(void) {
 
 bank3 void call_target3(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD3;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x43;
    call_count := call_count + 1;
@@ -332,10 +335,10 @@ bank3 void call_target3(void) {
 
 bank3 void jump_target3(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD3;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -354,10 +357,10 @@ bank3 void jump_target3(void) {
 #if MAPPER_BANKS > 4
 bank4 void call_target4(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD4;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x44;
    call_count := call_count + 1;
@@ -365,10 +368,10 @@ bank4 void call_target4(void) {
 
 bank4 void jump_target4(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD4;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -384,10 +387,10 @@ bank4 void jump_target4(void) {
 
 bank5 void call_target5(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD5;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x45;
    call_count := call_count + 1;
@@ -395,10 +398,10 @@ bank5 void call_target5(void) {
 
 bank5 void jump_target5(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD5;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -414,10 +417,10 @@ bank5 void jump_target5(void) {
 
 bank6 void call_target6(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD6;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x46;
    call_count := call_count + 1;
@@ -425,10 +428,10 @@ bank6 void call_target6(void) {
 
 bank6 void jump_target6(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD6;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -444,10 +447,10 @@ bank6 void jump_target6(void) {
 
 bank7 void call_target7(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD7;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    signature := 0x47;
    call_count := call_count + 1;
@@ -455,10 +458,10 @@ bank7 void call_target7(void) {
 
 bank7 void jump_target7(void) {
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5) {
       failure := 0xD7;
    }
-   superchip_ram[1] := superchip_ram[1] + 1;
+   diagnostic_superchip_ram[1] := diagnostic_superchip_ram[1] + 1;
 #endif
    asm tsx;
    asm stx stack_after;
@@ -484,8 +487,8 @@ bank0 void finish_all(void) {
       failure := 0xFE;
    }
 #ifdef SUPERCHIP_TEST
-   if (superchip_ram[0] != 0x5A || superchip_ram[127] != 0xA5 ||
-       superchip_ram[1] != MAPPER_BANKS * MAPPER_BANKS + MAPPER_BANKS + 1) {
+   if (diagnostic_superchip_ram[0] != 0x5A || diagnostic_superchip_ram[127] != 0xA5 ||
+       diagnostic_superchip_ram[1] != MAPPER_BANKS * MAPPER_BANKS + MAPPER_BANKS + 1) {
       failure := 0xFD;
    }
 #endif
@@ -996,9 +999,9 @@ void main(void) {
    // Explicit split-address Superchip refs: writes use $F000-$F07F and reads
    // use $F080-$F0FF. Boundary sentinels and one matrix-wide counter prove
    // that a single 128-byte RAM persists across every selected ROM bank.
-   superchip_ram[0] := 0x5A;
-   superchip_ram[1] := 0;
-   superchip_ram[127] := 0xA5;
+   diagnostic_superchip_ram[0] := 0x5A;
+   diagnostic_superchip_ram[1] := 0;
+   diagnostic_superchip_ram[127] := 0xA5;
 #endif
    asm jmp dispatch_source;
 }

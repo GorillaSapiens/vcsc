@@ -1205,3 +1205,8 @@ test/absolute_ref_split_address_error_test.c26
 test/aggregate_too_many_absolute_ref_initializer_error_test.c26
 test/e2e_global_absolute_ref_init.c26
 test/global_absolute_ref_init_codegen_test.c26
+.top_secret/README.md
+.top_secret/bankswitching.txt
+.top_secret/context.txt
+.top_secret/instruction.txt
+.top_secret/remove.txt
