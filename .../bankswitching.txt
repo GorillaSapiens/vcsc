@@ -113,10 +113,9 @@ range: $1FF9 for F8 and F6, and $1FFB for F4.
 
 The linker emits those banks contiguously without the unused logical gaps
 between $1FFF and $3000, $3FFF and $5000, and so on. File position, VCSC logical
-address, and selector hotspot are three separate facts. The currently
-implemented cfg records all three relationships explicitly, and the linker
-validates the complete table rather than guessing from a name or relying on
-declaration order. Roadmap items 24 through 27 replace that duplicated
+address, and selector hotspot are three separate facts. The currently implemented cfg records all three relationships explicitly and
+the linker validates the complete table rather than guessing from a name or
+relying on declaration order. Roadmap items 24 through 27 replace that duplicated
 cfg description with ordinary C26 topology metadata while preserving these same
 three independent identities.
 
@@ -133,8 +132,7 @@ startup-bank rule as a separate decision.
 
 Current cfg implementation model
 --------------------------------
-The implemented system has separate public linker configurations for the
-common schemes:
+Add separate public linker configurations for the common schemes:
 
     vcs_8k_f8.cfg
     vcs_16k_f6.cfg
@@ -205,33 +203,33 @@ Planned C26 topology model and cfg retirement
 ------------------------------------------------
 The cfg files are a historical implementation mechanism, not the desired final
 source of cartridge truth. They currently repeat facts already present in C26
-`mem` declarations and hide the physical mapper description in a second syntax.
-The planned model moves the complete public cartridge description into ordinary
-C26 metadata and leaves cfg support only as a temporary compatibility path and,
+`mem` declarations and hide physical image topology in a second syntax. The
+planned model moves the complete public cartridge description into ordinary C26
+metadata and leaves cfg support only as a temporary compatibility path and,
 possibly, a future escape hatch for unusual non-VCS targets.
 
 The design separates two declarations with deliberately different jobs:
 
-* `bank` describes one physical cartridge storage unit, its location in the
-  emitted file, the part of that unit mapped as switched ROM, the CPU-visible
-  mirror of that mapping, its synthetic link-time range, its selection trigger,
-  and startup status.
+* `bank` describes one independently emitted cartridge-image unit, its location
+  in the output file, the part of that unit mapped into logical CPU space, and,
+  when applicable, the selector which makes that mapping active. A bank may be
+  selector-controlled or directly mapped.
 * `mem` describes only bytes which are available to the allocator. This adopts
   the strict "allocatable bytes only" interpretation: vector bytes, generated
-  bridges, mapper-reserved bytes, Superchip port prefixes, and other holes are
-  not included in a `mem` region merely because they lie inside a physical bank.
+  bridges, mapper-reserved bytes, RAM-port prefixes, and other holes are not
+  included in a `mem` region merely because they lie inside an output bank.
 
 `bank` and `mem` use separate namespaces. The same spelling may be used in both:
 
-    bank bank1 { /* physical-bank topology */ };
+    bank bank1 { /* output and mapping topology */ };
     mem  bank1 { /* source-placement region */ };
 
 A source declaration modifier such as `bank1 void logic(void)` always resolves
-in the `mem` namespace. A physical bank is not a source placement qualifier.
-Neither namespace gives semantic meaning to the spelling `bank0`, `bank1`,
-`superchip`, or any other name. Matching names are convenient for people, but
-the linker must derive behavior entirely from declared values. For example,
-`bank fred` may contain `mem bank1` when their ranges establish that relationship.
+in the `mem` namespace. A bank is not a source placement qualifier. Neither
+namespace gives semantic meaning to the spelling `bank0`, `bank1`, `ram`, or any
+other name. Matching names are convenient for people, but the linker must derive
+behavior entirely from declared values. For example, `bank fred` may contain
+`mem bank1` when their ranges establish that relationship.
 
 Do not add a magic declaration such as `cart f8;`. A file named `f8.c26` or
 `f8sc.c26` may be a convenient installed library file, but its filename and
@@ -303,24 +301,26 @@ The fields have these intended meanings:
   declaration order, numeric suffixes, and logical-address sorting are not hidden
   substitutes for it.
 * `$image_offset` is the byte offset within the physical chunk at which the
-  switched ROM mapping begins.
+  logical mapping begins.
 * `$link_start` and `$map_size` define the synthetic linker range which uniquely
-  distinguishes the selected bank.
-* `$cpu_start` and `$map_size` define where those bytes appear to the 6507 while
-  the bank is selected. For a link address `L` inside the mapping, the physical
-  bank offset is `image_offset + (L - link_start)` and the CPU address is
-  `cpu_start + (L - link_start)`. Generated cartridge offsets are physical-bank
-  offsets and are translated through the same mapping when a logical mirror is
-  needed.
-* `$select_access` is an any-bus-access selector hotspot, matching the current
-  F8/F6/F4 hardware and the linker's state-preserving `STA hotspot` bridges. A
-  later mapper may require separately described read, write, or value-qualified
-  selectors; that must extend the topology language rather than overload names.
-* `$startup` marks the one bank whose reset/runtime/main placement contract is
-  used by the current full-window family.
+  distinguishes the bank's contents during linking.
+* `$cpu_start` and `$map_size` define where those bytes appear to the 6507.
+* `$select_access`, when present, is an any-bus-access selector hotspot matching
+  the current F8/F6/F4 hardware and the linker's state-preserving `STA hotspot`
+  bridges. A later mapper may require separately described read, write, masked,
+  or value-qualified selectors; that must extend the topology language rather
+  than overload names.
+* Absence of `$select_access` means the bank is directly mapped. Its logical
+  mapping is simultaneously available with every other nonoverlapping direct
+  bank, and references to it never acquire selector or trampoline code.
+* `$startup` marks the one selector-controlled bank whose reset/runtime/main
+  placement contract is used by the current full-window family. A direct-only
+  topology does not require a startup-bank marker; ordinary vectors and placement
+  priority determine its entry layout.
 * The `cartridge` block gives output-wide fill and explicit locations/capacities
-  for linker-generated replicated material. These values replace hidden
-  mapper-name tables; unallocated gaps remain fill and are not allocator regions.
+  for linker-generated replicated material. Direct-only topologies which need no
+  mapper trampolines or reset bridges may omit those reservations and retain only
+  the output properties they actually use.
 
 Plain F8 and F8SC therefore have genuinely different bank declarations. Plain
 F8 maps the complete physical bank as ROM:
@@ -348,7 +348,7 @@ vector machinery. Thus the model records all three distinct extents:
     ordinary allocatable ROM:   image offsets $100-$EFF
 
 This distinction is how the linker knows that Superchip accesses do not require
-hotspot code. Bank ownership is derived from allocator-region containment in a
+hotspot code. Output ownership is derived from allocator-region containment in a
 bank's synthetic mapped link range, not from a numeric CPU address and not from
 a region name. For each `mem` region with an allocatable link range, the linker
 finds containing bank ranges using:
@@ -359,11 +359,11 @@ and
 
     mem.start + mem.size <= bank.link_start + bank.map_size
 
-Exactly one containing bank makes the region bank-local. No containing bank
-makes it shared/nonbanked. More than one containing bank is an ambiguous target
-configuration and is rejected. The inference uses the synthetic link range,
-never the CPU-visible mirror, because all selected banks may share the same CPU
-window.
+Exactly one containing bank gives the region one output owner. No containing
+bank makes it shared/unpackaged by that bank table. More than one containing bank
+is an ambiguous target configuration and is rejected. The inference uses the
+synthetic link range, never the CPU-visible mirror, because selector-controlled
+banks may share the same CPU window.
 
 For the F8SC example:
 
@@ -374,20 +374,61 @@ For the F8SC example:
 The Superchip aliases lie outside every switched-ROM link range and therefore
 have no owning bank. They are one shared split-address allocation. Relocations
 to that region remain ordinary direct reads/writes from every selected bank;
-they never generate a selector access. Cross-bank rewriting is driven by the
-source and target regions' inferred bank ownership, not by seeing an address in
-the `$Fxxx` range.
+they never generate a selector access.
+
+Output ownership and switch behavior are separate facts:
+
+* A region owned by a directly mapped bank is always directly addressable. Calls,
+  jumps, and data references between distinct direct banks use ordinary absolute
+  addresses and never use bridges.
+* A region owned by a selector-controlled bank participates in the current
+  selected-bank state. Transfers between different selector-controlled banks use
+  the declared selector and generated bridge machinery.
+* A region with no output-bank owner is shared/nonbanked and never causes a bank
+  transition by itself.
+
+A direct-bank topology can therefore use the same declaration machinery purely
+for deterministic image packaging. For example:
+
+    bank bank1 {
+        $image_size:   0x1000
+        $file_index:   0
+        $image_offset: 0x0000
+        $link_start:   0x3000
+        $cpu_start:    0x3000
+        $map_size:     0x1000
+    };
+
+    bank bank0 {
+        $image_size:   0x1000
+        $file_index:   1
+        $image_offset: 0x0000
+        $link_start:   0xf000
+        $cpu_start:    0xf000
+        $map_size:     0x1000
+    };
+
+    mem bank1 { $start:0x3000 $size:0x1000 $ro };
+    mem bank0 { $start:0xf000 $size:0x0ffa $ro $priority:2 };
+
+This emits two fixed 4K chunks in declared file order. The first chunk represents
+logical `$3000-$3FFF`; the second represents `$F000-$FFFF`, with its final six
+bytes reserved for ordinary vectors. Both mappings are simultaneously available.
+A call from `$Fxxx` to `$3xxx` is an ordinary `JSR $3xxx`, not a cross-bank call.
+The output format may remain a flat concatenation when the consumer already knows
+the target profile; a future self-describing container may add a range table
+without changing the linker-address or placement model.
 
 No explicit `$bank` property is needed on `mem`. The linker validates that every
-bank-local allocation lies wholly inside exactly one mapped link range, that
-mapped link ranges do not overlap, that `image_offset + map_size <= image_size`,
-that file indices are unique and dense, that selector triggers are valid and
-unique for the profile, and that exactly one startup bank exists. It also maps
-allocator and generated ranges back to physical image offsets and rejects any
-collision between ordinary allocation and any RAM-port prefix, trampoline
-table, vector bridge, vectors, selector byte, or other declared reservation.
-Generated-region overlaps are also rejected unless the topology and bridge/vector
-rules explicitly permit them, as with F4's selector/vector-byte overlap.
+owned allocation lies wholly inside exactly one mapped link range, that mapped
+link ranges of simultaneously available direct banks do not overlap, that
+selector-controlled synthetic ranges are unambiguous, that
+`image_offset + map_size <= image_size`, that file indices are unique and dense,
+and that selector triggers are valid and unique for the profile. It requires
+exactly one startup bank only when selector-controlled banks are present. It also
+maps allocator and generated ranges back to physical image offsets and rejects
+any collision between ordinary allocation, RAM-port prefixes, trampoline tables,
+vector bridges, vectors, selector bytes, or other declared reservations.
 
 Once `mem` is authoritative, ordinary segment routing is mechanical rather than
 cfg-authored duplication:
@@ -398,11 +439,12 @@ cfg-authored duplication:
                                      run in writable mem region
 
 Unqualified CODE/RODATA/DATA/BSS/STARTUP placement is derived from region access,
-priority, startup-bank ownership, and existing language rules. The linker must
-continue to preserve private movable layouts, hard pins, alignment/page
-constraints, split read/write aliases, and deterministic placement. The map
-reports both the `mem` region and its inferred physical bank so the inference is
-visible rather than mystical.
+priority, startup-bank ownership where applicable, and existing language rules.
+The linker must continue to preserve private movable layouts, hard pins,
+alignment/page constraints, split read/write aliases, and deterministic
+placement. The map reports both the `mem` region and its inferred output bank,
+including whether that bank is direct or selector-controlled, so the inference
+is visible rather than mystical.
 
 Renderer and hand-written assembly constraints are not cartridge topology and
 must not be moved into a renderer x mapper matrix of target files. Segment
@@ -459,11 +501,13 @@ than being duplicated wholesale.
 
 Bank-aware relocation rules
 ---------------------------
-A declared bank identity, not just an arithmetic test on upper address bits,
-determines whether two ROM locations are in the same physical bank. The current
-implementation obtains that identity from cfg ownership; roadmap item 25 derives
-it from C26 `mem` containment within C26 `bank` mapped link ranges. This also
-handles Superchip banks whose allocatable ROM begins at $x100.
+A declared output-bank identity, not just an arithmetic test on upper address
+bits, determines whether two ROM locations share one selector-controlled bank.
+The current implementation obtains that identity from cfg ownership; roadmap
+item 25 derives it from C26 `mem` containment within C26 `bank` mapped link
+ranges. Direct banks remain simultaneously addressable and therefore do not use
+this selected-bank test. This also handles Superchip banks whose allocatable ROM
+begins at $x100.
 
 References from banked ROM obey these rules:
 
@@ -743,7 +787,7 @@ banks. The current SC cfg profiles reserve each bank's $x000-$x0FF RAM-port pref
 begin allocatable ROM at $x100 while still emitting complete 4K physical banks.
 In the planned C26 topology model, the `bank` mapping begins at image offset
 `$0100` and CPU/link address `$x100`; this explicit mapping, not the word
-`superchip`, keeps the RAM aliases shared and outside bank-local ROM.
+`superchip`, keeps the RAM aliases shared and outside selector-controlled ROM.
 
 A non-owning `@[read/write]` absolute external binding may not overlap these or
 any other allocator-managed windows. The linker compares the binding's complete
@@ -1023,7 +1067,7 @@ when main roadmap item 29 becomes active.
          background/white-F frame. The P and F are the exact default ASCII
          glyphs, loaded through ordinary indexed syntax which must remain
          absolute for relocatable ROM, and changed only on a scanline boundary.
-         The public example also emits one deliberately poisoned F8SC image and
+         The public example also emits one deliberately poisoned F8 image and
          every displayed result frame is exactly 262 scanlines.
        * Run the complete matrix in Stella, force every physical startup bank,
          and run developer-mode randomized startup-bank trials.  The top-level
@@ -1463,21 +1507,6 @@ when main roadmap item 29 becomes active.
          cross-bank calls, and both successful directional binding and every
          rejected capability mismatch.
 
-       Completed 2026-08-05:
-       * Add `ref const T`, `ref writeonly T`, and ordinary `ref T` as distinct
-         one-address contracts. Call lowering selects the read alias, write alias,
-         or one proven shared address from the formal parameter capability; it
-         never manufactures a fat pointer or guesses one side for ordinary `ref`.
-       * Carry ref capability through callee lvalue checks, forwarding conversions,
-         same-translation-unit function compatibility, and linker ABI metadata.
-         Read/write refs may narrow to either restricted form; restricted refs may
-         neither regain read/write access nor exchange const/writeonly capability.
-       * Add exact-address execution, inline and separately compiled calls, arrays,
-         structures and members, generic reversed/noncontiguous split regions,
-         one-sided and split absolute bindings, same-TU and cross-object mismatch
-         diagnostics, forbidden-operation tests, and an F8 cross-bank trampoline
-         regression.
-
 [x] 20. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.
 
@@ -1506,22 +1535,6 @@ when main roadmap item 29 becomes active.
          plus writable-result tests, declaration/definition mismatch tests, and the
          explicit deferred-multi-region diagnostic consumed by item 21.
 
-       Completed 2026-08-05:
-       * Classify every named function modifier from its `mem` declaration:
-         read-only regions form the code-placement set and one writable region
-         selects the hidden result object. Modifier spelling and order have no
-         semantic role; ordinary and split-address writable regions both work.
-       * Emit code and result storage independently, preserve automatic/default
-         placement when either role is absent, and compare the two facts
-         independently in same-translation-unit compatibility and linker ABI
-         metadata. Map output now shows the actual CODE layout separately from
-         ordinary or split return-object activation storage.
-       * Reject duplicate modifiers, multiple writable result regions, writable
-         storage on `void`, inline region contracts, and multiple read-only code
-         regions with the explicit item-21 deferral diagnostic. Add arbitrary-name,
-         order-independence, code-plus-result, ordinary/split result, map-placement,
-         and separate-object ABI mismatch coverage.
-
 [x] 21. Add explicit multi-bank duplication for immutable objects and functions.
 
        * Accept an order-insensitive set of named bank-region modifiers, for
@@ -1547,30 +1560,6 @@ when main roadmap item 29 becomes active.
          and test local binding, mixed pinned/unpinned callers, the complete
          `bank0 bank1 superchip` function form, function pointers remaining
          unsupported, and deterministic diagnostics for missing copies.
-
-       Completed 2026-08-05:
-       * Accept order-insensitive multi-region `$ro` contracts for immutable
-         file-scope objects and non-inline functions. Emit one compiler body or
-         initializer plus linker-visible replication metadata, then materialize
-         independently placed private copies in every named bank region.
-       * Resolve object relocations to the copy in the referencing function's bank
-         and constrain automatic readers to banks with a local copy. Diagnose a
-         pinned reader whose bank has no object copy. Resolve direct function calls
-         to a local body first, with deterministic cross-bank trampoline fallback
-         to the primary body when the caller's bank has no copy.
-       * Preserve one logical symbol and one optional shared writable result object
-         across all function bodies. Compare sorted function code-region sets,
-         result storage, and replicated-object region sets in same-translation-unit
-         and linker ABI contracts. Keep function pointers unsupported.
-       * Reject duplicate regions, mutable object duplication, non-read-only or
-         split-address replica regions, inline region contracts, and unusable
-         unbanked/missing linker regions. Report every physical copy, load address,
-         per-symbol cost, and aggregate replicated-ROM cost in the map.
-       * Add F8SC local-copy and `bank0 bank1 superchip` execution, mixed automatic
-         placement, F6 missing-copy/fallback and three-copy execution, separate-
-         object matching, independent ABI mismatch, and compiler rejection coverage.
-         Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene,
-         and roadmap documentation.
 
 [x] 22. Coalesce a single returned automatic variable with `$$`.
 
@@ -1602,26 +1591,6 @@ when main roadmap item 29 becomes active.
          regions differ, including distinct regions which happen to map to the same
          physical addresses. Update language, ABI, map, and optimization documentation.
 
-       Completed 2026-08-05:
-       * Detect a single automatic local named by every return expression and alias
-         it with the existing hidden return object only after exact type, const,
-         pointer-access, width, named-region, placement-class, and split-alias
-         checks. Keep by-value uses eligible while treating address-taking, `ref`
-         binding, explicit `$$`, and inline assembly as observable escape hazards.
-       * Emit no separate local allocation and no final return copy. Preserve the
-         `function$__return` symbol and all existing caller behavior. Ordinary
-         zero-page, named absolute, and split-address result storage all use the
-         same activation-overlay allocation; split writes and reads retain their
-         distinct aliases.
-       * Add relocated linker metadata and a `RETURN COALESCING` map section with
-         function, local, ABI return symbol, region, read/write addresses, width,
-         and defining object. Count the physical storage once.
-       * Add straight-line, branched, one- through four-byte binary and packed-BCD,
-         ordinary absolute, Superchip-style split, safe by-value, and deterministic
-         fallback coverage for every required mismatch or escape case. Update the
-         compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
-         roadmap documentation.
-
 [x] 23. Integrate automatic Superchip initialization and lifecycle tests.
 
        * Clear SC BSS and copy SC DATA through the write window during normal
@@ -1634,74 +1603,63 @@ when main roadmap item 29 becomes active.
        * Consider activation-overlay placement only after persistent allocation
          is stable and measured.
 
-       Completed 2026-08-05:
+[ ] 24. Define generic C26 cartridge-output and bank topology.
 
-       * Generalize linker startup records to carry distinct readable and writable
-         runtime addresses. DATA copies and BSS clears use the write alias, while
-         `STARTUP INITIALIZATION` map output reports load/read/write addresses,
-         size, split status, and the explicit every-reset policy.
-       * Define the lifecycle: physical power-on contents are unspecified; every
-         entry through reset restores all allocated BSS/DATA declarations; mapper
-         bank switches preserve shared Superchip bytes; unallocated bytes have no
-         VCSC contract. Keep automatic locals in the already completed call-graph
-         activation overlay rather than inventing a separate SC overlay policy.
-       * Extend `vcsc-sim` with hostile split-memory fill and one-shot reset-at-PC
-         controls. The reset preserves RAM and current bank selection before the
-         vector fetch, exercising the real generated reset bridge and startup path.
-       * Fold lifecycle coverage into the existing six complete-matrix diagnostic
-         cartridges. SC builds own all 128 bytes as mixed BSS and DATA, validate
-         startup, aliases, bounds, and matrix-wide persistence, poison the region,
-         reset, and require a second PASS. Convert the existing poisoned reference
-         to F8SC instead of adding an eighth cartridge.
-       * Make Stella press console Reset before snapshotting every SC result and
-         grade the second PASS/FAIL frame. Add installed-toolchain, map, hostile-
-         fill, reset, overflow, documentation, and source-hygiene coverage.
-
-[ ] 24. Define generic C26 cartridge-output and physical-bank topology.
-
-       * Add C26 `cartridge` and `bank` declarations, keep the `bank` namespace
-         separate from the existing `mem` namespace, and carry their complete
-         declarations through compiler metadata and o26.
+       * Add separate `cartridge` and `bank` declaration namespaces to C26 and
+         carry their complete declarations through compiler metadata and o26.
          The exact grammar must express fill, generated trampoline/vector ranges,
          physical image size, physical file index, mapped image offset, synthetic
-         link start, CPU-visible start, mapped size, selector trigger, and startup
-         status. Do not add a magic mapper keyword such as `cart f8`.
+         link start, CPU-visible start, mapped size, optional selector trigger,
+         and optional startup status. Do not add a magic mapper keyword such as
+         `cart f8`.
+       * Define a bank without a selector as directly mapped and simultaneously
+         available with every nonoverlapping direct bank. Define a bank with a
+         selector as selector-controlled. Selector absence must never be treated
+         as an incomplete declaration or cause generated switch code.
        * Permit the same identifier in the `bank` and `mem` namespaces. Source
          placement modifiers always resolve to `mem`; bank names are configuration
          handles only. Reject all name-derived behavior.
        * Use `$select_access` for the current any-access F8/F6/F4 hotspots and leave
-         an explicit extension path for read-, write-, or value-qualified future
-         selectors. Generated bridges must continue using the declared trigger.
+         an explicit extension path for read-, write-, masked-, or value-qualified
+         future selectors. Generated bridges must continue using the declared
+         trigger.
        * Merge byte-identical declarations across translation units and reject
          conflicting declarations with source locations. Validate unique/dense
-         file indices, nonoverlapping physical output chunks and synthetic link
-         ranges, one startup bank, mapped-range containment in each physical image,
-         selector validity, and generated-range bounds/overlap.
-       * Add parser, metadata, malformed-topology, separate-compilation, map, and
-         source-hygiene tests. Keep current cfg behavior available during migration.
+         file indices, physical bounds, nonoverlapping direct mappings, unambiguous
+         selector-controlled mappings, selector validity, generated-range bounds,
+         and exactly one startup bank when selector-controlled banks exist.
+       * Add parser, metadata, malformed-topology, separate-compilation, direct-
+         bank packaging, switched-bank, map, and source-hygiene tests. Keep current
+         cfg behavior available during migration.
 
-[ ] 25. Make C26 `mem` declarations authoritative and derive bank ownership.
+[ ] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.
 
        * Adopt the allocatable-bytes-only interpretation of `mem`. Do not include
-         Superchip port prefixes, trampoline corridors, bridges, vectors, selector
-         bytes, or fill holes in an allocatable region.
+         RAM-port prefixes, trampoline corridors, bridges, vectors, selector bytes,
+         or fill holes in an allocatable region.
        * Remove the need for cfg MEMORY duplication and for a `mem $bank` property.
-         Infer a region's physical owner only when its complete synthetic link range
+         Infer one output owner only when a region's complete synthetic link range
          lies inside exactly one declared bank mapped link range. Treat no match as
-         shared/nonbanked and multiple matches as a configuration error. Never infer
-         ownership from names or CPU-visible mirrors.
+         shared/unpackaged and multiple matches as a configuration error. Never
+         infer ownership from names or CPU-visible mirrors.
+       * Keep output ownership separate from access behavior. References between
+         direct banks remain ordinary absolute references. References between
+         distinct selector-controlled banks use selector/trampoline machinery.
+         Shared regions never cause a transition by themselves.
        * Prove that F8SC split aliases at `$F000/$F080` remain shared because the
          switched-ROM bank mappings begin at `$x100`; accesses to Superchip objects
          must never acquire selector code. Test deliberately mismatched bank/mem
          names to prove names are irrelevant.
        * Synthesize ordinary CODE, RODATA, DATA, BSS, STARTUP, private-layout, and
          region-suffixed routing from authoritative `mem` metadata, access type,
-         priority, startup-bank ownership, and existing placement rules. Preserve
-         split aliases, alignment, page constraints, and deterministic allocation.
-       * Report each region's inferred bank or shared status in the map and add
-         differential tests against the current cfg MEMORY/SEGMENTS results.
+         priority, startup-bank ownership where applicable, and existing placement
+         rules. Preserve split aliases, alignment, page constraints, and
+         deterministic allocation.
+       * Report each region's inferred output bank and direct/switched/shared mode
+         in the map and add differential tests against current cfg MEMORY/SEGMENTS
+         results.
 
-[ ] 26. Migrate the full-window cartridge profiles from cfg to installed C26 files.
+[ ] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.
 
        * Provide explicit 4K, F8, F6, F4, F8SC, F6SC, and F4SC topology files whose
          contents, not filenames, define behavior. A build may include or compile
@@ -1711,6 +1669,10 @@ when main roadmap item 29 becomes active.
          a 4K physical chunk but map ROM only from physical offset `$0100` and CPU/
          link address `$x100`, expose `$x100-$xEFF` for allocation, and declare one
          shared 128-byte split-address `mem` region.
+       * Add one generic direct-bank profile containing at least two nonoverlapping
+         logical mappings and no selectors. Prove flat chunk ordering, fill,
+         ordinary absolute calls/jumps/data references across direct banks, vector
+         reservation, and the complete absence of selector/trampoline output.
        * Preserve exact file order, image sizes, selector behavior, bridges,
          vectors, startup placement, simulator behavior, Stella behavior, map
          accounting, and installed-toolchain results for every existing diagnostic.
@@ -1761,13 +1723,18 @@ when main roadmap item 29 becomes active.
        * Permit a simple-placement mode for debugging and reproducibility; never
          fall back to invented cross-bank data access.
 
-[ ] 30. Design the next mapper family separately.
+[ ] 30. Consider another mapper family only when a concrete program requires it.
 
-       * Choose among fixed-plus-switchable-window schemes such as 3F/3E or
-         segmented schemes such as E0/E7 based on an actual project need.
-       * Reuse logical mirror, vector, output, relocation, and reporting pieces
-         where honest, but add a true window model rather than forcing the
-         mapper into the full-window F8/F6/F4 abstraction.
+       * Do not build a universal mapper-description language merely to reproduce
+         every historical circuit. Full-window selector-controlled banks, direct
+         banks, shared memory, and explicit replication are the maintained model.
+       * If a real program eventually requires independently switched windows,
+         value-controlled selection, banked RAM, or another unsupported behavior,
+         design that family separately rather than distorting the current bank
+         abstraction in advance.
+       * Reuse logical mapping, vector, output, relocation, and reporting pieces
+         where honest; add a true window or device model only when the chosen
+         hardware semantics actually require one.
 
 Decisions intentionally deferred
 --------------------------------
@@ -1777,6 +1744,8 @@ The following are not settled by this document:
   item 24 must lock syntax while preserving the explicit facts described above;
 * whether cfg remains a supported generic escape hatch after all public VCS
   profiles migrate, or becomes test-only compatibility code;
+* whether a future self-describing image container is warranted beyond the
+  current deterministic flat concatenation of declared output-bank chunks;
 * the exact size/location of the common bridge corridor beyond the currently
   certified full-window values;
 * whether non-public or future mapper profiles may use a startup bank other
