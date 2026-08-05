@@ -484,6 +484,16 @@ pointer and aggregate ABI mismatch fixtures prove the qualifier is retained in
 linker-visible fingerprints; a dedicated global-expression test prevents a
 file-scope writeonly value from being misclassified as an ordinary pointer.
 
+`e2e_directional_address_projection_verify.c26` and the `directional_*`
+compile tests cover unary `&<` and `&>`. The execution fixture uses unrelated
+`banana`, `pair`, and `orange` regions with same-direction, reversed, and
+noncontiguous read/write windows. It checks exact pointer values for global and
+runtime projections, arrays, members, absolute split/read-only/write-only
+bindings, same-address objects, one-time subscript evaluation, and compositional
+`&<*p`/`&>*p`. Focused failures enforce adjacent operator spelling, reject a
+missing selected address, bitfields, capability recovery to ordinary pointers,
+reads through writeonly pointers, and writes through const pointers.
+
 
 `call_selective_staging.pl` proves direct calls do not reserve a whole argument
 list in caller scratch. Call-free lists use one reusable slot sized for the

@@ -229,7 +229,9 @@ const ASTNode *expr_value_type(ASTNode *expr, Context *ctx) {
       }
    }
 
-   if (expr->count == 1 && !strcmp(expr->name, "&")) {
+   if (expr->count == 1 && (!strcmp(expr->name, "&") ||
+                             !strcmp(expr->name, "&<") ||
+                             !strcmp(expr->name, "&>"))) {
       LValueRef lv;
       ASTNode *inner = (ASTNode *) unwrap_expr_node(expr->children[0]);
       if (inner && !strcmp(inner->name, "lvalue") && resolve_lvalue(ctx, inner, &lv)) {
@@ -389,7 +391,9 @@ const ASTNode *expr_value_declarator(ASTNode *expr, Context *ctx) {
       }
    }
 
-   if (expr->count == 1 && !strcmp(expr->name, "&")) {
+   if (expr->count == 1 && (!strcmp(expr->name, "&") ||
+                             !strcmp(expr->name, "&<") ||
+                             !strcmp(expr->name, "&>"))) {
       LValueRef lv;
       ASTNode *inner = (ASTNode *) unwrap_expr_node(expr->children[0]);
       if (inner && !strcmp(inner->name, "lvalue") && resolve_lvalue(ctx, inner, &lv) && lv.declarator) {
@@ -508,7 +512,14 @@ PointerAccessQualifier expr_pointer_access(ASTNode *expr, Context *ctx) {
       }
    }
 
-   /* Address-of and string/array decay create ordinary one-address pointers. */
+   if (expr->count == 1 && !strcmp(expr->name, "&<")) {
+      return POINTER_ACCESS_READONLY;
+   }
+   if (expr->count == 1 && !strcmp(expr->name, "&>")) {
+      return POINTER_ACCESS_WRITEONLY;
+   }
+
+   /* Plain address-of and string/array decay create ordinary one-address pointers. */
    decl = expr_value_declarator(expr, ctx);
    (void)decl;
    return POINTER_ACCESS_READWRITE;

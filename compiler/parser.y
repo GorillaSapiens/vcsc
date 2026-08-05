@@ -99,6 +99,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token OR
 %token OR_ASSIGN
 %token PAGE
+%token READ_ADDRESS
 %token RECOMMEND
 %token REF
 %token REQUIRE
@@ -117,6 +118,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token UNION
 %token WHILE
 %token WRITEONLY
+%token WRITE_ADDRESS
 %token XFORM
 %token XOR_ASSIGN
 
@@ -710,6 +712,8 @@ unary_expr:
   | '-' unary_expr                           { COVER; $$ = MAKE_NAMED_NODE("-", $2); }
   | '+' unary_expr                           { COVER; $$ = MAKE_NAMED_NODE("+", $2); }
   | '&' unary_expr                           { COVER; $$ = MAKE_NAMED_NODE("&", $2); }
+  | READ_ADDRESS unary_expr                  { COVER; $$ = MAKE_NAMED_NODE("&<", $2); }
+  | WRITE_ADDRESS unary_expr                 { COVER; $$ = MAKE_NAMED_NODE("&>", $2); }
   | '(' FLAG ')' unary_expr                  { COVER; $$ = MAKE_NAMED_NODE("flag_cast", make_identifier_leaf($2), $4); }
   | '(' cast_type ')' unary_expr             { COVER; $$ = MAKE_NAMED_NODE("cast", $2, $4); }
   ;

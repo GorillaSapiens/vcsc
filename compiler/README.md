@@ -530,8 +530,26 @@ Function-scope `static` objects use persistent split-region BSS/DATA storage and
 the existing one-time startup initialization paths. Value parameters and hidden
 function return objects may also select a split writable region; callers store
 arguments and returned expressions through the write alias, while callees and
-callers read through the read alias. Directional address projections and
-one-address directional `ref` binding remain separate roadmap work.
+callers read through the read alias.
+
+The unary directional projections expose either alias as an ordinary one-address
+pointer without loading or storing the object:
+
+```vcsc
+const uint8_t *input := &<buffer[0];
+writeonly uint8_t *output := &>buffer[0];
+```
+
+`&<` selects the exact read address and returns `const T *`; `&>` selects the
+exact write address and returns `writeonly T *`. The lvalue location, including
+any runtime subscript, is evaluated once. The operators work for named-region
+objects, absolute external bindings, array elements, aggregate members, and
+pointer-derived lvalues. They are adjacent multi-character unary operators;
+`& <value` and `& >value` are not alternate spellings. A missing direction is a
+compile-time error. Plain `&` remains valid only when the object has one
+conventional address suitable for an ordinary read/write pointer. Split-address
+array decay remains invalid, so source must project an element explicitly.
+Directional one-address `ref` binding remains separate roadmap work.
 The selected linker `MEMORY` entry must use matching `read_start`,
 `write_start`, `size`, and `type = rw` values and must be shared rather than
 owned by a cartridge bank.
@@ -539,10 +557,16 @@ owned by a cartridge bank.
 ### Pointers and arrays
 
 Pointers are 16-bit addresses. `const` and `writeonly` restrict access through
-that address without changing its width. Arrays decay to pointers to their first
-element in pointer-valued expressions and assignments when the array has one
-ordinary representable address. Pointer addition and subtraction scale by the
-pointed-to element size.
+that address without changing its width. Unary `&<lvalue` forms a readable
+`const T *` from the lvalue's read address, while `&>lvalue` forms a writable
+`writeonly T *` from its write address. For an ordinary object the numeric
+addresses may be equal even though the pointer capabilities differ. Plain `&`
+continues to form `T *` only when one conventional read/write address exists.
+
+Arrays decay to pointers to their first element in pointer-valued expressions
+and assignments when the array has one ordinary representable address. A split-
+address array does not decay implicitly; use `&<array[0]` or `&>array[0]`.
+Pointer addition and subtraction scale by the pointed-to element size.
 
 Subtracting compatible pointers produces an `int16_t` element count. Pointers
 to incompatible element types cannot be subtracted. Typed object pointers may
@@ -582,7 +606,9 @@ uint16_t split@[0x100/0x180];
 that the compiler allocates no storage and emits no initializer. Loads use the
 read address; stores use the write address. Reading a write-only binding,
 writing a read-only binding, or taking one ordinary address of a split-address
-binding is rejected. An annotation with no usable side (`@none` or
+binding is rejected. Use `&<binding` to project a usable read address and
+`&>binding` to project a usable write address; the result types are respectively
+`const T *` and `writeonly T *`. An annotation with no usable side (`@none` or
 `@[none/none]`) is invalid. Address terms are single integer literals or
 identifiers, not arbitrary expressions.
 

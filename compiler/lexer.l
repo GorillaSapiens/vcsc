@@ -2212,6 +2212,8 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
    LEX_ERROR_HERE("operator overloading is not supported");
 }
 
+"&<"            return READ_ADDRESS;
+"&>"            return WRITE_ADDRESS;
 "+="            return ADD_ASSIGN;
 "&&"            return AND;
 "&="            return AND_ASSIGN;

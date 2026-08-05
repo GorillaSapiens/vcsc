@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: syntax error, unexpected '<'
+include "machine_6502.c26"
+uint8_t value;
+void main(void) { const uint8_t *p; p := & <value; }

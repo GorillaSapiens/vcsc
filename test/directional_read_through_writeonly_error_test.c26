@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot read through writeonly pointer 'sink'
+include "machine_6502.c26"
+void main(void) {
+   uint8_t value;
+   writeonly uint8_t *sink;
+   const uint8_t *read_pointer;
+   sink := &value;
+   read_pointer := &<*sink;
+}

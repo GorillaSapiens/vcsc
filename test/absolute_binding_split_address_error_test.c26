@@ -1,6 +1,7 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: absolute external binding 'banked' does not have a single address
+// expecterr: does not have one conventional read/write address for plain '&'
+// expecterr: use '&<' for its read address or '&>' for its write address
 
 include "machine_6502.c26"
 

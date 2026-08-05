@@ -792,13 +792,36 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       }
    }
 
-   if (expr->count == 1 && !strcmp(expr->name, "&")) {
+   if (expr->count == 1 && (!strcmp(expr->name, "&") ||
+                             !strcmp(expr->name, "&<") ||
+                             !strcmp(expr->name, "&>"))) {
       LValueRef lv;
       ASTNode *inner = (ASTNode *) unwrap_expr_node(expr->children[0]);
+      LValueAccessMode address_mode = !strcmp(expr->name, "&<")
+         ? LVALUE_ACCESS_READ_ADDRESS
+         : (!strcmp(expr->name, "&>") ? LVALUE_ACCESS_WRITE_ADDRESS
+                                       : LVALUE_ACCESS_ADDRESS);
       if (inner && !strcmp(inner->name, "lvalue") && resolve_lvalue(ctx, inner, &lv)) {
-         if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_ADDRESS)) {
+         if (!emit_prepare_lvalue_ptr(ctx, &lv, address_mode)) {
+            if (lv.is_bitfield) {
+               error_user("[%s:%d.%d] cannot take the address of bitfield '%s'",
+                          inner->file, inner->line, inner->column,
+                          lv.name ? lv.name : "<unnamed>");
+            }
+            if (address_mode == LVALUE_ACCESS_READ_ADDRESS) {
+               error_user("[%s:%d.%d] lvalue '%s' has no readable address for '&<'",
+                          inner->file, inner->line, inner->column,
+                          lv.name ? lv.name : "<unnamed>");
+            }
+            if (address_mode == LVALUE_ACCESS_WRITE_ADDRESS) {
+               error_user("[%s:%d.%d] lvalue '%s' has no writable address for '&>'",
+                          inner->file, inner->line, inner->column,
+                          lv.name ? lv.name : "<unnamed>");
+            }
             if (lv.is_absolute_ref) {
-               error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address", inner->file, inner->line, inner->column, lv.name ? lv.name : "<unnamed>");
+               error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address; use '&<' for its read address or '&>' for its write address",
+                          inner->file, inner->line, inner->column,
+                          lv.name ? lv.name : "<unnamed>");
             }
             return false;
          }
@@ -818,7 +841,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             }
          }
       }
-      {
+      if (!strcmp(expr->name, "&")) {
          const char *label = emit_pointer_initializer_backing_object(dst ? dst->type : NULL,
                dst ? dst->declarator : NULL, expr);
          InitConstValue value = {0};
@@ -835,6 +858,11 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             free(bytes);
             return true;
          }
+      }
+      else {
+         error_user("[%s:%d.%d] operand of '%s' must be an lvalue",
+                    expr->file ? expr->file : "<unknown>", expr->line,
+                    expr->column, expr->name);
       }
    }
 

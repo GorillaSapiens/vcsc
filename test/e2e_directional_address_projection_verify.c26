@@ -1,0 +1,110 @@
+// vcsc-cc1 -I .
+// linkcfg: directional_address_projection.cfg
+// simcfg: directional_address_projection.cfg
+// expectexit: 0
+
+include "machine_6502.c26"
+
+mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0007 $rw };
+mem pair   { $read_start:0x6205 $write_start:0x2201 $size:0x0009 $rw };
+mem orange { $read_start:0x7102 $write_start:0x4A11 $size:0x0005 $rw };
+
+struct Fruit {
+   uint8_t first;
+   uint8_t second;
+};
+
+banana uint8_t banana_values[2];
+pair uint8_t pair_values[2];
+orange Fruit orange_value;
+
+uint8_t external_split @[0x7403/0x7607];
+uint8_t read_only @[0x7404/none];
+uint8_t same_address @[0x7405/0x7405];
+uint8_t write_only @[none/0x7608];
+
+uint8_t ordinary;
+uint8_t index_calls;
+uint8_t fail_code;
+
+const uint8_t *global_read := &<banana_values[1];
+writeonly uint8_t *global_write := &>banana_values[1];
+
+uint8_t next_index(void) {
+   index_calls++;
+   return 1;
+}
+
+void fail(uint8_t code) {
+   fail_code := code;
+   asm lda #$ff;
+   asm ldx fail_code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   const uint8_t *read_pointer;
+   writeonly uint8_t *write_pointer;
+   uint8_t *ordinary_pointer;
+
+   if (global_read != (const uint8_t *)0x3004) { fail(1); }
+   if (global_write != (writeonly uint8_t *)0x5008) { fail(2); }
+
+   write_pointer := &>banana_values[0];
+   *write_pointer := 0x5a;
+   read_pointer := &<banana_values[0];
+   if (*read_pointer != 0x5a) { fail(3); }
+
+   read_pointer := &<pair_values[1];
+   if (read_pointer != (const uint8_t *)0x6206) { fail(4); }
+   write_pointer := &>pair_values[1];
+   if (write_pointer != (writeonly uint8_t *)0x2202) { fail(5); }
+
+   read_pointer := &<orange_value.second;
+   if (read_pointer != (const uint8_t *)0x7103) { fail(6); }
+   write_pointer := &>orange_value.second;
+   if (write_pointer != (writeonly uint8_t *)0x4a12) { fail(7); }
+
+   read_pointer := &<external_split;
+   if (read_pointer != (const uint8_t *)0x7403) { fail(8); }
+   write_pointer := &>external_split;
+   if (write_pointer != (writeonly uint8_t *)0x7607) { fail(9); }
+
+   read_pointer := &<read_only;
+   if (read_pointer != (const uint8_t *)0x7404) { fail(10); }
+   write_pointer := &>write_only;
+   if (write_pointer != (writeonly uint8_t *)0x7608) { fail(11); }
+
+   ordinary_pointer := &same_address;
+   read_pointer := &<same_address;
+   write_pointer := &>same_address;
+   if (ordinary_pointer != (uint8_t *)0x7405) { fail(12); }
+   if (read_pointer != (const uint8_t *)0x7405) { fail(13); }
+   if (write_pointer != (writeonly uint8_t *)0x7405) { fail(14); }
+
+   index_calls := 0;
+   read_pointer := &<banana_values[next_index()];
+   if (index_calls != 1 || read_pointer != (const uint8_t *)0x3004) { fail(15); }
+
+   index_calls := 0;
+   write_pointer := &>banana_values[next_index()];
+   if (index_calls != 1 || write_pointer != (writeonly uint8_t *)0x5008) { fail(16); }
+
+   ordinary_pointer := &ordinary;
+   read_pointer := &<*ordinary_pointer;
+   write_pointer := &>*ordinary_pointer;
+   *write_pointer := 0xa6;
+   if (*read_pointer != 0xa6) { fail(17); }
+   if (read_pointer != (const uint8_t *)&ordinary) { fail(18); }
+   if (write_pointer != (writeonly uint8_t *)&ordinary) { fail(19); }
+
+   pass();
+}

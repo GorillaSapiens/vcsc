@@ -890,16 +890,18 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if (!lv) {
       return false;
    }
-   if (mode == LVALUE_ACCESS_READ) {
+   if (mode == LVALUE_ACCESS_READ || mode == LVALUE_ACCESS_READ_ADDRESS) {
       require_lvalue_readable(lv);
    }
-   else if (mode == LVALUE_ACCESS_WRITE) {
+   else if (mode == LVALUE_ACCESS_WRITE || mode == LVALUE_ACCESS_WRITE_ADDRESS) {
       require_lvalue_writable(lv);
-      if (lv->is_bitfield) {
+      if (mode == LVALUE_ACCESS_WRITE && lv->is_bitfield) {
          require_lvalue_readable(lv);
       }
    }
-   if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_REF) && lv->is_bitfield) {
+   if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_READ_ADDRESS ||
+        mode == LVALUE_ACCESS_WRITE_ADDRESS || mode == LVALUE_ACCESS_REF) &&
+       lv->is_bitfield) {
       return false;
    }
    emit_lvalue_semantic_use(ctx, lv,
@@ -915,12 +917,30 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
          case LVALUE_ACCESS_WRITE:
             abs_expr = lv->write_expr;
             break;
+         case LVALUE_ACCESS_READ_ADDRESS:
+            abs_expr = lv->read_expr;
+            break;
+         case LVALUE_ACCESS_WRITE_ADDRESS:
+            abs_expr = lv->write_expr;
+            break;
          case LVALUE_ACCESS_ADDRESS:
+            if (!lv->read_expr || !lv->write_expr ||
+                strcmp(lv->read_expr, lv->write_expr)) {
+               const ASTNode *site = lv->use_site;
+               error_user("[%s:%d.%d] absolute external binding '%s' does not have one conventional read/write address for plain '&'; use '&<' for its read address or '&>' for its write address (read %s, write %s)",
+                          site && site->file ? site->file : "<unknown>",
+                          site ? site->line : 0, site ? site->column : 0,
+                          lv->name ? lv->name : "<unnamed>",
+                          lv->read_expr ? lv->read_expr : "none",
+                          lv->write_expr ? lv->write_expr : "none");
+            }
+            abs_expr = lv->read_expr;
+            break;
          case LVALUE_ACCESS_REF:
             if (lv->read_expr && lv->write_expr) {
                if (strcmp(lv->read_expr, lv->write_expr)) {
                   const ASTNode *site = lv->use_site;
-                  error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address; address-taking, pointer decay, and ref passing are not supported for split-address objects (read %s, write %s)",
+                  error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address; unqualified ref passing cannot represent split-address objects (read %s, write %s)",
                              site && site->file ? site->file : "<unknown>",
                              site ? site->line : 0, site ? site->column : 0,
                              lv->name ? lv->name : "<unnamed>",

@@ -466,17 +466,65 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
          out->i = init_const_truthy(&lhs) ? 0 : 1;
          return true;
       }
-      if (!strcmp(expr->name, "&")) {
+      if (!strcmp(expr->name, "&") || !strcmp(expr->name, "&<") ||
+          !strcmp(expr->name, "&>")) {
          ASTNode *inner = (ASTNode *) unwrap_expr_node(child);
          LValueRef lv;
-         if (inner && !strcmp(inner->name, "lvalue") && resolve_lvalue(NULL, inner, &lv) && !lv.indirect) {
+         bool read_projection = !strcmp(expr->name, "&<");
+         bool write_projection = !strcmp(expr->name, "&>");
+
+         if (inner && !strcmp(inner->name, "lvalue") &&
+             resolve_lvalue(NULL, inner, &lv) && !lv.indirect && !lv.is_bitfield) {
             static char symbuf[512];
-            if (!entry_symbol_name(NULL, &(ContextEntry){ .name = lv.name, .type = lv.type, .declarator = lv.declarator, .is_static = lv.is_static, .is_zeropage = lv.is_zeropage, .is_global = lv.is_global, .offset = lv.offset, .size = lv.size }, symbuf, sizeof(symbuf))) {
+            const char *address_expr = NULL;
+            long long addend = lv.offset + lv.ptr_adjust;
+
+            if (lv.is_absolute_ref) {
+               if (read_projection) {
+                  address_expr = lv.read_expr;
+                  if (!address_expr || !*address_expr) {
+                     error_user("[%s:%d.%d] lvalue '%s' has no readable address for '&<'",
+                                inner->file, inner->line, inner->column,
+                                lv.name ? lv.name : "<unnamed>");
+                  }
+               }
+               else if (write_projection) {
+                  address_expr = lv.write_expr;
+                  if (!address_expr || !*address_expr) {
+                     error_user("[%s:%d.%d] lvalue '%s' has no writable address for '&>'",
+                                inner->file, inner->line, inner->column,
+                                lv.name ? lv.name : "<unnamed>");
+                  }
+                  if (lv.has_split_alias_delta && lv.read_expr && *lv.read_expr) {
+                     address_expr = lv.read_expr;
+                     addend += lv.split_alias_delta;
+                  }
+               }
+               else {
+                  if (!lv.read_expr || !lv.write_expr ||
+                      strcmp(lv.read_expr, lv.write_expr)) {
+                     error_user("[%s:%d.%d] absolute external binding '%s' does not have one conventional read/write address for plain '&'; use '&<' for its read address or '&>' for its write address",
+                                inner->file, inner->line, inner->column,
+                                lv.name ? lv.name : "<unnamed>");
+                  }
+                  address_expr = lv.read_expr;
+               }
+               out->kind = INIT_CONST_ADDRESS;
+               out->symbol = strdup(address_expr);
+               out->addend = addend;
+               return true;
+            }
+
+            if (!entry_symbol_name(NULL, &(ContextEntry){ .name = lv.name,
+                  .type = lv.type, .declarator = lv.declarator,
+                  .is_static = lv.is_static, .is_zeropage = lv.is_zeropage,
+                  .is_global = lv.is_global, .offset = lv.offset,
+                  .size = lv.size }, symbuf, sizeof(symbuf))) {
                return false;
             }
             out->kind = INIT_CONST_ADDRESS;
             out->symbol = strdup(symbuf);
-            out->addend = lv.offset + lv.ptr_adjust;
+            out->addend = addend;
             return true;
          }
          {
@@ -487,7 +535,8 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
                           inner->file, inner->line, inner->column, ident);
             }
          }
-         if (eval_constant_initializer_expr(inner, &lhs) && lhs.kind == INIT_CONST_INT) {
+         if (!read_projection && !write_projection &&
+             eval_constant_initializer_expr(inner, &lhs) && lhs.kind == INIT_CONST_INT) {
             out->kind = INIT_CONST_INT;
             out->i = lhs.i;
             return true;

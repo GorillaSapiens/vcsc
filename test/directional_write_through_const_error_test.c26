@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot write through const pointer 'source'
+include "machine_6502.c26"
+void main(void) {
+   uint8_t value;
+   const uint8_t *source;
+   writeonly uint8_t *write_pointer;
+   source := &value;
+   write_pointer := &>*source;
+}

@@ -1144,7 +1144,7 @@ when main roadmap item 29 becomes active.
          stores and the two-byte representation; linker failures prove pointer and
          aggregate ABI qualification mismatches across translation units.
 
-[ ] 18. Add explicit read- and write-address projection operators `&<` and `&>`.
+[x] 18. Add explicit read- and write-address projection operators `&<` and `&>`.
 
        * Define `&<lvalue` to return the lvalue's read address as `const T *`, and
          `&>lvalue` to return its write address as `writeonly T *`. Evaluate the
@@ -1180,6 +1180,31 @@ when main roadmap item 29 becomes active.
          noncontiguous split objects using unrelated fruit-named regions and
          explicit absolute bindings. Verify `none` diagnostics and ensure the
          generated pointer is the exact configured read or write address.
+
+       Completed 2026-08-04:
+
+       * Add adjacent unary `&<` and `&>` tokens at ordinary address-of precedence.
+         `&<` returns the selected lvalue read address as `const T *`; `&>`
+         returns its write address as `writeonly T *`. Spaced `& <` and `& >`
+         forms remain ordinary tokens and are rejected rather than reinterpreted.
+       * Lower both operators through generic lvalue metadata for ordinary,
+         split-region, absolute, indexed, member, and pointer-derived lvalues.
+         Runtime location expressions are evaluated once, and constant
+         initializers retain symbolic alias relocations and offsets without an
+         object load or store.
+       * Keep plain `&` limited to one conventional readable/writable address.
+         Split and one-sided objects diagnose the unrepresentable ordinary
+         pointer and direct source to `&<` or `&>`. Split-array implicit decay
+         remains forbidden.
+       * Preserve pointer capability in expression typing: read projections are
+         `const`, write projections are `writeonly`, and neither implicitly
+         regains ordinary read/write access. Missing directions, forbidden
+         pointer-derived access, and bitfield projections are diagnosed.
+       * Add exact-address execution coverage using `banana`, reversed `pair`,
+         and noncontiguous `orange` regions plus ordinary, same-address, split,
+         read-only, and write-only absolute bindings. Compile failures cover
+         adjacency, `none`, capability recovery, const/writeonly dereference
+         direction, and bitfields.
 
 [ ] 19. Extend one-address `ref` parameters with directional access capability.
 

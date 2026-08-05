@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot take the address of bitfield 'packed'
+include "machine_6502.c26"
+struct Packed { uint8_t low:4; uint8_t high:4; };
+Packed packed;
+void main(void) { const uint8_t *p; p := &<packed.low; }

@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260805_053349.tar.gz
+    vcsc.20260805_055543.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8588,3 +8588,27 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   The complete 227-test end-to-end plan was covered in ordered chunks: tests
   1-167 passed in the initial run before the execution-window cutoff, and tests
   168-227 all passed in subsequent explicit chunks after the oracle split.
+
+2026-08-04 23:39:52 PDT, add directional read/write address projections
+------------------------------------------------------------------------
+* Complete bankswitching roadmap item 18 with adjacent unary `&<` and `&>`
+  operators at ordinary address-of precedence. `&<lvalue` produces the exact
+  readable address as `const T *`; `&>lvalue` produces the exact writable
+  address as `writeonly T *` without loading from or storing to the object.
+* Lower both projections from generic lvalue read/write metadata across ordinary
+  objects, named split-memory objects, absolute bindings, arrays, structure
+  members, and dereferenced pointers. Evaluate computed lvalue locations once
+  and preserve relocatable alias expressions in global initializers.
+* Restrict plain `&` to objects with one identical readable and writable address.
+  Distinct or one-sided locations diagnose the need for `&<` or `&>`, while
+  implicit decay of split-address arrays remains invalid. No fat-pointer ABI is
+  introduced.
+* Add generic exact-address execution coverage using `banana`, reversed `pair`,
+  and noncontiguous `orange` regions, plus focused failures for spaced operators,
+  missing directions, bitfields, invalid const/writeonly access, and attempts to
+  recover ordinary pointer capability.
+* Verification: all 398 compile-only tests pass. All 228 end-to-end/generic tests
+  pass in ordered continuation chunks, including every existing renderer and
+  bankswitching profile plus the new exact-address execution case. Staged
+  `make installcheck` passes. Bankswitching roadmap item 19, directional `ref`
+  parameters, is next.

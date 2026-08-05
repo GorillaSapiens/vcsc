@@ -222,6 +222,27 @@ pointer capability even though all forms occupy the same two bytes. The
 qualifier is not a storage region and does not alter call-graph activation
 accounting.
 
+Directional address projection
+------------------------------
+
+Unary `&<` and `&>` preserve the one-address pointer ABI while selecting one
+side of an lvalue's generic address metadata. `&<lvalue` yields the exact read
+address as `const T *`; `&>lvalue` yields the exact write address as
+`writeonly T *`. Forming either pointer evaluates the lvalue location once and
+performs no object load or store.
+
+The selected address may be an ordinary object symbol, a split-region symbolic
+alias, or an absolute external binding term. Constant initializers retain the
+same relocatable expression and offset used at runtime. No region name, alias
+ordering, spacing, or contiguity is encoded in the operator. A missing selected
+side is a compile-time error. Plain `&` yields ordinary `T *` only when the
+lvalue has one conventional address compatible with read/write access; distinct
+or one-sided addresses require an explicit directional projection.
+
+The result's `const` or `writeonly` capability participates in the same type and
+ABI fingerprints described above. The operators add no fat-pointer object,
+hidden second address, calling-convention field, or storage allocation.
+
 
 Absolute external binding ABI
 -----------------------------

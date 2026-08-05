@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: has no writable address for '&>'
+include "machine_6502.c26"
+uint8_t source @[0x7404/none];
+void main(void) { writeonly uint8_t *p; p := &>source; }
