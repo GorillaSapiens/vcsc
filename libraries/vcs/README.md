@@ -344,6 +344,8 @@ write through `$F000`, while callee and caller reads use `$F080`. The function
 body itself remains automatically placed; combining a writable result region
 with an explicit code region is the next roadmap item. A split-address `ref`
 parameter remains rejected because an ordinary pointer carries only one
-address. Code that deliberately needs a raw fixed-offset view may declare its
-own non-owning absolute binding, but the public header does not publish a
-whole-window alias that silently overlaps allocator-managed objects.
+address. Absolute bindings may not overlap the allocator-managed Superchip
+windows, so raw persistence probes must own storage through `superchip` just
+like ordinary application objects. The diagnostic suite therefore allocates
+its complete 128-byte probe array rather than publishing or using a non-owning
+whole-window alias.

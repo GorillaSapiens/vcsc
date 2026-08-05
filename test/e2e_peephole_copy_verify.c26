@@ -1,4 +1,5 @@
 // vcsc-cc1 -I . -X peephole
+// linkcfg: external_binding_holes.cfg
 // expecterr: 001 peephole
 // expecterr: total_saved=15
 // expecterr: dup_load=6
@@ -15,12 +16,12 @@ void pass(void) {
 
 void fail(int16_t code) {
    asm lda #$ff;
-   asm ldx $02f0;
+   asm ldx gfailcode;
    asm ldy #0;
    asm jsr $ffff;
 }
 
-int8_t gfailcode@[none/0x02f0];
+int8_t gfailcode;
 
 int16_t f(int16_t a) {
    int16_t x;

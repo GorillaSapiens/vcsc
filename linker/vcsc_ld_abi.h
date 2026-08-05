@@ -9,5 +9,7 @@
 
 int abi_metadata_has_prefix(const char *name);
 void validate_abi_metadata(const input_set_t *in);
+void validate_absolute_binding_memory_regions(const linker_config_t *cfg,
+                                              const input_set_t *in);
 
 #endif

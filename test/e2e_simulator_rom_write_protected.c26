@@ -5,8 +5,6 @@
 
 include "machine_6502.c26"
 
-int8_t rom_byte@0x2FFF;
-
 void fail(void) {
    asm lda #$ff;
    asm ldx #$7f;
@@ -15,6 +13,7 @@ void fail(void) {
 }
 
 void main(void) {
-   rom_byte := 0x41;
+   asm lda #$41;
+   asm sta $2fff;
    fail();
 }

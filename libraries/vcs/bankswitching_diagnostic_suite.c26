@@ -11,8 +11,9 @@ include "vcs.c26"
 #ifdef SUPERCHIP_TEST
 include "superchip.c26"
 
-// Private raw alias used only to probe the complete Superchip window.
-uint8_t diagnostic_superchip_ram[128]@[0xF080/0xF000];
+// Own the complete region so no allocator-managed object can overlap the
+// diagnostic's raw-window persistence probes.
+superchip uint8_t diagnostic_superchip_ram[128];
 #endif
 
 #ifndef MAPPER_BANKS

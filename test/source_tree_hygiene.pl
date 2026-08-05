@@ -160,7 +160,7 @@ $bankswitching =~ /linker pins its private layout to the unique BANKS entry mark
 $bankswitching =~ /The compiler does not interpret names such\s+as `bank0`/ &&
 $bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
    or die "bankswitching plan lost generic startup-main or constrained automatic placement\n";
-index($bankswitching,q{beginning each bank's allocatable ROM at})>=0 &&
+index($bankswitching,q{begin allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
    or die "bankswitching plan lost Superchip ROM-prefix reservation\n";
 index($bankswitching,'bank1 void some_function(void)')>=0 &&
@@ -374,8 +374,9 @@ index($superchip_header,'$size:0x0080')>=0
 index($superchip_header,'superchip_ram')<0
    or die "superchip.c26 must not publish a whole-window alias\n";
 my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26'));
-index($superchip_diagnostic,'diagnostic_superchip_ram[128]@[0xF080/0xF000]')>=0
-   or die "bankswitching diagnostic lost its private raw Superchip alias\n";
+index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_ram[128]')>=0 &&
+index($superchip_diagnostic,'diagnostic_superchip_ram[128]@[')<0
+   or die "bankswitching diagnostic lost its allocator-owned Superchip probe\n";
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&

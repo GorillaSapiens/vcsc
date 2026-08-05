@@ -19,6 +19,10 @@ typedef struct {
    char *detail;
 } abi_record_t;
 
+static void collect_object_records(const object_file_t *obj,
+                                   abi_record_t **records,
+                                   size_t *count);
+
 //! @brief Create dup for linker ABI metadata checker. The returned storage is owned by the caller or the object that immediately records it.
 static char *substr_dup(const char *start, size_t len)
 {
@@ -133,6 +137,156 @@ static void free_abi_record(abi_record_t *rec)
    free(rec->role);
    free(rec->fingerprint);
    free(rec->detail);
+}
+
+typedef struct {
+   int has_read;
+   uint16_t read_start;
+   int has_write;
+   uint16_t write_start;
+   uint32_t size;
+} absolute_binding_range_t;
+
+//! @brief Parse one canonical absolute-binding range fingerprint emitted by vcsc-cc1.
+static int parse_absolute_binding_range(const abi_record_t *rec,
+                                        absolute_binding_range_t *out)
+{
+   char *copy;
+   char *tok;
+   int have_read = 0;
+   int have_write = 0;
+   int have_size = 0;
+
+   if (!rec || !out || strcmp(rec->kind, "absolute_binding") != 0 ||
+       strcmp(rec->role, "region_guard") != 0)
+      return 0;
+
+   memset(out, 0, sizeof(*out));
+   copy = xstrdup(rec->fingerprint ? rec->fingerprint : "");
+   tok = strtok(copy, ",");
+   while (tok) {
+      if (strncmp(tok, "read=", 5) == 0) {
+         const char *value = tok + 5;
+         char *end = NULL;
+         unsigned long n;
+         if (strcmp(value, "none") == 0) {
+            out->has_read = 0;
+         } else {
+            n = strtoul(value, &end, 0);
+            if (!end || *end != '\0' || n > 0xFFFFul)
+               goto malformed;
+            out->has_read = 1;
+            out->read_start = (uint16_t)n;
+         }
+         have_read = 1;
+      } else if (strncmp(tok, "write=", 6) == 0) {
+         const char *value = tok + 6;
+         char *end = NULL;
+         unsigned long n;
+         if (strcmp(value, "none") == 0) {
+            out->has_write = 0;
+         } else {
+            n = strtoul(value, &end, 0);
+            if (!end || *end != '\0' || n > 0xFFFFul)
+               goto malformed;
+            out->has_write = 1;
+            out->write_start = (uint16_t)n;
+         }
+         have_write = 1;
+      } else if (strncmp(tok, "size=", 5) == 0) {
+         char *end = NULL;
+         unsigned long n = strtoul(tok + 5, &end, 0);
+         if (!end || *end != '\0' || n == 0 || n > 0x10000ul)
+            goto malformed;
+         out->size = (uint32_t)n;
+         have_size = 1;
+      } else {
+         goto malformed;
+      }
+      tok = strtok(NULL, ",");
+   }
+   free(copy);
+   if (!have_read || !have_write || !have_size)
+      goto malformed_after_free;
+   if ((out->has_read && (uint32_t)out->read_start + out->size > 0x10000u) ||
+       (out->has_write && (uint32_t)out->write_start + out->size > 0x10000u))
+      goto malformed_after_free;
+   return 1;
+
+malformed:
+   free(copy);
+malformed_after_free:
+   fprintf(stderr,
+           "vcsc-ld: malformed absolute-binding range metadata '%s' in %s\n",
+           rec->fingerprint ? rec->fingerprint : "", rec->origin);
+   exit(1);
+}
+
+//! @brief Return whether two non-wrapping half-open address ranges overlap.
+static int address_ranges_overlap(uint32_t a_start, uint32_t a_size,
+                                  uint32_t b_start, uint32_t b_size)
+{
+   return a_start < b_start + b_size && b_start < a_start + a_size;
+}
+
+//! @brief Reject absolute external bindings whose read or write side overlaps linker-managed MEMORY.
+void validate_absolute_binding_memory_regions(const linker_config_t *cfg,
+                                              const input_set_t *in)
+{
+   abi_record_t *records = NULL;
+   size_t count = 0;
+   size_t i;
+   size_t j;
+
+   if (!cfg || !in)
+      return;
+
+   for (i = 0; i < in->object_count; ++i)
+      collect_object_records(&in->objects[i], &records, &count);
+
+   for (i = 0; i < count; ++i) {
+      absolute_binding_range_t range;
+      if (!parse_absolute_binding_range(&records[i], &range))
+         continue;
+
+      for (j = 0; j < cfg->mem_count; ++j) {
+         const memory_region_t *mem = &cfg->mem[j];
+         uint32_t read_start = mem->start;
+         uint32_t write_start = mem->has_write_start ? mem->write_start : mem->start;
+
+         if (range.has_read &&
+             address_ranges_overlap(range.read_start, range.size,
+                                    read_start, mem->size)) {
+            fprintf(stderr,
+                    "vcsc-ld: %s overlaps allocator-managed MEMORY region '%s' read window $%04X-$%04X\n",
+                    records[i].detail ? records[i].detail : records[i].symbol,
+                    mem->name, mem->start,
+                    (unsigned int)((uint32_t)mem->start + mem->size - 1u));
+            goto fail;
+         }
+         if (range.has_write &&
+             address_ranges_overlap(range.write_start, range.size,
+                                    write_start, mem->size)) {
+            fprintf(stderr,
+                    "vcsc-ld: %s overlaps allocator-managed MEMORY region '%s' write window $%04X-$%04X\n",
+                    records[i].detail ? records[i].detail : records[i].symbol,
+                    mem->name, (unsigned int)write_start,
+                    (unsigned int)(write_start + mem->size - 1u));
+            goto fail;
+         }
+      }
+   }
+
+   for (i = 0; i < count; ++i)
+      free_abi_record(&records[i]);
+   free(records);
+   return;
+
+fail:
+   for (i = 0; i < count; ++i)
+      free_abi_record(&records[i]);
+   free(records);
+   exit(1);
 }
 
 //! @brief Collect object records from existing linker ABI metadata checker state for a later pass.

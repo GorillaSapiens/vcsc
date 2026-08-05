@@ -11,6 +11,7 @@
 #include <ctype.h>
 
 #include "ast.h"
+#include "abi_meta.h"
 #include "compile.h"
 #include "compile_init.h"
 #include "compile_internal.h"
@@ -578,6 +579,10 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use none for both read and write address",
                node->file, node->line, node->column, name);
       }
+      emit_absolute_binding_region_guard_metadata(node, name,
+                                                  address_spec_read_expr(addrspec),
+                                                  address_spec_write_expr(addrspec),
+                                                  size);
       entry = (ContextEntry *) malloc(sizeof(ContextEntry));
       if (!entry) {
          error_unreachable("out of memory");

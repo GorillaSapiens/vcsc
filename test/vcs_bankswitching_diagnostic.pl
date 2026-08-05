@@ -162,6 +162,12 @@ sub run_simulator_matrix {
          }
       }
       my $map=read_file($map_path);
+      if ($sc) {
+         $map =~ /^\s*superchip\s+used=128 bytes\b.*\bobjects=128 bytes\b/m
+            or die "$mapper diagnostic does not own the complete Superchip region\n$map";
+         $map =~ /^\s*BSS\.superchip\.__vcsc_object\$diagnostic_superchip_ram\s+run=\$F080 write=\$F000 size=\$0080\b/m
+            or die "$mapper diagnostic Superchip probe is not allocator-owned\n$map";
+      }
       my %sym=map { $_ => map_symbol($map,$_) }
          qw(simulator_done failure signature source_seen current_source current_destination
             call_count transition_count nested_count stack_before stack_after);
@@ -288,6 +294,10 @@ my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $source=File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26');
 my $source_text=read_file($source);
+$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_ram\s*\[128\]\s*;/
+   or die "diagnostic Superchip probe is not an allocator-owned 128-byte object\n";
+$source_text !~ /diagnostic_superchip_ram\s*\[128\]\s*\@\[/
+   or die "diagnostic Superchip probe still uses a non-owning absolute alias\n";
 $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
    or die "diagnostic PASS glyph is not the default-font P\n";
 $source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s

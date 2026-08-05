@@ -564,6 +564,13 @@ modifiers such as `static`, `extern`, `page`, or a named `mem` region. Compatibl
 redeclarations must agree on the type and both addresses; ABI metadata preserves
 those facts for separate-compilation checking.
 
+They also may not overlap allocator-managed linker `MEMORY`. The linker checks
+the complete object extent, not just its first byte: each usable read address is
+compared with every managed read/ordinary window, and each usable write address
+is compared with every managed write/ordinary window. Use a named `mem` object
+for storage owned by the allocator; reserve `@[read/write]` for external hardware
+that lies outside those managed windows.
+
 ## Functions and calls
 
 ### Declarations and linkage

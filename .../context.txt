@@ -8497,3 +8497,30 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
 * Verification: all 372 compile-only tests pass. Focused source-tree hygiene,
   branding, source-suffix migration, bankswitching-diagnostic, and example-build
   end-to-end tests pass. Staged `make installcheck` passes.
+
+2026-08-04 20:29:36 PDT, reject absolute bindings inside allocator-managed memory
+----------------------------------------------------------------------------------
+* Strengthen bankswitching roadmap item 16 so an absolute external binding is
+  truly outside allocator-managed storage. File-scope and block-scope
+  `@[read/write]` objects now emit linker-visible region-guard metadata carrying
+  the complete object size and both canonical address ranges.
+* Before allocation, `vcsc-ld` rejects a readable absolute-binding range which
+  overlaps any configured MEMORY region's read or ordinary window, and rejects a
+  writable range which overlaps that region's write or ordinary window. The
+  check is directional and generic: split windows may be reversed,
+  noncontiguous, differently sized, or arbitrarily named, and an address in the
+  opposite-direction window is not mistaken for an overlap.
+* Convert `diagnostic_superchip_ram` from a non-owning absolute alias into
+  `superchip uint8_t diagnostic_superchip_ram[128]`. The bankswitching diagnostic
+  now owns and reserves the entire physical Superchip region while continuing to
+  probe offsets 0, 1, and 127 through ordinary split-memory lowering.
+* Add `absolute_binding_memory_region_overlap.pl` for ordinary and split regions,
+  reversed and noncontiguous windows, global and block-scope bindings, full-array
+  boundary overlap, and valid external holes. Add
+  `external_binding_holes.cfg` and migrate old generic tests whose intentionally
+  fixed helper buffers must remain outside managed memory. Update compiler ABI,
+  linker, VCS, test-inventory, roadmap, and source-hygiene documentation.
+* Verification: all 372 compile-only tests pass. All 224 end-to-end/generic tests
+  pass; the long suite was completed in ordered continuation chunks after the
+  execution windows, including every VCS renderer/profile regression and the new
+  overlap checks. Staged `make installcheck` passes.

@@ -579,6 +579,49 @@ static void emit_metadata_symbol(const char *kind, const char *state, const char
    free(name.buf);
 }
 
+//! @brief Emit one linker-visible absolute-binding range record for MEMORY overlap validation.
+void emit_absolute_binding_region_guard_metadata(const ASTNode *node,
+                                                 const char *name,
+                                                 const char *read_expr,
+                                                 const char *write_expr,
+                                                 int size) {
+   char read_buf[96];
+   char write_buf[96];
+   StrBuf identity;
+   StrBuf fingerprint;
+   StrBuf detail;
+
+   format_abi_address_term(read_buf, sizeof(read_buf), read_expr);
+   format_abi_address_term(write_buf, sizeof(write_buf), write_expr);
+
+   sb_init(&identity);
+   sb_appendf(&identity, "%s@%s:%d:%d",
+              name ? name : "<unnamed>",
+              node && node->file ? node->file : "?",
+              node ? node->line : 0,
+              node ? node->column : 0);
+
+   sb_init(&fingerprint);
+   sb_appendf(&fingerprint, "read=%s,write=%s,size=%d",
+              read_buf, write_buf, size);
+
+   sb_init(&detail);
+   sb_appendf(&detail,
+              "absolute external binding '%s' declared at %s:%d.%d (read=%s, write=%s, size=%d)",
+              name ? name : "<unnamed>",
+              node && node->file ? node->file : "?",
+              node ? node->line : 0,
+              node ? node->column : 0,
+              read_buf, write_buf, size);
+
+   emit_metadata_symbol("absolute_binding", "binding", identity.buf,
+                        "region_guard", fingerprint.buf, detail.buf);
+
+   free(identity.buf);
+   free(fingerprint.buf);
+   free(detail.buf);
+}
+
 //! @brief Emit type record for abi meta diagnostics or output files.
 static void emit_type_record(const char *kind, const char *state, const char *symbol,
                              const char *role, const char *mode, const ASTNode *type,

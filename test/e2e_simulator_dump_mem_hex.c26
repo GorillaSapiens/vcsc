@@ -1,4 +1,5 @@
 // vcsc-cc1 -I .
+// linkcfg: external_binding_holes.cfg
 // expectsim: ---8<--- BEGIN MEMORY DUMP ---8<---
 // expectsim: :100300000102030405060708090A0B0C0D0E0F1065
 // expectsim: :00000001FF

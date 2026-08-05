@@ -1,4 +1,5 @@
 // vcsc-cc1 -I .
+// linkcfg: external_binding_holes.cfg
 // expectexit: 0
 include "machine_6502.c26"
 

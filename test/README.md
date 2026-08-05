@@ -464,6 +464,15 @@ automatic locals, function-scope statics, runtime initialization, arrays,
 compound operations, packed bitfields, alias-direction enforcement in the
 simulator, mirrored final contents, and per-region overflow diagnostics.
 
+`absolute_binding_memory_region_overlap.pl` proves that non-owning absolute
+bindings cannot silently occupy allocator-managed storage. It checks ordinary
+and split regions, read-only and write-only projections, complete array ranges,
+block-scope metadata, reversed/noncontiguous windows, and the directional rule
+that compares reads only with managed read windows and writes only with managed
+write windows. `external_binding_holes.cfg` keeps legacy helper-buffer tests
+honest by placing their deliberate external addresses outside all managed
+`MEMORY` entries.
+
 
 `call_selective_staging.pl` proves direct calls do not reserve a whole argument
 list in caller scratch. Call-free lists use one reusable slot sized for the

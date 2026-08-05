@@ -983,6 +983,10 @@ void compile_global_decl_item(ASTNode *node) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot have an initializer",
                node->file, node->line, node->column, name);
       }
+      emit_absolute_binding_region_guard_metadata(node, name,
+                                                  address_spec_read_expr(addrspec),
+                                                  address_spec_write_expr(addrspec),
+                                                  size);
       emit_global_abi_metadata(node, symname, false, false);
       return;
    }

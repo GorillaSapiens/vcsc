@@ -206,6 +206,14 @@ locations; `ref` is not an object-storage modifier and is reserved for function
 parameters. Absolute bindings allocate no BSS, DATA, zero-page, or named-region
 bytes and cannot have initializers or allocation/linkage modifiers.
 
+Every absolute binding also emits a range record containing its canonical read
+address, write address, and complete object size. Before layout, the linker
+rejects a readable range which overlaps any configured allocator-managed
+read/ordinary `MEMORY` window, or a writable range which overlaps any configured
+allocator-managed write/ordinary window. This rule is directional for split
+windows and applies equally to file-scope and block-scope bindings. Allocator-
+owned storage must use a named `mem` region instead of an absolute binding.
+
 Every file-scope absolute binding emits ordinary global ABI metadata as a
 declaration. Its canonical storage mode contains both address terms, with
 numeric spellings normalized to 16-bit hexadecimal form, followed by the normal

@@ -687,5 +687,9 @@ Relocations from every ROM bank may target either alias without being mistaken
 for cross-bank ROM references. Loads resolve to `$F080-$F0FF`; stores and
 startup DATA/BSS or runtime-initializer writes resolve to `$F000-$F07F`. The map
 reports physical occupancy once and prints both `run` and `write` addresses for
-each allocated object. Existing explicit `@[read_address/write_address]` refs
-remain available for fixed-address access.
+each allocated object. Absolute external `@[read_address/write_address]`
+bindings are deliberately excluded from allocator-managed windows: a readable
+binding range may not overlap a managed read/ordinary window, and a writable
+binding range may not overlap a managed write/ordinary window. This prevents a
+non-owning alias from silently colliding with an allocated Superchip byte or any
+other linker-owned storage.

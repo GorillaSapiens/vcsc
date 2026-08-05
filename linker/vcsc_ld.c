@@ -6205,6 +6205,7 @@ int main(int argc, char **argv)
 
    select_needed_objects(&inputs);
    validate_abi_metadata(&inputs);
+   validate_absolute_binding_memory_regions(&cfg, &inputs);
    validate_mem_region_metadata(&cfg, &inputs);
    assign_automatic_bank_placements(&cfg, &inputs);
    {

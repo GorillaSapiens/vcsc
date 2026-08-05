@@ -15,6 +15,11 @@
 
 void emit_function_abi_metadata(const ASTNode *fn, const char *sym, bool is_definition);
 void emit_global_abi_metadata(const ASTNode *node, const char *symname, bool is_definition, bool is_zeropage);
+void emit_absolute_binding_region_guard_metadata(const ASTNode *node,
+                                                 const char *name,
+                                                 const char *read_expr,
+                                                 const char *write_expr,
+                                                 int size);
 void emit_function_contract_metadata(const ASTNode *fn, const char *sym);
 void emit_global_contract_metadata(const ASTNode *node, const char *symname, bool is_zeropage);
 void emit_semantic_use_metadata(const char *kind, const char *symbol,

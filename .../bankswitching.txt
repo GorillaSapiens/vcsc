@@ -494,47 +494,10 @@ originating object. The `TRAMPOLINES` section then reports the actual generated
 bridges. This makes placement reproducible and auditable rather than linker
 astrology.
 
-Superchip RAM using split-address absolute bindings
+Superchip RAM through split-address named memory
 -----------------------------------------------------
-VCSC supports split read/write absolute external bindings:
-
-    uint8_t object@[read_address/write_address];
-
-Loads use the first address and stores use the second. Taking the address of a
-split-address binding is rejected. That is enough for explicit Superchip
-RAM aliases without inventing a new pointer representation.
-
-The SC cfg profiles reserve the bank prefix used by the RAM ports and keep
-ordinary ROM code/data out of it by beginning each bank's allocatable ROM at
-$x100, for example $F100 in BANK0 and $D100 in BANK1. Vectors remain at the top
-of each logical bank. Even though allocation begins at $x100, the output writer
-still emits a complete 4K bank and fills the reserved $x000-$x0FF prefix, so the
-finished F8SC/F6SC/F4SC images remain 8K/16K/32K respectively.
-
-The 128 bytes of cartridge RAM are shared across bank switches. Explicit bindings
-may name each byte or array using the scheme's read and write windows. The
-scheme-specific VCS header should provide constants or helpers so applications
-do not repeat magic port addresses.
-
-Automatic allocation of variables into Superchip RAM is a required later
-roadmap item, not a prerequisite for the first explicit-binding SC cartridge. It
-will require more than cfg entries because an allocated object has one logical
-identity but separate load and store addresses. The compiler/object/linker
-contract must preserve both aliases for each allocated object:
-
-* loads relocate against the read alias;
-* stores relocate against the write alias;
-* initializers and BSS clearing write through the write alias;
-* address-taking and ordinary pointer decay are rejected until a sound split-
-  address reference ABI exists;
-* activation-overlay use is deferred until persistent globals and arrays are
-  proven;
-* map usage counts the shared 128 physical bytes once, not once per alias or
-  once per bank.
-
-Automatic allocation uses the existing named-memory declaration model rather
-than adding a built-in `superchip` type or keyword.  An SC machine/profile
-header will define a split-address region conceptually as:
+Superchip storage is allocator-owned named memory, not an absolute external
+alias. The SC machine/profile header defines the region conceptually as:
 
     mem superchip {
         $read_start:  0xF080
@@ -543,22 +506,28 @@ header will define a split-address region conceptually as:
         $rw
     };
 
-Applications then request ordinary allocated objects in that region:
+Applications declare ordinary owned objects with the region modifier:
 
-    superchip uint8_t foo;
+    superchip uint8_t byte;
     superchip uint8_t buffer[32];
 
-The ordering is deliberately the same as the absolute-binding
-syntax: `@[read_address/write_address]`.  Thus the explicit spelling equivalent
-to the first allocated byte is:
+Loads relocate through the read alias, stores and initialization through the
+write alias, and map accounting counts the physical bytes once across all ROM
+banks. The SC cfg profiles reserve each bank's $x000-$x0FF RAM-port prefix and
+begin allocatable ROM at $x100 while still emitting complete 4K physical banks.
 
-    uint8_t foo@[0xF080/0xF000];
+A non-owning `@[read/write]` absolute external binding may not overlap these or
+any other allocator-managed windows. The linker compares the binding's complete
+readable extent with managed read/ordinary windows and its complete writable
+extent with managed write/ordinary windows. Raw hardware bindings remain valid
+only in addresses deliberately left outside linker-managed `MEMORY`; storage
+inside a named region must be declared through that region so the allocator can
+reserve it.
 
-Loads use `$F080+offset`; stores, BSS clearing, and initializer copies use
-`$F000+offset`.  The source header supplies the region name and aliases so an
-application does not repeat mapper constants.  The linker treats this as one
-shared 128-byte physical allocation, not BANK0-owned storage merely because the
-canonical aliases use the `$Fxxx` mirror.  Code in every selected bank may use
+The source header supplies the region name and aliases so an application does
+not repeat mapper constants. The linker treats the region as one shared
+128-byte physical allocation, not BANK0-owned storage merely because the
+canonical aliases use the `$Fxxx` mirror. Code in every selected bank may use
 the same allocated object without a bank switch.
 
 Normal cold-start startup initializes automatically allocated SC DATA/BSS just
@@ -1111,6 +1080,20 @@ when main roadmap item 29 becomes active.
          same-address and split-address objects, arrays and aggregate objects,
          legacy `ref` diagnostics, contradictory modifiers, forbidden
          initialization, compatible redeclarations, and cross-object ABI mismatch.
+       * Absolute bindings now emit linker-visible range metadata for their full
+         object size. Before layout, `vcsc-ld` rejects a readable range which
+         overlaps any configured allocator-managed read/ordinary window and a
+         writable range which overlaps any configured allocator-managed
+         write/ordinary window. The check is generic, directional, and covers
+         block-scope bindings as well as separately compiled file-scope bindings.
+       * Convert the bankswitching diagnostic's complete Superchip probe from a
+         non-owning absolute alias to `superchip uint8_t ...[128]`, so the probe
+         owns and reserves the entire physical region. Keep TIA and RIOT hardware
+         bindings valid because their addresses lie outside the VCS profiles'
+         allocator-managed RAM and ROM windows.
+       * Add ordinary/split/reversed/noncontiguous overlap tests, complete-array
+         boundary checks, local-binding coverage, and an external-hole cfg for
+         tests that intentionally model raw helper buffers outside managed memory.
 
 [ ] 17. Add `writeonly` as the write-side access qualifier.
 
