@@ -56,24 +56,35 @@ void require_lvalue_readable(const LValueRef *lv) {
       return;
    }
    site = lv->use_site;
-   error_user("[%s:%d.%d] cannot read through writeonly pointer '%s'",
+   error_user("[%s:%d.%d] cannot read through writeonly %s '%s'",
               site && site->file ? site->file : "<unknown>",
               site ? site->line : 0, site ? site->column : 0,
+              lv->is_ref ? "ref parameter" : "pointer",
               lv->name ? lv->name : "<unnamed>");
 }
 
-//! @brief Reject a store through a const pointer-derived lvalue.
+//! @brief Reject a store through a const object or pointer-derived lvalue.
 void require_lvalue_writable(const LValueRef *lv) {
    const ASTNode *site;
-   if (!lv || (!lv->pointer_path_write_forbidden &&
-       !(lvalue_access_reaches_qualified_pointee(lv) &&
-         lv->pointer_access == POINTER_ACCESS_READONLY))) {
+   if (!lv) {
       return;
    }
    site = lv->use_site;
-   error_user("[%s:%d.%d] cannot write through const pointer '%s'",
+   if (lv->object_is_const) {
+      error_user("[%s:%d.%d] cannot write const object '%s'",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 lv->name ? lv->name : "<unnamed>");
+   }
+   if (!lv->pointer_path_write_forbidden &&
+       !(lvalue_access_reaches_qualified_pointee(lv) &&
+         lv->pointer_access == POINTER_ACCESS_READONLY)) {
+      return;
+   }
+   error_user("[%s:%d.%d] cannot write through const %s '%s'",
               site && site->file ? site->file : "<unknown>",
               site ? site->line : 0, site ? site->column : 0,
+              lv->is_ref ? "ref parameter" : "pointer",
               lv->name ? lv->name : "<unnamed>");
 }
 
@@ -295,6 +306,7 @@ bool find_aggregate_member_info(const ASTNode *type, const char *member, Aggrega
             out->bit_width = bit_width;
             out->storage_size = storage_size;
             out->is_bitfield = bit_width > 0;
+            out->object_is_const = declaration_const_applies_to_object(fmods, fdecl);
             out->pointer_access = declaration_pointer_access(fmods, fdecl);
          }
          return true;
@@ -431,6 +443,11 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
       out->pointer_access = entry->pointer_access;
       out->pointer_access_depth = declarator_pointer_depth(entry->declarator);
       out->pointer_access_dereferences = 0;
+      out->pointer_path_read_forbidden = entry->is_ref &&
+         entry->pointer_access == POINTER_ACCESS_WRITEONLY;
+      out->pointer_path_write_forbidden = entry->is_ref &&
+         entry->pointer_access == POINTER_ACCESS_READONLY;
+      out->object_is_const = entry->object_is_const;
       out->base_offset = entry->offset;
       out->offset = entry->offset;
       out->size = entry->is_ref
@@ -443,13 +460,80 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
    return true;
 }
 
-//! @brief Lower ref argument to slot from AST/semantic state into generated assembly or linker-visible metadata.
-bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size) {
+//! @brief Lower one directional ref argument to its one-address ABI slot.
+bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size,
+                                  PointerAccessQualifier formal_access,
+                                  const char *parameter_name) {
    LValueRef lv;
+   LValueAccessMode mode;
+   const char *actual_name;
+   const char *formal_name = (parameter_name && *parameter_name)
+      ? parameter_name : "<unnamed>";
+
    if (!resolve_ref_argument_lvalue(ctx, expr, &lv)) {
       error_user("[%s:%d.%d] ref argument must be an lvalue", expr->file, expr->line, expr->column);
    }
-   if (!emit_prepare_lvalue_ptr(ctx, &lv, LVALUE_ACCESS_REF)) {
+   actual_name = (lv.name && *lv.name) ? lv.name : "<unnamed>";
+
+   if (lv.is_ref &&
+       !pointer_access_implicit_conversion_allowed(formal_access, lv.pointer_access)) {
+      error_user("[%s:%d.%d] cannot bind %s ref '%s' to %s ref parameter '%s'",
+                 expr->file, expr->line, expr->column,
+                 pointer_access_qualifier_name(lv.pointer_access), actual_name,
+                 pointer_access_qualifier_name(formal_access), formal_name);
+   }
+
+   switch (formal_access) {
+      case POINTER_ACCESS_READONLY:
+         if (lv.is_absolute_ref && (!lv.read_expr || !*lv.read_expr)) {
+            error_user("[%s:%d.%d] ref argument '%s' has no read address required by const ref parameter '%s'",
+                       expr->file, expr->line, expr->column, actual_name, formal_name);
+         }
+         require_lvalue_readable(&lv);
+         mode = LVALUE_ACCESS_READ_ADDRESS;
+         break;
+
+      case POINTER_ACCESS_WRITEONLY:
+         if (lv.object_is_const) {
+            error_user("[%s:%d.%d] ref argument '%s' is const and cannot bind to writeonly ref parameter '%s'",
+                       expr->file, expr->line, expr->column, actual_name, formal_name);
+         }
+         if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) {
+            error_user("[%s:%d.%d] ref argument '%s' has no write address required by writeonly ref parameter '%s'",
+                       expr->file, expr->line, expr->column, actual_name, formal_name);
+         }
+         require_lvalue_writable(&lv);
+         mode = LVALUE_ACCESS_WRITE_ADDRESS;
+         break;
+
+      case POINTER_ACCESS_READWRITE:
+      default:
+         if (lv.object_is_const) {
+            error_user("[%s:%d.%d] ref argument '%s' is const and cannot bind to read/write ref parameter '%s'",
+                       expr->file, expr->line, expr->column, actual_name, formal_name);
+         }
+         if (lv.is_absolute_ref) {
+            if (!lv.read_expr || !*lv.read_expr) {
+               error_user("[%s:%d.%d] ref argument '%s' has no read address required by read/write ref parameter '%s'",
+                          expr->file, expr->line, expr->column, actual_name, formal_name);
+            }
+            if (!lv.write_expr || !*lv.write_expr) {
+               error_user("[%s:%d.%d] ref argument '%s' has no write address required by read/write ref parameter '%s'",
+                          expr->file, expr->line, expr->column, actual_name, formal_name);
+            }
+            if (strcmp(lv.read_expr, lv.write_expr)) {
+               error_user("[%s:%d.%d] ref argument '%s' cannot bind to read/write ref parameter '%s' because its read address %s and write address %s are different",
+                          expr->file, expr->line, expr->column, actual_name, formal_name,
+                          lv.read_expr, lv.write_expr);
+            }
+         }
+         require_lvalue_readable(&lv);
+         require_lvalue_writable(&lv);
+         mode = LVALUE_ACCESS_REF;
+         break;
+   }
+
+   if (!emit_prepare_lvalue_ptr(ctx, &lv, mode)) {
       return false;
    }
    emit_store_ptr_to_scratch(dst_offset, 0, dst_size);
@@ -899,6 +983,12 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
          require_lvalue_readable(lv);
       }
    }
+   else if (mode == LVALUE_ACCESS_ADDRESS && lv->is_ref) {
+      /* Plain '&' creates a read/write pointer, so it must not recover a
+         capability which the reference parameter deliberately lacks. */
+      require_lvalue_readable(lv);
+      require_lvalue_writable(lv);
+   }
    if ((mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_READ_ADDRESS ||
         mode == LVALUE_ACCESS_WRITE_ADDRESS || mode == LVALUE_ACCESS_REF) &&
        lv->is_bitfield) {
@@ -937,20 +1027,17 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
             abs_expr = lv->read_expr;
             break;
          case LVALUE_ACCESS_REF:
-            if (lv->read_expr && lv->write_expr) {
-               if (strcmp(lv->read_expr, lv->write_expr)) {
-                  const ASTNode *site = lv->use_site;
-                  error_user("[%s:%d.%d] absolute external binding '%s' does not have a single address; unqualified ref passing cannot represent split-address objects (read %s, write %s)",
-                             site && site->file ? site->file : "<unknown>",
-                             site ? site->line : 0, site ? site->column : 0,
-                             lv->name ? lv->name : "<unnamed>",
-                             lv->read_expr, lv->write_expr);
-               }
-               abs_expr = lv->read_expr;
+            if (!lv->read_expr || !lv->write_expr ||
+                strcmp(lv->read_expr, lv->write_expr)) {
+               const ASTNode *site = lv->use_site;
+               error_user("[%s:%d.%d] absolute external binding '%s' does not have one shared read/write address for an ordinary ref (read %s, write %s)",
+                          site && site->file ? site->file : "<unknown>",
+                          site ? site->line : 0, site ? site->column : 0,
+                          lv->name ? lv->name : "<unnamed>",
+                          lv->read_expr ? lv->read_expr : "none",
+                          lv->write_expr ? lv->write_expr : "none");
             }
-            else {
-               abs_expr = lv->read_expr ? lv->read_expr : lv->write_expr;
-            }
+            abs_expr = lv->read_expr;
             break;
       }
       if (!abs_expr || !*abs_expr) {
@@ -1558,6 +1645,7 @@ static bool resolve_lvalue_suffixes(Context *ctx, const ASTNode *suffixes, LValu
       }
       out->type = info.type;
       out->declarator = info.declarator;
+      out->object_is_const = out->object_is_const || info.object_is_const;
       out->pointer_access = info.pointer_access;
       out->pointer_access_depth = declarator_pointer_depth(info.declarator);
       out->pointer_access_dereferences = 0;
@@ -1611,6 +1699,11 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
    out->pointer_access = entry->pointer_access;
    out->pointer_access_depth = declarator_pointer_depth(entry->declarator);
    out->pointer_access_dereferences = 0;
+   out->pointer_path_read_forbidden = entry->is_ref &&
+      entry->pointer_access == POINTER_ACCESS_WRITEONLY;
+   out->pointer_path_write_forbidden = entry->is_ref &&
+      entry->pointer_access == POINTER_ACCESS_READONLY;
+   out->object_is_const = entry->object_is_const;
    out->base_offset = entry->offset;
    out->offset = entry->offset;
    out->size = entry->is_ref

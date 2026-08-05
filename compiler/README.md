@@ -520,12 +520,16 @@ ordinary locals, while their fixed backing bytes participate in the normal
 call-graph activation overlay. Loads use the read alias; stores and initializer
 writes use the write alias.
 
-Taking the address, array-to-pointer decay, and passing one as an ordinary
-`ref` argument remain rejected because one ordinary pointer cannot encode
-different load and store addresses. Direct indexing remains supported,
-including runtime array indexes. Compound assignment, increment/decrement, and
-bitfield updates load through the read alias and store through the write alias
-rather than using a single-address 6502 read-modify-write instruction.
+Taking one ordinary read/write address, implicit array-to-pointer decay, and
+passing one to an ordinary `ref T` parameter remain rejected because one
+ordinary address cannot encode different load and store locations. Directional
+`ref const T` and `ref writeonly T` parameters are supported: the caller passes
+only the selected read or write alias, respectively. Direct indexing remains
+supported, including runtime array indexes. Compound assignment,
+increment/decrement, and bitfield updates load through the read alias and store
+through the write alias rather than using a single-address 6502
+read-modify-write instruction.
+
 Function-scope `static` objects use persistent split-region BSS/DATA storage and
 the existing one-time startup initialization paths. Value parameters and hidden
 function return objects may also select a split writable region; callers store
@@ -549,7 +553,12 @@ pointer-derived lvalues. They are adjacent multi-character unary operators;
 compile-time error. Plain `&` remains valid only when the object has one
 conventional address suitable for an ordinary read/write pointer. Split-address
 array decay remains invalid, so source must project an element explicitly.
-Directional one-address `ref` binding remains separate roadmap work.
+The same address selection is available without explicitly forming a pointer:
+`ref const T` receives the read address, `ref writeonly T` receives the write
+address, and ordinary `ref T` requires both addresses to exist and compare
+equal. All three contracts pass one pointer-sized address; none creates a fat
+pointer.
+
 The selected linker `MEMORY` entry must use matching `read_start`,
 `write_start`, `size`, and `type = rw` values and must be shared rather than
 owned by a cartridge bank.
@@ -575,20 +584,45 @@ explicit cast.
 
 ## References
 
-A `ref` parameter is pass-by-reference:
+A `ref` parameter is pass-by-reference. Its access qualifier selects both the
+address passed by the caller and the operations permitted in the callee:
 
 ```vcsc
+uint8_t inspect(ref const uint8_t value) {
+   return value;                 // read-only
+}
+
+void output(ref writeonly uint8_t value, uint8_t replacement) {
+   value := replacement;         // pure writes only
+}
+
 void swap(ref int16_t a, ref int16_t b) {
-   int16_t temporary := a;
+   int16_t temporary := a;       // ordinary read/write refs
    a := b;
    b := temporary;
 }
 ```
 
-The caller passes one address. Reads and writes in the callee dereference it.
-The argument must be an lvalue of the exact declared type. The parameter's
-backing symbol is pointer-sized. `ref` is reserved for function parameters; it
-is not an object-storage modifier.
+* `ref const T` requires a readable exact-type lvalue and passes its read
+  address. The callee may read it but may not write it.
+* `ref writeonly T` requires a writable exact-type lvalue and passes its write
+  address. The callee may perform pure writes but may not read it or use an
+  operation with a hidden read, such as compound assignment or
+  increment/decrement.
+* Ordinary `ref T` requires both readable and writable locations and requires
+  those locations to be identical. It retains ordinary read/write behavior.
+
+All three forms pass exactly one 16-bit address in one pointer-sized parameter
+symbol. A split-address object may therefore bind to either matching directional
+form, but not to ordinary `ref T`; no implicit fat pointer is created. A
+read/write ref may narrow to either restricted form when forwarded. Restricted
+refs cannot regain read/write access or convert between `const` and `writeonly`.
+The access contract is part of function declaration compatibility and
+linker-visible ABI metadata.
+
+Every argument must be an lvalue of the exact declared type, including matching
+array extents and aggregate shape. `ref` is reserved for function parameters;
+it is not an object-storage modifier.
 
 ## Absolute external bindings
 
@@ -681,10 +715,12 @@ A safe argument is copied immediately through the configured write alias; an
 argument which must survive a later call is copied through that alias after all
 argument expressions finish. The callee reads through the read alias and writes
 through the write alias. ABI metadata includes the region and both aliases, so
-separate declarations and definitions must agree. A split-address `ref`
-parameter is rejected because the ordinary reference ABI contains only one
-address. Combining `static` with a memory-region modifier is rejected as
-redundant and ambiguous.
+separate declarations and definitions must agree. A `ref` parameter itself
+still has one pointer-sized backing symbol rather than split parameter storage.
+Its qualifier determines which address the caller supplies: `ref const` selects
+the argument's read alias, `ref writeonly` selects its write alias, and ordinary
+`ref` requires one shared read/write address. Combining `static` with a
+memory-region modifier is rejected as redundant and ambiguous.
 
 ### Static activation and recursion
 

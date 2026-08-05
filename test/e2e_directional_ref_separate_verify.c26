@@ -1,0 +1,41 @@
+// vcsc-cc1 -I .
+// object: e2e_directional_ref_separate_verify__def.c26
+// linkcfg: directional_address_projection.cfg
+// simcfg: directional_address_projection.cfg
+// expectexit: 0
+
+include "machine_6502.c26"
+
+mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0007 $rw };
+banana uint8_t split_value;
+
+uint8_t remote_inspect(ref const uint8_t value);
+void remote_output(ref writeonly uint8_t value, uint8_t replacement);
+
+uint8_t fail_code;
+
+void fail(uint8_t code) {
+   fail_code := code;
+   asm lda #$ff;
+   asm ldx fail_code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   uint8_t value := 0x42;
+   if (remote_inspect(value) != 0x42) { fail(1); }
+   remote_output(value, 0xa5);
+   if (value != 0xa5) { fail(2); }
+
+   remote_output(split_value, 0x6c);
+   if (remote_inspect(split_value) != 0x6c) { fail(3); }
+   pass();
+}

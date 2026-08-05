@@ -1,0 +1,150 @@
+// vcsc-cc1 -I .
+// linkcfg: directional_address_projection.cfg
+// simcfg: directional_address_projection.cfg
+// expectexit: 0
+
+include "machine_6502.c26"
+
+mem banana { $read_start:0x3003 $write_start:0x5007 $size:0x0007 $rw };
+mem orange { $read_start:0x7102 $write_start:0x4A11 $size:0x0005 $rw };
+
+struct Fruit {
+   uint8_t first;
+   uint8_t second;
+};
+
+banana uint8_t banana_values[3];
+orange Fruit orange_value;
+
+const uint8_t immutable := 0x6d;
+uint8_t external_split @[0x7403/0x7607];
+uint8_t read_only @[0x7404/none];
+uint8_t write_only @[none/0x7608];
+
+uint8_t fail_code;
+
+void fail(uint8_t code) {
+   fail_code := code;
+   asm lda #$ff;
+   asm ldx fail_code;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+void pass(void) {
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t inspect(ref const uint8_t value);
+void output(ref writeonly uint8_t value, uint8_t replacement);
+void modify(ref uint8_t value);
+
+uint8_t inspect(ref const uint8_t value) {
+   return value;
+}
+
+void output(ref writeonly uint8_t value, uint8_t replacement) {
+   value := replacement;
+}
+
+void modify(ref uint8_t value) {
+   value++;
+}
+
+const uint8_t *read_address(ref const uint8_t value) {
+   return &<value;
+}
+
+writeonly uint8_t *write_address(ref writeonly uint8_t value) {
+   return &>value;
+}
+
+uint8_t *ordinary_address(ref uint8_t value) {
+   return &value;
+}
+
+uint8_t forward_const(ref const uint8_t value) {
+   return inspect(value);
+}
+
+void forward_writeonly(ref writeonly uint8_t value, uint8_t replacement) {
+   output(value, replacement);
+}
+
+uint8_t narrow_read(ref uint8_t value) {
+   return inspect(value);
+}
+
+void narrow_write(ref uint8_t value, uint8_t replacement) {
+   output(value, replacement);
+}
+
+inline uint8_t inline_inspect(ref const uint8_t value) {
+   return value;
+}
+
+inline void inline_output(ref writeonly uint8_t value, uint8_t replacement) {
+   value := replacement;
+}
+
+uint8_t sum_three(ref const uint8_t values[3]) {
+   return values[0] + values[1] + values[2];
+}
+
+void fill_three(ref writeonly uint8_t values[3], uint8_t base) {
+   values[0] := base;
+   values[1] := base + 1;
+   values[2] := base + 2;
+}
+
+uint8_t fruit_second(ref const Fruit fruit) {
+   return fruit.second;
+}
+
+void set_fruit(ref writeonly Fruit fruit, uint8_t first, uint8_t second) {
+   fruit.first := first;
+   fruit.second := second;
+}
+
+void main(void) {
+   uint8_t ordinary := 0x20;
+
+   if (inspect(immutable) != 0x6d) { fail(1); }
+
+   output(banana_values[1], 0x5a);
+   if (inspect(banana_values[1]) != 0x5a) { fail(2); }
+   if (read_address(banana_values[1]) != (const uint8_t *)0x3004) { fail(3); }
+   if (write_address(banana_values[1]) != (writeonly uint8_t *)0x5008) { fail(4); }
+
+   fill_three(banana_values, 0x10);
+   if (sum_three(banana_values) != 0x33) { fail(5); }
+
+   set_fruit(orange_value, 0xa1, 0xb2);
+   if (fruit_second(orange_value) != 0xb2) { fail(6); }
+   if (read_address(orange_value.second) != (const uint8_t *)0x7103) { fail(7); }
+   if (write_address(orange_value.second) != (writeonly uint8_t *)0x4a12) { fail(8); }
+
+   if (read_address(external_split) != (const uint8_t *)0x7403) { fail(9); }
+   if (write_address(external_split) != (writeonly uint8_t *)0x7607) { fail(10); }
+   if (read_address(read_only) != (const uint8_t *)0x7404) { fail(11); }
+   if (write_address(write_only) != (writeonly uint8_t *)0x7608) { fail(12); }
+
+   if (ordinary_address(ordinary) != &ordinary) { fail(13); }
+   modify(ordinary);
+   if (ordinary != 0x21) { fail(14); }
+   if (narrow_read(ordinary) != 0x21) { fail(15); }
+   narrow_write(ordinary, 0x31);
+   if (ordinary != 0x31) { fail(16); }
+
+   if (forward_const(banana_values[0]) != 0x10) { fail(17); }
+   forward_writeonly(banana_values[0], 0x41);
+   if (inspect(banana_values[0]) != 0x41) { fail(18); }
+
+   inline_output(banana_values[2], 0x77);
+   if (inline_inspect(banana_values[2]) != 0x77) { fail(19); }
+
+   pass();
+}

@@ -169,8 +169,15 @@ Parameters may use ordinary binary integers through four bytes and `bcd8_t`,
 packed-BCD storage from same-sized ordinary unsigned integers and include a
 split value parameter's region identity plus read/write aliases, so separately
 compiled declarations cannot silently disagree about either representation or
-storage. A split-address `ref` parameter is rejected because the ordinary
-pointer/reference ABI carries only one address.
+storage.
+
+Every `ref` parameter has one pointer-sized callee-owned symbol. `ref const T`
+receives the argument's read address, `ref writeonly T` receives its write
+address, and ordinary `ref T` requires both locations to exist and be identical.
+Thus a genuinely split or one-sided object may bind to the matching directional
+contract without changing the one-address ABI, but it cannot bind to ordinary
+`ref T`. The selected address is determined from the formal parameter type at
+the call site, not from callee-body analysis.
 
 A direct call therefore places no fixed parameter bytes on the software stack
 and allocates no software-stack call frame. Argument conversion uses a live
@@ -197,12 +204,14 @@ every edge. Function-pointer declarators and function names used as values are
 compile-time errors, and the `_callptr0` runtime trampoline no longer exists.
 
 
-One-address pointer access qualification
-----------------------------------------
+One-address pointer and reference access qualification
+-----------------------------------------------------
 
 Ordinary `T *`, `const T *`, and `writeonly T *` all use the target's normal
-16-bit pointer representation. The qualifier constrains access through the
-pointer rather than changing storage width or byte order:
+16-bit pointer representation. The corresponding `ref T`, `ref const T`, and
+`ref writeonly T` contracts also pass exactly one 16-bit address. The qualifier
+constrains access through that address rather than changing storage width or
+byte order:
 
 * `T *` permits reads, writes, and read-modify-write operations.
 * `const T *` permits reads but rejects stores through the pointer.
@@ -210,17 +219,20 @@ pointer rather than changing storage width or byte order:
   which performs a hidden read, including compound assignment,
   increment/decrement of the pointed-to object, and packed-bitfield updates.
 
-An ordinary pointer may implicitly lose capability by conversion to either
-restricted form. A restricted pointer cannot implicitly regain read/write
-capability, and `const` and `writeonly` pointers do not implicitly convert to one
-another. Pointer arithmetic, comparison, and copying preserve the qualifier.
+An ordinary pointer or read/write ref may implicitly lose capability by
+conversion to either restricted form. A restricted pointer or ref cannot
+implicitly regain read/write capability, and `const` and `writeonly` forms do
+not implicitly convert to one another. Pointer arithmetic, comparison, and
+copying preserve pointer qualification; forwarding a ref preserves or narrows
+its contract.
 
 Access qualification is part of the canonical type fingerprint for globals,
-function returns, value parameters, use contracts, and aggregate members. The
-linker therefore rejects separately compiled declarations which disagree on
-pointer capability even though all forms occupy the same two bytes. The
-qualifier is not a storage region and does not alter call-graph activation
-accounting.
+function returns, value parameters, ref parameters, use contracts, and
+aggregate members. Ref parameter metadata records `ref(access=const)`,
+`ref(access=writeonly)`, or `ref(access=read/write)`. The linker therefore
+rejects separately compiled declarations which disagree on access capability
+even though all forms occupy the same two bytes. The qualifier is not a storage
+region and does not alter call-graph activation accounting.
 
 Directional address projection
 ------------------------------

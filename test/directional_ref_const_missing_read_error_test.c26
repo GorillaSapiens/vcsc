@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: ref argument 'VSYNC' has no read address required by const ref parameter 'source'
+include "machine_6502.c26"
+uint8_t VSYNC @[none/0x00];
+uint8_t inspect(ref const uint8_t source) { return source; }
+void main(void) { uint8_t value := inspect(VSYNC); }

@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// object: e2e_abi_const_ref_mismatch_fail__def.c26
+// expectlinkfail
+// expectlinkerr: ABI/type fingerprint mismatch for function symbol 'inspect' parameter 0
+// expectlinkerr: ref(access=const)
+// expectlinkerr: ref(access=read/write)
+include "machine_6502.c26"
+uint8_t inspect(ref const uint8_t value);
+void main(void) { uint8_t value; uint8_t result := inspect(value); }

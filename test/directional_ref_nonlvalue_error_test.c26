@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: argument 1 passed to ref parameter of function 'inspect' must be an lvalue
+include "machine_6502.c26"
+uint8_t inspect(ref const uint8_t source) { return source; }
+void main(void) { uint8_t value := inspect(1 + 2); }

@@ -1,0 +1,2 @@
+include "machine_6502.c26"
+uint8_t inspect(ref uint8_t value) { return value; }

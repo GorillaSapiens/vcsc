@@ -682,6 +682,11 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                .is_absolute_ref = false,
                .read_expr = entry->read_expr,
                .write_expr = entry->write_expr,
+               .pointer_access = entry->pointer_access,
+               .pointer_access_depth = declarator_pointer_depth(entry->declarator),
+               .pointer_path_read_forbidden = entry->pointer_access == POINTER_ACCESS_WRITEONLY,
+               .pointer_path_write_forbidden = entry->pointer_access == POINTER_ACCESS_READONLY,
+               .object_is_const = entry->object_is_const,
                .offset = entry->offset,
                .size = value_size,
                .use_site = expr

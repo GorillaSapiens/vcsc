@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot read through writeonly ref parameter 'value'
+
+include "machine_6502.c26"
+
+struct Pair { uint8_t first; uint8_t second; };
+
+uint8_t inspect(ref writeonly Pair value) {
+   return value.second;
+}

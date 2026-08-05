@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: ref argument 'immutable' is const and cannot bind to read/write ref parameter 'target'
+include "machine_6502.c26"
+const uint8_t immutable := 7;
+void modify(ref uint8_t target) { target := 1; }
+void main(void) { modify(immutable); }

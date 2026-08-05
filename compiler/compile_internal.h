@@ -48,6 +48,7 @@ typedef struct ContextEntry {
    bool has_split_alias_delta;
    int split_alias_delta;
    bool target_typed;
+   bool object_is_const;
    PointerAccessQualifier pointer_access;
    int offset;
    int size;
@@ -99,6 +100,7 @@ typedef struct LValueRef {
    int pointer_access_dereferences;
    bool pointer_path_read_forbidden;
    bool pointer_path_write_forbidden;
+   bool object_is_const;
    const ASTNode *use_site;
    int bit_offset;
    int bit_width;
@@ -113,6 +115,7 @@ typedef struct AggregateMemberInfo {
    int bit_width;
    int storage_size;
    bool is_bitfield;
+   bool object_is_const;
    PointerAccessQualifier pointer_access;
 } AggregateMemberInfo;
 

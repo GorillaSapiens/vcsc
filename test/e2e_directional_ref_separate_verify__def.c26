@@ -1,0 +1,9 @@
+include "machine_6502.c26"
+
+uint8_t remote_inspect(ref const uint8_t value) {
+   return value;
+}
+
+void remote_output(ref writeonly uint8_t value, uint8_t replacement) {
+   value := replacement;
+}

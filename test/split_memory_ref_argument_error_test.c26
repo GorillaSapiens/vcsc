@@ -1,7 +1,6 @@
 // vcsc-cc1 -I .
 // expectfail
-// expecterr: absolute external binding 'foo' does not have a single address
-// expecterr: unqualified ref passing cannot represent split-address objects
+// expecterr: ref argument 'foo' cannot bind to read/write ref parameter 'value' because its read address foo and write address {foo - 128} are different
 
 include "machine_6502.c26"
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };

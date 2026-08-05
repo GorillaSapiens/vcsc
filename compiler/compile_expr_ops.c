@@ -782,6 +782,8 @@ bool compile_expr_operator_to_slot(ASTNode *expr, Context *ctx, ContextEntry *ds
       if (!resolve_lvalue(ctx, expr, &lv)) {
          return false;
       }
+      require_lvalue_readable(&lv);
+      require_lvalue_writable(&lv);
       emit_lvalue_semantic_use(ctx, &lv, "read");
       emit_lvalue_semantic_use(ctx, &lv, "write");
       if (lv.is_absolute_ref) {

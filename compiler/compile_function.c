@@ -390,8 +390,17 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
          continue;
       }
 
-      validate_declaration_access_qualifiers(parameter, modifiers, pdecl,
-                                             "function parameter declaration");
+      if (parameter_is_ref(parameter)) {
+         if (has_modifier((ASTNode *)modifiers, "const") &&
+             has_modifier((ASTNode *)modifiers, "writeonly")) {
+            error_user("[%s:%d.%d] function parameter declaration cannot combine 'const' and 'writeonly' on the same referenced object",
+                       parameter->file, parameter->line, parameter->column);
+         }
+      }
+      else {
+         validate_declaration_access_qualifiers(parameter, modifiers, pdecl,
+                                                "function parameter declaration");
+      }
 
       if (has_modifier((ASTNode *)modifiers, "inline")) {
          error_user("[%s:%d.%d] parameter %d of function '%s' cannot use 'inline'",
@@ -466,7 +475,9 @@ void build_function_context(const ASTNode *node, Context *ctx) {
          entry->size = slot_size;
          entry->declarator = param_decl;
          entry->is_ref = parameter_is_ref(parameter);
-         entry->pointer_access = declaration_pointer_access(modifiers, param_decl);
+         entry->object_is_const = !entry->is_ref &&
+            declaration_const_applies_to_object(modifiers, param_decl);
+         entry->pointer_access = parameter_access_qualifier(parameter);
          if (modifiers_imply_split_address(modifiers)) {
             char sym[256];
             if (!entry_symbol_name(ctx, entry, sym, sizeof(sym))) {

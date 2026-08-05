@@ -1,0 +1,11 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot write through const ref parameter 'value'
+
+include "machine_6502.c26"
+
+struct Pair { uint8_t first; uint8_t second; };
+
+void inspect(ref const Pair value) {
+   value.second := 1;
+}

@@ -20,6 +20,7 @@ const ASTNode *parameter_decl_specifiers(const ASTNode *parameter);
 const ASTNode *parameter_type(const ASTNode *parameter);
 const ASTNode *parameter_declarator(const ASTNode *parameter);
 bool parameter_is_ref(const ASTNode *parameter);
+PointerAccessQualifier parameter_access_qualifier(const ASTNode *parameter);
 bool parameter_has_symbol_storage(const ASTNode *parameter);
 int parameter_storage_size(const ASTNode *parameter);
 const char *parameter_name(const ASTNode *parameter, int i);

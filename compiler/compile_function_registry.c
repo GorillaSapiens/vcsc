@@ -237,8 +237,8 @@ static bool function_same_signature(const ASTNode *a, const ASTNode *b) {
              parameter_is_ref(aparam) != parameter_is_ref(bparam) ||
              !declarator_signature_matches(parameter_declarator(aparam),
                                            parameter_declarator(bparam)) ||
-             declaration_pointer_access(amods, parameter_declarator(aparam)) !=
-             declaration_pointer_access(bmods, parameter_declarator(bparam)) ||
+             parameter_access_qualifier(aparam) !=
+             parameter_access_qualifier(bparam) ||
              ((amem || bmem) && (!amem || !bmem || strcmp(amem, bmem)))) {
             return false;
          }
@@ -387,13 +387,21 @@ const ASTNode *resolve_function_call_target(const char *name, ASTNode *call_expr
          const ASTNode *actual_decl = NULL;
          const ASTNode *actual_expr;
          bool actual_lvalue;
+         LValueRef actual_lv;
 
          if (!parameter || parameter_is_void(parameter) || !parameter_type(parameter)) {
             continue;
          }
          actual_expr = unwrap_expr_node(args->children[actual_index]);
-         expr_match_signature(args->children[actual_index], ctx, &actual_type, &actual_decl);
-         actual_lvalue = resolve_ref_argument_lvalue(ctx, args->children[actual_index], NULL);
+         actual_lvalue = resolve_ref_argument_lvalue(ctx, args->children[actual_index],
+                                                     parameter_is_ref(parameter) ? &actual_lv : NULL);
+         if (parameter_is_ref(parameter) && actual_lvalue) {
+            actual_type = actual_lv.type;
+            actual_decl = actual_lv.declarator;
+         }
+         else {
+            expr_match_signature(args->children[actual_index], ctx, &actual_type, &actual_decl);
+         }
          if (parameter_is_ref(parameter) && !actual_lvalue) {
             if (actual_expr && actual_expr->file && actual_expr->line > 0) {
                message_set_location(actual_expr->file, actual_expr->line,

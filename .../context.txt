@@ -52,7 +52,7 @@ Initial archive inspected:
 
 Input archive for this revision:
 
-    vcsc.20260805_055543.tar.gz
+    vcsc.20260805_103209.tar.gz
 
 The archive has no wrapper directory. COPYING, Makefile, compiler/, test/, and
 other top-level entries are directly at archive root. Preserve that layout.
@@ -8612,3 +8612,35 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   bankswitching profile plus the new exact-address execution case. Staged
   `make installcheck` passes. Bankswitching roadmap item 19, directional `ref`
   parameters, is next.
+
+2026-08-05 04:14:47 PDT, complete directional one-address ref parameters
+------------------------------------------------------------------------
+* Complete bankswitching roadmap item 19 with three distinct one-address
+  reference contracts. `ref const T` passes the exact readable address,
+  `ref writeonly T` passes the exact writable address, and ordinary `ref T`
+  requires both directions to exist at one identical address. No fat-pointer
+  representation or callee-body-dependent address choice is introduced.
+* Carry reference capability through call lowering, callee lvalue access,
+  forwarding conversions, arrays and aggregate subobjects, same-translation-unit
+  function compatibility, and linker-visible ABI fingerprints. Read/write refs
+  may narrow to const or writeonly; restricted refs cannot recover or exchange
+  capability. Plain `&` cannot be used to recover a read/write pointer from a
+  restricted ref.
+* Track const object lvalues explicitly so const objects may bind to `ref const`
+  while direct writes and writable-reference binding remain rejected. Initialize
+  every context entry deterministically after adding that metadata field.
+* Add exact-address execution for ordinary, const, split-memory, reversed and
+  noncontiguous regions, arrays, structures, members, and one-sided/split
+  absolute bindings. Add inline, separately compiled, ABI-mismatch, hidden-read,
+  subobject, plain-address escape, and F8 cross-bank trampoline coverage.
+* Update `compiler/README.md`, `compiler/ABI.txt`, `libraries/vcs/README.md`,
+  `test/README.md`, and `.../bankswitching.txt`. Leave the project-wide top-level
+  README unchanged.
+* Verification: all 421 compile-only tests pass. The complete 232-test
+  end-to-end/generic inventory is covered in ordered chunks: tests 1-171 passed
+  in the initial ordered run, the remaining 61 passed in continuation chunks,
+  and the one return-object case affected by deterministic metadata
+  initialization was rerun successfully after the fix. Focused source-tree
+  hygiene and staged `make installcheck` pass. Bankswitching roadmap item 20,
+  generic function code/result region classification, is next.
+

@@ -619,6 +619,7 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
    entry->is_absolute_ref = addrspec != NULL;
    entry->read_expr = address_spec_read_expr(addrspec);
    entry->write_expr = address_spec_write_expr(addrspec);
+   entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
    entry->pointer_access = declaration_pointer_access(modifiers, declarator);
    init_split_mem_entry_addresses(entry, name, modifiers);
    entry->offset = 0;
@@ -1039,7 +1040,7 @@ void ctx_push(Context *ctx, const ASTNode *type, const char *name) {
             entry->type->file, entry->type->line, entry->type->column);
    }
 
-   entry = (ContextEntry *) malloc(sizeof(ContextEntry));
+   entry = (ContextEntry *) calloc(1, sizeof(ContextEntry));
    entry->name = strdup(name);
    entry->is_static = false;
    entry->is_zeropage = false;
@@ -1089,7 +1090,7 @@ void ctx_static(Context *ctx, const ASTNode *type, const char *name) {
             entry->type->file, entry->type->line, entry->type->column);
    }
 
-   entry = (ContextEntry *) malloc(sizeof(ContextEntry));
+   entry = (ContextEntry *) calloc(1, sizeof(ContextEntry));
    entry->name = strdup(name);
    entry->is_static = true;
    entry->is_zeropage = false;
@@ -1120,7 +1121,7 @@ void ctx_zeropage(Context *ctx, const ASTNode *type, const char *name) {
             entry->type->file, entry->type->line, entry->type->column);
    }
 
-   entry = (ContextEntry *) malloc(sizeof(ContextEntry));
+   entry = (ContextEntry *) calloc(1, sizeof(ContextEntry));
    entry->name = strdup(name);
    entry->is_static = false;
    entry->is_zeropage = true;

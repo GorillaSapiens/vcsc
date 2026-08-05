@@ -494,6 +494,21 @@ bindings, same-address objects, one-time subscript evaluation, and compositional
 missing selected address, bitfields, capability recovery to ordinary pointers,
 reads through writeonly pointers, and writes through const pointers.
 
+`e2e_directional_ref_verify.c26`,
+`e2e_directional_ref_separate_verify.c26`, and the `directional_ref_*` compile
+tests cover the one-address directional reference contracts. They verify that
+`ref const T` selects a readable alias, `ref writeonly T` selects a writable
+alias, and ordinary `ref T` accepts only one identical read/write address. The
+fixtures cover ordinary and const objects, whole arrays, elements, structures,
+members, generic reversed and noncontiguous split regions, one-sided and split
+absolute bindings, direct and inline calls, legal read/write-to-restricted
+forwarding, and every forbidden capability conversion or operation. Member and
+bitfield failures lock subobject propagation and hidden-read rejection; plain
+address failures prevent a restricted ref from recovering a read/write pointer.
+`e2e_abi_const_ref_mismatch_fail.c26` locks separate-object ABI disagreement,
+while `directional_ref_cross_bank.pl` proves exact address selection and the
+ordinary F8 cross-bank JSR trampoline. `const_object_assignment_error_test.c26`
+locks the underlying const-object write prohibition used by read-only refs.
 
 `call_selective_staging.pl` proves direct calls do not reserve a whole argument
 list in caller scratch. Call-free lists use one reusable slot sized for the

@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot bind const ref 'source' to writeonly ref parameter 'target'
+include "machine_6502.c26"
+void output(ref writeonly uint8_t target) { target := 1; }
+void bridge(ref const uint8_t source) { output(source); }
+void main(void) {}

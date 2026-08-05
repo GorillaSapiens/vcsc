@@ -199,6 +199,26 @@ bool parameter_is_ref(const ASTNode *parameter) {
    return has_modifier((ASTNode *) modifiers, "ref");
 }
 
+//! @brief Return the one-address access capability carried by a parameter.
+PointerAccessQualifier parameter_access_qualifier(const ASTNode *parameter) {
+   const ASTNode *decl_specs = parameter_decl_specifiers(parameter);
+   const ASTNode *modifiers = (decl_specs && decl_specs->count > 0) ? decl_specs->children[0] : NULL;
+   const ASTNode *declarator = parameter_declarator(parameter);
+
+   if (parameter_is_ref(parameter)) {
+      if (has_modifier((ASTNode *)modifiers, "writeonly")) {
+         return POINTER_ACCESS_WRITEONLY;
+      }
+      if (has_modifier((ASTNode *)modifiers, "const")) {
+         return POINTER_ACCESS_READONLY;
+      }
+      return POINTER_ACCESS_READWRITE;
+   }
+
+   return declaration_pointer_access(modifiers,
+      call_adjusted_parameter_declarator(declarator, false));
+}
+
 //! @brief Return whether parameter has symbol storage in compiler declarator handling.
 bool parameter_has_symbol_storage(const ASTNode *parameter) {
    const ASTNode *decl_specs = parameter_decl_specifiers(parameter);

@@ -332,19 +332,24 @@ bytes are shared by every ROM bank and counted once in the map.
 
 Direct and runtime indexing, compound assignment, increment/decrement, and
 bitfield updates are alias-aware: they load through the read port and store
-through the write port. Address-taking, pointer decay, and passing a split object to an ordinary
-`ref` remain rejected because the object has no single ordinary address.
-Split-address value parameters are supported: callers copy through the write
-alias using the ordinary selective-staging rule, while callees load through the
+through the write port. Plain address-taking, pointer decay, and passing a split
+object to an ordinary `ref T` remain rejected because the object has no single
+read/write address.
+A split object may bind to `ref const T`, which passes its `$F080` read alias, or
+`ref writeonly T`, which passes its `$F000` write alias. Both remain ordinary
+one-address reference arguments; no fat pointer is introduced. Split-address
+value parameters are supported: callers copy through the write alias using the ordinary selective-staging rule, while callees load through the
 read alias and store through the write alias. Only an argument which must
 survive a function call in a later argument remains in caller scratch. A
 non-void function may likewise use `superchip` to place its exact-sized hidden
 return object in the shared window. `return expression;` and assignments to `$$`
 write through `$F000`, while callee and caller reads use `$F080`. The function
 body itself remains automatically placed; combining a writable result region
-with an explicit code region is the next roadmap item. A split-address `ref`
-parameter remains rejected because an ordinary pointer carries only one
-address. Absolute bindings may not overlap the allocator-managed Superchip
+with an explicit code region is the next roadmap item. Directional ref
+capability is part of same-translation-unit function compatibility and
+linker-visible ABI fingerprints, while ordinary `ref T` still requires a single
+shared address.
+Absolute bindings may not overlap the allocator-managed Superchip
 windows, so raw persistence probes must own storage through `superchip` just
 like ordinary application objects. The diagnostic suite therefore allocates
 its complete 128-byte probe array rather than publishing or using a non-owning

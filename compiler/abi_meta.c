@@ -236,7 +236,8 @@ static void function_parameter_storage_mode(const ASTNode *parameter,
    if (!buf || buf_size == 0)
       return;
    if (parameter_is_ref(parameter)) {
-      snprintf(buf, buf_size, "ref");
+      snprintf(buf, buf_size, "ref(access=%s)",
+               pointer_access_qualifier_name(parameter_access_qualifier(parameter)));
       return;
    }
    if (mem_decl_split_addresses(find_mem_modifier_node(modifiers),

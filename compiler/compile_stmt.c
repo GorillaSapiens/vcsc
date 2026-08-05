@@ -606,6 +606,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->has_split_alias_delta = false;
       entry->split_alias_delta = 0;
       entry->target_typed = false;
+      entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
       entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       entry->type = type;
       entry->declarator = declarator;
@@ -627,6 +628,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    if (entry != NULL) {
       entry->size = size;
       entry->declarator = declarator;
+      entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
       entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       if (modifiers_imply_split_address(modifiers)) {
          char symbol[256];

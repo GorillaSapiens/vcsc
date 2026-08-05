@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: function parameter declaration cannot combine 'const' and 'writeonly' on the same referenced object
+include "machine_6502.c26"
+void sink(ref const writeonly uint8_t target) {}
+void main(void) {}

@@ -21,7 +21,9 @@ typedef enum LValueAccessMode {
 bool find_aggregate_member_info(const ASTNode *type, const char *member, AggregateMemberInfo *out);
 void emit_load_ptr_from_scratch(int ptrno, int src_offset);
 void emit_store_ptr_to_scratch(int dst_offset, int ptrno, int size);
-bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size);
+bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size,
+                                  PointerAccessQualifier formal_access,
+                                  const char *parameter_name);
 void emit_lvalue_semantic_use(Context *ctx, const LValueRef *lv, const char *kind);
 bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode mode);
 void require_lvalue_readable(const LValueRef *lv);

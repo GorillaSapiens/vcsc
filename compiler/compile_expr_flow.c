@@ -828,6 +828,8 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    if (!resolve_lvalue(ctx, expr, &lv) || lv.size != 1 || lv.is_bitfield) {
       return false;
    }
+   require_lvalue_readable(&lv);
+   require_lvalue_writable(&lv);
    emit_lvalue_semantic_use(ctx, &lv, "read");
    emit_lvalue_semantic_use(ctx, &lv, "write");
    bcd = type_is_bcd_integer(lv.type);
@@ -1370,6 +1372,11 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (!entry_has_write_address(dst)) {
          error_user("[%s:%d.%d] absolute external binding '%s' is read-only", node->file, node->line, node->column, lv.name ? lv.name : "<unnamed>");
       }
+   }
+
+   require_lvalue_writable(&lv);
+   if (op && strcmp(op, ":=")) {
+      require_lvalue_readable(&lv);
    }
 
    if ((!op || !strcmp(op, ":=")) && dst->declarator &&

@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot bind writeonly ref 'sink' to const ref parameter 'source'
+include "machine_6502.c26"
+uint8_t inspect(ref const uint8_t source) { return source; }
+void bridge(ref writeonly uint8_t sink) { uint8_t value := inspect(sink); }
+void main(void) {}

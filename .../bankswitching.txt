@@ -1206,7 +1206,7 @@ when main roadmap item 29 becomes active.
          adjacency, `none`, capability recovery, const/writeonly dereference
          direction, and bitfields.
 
-[ ] 19. Extend one-address `ref` parameters with directional access capability.
+[x] 19. Extend one-address `ref` parameters with directional access capability.
 
        * Define three parameter contracts: `ref const T` accepts a readable lvalue
          and passes its read address; `ref writeonly T` accepts a writable lvalue
@@ -1233,6 +1233,21 @@ when main roadmap item 29 becomes active.
          ordinary and split `mem` regions, absolute hardware-style bindings,
          cross-bank calls, and both successful directional binding and every
          rejected capability mismatch.
+
+       Completed 2026-08-05:
+       * Add `ref const T`, `ref writeonly T`, and ordinary `ref T` as distinct
+         one-address contracts. Call lowering selects the read alias, write alias,
+         or one proven shared address from the formal parameter capability; it
+         never manufactures a fat pointer or guesses one side for ordinary `ref`.
+       * Carry ref capability through callee lvalue checks, forwarding conversions,
+         same-translation-unit function compatibility, and linker ABI metadata.
+         Read/write refs may narrow to either restricted form; restricted refs may
+         neither regain read/write access nor exchange const/writeonly capability.
+       * Add exact-address execution, inline and separately compiled calls, arrays,
+         structures and members, generic reversed/noncontiguous split regions,
+         one-sided and split absolute bindings, same-TU and cross-object mismatch
+         diagnostics, forbidden-operation tests, and an F8 cross-bank trampoline
+         regression.
 
 [ ] 20. Generalize function region modifiers into a code-region set and one
        result-storage region using `mem` attributes.

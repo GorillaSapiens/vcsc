@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot read through writeonly ref parameter 'value'
+include "machine_6502.c26"
+uint8_t source(ref writeonly uint8_t value) { return value; }
+void main(void) {}

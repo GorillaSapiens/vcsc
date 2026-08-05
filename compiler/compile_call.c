@@ -189,7 +189,10 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          }
          compiler_scratch_activate(caller_ctx, &arg_scratch);
          if (parameter_is_ref(parameter)) {
-            ok = compile_ref_argument_to_slot(args->children[actual_index], caller_ctx, 0, psz);
+            ok = compile_ref_argument_to_slot(args->children[actual_index], caller_ctx,
+                                              0, psz,
+                                              parameter_access_qualifier(parameter),
+                                              parameter_name(parameter, i));
          }
          else {
             ok = compile_expr_to_slot(args->children[actual_index], caller_ctx, &tmp);
@@ -422,7 +425,9 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
 
          if (item->is_ref) {
             ok = compile_ref_argument_to_slot(args->children[i], ctx,
-                                              eval_offset, item->size);
+                                              eval_offset, item->size,
+                                              parameter_access_qualifier(item->parameter),
+                                              parameter_name(item->parameter, i));
          }
          else {
             ok = compile_expr_to_slot(args->children[i], ctx, &tmp);

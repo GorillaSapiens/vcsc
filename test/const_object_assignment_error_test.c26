@@ -1,0 +1,10 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: cannot write const object 'value'
+
+include "machine_6502.c26"
+
+void main(void) {
+   const uint8_t value := 1;
+   value := 2;
+}
