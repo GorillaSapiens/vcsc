@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Atari 2600 / VCS support files
 
 This directory contains target support files for the Atari 2600 / VCS.
@@ -424,3 +426,7 @@ startup restores the declarations. Stella performs the same poison/reset/pass
 lifecycle with its console-reset key. The map lists every copy and clear in
 `STARTUP INITIALIZATION`; deterministic allocation overflow remains a linker
 error naming the object which does not fit.
+
+## License
+
+Everything under `libraries/` is covered under CC0-1.0. See `libraries/LICENSE.txt`.

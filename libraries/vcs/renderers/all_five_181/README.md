@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Official-opcode all-five 181-line component
 
 `all_five_181.c26` is the score-composable P0/P1/M0/M1/BL gameplay

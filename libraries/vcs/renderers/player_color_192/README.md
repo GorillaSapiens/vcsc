@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Player-color 192-line gameplay component
 
 `player_color_192.c26` is the official-opcode, scoreless full-height P0/P1/Ball

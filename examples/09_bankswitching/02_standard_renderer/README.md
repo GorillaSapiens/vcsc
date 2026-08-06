@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Banked standard all-five renderer
 
 This is the single public banked-renderer diagnostic. It composes the maintained

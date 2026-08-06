@@ -93,9 +93,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for this internal-path correction:
+Input archive for the recursive CC0 licensing pass:
 
-    vcsc.20260806_210154.tar.gz
+    vcsc.20260806_211356.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -170,6 +170,16 @@ Renderer and example state
   `standard_4k_ntsc_playercolors`.
 * The legacy BASIC renderer source tree is intentional reference material and
   must not be pruned merely because it is not part of the current build.
+* Everything recursively under `libraries/` and `examples/` is dedicated to
+  CC0-1.0. The authoritative legal texts are `libraries/LICENSE.txt` and
+  `examples/LICENSE.txt`; no subordinate or contradictory license file belongs
+  in either tree. Every other source/text file in those trees carries an
+  explicit notice naming its tree-local license. The compiler, linker, tests,
+  and build/tooling code outside those trees remain under the top-level GPL.
+* The animated-sprite example uses thirty original four-frame CC0 sprite sets.
+  Do not restore the former third-party noncommercial artwork or its attribution
+  file; the four hard pages, 960-byte art occupancy, controls, palette behavior,
+  192-line renderer, and 262-line frame contract remain unchanged.
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
   Each of the eight families has decimal, hexadecimal, and printable-ASCII
@@ -177,7 +187,7 @@ Renderer and example state
   glyph bitmap distinct within its family, exactly reuses the family decimal
   digits and hexadecimal `A`-`F`, and preserves the source family
   blank-row/blank-column cell margins. Font modules use compact three-line
-  name/coverage/CC0 headers, and `libraries/vcs/fonts/LICENSE.txt` contains
+  name/coverage/CC0 headers, and `libraries/LICENSE.txt` contains
   the local CC0-1.0 text. `logo_font.c26` is special: header changes are
   allowed, but its six glyph slices must remain pixel-identical.
 * The centered and widely spaced six-glyph score displays are separate lifecycle
@@ -254,12 +264,13 @@ The latest completely verified baseline before the font side trip was:
     end-to-end/generic:       250 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The font side trip adds `vcs_font_contracts.pl`, raising the current e2e
-inventory to 251. Its verification completed all 438 compile-only tests and
-250 of 251 e2e tests successfully. The one uncompleted test was the unrelated
-long-running `vcs_score_composition_raster.pl`, which exceeded the execution
-harness window without reporting a failure. All affected font, score, logo,
-example, branding, hygiene, and installation-data checks passed.
+The current e2e inventory is 251. The recursive CC0 licensing pass completed
+all 438 compile-only tests and 250 of 251 e2e tests successfully. The one
+uncompleted test was the unrelated long-running
+`vcs_score_composition_raster.pl`, which exceeded a ten-minute execution ceiling
+without reporting a failure. All affected licensing, retained-source hashes,
+fonts, animated sprites, examples, branding, hygiene, normalization, and staged
+license-installation checks passed.
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
 7.0 raster certification, recursive public-example discovery, source-hygiene, and

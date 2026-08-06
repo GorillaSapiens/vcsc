@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Standard NTSC all-five renderer source-integration contract.
 //
 // The original reference profile is unbanked 4K.  The same contract and

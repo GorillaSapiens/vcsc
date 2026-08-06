@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Editable wrapper for the reusable F8/F6/F4 complete transition-matrix suite.
 // Build-time MAPPER_BANKS selects F8/F6/F4; SUPERCHIP_TEST selects the SC twin.
 include "bankswitching_diagnostic_suite.c26"

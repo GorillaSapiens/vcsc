@@ -18,6 +18,42 @@ my $fixtures=File::Spec->catdir($repo,'assembler','tests');
 my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
+
+# Everything under libraries/ and examples/ is deliberately obligation-free
+# cartridge-facing material. Each tree has one root CC0 text; every other text
+# file carries an explicit notice, and no subordinate or contradictory license
+# may silently reappear.
+for my $tree (qw(libraries examples)) {
+   my $tree_root=File::Spec->catdir($repo,$tree);
+   my $license=File::Spec->catfile($tree_root,'LICENSE.txt');
+   -f $license or die "$tree/LICENSE.txt is missing\n";
+   my $license_body=slurp($license);
+   $license_body =~ /\ACC0 1\.0 Universal License\s*\n/ &&
+   $license_body =~ /4\. Limitations and Disclaimers\./ &&
+   $license_body =~ /use of the Work\.\s*\z/
+      or die "$tree/LICENSE.txt is not the complete CC0-1.0 text\n";
+
+   my @files;
+   find({no_chdir=>1,wanted=>sub { push @files,$File::Find::name if -f $_ }},$tree_root);
+   for my $path (sort @files) {
+      next if $path eq $license;
+      my $rel=File::Spec->abs2rel($path,$repo);
+      next if $rel =~ /(?:^|\/)(?:wrk)(?:\/|$)/;
+      next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
+      basename($path) !~ /(?:license|copying|copyright)/i
+         or die "subordinate license file remains under $tree: $rel\n";
+      my $body=slurp($path);
+      $body !~ /(?:BSD(?:-|\s)|GNU GENERAL PUBLIC LICENSE|\bGPL\b|CC BY(?:-|\b)|Attribution-NonCommercial|ShareAlike)/
+         or die "contradictory license reference remains in $rel\n";
+      my $notice="This file is covered under CC0-1.0. See $tree/LICENSE.txt.";
+      if ($rel =~ m{^libraries/vcs/fonts/[^/]+\.c26\z}) {
+         $notice="This font is covered under CC0-1.0. See libraries/LICENSE.txt.";
+      }
+      index(substr($body,0,600),$notice)>=0
+         or die "$rel lacks its explicit CC0 notice\n";
+   }
+}
+
 # Core README placement and relative-link sanity.  These checks catch accidental
 # file swaps such as copying test/README.md over the repository front page.
 my %readme_heading=(

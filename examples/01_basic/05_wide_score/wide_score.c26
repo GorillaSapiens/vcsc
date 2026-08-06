@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Widely spaced six-digit score display built from the reusable lifecycle component.
 // The six 8-pixel glyph origins are X=36,52,68,84,100,116.
 

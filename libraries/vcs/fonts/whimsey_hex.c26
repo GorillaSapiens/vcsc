@@ -1,6 +1,6 @@
 // Whimsey
 // Characters: 0-9 and A-F
-// This font is covered under CC0-1.0. See LICENSE.txt
+// This font is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 

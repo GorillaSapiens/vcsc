@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Maintained gameplay-renderer component conversion baseline
 
 This file freezes the starting point, selected replacement profiles, and

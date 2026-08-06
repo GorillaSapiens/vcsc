@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # `all_five_181` examples
 
 This group demonstrates the official-opcode `renderers/all_five_181/all_five_181.c26` lifecycle component. It draws

@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Shared controls for mutable-color left/right six-digit examples.
 // The including source must instantiate the display as `score`.
 

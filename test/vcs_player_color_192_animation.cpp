@@ -349,6 +349,6 @@ int main(int argc,char **argv) {
    run_until_frames(cpu,next+1);
    if (frames[next].pause) fail("second left-fire press did not resume animation");
 
-   std::puts("vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, preserve exact source pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls");
+   std::puts("vcs_player_color_192_animation ok: all thirty original CC0 four-frame animations traverse left-to-right in fifteen pairs, preserve exact pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls");
    return 0;
 }

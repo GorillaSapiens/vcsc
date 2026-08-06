@@ -1,4 +1,6 @@
 #!/usr/bin/env perl
+# This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 use strict;
 use warnings;
 

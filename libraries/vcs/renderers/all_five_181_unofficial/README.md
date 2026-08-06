@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # All-five 181-line unofficial-opcode component
 
 `all_five_181_unofficial.c26` is the separately named experimental counterpart to

@@ -1,3 +1,5 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ; vcsc-runtime.inc
 ;
 ; Source aliases only.  Each assembly object must import the workspace symbols

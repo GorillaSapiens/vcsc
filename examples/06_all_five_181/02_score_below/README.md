@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Score below all-five gameplay
 
 The independent 11-line score is composed below the 181-line all-five gameplay component, yielding exactly 192 visible lines.

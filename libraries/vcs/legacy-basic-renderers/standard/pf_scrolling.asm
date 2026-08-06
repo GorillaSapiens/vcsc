@@ -1,4 +1,5 @@
-; Provided under the CC0 license. See the included LICENSE.txt for details.
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 
 pfscroll ;(a=0 left, 1 right, 2 up, 4 down, 6=upup, 12=downdown)
  bne notleft

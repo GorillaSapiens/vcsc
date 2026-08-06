@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Unbanked 4K NTSC standard-renderer variant with per-row player colors.
 //
 // Include vcs.c26 before this module. The application must define exactly one

@@ -1,3 +1,5 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ; shift.asm - fixed-width VCSC scalar shift helpers
 ;
 ; Inputs: ptr0 source, ptr1 destination, arg1 low-byte shift count.

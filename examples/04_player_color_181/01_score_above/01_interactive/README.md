@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # 181-line score-above interactive diagnostic
 
 The cartridge starts at the former static certification positions:

@@ -1383,17 +1383,15 @@ than ship a fragile schedule if the hardware budget does not close.
 [x] 34. Add a public animated-sprites example that changes player bitmap frames at
         runtime rather than merely moving a static glyph. Exercise at least one
         multi-frame animation for each player, preserve renderer timing, document
-        source-row ordering and frame-rate control, and verify the expected frame
+        glyph-row ordering and frame-rate control, and verify the expected frame
         sequence and pixels under Stella from the staged installed toolchain.
 
         Completed 2026-08-01 out of roadmap order while task 23 remains next:
 
         * Add `examples/03_player_color_192/02_animated_sprites/`, using the
-          official-opcode 192-line player-color renderer and all 30 consecutive
-          four-frame animation sets from PICO-8 source sprites 1 through 120.
-          Preserve exact one-bit occupancy: source color 0 is transparent and
-          every nonzero source color is opaque, including the source's blank
-          sprite-16 frame.
+          official-opcode 192-line player-color renderer and 30 original
+          four-frame 8x8 animation sets created for VCSC and covered under
+          CC0-1.0 with the rest of the examples tree.
         * Display two sets simultaneously on separate vertical lanes, starting
           both at X=0 and moving them right one pixel per NTSC frame. Hold each
           animation frame for eight NTSC frames; after the X=159 frame, restart at
@@ -1402,21 +1400,18 @@ than ship a fragile schedule if the hardware budget does not close.
           controls.
         * Store the 960 frame bytes in four aligned 256-byte hard pages, padding
           the final page with 64 zero bytes. Select frames by changing player
-          graphics pointers; keep the source graphics byte-exact. For frames that
-          bob vertically inside their 8x8 cells, count leading transparent rows
+          graphics pointers; keep the graphics immutable. For frames that bob
+          vertically inside their 8x8 cells, count leading transparent rows
           and rotate an immutable eight-color palette into each renderer-owned
           mutable RAM color table so the color bands follow the silhouette.
           Preserve exact 262-line frames, the 192-line visible renderer, and four
           free RIOT RAM bytes. Document highest-index-to-zero source-row storage.
-        * Treat the adapted artwork conservatively under Quick's stated CC
-          BY-NC-SA 4.0 license rather than the public-domain description supplied
-          with the request. Install explicit attribution and asset-license notes.
         * Add an emulator oracle covering all 15 complete 160-frame traversals,
           exact P0/P1 pixels at every animation step and right-edge endpoint,
           pointer selection across all four hard pages, exact per-frame palette
           rotation from transparent top-row displacement, visible use of the
           rotated row-color tables, controls, and frame period. Pin the exact
-          extracted 960-byte occupancy with SHA-256, verify the final-page padding,
+          original 960-byte occupancy with SHA-256, verify the final-page padding,
           build with the staged installed toolchain, and inspect the animated
           output under Stella 7.0.
 

@@ -1,6 +1,6 @@
 // VCSC logo
 // Characters: six consecutive logo slices numbered 0-5
-// This font is covered under CC0-1.0. See LICENSE.txt
+// This font is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 alias LOGO_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 

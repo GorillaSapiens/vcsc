@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Unofficial-opcode score above gameplay
 
 The interactive example draws the 11-line six-glyph score first, calls

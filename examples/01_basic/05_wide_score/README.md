@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Widely spaced score
 
 `01_basic/05_wide_score` displays six decimal glyphs across an 88-pixel span.

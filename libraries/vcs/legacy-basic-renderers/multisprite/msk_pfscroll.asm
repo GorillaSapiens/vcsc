@@ -1,4 +1,5 @@
-; Provided under the CC0 license. See the included LICENSE.txt for details.
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 
 pfscroll ; for MSK (a=0 up, 1 down)
  bne MSK_scrolldown

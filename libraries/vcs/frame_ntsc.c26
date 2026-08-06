@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Shared NTSC frame-scheduling primitives for the Atari 2600 / VCS.
 //
 // Include vcs.c26 before this file.  The application remains responsible for

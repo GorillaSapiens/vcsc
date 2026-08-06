@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # 6507 silicon fingerprint
 
 `01_basic/04_fingerprint` runs four deliberately unstable unofficial

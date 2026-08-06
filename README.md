@@ -221,8 +221,9 @@ Doxygen input is also available through `make docs`.
 
 ## Licensing
 
-Unless a subdirectory says otherwise, the toolchain sources and top-level
-build/test glue are licensed under GPL-3.0-or-later. The runtime library under
-`libraries/runtime/` is BSD-2-Clause so linking it does not impose the
-toolchain's GPL terms on cartridge programs. Exact license texts are in the
-repository root and relevant library directories.
+The compiler, linker, assembler, archiver, simulator, driver, tests, and
+repository-level build glue are licensed under GPL-3.0-or-later. Everything
+under `libraries/` and `examples/` is instead covered under CC0-1.0 so cartridge
+authors may copy, modify, and ship library or example material without carrying
+license or attribution obligations into their ROMs. See `COPYING`,
+`libraries/LICENSE.txt`, and `examples/LICENSE.txt` for the complete texts.

@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+# This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 use strict;
 use warnings;
 use File::Basename qw(basename);
@@ -8,6 +10,7 @@ my %unofficial=map { $_=>1 } qw(ASR DCP LAX SBX);
 my %branch=map { $_=>1 } qw(BCC BCS BEQ BMI BNE BPL BVC BVS);
 my %read=map { $_=>1 } qw(ADC AND BIT CMP CPX CPY EOR LDA LAX LDX LDY ORA SBC);
 
+print "# This file is covered under CC0-1.0. See libraries/LICENSE.txt.\n";
 print "file\tline\tkind\topcode\toperand\tpurpose\n";
 for my $path (@ARGV) {
    open(my $fh,'<',$path) or die "could not open $path: $!\n";

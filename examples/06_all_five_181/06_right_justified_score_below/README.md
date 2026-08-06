@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Right-justified six-digit score below gameplay
 
 The interactive cartridge draws the 11-line right-justified six-digit score after the

@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Shared immutable tables for two_plus_two_score_component.c26.
 //
 // Include this module once before instantiating one or more two-plus-two score

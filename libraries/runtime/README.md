@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # runtime
 
 `runtime` is the default runtime/support library for the reduced 6502 toolchain.
@@ -119,5 +121,5 @@ That builds `libvcsc.l26`.
 
 ## License
 
-This library directory is licensed under BSD-2-Clause. See `LICENSE` for the
-full text.
+Everything under `libraries/`, including this runtime, is covered under
+CC0-1.0. See `libraries/LICENSE.txt`.

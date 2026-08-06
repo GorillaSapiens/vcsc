@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Unbanked 4K NTSC P0+P1+BL per-row-color renderer
 
 > **Legacy monolithic profile.** This profile remains installed as a stable

@@ -406,7 +406,7 @@ packed-BCD changes for both fields, and the right field's full X=144 endpoint.
 requires 95 distinct glyph bitmaps per family, exact digit and A-F agreement
 with the corresponding decimal and hexadecimal source modules, preservation of
 each family's blank row/column cell contract, the compact three-line CC0
-headers, a complete local `fonts/LICENSE.txt`, and byte-identical logo glyph
+headers, the complete tree-wide `libraries/LICENSE.txt`, and byte-identical logo glyph
 pixels.
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
@@ -439,7 +439,7 @@ that solid glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
 checks all 30 attributed four-frame source sets, pins the exact 960-byte one-bit
-occupancy extracted from PICO-8 sprites 1 through 120, and verifies four aligned
+occupancy of the 30 original CC0 four-frame animation sets, and verifies four aligned
 256-byte graphics pages including the final zero padding. Its emulator oracle
 drives all 15 complete 160-frame left-to-right traversals plus Select and pause
 controls. The oracle locks X=0 entry, one-pixel-per-frame motion, X=159 clipping,

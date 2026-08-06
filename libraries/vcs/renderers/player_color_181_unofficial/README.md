@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Unofficial-opcode 181-line player-color renderer
 
 `player_color_181_unofficial.c26` is the measured experimental twin of the

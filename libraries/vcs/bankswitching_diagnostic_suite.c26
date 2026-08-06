@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // F8/F6/F4 complete bank-transition diagnostic suite.
 //
 // One build exercises the entire ordered source-bank/destination-bank matrix

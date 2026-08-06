@@ -56,13 +56,13 @@ my @families=(
    ['tiny','Tiny'],
    ['whimsey','Whimsey'],
 );
-my $license_line='// This font is covered under CC0-1.0. See LICENSE.txt';
+my $license_line='// This font is covered under CC0-1.0. See libraries/LICENSE.txt.';
 
-my $license=read_file(File::Spec->catfile($fonts,'LICENSE.txt'));
+my $license=read_file(File::Spec->catfile($repo,qw(libraries LICENSE.txt)));
 $license =~ /\ACC0 1\.0 Universal License\s*\n/
-   or die "font LICENSE.txt is not the CC0-1.0 text\n";
+   or die "libraries/LICENSE.txt is not the CC0-1.0 text\n";
 $license =~ /4\. Limitations and Disclaimers\./ && $license =~ /use of the Work\.\s*\z/
-   or die "font LICENSE.txt is incomplete\n";
+   or die "libraries/LICENSE.txt is incomplete\n";
 
 for my $family (@families) {
    my($base,$display)=@$family;

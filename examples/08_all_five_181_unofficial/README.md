@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # `all_five_181_unofficial` examples
 
 This group demonstrates the reviewed stable/common NMOS unofficial-opcode `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` lifecycle component. It draws

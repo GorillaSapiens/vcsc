@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Repeatable official-opcode 181-scanline P0/P1/M0/M1/BL gameplay component
 // derived from the proven player-color raster. Player colors are solid for the
 // complete frame because the two timed per-row color slots now update M1 and M0.

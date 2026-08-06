@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // NTSC TIA music constants.
 //
 // Frequency aliases below use the AUDC lead voice (control 12). The TIA is

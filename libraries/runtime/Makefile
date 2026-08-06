@@ -1,3 +1,5 @@
+# This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ASM ?= ../../assembler/vcsc-as
 VCSC_AR ?= ../../archiver/vcsc-ar
 JOBS ?= 8
@@ -43,7 +45,7 @@ install: all
 	$(INSTALL_DATA) vcsc-rt0.s26 $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
 	$(INSTALL_DATA) $(ZP_SOURCES) $(DESTDIR)$(DATADIR)/runtime/
 	$(INSTALL_DATA) README.md $(DESTDIR)$(DATADIR)/runtime/README.md
-	$(INSTALL_DATA) LICENSE $(DESTDIR)$(DATADIR)/runtime/LICENSE
+	$(INSTALL_DATA) ../LICENSE.txt $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt
 
 uninstall:
 	rm -f $(DESTDIR)$(LIBDIR)/libvcsc.l26
@@ -51,7 +53,7 @@ uninstall:
 	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
 	rm -f $(addprefix $(DESTDIR)$(DATADIR)/runtime/,$(ZP_SOURCES))
 	rm -f $(DESTDIR)$(DATADIR)/runtime/README.md
-	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE
+	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt
 
 clean:
 	rm -f libvcsc.l26

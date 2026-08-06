@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Shared no-op controls for the hostile diagnostic score component.
 
 inline void initialize_score_state(void) {

@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # VCS score fonts
 
 This directory contains eight 8x8 score-font families converted to readable
@@ -71,7 +73,7 @@ hexadecimal glyphs, and ASCII `A` through `F` are byte-identical to the
 hexadecimal glyphs. Each ASCII family preserves the same blank row and column
 margins as its decimal and hexadecimal source family.
 
-## Provenance and license
+## License
 
-The font data is covered under CC0-1.0. The complete CC0 text is retained in
-this directory as `LICENSE.txt`.
+The font data is covered under CC0-1.0 with the rest of the library tree. See
+`libraries/LICENSE.txt`.

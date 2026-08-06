@@ -1,3 +1,5 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ; mul.asm - Fixed-width little-endian multiplication
 ;
 ; Each selected helper computes the low 8/16/24/32 bits of the product.

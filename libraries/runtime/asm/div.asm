@@ -1,3 +1,5 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ; div.asm - Fixed-width unsigned little-endian division/remainder
 ;
 ; Each selected helper uses the compiler expression scratch as all algorithm

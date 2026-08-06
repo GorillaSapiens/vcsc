@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Standard-renderer DCP legalization
 
 The normalized two-line renderer originally retained eleven zero-page `DCP`

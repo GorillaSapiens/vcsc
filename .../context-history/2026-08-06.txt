@@ -188,3 +188,26 @@ branding, hygiene, and install-data checks passed.
   at `.../bankswitching.txt`; keep the obsolete predecessor directory absent.
 * Update the compact context and test documentation to record the canonical-path
   invariant.
+
+2026-08-06 15:02:05 PDT, dedicate cartridge libraries and examples to CC0-1.0
+------------------------------------------------------------
+* Establish one recursive CC0-1.0 policy for `libraries/` and `examples/`, with
+  complete legal texts at each tree root and an explicit tree-local CC0 notice
+  in every other source or text file. Remove the former runtime BSD license,
+  subordinate font and legacy-renderer license files, the animated-asset
+  license, and all conflicting license references under those trees.
+* Replace the animated-sprite example's former CC BY-NC-SA artwork with thirty
+  original four-frame CC0 sprite sets while preserving its four-page layout,
+  960-byte occupancy, controls, palette behavior, 192-line renderer, and exact
+  262-line runtime contract. Update all affected Markdown and project-level
+  split-license documentation.
+* Install the library CC0 text with both VCS and runtime data. Add recursive
+  hygiene enforcement for the two root license files, explicit per-file
+  notices, absence of subordinate/conflicting licenses, and source-tree-only
+  scanning. Refresh retained-source and centered-score hashes whose only byte
+  change is the mandatory notice.
+* Verification: compile-only 438/438; end-to-end 250/251 completed and passed.
+  The unrelated `vcs_score_composition_raster.pl` exceeded a ten-minute outer
+  execution ceiling without reporting a failure. Recursive examples, animation
+  runtime, fonts, renderer normalization/inventory, branding, hygiene, and
+  staged license installation pass.

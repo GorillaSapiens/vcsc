@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Standard all-five renderer composed with generic C26 cartridge topology.
 // The public example is F8. Tests build this same source as 4K, F6, F4, and F8SC.
 

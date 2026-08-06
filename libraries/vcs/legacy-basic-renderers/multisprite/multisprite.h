@@ -1,4 +1,5 @@
-; Provided under the CC0 license. See the included LICENSE.txt for details.
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 
 missile0x = $80
 missile1x = $81

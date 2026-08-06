@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Official 181-line player-color component
 
 `player_color_181.c26` is the score-composable official-opcode P0/P1/Ball

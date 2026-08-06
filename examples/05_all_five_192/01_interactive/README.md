@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # Interactive all-five 192-line diagnostic
 
 SELECT cycles through P0, P1, M0, M1, and Ball. The left joystick moves the selected object one pixel horizontally or one logical scanline vertically per frame, with both axes clamped to the renderer's complete public range. RESET jumps through the cartridge reset vector and restores the initial scene.

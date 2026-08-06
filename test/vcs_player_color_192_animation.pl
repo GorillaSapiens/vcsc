@@ -50,18 +50,16 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $dir=File::Spec->catdir($repo,qw(examples 03_player_color_192 02_animated_sprites));
 my $source=File::Spec->catfile($dir,'player_color_192_animated_sprites.c26');
-my $license=File::Spec->catfile($dir,'ASSET_LICENSE.md');
 my $bin=File::Spec->catfile($tmp,'player_color_192_animated_sprites.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192_animated_sprites.map');
 my $source_text=read_file($source);
-my $license_text=read_file($license);
 
 for my $set (0..29) {
    my $first=1+$set*4;
    my $last=$first+3;
-   my $label=sprintf('source_set_%02d_sprites_%03d_%03d',$set,$first,$last);
+   my $label=sprintf('animation_set_%02d',$set);
    $source_text =~ /\/\/\s*\Q$label\E\b/
-      or die "animated gallery missing source set $set ($first-$last)\n";
+      or die "animated gallery missing animation set $set\n";
 }
 my $glyph_count=()=$source_text =~ /\bgame_SPRITE_GLYPH\s*\(/g;
 $glyph_count==120 or die "animated gallery has $glyph_count frames; expected 120\n";
@@ -75,7 +73,7 @@ $source_text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n"
 $source_text =~ /alias\s+RIGHT_EDGE\s+159/ or die "animation right-edge endpoint changed\n";
 $source_text =~ /alias\s+VCS_PLAYER_COLOR_192_MUTABLE_COLORS\s+1/
    or die "animated gallery no longer requests mutable renderer color tables\n";
-$source_text =~ /transparent source rows above each glyph/
+$source_text =~ /transparent rows above each glyph/
    or die "animated gallery color-following logic is missing\n";
 $source_text =~ /game_PLAYER0_X\s*:=\s*0/ && $source_text =~ /game_PLAYER1_X\s*:=\s*0/
    or die "animated sprites no longer start at the left edge\n";
@@ -83,8 +81,6 @@ $source_text =~ /if\s*\(game_PLAYER0_X\s*>=\s*RIGHT_EDGE\)/
    or die "right-edge wrap control missing\n";
 $source_text =~ /if\s*\(SWCHB\s*&\s*0x02\)/ or die "Game Select edge control missing\n";
 $source_text =~ /if\s*\(INPT4\s*&\s*0x80\)/ or die "left-fire pause control missing\n";
-$license_text =~ /Quick/ && $license_text =~ /CC BY-NC-SA 4\.0/
-   or die "animated artwork attribution/license missing\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "animated gallery build failed\n$out$err";
@@ -109,7 +105,7 @@ for my $name (qw(player0_palette player1_palette)) {
       or die "$name is not an eight-byte immutable palette\n";
 }
 
-# Pin the exact one-bit occupancy extracted from PICO-8 source sprites 1..120.
+# Pin the exact original one-bit occupancy of the 30 CC0 animation sets.
 my $rom=read_file($bin);
 my $asset_bytes='';
 for my $name (@frame_names) {
@@ -118,8 +114,8 @@ for my $name (@frame_names) {
    $asset_bytes .= substr($rom,$base-0xf000,256);
 }
 sha256_hex(substr($asset_bytes,0,960)) eq
-   '7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb'
-   or die "animated source-sprite occupancy changed\n";
+   '7ae3a0ae891e7a22b2f81bc28a89b389b95b313d0d0ee7438e5ae4fa8617620f'
+   or die "animated CC0 sprite occupancy changed\n";
 substr($asset_bytes,960,64) eq ("\0" x 64)
    or die "final sprite hard-page padding is not zero\n";
 
@@ -141,7 +137,7 @@ my @symbol_args=map { symbol_arg($map,$_) }
 my @args=(@zp_args,@symbol_args);
 ($rc,$sig,$out,$err)=capture($harness,$bin,@args);
 $rc==0 && !$sig or die "animated gallery emulator proof failed\n$out$err";
-$out eq "vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, preserve exact source pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls\n"
+$out eq "vcs_player_color_192_animation ok: all thirty original CC0 four-frame animations traverse left-to-right in fifteen pairs, preserve exact pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls\n"
    or die "unexpected animation harness output: $out";
 $err eq '' or die "animation harness stderr: $err";
 

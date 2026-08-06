@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Centered six-digit score display built from the reusable lifecycle component.
 // The application owns frame scheduling and score cadence; the instantiated
 // component owns only its score state, glyph pointers, and timed draw pipeline.

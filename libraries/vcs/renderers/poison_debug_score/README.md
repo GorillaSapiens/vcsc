@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
+
 # Poison debug score renderer
 
 `poison_debug_score.c26` is an adversarial eleven-visible-line score-profile

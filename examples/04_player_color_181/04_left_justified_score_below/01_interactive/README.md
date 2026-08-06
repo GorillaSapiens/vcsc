@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # player_color_181 left-justified six-digit score below
 
 This cartridge composes the 11-line left-justified six-digit score after the 181-line

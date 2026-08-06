@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Shared player-color 181-line interactive application body.
 // The including cartridge must instantiate `game` and `score`, then define:
 //   initialize_score_state(), update_score_controls(), draw_visible_components().

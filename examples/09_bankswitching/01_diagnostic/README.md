@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # F8/F6/F4 complete transition diagnostics
 
 `bankswitching_diagnostic.c26` is the editable wrapper around the installed

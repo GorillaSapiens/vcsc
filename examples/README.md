@@ -5,6 +5,8 @@
    \_/  \___||___/ \___|
 ```
 
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
 # VCSC examples
 
 Examples are grouped first by the renderer or display architecture they
@@ -21,7 +23,7 @@ the shared timing, resource, opcode, and composition contracts.
 |---|---|---|
 | [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, centered/wide scores, and silicon fingerprint |
 | [`02_faithful_legacy_playercolors`](02_faithful_legacy_playercolors/) | Faithful retained legacy player-color renderer, including its historical unofficial opcodes | Interactive P0/P1/Ball motion and integrated score editing |
-| [`03_player_color_192`](03_player_color_192/) | Official-opcode, scoreless 192-line P0/P1/Ball renderer | Interactive full-range motion and all 30 four-frame source animations traversing the screen in 15 pairs |
+| [`03_player_color_192`](03_player_color_192/) | Official-opcode, scoreless 192-line P0/P1/Ball renderer | Interactive full-range motion and all 30 original four-frame CC0 animations traversing the screen in 15 pairs |
 | [`04_player_color_181`](04_player_color_181/) | Official-opcode 181-line P0/P1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
 | [`05_all_five_192`](05_all_five_192/) | Official-opcode, scoreless 192-line P0/P1/M0/M1/Ball renderer | Interactive five-object motion |
 | [`06_all_five_181`](06_all_five_181/) | Official-opcode 181-line P0/P1/M0/M1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
@@ -38,3 +40,7 @@ cartridges**.
 The unofficial groups are separate source-level examples rather than a build
 switch hidden inside the official examples. Their template names and
 `-Wa,--illegals` build option make the opcode policy visible.
+
+## License
+
+Everything under `examples/` is covered under CC0-1.0. See `examples/LICENSE.txt`.

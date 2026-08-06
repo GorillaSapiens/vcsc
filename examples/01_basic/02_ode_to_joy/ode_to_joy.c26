@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // Minimal unbanked 4K Atari VCS cartridge with a frame-driven melody.
 // Plays the opening phrase of Beethoven's "Ode to Joy" forever on TIA audio 0.
 

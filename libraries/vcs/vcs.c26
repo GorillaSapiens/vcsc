@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Atari 2600 / VCS machine definition.
 //
 // This describes the common unbanked 6507-visible view of the machine:

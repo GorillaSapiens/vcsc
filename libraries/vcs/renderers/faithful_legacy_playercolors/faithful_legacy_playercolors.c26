@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Faithful template-wrapped port of the retained legacy NTSC standard renderer
 // configured for P0, P1, Ball, per-row player colors, and the integrated
 // six-digit score.  This reference intentionally preserves the monolithic
@@ -91,7 +93,6 @@ require void TEMPLATE_drawscreen(void) {
    asm .include "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc";
    asm TEMPLATE_renderer_entry:;
    // ---- normalized from standard/std_overscan.asm ----
-   // Provided under the CC0 license. See the included LICENSE.txt for details.
 
 
 
@@ -233,7 +234,6 @@ require void TEMPLATE_drawscreen(void) {
 
 
    // ---- normalized from standard/std_renderer.asm ----
-   // Provided under the CC0 license. See the included LICENSE.txt for details.
 
    // This is a 2-line renderer!
    asm @renderer:;

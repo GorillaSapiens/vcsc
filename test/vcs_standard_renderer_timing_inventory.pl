@@ -31,6 +31,8 @@ my $fresh=`cd '$dir' && ./inventory.pl`;
 $? == 0 or die "inventory generator failed\n";
 $fresh eq read_file($table) or die "timing inventory is stale; regenerate it with inventory.pl\n";
 my @rows=grep { length($_) } split(/\n/,$fresh);
+shift @rows eq "# This file is covered under CC0-1.0. See libraries/LICENSE.txt."
+   or die "timing inventory CC0 notice is missing\n";
 shift @rows eq "file\tline\tkind\topcode\toperand\tpurpose"
    or die "timing inventory header is wrong\n";
 my (%kind,%illegal);

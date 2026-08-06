@@ -1,3 +1,5 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 ; memory.asm - byte-buffer helpers used only for objects wider than four bytes
 ;
 ; Scalar copies, fills, and integer extension are emitted directly by vcsc-cc1.

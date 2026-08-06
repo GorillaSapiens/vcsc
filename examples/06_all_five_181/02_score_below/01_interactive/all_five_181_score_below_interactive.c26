@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
 // All-five score below gameplay interactive diagnostic.
 include "vcs.c26"
 include "frame_ntsc.c26"

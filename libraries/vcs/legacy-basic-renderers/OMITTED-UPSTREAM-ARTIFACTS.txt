@@ -3,6 +3,8 @@
   \ V /| (__ \__ \| (__
    \_/  \___||___/ \___|
 
+# This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 The following upstream artifacts were not mirrored into this text/source
 renderer snapshot because they are packaged binary blobs rather than source:
 
@@ -13,4 +15,4 @@ renderer snapshot because they are packaged binary blobs rather than source:
 - includes/PXE_CC_post.arm
 - includes/custom/bin/custom2.bin
 
-Adding them would require a separate binary-artifact import and license review.
+Adding them would require a separate binary-artifact import and validation pass.

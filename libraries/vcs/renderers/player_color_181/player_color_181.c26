@@ -1,3 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
 // Repeatable official-opcode 181-scanline P0/P1/BL gameplay component with
 // page-contained per-row P0/P1 color tables.
 //
