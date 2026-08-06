@@ -8906,3 +8906,34 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   source-tree hygiene passes, and the project-wide top-level README remains
   unchanged. Bankswitching roadmap item 27, moving component-specific placement
   constraints out of cfg files, is next.
+
+
+2026-08-05 17:47:07 PDT, add 2K cartridge profile and normalize interactive sprite orientation
+--------------------------------------------------------------------------------
+* Apply the supplied top-level Makefile exam-target patch. The target now walks
+  example Makefiles in sorted order, prints each directory, builds and launches
+  each directory's cartridges before continuing, and propagates build failures.
+  Correct the patch's continued recipe indentation so GNU make parses it.
+* Add installed `vcs_2k.c26` with a direct 2048-byte image mapped at
+  $F800-$FFFF, a $F800-$FFF9 allocatable ROM region, and vectors in the final
+  six bytes. Add it to profile, install/uninstall, bundle-pruning, documentation,
+  source-hygiene, and staged installed-toolchain coverage.
+* Move `examples/01_basic/03_score` to the explicit 2K profile through reduced
+  `vcs.cfg`; its Makefile and recursive example test now require an exact
+  2048-byte cartridge. Keep the normal implicit profile at 4K for programs which
+  do not select another topology.
+* Flip the P0/P1 graphics and row-color source order in all maintained
+  interactive renderer examples so their displayed sprites match
+  `examples/02_faithful_legacy_playercolors/01_interactive`. Share the corrected
+  definitions through the common 181-line bodies; leave the animated sprite
+  gallery's independent frame-table convention unchanged.
+* Add `vcs_interactive_sprite_orientation.pl` to lock the faithful visual
+  convention across all 42 non-legacy interactive cartridges, and update the
+  player-color 192 raster oracle for the corrected public sprite orientation.
+* Verification: all 437 compile-only tests pass. All 245 end-to-end/generic
+  cases are accounted for and pass; the heavyweight score/raster case completed
+  its 32 public cartridges, fixtures 1-40, fixtures 41-80, and mixed-instance
+  checks in exact bounded phases. The staged installed toolchain passed every
+  prerequisite, the explicit 2K score build, and all 40 final interactive
+  cartridges; the final loop completed in bounded continuation chunks after the
+  execution window. The top-level README remains unchanged.

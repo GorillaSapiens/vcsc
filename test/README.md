@@ -174,15 +174,23 @@ covers cross-object declaration conflicts with both C26 locations and ambiguous
 multi-owner containment. The four former `e2e_mem_region_cfg_*_mismatch` cases
 now prove stale or missing cfg allocator entries are ignored in favor of C26.
 
-`vcs_c26_cartridge_profiles.pl` certifies the installed 4K, F8, F6, F4, F8SC,
+`vcs_c26_cartridge_profiles.pl` certifies the installed 2K, 4K, F8, F6, F4, F8SC,
 F6SC, and F4SC C26 profile files against the reduced `vcs.cfg`. It verifies
-physical size and file ordering, ordinary versus SC mapped spans, selector and
-startup metadata, shared Superchip ownership, and byte-for-byte equality with
+physical size and file ordering—including the 2048-byte `$F800-$FFFF`
+profile—ordinary versus SC mapped spans, selector and startup metadata, shared Superchip ownership, and byte-for-byte equality with
 the retained legacy cfg profiles. It also proves that the driver's implicit 4K
 profile equals an explicit build, that an explicitly supplied installed profile
 resolves sibling includes from its own directory, and that the generic direct
 two-chunk profile uses ordinary absolute cross-chunk calls, deterministic fill,
 and no selector or trampoline output.
+
+`vcs_interactive_sprite_orientation.pl` keeps every maintained interactive
+example visually aligned with the faithful legacy player-color example. It
+checks the shared and direct source definitions for the required bottom-to-top
+geometry convention, verifies that per-row player colors follow the same visual
+rows, and ensures all 42 non-legacy interactive cartridges use one of those
+normalized definitions. The animated sprite gallery retains its own independent
+frame-table convention.
 
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
 then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every

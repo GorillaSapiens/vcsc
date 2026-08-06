@@ -59,6 +59,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
 -f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
+-f File::Spec->catfile($test,'vcs_interactive_sprite_orientation.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
@@ -166,19 +167,32 @@ index($abi_text,'Authoritative memory-region metadata')>=0 &&
 index($linker_readme,'## Authoritative C26 memory regions')>=0 &&
 index($linker_readme,'constructs its internal direct or selector-controlled bank model')>=0 &&
 index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0
+&& index($test_readme,'vcs_interactive_sprite_orientation.pl')>=0
    or die "C26 profile migration, authoritative memory, or regression documentation is incomplete\n";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0
    or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";
+my $vcs_2k_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_2k.c26'));
+index($vcs_2k_profile,'mem rom { $start:0xf800 $size:0x07fa $ro $priority:1 };')>=0 &&
+index($vcs_2k_profile,'$image_size:0x0800')>=0 &&
+index($vcs_2k_profile,'$vectors_offset:0x07fa')>=0
+   or die "vcs_2k.c26 lost its canonical 2K mapping or vector reservation\n";
 my $vcs_4k_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_4k.c26'));
 index($vcs_4k_profile,'mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };')>=0
    or die "vcs_4k.c26 lost its allocatable-bytes-only ROM declaration\n";
+my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','03_score','score.c26'));
+my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','03_score','Makefile'));
+index($score_source,'include "vcs_2k.c26"')>=0 &&
+index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
+index($score_make,'-eq 2048')>=0
+   or die "score example is not locked to the 2K C26 profile
+";
 my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
-for my $profile (qw(vcs_4k.c26 vcs_8k_f8.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26)) {
+for my $profile (qw(vcs_2k.c26 vcs_4k.c26 vcs_8k_f8.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0

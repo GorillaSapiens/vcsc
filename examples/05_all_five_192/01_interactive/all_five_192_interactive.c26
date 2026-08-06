@@ -20,29 +20,32 @@ page const uint8_t game_playfield[48] := {
 
 template "renderers/all_five_192/all_five_192.c26" as game
 
+// These source rows are intentionally bottom-to-top. The maintained renderers
+// reverse macro arguments for highest-index-to-zero traversal, so this makes
+// the displayed sprites match the faithful legacy interactive example.
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(
-      0b.XX..XX.,
-      0b..XXXX..,
-      0b.XXXXXX.,
-      0bXX.XX.XX,
-      0bXXXXXXXX,
-      0bX.XXXX.X,
+      0b.X....X.,
       0bX.X..X.X,
-      0b.X....X.
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
    )
 };
 
 page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(
-      0b..XXXX..,
-      0b.XX..XX.,
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
       0bXXXXXXXX,
       0bXX.XX.XX,
       0bXXXXXXXX,
-      0b..X..X..,
-      0b.X.XX.X.,
-      0bX.X..X.X
+      0b.XX..XX.,
+      0b..XXXX..
    )
 };
 

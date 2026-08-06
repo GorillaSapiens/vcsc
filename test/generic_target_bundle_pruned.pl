@@ -34,6 +34,7 @@ for my $parts (@removed) {
 for my $parts (
    [qw(libraries vcs vcs.c26)],
    [qw(libraries vcs vcs.cfg)],
+   [qw(libraries vcs vcs_2k.c26)],
    [qw(libraries vcs vcs_4k.c26)],
    [qw(libraries vcs vcs_8k_f8.c26)],
    [qw(libraries vcs vcs_16k_f6.c26)],

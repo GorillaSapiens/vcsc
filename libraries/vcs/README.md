@@ -15,6 +15,7 @@ Files:
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs.cfg` ... reduced operational linker policy shared by C26 cartridge profiles
+- `vcs_2k.c26` ... conventional unbanked 2K topology mapped at `$F800-$FFFF`
 - `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
 - `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... matching Superchip profiles with a reserved physical prefix and shared split-address RAM
@@ -313,6 +314,7 @@ Notes:
 - `vcs.c26` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.c26` and `riot.c26`.
 - Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
+- `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
 - The F8/F6/F4 and SC `.c26` profiles are installed beside `vcs.cfg` and emit exact 8K, 16K, and 32K images. The old profile-specific cfg files remain installed temporarily for compatibility and simulator selection.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.

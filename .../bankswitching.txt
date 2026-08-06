@@ -1835,7 +1835,7 @@ when main roadmap item 29 becomes active.
          builds only after all migrated profiles certify cleanly.
 
        Completed 2026-08-05:
-       * Add explicit installed `vcs_4k.c26`, `vcs_8k_f8.c26`,
+       * Add explicit installed `vcs_2k.c26`, `vcs_4k.c26`, `vcs_8k_f8.c26`,
          `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and matching F8SC/F6SC/F4SC
          profiles. Each file contains the complete inspectable cartridge, bank,
          and allocatable-memory declarations; behavior is derived solely from
@@ -1861,7 +1861,8 @@ when main roadmap item 29 becomes active.
          ordinary absolute cross-chunk JSR/data access, and the absence of
          hotspot, bank-placement, bridge, and trampoline output.
        * Migrate the public seven-cartridge bank diagnostic and installed builds
-         to C26 topology through reduced `vcs.cfg`. Preserve exact 4K/8K/16K/32K
+         to C26 topology through reduced `vcs.cfg`. Add the conventional direct
+         2K `$F800-$FFFF` profile and preserve exact 2K/4K/8K/16K/32K
          output, startup bank, selectors, generated bridges/vectors, Superchip
          prefix and shared aliases, simulator execution, and map accounting.
        * Add differential coverage proving every migrated C26 profile emits the

@@ -47,6 +47,7 @@ When run from the built repository tree, it finds:
 - `libraries/runtime/libvcsc.l26` for default linking
 - `libraries/vcs/vcs.cfg` for reduced VCS linker operational policy
 - `libraries/vcs/vcs_4k.c26` for the implicit unbanked cartridge topology
+- `libraries/vcs/vcs_2k.c26` for explicit 2048-byte `$F800-$FFFF` builds
 - the installed F8/F6/F4 and Superchip `.c26` cartridge profiles for explicit builds
 - the old profile-specific cfg files only for compatibility and simulator selection
 
@@ -56,6 +57,7 @@ When installed, it expects this layout under the same prefix:
 - `lib/libvcsc.l26`
 - `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
 - `share/vcs/vcs.cfg` plus `share/vcs/vcs_4k.c26` for the default link
+- `share/vcs/vcs_2k.c26` for explicit 2048-byte cartridge builds
 - `share/vcs/vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and their Superchip counterparts for explicit cartridge topology
 - retained profile-specific cfg files for compatibility and `vcsc-sim`
 
@@ -88,9 +90,11 @@ Build and link a program:
 ./driver/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o solid_color.bin
 ```
 
-Select an installed/repository full-window profile explicitly:
+Select an installed/repository cartridge profile explicitly:
 
 ```sh
+./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_2k.c26 compact.c26 -o compact-2k.bin
 ./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
   libraries/vcs/vcs_8k_f8.c26 banked.c26 -o banked-f8.bin
 ./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \

@@ -42,13 +42,14 @@ my $generic_cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0],
-   ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0],
-   ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0],
-   ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0],
-   ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1],
-   ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1],
-   ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1],
+   ['2K',   'vcs_2k.c26',       undef,              1, 0, 0,  2048],
+   ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0,  4096],
+   ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
+   ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
+   ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
+   ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
+   ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1, 16384],
+   ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1, 32768],
 );
 
 -f $generic_cfg or die "generic VCS compatibility cfg is missing\n";
@@ -57,11 +58,11 @@ $cfg_text =~ /callstack\s*=\s*callgraph/ && $cfg_text !~ /\b(?:CARTRIDGE|BANKS|S
    or die "vcs.cfg is not the reduced operational compatibility cfg\n";
 
 for my $p (@profiles) {
-   my($name,$profile_name,$legacy_name,$banks,$selector,$sc)=@$p;
+   my($name,$profile_name,$legacy_name,$banks,$selector,$sc,$output_size)=@$p;
    my $profile=File::Spec->catfile($vcs,$profile_name);
-   my $legacy=File::Spec->catfile($vcs,$legacy_name);
+   my $legacy=defined($legacy_name) ? File::Spec->catfile($vcs,$legacy_name) : undef;
    -f $profile or die "$profile_name is missing\n";
-   -f $legacy or die "$legacy_name compatibility profile is missing\n";
+   defined($legacy_name) && !-f $legacy and die "$legacy_name compatibility profile is missing\n";
    my $text=read_file($profile);
    $text =~ /include\s+"vcs\.c26"/ && $text =~ /\bcartridge\s*\{/ && $text =~ /\bbank\s+bank0\s*\{/s
       or die "$profile_name is not a complete inspectable C26 cartridge profile\n";
@@ -87,15 +88,25 @@ for my $p (@profiles) {
    require_ok("build $name from C26 topology and reduced cfg",
       $driver,'-I',$vcs,'-T',$generic_cfg,
       '-Map',$generic_map,$profile,$blank,'-o',$generic_bin);
-   -s $generic_bin==$banks*4096
-      or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected ".($banks*4096)."\n";
+   -s $generic_bin==$output_size
+      or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   my $legacy_bin=File::Spec->catfile($tmp,"$stem.legacy.bin");
-   require_ok("differential build $name with legacy cfg",
-      $driver,'-I',$vcs,'-T',$legacy,
-      $profile,$blank,'-o',$legacy_bin);
-   read_file($generic_bin) eq read_file($legacy_bin)
-      or die "$name C26 profile and legacy cfg do not emit identical cartridges\n";
+   if ($name eq '2K') {
+      my $rom=read_file($generic_bin);
+      my @vectors=unpack('v3',substr($rom,-6));
+      !grep { $_ < 0xf800 } @vectors
+         or die "2K vectors are not linked into the canonical \$F800-\$FFFF mapping\n";
+   }
+
+   if (defined $legacy_name) {
+      my $legacy_bin=File::Spec->catfile($tmp,"$stem.legacy.bin");
+      require_ok("differential build $name with legacy cfg",
+         $driver,'-I',$vcs,'-T',$legacy,
+         $profile,$blank,'-o',$legacy_bin);
+      read_file($generic_bin) eq read_file($legacy_bin)
+         or die "$name C26 profile and legacy cfg do not emit identical cartridges
+";
+   }
 
    my $map=read_file($generic_map);
    $map =~ /^C26 CARTRIDGE TOPOLOGY$/m

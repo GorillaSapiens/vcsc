@@ -22,55 +22,58 @@ page const uint8_t game_playfield[44] := {
 template "renderers/player_color_181/player_color_181.c26" as game
 template "six_glyph_color_component.c26" as score
 
+// These source rows are intentionally bottom-to-top. The maintained renderers
+// reverse macro arguments for highest-index-to-zero traversal, so this makes
+// the displayed sprites match the faithful legacy interactive example.
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(
-      0b.XX..XX.,
-      0b..XXXX..,
-      0b.XXXXXX.,
-      0bXX.XX.XX,
-      0bXXXXXXXX,
-      0bX.XXXX.X,
+      0b.X....X.,
       0bX.X..X.X,
-      0b.X....X.
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
    )
 };
 
 page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(
-      0b..XXXX..,
-      0b.XX..XX.,
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
       0bXXXXXXXX,
       0bXX.XX.XX,
       0bXXXXXXXX,
-      0b..X..X..,
-      0b.X.XX.X.,
-      0bX.X..X.X
+      0b.XX..XX.,
+      0b..XXXX..
    )
 };
 
 page const uint8_t game_player0_colors[8] := {
    game_SPRITE_GLYPH(
-      VCS_NTSC_SANDY_BROWN,
-      VCS_NTSC_LIGHT_CORAL,
-      VCS_NTSC_ORCHID,
-      VCS_NTSC_VIOLET,
-      VCS_NTSC_MEDIUM_PURPLE,
-      VCS_NTSC_ROYAL_BLUE,
-      VCS_NTSC_SKY_BLUE_2,
-      VCS_NTSC_SKY_BLUE
-   )
-};
-
-page const uint8_t game_player1_colors[8] := {
-   game_SPRITE_GLYPH(
-      VCS_NTSC_PALE_GREEN,
-      VCS_NTSC_AQUAMARINE,
       VCS_NTSC_SKY_BLUE,
       VCS_NTSC_SKY_BLUE_2,
       VCS_NTSC_ROYAL_BLUE,
       VCS_NTSC_MEDIUM_PURPLE,
       VCS_NTSC_VIOLET,
-      VCS_NTSC_ORCHID
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_LIGHT_CORAL,
+      VCS_NTSC_SANDY_BROWN
+   )
+};
+
+page const uint8_t game_player1_colors[8] := {
+   game_SPRITE_GLYPH(
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_AQUAMARINE,
+      VCS_NTSC_PALE_GREEN
    )
 };
 

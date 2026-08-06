@@ -1,0 +1,12 @@
+include "vcs.c26"
+
+// Conventional unbanked 2K VCS cartridge, mapped at $F800-$FFFF.
+// The cartridge hardware mirrors the image in the lower half of the 4K
+// cartridge window; VCSC links against the canonical upper mapping so the
+// reset vectors remain at $FFFA-$FFFF.
+mem rom { $start:0xf800 $size:0x07fa $ro $priority:1 };
+cartridge { $fill:0xff $vectors_offset:0x07fa $vectors_size:0x0006 };
+bank bank0 {
+   $image_size:0x0800 $file_index:0 $image_offset:0
+   $link_start:0xf800 $cpu_start:0xf800 $map_size:0x0800
+};

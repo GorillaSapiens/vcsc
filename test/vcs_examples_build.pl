@@ -61,7 +61,9 @@ for my $entry (@examples) {
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my @extra;
-   if ($file eq 'fingerprint.c26') {
+   if ($file eq 'score.c26') {
+      push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
+   } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
@@ -84,7 +86,8 @@ for my $entry (@examples) {
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";
    $err eq '' or die "$dir wrote stderr:\n$err";
    my $rom=read_file($bin);
-   my $expected_size = $file eq 'bankswitching_diagnostic.c26' ? 8192 : 4096;
+   my $expected_size = $file eq 'bankswitching_diagnostic.c26' ? 8192
+      : $file eq 'score.c26' ? 2048 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my $vector_offset = $expected_size - 6;
