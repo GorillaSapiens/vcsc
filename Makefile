@@ -170,7 +170,7 @@ install-data:
 	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/
 	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
-	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
+	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/LICENSE.txt libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
 	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers
 	install -m 0644 libraries/vcs/legacy-basic-renderers/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/LICENSE.txt
 	install -m 0644 libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt
@@ -266,6 +266,7 @@ uninstall-data:
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors 2>/dev/null || true
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/LICENSE.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/fonts 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/LICENSE.txt
@@ -283,6 +284,7 @@ installcheck: tools
 	set -e; \
 	stage_bin="$(INSTALLCHECK_STAGING)/opt/vcsc/bin"; \
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
+	test -f "$$stage_vcs/fonts/LICENSE.txt"; \
 	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \

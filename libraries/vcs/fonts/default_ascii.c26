@@ -1,10 +1,6 @@
-// Default printable ASCII font.
-//
-// The original legacy 0-9 and A-F glyph data was released under CC0-1.0.
-// See libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
-// The remaining printable ASCII glyphs extend the same 8x8 visual style.
-// Glyph rows are written top-to-bottom for visual readability; the
-// VCS_FONT_GLYPH alias reverses each glyph for the score renderer.
+// Default
+// Characters: printable ASCII from space (0x20) through tilde (0x7E)
+// This font is covered under CC0-1.0. See LICENSE.txt
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
@@ -47,37 +43,37 @@ page const uint8_t score_font[760] := {
 
    // 0x23 #
    VCS_FONT_GLYPH(
-      0b.XX.XX..,
-      0b.XX.XX..,
-      0bXXXXXXX.,
-      0b.XX.XX..,
-      0bXXXXXXX.,
-      0b.XX.XX..,
-      0b.XX.XX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b..XXXX..,
       0b........
    ),
 
    // 0x24 $
    VCS_FONT_GLYPH(
       0b...XX...,
-      0b..XXXXX.,
-      0b.XX.....,
-      0b..XXXX..,
+      0b...XXXX.,
+      0b..XX....,
+      0b...XXX..,
       0b.....XX.,
-      0bXXXXXX..,
+      0b.XXXXX..,
       0b...XX...,
       0b........
    ),
 
    // 0x25 %
    VCS_FONT_GLYPH(
-      0b.XX...X.,
-      0b.XX..XX.,
+      0b..XX..X.,
+      0b..XX.XX.,
       0b....XX..,
       0b...XX...,
-      0b..XX....,
-      0b.XX..XX.,
-      0bX...XX..,
+      0b...X....,
+      0b..XX.XX.,
+      0b.X..XX..,
       0b........
    ),
 
@@ -132,11 +128,11 @@ page const uint8_t score_font[760] := {
    // 0x2A *
    VCS_FONT_GLYPH(
       0b........,
-      0b.XX.XX..,
-      0b..XXX...,
-      0bXXXXXXX.,
-      0b..XXX...,
-      0b.XX.XX..,
+      0b..XXXX..,
+      0b...XX...,
+      0b.XXXXXX.,
+      0b...XX...,
+      0b..XXXX..,
       0b........,
       0b........
    ),
@@ -195,10 +191,10 @@ page const uint8_t score_font[760] := {
       0b.....XX.,
       0b....XX..,
       0b...XX...,
+      0b...X....,
       0b..XX....,
       0b.XX.....,
-      0bXX......,
-      0bX.......
+      0b.X......
    ),
 
    // 0x30 0
@@ -575,14 +571,14 @@ page const uint8_t score_font[760] := {
 
    // 0x4F O
    VCS_FONT_GLYPH(
-      0b..XXXX..,
+      0b.XXXXXX.,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
-      0b..XXXX..
+      0b.XXXXXX.
    ),
 
    // 0x50 P
@@ -599,14 +595,14 @@ page const uint8_t score_font[760] := {
 
    // 0x51 Q
    VCS_FONT_GLYPH(
-      0b..XXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX.XXX.,
+      0b..XXX...,
       0b.XX.XX..,
-      0b..XXX.XX
+      0b.XX.XX..,
+      0b.XX.XX..,
+      0b.XX.XX..,
+      0b.XXXXX..,
+      0b.XXXX...,
+      0b..XX.XX.
    ),
 
    // 0x52 R
@@ -734,11 +730,11 @@ page const uint8_t score_font[760] := {
       0b.X......,
       0b.XX.....,
       0b..XX....,
+      0b...X....,
       0b...XX...,
       0b....XX..,
       0b.....XX.,
-      0b......XX,
-      0b.......X
+      0b......X.
    ),
 
    // 0x5D ]
@@ -757,8 +753,8 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b...XX...,
       0b..XXXX..,
+      0b..X..X..,
       0b.XX..XX.,
-      0bXX....XX,
       0b........,
       0b........,
       0b........,
@@ -774,7 +770,7 @@ page const uint8_t score_font[760] := {
       0b........,
       0b........,
       0b........,
-      0bXXXXXXXX
+      0b.XXXXXX.
    ),
 
    // 0x60 grave accent
@@ -793,12 +789,12 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
+      0b..XXX...,
+      0b....XX..,
       0b..XXXX..,
-      0b.....XX.,
-      0b..XXXXX.,
-      0b.XX..XX.,
-      0b.XX.XXX.,
-      0b..XXX.XX
+      0b.XX.XX..,
+      0b.XXXXX..,
+      0b..XX.XX.
    ),
 
    // 0x62 b
@@ -1033,12 +1029,12 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX.XXX.,
-      0b..XXX.XX
+      0b.XX.XX..,
+      0b.XX.XX..,
+      0b.XX.XX..,
+      0b.XX.XX..,
+      0b.XXXXX..,
+      0b..XX.XX.
    ),
 
    // 0x76 v
@@ -1141,8 +1137,8 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b..XXX.XX,
-      0b.XX.XXX.,
+      0b..XX.XX.,
+      0b.XXXXX..,
       0b........,
       0b........,
       0b........,

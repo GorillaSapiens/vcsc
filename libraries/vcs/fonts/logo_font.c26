@@ -1,9 +1,6 @@
-// Six-slice VCSC logo font.
-//
-// The original legacy glyph data was released under CC0-1.0. See
-// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
-// Glyph rows are written top-to-bottom for visual readability; the
-// LOGO_FONT_GLYPH alias reverses each glyph for the score renderer.
+// VCSC logo
+// Characters: six consecutive logo slices numbered 0-5
+// This font is covered under CC0-1.0. See LICENSE.txt
 
 alias LOGO_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 

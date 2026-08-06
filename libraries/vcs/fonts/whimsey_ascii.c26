@@ -1,11 +1,6 @@
-// Whimsey printable ASCII font.
-//
-// The original legacy glyph data was released under CC0-1.0. See
-// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
-// Glyph rows are written top-to-bottom for visual readability; the
-// VCS_FONT_GLYPH alias reverses each glyph for the score renderer.
-// Characters are stored in ASCII order from SPACE (0x20) through
-// TILDE (0x7e).
+// Whimsey
+// Characters: printable ASCII from space (0x20) through tilde (0x7E)
+// This font is covered under CC0-1.0. See LICENSE.txt
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
@@ -604,10 +599,10 @@ page const uint8_t score_font[760] := {
       0b.XXXXXX.,
       0b.XX..XX.,
       0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX.XXX.,
       0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b.XXXX.X.
    ),
 
    // 0x52 R
@@ -675,11 +670,11 @@ page const uint8_t score_font[760] := {
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX.XXX.,
       0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b..XXXX..
    ),
 
    // 0x58 X
@@ -806,12 +801,12 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b.XX.....,
       0b.XX.....,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..
    ),
 
    // 0x63 c
@@ -878,12 +873,12 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b.XX.....,
       0b.XX.....,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.
    ),
 
    // 0x69 i
@@ -938,36 +933,36 @@ page const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
+      0b.X.X.X..,
       0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b.X.XX.X.,
+      0b.X.XX.X.,
+      0b.X.XX.X.,
+      0b.X.XX.X.
    ),
 
    // 0x6E n
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.
    ),
 
    // 0x6F o
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
    ),
 
    // 0x70 p

@@ -402,6 +402,13 @@ right-joystick control oracle, including hue changes, and drives right fire in a
 two-plus-two cartridge to prove visible field selection, independent motion and
 packed-BCD changes for both fields, and the right field's full X=144 endpoint.
 
+`vcs_font_contracts.pl` audits all eight printable-ASCII font families. It
+requires 95 distinct glyph bitmaps per family, exact digit and A-F agreement
+with the corresponding decimal and hexadecimal source modules, preservation of
+each family's blank row/column cell contract, the compact three-line CC0
+headers, a complete local `fonts/LICENSE.txt`, and byte-identical logo glyph
+pixels.
+
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,

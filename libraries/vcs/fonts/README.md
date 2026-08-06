@@ -11,15 +11,18 @@ This directory contains eight 8x8 score-font families converted to readable
 VCSC source, plus one special six-slice VCSC logo table. Every pixel row is written on its own line using visual binary
 notation: `.` is a clear pixel and `X` is a set pixel.
 
-Each family has two modules:
+Each family has three modules:
 
 - `*_decimal.c26` defines ten glyphs, `0` through `9`, in an 80-byte array.
 - `*_hex.c26` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
   128-byte array.
+- `*_ascii.c26` defines all 95 printable ASCII glyphs from space (`0x20`)
+  through tilde (`0x7E`) in a 760-byte array. Every glyph in one ASCII module
+  has a distinct bitmap.
 
-Include exactly one conventional `*_decimal.c26` or `*_hex.c26` family module
-in a translation unit. Every family module defines the common table symbol
-`score_font`, which is the interface expected by score renderers. The special
+Include exactly one conventional family module in a translation unit. Every
+family module defines the common table symbol `score_font`, which is the
+interface expected by display components. The special
 `logo_font.c26` table uses its own `logo_font` symbol and may coexist with one
 conventional family. Each table uses the VCSC `page` declaration modifier, so the linker
 places the complete table anywhere it fits within one 256-byte page. This is a timing requirement: `(score_font + digit * 8),Y`
@@ -61,13 +64,14 @@ use digit values in the range `0..15`; packed BCD naturally supplies only
 processor fingerprint as six hexadecimal digits, while two edge-justified
 components redirect their pointers to `logo_font.c26`.
 
-The arrays are stored in the row order consumed by the score renderer, but source
+The arrays are stored in the row order consumed by the display code, but source
 rows are written top-to-bottom. `VCS_FONT_GLYPH` performs the reversal at
-compile time.
+compile time. ASCII digits are byte-identical to the corresponding decimal and
+hexadecimal glyphs, and ASCII `A` through `F` are byte-identical to the
+hexadecimal glyphs. Each ASCII family preserves the same blank row and column
+margins as its decimal and hexadecimal source family.
 
 ## Provenance and license
 
-The original assembly font data is from the retained legacy BASIC support
-materials and is released under CC0-1.0. The exact upstream licensing overview
-is retained at `../legacy-basic-renderers/LICENSE.txt`. The conversion to VCSC
-visual-binary source does not change that license.
+The font data is covered under CC0-1.0. The complete CC0 text is retained in
+this directory as `LICENSE.txt`.

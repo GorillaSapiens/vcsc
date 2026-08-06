@@ -139,3 +139,20 @@ passes including final banked cartridge and renderer builds.
 * Verified compile-only 438/438, end-to-end 250/250 in bounded named chunks,
   focused raster/control/orientation/hygiene/branding checks, and staged
   make installcheck. Generated build products are cleaned before packaging.
+
+2026-08-06 13:46:59 PDT, repair and normalize the shared font families
+
+Shortened every font module header to the font name, covered character range,
+and the required CC0-1.0 notice; added the complete local
+libraries/vcs/fonts/LICENSE.txt and installed/uninstalled it with the other VCS
+data. Audited all eight printable-ASCII families, kept decimal digits and hex
+A-F byte-identical to their source modules, repaired exact duplicate glyphs,
+and normalized every ASCII glyph to the same blank row/column cell contract as
+its decimal/hex family. The special logo table received only the header change;
+its six-slice pixel hash remains eb79c068605cc8e84250651de1067b579c6b673af7265120098790e070c40e6a.
+Added vcs_font_contracts.pl to lock distinct ASCII bitmaps, source-family reuse,
+cell margins, compact headers, local CC0 text, and unchanged logo pixels.
+Verification: 438/438 compile-only passed; 250/251 e2e tests completed and
+passed, with only the unrelated long-running vcs_score_composition_raster.pl
+not completing within the harness window; all affected font/score/logo,
+branding, hygiene, and install-data checks passed.

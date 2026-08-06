@@ -92,9 +92,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for the latest maintenance work:
+Input archive for the latest font-maintenance side trip:
 
-    vcsc.20260806_183639.tar.gz
+    vcsc.20260806_191653.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -171,6 +171,14 @@ Renderer and example state
   must not be pruned merely because it is not part of the current build.
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
+  Each of the eight families has decimal, hexadecimal, and printable-ASCII
+  modules. ASCII covers space (`0x20`) through tilde (`0x7E`), keeps every
+  glyph bitmap distinct within its family, exactly reuses the family decimal
+  digits and hexadecimal `A`-`F`, and preserves the source family
+  blank-row/blank-column cell margins. Font modules use compact three-line
+  name/coverage/CC0 headers, and `libraries/vcs/fonts/LICENSE.txt` contains
+  the local CC0-1.0 text. `logo_font.c26` is special: header changes are
+  allowed, but its six glyph slices must remain pixel-identical.
 * The centered and widely spaced six-glyph score displays are separate lifecycle
   components. The wide component places 8-pixel glyphs at X=36,52,68,84,100,116
   using three medium-spaced copies per player and the compact delayed-player
@@ -239,11 +247,18 @@ When removing or changing a feature:
 3. rewrite still-useful tests to use supported behavior;
 4. update documentation and source-tree hygiene checks in the same slice.
 
-The latest verified full baseline, after main-roadmap item 24, is:
+The latest completely verified baseline before the font side trip was:
 
     compile-only:             438 passed
     end-to-end/generic:       250 passed
     staged installed tools:   passed, including all final cartridge builds
+
+The font side trip adds `vcs_font_contracts.pl`, raising the current e2e
+inventory to 251. Its verification completed all 438 compile-only tests and
+250 of 251 e2e tests successfully. The one uncompleted test was the unrelated
+long-running `vcs_score_composition_raster.pl`, which exceeded the execution
+harness window without reporting a failure. All affected font, score, logo,
+example, branding, hygiene, and installation-data checks passed.
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
 7.0 raster certification, recursive public-example discovery, source-hygiene, and
