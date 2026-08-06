@@ -1,0 +1,397 @@
+VCSC CONTEXT HISTORY — 2026-08-05
+=================================
+
+Historical development entries for 2026-08-05, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-08-05 04:14:47 PDT, complete directional one-address ref parameters
+------------------------------------------------------------------------
+* Complete bankswitching roadmap item 19 with three distinct one-address
+  reference contracts. `ref const T` passes the exact readable address,
+  `ref writeonly T` passes the exact writable address, and ordinary `ref T`
+  requires both directions to exist at one identical address. No fat-pointer
+  representation or callee-body-dependent address choice is introduced.
+* Carry reference capability through call lowering, callee lvalue access,
+  forwarding conversions, arrays and aggregate subobjects, same-translation-unit
+  function compatibility, and linker-visible ABI fingerprints. Read/write refs
+  may narrow to const or writeonly; restricted refs cannot recover or exchange
+  capability. Plain `&` cannot be used to recover a read/write pointer from a
+  restricted ref.
+* Track const object lvalues explicitly so const objects may bind to `ref const`
+  while direct writes and writable-reference binding remain rejected. Initialize
+  every context entry deterministically after adding that metadata field.
+* Add exact-address execution for ordinary, const, split-memory, reversed and
+  noncontiguous regions, arrays, structures, members, and one-sided/split
+  absolute bindings. Add inline, separately compiled, ABI-mismatch, hidden-read,
+  subobject, plain-address escape, and F8 cross-bank trampoline coverage.
+* Update `compiler/README.md`, `compiler/ABI.txt`, `libraries/vcs/README.md`,
+  `test/README.md`, and `.../bankswitching.txt`. Leave the project-wide top-level
+  README unchanged.
+* Verification: all 421 compile-only tests pass. The complete 232-test
+  end-to-end/generic inventory is covered in ordered chunks: tests 1-171 passed
+  in the initial ordered run, the remaining 61 passed in continuation chunks,
+  and the one return-object case affected by deterministic metadata
+  initialization was rerun successfully after the fix. Focused source-tree
+  hygiene and staged `make installcheck` pass. Bankswitching roadmap item 20,
+  generic function code/result region classification, is next.
+
+2026-08-05 05:19:06 PDT, generalize function code and result region contracts
+------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 20 by classifying every named function
+  modifier from the referenced `mem` declaration rather than its spelling or
+  source order. Read-only regions form the code-placement set, while at most one
+  writable region independently selects the hidden return object's storage.
+* Preserve automatic code placement and default zero-page return storage when
+  the corresponding region role is absent. Support ordinary zero-page,
+  ordinary absolute, and split-address writable result regions alongside one
+  read-only code region without conflating their linker segments or ABI facts.
+* Require declarations and definitions to agree independently on the
+  order-insensitive code-region set and result-storage region in both
+  same-translation-unit checks and linker-visible ABI metadata. Map output now
+  reports the actual function CODE placement separately from its ordinary or
+  split return-object activation storage.
+* Reject duplicate region modifiers, multiple writable result regions,
+  writable result storage on `void`, named regions on inline functions, and
+  multiple read-only code regions with the deterministic item-21 deferral
+  diagnostic rather than choosing or partially duplicating a body.
+* Add arbitrary-name and order-independence code-generation coverage, ordinary
+  and split result placement tests, separate code/result ABI mismatch tests,
+  map-layout checks, and focused rejection tests. Update `compiler/README.md`,
+  `compiler/ABI.txt`, `linker/README.md`, `libraries/vcs/README.md`,
+  `test/README.md`, and `.../bankswitching.txt`; leave the project-wide
+  top-level README unchanged.
+* Verification: all 425 compile-only tests pass. All 235 end-to-end/generic
+  tests pass in explicit ordered continuation chunks, including every new item-20
+  case, the complete bankswitching/linker inventory, and all renderer/profile
+  tests. Source-tree hygiene and staged `make installcheck` pass.
+* Bankswitching roadmap item 21, explicit multi-bank duplication for immutable
+  objects and functions, is next.
+
+2026-08-05 06:12:11 PDT, add explicit multi-bank immutable ROM replication
+--------------------------------------------------------------------------
+* Complete bankswitching roadmap item 21 with order-insensitive multi-region
+  `$ro` contracts for immutable file-scope objects and non-inline functions.
+  The compiler emits one logical body or initializer plus replication metadata;
+  the linker materializes independently placed private copies in every named
+  bank-owned read-only region.
+* Bind object references to the copy in the referencing function's bank and
+  constrain automatic readers to banks containing a copy. Diagnose pinned
+  readers with no local object copy. Bind direct calls to a local function body
+  first, while callers in other banks may use the ordinary cross-bank trampoline
+  to the deterministic primary body.
+* Preserve one logical symbol, activation record, and optional shared writable
+  return object across all replicated function bodies. Compare sorted function
+  code-region sets, result-storage regions, and replicated-object region sets in
+  same-translation-unit and linker-visible ABI contracts. Keep function pointers
+  unsupported.
+* Reject duplicate regions, mutable object duplication, non-read-only or split-
+  address replica regions, inline region contracts, and unusable linker regions.
+  Add a `REPLICATED ROM` map section reporting every copy, its bank and load
+  address, bytes per copy, per-symbol physical cost, and aggregate physical cost.
+* Fix the item-20 declaration-contract metadata regression reported during this
+  work: the canonical void-function test now includes the independently added
+  empty `code_regions=[]` field instead of expecting the obsolete signature.
+* Add F8SC local-copy and complete `bank0 bank1 superchip` execution, mixed
+  pinned/automatic placement, F6 function fallback and three-copy execution,
+  deterministic object missing-copy diagnostics, separate compilation, ABI-
+  mismatch, source rejection, and map-accounting coverage. Update
+  `compiler/README.md`, `compiler/ABI.txt`, `linker/README.md`,
+  `libraries/vcs/README.md`, `test/README.md`, source-tree hygiene, and
+  `.../bankswitching.txt`; leave the project-wide top-level README unchanged.
+* Verification: all 431 compile-only tests pass. All 240 end-to-end/generic tests
+  pass: tests 1-136 passed before the execution-window cutoff and the remaining
+  104 passed in explicit continuation chunks. Source-tree hygiene and staged
+  `make installcheck` pass. Bankswitching roadmap item 22, coalescing one
+  returned automatic variable with `$$`, is next.
+
+2026-08-05 09:27:24 PDT, coalesce one returned automatic local with the hidden return object
+--------------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 22 by recognizing value-returning
+  functions whose returns all name one automatic local and, only when exact
+  type and resolved storage contracts match, binding that local and
+  `function$__return` to one allocation. Suppress both the separate local
+  reservation and the final return copy while preserving the public return
+  symbol and caller ABI.
+* Require exact agreement in type, width, const and pointer-access properties,
+  named memory-region identity, zero-page versus absolute placement, and the
+  complete split read/write alias mapping. Keep the existing separate objects
+  and copy for distinct return variables, expression returns, explicit `$$`
+  access, address escape, `ref` binding, inline assembly, or any type/storage
+  mismatch. Safe by-value uses do not disable the optimization.
+* Support ordinary zero-page, ordinary absolute, and Superchip-style split
+  result storage. Split coalesced locals write through the write alias and read
+  through the read alias, with the physical activation allocation counted once.
+* Add relocated `__coalescemeta` labels and a `RETURN COALESCING` map section
+  reporting function, local, ABI return symbol, region, exact read/write
+  addresses, width, and defining object. Fix an intermediate implementation bug
+  where an exported absolute equate lost relocation and appeared as address
+  `$0000`; the final metadata is a real label colocated with the allocation.
+* Add focused code-generation and runtime coverage for straight-line and
+  branched paths, one- through four-byte binary and packed-BCD values, ordinary
+  absolute and split storage, safe by-value calls, and every required fallback.
+  Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene, and
+  bankswitching-roadmap documentation; leave the project-wide top-level README
+  unchanged.
+* Verification: all 434 compile-only tests pass. The complete 241-test
+  end-to-end/generic inventory passes: tests 1-136 passed in the initial ordered
+  run and tests 137-241 passed in exact harness-selected continuation chunks.
+  Final source-tree hygiene and staged `make installcheck` pass. Bankswitching
+  roadmap item 23, automatic Superchip initialization and lifecycle tests, is
+  next.
+
+2026-08-05 10:12:49 PDT, integrate automatic Superchip initialization and reset lifecycle
+----------------------------------------------------------------------------
+* Complete bankswitching roadmap item 23 by extending linker startup records
+  with distinct readable and writable runtime aliases. DATA initialization and
+  BSS clearing now write through the write window, while the new `STARTUP
+  INITIALIZATION` map section reports load/read/write addresses, byte counts,
+  split status, and the every-reset policy.
+* Define Superchip lifecycle semantics explicitly: physical power-on contents
+  are unspecified; every normal reset re-clears allocated BSS and recopies
+  allocated DATA; mapper bank switches preserve the shared 128 physical bytes;
+  unallocated bytes remain outside the VCSC contract.
+* Extend `vcsc-sim` with `--split-fill` hostile initialization and one-shot
+  `--reset-on-pc` support which preserves RAM and mapper state before fetching
+  the reset vector. Use those controls in source-tree and installed-toolchain
+  diagnostics so a zero-initialized simulator cannot conceal a missing BSS clear.
+* Consolidate Superchip lifecycle coverage into the existing diagnostic-cart
+  family rather than adding carts. Each SC build owns all 128 bytes as mixed
+  BSS and DATA, validates startup aliases, bounds, and bank-switch persistence,
+  poisons the region, performs a real reset, and must display PASS again. Convert
+  the existing deliberately poisoned reference to F8SC, keeping seven public
+  diagnostic cartridges total.
+* Extend Stella snapshot automation to press console Reset for SC diagnostics
+  and grade the settled second frame. A randomized F8SC run exposed a transient
+  partial-frame capture with a one-second post-reset delay; use a two-second
+  settling interval. All forced and randomized F4SC, F6SC, and F8SC cases plus
+  the poisoned F8SC reference pass in Stella.
+* Update compiler, ABI, linker, runtime, simulator, VCS-library, example,
+  test-inventory, source-hygiene, and bankswitching-roadmap documentation; leave
+  the project-wide top-level README unchanged.
+* Verification: all 434 compile-only tests pass. All 241 end-to-end/generic
+  tests pass in the ordered run plus exact continuation chunks. Focused
+  Superchip allocation, diagnostic, example, and hygiene tests pass; staged
+  `make installcheck` passes; and every SC Stella diagnostic case passes in
+  bounded forced/randomized chunks. Bankswitching roadmap item 24, adding a
+  banked renderer or multisprite profile only after generic cart stability, is
+  next.
+
+2026-08-05 13:40:34 PDT, define generic C26 cartridge-output and bank topology
+--------------------------------------------------------------------------------
+* Repair the bankswitching-roadmap overlay damage by restoring the detailed
+  completion summaries for items 19 through 23, restoring the deliberately
+  poisoned diagnostic to F8SC, and restoring the description of the already
+  implemented public cfg profiles. Preserve the overlay's useful direct-bank
+  design additions.
+* Complete bankswitching roadmap item 24 by adding explicit C26
+  `cartridge { ... };` and `bank name { ... };` declarations in namespaces
+  separate from `mem`. Carry versioned topology metadata through o26 with the
+  original source path and location, merge identical declarations across
+  translation units, and diagnose conflicts using both source declarations.
+* Represent each physical output unit with explicit image size, file index,
+  image offset, synthetic link mapping, CPU-visible mapping, optional
+  `$select_access`, and optional `$startup`. Validate dense file ordering,
+  mapping and generated-range bounds, selector validity and uniqueness,
+  nonoverlap, and selector-startup cardinality without deriving semantics from
+  declaration names.
+* Package selector-free direct banks in declared file order with ordinary
+  absolute calls and references and no hotspot, bridge, or trampoline code.
+  Preserve existing selector-controlled F8 bridge and trampoline behavior while
+  cfg files remain the transitional allocator description, and require C26
+  topology to agree semantically with that cfg.
+* Add compiler metadata/error cases, grammar coverage, separate-compilation
+  merge/conflict diagnostics, direct two-chunk packaging, switched F8
+  integration, malformed-topology checks, map reporting, test inventory, and
+  source-tree hygiene coverage. Update compiler, ABI, linker, test, and
+  bankswitching documentation; leave the project-wide top-level README
+  unchanged.
+* Verification: all 437 compile-only tests pass. All 242 end-to-end/generic
+  cases are covered and pass in the ordered run plus exact continuation chunks;
+  the unusually large score/raster certification was completed in two exact
+  internal phases after the execution window expired. The staged installed
+  toolchain passes every installcheck operation; its final 40-cartridge loop was
+  completed from the same staging tree in bounded continuation chunks after 14
+  cartridges had passed before the execution-window cutoff. Source-tree hygiene
+  passes. Bankswitching roadmap item 25, authoritative `mem` declarations and
+  inferred output-bank ownership, is next.
+
+2026-08-05 14:53:15 PDT, make C26 mem declarations authoritative and infer output ownership
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 25 by emitting one versioned metadata
+  record for every complete C26 `mem` declaration, including unused regions,
+  and merging those declarations after archive selection. Diagnose conflicting
+  declarations with both original C26 source locations while keeping empty
+  policy-only declarations nonallocating.
+* Make C26 start/read/write aliases, size, access type, priority, and source
+  spelling authoritative over duplicated cfg MEMORY allocator facts. Retain
+  only migration-era cfg operational properties such as call-stack reservation,
+  file/fill behavior, and generated mapper corridors. Stale or missing cfg
+  allocator entries now link using the C26 declaration instead of overriding it.
+* Synthesize ordinary STARTUP, CODE, RODATA, DATA, BSS, ZEROPAGE, private-layout,
+  and named-region routes from authoritative memory metadata. Select defaults by
+  source priority and startup-bank ownership, preserve explicit cfg alignment
+  and start constraints, and retain deterministic split-address placement.
+* Infer direct, switched, or shared output ownership solely from unique
+  containment in C26 bank synthetic link ranges. Never infer from names or CPU
+  mirrors. Clear stale cfg bank tags from authoritative writable and split
+  regions, so Superchip remains shared and emits direct $F000/$F080 accesses
+  with no selector code.
+* Adopt allocatable-bytes-only default memory declarations. Generic 6502 source
+  defaults now match the generic cfg allocator, VCS unbanked ROM excludes the
+  six vector bytes, and custom/banked tests explicitly suppress broad defaults
+  and declare their real allocator ranges. Maps and diagnostics preserve the
+  authoritative source spelling.
+* Add allocator-free direct-bank and minimal-hardware F8SC links, mismatched
+  bank/mem-name ownership tests, full-cfg/minimal-cfg byte equality, unused and
+  separate-object metadata, stale cfg read/write/size/type/bank-tag success
+  cases, ambiguous-containment diagnostics, direct Superchip byte checks,
+  switched-call coverage, map reporting, documentation, test inventory, and
+  source-tree hygiene requirements. Leave the top-level README unchanged.
+* Verification: all 437 compile-only tests pass. All 243 end-to-end/generic
+  cases are accounted for and pass in exact ordered chunks; the heavyweight
+  score/raster certification completed its 32 public builds and first 44 of 80
+  generated fixtures before the execution window, then completed fixtures
+  45-80 and mixed placement in a continuation using the same tree. Source-tree
+  hygiene passes. The staged installed toolchain completed every installcheck
+  prerequisite; its final 40-cartridge loop passed seven entries before the
+  execution window and the remaining 33 were completed in bounded continuation
+  chunks from the same staging tree. Bankswitching roadmap item 26, migrating
+  cartridge profiles to C26 topology files, is next.
+
+2026-08-05 16:39:25 PDT, migrate public cartridge profiles from cfg topology to C26 topology
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 26 by adding explicit installed C26
+  topology profiles for 4K, F8, F6, F4, F8SC, F6SC, and F4SC cartridges plus a
+  selector-free direct 8K packaging profile. Each file declares the complete
+  cartridge, bank, and allocatable-memory model; filenames carry no semantics.
+* Make `vcs.c26` describe the common VCS machine only and move the ordinary
+  unbanked ROM declaration into `vcs_4k.c26`. The driver implicitly compiles
+  that profile when no explicit `-T` selection is made. Explicit C26 inputs now
+  search their own source directory first for quoted includes, so installed
+  profiles can include sibling `vcs.c26` and `superchip.c26` without an extra
+  caller-supplied include path.
+* Reduce public profile linking to `vcs.cfg`, which retains operational RIOT
+  hardware-stack policy but no cartridge, bank, allocator, or ordinary segment
+  topology. When C26 topology is present, construct direct or selector-controlled
+  linker bank machinery from it and discard superseded legacy cfg cartridge and
+  generated-corridor declarations without disturbing retained component-specific
+  cfg constraints.
+* Retain configuration-only C26 objects during archive/input selection while
+  preserving ordinary runtime/program input order. Keep the old full profile cfg
+  files only for compatibility, byte-for-byte differential certification, and
+  simulator mapper selection.
+* Migrate the public seven-cartridge diagnostic, example builds, staged installed
+  builds, documentation, and test inventory to C26 profiles. Preserve physical
+  file order, image sizes, selectors, startup placement, bridge/vector bytes,
+  Superchip prefixes and shared aliases, simulator behavior, and map accounting.
+  Add direct-bank packaging checks proving ordinary absolute cross-chunk calls,
+  deterministic fill, and no selector or trampoline output.
+* Verification: all 437 compile-only tests pass. All 244 end-to-end/generic cases
+  pass against the final driver in exact ordered chunks. The heavyweight
+  score/raster case passed all 32 public cartridge builds, all 80 generated
+  static/motion compositions, and mixed score placement in bounded phases. The
+  staged installed toolchain passed every prerequisite and all 40 final renderer
+  cartridges; the last loop was completed in three twelve-cartridge continuation
+  chunks after four entries finished before the execution-window cutoff. Final
+  source-tree hygiene passes, and the project-wide top-level README remains
+  unchanged. Bankswitching roadmap item 27, moving component-specific placement
+  constraints out of cfg files, is next.
+
+2026-08-05 17:47:07 PDT, add 2K cartridge profile and normalize interactive sprite orientation
+--------------------------------------------------------------------------------
+* Apply the supplied top-level Makefile exam-target patch. The target now walks
+  example Makefiles in sorted order, prints each directory, builds and launches
+  each directory's cartridges before continuing, and propagates build failures.
+  Correct the patch's continued recipe indentation so GNU make parses it.
+* Add installed `vcs_2k.c26` with a direct 2048-byte image mapped at
+  $F800-$FFFF, a $F800-$FFF9 allocatable ROM region, and vectors in the final
+  six bytes. Add it to profile, install/uninstall, bundle-pruning, documentation,
+  source-hygiene, and staged installed-toolchain coverage.
+* Move `examples/01_basic/03_score` to the explicit 2K profile through reduced
+  `vcs.cfg`; its Makefile and recursive example test now require an exact
+  2048-byte cartridge. Keep the normal implicit profile at 4K for programs which
+  do not select another topology.
+* Flip the P0/P1 graphics and row-color source order in all maintained
+  interactive renderer examples so their displayed sprites match
+  `examples/02_faithful_legacy_playercolors/01_interactive`. Share the corrected
+  definitions through the common 181-line bodies; leave the animated sprite
+  gallery's independent frame-table convention unchanged.
+* Add `vcs_interactive_sprite_orientation.pl` to lock the faithful visual
+  convention across all 42 non-legacy interactive cartridges, and update the
+  player-color 192 raster oracle for the corrected public sprite orientation.
+* Verification: all 437 compile-only tests pass. All 245 end-to-end/generic
+  cases are accounted for and pass; the heavyweight score/raster case completed
+  its 32 public cartridges, fixtures 1-40, fixtures 41-80, and mixed-instance
+  checks in exact bounded phases. The staged installed toolchain passed every
+  prerequisite, the explicit 2K score build, and all 40 final interactive
+  cartridges; the final loop completed in bounded continuation chunks after the
+  execution window. The top-level README remains unchanged.
+
+2026-08-05 19:20:30 PDT, move component placement and hidden-stack contracts into object metadata
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 27 by adding `.segmentregion`,
+  `.segmentalign`, `.segmentprivate`, and `.callstackextra` assembler directives.
+  Normalize their facts into reserved object metadata and reject malformed,
+  contradictory, missing-layout, nonconstant, and out-of-range declarations.
+* Apply component records after authoritative C26 topology/memory synthesis and
+  before final layout validation. Resolve `startup` through the selected CODE
+  route, honor named C26 regions, constrain final alignment, retain private
+  routes without global segment rules, and diagnose cfg/object region,
+  alignment, callgraph-policy, or hidden-stack conflicts.
+* Move the maintained standard renderer's region, 256-byte alignment, private
+  routing, and four-byte hidden assembly JSR allowance into its normalized
+  object. Make all maintained C26 player-color and all-five renderer templates
+  emit their own four-byte `.callstackextra` allowance. Reduce the standard
+  compatibility cfg to generic 4K policy and preserve byte-identical output
+  against a reconstructed pre-item-27 cfg/object pair.
+* Correct public interactive RAM accounting to reserve the complete eight-byte
+  hardware stack. Replace the Reset expression with a scratch-free inline
+  assembly test; the worst public cartridge now occupies 119 object bytes plus
+  eight hardware-stack bytes, leaving one RIOT RAM byte free.
+* Add component region/alignment/private map reporting, malformed/conflict
+  regressions, installed-object checks, standard-renderer differential coverage,
+  documentation, test inventory, and source-tree hygiene that permits only the
+  three grandfathered compatibility/reference cfgs and forbids new renderer x
+  mapper cfg products. Leave the top-level README unchanged.
+* Verification: all 437 compile-only tests pass. All 246 end-to-end/generic
+  cases are explicitly accounted for and pass; the heavyweight score/raster
+  certification passed all 32 public cartridges, all 80 generated compositions,
+  and mixed placement in bounded phases. The staged installed toolchain passed
+  every prerequisite and all 40 final cartridge builds. Bankswitching roadmap
+  item 28, composing the maintained standard renderer with generic banked C26
+  profiles, is next.
+
+2026-08-05 21:19:21 PDT, compose maintained standard renderer with generic banked profiles
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 28 with one consolidated public F8
+  diagnostic under `examples/09_bankswitching/02_standard_renderer/`. Build
+  private 4K, F6, F4, and F8SC variants from the same source and maintained
+  all-five renderer component rather than creating renderer/profile copies.
+* Permit a file-scope `page` object to carry one named read-only `mem` region.
+  Keep the existing private region-specific segment lowering and emit
+  `.pagecontain`, so beam-critical playfield and sprite tables are both hard
+  page-contained and explicitly owned by startup bank0.
+* Keep renderer code and data, startup, score tables, and frame preparation in
+  bank0. Place a real game routine and strong overscan hook in bank1. The
+  renderer calls that hook only after asserting VBLANK; runtime checks reject
+  selector access outside VBLANK and require every VSYNC boundary to begin in
+  the startup bank.
+* Measure one cross-bank JSR round trip per frame at 37 cycles total, 25 cycles
+  over direct JSR/RTS. Current F8/F6/F4 placement uses 1940 bytes in bank0 and
+  94 bytes in bank1; F8SC uses 123 bytes in bank1. Replicated bridge usage is
+  30, 60, and 120 bytes for F8, F6, and F4 respectively.
+* Keep 95 ordinary RIOT object bytes plus a 12-byte hardware stack for
+  F8/F6/F4. The F8SC variant keeps 93 RIOT object bytes and the same stack while
+  placing three non-critical hook-state bytes in shared Superchip RAM. Direct
+  Superchip split-alias accesses never select a bank.
+* Add exact runtime certification for a 20140-cycle frame, bank restoration,
+  VBLANK-only switching, and identical visible TIA writes across 4K, F8, F6,
+  F4, and F8SC. Add independent Stella 4K/F8/F8SC pixel equality, map and
+  trampoline assertions, installed-profile coverage, documentation, and
+  source-tree hygiene. Multisprite remains deferred to its main-roadmap work.
+* Verification: all 438 compile-only tests pass and all 247 end-to-end/generic
+  cases are explicitly accounted for and pass. The staged installed toolchain
+  passes, including all final cartridge builds. Bankswitching roadmap item 29,
+  placement-heuristic measurement and diagnostics without semantic changes, is
+  next.

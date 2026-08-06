@@ -1,0 +1,30 @@
+VCSC CONTEXT HISTORY — 2026-08-06
+=================================
+
+Historical development entries for 2026-08-06, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-08-06 07:53:22 PDT, split and compact the durable project context
+--------------------------------------------------
+* Move all 276 prior chronological entries out of `.../context.txt` into 21
+  per-day files under `.../context-history/`, preserving every entry exactly.
+* Move the detailed main-project checklist and acceptance criteria into
+  `.../roadmap.txt`; keep `.../bankswitching.txt` as the focused bankswitching
+  design and sub-roadmap.
+* Rewrite `.../context.txt` as a 14 KiB current-state handoff containing the
+  durable language/ABI, renderer, cartridge, testing, workflow, and active-TODO
+  facts needed to resume work without reading the historical archive.
+* Add explicit size discipline: target less than 50 KiB, hard ceiling 100 KiB,
+  update current state in place, store completed narratives by local work date,
+  and never paste bulk logs or duplicate focused design documents into context.
+* Update `.../README.md`, the bankswitching status preamble, and
+  `test/source_tree_hygiene.pl` for the new file responsibilities. The hygiene
+  guard now enforces the compact-context size ceiling, active-work pointer, and
+  preservation of the detailed task-23 roadmap. No compiler, linker, renderer,
+  or example source is changed by this reorganization.
+* Verification: all 276 pre-existing history entries compare byte-for-byte at
+  entry level with the original changelog; `test/source_tree_hygiene.pl` passes
+  with the new layout and daily-file checks. `make tools -j2` could not run in
+  this container because `bison` is unavailable; it failed before compilation,
+  and the clean target's incidental generated-file changes were restored.

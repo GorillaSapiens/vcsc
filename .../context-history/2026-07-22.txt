@@ -1,0 +1,633 @@
+VCSC CONTEXT HISTORY — 2026-07-22
+=================================
+
+Historical development entries for 2026-07-22, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-22 04:46:17 PDT, preserve function layouts for page-aware placement
+------------------------------------------------------------------------
+* Complete task 20j. In relocatable o26 mode, each `.proc` beginning in the
+  ordinary `CODE` segment receives a private `CODE.__vcsc_function$NAME`
+  layout. This preserves exact function boundaries and sizes for the linker
+  while leaving flat-binary assembly and explicitly managed renderer segments
+  unchanged.
+* Give every ordinary function the existing soft page-containment preference.
+  Functions no larger than 256 bytes reuse a same-page hole when possible
+  without increasing the MEMORY-region high-water mark; unavoidable crossings
+  remain compact and are reported in the map.
+* Allow `page` on a non-inline function definition. The compiler emits
+  `.pagecontain` inside that function's private layout, making containment a
+  hard linker requirement. Reject `page` on declarations without bodies because
+  the final function size is unknown. Oversized hard functions fail with the
+  private function-layout name and exact size in the diagnostic.
+* Keep the normalized standard renderer's explicit `RENDERER_CODE` layout intact;
+  automatic procedure splitting applies only to ordinary `CODE`. Update the
+  return-memory byte regression to resolve each function through its own load
+  address rather than assuming one packed translation-unit CODE base.
+* Add compiler code-generation coverage and an end-to-end linker regression for
+  preferred, crossing, hard, and oversized function placement. Pass 288/288
+  compile tests and 146/146 end-to-end/generic tests. Staged installation passes.
+  No files are removed; `.top_secret/remove.txt` remains at 895 cumulative
+  paths. Stop before task 20k.
+
+2026-07-22 05:08:30 PDT, preserve relative-branch timing metadata
+------------------------------------------------------------------------
+* Complete task 20k. Append a versioned `B26\1` relative-branch table after
+  each current o26 layout tail. Preserve the coarse segment, packed source and
+  target offsets, and actual emitted opcode for every relative branch, including
+  assembler-local labels that were previously resolved completely inside one
+  object. Long-branch expansions record their actual inverted short branch.
+* Decode the optional table in both direct objects and archive members while
+  retaining compatibility with older o26 files that end after exports or any of
+  the three prior layout-tail encodings. The metadata remains diagnostic only:
+  no instruction bytes, displacements, object ordering, or placement policy
+  change in this slice.
+* Add a `BRANCHES` linker-map section with final source/target addresses, branch
+  mnemonic and opcode, and `taken-page=same` or `taken-page=crossing`. Classify
+  the page penalty against the PC after the two-byte branch instruction, matching
+  NMOS 6502/6507 timing rather than merely comparing the opcode address.
+* Add an end-to-end regression whose two branches both target assembler-local
+  labels: one deliberately crosses from post-branch PC `$20FF` to `$2102`, while
+  the other stays within page `$21`. Verify the original compact placement and
+  branch bytes are unchanged. Update the raw layout-tail mutation regression to
+  skip the optional branch table.
+* Pass 288/288 compile tests and 147/147 end-to-end/generic tests. Staged
+  installation passes. No files are removed; `.top_secret/remove.txt` remains
+  at 895 cumulative paths. Stop before task 20l.
+
+2026-07-22 05:37:00 PDT, add bounded branch-aware code placement
+------------------------------------------------------------------------
+* Complete task 20l. Use the relative-branch metadata preserved by task 20k to
+  score each branch-bearing text layout at candidate final addresses. Compare a
+  taken branch's target page against the PC after its two-byte instruction.
+* Exhaustively test every aligned start in existing holes plus one bounded
+  256-byte low-address sweep at the MEMORY-region high-water mark. Minimize
+  taken branch page crossings first, then occupied-image growth, then whole-
+  object page status and final address. Existing-hole choices are zero-growth
+  local moves; starts beyond one low-byte cycle cannot improve branch phase and
+  are deliberately excluded.
+* Keep placement greedy in stable input order and leave branch instruction bytes
+  and displacements unchanged. A focused 261-byte fixture now moves from `$20F8`
+  to `$20F9`, eliminating its only taken page crossing with the smallest possible
+  one-byte image growth while preserving both encoded branch displacements.
+* Update assembler/linker documentation and the branch-metadata regression for
+  the new placement role. Pass 288/288 compile tests and 147/147 end-to-end and
+  generic tests.
+* Add future tasks 20t and 20u for the maintained `*.s` to `*.s26` source-suffix
+  migration and linker cartridge-space used/free byte and percentage reporting.
+  Renumber the gameplay hook and multisprite work to 20v and 20w. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Task 20m
+  is next and was not started.
+
+2026-07-22 06:00:00 PDT, preserve indexed-access page windows
+------------------------------------------------------------------------
+* Complete task 20m. Add assembler `.indexrange MAX_INDEX` and
+  `.indexrange START_OFFSET, MAX_INDEX` contracts for timing-sensitive table
+  accesses. The maximum index is limited to the 6502 X/Y range, and the
+  declared effective-address window must lie within the named layout.
+* Extend current o26 layout records with an indexed-range flag, start offset,
+  and maximum index while retaining compatibility with all older layout-tail
+  encodings. File-scope VCSC `page` data declarations of at most 256 bytes now
+  emit the inferred full-object range as `.indexrange 0, size-1`; pointer-based
+  and deliberately partial ranges remain explicit assembly/renderer contracts.
+* Make the linker treat the effective-address window as a hard placement
+  constraint independently of whole-object containment. A layout may exceed or
+  cross a page provided every address from `base + start` through
+  `base + start + max_index` stays in one page. Add an `INDEXED RANGES` map
+  section showing the final interval and page status.
+* Add a focused regression whose 300-byte table moves from `$20F0` to `$20F8`
+  so its partial range becomes `$2100..$210F`, while the complete table still
+  crosses pages. Reject ranges extending beyond their layout with a stable
+  diagnostic. Update assembler, linker, compiler, and object-format
+  documentation plus page-object compiler coverage.
+* Pass 288/288 compile tests, 148/148 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20n under the requested short-session
+  budget.
+
+2026-07-22 06:36:39 PDT, reject NMOS page-wrap hazards
+------------------------------------------------------------------------
+* Complete task 20n. Reject resolved `JMP ($xxFF)` operands in both flat and
+  relocatable assembly. Mark relocatable indirect-JMP word operands with the
+  dedicated `O26_RTYPE_INDIRECT_JMP` bit so the linker can apply the same check
+  after final symbol placement without scanning arbitrary `$6C` data bytes.
+* Reject a final indirect-JMP vector whose low byte is `$FF`, with a diagnostic
+  explaining the NMOS 6502/6507 high-byte fetch from `$xx00`. Safe vectors at
+  `$xxFE` and below remain unaffected.
+* Treat every contiguous zero-page layout as confined to `$0000..$00FF`. A
+  multi-byte object can no longer begin at `$FF` or spill into `$0100`; the
+  linker relocates it when possible and otherwise emits an explicit wrap
+  diagnostic. Intentional zero-page wrap remains expressible as separate
+  one-byte objects, and instruction operands such as `LDA ($FF),Y` remain legal.
+* Add a focused end-to-end regression covering literal and relocatable indirect
+  JMP hazards, a safe `$xxFE` vector, legal instruction-level zero-page wrap,
+  and an impossible two-byte zero-page placement. Update assembler and linker
+  documentation.
+* Pass 288/288 compile tests, 149/149 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20o.
+
+2026-07-22 06:59:22 PDT, classify and lock retained unofficial opcodes
+------------------------------------------------------------------------
+* Complete task 20o. Add a reproducible 19-site unofficial-opcode inventory for
+  the normalized standard renderer, generated from the maintained macro and
+  renderer sources. Record source location, addressing mode, exact opcode byte,
+  instruction width, base cycles, page-cross penalty, classification, and the
+  retained purpose of every site.
+* Classify every currently retained form as stable/common on original NMOS
+  6502/6507 silicon: LAX zero page (`$A7`), LAX (zp),Y (`$B3`), ASR/ALR
+  immediate (`$4B`), DCP zero page (`$C7`), SBX/AXS immediate (`$CB`), and the
+  three-cycle zero-page NOP (`$04`). Explicitly document that no
+  silicon-sensitive or unstable form remains in this profile and that this does
+  not imply portability to CMOS descendants, clones, or FPGA cores.
+* Add a dedicated byte/cycle regression. Assemble one probe containing every
+  distinct retained form and require bytes
+  `A7 80 4B F0 C7 81 CB FC B3 82 04 00`; prove the source fails without
+  `--illegals`; execute the forms in the bundled NMOS simulator and lock cycle
+  counts 3, 2, 5, 2, 5/6, and 3, including the indexed-indirect page penalty.
+* Correct the old static-renderer smoke wording/check that described a stray `$AB`
+  byte as immediate LAX. The retained score-pointer loads are the stable/common
+  `$A7` zero-page form; visible glyph loads are `$B3` indexed-indirect.
+* Install the classification document and generated table with the standard
+  renderer support bundle. Preserve renderer bytes, placement, scanline timing, and
+  the opt-in `--illegals` policy.
+* Pass 288/288 compile tests, 150/150 end-to-end/generic tests, focused byte and
+  cycle checks, the static-renderer timing/object regression, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Stop before task 20p under the requested short-session
+  budget.
+
+2026-07-22 00:24:00 PDT, remove unofficial-opcode test timeout flake
+------------------------------------------------------------------------
+* Fix `vcs_standard_renderer_unofficial_opcodes.test` timing out under the generic
+  runner despite passing when run directly. The descriptor had inherited the
+  runner's two-second default while its cycle regression compiled the complete
+  2,752-line MOS 6502 simulator core on every invocation.
+* Link the small cycle harness against `simulator/mos6502/mos6502.o`, which is
+  already built with `ILLEGAL_OPCODES` by the root `tools` prerequisite. Retain
+  source compilation as a standalone fallback when that object is absent.
+* Give the descriptor an explicit 20-second timeout so the fallback remains
+  reliable on slower hosts or under load. Opcode coverage, expected bytes, and
+  cycle assertions are unchanged.
+* Focused runtime fell from 1.61 seconds to 0.12 seconds on the validation host.
+  Pass 288/288 compile tests, 150/150 end-to-end/generic tests, and staged
+  installation. No files are removed; `.top_secret/remove.txt` remains at 895
+  cumulative paths. Task 20p remains next.
+
+2026-07-22 03:34:00 PDT, remove standard-renderer LAX instructions
+------------------------------------------------------------------------
+* Complete task 20p. Replace the three score-pointer setup `LAX zp` sites with
+  legal `LDA`/`TAX` pairs. Preserve the little-endian packed-BCD mapping to
+  display slots 0,4,3,2,1,5.
+* Replace the two visible score-glyph `LAX (zp),Y` sites with legal
+  `LDA (zp),Y`/`TAX`. The added four cycles are taken from the retained nine
+  cycles of explicit padding, now `SLEEP 5`, so the interval through the first
+  affected TIA graphics write remains exactly 21 cycles. Keep the borrowed
+  stack-pointer glyph pipeline otherwise unchanged.
+* Regenerate the timing and unofficial-opcode inventories. The normalized
+  profile now retains 14 unofficial source sites: 11 DCP, one ASR/ALR, one
+  SBX/AXS, and one odd-delay zero-page NOP. No active `LAX` remains.
+* Tighten normalization and static-cartridge regressions to require the legal
+  load sequence, the six correct `(zp),Y` operands, absence of `LAX`, and the
+  preserved 21-cycle score interval. Update the retained-opcode byte/cycle
+  matrix to cover only forms still used by the profile.
+* Pass 288/288 compile tests, 150/150 end-to-end/generic tests, the complete
+  static-renderer ROM execution checks, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths. Stop
+  before task 20q.
+
+2026-07-22 10:45:04 PDT, lock DCP legalization timing baseline
+------------------------------------------------------------------------
+* Begin task 20q as four deliberately small slices rather than attempting an
+  unsafe eleven-site textual rewrite. Complete 20q1 and leave the active renderer
+  bytes unchanged.
+* Add `DCP_LEGALIZATION.md`. Document that `DCP zp` is five cycles while the
+  direct legal `DEC zp`/`CMP zp` spelling is eight, so naive replacement adds
+  15 cycles to each steady two-scanline five-object update and visibly drifts
+  the playfield schedule.
+* Add an emulator-backed DCP schedule regression using the complete example-05
+  cartridge. Identify the five live sites through their final zero-page
+  operands rather than linked code addresses and lock 46 central scanlines:
+  ball at cycle 45 (43 on row transitions), player 1 at 60, missile 1 at 5,
+  player 0 at 48, and missile 0 at 69.
+* Split the remaining work into player paths, ball/missile paths, and the
+  alternate/final-row duplicates. Explicitly forbid using a deliberate branch
+  page crossing as a one-cycle filler. Task 20q2 is next.
+* Pass 288/288 compile tests, 151/151 end-to-end/generic tests, the focused
+  46-scanline DCP schedule regression, and staged installation. The active
+  normalized renderer and legacy BASIC sources are unchanged. No files are
+  removed; `.top_secret/remove.txt` remains at 895 cumulative paths.
+
+2026-07-22 11:24:00 PDT, legalize steady player DCP paths
+------------------------------------------------------------------------
+* Complete task 20q2. Replace the two steady visible-renderer player-counter
+  `DCP zp` paths with legal `LDY`/`DEY`/`STY`/`CPY` branch diamonds. Precompute
+  each player's exclusive height and a permanent zero byte in three private
+  scratch bytes before entering the visible hot loop.
+* Recover the player-1 cycle by using the retained ball `height+2` scratch value
+  with `SBC` instead of two `ROL` instructions. Recover the player-0 cycles by
+  removing the following two-cycle pad and using a common absolute TIA store.
+  Separately retime first entry and playfield-row transitions. Keep PF1/PF2
+  writes fixed at cycles 24, 31, 38, and 45 without relying on page crossings.
+* Leave the final-row player duplicates for task 20q4. Regenerate the timing and
+  unofficial-opcode inventories: the profile now has 26 explicit padding sites
+  and 12 unofficial sites, including nine remaining `DCP zp` instructions.
+* Update the emulator-backed DCP schedule to lock the three remaining steady
+  objects across 46 scanlines: ball at cycle 45 normally and 42 on row
+  transitions, missile 1 at cycle 5, and missile 0 at cycle 71. The complete
+  static-renderer test continues to verify both players, both missiles, the ball,
+  and PF write phases.
+* Increase standard-renderer private scratch by three bytes: private state is now
+  18 bytes and the mandatory module state is 41 bytes. No files are removed;
+  `.top_secret/remove.txt` remains at 895 cumulative paths. Task 20q3 is next.
+* Pass 288/288 compile tests, 151/151 end-to-end/generic tests, all focused
+  player/DCP/timing regressions, the complete static-renderer ROM execution test,
+  and staged installation. Stop before task 20q3.
+
+2026-07-22 12:30:37 PDT, legalize steady ball and missile DCP paths
+------------------------------------------------------------------------
+* Complete task 20q3. Build packed BL/M1/M0 vertical-enable masks during
+  VBLANK and consume them with legal zero-page-indexed `LSR` instructions in
+  the steady two-line renderer. The alternate ball update is mask-driven as the
+  eighth bit of each record; final-row duplicates remain for task 20q4.
+* Preserve TIA enable bit 1 without unofficial flags tricks: load constant 1
+  without disturbing carry, then use `ADC #0`. Retain enabled/disabled cycle
+  balance and PF1/PF2 writes at cycles 24, 31, 38, and 45. Preserve the old
+  scanline half ordering with a compact external 37-cycle setup-delay call.
+* Move original ball/missile Y preservation and counter biasing into blanking.
+  Add a generated assembly mask builder and raise hidden assembly stack reserve
+  to six bytes for its three-level nested helper path.
+* Replace the steady DCP schedule assertions with legal-mask timing assertions:
+  ball `LSR` at cycle 45 normally and 39 on row transitions, missile 1 at cycle
+  2, and missile 0 at cycle 68. The static cartridge still renders all five
+  objects and a stable 262-line frame.
+* Regenerate timing and unofficial-opcode inventories. Five final-row `DCP zp`
+  sites remain. Mandatory module RAM is now 80 bytes (23 visible + 57 private);
+  this profile consequently requires a ROM playfield, and the contract test
+  proves the old mutable 48-byte playfield fails cleanly for RIOT-RAM exhaustion.
+* Pass normalization, legal-mask schedule, timing inventory, unofficial-opcode,
+  source-contract, and complete static-renderer ROM execution tests. The full
+  suite passes 288/288 compile-only tests and 151/151 end-to-end/generic tests.
+  No files are removed; `.top_secret/remove.txt` remains at 895 cumulative
+  paths. Task 20q4 is next.
+
+2026-07-22 12:42:59 PDT, complete standard-renderer DCP legalization
+------------------------------------------------------------------------
+* Complete tasks 20q4 and 20q. Remove the five final-row `DCP zp` duplicates;
+  the normalized standard renderer now contains no `DCP` instruction.
+* Precompute the exact final BL, P1, M1, P0, and M0 bytes during VBLANK in the
+  five otherwise-free fourth bytes of the packed mask records. Preserve the old
+  final compare/carry results, player glyph-or-zero selection at `Y - 89`, and
+  persistent-state restoration.
+* Replace the final visible paths with legal `LDA`, `BIT`, and `NOP` schedules.
+  Keep the existing ENABL, GRP1, ENAM1, GRP0, and ENAM0 store phases and retain
+  the complete static scene and 262-line frame.
+* Rename the transitional `vcs_standard_renderer_dcp_schedule` regression to
+  `vcs_standard_renderer_legal_schedule`. Continue locking the three steady mask
+  cycles across 46 scanlines and add checks for all five exact precomputed
+  final-row values, including the normally unexecuted P0/M0 half.
+* Regenerate timing and unofficial-opcode inventories. The profile now has 35
+  explicit padding sites and three unofficial sites: one `ASR`, one `SBX`, and
+  one `NOP.z`. Remove `DCP` from the retained-form probe and cycle matrix.
+* Repair staged installation checking for the task-20q3 ROM-only contract: the
+  installed mutable-playfield smoke must fail with RAM exhaustion, while the
+  ROM playfield and complete static renderer must still build as 4096-byte images.
+* Pass 288/288 compile-only tests, 151/151 end-to-end/generic tests, all focused
+  normalization/legal-schedule/inventory/contract/static-renderer regressions, and
+  staged installation. Rename three test files; `.top_secret/remove.txt` now
+  records 898 cumulative paths. Stop before task 20r.
+
+2026-07-22 14:58:12 PDT, repair task-20q object raster regressions
+------------------------------------------------------------------------
+* Compare all 22 supplied historical trees and their screenshots before
+  changing the newest source. Rebuild representative commits with one toolchain
+  and trace TIA register writes in the 6502 harness. Treat the older images as
+  evidence rather than declaring one visually plausible frame authoritative.
+* Repair three task-20q regressions in the normalized standard renderer. Keep zero
+  in Y while X advances through the packed-mask clear loop, instead of storing
+  the changing record offset into later masks. Preserve M0's application Y only
+  after the horizontal-position loop has finished reusing pointer workspace
+  +10, reconstructing it in the existing twelve-cycle setup slot. Remove the
+  retained 37-cycle pre-renderer setup delay that had shifted the complete object
+  field by one scanline.
+* Add `examples/07_object_motion_test`. Give P0, P1, M0, M1, and BL distinct
+  fixed vertical bands and independently phased horizontal motion between X=8
+  and X=148. Document the exact frame-relative TIA write scanlines rather than
+  relying on window-scaled screenshot coordinates.
+* Add `vcs_standard_motion.test`. Execute the diagnostic cartridge for twenty
+  frames, lock all five persistent Y values, verify the exact asynchronous X
+  sequence, and require seven complete object rasters at their documented
+  scanlines. This directly catches all three repaired failures. Retarget the
+  legal-mask schedule's 46-line window to the restored pre-regression raster
+  phase and regenerate timing/unofficial-opcode inventories; explicit padding
+  is now 34 sites.
+* Verify a fresh controlled Stella capture of the repaired newest static
+  cartridge is byte-for-byte identical to the corresponding pre-task-20q2
+  capture. Pass 288/288 compile-only tests, 152/152 end-to-end/generic tests,
+  all focused renderer regressions, and staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
+  next; do not resume it until this raster repair is reviewed.
+
+2026-07-22 15:49:00 PDT, replace false motion oracle and repair affine relocation
+------------------------------------------------------------------------
+* Reject the first `07_object_motion_test` as a visual oracle. Its empty
+  playfield made phase errors hard to judge, its deliberately skipped update
+  frames made correct motion look jerky, and its RAM-state assertions did not
+  prove that the TIA received the requested horizontal coordinates.
+* Find and repair the underlying linker defect exposed by the example. A local
+  affine reference such as `@repostable-256` retained only its adjusted packed
+  numeric value; when that value also fit an earlier packed layout, the linker
+  relocated it through the wrong layout. The standard renderer consequently read
+  the wrong HMxx fine-motion byte and collapsed requested X positions into
+  fifteen-pixel plateaus even though the RESP coarse strobe was correct.
+* Advance the o26 format to version 2 and attach the exact defining-layout index
+  to local relocatable affine expressions. Teach the linker to resolve those
+  records through that layout while continuing to accept version-1 objects via
+  the legacy heuristic. Add a focused two-layout regression in which
+  `target-$100` numerically overlaps an earlier layout and must still resolve
+  through `target`'s defining layout.
+* Replace example 06 with a visible gold border and four fixed ruler columns.
+  Move P0, P1, M0, M1, and BL by exactly one public X coordinate on every frame,
+  using distinct ranges and phases so their reversals are asynchronous. Reapply
+  the TIA color and NUSIZ registers that the retained renderer is allowed to
+  borrow or clear. Document the public-X-to-Stella-pixel calibration and the
+  exact fixed vertical bands.
+* Strengthen `vcs_standard_motion.test`: for twenty consecutive frames, derive
+  and check each object's exact RESP cycle and HMxx nibble from the public X
+  coordinate, in addition to checking RAM state and seven complete exact-row
+  object rasters. A dead or misrelocated fine-motion table now fails even when
+  the source variables continue changing correctly.
+* Make example 05 stable after its first frame by reapplying its volatile TIA
+  geometry and colors before every draw. Check in a raw Stella 7.0 `ss1x`
+  reference PNG plus an explicit source-state-to-bounding-box contract for the
+  playfield, all five objects, and score. Keep CPU/TIA-write tests as the fast
+  machine layer and the documented PNG as the visible review layer; do not
+  equate one green trace test with a correct picture again.
+* Verify source-X calibration points 20, 40, 60, 80, 100, 120, and 140 in Stella:
+  every one-coordinate change moves a normal player by one active pixel, while
+  missiles and the ball retain their documented two-pixel origin offset. Pass
+  288/288 compile-only tests, 153/153 end-to-end/generic tests, all focused
+  relocation/renderer regressions, and staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
+  next and is not started.
+
+2026-07-22 16:12:52 PDT, make object-motion diagnostic full-range
+------------------------------------------------------------------------
+* Correct `examples/07_object_motion_test` so all five TIA objects traverse the
+  same complete public horizontal coordinate range, X=0 through X=159. Remove
+  the arbitrary object-specific endpoints that made M1 appear capable of moving
+  farther left than M0.
+* Make the motion asynchronous through different starting phases, initial
+  directions, and integer speeds: P0=1, P1=2, M0=3, M1=4, and BL=5 source
+  coordinates per frame. Clamp at each endpoint before reversing so every
+  object visibly reaches both X=0 and X=159 even when its speed does not divide
+  the 159-coordinate span.
+* Extend `vcs_standard_motion.test` from 20 to 320 frames. Continue checking
+  every RESP cycle and HMxx value, and additionally require every object to
+  visit both endpoints. Keep the seven exact vertical-raster checks unchanged.
+* Update the example, renderer, legalization, and test documentation. No renderer,
+  compiler, assembler, linker, ABI, or roadmap implementation is changed; task
+  20r remains next.
+
+2026-07-22 16:38:48 PDT, add exhaustive pairwise horizontal-position regression
+------------------------------------------------------------------------
+* Leave `examples/07_object_motion_test/object_motion_test.c26` unchanged. Add
+  `vcs_standard_pairwise.test` as a dedicated machine-level regression for
+  the linked standard renderer's actual horizontal-position routine.
+* Exhaust all ten unordered pairs of P0, P1, M0, M1, and BL across every
+  X=0..159 by X=0..159 combination: 256,000 direct 6502 executions. Hold the
+  other three objects at distinct sentinel coordinates in each case.
+* For all five objects in every case, require exactly one RESP strobe and one
+  HMxx write, the independent expected RESP cycle and fine-motion nibble, the
+  exact stored divide-by-15 remainder, and unchanged public X state. Locate the
+  linked routine by a unique resolved instruction signature rather than adding
+  test-only symbols to the renderer ABI.
+* Document the division of labor: example 06 remains the readable animated
+  diagnostic, while the new test supplies exhaustive pairwise positioning
+  coverage without simulating 256,000 complete frames. No compiler, assembler,
+  linker, renderer, ABI, example-source, or roadmap implementation is changed;
+  task 20r remains next.
+* Pass 288/288 compile-only tests, 154/154 end-to-end/generic tests, the focused
+  256,000-case pairwise regression, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
+
+2026-07-22 17:01:00 PDT, expand the post-standard-renderer roadmap
+------------------------------------------------------------------------
+* Modify `.top_secret/context.txt` only. Leave source, tests, documentation,
+  build files, and `.top_secret/remove.txt` unchanged.
+* Remove the old multisprite placeholder 20w from task 20. Task 20 now ends with
+  the stack-safe standard-renderer gameplay hook at 20v; task 20r remains next.
+* Add task 21 for a faithful separate legacy player-color profile retaining P0,
+  P1, and BL while deliberately omitting both missiles. Add task 22 for an
+  explicitly optional all-five-object profile with P0/P1 color tables, allowing
+  it to be abandoned with documented RAM/timing evidence if unreasonable.
+* Add task 23 for a maintained renderer-authoring HOWTO. Expand the old multisprite
+  placeholder into tasks 24 through 27: multisprite contract/normalization,
+  minimal unbanked non-Superchip integration, general 8K+ bankswitching, and
+  Superchip cartridge RAM support followed by corresponding renderer profiles.
+
+2026-07-22 17:43:08 PDT, complete task 20r legal one-off opcode replacement
+------------------------------------------------------------------------
+* Replace the score-conversion `ASR #$F0` with legal `AND #$F0` / `LSR`. The
+  legal sequence costs two additional cycles per conversion, all inside the
+  fixed VBLANK timer window, and preserves the accumulator and status bits used
+  by the following code.
+* Replace the row-advance `TXA` / `SBX #252` sequence with legal `TXA` /
+  `ADC #4` / `TAX`, relying on the already-established clear carry and clear
+  decimal/overflow contract. Reduce the corresponding non-final and final
+  transition delays from five and eight cycles to three and six cycles so every
+  PF and object-update phase remains at its established color clock.
+* Replace each three-cycle unofficial zero-page delay NOP with legal `BIT
+  VSYNC`. Document and test the resulting single TIA read, absence of writes,
+  and N/V/Z effects; all affected flags are dead at the five delay sites.
+* Regenerate the normalized renderer, timing inventory, and unofficial-opcode
+  inventory. The maintained standard-renderer source inventory now has no
+  unofficial-opcode sites. Keep explicit historical illegal-opcode probes
+  opt-in; removal of redundant standard-profile `--illegals` plumbing and
+  linked-byte rejection remain task 20s.
+* Add exhaustive emulator-backed equivalence checks for the legal arithmetic
+  replacements, cycle counts, status flags, and bus activity. Update byte
+  signatures and the static, motion, pairwise, normalization, timing, and
+  source-contract regressions for the legal schedule.
+* Pass 288/288 compile-only tests, 154/154 end-to-end/generic tests, the focused
+  static-raster, legal-schedule, motion, source-contract, and 256,000-case
+  pairwise regressions, plus staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20s is next.
+
+2026-07-22 18:26:05 PDT, complete task 20s official-opcode profile enforcement
+------------------------------------------------------------------------
+* Remove `-Wa,--illegals` and direct `vcsc-as --illegals` use from every
+  standard-profile example, regression, and staged-install recipe. Keep the
+  fingerprint cartridge and assembler silicon probes explicitly opt-in and
+  unchanged.
+* Simplify the normalization regression so the generated renderer is assembled
+  only through the official opcode table. Retain the separate historical
+  mnemonic/byte/cycle probe in `vcs_standard_renderer_unofficial_opcodes.test`.
+* Add `vcs_standard_renderer_legal_bytes.test`. It builds the complete static
+  profile without unofficial-opcode mode, derives the 151 official NMOS 6502
+  opcodes from `assembler/default.cfg`, and decodes all six linked executable
+  segments while skipping only the two documented in-code lookup-table ranges.
+* Add a negative control that replaces the legal score `AND #$F0` with raw
+  `op4B #$F0`. Raw exact-byte assembly and linking deliberately succeed without
+  `--illegals`; the final linked-code gate must then reject opcode `$4B`. This
+  proves the profile is protected against the raw-opcode escape hatch rather
+  than only against friendly unofficial mnemonics.
+* Update the project, test, conversion, profile, and unofficial-opcode
+  documentation to describe the now-official build contract and linked gate.
+* Pass 288/288 compile-only tests, 155/155 end-to-end/generic tests, all focused
+  standard-renderer and fingerprint regressions, and staged installation. No
+  files are removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
+  Task 20t is next.
+
+2026-07-22 20:35:26 PDT, complete task 20t assembler-source suffix migration
+------------------------------------------------------------------------
+* Rename all 37 maintained assembler source files from `*.s` to `*.s26`,
+  including runtime startup/workspace members, the normalized standard renderer,
+  assembler fixtures, and standalone test inputs. Update includes, generated
+  helper names, examples, tests, build rules, installation/uninstallation,
+  documentation, and source comments to use the canonical suffix.
+* Make compiler and driver-generated assembly intermediates use `.s26`, and
+  update compiler help text accordingly. Keep `.asm` for retained/imported
+  assembly. Retain generic `.s` only as an explicit temporary driver input that
+  emits a warning directing users to `.s26`; do not list it as a normal input
+  kind.
+* Add `source_suffix_migration.test` to reject maintained `.s` source paths,
+  require `vcsc -S` to produce `.s26`, exercise direct `.s26` assembly without a
+  compatibility warning, and lock the warned legacy `.s` path until that
+  temporary compatibility is deliberately removed.
+* Record the 37 renamed old paths in `.top_secret/remove.txt`, now 935 unique
+  cumulative paths. Preserve the retained legacy BASIC subtree and its original
+  `.asm` names unchanged.
+* Add roadmap tasks for a widely spaced six-glyph score display and a six-glyph
+  left/right dual score split into independent three-glyph fields. Place both
+  before the renderer-authoring HOWTO, renumber that HOWTO to task 25, and move the
+  multisprite/bankswitching/Superchip sequence to tasks 26 through 29.
+* Pass 288/288 compile-only tests, 156/156 end-to-end/generic tests, the focused
+  suffix migration regression, and staged installation. Stop before task 20u;
+  cartridge-space usage reporting is next.
+
+2026-07-22 21:35:40 PDT, complete task 20u cartridge ROM usage reporting
+------------------------------------------------------------------------
+* After every successful link, print a `CARTRIDGE ROM USAGE` section with
+  occupied bytes, free bytes, and used/free percentages for each cartridge ROM
+  MEMORY region. Identify regions from explicit read-only MEMORY type or from
+  read-only/initialized-data segment load targets so the stock split ROM/VECTORS
+  4K script reports both regions correctly.
+* Derive occupancy from the final 64-K output bitmap after all object layouts,
+  generated copy/zero/init tables, and vectors are written. Deliberate alignment
+  holes remain free; actual generated bytes and vectors count as used. Emit the
+  same section in requested map files, and emit no success report on a failed
+  link.
+* Add `linker_cartridge_usage.test`. Cover two ROM MEMORY regions, a deliberate
+  alignment hole, generated tables, vector occupancy, an exactly full 4096-byte
+  region, percentages, map output, and an overflow failure that must not print a
+  success summary. Update existing successful-link regressions to recognize and
+  strip only the new well-formed summary before applying their prior silence
+  checks.
+* Update linker and tool-usage documentation. Pass 288/288 compile-only tests,
+  157/157 end-to-end/generic tests, the focused cartridge-usage regression, and
+  staged installation. No files are removed; `.top_secret/remove.txt` remains at
+  935 cumulative paths. Stop before task 20v.
+
+2026-07-22 22:20:27 PDT, complete task 20v stack-safe overscan hook
+------------------------------------------------------------------------
+* Add the exact optional `void vcs_standard_overscan_hook(void)` application
+  boundary to the standard profile. The normalized renderer calls it once after
+  restoring persistent object state and the hardware stack pointer, asserting
+  VBLANK, and starting the fixed overscan timer; hook changes therefore affect
+  the next frame. A weak one-byte RTS fallback preserves existing applications.
+* Export the hidden assembly-to-hook call-graph edge so activation-storage
+  overlay and hardware-stack sizing include strong application hooks. Reduce
+  `callstack_extra` from six to four bytes because the edge is now
+  represented explicitly; the stock weak-hook cartridge retains the same
+  ten-byte total stack reservation, while deeper strong hooks receive their
+  measured graph depth.
+* Expose the hook beside the existing module-owned display-state declarations,
+  document its exact phase, clobber/timing restrictions, weak override, and
+  next-frame semantics, and move example 06 motion/score updates into a strong
+  hook without changing its visible sequence.
+* Extend source-contract, normalization, linked-official-byte, motion/frame
+  period, map/stack, and staged-install coverage. The official-byte gate now
+  includes the seventh executable segment containing the weak fallback.
+* Pass 288/288 compile-only tests, 157/157 end-to-end/generic tests, the
+  focused contract, normalization, timing-inventory, legal-schedule,
+  linked-byte, motion/frame-period, static-raster, and 256,000-case pairwise
+  regressions, plus staged installation. No files are removed;
+  `.top_secret/remove.txt` remains at 935 cumulative paths. Task 21 is next.
+
+2026-07-22 22:53:02 PDT, source-tree hygiene and dead-file audit
+----------------------------------------------------------------
+* Audit every source-tree file against build rules, installation manifests, tests,
+  documentation, and direct references. Retain `libraries/runtime/unbundle.pl`: the
+  runtime Makefile actively uses it to split bundled assembly procedures before
+  creating `libvcsc.l26`. Retain
+  `standard_4k_ntsc_timing_inventory.tsv`: it is a generated-but-maintained timing
+  contract checked by the normalization/timing regressions.
+* Remove eleven obsolete or duplicate files: accidental
+  `.top_secret/instruction.txt`; unused `compiler/parserparser.pl` and
+  `test/unimpl_audit.pl`; checked-in generated `compiler/coverage_map.h`; duplicate
+  assembler fixture `assembler/tests/obj2.s26`; duplicate compile tests
+  `e2e_static_parameter_cycle_fail.c26` and
+  `switch_range_compact_codegen_test.c26`; empty superseded unofficial-opcode TSV and
+  its one-off generator; and two redundant simulator configuration copies. Record
+  all removed paths in `.top_secret/remove.txt`, now 946 unique cumulative paths.
+* Generate and clean `coverage_map.h` through the compiler Makefile instead of
+  carrying it as source. Remove stale or hazardous cleanup names from assembler,
+  runtime, and simulator Makefiles and matching `.gitignore` entries. Consolidate
+  simulator tests on `linker/cfg/sim.cfg`.
+* Activate three intended tests that the runner had silently ignored because they
+  lacked command headers: absolute-reference member code generation and both
+  variadic-declaration rejection tests. Remove their obsolete syntax assumptions.
+  The compile-only suite therefore changes from 288 to 289 tests after deleting two
+  duplicates and activating three real tests.
+* Retire the empty unofficial-opcode TSV pipeline. The maintained-source scan and
+  final linked-byte gate remain authoritative. Add `source_tree_hygiene.test` to
+  reject unreferenced test/support files, duplicate fixtures/tests, duplicate remove
+  ledger entries, and resurrected deleted paths.
+* Fix the install manifest to include the live documented `sound_ntsc.c26` helper.
+  Clean stale pre-rename wording from linker diagnostics and temporary test-file
+  prefixes.
+* Pass 289/289 compile-only tests, 158/158 end-to-end/generic tests, the new hygiene
+  regression, and staged installation. No roadmap item is advanced; task 21 remains
+  next.
+
+2026-07-22 23:56:46 PDT, complete task 21 per-row player-color renderer profile
+-----------------------------------------------------------------------------
+* Preserve the user-restored `.top_secret/instruction.txt` as intentional
+  durable workflow guidance. It is not deletion residue and is not listed in
+  `.top_secret/remove.txt`.
+* Add roadmap task 30 for fixed-point whole-program inlining of reachable
+  internal functions with exactly one direct call site when measurement shows a
+  ROM win. Require IR/control-flow inlining, argument/return simplification,
+  call-graph/activation/stack recomputation, explicit ABI/timing exclusions,
+  and exact size/stack regressions.
+* Add the separate `standard_4k_ntsc_playercolors` profile. Derive it
+  deterministically from the maintained legal all-five standard profile while
+  guarding the retained legacy `playercolors` and `player1colors` branches.
+  Keep P0, P1, BL, the asymmetric ROM playfield, and the six-glyph score;
+  deliberately omit M0 and M1 without changing the existing all-five profile.
+* Bind two exact page-contained eight-byte ROM color tables directly as
+  `vcs_standard_color_player0_colors` and
+  `vcs_standard_color_player1_colors`. Balance active and skipped player paths,
+  reuse the former missile timing slots for `COLUP0`/`COLUP1`, precompute final-
+  row graphics/colors during VBLANK, clear both missile enables, and force the
+  two private legacy horizontal-position slots to zero.
+* Increase the profile's initial VBLANK timer from `37+128` to `38+128` because
+  ball-only mask preparation is shorter than the all-five preparation path.
+  This restores the same 20,140-cycle emulator frame-period baseline without
+  moving the cycle-counted player/playfield/color schedule.
+* Add `examples/08_playercolor_static_test` and
+  `examples/09_playercolor_motion_test`. Both players use eight distinct colors
+  in visible top-to-bottom logical-row order. The static cartridge separates
+  P0/P1/BL for inspection; the motion cartridge moves P0/P1/BL asynchronously
+  through X=0..159 at speeds 1, 5, and 7 while preserving row colors.
+* Add `vcs_standard_playercolors.test`. Verify deterministic normalization,
+  assembly through the official opcode table, page placement, 77 module bytes
+  (17 public plus 60 private), stack contracts, exact frame period, exact P0/P1
+  row-color and P0/P1/BL raster writes, absence of missile enables, and 320
+  full-range frames of RESP/HMxx positioning. Add profile documentation,
+  example documentation, conversion notes, and staged installation coverage.
+* Measured example ROM use is 1,827 bytes for the static cartridge and 2,759
+  bytes for the motion cartridge, leaving 2,263 and 1,331 bytes respectively in
+  the ordinary 4K ROM region. Task 22 is next and remains explicitly optional.

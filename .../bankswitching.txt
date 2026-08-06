@@ -6,8 +6,9 @@ Status
 This is the detailed design and implementation roadmap for the broad project
 roadmap items covering 8K-and-larger cartridge bankswitching and Superchip RAM.
 It is an internal planning document, not installed user documentation. The
-main roadmap in `.../context.txt` remains authoritative for project
-ordering; this file owns the detailed order within those milestones.
+compact `.../context.txt` handoff selects the active workstream, while
+`.../roadmap.txt` owns the detailed main-project checklist. This file owns the
+detailed order within the bankswitching milestones.
 
 The first implementation family is the ordinary full-window Atari schemes:
 

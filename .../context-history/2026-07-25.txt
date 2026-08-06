@@ -1,0 +1,481 @@
+VCSC CONTEXT HISTORY — 2026-07-25
+=================================
+
+Historical development entries for 2026-07-25, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-25 00:24:00 PDT, compact deadline handling and complete NTSC scheduler tests
+-------------------------------------------------------------------------------
+* Revise roadmap task 22g2 so `vcs_ntsc_end_vblank()` and
+  `vcs_ntsc_end_overscan()` return `void`. A missed deadline cannot recover lost
+  scanlines, so production code now stops waiting on RIOT underflow/wrap, performs
+  the final WSYNC transition, and continues with one long frame instead of paying
+  ROM/RAM to construct a mandatory status result.
+* Replace the compiler-generated polling body with one shared 13-byte private
+  assembly subroutine. Production builds allocate no deadline workspace or
+  diagnostic state. Defining `alias VCS_NTSC_DIAGNOSTICS 1` before including
+  `frame_ntsc.c26` adds two static RAM bytes and sticky
+  `VCS_NTSC_VBLANK_OVERRUN`/`VCS_NTSC_OVERSCAN_OVERRUN` bits without changing the
+  public void API.
+* Calibrate the scheduler under the repository MOS 6502/RIOT harness. Correct the
+  TIM64T preloads from 43/35 to 42/34; the former values produced stable 264-line
+  frames, while the corrected values produce exact steady-state 3/37/192/30 =
+  262-line frames.
+* Complete task 22g3 with production partial-budget, diagnostic maximal-fit,
+  one-line VBLANK-overrun, and one-line overscan-overrun cartridges. The emulator
+  locks VSYNC and VBLANK write cycles, exact phase-line boundaries, one TIM64T
+  load per blank phase, no other timer-start writes, 262-line normal/boundary
+  frames, 263-line single-phase overruns, and sticky flags 0/1/2. Leave task 22h
+  next for converting the centered six-glyph display into the first real
+  reusable component.
+
+2026-07-25 00:40:00 PDT, add first real six-glyph template component
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h1. Add and install
+  `libraries/vcs/six_glyph_component.c26`, a repeatable centered six-glyph
+  lifecycle template with recommended instance-owned `bcd24_t` score storage,
+  twelve pointer bytes, row/delayed scratch, and required inline `init`,
+  `vblank`, `draw`, and `overscan` operations.
+* Preserve the existing official-opcode 48-pixel row pipeline and horizontal
+  setup while giving each instantiation private assembler-local draw labels.
+  Publish `VISIBLE_SCANLINES = 11`, a conservative 260-cycle VBLANK budget, and
+  zero overscan work. The component does not touch VSYNC, VBLANK, collision
+  latches, or RIOT timer state.
+* Add a private two-instance cartridge using the scheduler and shared Default
+  decimal font. Prove distinct score/pointer/row/delayed storage, inlined
+  lifecycle calls, distinct inline-assembly labels, a 4096-byte cartridge, and
+  stable 262-line frames. Install the component and build the same two-instance
+  fixture through the staged installed toolchain.
+* Keep the legacy single-instance `six_glyph_display.c26` and example 03
+  unchanged until 22h2 proves one-instance raster/timing equivalence and both
+  draw orders. Do not begin that migration in this timebox.
+
+2026-07-25 01:42:00 PDT, prove reversible six-glyph composition contracts
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h2a. Add a reversed two-instance fixture which draws
+  the lower score before the upper score while retaining independent component
+  state and the same 192-line visible accounting.
+* Extend the component regression to build and execute both draw orders, locking
+  stable scheduler-driven 262-line frames for each. Build both fixtures through
+  the staged installed toolchain as well as the source tree.
+* Add component-specific negative link coverage which omits `init`, `vblank`,
+  `draw`, and `overscan` one at a time and requires the corresponding
+  `required function 'one_PHASE' not used` diagnostic.
+* Leave 22h2b next for migrating the maintained one-score cartridge and golden
+  fixture, proving predecessor raster/timing equivalence, migrating remaining
+  users, and only then deleting `six_glyph_display.c26`.
+
+2026-07-25 01:53:00 PDT, migrate the maintained one-score cartridge
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22h2b1. Migrate editable example 03 and its private
+  golden fixture from the legacy single-instance display to an instantiated
+  `six_glyph_component.c26` under the scheduler-owned `frame_ntsc.c26` loop.
+  Keep the 20-frame packed-BCD update cadence and explicitly account for the
+  192-line visible region as 91 blank lines, the component's eleven lines, and
+  90 trailing blank lines.
+* Preserve the previous golden source as the private
+  `pre_template_one_score.c26` comparison fixture. Add a MOS 6502/TIA trace
+  comparator and prove all 68 visible writes have identical addresses, values,
+  frame-relative scanlines, and cycles. Also lock stable displayed 262-line
+  timing for both predecessor and migrated cartridges.
+* Update the example Makefile and documentation plus the VCS library catalog.
+  Leave 22h2b2 next for migrating the fingerprint cartridge, its unofficial-
+  opcode and CRC self-test coverage, and only then deleting the legacy module.
+* Pass 308/308 compile-only tests and 171/171 end-to-end/generic tests.
+
+2026-07-25 07:58:52 PDT, remove six-digit-score regression timeout
+-------------------------------------------------------------------------------
+* Fix `test/vcs_six_digit_score.test` exceeding the generic runner's two-second
+  deadline on ordinary machines. The migrated score regression had compiled two
+  separate C++ MOS 6502 harnesses inside one Perl test, even though both then ran
+  the same predecessor and component ROM pair.
+* Extend `test/vcs_visible_trace_compare.cpp` to verify both contracts in one
+  execution: all 68 visible TIA writes must match exactly, and each ROM must hold
+  its independently calibrated raw VSYNC spacing for 42 complete frames. Remove
+  the separate `vcs_frame_timing.cpp` compile and process launch from this test.
+* Reuse the already built `simulator/mos6502/mos6502.o` when available, matching
+  the other renderer regressions, while retaining a source fallback for standalone
+  invocation. Direct runtime falls from about 1.6 seconds to about 0.45 seconds
+  in the development container and passes the unchanged default two-second
+  generic timeout repeatedly.
+* Test-only performance/correctness fix; no compiler, linker, assembler,
+  runtime, library, renderer, component, example, cartridge, or roadmap behavior
+  changes. Task 22h2b2 remains next.
+
+2026-07-25 08:29:00 PDT, migrate fingerprint and retire legacy six-glyph module
+-------------------------------------------------------------------------------
+* Complete roadmap task 22h2b2 and therefore tasks 22h2b and 22h. Migrate the
+  editable fingerprint example and its private golden fixture to
+  `frame_ntsc.c26` plus an instantiated `six_glyph_component.c26` lifecycle.
+  Copy the computed `uint24_t` fingerprint bytes verbatim into the component's
+  three-byte score storage so hexadecimal nibbles A through F are preserved,
+  then retain the predecessor's absolute visible-line placement with explicit
+  91/11/90 scanline accounting and stable raw 262-line scheduler timing.
+* Preserve all four unstable ARR probe byte/flag checks, CRC-24/OPENPGP selftest,
+  default hexadecimal font verification, exact official-opcode display row
+  pipeline, source-tree example build, and staged installed-toolchain build.
+  Update the regression to inspect instantiated `display_*` state and inline
+  lifecycle assembly, and reuse the built MOS 6502 object for a fast timing run.
+* Move the old display implementation into a private predecessor fixture used
+  only by the example-03 visible-raster oracle. Remove the installed
+  `libraries/vcs/six_glyph_display.c26` source, install/uninstall entries, live
+  documentation and example dependencies; record the deletion in remove.txt
+  and assert staged installations do not contain the retired module. Leave 22i
+  next for componentizing maintained gameplay renderers.
+
+2026-07-25 15:55:00 PDT, freeze gameplay-component conversion baseline
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i1. Add and install
+  `libraries/vcs/renderers/COMPONENT_CONVERSION.md`, a measured retirement gate
+  for the all-five and P0+P1+BL player-color monoliths before their assembly is
+  split into lifecycle components.
+* Record the existing 23/57/80-byte and 17/60/77-byte public/private/total RAM
+  contracts, each profile's 88-byte embedded score table, the mechanically safe
+  four-byte public-state floor from removing packed score plus color, and the
+  twelve-byte pointer workspace's mixed score/gameplay use. Explicitly forbid
+  claiming that mixed workspace as savings until a replacement map proves it.
+* Document that the inherited gameplay field already consumes 12 x 16 = 192
+  scanlines, so a reusable eleven-line score cannot simply be appended inside a
+  192-line scheduler region. Require an explicit, raster-tested composition
+  profile rather than silently hiding or dropping scanlines.
+* Add `vcs_renderer_component_baseline.test` to lock both predecessor contracts,
+  embedded score imports/exports, frame-register ownership, forbidden symbols,
+  and documentation. Split the remaining 22i work into extraction/composition/
+  retirement slices while leaving both working monoliths unchanged for oracles.
+
+2026-07-25 09:29:31 PDT, lock gameplay profile matrix and blank-phase WSYNC contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2a. Replace the open-ended shorter-gameplay choice
+  with an exact family contract for both maintained gameplay renderers: an
+  official-opcode 181-line score-composable component, a distinct official-
+  opcode 192-line scoreless component, and a separately named matched 181-line
+  unofficial-opcode experiment. Require `main()` to compose 181 gameplay lines
+  plus the independent eleven-line six-glyph component in either order for an
+  exact 192-line visible field.
+* Require the official and unofficial 181-line twins to have the same lifecycle
+  API, RAM layout, visible TIA-write raster, object positions, collision
+  behavior, boundary cycles, and fixtures before comparing linked executable
+  bytes. Permit only reviewed stable/common NMOS forms and explicitly accept a
+  zero-byte result, alignment growth, or a rejected timing candidate as a valid
+  outcome rather than presuming unofficial-opcode savings.
+* Complete roadmap prerequisite 22i2b0. Clarify that the scheduler owns VBLANK,
+  RIOT timer/status registers, timer expiry, and the final phase-transition
+  WSYNC, while bounded component vblank/overscan work may use WSYNC internally.
+  Every stalled cycle remains charged to the already-running shared deadline
+  and must be included in the component's published maximum-cycle budget.
+* Update the installed conversion baseline, `frame_ntsc.c26`, `TEMPLATE.md`, the
+  VCS library README, the unofficial-opcode history, and the normal scheduler
+  fixture. Extend the baseline regression to lock all three profiles, exact
+  181+11=192 accounting, non-presumed byte savings, and the blank-phase WSYNC
+  ownership distinction. Pass 308/308 compile-only tests, 172/172 end-to-end/
+  generic tests, staged installation, and source-tree hygiene. Leave 22i2b1
+  next for the actual cycle-counted 181-line all-five extraction.
+
+2026-07-25 10:22:01 PDT, extract official all-five 181-line component
+-------------------------------------------------------------------------------
+* Complete roadmap tasks 22i2b1 and 22i2b. Add and install the repeatable
+  `renderers/all_five_181/all_five_181.c26` lifecycle template: an official-opcode
+  P0/P1/M0/M1/BL gameplay-only component that consumes exactly 181 visible
+  scanlines and composes with the independent eleven-line score in `main()`.
+* Replace the predecessor's twelve-row/score-bearing whole-frame ownership with
+  an application-supplied page-contained 44-byte eleven-row playfield, bounded
+  VBLANK positioning under the scheduler deadline, an exact cycle-counted draw
+  path, and no score/font, VSYNC, VBLANK, or RIOT timer state. Publish exact
+  19-byte public, 50-byte private, and 69-byte total RAM contracts; remove the
+  six former score-pointer workspace bytes and the unused final-row mask byte.
+* Add a private scheduler-driven fixture and `vcs_all_five_181.test`. Lock stable
+  262-line frames with an explicit eleven-line score reservation, 161 measured
+  steady playfield scanlines with PF writes at cycles 24/31/38/45, visible object
+  counts P0=7/P1=7/M0=6/M1=8/BL=4, official-opcode-only source, forbidden score
+  and frame/timer ownership, exact map/page/stack evidence, TIA cleanup, and all
+  four lifecycle omission diagnostics.
+* Add the installed component README, update the conversion evidence record and
+  VCS catalog, and extend install/uninstall/installcheck so the staged toolchain
+  builds the same 4K fixture. Leave 22i2c next for score-above/score-below static
+  and motion composition plus explicit gameplay-only score-cost evidence.
+
+2026-07-25 10:46:00 PDT, prove all-five score composition and fix M0 restoration
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2c. Add static and asynchronous-motion fixtures for
+  both explicit visible orders: eleven-line score above 181-line gameplay and
+  181-line gameplay above the eleven-line score. Keep all scheduling in main(),
+  call both complete lifecycle interfaces, and reapply gameplay-owned TIA color
+  and geometry state between components when the score is drawn first.
+* Add `vcs_all_five_composition.test` and its MOS 6502 harness. Lock exact
+  262-line frames, VBLANK clear at visible line 40, overscan assertion at line
+  232, disjoint score/gameplay activity windows, all-five object output, score
+  player output, exact 69-byte gameplay plus 17-byte score RAM accounting, and
+  a gameplay-only map with no score state or font. Run both motion orders for
+  360 frames, require every object to reach X=0 and X=159, verify asynchronous
+  speeds/directions, and verify all application Y coordinates survive drawing.
+* Fix a restoration defect exposed by the motion fixture: the extracted
+  181-line profile omitted the predecessor's final-row M0 DEC but still added
+  89 when reconstructing M0 Y. Restore the exact 88-line VBLANK bias instead,
+  preserving M0 Y at every lifecycle boundary without changing visible timing.
+* Extend staged installation to build all four composition fixtures with the
+  installed component/font/scheduler files. Leave 22i2d next for the separate
+  official-opcode 192-line scoreless all-five profile.
+* Pass all 308 compile-only tests and all 174 end-to-end/generic tests across
+  the complete run and final two-test continuation, plus staged installation and
+  source-tree hygiene.
+
+2026-07-25 12:08:00 PDT, add official all-five 192-line scoreless component
+
+* Complete roadmap task 22i2d. Add and install the distinct repeatable
+  `renderers/all_five_192/all_five_192.c26` official-opcode lifecycle component.
+  Retain the predecessor's full-height twelfth-row path, use the complete
+  48-byte playfield and 44-byte object-mask storage, and hold the final gameplay
+  state through the visible lines assigned to the independent score by the
+  181-line profile. Publish an exact 192-line scoreless contract.
+* Keep score/font and scheduler-owned frame/timer state absent. Measure 19 public
+  plus 51 private RAM bytes (70 total), defer Y-coordinate restoration to the
+  blanked overscan callback, and clear gameplay TIA state at the draw boundary.
+* Add `vcs_all_five_192.test` with stable 262-line timing, hard-page playfield,
+  official-opcode source gate, playfield-phase, object-output, RAM/map, lifecycle
+  omission, source-tree, and staged-installation evidence. Leave 22i2e next for
+  the matched 181-line unofficial-opcode experiment and linked-byte comparison.
+
+2026-07-25 12:16:54 PDT, complete matched all-five unofficial-opcode experiment
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i2e and therefore 22i2. Add and install the separately
+  named `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` twin.
+  Permit only four reviewed stable/common `AXS #252` sites; the raster repair
+  leaves three reviewed stable/common zero-page NOP sites, with compensating
+  one-byte NOP padding so
+  API, RAM layout, lifecycle boundaries, visible timing, and 181-line accounting
+  remain identical to the official component.
+* Measure the maintained smoke link at 1421 ROM bytes for both official and
+  unofficial components: zero bytes saved. Document that removing the padding
+  would manufacture a smaller but cycle-incompatible renderer rather than a fair
+  result.
+* Add official/unofficial pairwise visible-TIA and 42-frame timing comparisons
+  for smoke, both static score orders, and both motion score orders. Reuse the
+  360-frame asynchronous-motion oracle for both unofficial score orders, lock
+  identical RAM addresses, inspect generated assembly for exactly the reviewed
+  opcode set, and extend source/staged installation coverage.
+* Leave 22i3 next for the P0+P1+BL per-row-player-color profile family.
+
+2026-07-25 12:47:27 PDT, extract official 181-line player-color component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3a. Add and install the repeatable official-opcode
+  `renderers/player_color_181/player_color_181.c26` lifecycle component for P0,
+  P1, and Ball with exact per-row P0/P1 color tables and no missile support.
+* Publish the exact 181-line score-composable contract, eleven-row/44-byte
+  playfield, page-contained eight-byte color tables, and measured 13-byte public,
+  52-byte private, 65-byte total RAM model. Retain the predecessor's exact
+  five-strobe horizontal-position schedule with two private zeroed ghost slots.
+* Add a scheduler-driven static fixture and `vcs_player_color_181.test`. Lock
+  stable 262-line frames, all eight requested colors for both players, Ball
+  raster output, disabled missiles, hard-page table placement, exact map sizes,
+  and absence of score/font, frame-register, and RIOT-timer ownership.
+* Extend install/uninstall/installcheck, the VCS catalog, and component conversion
+  evidence. Leave 22i3b next for score-above/score-below static and motion
+  composition.
+* Pass all 308 compile-only tests and all 177 end-to-end/generic tests across
+  the complete run and final two-test continuation, plus staged installation,
+  branding, and source-tree hygiene.
+
+2026-07-25 13:20:00 PDT, prove player-color score composition
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3b. Add static and asynchronous-motion fixtures for
+  both explicit visible orders: eleven-line score above 181-line P0/P1/Ball
+  gameplay and gameplay above the score. Keep scheduling and lifecycle order in
+  `main()`, and reapply gameplay geometry after a score-first draw.
+* Extend the player-color MOS 6502 harness and add
+  `vcs_player_color_composition.test`. Lock stable 262-line frames, exact
+  181+11 visible accounting, disjoint score/gameplay regions, all eight P0/P1
+  row colors, Ball output, disabled missiles, and score activity without
+  playfield/Ball leakage.
+* Run both motion orders for 320 frames. Require P0, P1, and Ball to traverse the
+  complete X=0..159 range at independent speeds, preserve application Y state,
+  and retain exact horizontal positioning at every checked frame.
+* Lock separate 65-byte gameplay and 17-byte score RAM costs, and re-prove that
+  a gameplay-only link contains no score state or font. Extend staged
+  installation to build all four composition fixtures. Leave 22i3c next for the
+  distinct official-opcode 192-line scoreless player-color component.
+
+2026-07-25 13:56:00 PDT, add official player-color 192-line scoreless component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3c. Add and install the distinct repeatable official-
+  opcode `renderers/player_color_192/player_color_192.c26` lifecycle component.
+  Retain the predecessor's genuine twelfth-row playfield, P0/P1 graphics and
+  per-row color path, and final Ball state, then hold gameplay through the
+  eleven lines reserved for the independent score by the 181-line profile.
+* Publish the exact twelve-row/48-byte playfield and 192-line scoreless contract.
+  Measure 13 public plus 53 private RAM bytes (66 total), with complete 44-byte
+  final-row workspace, no missiles, and no score/font or scheduler-owned frame/
+  timer state.
+* Add `vcs_player_color_192.test` with stable 262-line timing, exact P0/P1 row
+  colors, Ball raster, disabled missiles, official-opcode, hard-page ROM, RAM/map,
+  lifecycle omission, source-tree, and staged-installed-toolchain evidence.
+* Leave 22i3d next for the matched 181-line unofficial-opcode experiment and
+  exact linked-byte comparison.
+
+2026-07-25 14:40:00 PDT, complete matched player-color unofficial experiment
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i3d and therefore 22i3. Add and install the separately
+  named `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
+  twin, assembled explicitly with `-Wa,--illegals`.
+* Retain only two reviewed stable/common `AXS #252` substitutions and four
+  stable/common zero-page NOP sites. Reject the other two tempting AXS sites
+  after emulator comparison showed their official flag results were live and
+  the substituted cartridges failed to complete frames.
+* Measure the maintained pre-repair smoke link at 1422 ROM bytes for both
+  official and unofficial components: zero bytes saved. Lock identical RAM addresses and
+  inspect generated assembly for exactly the reviewed opcode set.
+* Add official/unofficial pairwise visible-TIA and 42-frame timing comparisons
+  for smoke, both static score orders, and both motion score orders. Reuse the
+  static and 320-frame player-color composition oracle for both unofficial
+  score orders, and extend source/staged installation coverage.
+* Leave 22i4 next for monolith retirement only after the complete source,
+  installed-toolchain, map, timing, raster, stack, collision, opcode, and linked-
+  byte evidence gate is satisfied.
+* Pass all 308 compile-only tests and all 180 end-to-end/generic tests
+  across the complete run and final three-test continuation, plus staged
+  installation, branding, and source-tree hygiene.
+
+2026-07-25 15:28:00 PDT, migrate gameplay examples to lifecycle components
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4a. Replace editable examples 05 through 08 with the
+  already-proven official lifecycle-component fixtures. Examples 05 and 07 draw
+  the independent eleven-line score above 181-line gameplay; examples 06 and 08
+  draw the score below asynchronous gameplay. Remove their companion-assembly and
+  profile-specific linker arguments so each builds through the ordinary VCSC
+  driver and installed component catalog.
+* Add `examples/10_xy_motion`, a scoreless full-height `all_five_192` cartridge
+  in which P0 moves simultaneously across X=0..159 and Y=8..80 while the other
+  four TIA objects remain visible as references. Update motion after
+  `game_overscan()` restores application-visible coordinates.
+* Extend the editable-example build regression, staged installation, top-level
+  example catalog, VCS catalog, per-example Makefiles, and user-facing READMEs
+  for all nine examples. Remove the now-stale public example-05 reference note
+  and screenshot; the reviewed predecessor source/image remain only under the
+  private oracle fixture. Leave 22i4b next for predecessor-profile retirement;
+  private monolithic oracle fixtures and tests remain unchanged.
+
+2026-07-25 15:34:16 PDT, Ode to Joy mute-before-retune audio repair
+------------------------------------------------------------
+* Reproduced the reported recurring Ode to Joy buzz from the earliest retained
+  implementation. The compiler emitted the requested table values and correct
+  TIA register addresses; the defect was in the player protocol itself.
+* Fixed music_apply_current() to write AUDV0=0 before changing AUDC0 or AUDF0,
+  then write the new step volume last. Previously every sounding-note-to-gap
+  transition changed AUDF0 to C4 while the old volume was still 8 for about 70
+  CPU cycles, producing a short wrong-pitch chirp despite the source comment
+  claiming that retuning occurred while silent.
+* Added the vcs_frame_timing --audio-retune-muted gate. It tracks effective
+  channel-0 volume and rejects any AUDC0/AUDF0 write while that volume is
+  nonzero. The predecessor ROM fails this gate; the repaired ROM passes 1497
+  complete 262-line frames.
+* Updated the editable example, private golden fixture, README, and source-level
+  regression. Focused Ode, fingerprint, six-glyph, all-five timing, and source
+  hygiene tests pass.
+
+2026-07-25 16:40:00 PDT, freeze new renderers for visible-component correctness gate
+-------------------------------------------------------------------------------
+* Capture the corrected composition model. Big gameplay renderers remain complete,
+  indivisible draw components; arbitrary vertical placement means arranging short
+  score components among blank lines or other complete components, not pausing and
+  resuming a gameplay renderer. Repeatable templates must support two or more score
+  instances with independent state and both same-type and mixed-type composition.
+* Reopen the existing score/gameplay evidence as provisional. The centered six-
+  glyph component may inherit NUSIZ, reflection, vertical-delay, HMOVE, and P0/P1
+  positions because its persistent TIA setup occurs in init rather than every draw.
+  Examples with moving digits therefore do not yet prove a moving score renderer.
+* Make pixel-accurate row-boundary repair the first implementation task. Reproduce
+  and fix the visibly wrong first scanline on some playfield rows across all current
+  official gameplay components, propagate only proven equivalent corrections to
+  unofficial twins, and test rendered pixels rather than only register-write counts.
+* Require a measured component handoff contract: entry/exit cycle, complete/partial
+  line consumption, terminal-WSYNC ownership, possible shared boundary-line setup,
+  HMOVE use, and all TIA requirements/clobbers. Eleven score lines and 181 gameplay
+  lines are provisional; if a correct self-positioning score needs a different
+  height, shrink the scored gameplay profile so the pair still totals 192.
+* Require the centered six-glyph score to establish all of its own TIA state on
+  every draw from deliberately hostile incoming state. Prove top/bottom gameplay
+  composition, arbitrary score-only placement, and two-or-more independent score
+  instances before adding the requested left/right two-plus-two score renderer.
+* After the existing components work correctly, add the two-digits-left plus two-
+  digits-right score and the complete N*M*O public/example regression matrix. Big-
+  renderer O is top or bottom; arbitrary vertical placement and multiple score
+  instances are proved separately without splitting gameplay. Freeze tasks 23-25
+  and predecessor retirement until this stop-ship gate and corrected examples pass.
+
+2026-07-25 17:18:00 PDT, repair ordinary gameplay row-boundary raster
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22i4b1a. Reproduce the visible defect as the inherited
+  row-transition path writing PF1=0 and PF2=0 at cycles 18 and 21 of every
+  sixteenth row scanline: each nominal 16-line playfield row was therefore 15
+  intended lines plus one blank/malformed boundary line.
+* Replace those eight cycles in all official 181/192 all-five and player-color
+  components with cycle-equivalent non-TIA LDA/BIT/BIT delay, preserving carry,
+  branch timing, frame length, RAM, and the unofficial twins' matched schedule.
+* Extend `vcs_playfield_phase.cpp` with a rendered-playfield oracle. For the ten
+  ordinary rows common to every current profile it reconstructs all 160 visible
+  pixels on all 16 scanlines from timed PF1/PF2 writes and compares them with the
+  fixture's four-byte row data: 25,600 checked pixels per cartridge.
+* Run that oracle from both official all-five and player-color 181/192 tests.
+  Leave 22i4b1b next for the 181 terminal cleanup line, the 192 special twelfth-
+  row path, and pixel-accurate player/missile/Ball output; do not claim the full
+  stop-ship raster gate complete yet.
+
+2026-07-25 20:06:47 PDT, continue stop-ship playfield raster repair
+
+* Reproduce the reported jagged all-five raster in a real headless Stella 7.0
+  capture. Stage each next-row left PF1 byte in dead workspace so all-five row
+  entry writes move from 24/31 to 21/28 while right-half writes remain 38/45.
+  Preserve the complete final 181-line row by moving TIA cleanup behind WSYNC.
+  A fresh example-05 Stella capture removes the large top, internal, and bottom
+  steps.
+* Extend the playfield oracle from ten to eleven ordinary rows and distinguish
+  checked rows from the 192-line fixtures' twelve source rows. Keep the task
+  open because this simplified bus-phase model is not yet a complete TIA pixel
+  model.
+* Move official and unofficial player-color 181-line cleanup behind the final
+  visible-row boundary. Restore its former phase with a compact exact 30-cycle
+  blank-line loop, retaining 262-line frames and official/unofficial equality.
+  The matched smoke links now use 1429 bytes each.
+* Reopen 22i4b1a explicitly: player-color first-row entry, both special 192-line
+  twelfth rows, and full object pixels remain stop-ship work.
+
+2026-07-25 22:35:00 PDT, finish all-five ordinary-row raster repair
+-------------------------------------------------------------------------------
+* Correct the aborted PF1-staging experiment. The previous candidate wrote the
+  staged byte six cycles into the following scanline and still left the first
+  line after each row transition with the old PF1 value.
+* Seed the first PF1 byte on the blank setup line, stage each following row in
+  dead workspace, and restore PF1 immediately after GRP1 during horizontal
+  blank. The two-line renderer now alternates 8/28/38/45 and 24/31/38/45 PF
+  writes without changing frame length, object behavior, RAM, or linked size.
+* Apply the identical draw schedule to official all-five 181/192 and the
+  unofficial 181 twin. The unofficial smoke remains byte-identical at 1421
+  linked bytes and now retains one reviewed zero-page unofficial NOP site.
+* Make raster mode in vcs_playfield_phase.cpp ignore historical write-count
+  shapes and compare every intended source pixel directly. The repaired all-
+  five profiles pass 11 x 16 x 160 = 28,160 pixels per cartridge; the old
+  archive fails on row-transition pixels.
+* Rebuild examples 05 and 06 and verify example 05 in a fresh Stella 7.0
+  capture: top, internal, and bottom playfield edges are straight. Keep the
+  player-color row-entry and both special twelfth-row paths open.
+
+2026-07-25 22:27:00 PDT, add visual playfield rows and repair examples 05/06 setup artifact
+------------------------------------------------------------------------------------------
+* Add installed `libraries/vcs/playfield.c26` with compile-time
+  `VCS_PLAYFIELD_ROW()` and `VCS_REVERSE8()` aliases. A 32-bit visual-binary
+  row is written left-to-right and expands to the renderer's four asymmetric TIA
+  bytes; a focused compiler test locks an asymmetric non-palindromic conversion.
+* Convert examples 05 through 09 to readable `X`/`.` playfield rows without
+  changing their emitted playfield bytes. Add the helper to install, uninstall,
+  staged-installation, VCS catalog, example dependencies, and example READMEs.
+* Repair the remaining one-scanline all-five entry artifact. The setup line
+  previously cleared PF1/PF2 and then wrote the first PF1 byte at cycle 40,
+  producing a partial right-side playfield stripe before the first real row.
+  It now seeds only private workspace and remains completely blank; the first
+  gameplay row restores staged PF1 at cycle 8 and loads PF2 before its pixels.
+* Strengthen the pixel oracle to require the setup line immediately preceding
+  row zero to be blank. The uploaded baseline fails at setup-line pixel 112;
+  repaired examples 05 and 06 pass all eleven rows in score-above and score-
+  below order. Apply the cycle/size-equivalent correction to official all-five
+  181/192 and the unofficial 181 twin, while leaving player-color and special
+  192-line work open.

@@ -1,0 +1,444 @@
+VCSC CONTEXT HISTORY — 2026-08-01
+=================================
+
+Historical development entries for 2026-08-01, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-08-01 08:48:34 PDT, fix chained discard assignments and close forced-long design question
+-------------------------------------------------------------------------------
+* Fix right-associated assignment chains whose terminal source is discard `_`,
+  including `WSYNC := RESP1 := RESP0 := _;`. The compiler now preserves the
+  accumulator value already present on entry and emits one-byte stores from the
+  innermost target outward, so the example writes RESP0, then RESP1, then WSYNC
+  without reading a write-only TIA register or manufacturing a source value.
+* Restrict chained discard targets to directly addressable writable one-byte
+  non-bitfield lvalues. This guarantees that every store preserves A without
+  hidden compiler-stack pushes or temporary-value scratch. Add focused ordered-
+  code-generation, wide-target, indirect-target, and simulator regressions.
+* Move the conditional-branch length/timing discussion out of this append-only
+  handoff log into `assembler/DESIGN_NOTES.md`. Record the settled decision not
+  to add forced-long annotations: long conditional sequences remain available
+  to compiler-generated code, while hand-written assembly can explicitly spell
+  the inverted local branch plus absolute JMP and annotate that local skip with
+  `.same` or `.cross` when timing matters.
+* Verification: 337/337 compile-only tests pass, all 201 end-to-end/generic
+  tests pass across deterministic splits, and staged `make installcheck` passes.
+
+2026-08-01 09:46:29 PDT, add public 192-line animated-sprite gallery out of roadmap order
+-------------------------------------------------------------------------------
+* Correct the stale open-implementation summary: task 22 and all of its
+  correctness/composition/public-matrix gates are complete. Task 23 remains the
+  default next unfinished item even though the user explicitly skipped ahead to
+  complete task 34.
+* Add `examples/03_player_color_192/02_animated_sprites/`, an official-opcode
+  192-visible-line player-color cartridge containing eight four-frame 8x8 sets:
+  running man, dog, cat, T. rex, worm, orange hopper, blue hopper, and helicube.
+  P0/P1 display one pair simultaneously; each frame lasts eight NTSC frames,
+  each pair repeats four complete animation loops, and all four pairs cycle
+  automatically. Game Select advances a pair and left fire pauses/resumes, both
+  edge-triggered.
+* Store all 32 frames in one page-aligned 256-byte ROM object and change only the
+  two graphics-pointer low bytes at runtime. Preserve exact 262-line frames and
+  the 192-line player-color renderer. Final cartridge usage is 2,721 ROM bytes
+  and 109 RIOT RAM bytes, leaving 1,369 ROM bytes and 19 RAM bytes free.
+* Correct the supplied licensing assumption. Quick's source page labels the
+  PICO-8 cartridge CC BY-NC-SA 4.0 rather than public domain. Add explicit
+  `ASSET_LICENSE.md` attribution and conservatively treat the hand-adapted one-bit
+  artwork under that license while leaving VCSC code under the project license.
+* Add `vcs_player_color_192_animation.pl/.cpp`: verify all 512 automatic-gallery
+  frames, exact P0/P1 bitmap pixels, frame/pair pointer selection, permitted
+  row-color-table use, pause/Select behavior, and exact 262-line periods. Extend
+  the recursive example build, staged installcheck, test documentation, example
+  catalogs, current public count (48), and roadmap/source-hygiene guards.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass across the completed first 159-test run and deterministic 20-, 22-, and
+  one-test tail runs. Staged `make installcheck` passes. A fresh cartridge built
+  by a separately staged installed toolchain was run and visually inspected under
+  Stella 7.0 in a virtual X display.
+
+2026-08-01 10:08:27 PDT, make animated-sprite gallery traverse the screen
+-------------------------------------------------------------------------------
+* Replace the stationary P0/P1 gallery presentation with two vertically separated
+  lanes whose players both start at visible X=0 and move right one pixel per NTSC
+  frame. Preserve the eight-frame bitmap hold while motion continues. The X=159
+  frame is the final clipped right-edge frame; the following frame respawns both
+  players at X=0 with the next animation pair.
+* Keep the four existing sprite pairs and edge-triggered controls. Game Select now
+  advances immediately to the next pair and restarts it at X=0. Left fire pauses
+  and resumes both horizontal motion and bitmap animation. Remove the obsolete
+  four-loop counter, reducing final usage to 2,676 ROM bytes and 108 RIOT RAM
+  bytes, with 1,414 ROM bytes and 20 RAM bytes free.
+* Expand the animation emulator oracle from the former stationary 512-frame cycle
+  to four complete 160-frame traversals. Lock one-pixel-per-frame P0/P1 motion,
+  separate vertical lanes, exact animated pixels, progressive X=159 clipping,
+  pair change and X=0 wrap, pointer selection, row-color-table use, pause/select
+  behavior, and exact 262-line frame periods. Update the example and test catalogs.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass across deterministic splits. Staged make installcheck passes. A cartridge
+  built from the final source was run and visually inspected under Stella 7.0.
+
+2026-08-01 11:51:09 PDT, complete animated gallery from the supplied PICO-8 cartridge
+-------------------------------------------------------------------------------
+* Decode the supplied `42374.p8.png` cartridge using PICO-8's low-bit
+  `AA RR GG BB` byte ordering and replace the eight hand-drawn approximations
+  with exact one-bit occupancy from every animated source frame. Preserve
+  PICO-8 sprites 1 through 120 in their original sequential order as 30
+  four-frame sets. Source color 0 is transparent and every nonzero color is
+  opaque; the otherwise blank source sprite 16 remains an intentional blank
+  animation frame rather than being omitted or invented.
+* Expand the gallery from four pairs to 15. P0/P1 still begin at X=0, move right
+  one pixel per NTSC frame, hold each bitmap for eight frames, clip through
+  X=159, and switch to the next pair on the following frame. After source sets
+  28/29, automatic traversal wraps to sets 0/1. Select and fire retain their
+  edge-triggered next-pair and pause/resume behavior.
+* Store the 960 frame bytes in four hard-page-aligned 256-byte objects. Sets are
+  selected by the low three bits within a page and by explicit page-high
+  selection for indices 0-7, 8-15, 16-23, and 24-29; the final 64 bytes after
+  source sprite 120 are zero padding. The exact 960 stored bytes have SHA-256
+  `7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb`.
+  Final cartridge usage is 3,868 ROM bytes and 112 RIOT RAM bytes, leaving
+  222 ROM bytes and 16 RAM bytes free.
+* Strengthen `vcs_player_color_192_animation.pl/.cpp` to require all 30 source
+  set labels and 120 glyphs, exact hard-page placement, low-byte-zero alignment,
+  the exact extracted 960-byte SHA-256 occupancy, zero final-page padding, every
+  pointer selection, all 2,400 automatic gallery frames, exact pixels, X=159
+  clipping, full wrap, row-color-table use, controls, and 262-line periods.
+  Update the example catalogs, example README, asset attribution, and test
+  documentation to match the complete source-derived gallery.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic
+  tests pass across the completed first 122-test run, the next 54-test run, and
+  the final 26-test run. The focused animation test and staged
+  `make installcheck` pass. A cartridge built by the staged installed toolchain
+  is byte-identical to the direct build and was run and visually inspected under
+  Stella 7.0.
+
+2026-08-01 12:35:09 PDT, make animated row colors follow vertical sprite motion
+-------------------------------------------------------------------------------
+* Apply the supplied patch. Add the top-level `make patch` helper and replace the
+  animated example's former solid lane borders with the supplied solid/checker
+  playfield rows.
+* Add an opt-in `VCS_PLAYER_COLOR_192_MUTABLE_COLORS` renderer instantiation mode.
+  The default contract remains unchanged with page-contained immutable color
+  tables; the alias makes only that instance's two eight-byte color tables mutable
+  so animation code may update them outside the visible draw.
+* Keep all 960 extracted sprite bytes and their SHA-256 unchanged. Move each
+  player's fixed eight-color palette to ROM, count the transparent source rows at
+  the top of the selected frame, and rotate the palette by that displacement into
+  the mutable RAM color table. Because graphics and colors use the same
+  highest-index-to-zero renderer order, this keeps each color band attached to a
+  sprite that bobs within its 8x8 source cell. A completely blank frame uses the
+  unrotated palette.
+* Make `install_frames()` an ordinary shared function rather than duplicating it
+  at each call site, offsetting the RAM cost and leaving the final cartridge at
+  3,484 ROM bytes and 124 RIOT RAM bytes including the four-byte hardware-stack
+  reserve: 606 ROM bytes and four RAM bytes remain free.
+* Extend the animation source guard and emulator oracle to require the mutable
+  tables and immutable palettes, verify the exact eight-entry rotation for both
+  players on every captured frame, retain exact source pixels and all 2,400
+  automatic-gallery frames, and confirm visible player colors come from the
+  currently rotated tables. Update renderer, example, catalog, and test
+  documentation.
+* Verification: 337/337 compile-only tests pass. All 202 end-to-end/generic tests
+  pass in deterministic ranges 1-159, 160-186, and 187-202. The focused animation
+  and renderer tests, recursive example build, source-tree hygiene test, and
+  staged `make installcheck` pass. The final cartridge builds with the staged
+  toolchain and was run under Stella 7.0 for visual inspection.
+
+2026-08-01 13:27:32 PDT, record the bankswitching and Superchip implementation plan
+-------------------------------------------------------------------------------
+* Add `.top_secret/bankswitching.txt` as the detailed internal roadmap for
+  main tasks 29 and 30. Lock the full-window starting model around the 6507's
+  missing A13-A15 cartridge lines: BANK0 uses $F000-$FFFF and later banks work
+  downward by $2000, while the cartridge writer emits the lowest logical bank
+  first so BANK0 is the final 4K chunk in F8, F6, and F4 images.
+* Put per-bank vectors and same-offset reset bridges near the beginning of the
+  roadmap so startup does not depend on power-up bank state. Keep ordinary
+  16-bit symbols, reject cross-bank ROM data relocations, and use generated
+  same-offset JMP/JSR bridges for direct cross-bank control flow with weighted
+  hardware-stack accounting.
+* Base the first F8SC/F6SC/F4SC profiles on the existing split read/write
+  absolute-reference semantics. Reserve each bank's $x000-$x0FF RAM-port
+  prefix by beginning ordinary ROM allocation at $x100 while still emitting a
+  complete 4K bank. Include Automatic allocation of variables into Superchip
+  RAM as an explicit required later roadmap item, with separate load/store
+  aliases, startup initialization, persistence, occupancy, and pointer-safety
+  rules.
+* Update the main roadmap tasks and internal-directory README to point to the
+  new detailed plan. Extend the developer-record allowlist, source-tree hygiene
+  guard, and test-harness documentation so the new file is retained and its key
+  conventions cannot silently regress. This changes no compiler, assembler,
+  linker, runtime, cfg, or public documentation behavior.
+* Verification: all 337 compile-only tests passed during a clean build. The
+  broad end-to-end run passed tests 1 through 122 before the outer command
+  window expired. The focused branding and source-tree hygiene tests pass.
+
+2026-08-01 13:45:00 PDT, refine common trampolines and bank placement policy
+-------------------------------------------------------------------------------
+* Replace the earlier per-target paired-JSR bridge plan in
+  `.top_secret/bankswitching.txt` with one byte-identical trampoline table at the
+  same physical offset in every bank. A direct cross-bank call now reaches a
+  generated target entry, records the ordinary 16-bit target, pushes a synthetic
+  source-bank return stub, selects the destination bank, and enters the callee
+  with `JMP (target)`. The callee's RTS reaches the identical return stub, which
+  restores the caller's bank before the original call-site RTS completes.
+* Apply the same target-pointer/destination-selection machinery to one-way JMP
+  transfers without the synthetic return. Keep programmer-authored indirect
+  calls unsupported; the indirect JMP is internal linker/runtime machinery.
+  Retain the two-byte weighted hardware-stack charge for each active cross-bank
+  call and require target entries, source entries, return stubs, and dispatcher
+  bytes to be replicated identically in every physical bank.
+* Choose constrained automatic placement rather than either all-manual placement
+  or a call-graph-only guess. Pin `main`, startup, and mandatory runtime material
+  to BANK0; allow programmers to pin functions, ROM objects, translation units,
+  or same-bank groups; collapse forbidden cross-bank ROM-data edges into hard
+  placement components; and automatically place unpinned components with a
+  deterministic call-graph-aware greedy policy. Reserve later roadmap work for
+  measured heuristic improvements rather than making automatic packing optional.
+* Strengthen the internal source-tree hygiene guard and test-harness notes to
+  retain the identical common trampoline, JSR-to-indirect-JMP, `main`-in-BANK0,
+  and constrained automatic-placement decisions. This remains design-only and
+  changes no compiler, assembler, linker, runtime, cfg, or public documentation.
+* Verification: all 337 compile-only tests pass. The focused source-tree hygiene
+  and hard-rename/branding tests also pass.
+
+2026-08-01 14:10:44 PDT, use named mem regions for explicit function-bank placement
+---------------------------------------------------------------------------------
+* Update `.top_secret/bankswitching.txt` to make the existing named `mem` region
+  modifier the sole explicit function-bank spelling. A definition such as
+  `bank1 void some_function(void)` now means that the function belongs to the
+  previously declared `bank1` region; no `bank0` through `bank7` language
+  keywords are added. Unmarked functions remain available for later automatic
+  placement, while `main` may be unmarked or explicitly `bank0` and is rejected
+  when explicitly assigned to a numbered nonzero bank.
+* Complete bankswitching roadmap item 1. The compiler emits marked functions in
+  `CODE.<region>`, emits the same region metadata already used by objects,
+  requires declarations and definitions to agree, and rejects region modifiers
+  on inline functions. The assembler now preserves procedures in `CODE` and
+  `CODE.*` as independent private o26 layouts. The linker resolves a private
+  name such as `CODE.bank1.__vcsc_function$foo` through the exact `CODE.bank1`
+  rule before falling back to `CODE`.
+* Clarify Superchip region arithmetic. A source declaration beginning at `$D100`
+  must use `$size:0x0F00`, not `$size:0x1000`, because the source `mem` interval
+  describes allocatable ROM and must stop at `$DFFF`. The future cartridge image
+  model still emits the complete 4K physical bank and separately fills the
+  reserved `$D000-$D0FF` RAM-port prefix.
+* Add compiler diagnostics and code-generation tests for function region output,
+  declaration conflicts, inline misuse, and nonzero-bank `main`. Add an
+  end-to-end compiler/assembler/linker regression proving page-contained
+  `CODE.bank1.__vcsc_function$placed` resolves at `$D100` under a
+  `$D100+$0E00` region while ordinary `main` remains in the `$F000` home mirror.
+  Update compiler, assembler, linker, test, main-roadmap, and detailed banking
+  documentation.
+* Verification: all 341 compile-only tests pass. All 203 end-to-end/generic
+  tests pass; the long renderer tail was completed in deterministic chunks after
+  the broad run reached test 160. The focused function-region placement,
+  source-tree hygiene, and branding tests pass.
+
+2026-08-01 14:51:45 PDT, add full-bank images and deterministic reset bridges
+-------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 2. Extend the strict cfg parser
+  with dynamically sized `CARTRIDGE`, `BANKS`, `MEMORY`, and `SEGMENTS` state;
+  add mapper/fill, bank start/size/hotspot/startup, and `MEMORY bank=NAME`
+  metadata; reject unknown properties, malformed or incomplete F8/F6/F4 sets,
+  overlapping logical banks/regions, and non-binary banked output.
+* Emit each declared physical bank as one exact 4096-byte unit in ascending
+  logical-address order, so F8/F6/F4 files begin with the lowest logical bank
+  and end with BANK0. Preserve the stock unbanked `vcs_4k.cfg` image
+  byte-for-byte. Selector validation distinguishes VCSC logical bank names from
+  physical/file chunk indices: BANK0 uses `$1FF9` for F8/F6 and `$1FFB` for F4,
+  while later VCSC BANK names work downward through the selector range.
+* Reserve every mapper hotspot at its low-twelve-bit offset in every physical
+  bank. Any ordinary code/data segment whose allocatable region covers a
+  selector byte is now a cfg error, even if the selector nominally chooses a
+  different bank. Add this requirement to `.top_secret/bankswitching.txt` and
+  lock it in structural and source-hygiene tests.
+* Complete detailed roadmap item 3. Require `CARTRIDGE vectorbridge=OFFSET`,
+  reserve an eighteen-byte corridor in every bank, and emit identical six-byte
+  NMI, RESET, and IRQ/BRK entries: `BIT BANK0_HOTSPOT; JMP handler`. Emit the
+  same BANK0-mirror vector words in the final six bytes of every bank. This
+  resets deterministically from any selected bank and makes F4's `$1FFA/$1FFB`
+  NMI-vector/selector overlap harmless because every bank supplies identical
+  bytes. Generated bridge/vector writes also reject collisions with placed
+  material; `__reset`, `__nmi`, `__irqbrk`, and `main` remain in BANK0.
+* Add `linker_banked_image_model.pl` and
+  `linker_banked_reset_bridges.pl`. They cover dynamic cfg tables, strict
+  diagnostics, hotspot/bridge reservation, exact file order and sizes,
+  byte-identical bridges/vectors, conventional selectors, and modeled
+  NMI/RESET/IRQ bridge execution from every initial bank for F8, F6, and F4.
+  Update linker, test, and internal roadmap documentation. The next detailed
+  bankswitching leaf is item 4, bank-aware relocation classification.
+* Verification: the clean build passes all 341 compile-only tests. The broad
+  end-to-end run passes its first 122 cases before the outer command timeout;
+  the remainder passes in deterministic groups, for all 205/205 end-to-end and
+  generic tests. The focused 17-test linker/placement/hygiene set and staged
+  `make installcheck` also pass.
+
+2026-08-01 15:02:47 PDT, attempt hotspot reversal (incorrect; superseded at 15:44)
+----------------------------------------------------------------------------------------
+* This entry records an incorrect change which confused VCSC logical BANKn names
+  with physical/file bank indices.  The 15:44:41 entry below supersedes it.
+* The attempted change altered the full-window mapper convention without changing logical bank
+  addresses or physical file order. BANK0 remains the `$F000-$FFFF` logical
+  bank and the final 4K chunk in the cartridge file, but hardware selector
+  hotspots now increase with bank number: F8 uses `$1FF8+$bank`, F6 uses
+  `$1FF6+$bank`, and F4 uses `$1FF4+$bank`. Thus F4 `$1FF4` selects BANK0 and
+  `$1FFB` selects BANK7.
+* Update strict linker validation, generated test cfgs, map expectations,
+  reserved-hotspot diagnostics, linker documentation, the detailed
+  bankswitching plan, and source-tree hygiene assertions. The prior reversed
+  hotspot assignment recorded in the 14:51 entry is superseded by this
+  correction.
+* Keep the byte-identical per-bank vectors and reset bridges. Under corrected
+  F4 ordering, NMI vector fetches at `$1FFA/$1FFB` select BANK6 and BANK7;
+  identical vector bytes still yield a deterministic word, and the common
+  bridge then explicitly selects BANK0 through `$1FF4`.
+* Verification at the time passed, but the tests encoded the same mistaken
+  logical-name/physical-index assumption and therefore did not establish that
+  the mapping was correct.
+
+2026-08-01 15:44:41 PDT, restore physical file hotspot order and disambiguate bank identities
+----------------------------------------------------------------------------------------------
+* Supersede the 15:02 hotspot reversal.  That change confused VCSC's logical
+  `BANKn` names with zero-based physical/file bank indices.  For F8/F6/F4, the
+  first mapper hotspot selects the first 4K chunk on disk and subsequent
+  hotspots select subsequent chunks.  Because VCSC writes banks in ascending
+  logical-address order and names the `$F000` home bank BANK0, VCSC BANK0 is the
+  final file chunk and uses the final hotspot in the mapper range.
+* Restore and lock the complete mappings: F8 `$1FF8 -> file chunk 0 / BANK1`
+  and `$1FF9 -> file chunk 1 / BANK0`; F6 `$1FF6..$1FF9 -> BANK3..BANK0`;
+  F4 `$1FF4..$1FFB -> BANK7..BANK0`.  BANK0 remains at `$F000`, contains
+  `main` and startup, and appears last in the file.
+* Rewrite `.top_secret/bankswitching.txt` and expand `linker/README.md` around
+  three explicitly separate identities: VCSC logical bank name, physical/file
+  chunk index, and mapper selector hotspot.  Add full F8/F6/F4 tables and the
+  formulas `file_index(BANKn)=bank_count-1-n` and
+  `hotspot=first_mapper_hotspot+file_index`.
+* Clarify F4 vector behavior.  The NMI low-byte fetch at `$1FFA` selects file
+  chunk 6 / VCSC BANK1; the high-byte fetch at `$1FFB` selects file chunk 7 /
+  VCSC BANK0.  Identical vector bytes keep the word deterministic, and the
+  vector fetch itself ends with BANK0 selected before the common bridge
+  defensively selects BANK0 again.
+* Express linker validation and reset-bridge tests in terms of physical file
+  index rather than ambiguous bank numbering.  Add explicit mapping assertions,
+  preserve hotspot-reservation coverage, and add a negative test which rejects
+  the accidentally swapped F8 mapping from the 15:02 revision.
+* Verification: the staged Bison/Flex toolchain builds cleanly; all 341
+  compile-only tests pass; all 205 end-to-end/generic tests pass, completed as
+  the initial 162-test run followed by the remaining 43 tests in two deterministic
+  groups after outer command-window limits; focused bank-image/reset/hygiene
+  tests pass; and staged `make installcheck` passes.
+
+2026-08-01 19:05:40 PDT, bank-aware relocation classification and validation
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 4.  Preserve direct-control intent in the
+  two previously unused low bits of version-2 o26 relocation types: direct JSR,
+  direct JMP, and the absolute JMP emitted for a relaxed conditional branch are
+  now distinguishable without inspecting neighboring opcode bytes.  Ordinary
+  short relative branches continue to use the retained B26 branch table.
+* Teach `vcsc-ld` to identify the final source layout/bank and target owner/bank
+  for every symbolic relocation after placement.  Same-bank ROM references and
+  references to shared nonbanked RAM or hardware addresses remain ordinary.
+* Reject every provable unsupported crossing before patching bytes: cross-bank
+  ROM data/address relocations, pointer initializers, indirect-JMP vectors, and
+  both short and relaxed conditional branches are errors.  Direct cross-bank
+  JSR and JMP receive distinct diagnostics saying that trampoline generation is
+  not implemented yet; they must not silently become mirrored-address calls or
+  jumps into unrelated bytes.
+* Add `test/linker_banked_relocation_validation.pl` covering same-bank control
+  flow and data, shared RAM access, all direct-control classes, low/high/word
+  data relocations, pointer data, indirect-JMP vectors, and short/relaxed branch
+  crossings.  Update assembler, linker, test, and detailed bankswitching
+  documentation.  The next bankswitching leaf is roadmap item 5: the common
+  byte-identical replicated trampoline table and generated cross-bank JMP.
+* Verification: all 341 compile-only tests pass.  All 206 end-to-end/generic
+  tests pass, completed as the first 163 tests followed by the remaining 43 in
+  two deterministic groups because of outer command-window limits.  Focused
+  bank-image, reset-bridge, and relocation-validation tests pass, and staged
+  `make installcheck` passes.
+
+2026-08-01 19:23:00 PDT, correct relocation-step tarball packaging
+------------------------------------------------------------------
+* The `vcsc.20260802_020559.tar.gz` archive accidentally wrapped the project in
+  a top-level `vcsc/` directory, unlike the prior flat project tarballs.  When
+  extracted over an existing checkout, that leaves the checkout itself
+  unchanged and puts the modified tree in a new `vcsc/` subdirectory, making
+  the archive appear unchanged.
+* Repackage the same bank-aware relocation-classification implementation with
+  project files at the archive root.  No relocation semantics were rolled back;
+  the changed source remains in `assembler/o26.c`, `linker/vcsc_ld.c`, and
+  `linker/vcsc_ld_internal.h`, with coverage in
+  `test/linker_banked_relocation_validation.pl`.
+* Verify that the corrected archive has no enclosing project directory and that
+  a clean extraction differs from `vcsc.20260801_224931.tar.gz` in the expected
+  source, test, and documentation files.
+
+2026-08-01 19:46:05 PDT, add common direct-JMP bank trampoline table
+--------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 5. Require banked profiles to
+  declare a same-offset common trampoline corridor with `CARTRIDGE
+  trampoline` and `trampolinesize`; reject corridors which exceed one 4K bank
+  or overlap ordinary allocatable ROM, vector bridges, per-bank vectors, or
+  any mapper selector hotspot.
+* Rewrite every proven direct cross-bank JMP to the source bank's logical
+  mirror of a deduplicated common table entry. Each eight-byte entry is
+  `STA destination_hotspot; JMP (inline_target); .word target`. The hotspot
+  store preserves A and processor flags; the indirect pointer uses BANK0's
+  logical mirror, which resolves to the same low-twelve-bit table bytes in the
+  newly selected physical bank.
+* Emit the occupied table bytes identically at the same physical offset in all
+  banks. Deduplicate equal target/hotspot pairs, insert fill when an inline
+  target word would begin at page offset `$FF` and trigger the NMOS indirect-
+  JMP wrap bug, diagnose corridor exhaustion, and report reserved, occupied,
+  replicated, and per-entry costs in the linker map.
+* Keep direct cross-bank JSR rejected with its specific pending diagnostic.
+  Detailed roadmap item 6 is next: JSR-to-indirect-JMP call entries, synthetic
+  return addresses, source-bank return stubs, and weighted hardware-stack
+  accounting.
+* Expand assembler, linker, test, source-hygiene, and detailed banking
+  documentation. Tests lock exact F8 entry bytes, source-bank mirror patching,
+  target deduplication, byte-identical replication, map output, corridor and
+  vector overlap diagnostics, and exhaustion.
+* Verification: all 341 compile-only tests pass. All 206 end-to-end/generic
+  tests pass (the first run reached 122 before the outer timeout; the remaining
+  84 passed in deterministic groups of 40, 22, and 22). Focused bank image,
+  reset bridge, relocation/trampoline, and source-hygiene tests pass, and staged
+  `make installcheck` passes.
+
+2026-08-01 20:02:55 PDT, add cross-bank JSR trampolines and weighted hardware-stack sizing
+--------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 6. Proven direct cross-bank JSR
+  relocations now target a source-aware fifteen-byte entry in the same byte-
+  identical common table used by direct cross-bank JMP. Each entry is
+  `JSR body; STA source_hotspot; RTS; STA destination_hotspot;
+  JMP (inline_target); .word target`.
+* Use the entry's internal JSR to create the synthetic return address without
+  clobbering A, X, Y, or processor flags. The destination function's RTS
+  reaches the identical source-bank restore stub; its hotspot store restores
+  the caller's bank while preserving A and flags, and its final RTS consumes
+  the original call-site return address. Nested BANK0 -> BANK1 -> BANK0 calls
+  restore banks and hardware-stack frames in LIFO order.
+* Deduplicate JSR entries by source hotspot, destination hotspot, and final
+  target. Keep direct-JMP entries deduplicated by destination and target.
+  Report separate JMP/JSR counts and entry sizes, source and destination bank
+  identities, occupied bytes, and replicated cost. Insert identical fill
+  padding when either inline pointer would begin at page offset `$FF`, avoiding
+  the NMOS indirect-JMP page-wrap bug.
+* Extend call-graph stack sizing for statically configured banked functions.
+  Preserve the ordinary source-function depth, compute a weighted hardware-
+  return depth which adds one slot for every simultaneously active cross-bank
+  edge, and reserve two bytes per weighted slot. Export and map
+  `__call_stack_weighted_depth` and `__call_stack_bank_extra_slots`; calls hidden
+  from compiler metadata continue to require `callstack_extra`.
+* Expand `test/linker_banked_relocation_validation.pl` with exact replicated
+  JSR bytes, source-mirror patching, a nested execution model which proves A
+  preservation and balanced returns, and explicit page-wrap padding. Add
+  `test/linker_banked_jsr_callstack.pl` for a compiled BANK0 -> BANK1 -> BANK0
+  call graph and exact weighted RAM reservation. Update linker, test,
+  source-hygiene, and detailed bankswitching documentation. Roadmap item 7,
+  deterministic automatic bank placement with hard pins, is next.
+* Verification: all 341 compile-only tests pass. All 207 end-to-end/generic
+  tests pass, completed as the first 164 tests followed by the remaining 43 in
+  deterministic groups of 27 and 16 after outer command time limits. Focused
+  bank image, reset bridge, relocation/JSR, weighted-stack, and source-hygiene
+  tests pass. Staged `make installcheck` passes.

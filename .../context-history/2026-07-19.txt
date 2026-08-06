@@ -1,0 +1,317 @@
+VCSC CONTEXT HISTORY — 2026-07-19
+=================================
+
+Historical development entries for 2026-07-19, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-19 00:00:00 PDT, make VCS 4K layout the driver default
+* Removed `n65ld`'s compiled-in generic memory map. Direct linker invocation
+  now requires `-T FILE`, `--script=FILE`, or a positional `.cfg` and emits a
+  focused diagnostic when no script is supplied.
+* Extended `n65cc` path discovery to locate `libraries/vcs/vcs_4k.cfg` in the
+  source tree or `share/vcs/vcs_4k.cfg` beside an installed toolchain. The
+  driver always passes an explicit script, using the user-supplied `-T` when
+  present and the bundled VCS 4K layout otherwise.
+* Added `test/generic_6502.cfg` as an explicit test-only layout for retained
+  generic compiler/linker/simulator regressions. The production toolchain no
+  longer preserves a generic target by accident.
+* Added regressions for the driver's default VCS script and the linker's
+  script-required error. Updated both cartridge regressions and both example
+  Makefiles to omit `-T`, proving the default path in real 4096-byte builds.
+* Updated staged installation to build the solid-color cartridge through the
+  installed driver and installed `share/vcs/vcs_4k.cfg`.
+* Passed 227/227 compile tests, 101/101 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, and the staged install check.
+* Added three test files and removed no files; remove.txt remains at 487 unique
+  cumulative paths. Task 16e is complete; task 17 is next.
+
+2026-07-19 07:11:04 PDT, add packed-BCD integer family
+* Added `$bcd` as an unsigned one-, two-, or three-byte scalar type flag and
+  defined stock `bcd8_t`, `bcd16_t`, and `bcd24_t` types for two-, four-, and
+  six-digit packed decimal values. The three-byte type is a deliberate
+  Atari-specific decimal exception, not restored generic 24-bit binary math.
+* Added one numeric literal encoder for static initializers, automatic
+  initializers, runtime assignments, aggregate/array elements, typed constants,
+  and fixed arguments. Decimal `42`, hexadecimal `0x2a`, octal `052`, and binary
+  `0b101010` all become packed byte `$42`; multibyte values use least-significant
+  decimal pairs first. Range diagnostics enforce 0..99, 0..9999, and 0..999999.
+* Added tightly scoped decimal-mode lowering for BCD `ADC`/`SBC` chains,
+  including `+`, `-`, `+=`, `-=`, and valued/discarded `++`/`--`. Generated code
+  executes `CLD` immediately after each operation; an execution regression
+  verifies the following ordinary binary addition remains binary.
+* Added BCD-aware assignment, widening/truncation, comparisons, truth tests,
+  switch lowering, parameters, `bcd8_t`/`bcd16_t` returns, and ABI fingerprints.
+  Rejected signed/pointer/invalid-width BCD declarations, BCD bitfields,
+  multiply/divide/remainder, bitwise operations, shifts, unary minus, runtime
+  BCD/binary representation changes, and `bcd24_t` returns.
+* Fixed the inherited direct-copy assignment shortcut so `old := value++` and
+  its decrement/prefix variants preserve the source side effect; added an
+  ordinary-binary end-to-end regression in addition to BCD coverage.
+* Added 27 runnable BCD-specific tests plus the generic inc/dec assignment
+  regression, and extended the native VCS header smoke test to exercise the
+  stock BCD declaration. Passed 250/250 compile tests, 106/106 end-to-end and
+  generic tests, the staged install check, both exact 4096-byte cartridge
+  regressions, and an installed-toolchain BCD cartridge smoke build.
+* Documented representation, literal semantics, supported operations, decimal
+  mode invariants, conversion boundaries, and the A:X return limitation. No
+  files were removed; remove.txt remains at 487 cumulative paths, and the
+  retained legacy BASIC trees were untouched.
+
+2026-07-19 07:40:01 PDT, preserve valued increment/decrement side effects in all shortcut paths
+* Confirmed the ordinary assignment bug fixed during BCD work was not the only
+  inherited variant. Compact one-byte comparisons could compare `value++`
+  correctly while silently skipping the increment; direct byte copies into an
+  absolute ref and the optimized one-byte array-index path could do the same.
+* Changed reference-lvalue classification so valued prefix/postfix increment and
+  decrement expressions are not considered lvalues. This centrally forces
+  side-effecting expressions through normal lowering instead of direct-copy or
+  direct-index shortcuts.
+* Added an explicit compact-comparison guard as defense in depth and made `ref`
+  parameter calls reject `value++`/`value--` as non-lvalue arguments.
+* Added `e2e_incdec_valued_storage_matrix_verify.n`, covering all four valued
+  forms across globals, zero page, locals, function statics, 8/16-bit values,
+  arrays, indirect lvalues, bitfields, absolute refs, nested arithmetic,
+  function arguments/returns, comparisons, truth tests, and byte/word pointers.
+* Added `ref_parameter_incdec_error_test.n` for the corrected lvalue diagnostic.
+* Passed 251/251 compile tests, 107/107 end-to-end/generic tests, and the staged
+  installation check. No files were removed; remove.txt remains at 487 unique
+  cumulative paths, and the retained legacy BASIC trees were untouched.
+
+2026-07-19 09:04:39 PDT, complete hard VCSC project and toolchain rename
+* Renamed the public driver and companion binaries to `vcsc`, `vcsc-cc1`,
+  `vcsc-as`, `vcsc-ld`, `vcsc-ar`, and `vcsc-sim`; renamed their implementation
+  files without trying to use executable hyphens as C identifiers.
+* Renamed all 347 language sources from `.n` to `.c26`, changed driver and test
+  discovery accordingly, and renamed the production runtime from
+  `libraries/nlib` to `libraries/runtime` with `libvcsc.l26`,
+  `vcsc-runtime.inc`, `vcsc-rt0.s`, and `vcsc-zeropage.s`.
+* Renamed generated compiler/runtime symbols from the obsolete N prefixes to
+  `__vcsc_*` and `_vcsc_*`, changed the default installation prefix to
+  `/opt/vcsc`, and changed the archive signature to the intentionally
+  incompatible seven-byte `VCSL26\x01` magic. No old-command wrappers or archive
+  compatibility path remains.
+* Added the canonical lowercase `vcsc` FIGlet Standard banner to all 22
+  maintained Markdown, text, and Doxygen documentation files. Legal license
+  texts and machine-readable `remove.txt` remain unbannered.
+* Added a hard-rename regression that rejects stale `.n`, n65, and nlib artifacts,
+  verifies all documentation banners and archive magic, and requires both
+  retained legacy BASIC renderer families.
+* Added 374 renamed old paths to `remove.txt`; it now contains 861 unique
+  cumulative paths. Added two branding-regression files and deliberately did
+  not remove or translate any legacy renderer source.
+* Passed 251/251 compile tests and 108/108 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, and the staged installation check.
+
+2026-07-19 11:55:11 PDT, replace register returns with callee-owned memory
+* Replaced the A:X scalar/pointer return ABI with exact-sized hidden
+  `function$__return` zero-page objects owned by each value-returning function.
+  One- and two-byte binary values, pointers, and one-, two-, or three-byte BCD
+  values now use the same memory-backed mechanism.
+* Changed value epilogues to plain `RTS`; callers restore the frame pointer
+  normally and consume the callee return object directly instead of preserving,
+  spilling, or reconstructing A:X. Ignored results do not import or copy the
+  hidden object.
+* Exported non-static return objects and imported them only when an external
+  call's value is consumed, so separately compiled functions follow the same
+  ABI without creating unnecessary cross-object references. Static functions
+  retain private return objects.
+* Changed ABI metadata from `return_ax` to `return_memory` and updated compiler,
+  runtime, and ABI documentation. Added same-translation-unit and
+  cross-translation-unit `bcd24_t` return execution tests, plus code-generation
+  tests for static, external, ignored, one-byte, and two-byte return cases.
+* Added scalar-width roadmap task 18 before the retained legacy BASIC conversion
+  inventory: generalize one- through four-byte scalar machinery, then add
+  `int24_t`/`uint24_t`, `int32_t`/`uint32_t`, and `bcd32_t`. Marked memory returns
+  complete as task 18a and left legacy renderer conversion as task 19.
+* Updated the main README to identify VCSC as the Atari-focused child of the N
+  parent project and link `https://github.com/GorillaSapiens/n`.
+* Passed 254/254 compile tests, 110/110 end-to-end/generic tests, both exact
+  4096-byte cartridge regressions, the staged installation check, and an
+  installed-toolchain 4096-byte cartridge using a returned `bcd24_t`. Added six
+  superseded test paths to `remove.txt`, which now contains 867 unique cumulative
+  paths. The retained legacy BASIC trees were untouched.
+
+2026-07-19 12:20:05 PDT, remove inherited runtime frame pointer
+* Replaced runtime scratch-base redirection with a compile-time active-lease
+  stack. Scratch helpers now address the selected linker-resolved
+  `__vcsc_scratch_N` symbol directly and prepare `ptr0`/`ptr1` only for dynamic
+  or offsets beyond the direct indexed range.
+* Removed `_vcsc_fp` from the zero-page runtime workspace, startup initialization,
+  assembler include aliases, compiler reserved names, peephole scratch tracking,
+  and ordinary call lowering. Deleted `libraries/runtime/asm/fp2ptr.asm` and the
+  generated helper family.
+* Removed frame-pointer save/restore around argument evaluation and JSR. Ordinary
+  generated calls now use only the hardware stack's two-byte return address, so
+  call-graph RAM reservation changed from four bytes to two bytes per linked
+  source call depth. Images with runtime initializer functions add one fixed
+  two-byte allowance for startup's preserved init-table cursor.
+* Reclaimed two bytes of RIOT RAM from the stock runtime workspace, now 16 bytes.
+  Updated VCS map expectations: the two-deep 4K example reserves $FC-$FF and the
+  three-deep Ode example reserves $FA-$FF.
+* Renamed compiler helper APIs and stale comments from fp-relative terminology to
+  direct scratch terminology. The ordinary source identifier `fp` is legal again.
+* Added `fp_removed.test`, which compiles an `fp` variable, checks direct static
+  scratch addressing and push-free calls, scans runtime/linker sources, and
+  verifies the rebuilt archive contains no fp helper.
+* Passed 254/254 compile tests and 112/112 end-to-end/generic tests. The staged
+  installation check and both exact 4096-byte cartridge regressions passed.
+  Added two removed paths to `remove.txt`, now 869 unique cumulative paths. The
+  retained legacy BASIC trees were unchanged.
+
+End-of-session checklist
+------------------------
+Before returning another modified archive:
+
+[x] Update this file and the TODO ordering.
+[x] Record every changed, added, and intentionally removed source/test file.
+[x] Keep remove.txt synchronized with intentional removals.
+[x] Record exact build/test totals and any known failures.
+[x] Run make clean and remove test-runner scratch before packaging.
+[x] Repack with the same archive-root layout.
+
+2026-07-19 13:24:33 PDT, complete scalar-width generalization task 18c
+-----------------------------------------------------------------------
+* Allow ordinary signed and unsigned little-endian integer type declarations
+  from one through four bytes while leaving the stock public names unchanged.
+* Generalize function-return validation and hidden return objects through four
+  bytes.
+* Raise literal-width analysis to 32 bits so typed 24/32-bit contexts can encode
+  full-width constants.
+* Keep add/subtract inline and width-looped; verify comparison, bitwise, shifts,
+  compound assignment, increment/decrement, multiplication, division, remainder,
+  extension/truncation, parameters, returns, and constant folding end to end.
+* Expand the archive-selected division helper's private dividend copy from two
+  bytes to four.
+* Retain rejection of four-byte packed BCD until task 18f.
+* Add focused 24/32-bit declaration tests, mixed-signedness rejection, and the
+  `e2e_wide_scalar_core.c26` execution regression.
+
+2026-07-19 14:16:00 PDT, add first-class 24-bit binary integer types
+------------------------------------------------------------------------
+* Add canonical `int24_t` and `uint24_t` declarations to the stock VCS interface
+  and the isolated compiler-test machine fixture.
+* Preserve VCSC's established width-sized literal semantics: three-byte high-bit
+  patterns remain legal, while magnitudes requiring a fourth byte are rejected.
+* Fix negative runtime literal initialization so values such as `int24_t x := -2`
+  are encoded through the signed initializer path instead of the unsigned text
+  parser.
+* Add focused literal-layout, width-overflow, mixed-signedness, same-TU execution,
+  and cross-translation-unit three-byte memory-return regressions. Extend the VCS
+  installed-header smoke program to exercise both new stock names.
+* Document three-byte ranges, little-endian layout, promotion/cast behavior,
+  parameters, and returns throughout the public and compiler documentation.
+* Pass 260/260 compile tests and 115/115 end-to-end/generic tests. The staged
+  install check builds exact 4096-byte cartridges with the installed VCS headers.
+  `remove.txt` remains at 871 unique cumulative paths, and the retained legacy
+  Basic trees are unchanged.
+
+2026-07-19 15:03:14 PDT, clean peephole unit-test temporaries
+------------------------------------------------------------------------
+* Reproduced that `test/peephole_unit.pl` left
+  `/tmp/VCSC_peephole_unit_<pid>` behind after every successful run because the
+  harness manually created the directory and then replaced Perl with the test
+  binary via `exec`.
+* Use `File::Temp::tempdir(..., TMPDIR => 1, CLEANUP => 1)` and run the compiled
+  child with status-preserving `system()` instead. Cleanup now runs on success,
+  compile failure, test failure, and catchable child signals.
+* Add `peephole_temp_cleanup.test`, which runs the harness under an isolated
+  TMPDIR and rejects any surviving `VCSC_peephole_unit_*` directory.
+* Pass 261/261 compile tests and all 115/115 end-to-end/generic tests. The e2e
+  suite was completed with its final four cases after the execution wrapper
+  timed out at 111 passes. The staged installation check and exact 4096-byte
+  installed-toolchain cartridge builds also passed. `remove.txt` remains at 871
+  unique paths, and the retained legacy BASIC trees are unchanged.
+
+2026-07-19 16:10:12 PDT, add first-class 32-bit binary integer types
+------------------------------------------------------------------------
+* Add canonical `int32_t` and `uint32_t` declarations to
+  `libraries/vcs/vcs.c26` and `test/machine_6502.c26` while keeping pointers
+  16-bit.
+* Extend `test/vcs_headers_smoke_test.c26` so the staged installed toolchain
+  compiles ordinary 24- and 32-bit values together.
+* Add `int32_stock_literals_codegen_test.c26`,
+  `int32_positive_literal_width_error_test.c26`,
+  `int32_negative_literal_width_error_test.c26`,
+  `uint32_literal_width_error_test.c26`, and
+  `int32_mixed_signed_error_test.c26`.
+* Add `e2e_int32_stock_types_verify.c26` and the
+  `e2e_int32_memory_return_cross_tu_verify.c26`/`__def.c26` pair. Coverage
+  includes exact little-endian literal layout, signed/unsigned limits,
+  fifth-byte rejection, widening, arithmetic, comparisons, signed shifts,
+  multiply/divide/remainder, and same- and cross-object four-byte returns.
+* Update `README.md`, `compiler/README.md`, `compiler/ABI.txt`,
+  `libraries/vcs/README.md`, `NOTES.md`, and this durable context so the stock
+  ordinary family now spans 8, 16, 24, and 32 bits.
+* Pass 266/266 compile tests and 117/117 end-to-end/generic tests. The staged
+  install check builds exact 4096-byte cartridges with the installed VCS
+  headers. `remove.txt` remains at 871 unique paths, and the retained legacy
+  Basic trees are unchanged.
+
+2026-07-19 16:28:50 PDT, add first-class eight-digit packed BCD
+------------------------------------------------------------------------
+* Add canonical `bcd32_t` declarations to `libraries/vcs/vcs.c26` and the
+  generic compiler-test machine fixture. `$bcd` now accepts unsigned
+  little-endian integer widths from one through four bytes.
+* Extend function-return validation and documentation so four-byte packed BCD
+  uses the existing exact-sized callee-owned memory-return ABI.
+* Verify numeric literal packing across decimal, hexadecimal, octal, and binary
+  spellings. `12345678` stores as `$78,$56,$34,$12`; the legal range is
+  0..99999999, and 100000000 is rejected.
+* Add focused compile and execution coverage for static and automatic
+  initialization, assignments, arrays, structs, parameters, same- and
+  cross-translation-unit returns, carry/borrow across all four bytes, decimal
+  wraparound, cross-width BCD operations, comparisons, truth tests, and CLD
+  restoration before following binary arithmetic.
+* Extend the installed-header smoke cartridge and the raw return-memory encoding
+  test to exercise `bcd32_t`.
+* Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
+  install check builds both exact 4096-byte cartridges. `remove.txt` remains at
+  871 unique paths, and the retained legacy BASIC trees are unchanged.
+
+2026-07-19 17:43:50 PDT, inventory legacy renderers and improve example colors
+------------------------------------------------------------------------
+* Inventory the retained standard and multisprite legacy BASIC source in
+  `libraries/vcs/LEGACY_RENDERER_CONVERSION.md`: 29 source files and 5,471 lines
+  split across common, standard, and multisprite material. Record missing
+  generated/optional inputs, unofficial-opcode use, DASM syntax translation,
+  fixed RAM maps, hardware-stack manipulation, startup conflicts, assembly call
+  metadata gaps, and absent bank-aware linker support.
+* Conclude that conversion is feasible as separately assembled cycle-critical
+  renderers linked to VCSC game logic, not as a wholesale rewrite into C-like
+  statements. Queue a minimal unbanked 4K standard-renderer ABI profile before
+  mechanical source normalization; defer multisprite, Superchip, and banking.
+* Keep the complete vendored legacy BASIC subtree byte-for-byte unchanged and
+  make the branding regression require the maintained conversion report.
+* Change both cartridge examples from brown/orange TIA hue `$2x` backgrounds to
+  medium blue `$84`; the first example still computes the color through
+  `choose_background()`. Update both example READMEs.
+* Pass 268/268 compile tests and 121/121 end-to-end/generic tests. The staged
+  install check builds both exact 4096-byte cartridges. `remove.txt` remains at
+  871 unique paths, and the retained legacy BASIC subtree is byte-for-byte
+  unchanged.
+
+2026-07-19 19:15:32 PDT, add centered six-digit score example
+------------------------------------------------------------------------
+* Add `examples/03_six_digit_score`, an unbanked 4K NTSC cartridge with a
+  centered white six-digit score on TIA medium-blue `$84`. The score begins at
+  `123456` and increments as `bcd24_t` once every 20 frames.
+* Adapt only the retained legacy BASIC standard score mini-renderer. Keep game
+  state, frame cadence, pointer construction, and BCD arithmetic in VCSC while
+  preserving the cycle-counted TIA row pipeline in inline assembly.
+* Save and restore the hardware stack pointer around the renderer's deliberate
+  use of S as an extra graphics register. Emit no call or push while S is
+  borrowed, and assemble the two retained `LAX` instructions with
+  `-Wa,--illegals`.
+* Add `score_font.s` plus `fonts/default.inc`. The wrapper selects the active
+  80-byte font include; setup constructs six complete 16-bit glyph pointers,
+  including low-byte carry, so replacement fonts need no page alignment.
+* Add `vcs_six_digit_score.test` to verify exact 4096-byte output, vectors, RAM
+  and call-stack map, embedded font bytes, colors, centering line counts,
+  20-frame cadence, packed-BCD increment, pointer carry propagation, unofficial
+  opcodes, and safe stack-pointer bracketing. Extend staged installcheck to build
+  the example with installed tools and headers.
+* Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
+  installation check builds all required exact 4096-byte cartridges.
+  `remove.txt` remains at 871 unique paths, and the retained legacy BASIC subtree
+  is byte-for-byte unchanged.

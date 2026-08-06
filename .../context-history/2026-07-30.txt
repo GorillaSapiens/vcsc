@@ -1,0 +1,282 @@
+VCSC CONTEXT HISTORY — 2026-07-30
+=================================
+
+Historical development entries for 2026-07-30, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-30 09:27:00 PDT, refocus the top-level README on the whole toolchain
+----------------------------------------------------------------------------
+* Rewrite the repository front page as a broad introduction to VCSC's purpose,
+  build flow, major tools, language model, target support, examples, installation,
+  testing, and documentation map.
+* Remove duplicated low-level descriptions of compiler builtins, debugger-sidecar
+  switches, assembler annotations, individual renderer profiles, diagnostic
+  components, and example-specific behavior from the top-level README. Keep those
+  details in the compiler, assembler, linker, VCS-library, renderer, and example
+  READMEs that own them.
+* Preserve a short quick-start path and links to the authoritative lower-level
+  manuals so the front page remains useful without becoming a second copy of
+  every subsystem reference.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-30 10:43:36 PDT, slow interactive score-control sampling to twenty frames
+---------------------------------------------------------------------------------
+* Change the right-joystick score controls in the faithful legacy and both scored
+  181-line interactive diagnostics to sample SWCHA once every twenty frames while
+  retaining the requirement for two consecutive matching samples before an action.
+  Initial qualification therefore takes forty frames, and a held stable direction
+  repeats every twenty frames.
+* Replace the former one-byte nibble-packed ten-frame state with separate
+  `right_joystick_countdown` and `right_joystick_previous` bytes. Initialize the
+  countdown to 19 and the previous sample to neutral (`0x0f`); RESET restores both
+  through the existing reset-vector path.
+* Update the interactive emulator harness, structural checks, leaf READMEs, and test
+  documentation for the forty-frame qualification and twenty-frame repeat cadence.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: the focused four-cartridge interactive harness passes. The full
+  compile-only suite passes 331/331. All 195 end-to-end/generic tests are
+  accounted for and pass; the first 174 passed before the outer command ceiling
+  and the remaining 21 passed explicitly.
+
+2026-07-30 11:03:00 PDT, unify the linker memory-usage report
+----------------------------------------------------------------
+* Replace the separate `CARTRIDGE ROM USAGE` and `RAM USAGE` headings with one
+  `MEMORY USAGE` heading. List cartridge, vector, zero-page, stack, and writable
+  RAM regions together in linker-script order while preserving each region's
+  existing occupancy details.
+* Make the map file use the same unified section and update the linker manual and
+  all output-normalization and exact-output regressions for the new format.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the first 174 completed before the outer
+  command ceiling and the remaining 21 passed explicitly. Staged
+  `make installcheck` also passes.
+
+2026-07-30 14:08:34 PDT, rebuild the all-five components from proven player-color rasters
+------------------------------------------------------------------------------------------
+* Replace the official 181-line and 192-line all-five visible pipelines with
+  derivatives of the known-good `player_color_181` and `player_color_192`
+  pipelines, adding timed M0 and M1 mask/enable updates while preserving the
+  complete P0/P1/Ball raster and every playfield row.
+* Use independent solid P0/P1 colors in the five-object components. The two
+  per-row color-load slots in the player-color pipelines are the exact cycle
+  slots needed for M1 and M0; retaining per-row colors would break the proven
+  official-opcode schedule.
+* Expand the public interface of both official all-five components with
+  independent P0/P1 NUSIZ and solid-color bytes. The 181-line component now
+  uses 23 public + 51 private = 74 RAM bytes with seven workspace and 43 mask
+  bytes; the 192-line component uses 23 public + 55 private = 78 RAM bytes with
+  six workspace and 48 mask bytes.
+* Preserve score-above and score-below composition for the 181-line component.
+  It positions M0/M1/Ball during VBLANK, restores P0/P1 state at visible entry,
+  and uses the explicit visible-component handoff between gameplay and score.
+  The 192-line scoreless component positions all five objects during VBLANK.
+* Rebuild the separately named unofficial 181-line twin from the new official
+  source. It now retains one reviewed zero-page unofficial NOP, no AXS sites,
+  the same 74-byte RAM layout, and the same 2081-byte linked ROM footprint as
+  the official smoke cartridge.
+* Strengthen the all-five regressions to reconstruct all 160 playfield pixels
+  on all sixteen scanlines of every one of the eleven or twelve rows, while
+  retaining exact frame, object-activity, score-composition, lifecycle, map,
+  and official/unofficial trace checks. Increase several renderer-test timeout
+  budgets to match their measured clean-build runtimes without relaxing any
+  behavioral assertion.
+* Update renderer source comments, lower-level READMEs, the component-conversion
+  baseline, unofficial-opcode history, VCS-library index, and test manual for
+  the new lineage, solid-color tradeoff, RAM contracts, and measured byte result.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass in explicit chunks. The staged installed
+  toolchain builds every maintained component and example; after the outer
+  command ceiling interrupted the monolithic `make installcheck` near its end,
+  the remaining checks completed successfully against the same staging tree.
+
+2026-07-30 17:56:34 PDT, eliminate modern-renderer right-edge object tearing
+-----------------------------------------------------------------------------
+* Leave the faithful legacy renderer unchanged; its retained display schedule
+  does not exhibit the reported right-edge one-scanline tear.
+* Repair the official 181-line and 192-line player-color components by staging
+  each pending P1 graphics byte in existing workspace and committing `GRP1`
+  during horizontal blanking. With `VDELP0` and `VDELBL` active, that safe
+  write also transfers the pending P0 and Ball graphics before the beam reaches
+  the visible right edge instead of exposing the next row in the final pixels
+  of the preceding scanline.
+* Remove the now-redundant private P0 color latch. The 181-line player-color
+  contract becomes 13 public + 51 private = 64 bytes; the 192-line contract
+  becomes 13 public + 56 private = 69 bytes. Update the matched unofficial
+  181-line twin from the repaired official source while retaining only its two
+  reviewed AXS sites and one zero-page unofficial NOP.
+* Apply the same scanline-boundary pipeline to the official 181-line and
+  192-line all-five components and the unofficial 181-line twin. Carry M0 and
+  M1 enable state across the boundary and commit `ENAM0`, `ENAM1`, and nonzero
+  `GRP1` values during horizontal blanking without changing the proven
+  playfield phases or total scanline schedule.
+* Strengthen the player-color trace oracles to reject nonzero gameplay `GRP1`
+  writes after horizontal blanking. Add the equivalent optional guard to the
+  all-five object harness for nonzero `GRP1` and active `ENAM0`/`ENAM1` writes,
+  including X=159 endpoint fixtures. Update RAM, ROM, renderer, conversion, and
+  test documentation for the repaired schedules and measured contracts.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before its outer command ceiling and the remaining 20 passed explicitly.
+  Staged `make installcheck` also passes. The legacy renderer and its tests are
+  unchanged.
+
+2026-07-30 18:58:00 PDT, close the extreme-right checkerboard tear
+------------------------------------------------------------------
+* Leave the faithful legacy renderer unchanged; the defect remains confined to
+  the modern 181-line and 192-line pipelines and their all-five descendants.
+* Correct the incomplete prior repair. Carry each pending P0 graphics byte and
+  color-table index across the scanline boundary, then commit both during
+  horizontal blanking. Move the compensating two-cycle pad to after the right
+  playfield writes so their proven phases remain unchanged. At row boundaries,
+  move the existing Ball-mask shift ahead of both active and inactive GRP1
+  writes, preserving the carry and total transition cycle count while forcing
+  even zero GRP1 transfers into horizontal blanking.
+* Apply the corresponding safe-boundary schedule to the official 181/192
+  all-five renderers and the unofficial 181-line twins. Require effective
+  missile enable-state changes, as well as all player graphics transfers, to
+  occur before the visible beam.
+* Add an explicit X=159 regression using alternating $AA/$55 checkerboard
+  players for both modern player-color heights. This exposes the one-bit row
+  swap that solid or nearly solid glyphs conceal. Strengthen the all-five
+  harness to reject late P0/P1 transfers and actual M0/M1 state changes, not
+  merely nonzero writes.
+* Keep the original 40/47 right-playfield phases, exact 181/192 visible heights,
+  per-row player colors, 262-line frames, and public/private RAM contracts.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 196 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 174
+  before the outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.
+
+2026-07-30 20:41:43 PDT, preserve chained-assignment values without rereading lvalues
+--------------------------------------------------------------------------
+* Correct simple assignment-expression lowering so the compiler evaluates the
+  right-hand side once into storage typed for the left-hand side, writes that
+  converted value to the lvalue, and forwards the same value to the enclosing
+  expression. Chained assignments no longer implement their value by reading
+  the just-written destination back.
+* Add direct preserved-value stores for simple absolute refs in both ordinary
+  and fixed-scratch assignment paths. This permits chains through write-only
+  VCS registers and split read/write refs while retaining the existing
+  read-only-ref diagnostics. Bitfield and braced assignment paths keep their
+  specialized handling.
+* Add a VCS regression covering chains through NUSIZ0, NUSIZ1, COLUP0, COLUP1,
+  HMCLR, and a synthetic split read/write ref, with explicit prohibitions on
+  reading any write-only or wrong-side address. Tighten existing assignment
+  and absolute-ref code-generation tests to reject destination readback and
+  unnecessary pointer setup.
+* Extend the runtime assignment-expression test with a narrowing chain to
+  verify that the outer assignment receives the value after conversion to the
+  inner lvalue type, rather than the unconverted source value.
+* Document assignment-expression value forwarding in the compiler and test
+  manuals.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 332/332 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before the outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.
+
+2026-07-30 20:59:05 PDT, diagnose misspelled targets inside chained assignments
+-------------------------------------------------------------------------------
+* Preserve the specific unresolved-identifier diagnostic when an assignment is
+  itself being compiled as the value of an enclosing expression. A misspelled
+  target inside a chain now reports `unknown identifier '<name>'` at that target
+  instead of allowing the failure to bubble out as the misleading outer
+  `invalid assignment value` diagnostic.
+* Add a VCS regression using the reported `COULUP1` misspelling inside
+  `HMCLR := COULUP1 := COLUP0 := 0x0e;`.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 175
+  before its outer command ceiling and the remaining 22 passed explicitly.
+  Staged `make installcheck` also passes.
+
+2026-07-30 22:03:14 PDT, repair 181-line non-player motion without aborting HMOVE
+---------------------------------------------------------------------------------
+* Revert the incorrect immediate-HMCLR repair. On real TIA hardware, strobing
+  HMCLR immediately after HMOVE interrupts the motion transaction that is still
+  in progress, which reduced M0/M1/Ball movement to broken coarse jumps or left
+  objects effectively stuck.
+* Keep the original VBLANK positioning HMOVE intact. After enough unrelated
+  VBLANK work has elapsed for that transaction to complete, clear HMBL directly
+  in both player-color 181 renderers, and clear HMM0, HMM1, and HMBL directly in
+  both all-five 181 renderers. The later visible-entry HMOVE now moves only P0
+  and P1, without reapplying non-player fine motion and without disturbing the
+  first HMOVE.
+* Strengthen the player-color and all-five composition oracles to reject both
+  bad sequences: an HMCLR within eight CPU cycles of the first non-player HMOVE,
+  and any later HMOVE reached while a non-player fine-motion register is still
+  nonzero.
+* Validate the hardware-visible result with headless Stella 7.0 slow-motion
+  diagnostics. The original score-below code advanced M0/M1/Ball in repeated
+  two-pixel steps with 15-pixel backward jumps at coarse boundaries; the
+  immediate-HMCLR version left them stuck in coarse 15-pixel positions. The new
+  code advances all three objects smoothly one pixel at a time in both score
+  orders. The player-color Ball shows the same corrected one-pixel sequence.
+* Update renderer and test documentation and the measured player-color
+  official/unofficial smoke sizes (1783/1781 bytes). No files were removed;
+  .top_secret/remove.txt is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests pass (174 completed before the monolithic command ceiling, then the
+  remaining 23 passed explicitly). Staged `make installcheck` also passes.
+
+2026-07-30 22:27:35 PDT, add public examples for both unofficial 181-line renderers
+----------------------------------------------------------------------------------
+* Confirm that the separately named `player_color_181_unofficial` and
+  `all_five_181_unofficial` renderers are the reviewed stable/common-NMOS
+  unofficial-opcode twins of the official 181-line renderers. They are not
+  hidden build modes; cartridges select them by their explicit template paths
+  and must pass `-Wa,--illegals`.
+* Add `examples/07_player_color_181_unofficial/` with direct interactive
+  score-above and score-below twins of the official P0/P1/Ball examples. Add
+  `examples/08_all_five_181_unofficial/` with direct interactive score-above and
+  score-below twins exposing P0/P1/M0/M1/Ball. Keep the source, target, template,
+  and directory names explicit about the unofficial renderer in every case.
+* Give every new leaf its own Makefile and README. The Makefiles name the
+  unofficial renderer dependency and pass `-Wa,--illegals`; the examples retain
+  the official twins' controls, initial scenes, score composition, reset path,
+  and complete 192-line visible field.
+* Extend the player-color and all-five interactive example matrices to execute
+  both unofficial score orders under the existing frame, control, score,
+  endpoint, motion, and reset harnesses. Update the recursively discovered
+  example-build test so unofficial example names automatically select the
+  assembler's unofficial-opcode table.
+* Extend staged installation checks to build all four new cartridges against
+  the installed renderer files. Refresh the public example index and VCS and
+  renderer documentation to list groups 05 through 08 and make the official
+  versus unofficial opcode policy visible.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 333/333 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the monolithic run completed the first 174
+  before its outer command ceiling and the remaining 23 passed explicitly.
+  Both expanded interactive example matrices and the recursive example build
+  pass directly. Staged `make installcheck` also passes.
+
+2026-07-30 23:05:13 PDT, eliminate nested scratch from chained assignments
+--------------------------------------------------------------------------
+* Replace recursive simple-assignment-chain lowering with a flattened path.
+  The rightmost expression is evaluated once, then one converted value is
+  stored from the innermost target outward. Wider/general chains use one shared
+  fixed scratch object for the whole chain instead of allocating and copying
+  through one scratch object per assignment level.
+* Add an accumulator-only fast path for discarded chains whose targets and
+  source are directly addressable one-byte values. Constants are loaded once
+  into A and direct lvalue sources are loaded once; each following STA preserves
+  A for the next target. The reported TIA chains now contain no compiler scratch,
+  no Y setup, and no destination readback.
+* Add shared direct-byte lvalue load/store helpers and a preserved-symbol-to-
+  lvalue copy helper so assignment lowering uses direct fixed-symbol accesses
+  rather than unnecessary ptr0/ptr1 setup.
+* Tighten the write-only TIA chain regression to reject all compiler scratch and
+  Y instructions. Add a wider three-target regression that requires one shared
+  scratch object and rejects nested scratch and pointer setup. Update compiler
+  and test documentation for both lowering paths.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass; the combined run completed 174 before its
+  outer command ceiling and the remaining 23 passed explicitly. Staged
+  `make installcheck` also passes.

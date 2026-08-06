@@ -1,0 +1,287 @@
+VCSC CONTEXT HISTORY — 2026-07-17
+=================================
+
+Historical development entries for 2026-07-17, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-17 00:21:13 PDT, floating-point purge
+* Removed floating-point literal AST/constant handling, type-style handling,
+  code generation, initializer packing, comparison/arithmetic lowering, and
+  compiler float implementation files.
+* The lexer rejects floating-point literals and type declarations reject
+  `$float`/`$float:*` with direct diagnostics.
+* Removed the complete `libraries/float` runtime and its build/install wiring.
+* Removed automatic float-runtime discovery/linking from `n65cc` and the test
+  harness.
+* Removed float declarations from the generic, VCS, and test machine definitions.
+* Removed the dead 2 MB `libraries/nlib/genasm.pl` float bundle generator.
+* Deleted obsolete positive float tests and rewrote broad fixtures whose actual
+  purpose remains useful.
+* Added focused rejection tests for floating-point types and literals.
+* Removed 152 files in this revision; remove.txt now contains 373 cumulative paths.
+* Passed 241/241 compile tests and 101/101 end-to-end/generic tests.
+
+2026-07-17 08:40:47 PDT, big/mixed-endian purge
+* Removed target-endian selection from type promotion, conversion, expression
+  lowering, lvalue addressing, initializers, return handling, overload ranking,
+  and ABI fingerprints.
+* Target integers, pointers, constants, and runtime values are now
+  unconditionally little-endian.
+* Removed 37 big-endian procedures from the nlib assembly templates; the rebuilt
+  archive has no big-endian helper members.
+* `$endian:big`, `($big)`, and `($little)` remain only as direct rejection
+  diagnostics. `$endian:little` remains accepted temporarily by the general type
+  declaration syntax but carries no selectable ABI state.
+* Removed 24 obsolete positive endian tests and added three direct rejection
+  tests. remove.txt now contains 397 cumulative paths.
+* Passed 224/224 compile tests and 97/97 end-to-end/generic tests; final clean
+  E2E validation ran as 49-case and 48-case chunks.
+
+2026-07-17 09:10:37 PDT, 24/32/64-bit target-integer purge
+* Enforced exactly one- or two-byte target integer declarations and two-byte
+  pointers; untyped literals larger than 16 bits are rejected.
+* Added canonical int8_t, uint8_t, int16_t, and uint16_t definitions to the
+  generic, VCS, and test machine files.
+* Removed wide add/subtract/increment lowering and deleted their now-dead nlib
+  assembly sources.
+* Removed PetiteFFS because it requires a 32-bit DWORD model.
+* Removed 20 obsolete positive wide-integer tests, rewrote useful broad tests to
+  legal widths, and added four direct rejection tests.
+* Fixed pointer-pointer subtraction to produce the signed `int16_t` difference type
+  rather than incorrectly inheriting the pointee type.
+* remove.txt now contains 447 cumulative paths.
+* Passed 217/217 compile tests and 88/88 end-to-end/generic tests.
+
+2026-07-17 10:09:27 PDT, canonical four-type interface
+* Replaced target-language uses of transitional `bool`, `char`, and `int` with
+  `uint8_t`, `int8_t`, and `int16_t`. The stock generic, VCS, and test machine
+  definitions now expose only int8_t, uint8_t, int16_t, and uint16_t.
+* Removed the compiler's special boolean-type requirement and semantics.
+  Comparisons and logical expressions now produce an ordinary uint8_t.
+* Added direct rejection tests for legacy bool, char, and int declarations and
+  canonical-type ABI/code-generation coverage.
+* Renamed retained tests whose filenames encoded legacy type names and listed
+  every old pathname in remove.txt. remove.txt now has 458 cumulative paths.
+* Passed 217/217 compile tests and 88/88 end-to-end/generic tests.
+* Deferred the project/toolchain rename to `vcsc` until after functional
+  reduction; recorded the tagline "a brutally pared-down Atari VCS C-like
+  compiler" as the final task-list item.
+
+2026-07-17 10:43:22 PDT, typedef aliases, ROM strings, and first 4K cartridge
+* Added simple transparent `typedef ExistingType Alias;` declarations. `int`,
+  `char`, and `bool` are ordinary identifiers and may be aliases rather than
+  built-ins.
+* Moved pointer-backed string literals from DATA/RAM to RODATA/ROM and covered
+  `uint8_t *string := "Hello, World!\n"` end to end.
+* Added flat `.bin` output to n65ld; internal holes are filled with $FF.
+* Corrected vcs.n/riot.n so source-level memory declarations expose only
+  $80-$DF and do not double-count the page-1 stack mirror.
+* Added examples/01_solid_color/solid_color.n, a complete 262-scanline unbanked cartridge
+  using a static-frame function call during initialization.
+* Added an automated cartridge test for exact 4096-byte size, reset prefix,
+  vectors, map bounds, and function symbols.
+* Removed three obsolete permanent-rejection tests for int/char/bool and listed
+  them in remove.txt; remove.txt now has 461 cumulative paths.
+* Passed 215/215 compile tests and 90/90 end-to-end/generic tests.
+
+2026-07-17 10:56:32 PDT, changelog timestamp backfill
+* Added exact local timestamps to every existing changelog entry.
+* Standardized changelog ordering as newest first and timestamp format as
+  `YYYY-MM-DD HH:MM:SS PDT`.
+* Backfilled times from the `context.txt` modification timestamp stored in each
+  corresponding released tarball; these record release-completion time, not the
+  instant each individual edit was made.
+* No source, test, build, or removal-list changes.
+
+2026-07-17 11:36:20 PDT, opcode-aware inline-asm refs
+* Inserted completed task 14 before functional reduction and renumbered the
+  later functional-reduction and project-rename tasks to 15 and 16.
+* Inline assembly now resolves absolute `ref` source names according to opcode
+  operand access: reads use the read address, stores use the write address, and
+  read-modify-write instructions require identical non-`none` addresses.
+* Rejected read-from-`none`, write-to-`none`, split-address read-modify-write,
+  noncanonical address uses, and ref operands under unknown opcode semantics.
+  There are no warning/fallback footguns.
+* Kept assembler-local `@labels` distinct from source ref identifiers.
+* Updated examples/01_solid_color/solid_color.n to use VSYNC, VBLANK, and WSYNC
+  names in its inline renderer instead of raw TIA addresses; updated the cartridge
+  regression and VCS documentation for the user-renamed example directory.
+* Added five focused compile/code-generation tests.
+* Reversed the changelog to chronological order; future entries append at the
+  bottom.
+* Passed 220/220 compile tests and 90/90 end-to-end/generic tests; the cartridge
+  remains exactly 4096 bytes.
+* No files were removed; remove.txt remains at 461 cumulative paths.
+
+2026-07-17 12:16:30 PDT, NTSC sound aliases and Ode to Joy cartridge
+* Added `libraries/vcs/sound_ntsc.n` with named TIA control, NTSC lead-voice
+  frequency, volume, and frame-duration aliases.
+* Added `examples/02_ode_to_joy`, a complete unbanked 4K cartridge that repeats
+  the opening phrase of Beethoven's Ode to Joy on TIA audio channel 0.
+* Stored the 16-step score as a 64-byte const ROM array of `MusicStep` structs
+  containing volume, frequency, control, and timing values.
+* Added `music_tick()`, called immediately before the frame-loop jump, to count
+  frames, advance or wrap the score index, and apply AUDV0/AUDF0/AUDC0 values.
+* Used symbolic VSYNC, VBLANK, and WSYNC names in the inline renderer so the new
+  example also exercises opcode-aware inline-assembly ref resolution.
+* Added a cartridge regression for exact ROM size, vectors, RAM map, score
+  bytes/RODATA placement, player symbols, call placement, and channel writes.
+* Passed 220/220 compile tests and 91/91 end-to-end/generic tests; both examples
+  build as exact 4096-byte cartridges.
+* No files were removed; remove.txt remains at 461 cumulative paths.
+
+2026-07-17 13:19:16 PDT, stable NTSC timer budget for Ode to Joy
+* Diagnosed the 290-line `PAL*` output: the original `music_tick()` ran outside
+  the 262 explicit WSYNC lines, so its variable execution time lengthened every
+  frame.
+* Expanded the ROM score to 32 four-byte steps (128 bytes), inserting a
+  two-frame `MUSIC_TIME_GAP` after every musical/rest step so repeated notes are
+  articulated without another RAM-hungry indexed expression.
+* Retained the C-like const array of `MusicStep` structs but moved the
+  cycle-critical player into `examples/02_ode_to_joy/music_player.s`; the
+  compiler's current general indexed-struct lowering cannot fit inside a
+  30-scanline overscan budget.
+* Started TIM64T at 35 on entry to overscan, ran `music_tick()` while it counted
+  down, waited for INTIM to reach zero, and used a final WSYNC to align the next
+  VSYNC to a scanline boundary.
+* Added a minimal VCS timing harness around the repository's 6502 core. It
+  verifies VSYNC spacing, WSYNC stalls, RIOT timer completion, and both silent
+  and sounding channel-0 updates across ordinary, note-change, gap, and wrap
+  paths.
+* Verified 1497 consecutive complete frames at exactly 262 scanlines in a
+  1500-VSYNC run with no timer overrun; both examples remain exact 4096-byte
+  cartridges.
+* Reduced the Ode RAM high-water mark from $D8 to $A1 by avoiding permanent
+  fixed scratch for the cycle-critical indexed-struct player.
+* Passed 220/220 compile tests and 91/91 end-to-end/generic tests.
+* No files were removed; remove.txt remains at 461 cumulative paths.
+
+2026-07-17 13:27:51 PDT, source-level music player acceptance gate
+* Recorded the companion assembly music player as a temporary diagnostic
+  workaround rather than an acceptable endpoint for the compiler.
+* Inserted a new task 15 before broad functional reduction: compile the complete
+  Ode to Joy `music_tick()` from the C-like source while retaining the const ROM
+  array of structs, fitting the VCS RAM map, and meeting the fixed 30-line
+  overscan deadline on ordinary, transition, gap, and wrap paths.
+* Made efficient scratch lifetime/overlay, indexed array-of-struct lowering,
+  repeated-address reuse, and compact 8-bit increment/comparison generation
+  explicit compiler acceptance requirements rather than program-specific
+  special cases.
+* Renumbered broad functional reduction to task 16 and the final `vcsc` rename
+  to task 17.
+* Documentation only; no source, tests, build files, or remove.txt paths changed.
+
+2026-07-17 13:53:58 PDT, call-graph stack sizing and source-level music player
+* Replaced the fixed 32-byte VCS hardware-stack partition with linker-side
+  whole-program call-graph sizing. A `callstack = callgraph` MEMORY region is
+  shortened from the top by four bytes per maximum function level: two return
+  bytes plus the compiler's known two-byte fp-preservation allowance.
+* Added map output and generated symbols for call-stack depth, size, start, and
+  top; added a four-level depth regression and updated VCS overflow/map tests.
+* Documented that inline-assembly pushes/calls and stack use hidden inside
+  separately assembled routines are not yet included.
+* Replaced the Ode companion assembly player with source-level
+  `music_tick()`/`music_apply_current()`. The player retains a pointer to the
+  current ROM `MusicStep`, advances or wraps it once per expired step, and
+  updates TIA channel 0 from ordinary C-like code.
+* Verified the source player fits: call depth 3 reserves $F4-$FF, ordinary
+  allocation ends at $B8, and the cartridge remains 4096 bytes.
+* Verified 1497 complete consecutive frames at exactly 262 scanlines across
+  normal, transition, gap, and wrap paths with no timer underflow.
+* Passed 220/220 compile tests and 92/92 end-to-end tests.
+* Removed `examples/02_ode_to_joy/music_player.s`; remove.txt now contains 462
+  unique cumulative paths.
+
+2026-07-17 14:10:25 PDT, correct Ode 261-line frame off-by-one
+* Confirmed in Stella that the timer-based Ode renderer produced 261 displayed
+  scanlines despite the old harness reporting 262.
+* Added a second final `sta WSYNC` after the TIM64T/INTIM wait, restoring the
+  emulator-visible frame to 262 lines without moving `music_tick()` outside the
+  fixed overscan budget.
+* Corrected the timing harness to distinguish raw VSYNC-assertion spacing from
+  Stella's displayed scanline count: a valid 262-line frame has a 263-whole-line
+  assertion interval in this renderer.
+* Added a negative calibration check during validation: the prior one-WSYNC ROM
+  is rejected as 261 Stella-displayed lines, while the corrected ROM passes
+  1497 complete frames at 262.
+* Updated the Ode cartridge regression and README for the required two-WSYNC
+  tail and corrected timing terminology.
+* Passed 220/220 compile tests and 92/92 end-to-end tests; both examples remain
+  exact 4096-byte cartridges.
+* No files were added or removed; remove.txt remains at 462 cumulative paths.
+
+2026-07-17 15:02:00 PDT, direct indexed-struct byte lowering
+* Restored the Ode player to natural `music[music_index].field` source rather
+  than carrying a persistent pointer to the current score element.
+* Added a fast lvalue-index path for simple unsigned one-byte indices and
+  power-of-two element sizes. It scales through compiler-owned `arg0:arg1`,
+  adds the full 16-bit offset to `ptr0`, and avoids `__n65_indextmp_N` and the
+  generic multiplication helper.
+* Added direct scratch-free lowering for discarded one-byte increment/decrement,
+  unsigned byte comparisons against constants or byte lvalues, constant byte
+  stores, and byte lvalue stores to absolute hardware refs.
+* The Ode cartridge now has zero BSS scratch and only two persistent player
+  bytes at $96-$97; its direct-index code remains inside the fixed overscan
+  budget and passes 1497 consecutive Stella-reported 262-line frames.
+* Added focused assembly regression coverage plus an execution test using index
+  64 into four-byte structs, proving the scaled offset correctly crosses a
+  256-byte page.
+* Updated three older code-generation tests whose expected scratch/address
+  sequences were intentionally superseded by direct byte stores and inc/dec.
+* Passed 221/221 compile tests and 93/93 end-to-end tests; both examples remain
+  exact 4096-byte cartridges.
+* No files were removed; remove.txt remains at 462 unique cumulative paths.
+
+2026-07-17 15:31:37 PDT, lifetime-pooled scratch and common indexed address reuse
+* Replaced the per-site temporary-symbol families with depth-indexed
+  `__n65_scratch_N` pools scoped to each function/translation-unit context.
+  Sequential expressions reuse a slot, nested expressions receive deeper slots,
+  and caller/callee functions retain separate physical storage.
+* Added explicit acquire/activate/deactivate/release leases, LIFO validation, and
+  an end-of-compilation check that rejects unreleased scratch. Each pooled slot
+  is emitted once at its maximum observed size.
+* Kept scratch leases live until final copy-out. Execution testing caught and
+  fixed an early-release bug where recomputing a computed destination address
+  could overwrite the pending RHS value; the same lifetime rule was applied to
+  cast, operator, braced, compound, and increment/decrement copy-out paths.
+* Added safe common-address lowering for two binary operands that are direct
+  fields of the same runtime-indexed aggregate element. Identical index trees
+  compute ptr0 once and load both fields by offsets; differing indices and
+  ambiguous pointer/bitfield/ref/conversion cases retain independent lowering.
+* Added layout, address-count, and execution regressions covering sequential
+  reuse, nested separation, caller/callee isolation, computed assignments,
+  braced and compound stores, increment/decrement, and shared indexed fields.
+* Passed 223/223 compile tests and 94/94 end-to-end tests; both examples remain
+  exact 4096-byte cartridges, and Ode passes 1497 consecutive Stella-reported
+  262-line frames.
+* No files were removed; remove.txt remains at 462 unique cumulative paths.
+
+2026-07-17 15:53:35 PDT, remove heap and sbrk runtime support
+* Removed `libraries/nlib/asm/sbrk.asm`, including `_sbrk` and its archive-
+  selected `__init_sbrk` initializer.
+* Removed the `_nl_sbrk` zero-page object and its import/alias glue, shrinking
+  the stock runtime workspace from 22 to 20 bytes and reclaiming two VCS RAM
+  bytes.
+* Removed the compiler's special external-`sbrk` to `_sbrk` symbol mapping and
+  the obsolete assembler-name reservation. `sbrk` is now an ordinary user
+  function name; added a code-generation regression proving that behavior.
+* Updated runtime, compiler, linker, limitation, and software-stack inventory
+  documentation to state that the stock runtime has no heap or allocator.
+* Updated the Ode cartridge map regression for the two-byte zero-page shift;
+  it still allocates zero BSS scratch and only two bytes of persistent state.
+* Passed 224/224 compile tests and 94/94 end-to-end/generic tests.
+* Added one test and removed one runtime source; remove.txt now contains 463
+  unique cumulative paths.
+
+2026-07-17 16:32:32 PDT, warn on runtime division by powers of two
+* Added performance warnings for explicit runtime `/`, `%`, `/=`, and `%=`
+  operations with compile-time positive power-of-two divisors greater than one.
+* Division and remainder code generation and signed semantics are unchanged; the
+  warnings suggest explicit shifts or masks only when their different signed
+  behavior is acceptable or intended.
+* Literal-only constant expressions continue to fold without warnings. Divisor
+  one and non-power-of-two constants also remain silent.
+* Added focused positive and negative diagnostic regressions.
+* Passed 226/226 compile tests and 94/94 end-to-end/generic tests.
+* No files were removed; remove.txt remains at 463 unique cumulative paths.

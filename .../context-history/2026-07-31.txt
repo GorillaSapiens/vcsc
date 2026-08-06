@@ -1,0 +1,435 @@
+VCSC CONTEXT HISTORY — 2026-07-31
+=================================
+
+Historical development entries for 2026-07-31, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-31 07:55:12 PDT, repair alternating all-five playfield phase
+------------------------------------------------------------------------
+* Diagnose the shredded playfield in every all-five renderer as a two-cycle
+  phase mismatch inside the steady two-scanline loop. The P1 half decremented Y
+  before writing the reflected PF2/PF1 pair, placing those writes at cycles
+  47/54, while the following P0 half wrote them at 45/52. The alternating phase
+  visibly tore the right half even though the old byte-level raster oracle
+  happened to accept it.
+* Move the P1 DEY after the reflected PF2/PF1 stores in `all_five_192`,
+  `all_five_181`, and `all_five_181_unofficial`. This is an instruction reorder,
+  not padding: total two-line timing, player/missile/Ball handoffs, opcode
+  policy, ROM size, RAM layout, and lifecycle behavior remain unchanged.
+* Extend `vcs_playfield_phase.cpp` with an explicit `all-five` timing profile.
+  It requires four ordered PF writes on every gameplay scanline, bounds all
+  row-transition schedules, and locks every steady P1 and P0 line to
+  PF1/PF2/PF2/PF1 cycles 17/24/45/52. Prove the regression rejects the original
+  renderer at its first old cycle-47 reflected PF2 write.
+* Verify the repaired 192-line renderer visually in Stella: the previously
+  shredded gold playfield becomes a clean diagonal raster while the separate
+  missile and Ball lines remain intact. The 181 official and unofficial
+  renderers produce the same corrected phase and retain their exact visible TIA
+  equivalence.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests pass (the monolithic run completed 171 before its command ceiling; the
+  remaining 26 passed explicitly). All five public all-five examples rebuild to
+  exact 4096-byte ROMs and render clean diagonal playfields in Stella. Staged
+  `make installcheck` also passes.
+
+2026-07-31 12:00:36 PDT, repair only the all-five 192-line playfield schedule
+--------------------------------------------------------------------------------
+* Limit renderer implementation changes to
+  `libraries/vcs/renderers/all_five_192/all_five_192.c26`; leave every 181-line
+  official and unofficial renderer unchanged.
+* Replace the incorrect single target-cycle model with a physical circular
+  schedule.  The first visible line and every ordinary reflected half now
+  commit PF2/PF1 at physical cycles 48/55.  P1 keeps the delayed Ball value in
+  A while Y writes the reflected playfield; the following P0 half recovers the
+  added cycle after its beam-critical writes so each pair remains 152 cycles.
+* Reorder each row-transition path independently.  The three new-row lines now
+  reach reflected PF2/PF1 at 48/55.  On the old-row boundary, PF1 uses its broad
+  safe window at cycle 45 and PF2 uses its narrow handoff at cycle 48; writing
+  PF1 first also preserves the total transition timing.  The terminal line now
+  uses physical cycles 48/55 and lets WSYNC absorb the removed padding.
+* Correct the 192-line timing regression instead of weakening the shared
+  181-line profile.  Add an `all-five-192` profile that measures physical
+  scanline-relative phases, accepts the intentional PF1-before-PF2 boundary
+  handoff, and retains the existing `all-five` profile for both 181 renderers.
+* Verify the public all-five 192 cartridge visually in Stella with all five
+  objects present: the four playfield diagonals are clean, and the two short
+  horizontal marks and center square are the intended missiles and Ball.  An
+  object-suppressed diagnostic rendering also shows a clean playfield.
+* Verification: 334/334 compile-only tests pass.  The combined run passed its
+  first 161/197 end-to-end/generic tests before the outer 300-second command
+  ceiling; focused `vcs_all_five_192.pl`, all-five interactive examples,
+  multicolor examples, and player-color 192 tests all pass.
+
+2026-07-31 13:02:09 PDT, repair official all-five 181-line playfield schedule
+--------------------------------------------------------------------------------
+* Use the verified `vcsc.20260731_120110` all-five 192-line renderer as the
+  timing model and change only the official 181-line renderer implementation.
+  `all_five_181_unofficial.c26` remains byte-for-byte unchanged.
+* Rebalance the official renderer's first visible line, ordinary two-line loop,
+  row-transition paths, and terminal line around the physical circular raster
+  schedule. Ordinary reflected PF2/PF1 writes now complete at cycles 48/55;
+  row boundaries use PF1 at cycle 45 followed by PF2 at cycle 48. Every ordinary
+  pair remains exactly 152 CPU cycles, and the object handoffs retain their
+  required windows.
+* Add a dedicated `all-five-181-official` timing profile and use it for both
+  score-above and score-below official examples. Keep the older `all-five`
+  profile for the untouched unofficial renderer and test it independently
+  rather than requiring official/unofficial visible traces to be identical.
+* Correct `vcs_playfield_phase.cpp` to record physical cycle modulo 76 instead
+  of cycle relative to VSYNC assertion. Update the standard-renderer regression
+  to its corresponding physical phases; this changes the measurement, not the
+  standard renderer.
+* Update renderer, opcode-policy, component-conversion, VCS, and test
+  documentation to describe the official fixed schedule and the still-separate
+  unofficial implementation.
+* Verify the official 181-line score-above and score-below cartridges visually
+  in Stella: both show clean diagonal playfields with both players, both
+  missiles, and the Ball intact.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass across the completed 174-test run plus the
+  remaining 23 run explicitly; the one standard phase expectation exposed by
+  the corrected physical-cycle tracer was updated and rerun successfully.
+
+2026-07-31 13:23:09 PDT, repair unofficial all-five 181-line playfield schedule
+--------------------------------------------------------------------------------
+* Use the corrected official `all_five_181` renderer as the exact schedule base
+  for `all_five_181_unofficial`. The unofficial source now differs only in its
+  component identity/path comments and one reviewed stable/common NMOS
+  `NOP.z $00` replacing a same-size, same-cycle dead-flag `BIT.z CXM0P` during
+  VBLANK positioning.
+* Apply the official physical circular raster schedule to the unofficial first
+  visible line, ordinary two-line loop, row-transition paths, and terminal
+  line. Score-above and score-below cartridges now have the same playfield and
+  object timing as their official counterparts while every ordinary pair
+  remains exactly 152 CPU cycles.
+* Change the unofficial regression to use the corrected
+  `all-five-181-official` physical-cycle profile and compare all five official
+  and unofficial smoke/static/motion cartridge pairs for exact visible TIA
+  event and stable-frame identity. Continue to require one zero-page
+  unofficial NOP, no AXS sites, matching RAM addresses, and full-range motion
+  behavior.
+* The maintained smoke links now both use 2090 ROM bytes, for a signed
+  unofficial-minus-official difference of zero. Update renderer, opcode-policy,
+  component-conversion, VCS, example, and test documentation plus their baseline
+  assertions.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 334/334 compile-only tests pass. All 197 end-to-end/generic
+  tests are accounted for and pass across the completed first 174-test run plus
+  the remaining 23 run explicitly. The focused unofficial pair, official 181,
+  renderer-baseline, and five public all-five interactive-example tests pass.
+  Staged `make installcheck` also passes.
+
+2026-07-31 13:39:35 PDT, reconcile the roadmap after renderer repairs
+-------------------------------------------------------------------------------
+* Review the Immediate TODO against the current source tree, public examples,
+  renderer documentation, focused regressions, and the completed July 31
+  all-five schedule repairs.
+* Mark 22i4b1a complete. All six maintained gameplay components now have
+  ordinary, row-transition, setup, and terminal playfield correctness evidence;
+  remove the superseded all-five target cycles and transition recipes from the
+  live roadmap.
+* Mark 22i4b3 complete because the centered six-glyph score now establishes its
+  P0/P1 state on every draw and has hostile-state plus both-order composition
+  evidence while retaining its eleven-line contract.
+* Replace the obsolete thirteen-cartridge/private-all-five example milestone
+  with the actual renderer-grouped fifteen-cartridge public baseline. Remove the
+  old provisional inherited-score-state warning from completed task 22i4a.
+* Keep 22i4b, 22i4b1, 22i4b2, 22i4b4 through 22i4b6, 22i4c, and 22i4d open.
+  The next unfinished leaf item is 22i4b1b: complete the full player/object pixel
+  oracle for P0, P1, M0, M1, and Ball, including endpoints and every transition
+  and terminal line.
+* Refresh the active archive name, example hierarchy summary, and current
+  334/334 compile-only and 197/197 end-to-end totals. No source, test, renderer,
+  example, or removal-ledger files change in this documentation-only pass.
+
+2026-07-31 14:41:51 PDT, expand controller and gameplay-example roadmap
+-------------------------------------------------------------------------------
+* Add ten separate roadmap items without changing the current next action
+  22i4b1b or weakening the existing stop-ship renderer gate.
+* Add a public animated-sprites example; two-paddle and four-paddle controller
+  support; keypad support on either port; Indy 500 driving-controller support;
+  and a public diagnostic cartridge.
+* Add playable Pong-like paddle and joystick tank-duel examples, explicit
+  playfield-color support, and a side-scroller/platform example with animation,
+  scrolling, collision, and deterministic emulator-backed coverage.
+* Number the new work as tasks 34 through 43 after the existing NTSC/PAL/SECAM,
+  multisprite, bankswitching, Superchip, and inlining roadmap items. No source,
+  test, renderer, example, or removal-ledger files change in this documentation-
+  only pass.
+
+2026-07-31 15:03:36 PDT, add all-five 181 object endpoint oracle slice
+-------------------------------------------------------------------------------
+* Split the remaining 22i4b1b stop-ship object-pixel work into three ordered,
+  independently finishable slices. Mark 22i4b1b1 complete and make the
+  scoreless all-five 192-line endpoint slice 22i4b1b2 the next action.
+* Extend `vcs_all_five_composition.cpp` to retain frame-relative TIA writes and
+  prove the actual horizontal-position transactions used by both official and
+  unofficial 181-line all-five renderers in score-above and score-below order.
+  P0/P1 must match their visible-handoff RESP/HMxx schedule; M0/M1/Ball must
+  match their VBLANK RESP/HMxx/HMOVE schedule.
+* Run the asynchronous fixtures for 360 frames, require every object to reach
+  X=0 and X=159, and check clipped 160-pixel spans for the fixtures' normal-
+  width player glyphs, four-clock missiles, and four-clock Ball. This closes
+  only the 181-line endpoint slice; full per-scanline transition and terminal
+  object reconstruction remains open.
+* Update the test catalog. No renderer, compiler, example, or removal-ledger
+  file changes are made.
+* Verification: 334/334 compile-only tests pass. The focused official
+  `vcs_all_five_composition.pl` and unofficial `vcs_all_five_181_unofficial.pl`
+  regressions pass, including both score orders and all 360 motion frames.
+
+2026-07-31 15:26:11 PDT, add all-five 192 object endpoint oracle slice
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22i4b1b2 and make 22i4b1b3 the next unfinished leaf.
+* Add `test/fixtures/all_five_192/motion.c26`, a scoreless 192-line diagnostic
+  cartridge that moves P0, P1, M0, M1, and Ball asynchronously through the full
+  X=0..159 range while retaining fixed Y coordinates and recognizable player
+  glyphs.
+* Generalize `vcs_all_five_composition.cpp` with a scoreless mode. The 192-line
+  path independently verifies all five VBLANK RESP/HMxx/HMOVE transactions,
+  rather than using the 181-line post-score P0/P1 handoff path, and retains the
+  same clipped-pixel endpoint checks for normal-width players, four-clock
+  missiles, and a four-clock Ball.
+* Extend `vcs_all_five_192.pl` to build the motion fixture, run 360 frames, require
+  every object to reach both horizontal endpoints, and reject any mismatch in
+  the requested TIA positioning transaction or clipped visible span. Update the
+  test catalog.
+* No compiler, renderer, public example, or removal-ledger files change.
+* Verification: the focused `vcs_all_five_192.pl` regression passes. The normal
+  root build reached and passed all 334 compile-only tests and the first 170 of
+  197 end-to-end tests before the outer command timeout; the focused changed
+  regression was then rerun separately and passed.
+
+2026-07-31 16:19:57 PDT, complete full object-pixel raster oracle
+------------------------------------------------------------------------
+* Complete roadmap task 22i4b1b3 and close 22i4b1b plus parent 22i4b1.
+  The next unfinished leaf is 22i4b2, the measured visible-component handoff
+  contract.
+* Extend `test/vcs_all_five_composition.cpp` from endpoint positioning into an
+  independent physical-scanline TIA object model. It maps frame-relative writes
+  onto modulo-76 physical lines, applies GRP0/GRP1 delayed transfers, delayed
+  Ball state, immediate missile enables, NUSIZ/CTRLPF widths, reflection, and
+  color-clock write timing, then compares P0/P1/M0/M1/Ball at every pixel on the
+  setup line and all 181 or 192 gameplay lines.
+* Run that all-five model directly for official 181 score-above/score-below,
+  official scoreless 192, and both unofficial 181 static score orders. Preserve
+  the existing 360-frame endpoint/motion checks.
+* Extend the player-color 181 and 192 harnesses with the same object-latch model.
+  Check P0, P1, Ball, and required-blank M0/M1 at every pixel across setup, all
+  ordinary and row-transition scanlines, terminal-181, and terminal-192 paths.
+  Run official and unofficial 181 score compositions directly rather than
+  relying only on visible-trace identity.
+* Update `test/README.md` to describe the completed oracle and remove the stale
+  claim that the full per-scanline object oracle remained unfinished. No
+  compiler or renderer source changes are made in this slice.
+
+2026-07-31 16:41:34 PDT, publish measured visible-component handoff contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b2. The next unfinished roadmap item is 22i4b4,
+  the repeatable-template composition proof.
+* Add common machine-readable fields to all eleven maintained visible template
+  components: physical draw entry and return cycles, complete and partial
+  scanline ownership, terminal-WSYNC ownership, draw-time HMOVE count, and
+  whether a successor may begin on the return line. The four six-glyph
+  displays, poison score, official/unofficial 181-line player-color and
+  all-five profiles, and both official 192-line profiles now publish one
+  consistent contract.
+* Expand `libraries/vcs/renderers/COMPONENT_CONVERSION.md` with the measured
+  cycle-3 entry/cycle-zero return table and complete per-family TIA required,
+  established, clobbered, preserved, and guaranteed-exit state. Distinguish the
+  composable 11/181-line profiles from the full-field 192-line profiles, whose
+  cycle-zero return is reserved for the scheduler's immediate VBLANK transition.
+* Add `vcs_visible_component_handoff.pl`. It locks every published value,
+  cross-checks HMOVE counts against the actual draw bodies, requires each
+  terminal WSYNC, rejects scheduler/audio ownership, verifies the single
+  three-cycle `BIT.z CXM0P` bridge, and requires the installed ownership table.
+* Make the existing two-centered-score fixtures use the calibrated blank-gap
+  helper and explicit component handoff. Both independent instances retain
+  distinct values, run in both draw orders, enter at raw scanlines 125 and 136,
+  and preserve exact 262-line frames. This is useful progress on 22i4b4, but the
+  parent remains open pending the full exact-pixel/arbitrary-placement and
+  hostile/gameplay predecessor matrix.
+* Update the VCS and test catalogs. No renderer instruction schedule, compiler,
+  public example, or removal-ledger entry changes.
+* Verification: 334/334 compile-only tests pass. All 198 end-to-end/generic
+  tests pass across a split run: the first 173 passed before the outer timeout,
+  and the remaining 25 passed explicitly. Focused component, composition,
+  baseline, and new handoff regressions also pass.
+
+2026-07-31 18:11:00 PDT, retain legacy monolithic profiles
+--------------------------------------------------------------------------
+* Remove obsolete roadmap item 22i4d. The two installed predecessor
+  monolithic profiles remain useful compatibility and regression targets;
+  deleting working profiles is not required to complete the component roadmap.
+* Update task 22i4 and its stop-ship wording so completion depends on 22i4b and
+  22i4c, not profile retirement. Keep 22i4b4 as the current next action.
+* Label both predecessor READMEs and the VCS catalogs as legacy monolithic
+  profiles retained for compatibility, normalization, linker, timing, and
+  upstream-regression coverage. Recommend explicit lifecycle components for
+  new applications.
+* Extend source-tree hygiene coverage so the active roadmap cannot silently
+  restore 22i4d and the retained-profile status remains documented. No source,
+  renderer schedule, example, fixture, or removal-ledger file changes.
+
+2026-07-31 18:32:07 PDT, complete centered-score composition proof
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b4 and make 22i4b5 the next unfinished leaf.
+* Add `test/vcs_six_glyph_raster.cpp`, an independent centered-score pipeline
+  oracle. It locks the positioning and HMOVE boundary transactions, decodes all
+  six GRP bytes on all eight rows into 48 logical pixels, checks delayed digit-4
+  transfer and cleanup, and requires stable 262-line frames.
+* Add widely spaced two-instance score-only coverage at raw scanlines 70 and
+  180, retain the adjacent normal/reversed pair at 125 and 136, and add fixed-
+  and mutable-color centered scores immediately after `poison_debug_score`.
+  Distinct values prove per-instance storage and both draw orders.
+* Repair a real inherited-state gap in all four production six-glyph components:
+  replace an existing redundant eight-cycle color reload or NOP pad with
+  `STA REFP0`, `STA REFP1`, and `NOP`. The instruction count, positioning phase,
+  visible GRP schedule, scanline count, and ROM-facing lifecycle remain stable.
+* Add `vcs_score_composition_raster.pl`. It builds official and unofficial
+  player-color and all-five 181-line cartridges in both score orders and requires
+  the exact `123456` 48x8 score raster at raw line 40 or 221. This proves the
+  centered score after gameplay as well as before it across all four maintained
+  score-composable big-renderer families.
+* Update the handoff contract and tests so REFP0/REFP1 are explicitly established,
+  clobbered, and zero on score return. Update fixed-color source checks to accept
+  the equivalent assembly-owned color setup. No compiler, gameplay renderer,
+  public example, or removal-ledger files change.
+
+* Verification: 334/334 compile-only tests pass. All 199 end-to-end/generic
+  tests are accounted for across a split run: tests 1 through 163 passed before
+  the outer timeout, and the remaining 36 passed explicitly. Focused score-
+  raster, handoff, renderer-composition, fingerprint, and public-example tests
+  also pass.
+
+2026-07-31 19:26:55 PDT, add left/right two-plus-two score component
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b5 and make 22i4b6 the next unfinished leaf.
+* Add installed `two_plus_two_score_component.c26` plus shared compact decimal
+  glyph and horizontal-position tables. Each instance owns independent left/right
+  packed-BCD values, colors, X origins, pointers, and calibrated position controls
+  in 16 RAM bytes; two linked instances share the immutable ROM tables once.
+* Keep the score within the existing eleven-scanline component budget: one hostile-
+  state reset line, two independently positioned player lines, and eight raster
+  rows. The draw path establishes NUSIZ, colors, reflection, vertical delay, player
+  motion/RESP state, and graphics latches every time. It also clears HMM0/HMM1/HMBL
+  before HMOVE so preserved missile/Ball geometry cannot inherit hostile motion.
+* Add a private two-instance fixture with fixed top fields and asynchronously moving
+  bottom fields driven solely by score-instance position variables. Add a physical-
+  pixel oracle that checks exact doubled 4x8 glyphs and colors, setup/cleanup timing,
+  both positioning transactions, hostile incoming state, all motion endpoints, and
+  97 steady 262-line frames. Public N*M*O examples remain the next roadmap slice.
+* Install/uninstall the new modules, compile them through staged `installcheck`, and
+  update the VCS/component/test catalogs plus component baseline and handoff checks.
+  No compiler, gameplay-renderer, public-example, or removal-ledger files change.
+* Verification: 334/334 compile-only tests pass. All 200 end-to-end/generic tests
+  are accounted for across a split run: tests 1 through 161 passed before the first
+  outer timeout; of tests 162 through 196, 34 passed and one stale documentation
+  baseline exposed the newly generalized eleven-line score wording. After updating
+  that baseline, it and tests 197 through 200 all passed explicitly. Staged
+  `make installcheck` also passes.
+
+2026-07-31 21:08:35 PDT, complete score/gameplay composition matrix
+-------------------------------------------------------------------------------
+* Complete roadmap tasks 22i4b6 and 22i4c1, close parents 22i4b, 22i4c,
+  22i4, 22i, and task 22, and make task 23 the next unfinished roadmap item.
+* Preserve the eight existing centered-score compositions and add 32 public
+  interactive cartridges: left-justified, right-justified, left/right two-plus-
+  two, and poison above and below each official/unofficial player-color and
+  all-five 181-line gameplay family. The public gameplay matrix is 32 production
+  compositions plus eight poison stress compositions; with the seven unrelated
+  cartridges, the public tree now contains 47 editable cartridges.
+* Add shared interactive controls so each public pairing demonstrates motion
+  without multiplying the tree into separate static, horizontal-motion, and
+  two-axis-motion cartridges. Update the recursive example build and staged
+  install check to compile every matrix leaf while keeping common include files
+  out of the standalone-cartridge inventory.
+* Add an independent score-matrix raster oracle and expand
+  `vcs_score_composition_raster.pl` to generate 80 private cartridges: static and
+  moving gameplay for every one of the 40 pairings. Check exact score pixels,
+  colors, setup/cleanup register schedules, gameplay object pixels, motion,
+  component boundaries, and exact 262-line frames. Add a score-only cartridge
+  placing centered, left, right, and two-plus-two instances at four independent
+  vertical positions; retain the earlier multiple same-type instance proofs.
+* Fix a real poison handoff defect exposed by the matrix. All four official and
+  unofficial 181-line gameplay components now explicitly clear REFP0 and REFP1
+  before visible object output, preventing hostile reflected-player state from
+  mirroring asymmetric gameplay glyphs. Update the player-color linked smoke
+  sizes to 1787 official and 1785 unofficial bytes; the measured two-byte saving
+  is unchanged.
+* Verification: 334/334 compile-only tests pass. The end-to-end suite is fully
+  accounted for: tests 1 through 171 passed before the outer command ceiling,
+  and the remaining 29 passed explicitly, for 200/200 total. Staged
+  `make installcheck` passes, including all 40 installed-toolchain matrix builds.
+
+2026-07-31 22:23:08 PDT, repair public score controls and final-link playfield timing
+-------------------------------------------------------------------------------
+* Restore the older public six-digit interaction contract for all 16 left- and
+  right-justified score cartridges. The edge-score components now own mutable
+  per-instance colors, and right-joystick left/right both selects the decimal
+  digit and advances the score hue on every accepted movement, including
+  non-wrapping left movement.
+* Make all eight two-plus-two examples visibly and independently controllable.
+  Right fire toggles the selected field once per press, the selected field is
+  shown in the brighter color, horizontal input moves only that field, and
+  vertical input changes only its packed-BCD value. Replace the jammed 4x8
+  glyph packing with spaced 3x8 digits: each digit is six color clocks wide
+  with a two-color-clock inter-digit gap.
+* Fix the damaged lower playfield in the official and unofficial player-color
+  181-line two-plus-two-score-below cartridges. The final public link layout
+  moved `BCS @transition_skipP0` across a ROM page, adding one visible-path
+  cycle during row transitions. Mark every local visible-path conditional
+  branch in both player-color renderers `.same` so layout changes cannot alter
+  their scanline timing.
+* Extend `vcs_score_composition_raster.pl` to build and raster-check the actual
+  final public player-color production cartridges, not only smaller generated
+  fixtures. Add an exact diagonal-playfield phase profile that locks PF write
+  cycles at 18/25/48/55 and demonstrably rejects the pre-fix binary. Add a
+  public-control emulator regression covering all shared edge-score users and
+  proving two-plus-two right-field selection, movement, BCD changes, fire
+  debouncing, and independent return to the left field.
+* Preserve the user's longer harness allowance by changing `test/test.pl`'s
+  default per-test timeout from three to six seconds. Update the fingerprint
+  fixture to initialize the newly mutable logo colors explicitly and recalibrate
+  its score-entry timing expectations. Update public READMEs and VCS/test
+  catalogs for the controls and spaced font.
+* Verification: 334/334 compile-only tests pass. All 201 end-to-end/generic
+  tests are accounted for across the completed split run, including the new
+  public-control regression and final-public-binary playfield check. Staged
+  `make installcheck` also passes, including all 40 installed-toolchain public
+  score/gameplay matrix builds.
+
+2026-07-31 23:21:40 PDT, repair all-five final-link timing and right score edge
+-------------------------------------------------------------------------------
+* Fix the damaged playfield in the official all-five 181-line left-justified-
+  score-below and right-justified-score-below public cartridges, plus the
+  corresponding unofficial layouts. Final linking placed the visible-loop
+  `BNE @continuerenderer` across a ROM page, adding one cycle to affected
+  scanlines. Mark every timing-sensitive local visible-path conditional branch
+  in both all-five 181-line renderers `.same`, matching the earlier player-color
+  repair and making an accidental page crossing a link error rather than a
+  silently malformed frame. `.cross` and `.flex` are not appropriate for these
+  constant-cycle visible paths.
+* Extend the exact public-cartridge raster regression from the 16 player-color
+  production compositions to all 32 production score/gameplay compositions.
+  Add an all-five diagonal-playfield profile and lock the final public binaries'
+  PF write values, phases, score pixels, gameplay pixels, motion, and 262-line
+  frames. Source regressions also require the new all-five `.same` annotations.
+* Extend the independently movable right field of the two-plus-two score from
+  X=112 to X=144, where its doubled 16-color-clock glyph ends exactly at visible
+  X=159. Reschedule only the final raster-row cleanup so the far-right P1 copy
+  can latch before GRP1 is cleared while preserving the eleven-scanline component
+  budget and clean exit state. Update shared public controls, all eight public
+  READMEs, installed documentation, motion fixtures, exact cleanup-cycle checks,
+  and the emulator control test. The test now proves movement from X=143 to 144
+  and clamping at the true right-edge endpoint.
+* Preserve task 23 as the next unfinished roadmap item. No compiler-language,
+  removal-ledger, or public-tree structure changes are made in this repair.
+* Verification: 334/334 compile-only tests pass. All 201 end-to-end/generic
+  tests pass across a split run: tests 1 through 159, 160 through 185, and 186
+  through 201 all passed with no failures. Focused public matrix, all-five,
+  two-plus-two raster, and interactive-control regressions pass. Staged
+  `make installcheck` also passes, including all 40 public matrix cartridges.

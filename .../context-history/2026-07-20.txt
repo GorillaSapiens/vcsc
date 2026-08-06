@@ -1,0 +1,368 @@
+VCSC CONTEXT HISTORY — 2026-07-20
+=================================
+
+Historical development entries for 2026-07-20, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-20 11:18:13 PDT, repair six-digit score rendering and add a clean font
+------------------------------------------------------------------------
+* Correct the legacy score renderer's non-linear glyph-pointer layout. The first
+  version stored pointers in human display order, but the delayed-player row
+  pipeline requires pointer slots 0..5 to contain digits 5, 1, 4, 3, 6, and 2.
+  The bad layout visibly rendered initial score `123456` as the wrong digits.
+* Add `fonts/clean.inc`, a narrower 5x7-style decimal font selected by
+  `score_font.s`. Retain `fonts/default.inc` as the original chunkier legacy
+  Basic font so the example now ships with two genuinely selectable fonts.
+* Extend `vcs_six_digit_score.test` to verify the exact pointer-slot mapping,
+  active font selection, both 80-byte font tables, embedded active-font bytes,
+  and all previous cartridge/timing/stack invariants.
+* Pass 268/268 compile tests and 122/122 end-to-end/generic tests. The staged
+  installation check builds the corrected example as an exact 4096-byte
+  cartridge. `remove.txt` remains at 871 paths, and the retained legacy BASIC
+  subtree is byte-for-byte unchanged.
+
+2026-07-20 12:46:19 PDT, refactor and verify six-digit score example
+------------------------------------------------------------------------
+* Move both score fonts from assembly `.inc` data behind `score_font.s` into
+  ordinary VCSC `const uint8_t score_font[80]` include files:
+  `fonts/clean.c26` and `fonts/legacy.c26`. Build example 03 from one VCSC
+  translation unit and remove the obsolete assembly wrapper/includes.
+* Express the complete frame loop, scanline waits, TIA setup and cleanup,
+  `bcd24_t` update, and 20-frame cadence in VCSC functions/statements. Retain
+  inline assembly only for compact six-pointer address construction and the
+  cycle-counted legacy-renderer-derived row pipeline. A fully generic VCSC dynamic-table
+  version was rejected because it generated substantially larger code.
+* Confirm that VCSC has inline assembly but no source-level inline-function
+  feature. Ordinary functions are already prologue-free and consist of JSR,
+  body, and RTS; `draw_score()` borrows S only inside its body and restores it
+  before RTS. Record true inline functions as a future language/cycle-policy
+  question rather than pretending the feature exists.
+* Correct the packed-BCD/pipeline mapping for the actual little-endian score:
+  display slots are consumed as 0,4,3,2,1,5. Verify actual Stella 7.0 output as
+  centered white `123457` after one update on medium-blue `$84`.
+* Extend `vcs_frame_timing` with an optional `--no-audio` mode and compile its
+  score use with undocumented opcodes enabled. Account for three scanlines of
+  ordinary VCSC call/loop overhead by using 89 top and 89 bottom explicit blank
+  waits; regression checks 42 complete frames at stable 262-line NTSC timing.
+* Pass 268/268 compile tests, 122/122 end-to-end/generic tests, staged
+  installation, exact 4096-byte cartridge checks, and direct Stella rendering.
+  Add three obsolete font-wrapper paths to `remove.txt`, now 874 unique paths.
+  The retained legacy BASIC subtree remains byte-for-byte unchanged.
+
+2026-07-20 13:53:56 PDT, add visual binary literals and readable score fonts
+------------------------------------------------------------------------
+* Extend the compiler lexer so binary literals accept `.` as zero and `X`/`x`
+  as one after `0b`/`0B`. Strip underscores and normalize visual digits to
+  canonical `0`/`1` text before the parser and integer encoder see the token.
+  Conditional-compilation integer parsing uses the same normalization.
+* Add focused diagnostics for invalid visual digits, missing/misplaced
+  underscores, and ordinary destination-width overflow after normalization.
+  Add compile and execution tests for mixed visual/conventional digits,
+  lowercase `x`, underscores, 16-bit values, and `#if` expressions.
+* Restore the two example-03 font files omitted from the input archive. Rewrite
+  both as VCSC arrays with exactly one eight-pixel visual binary row per source
+  line. Source rows are top-to-bottom; `SCORE_GLYPH` reverses each group during
+  alias expansion for the existing row-7-to-row-0 score renderer.
+* Keep `fonts/clean.c26` as the active original VCSC font. Rename the alternate
+  legacy BASIC CC0-derived font from vague `fonts/legacy.c26` to
+  `fonts/classic_8x8.c26`, retain source/license lineage in its header and the
+  example README, and record the old path in `remove.txt`.
+* Update the main language README, compiler README, example-03 README, test
+  harness notes, lexer coverage, example regression, and Makefile dependencies.
+* Pass 272/272 compile tests and 123/123 end-to-end/generic tests. Staged
+  installation builds example 03 as an exact 4096-byte cartridge. Stella 7.0
+  renders the centered white score correctly on blue. `remove.txt` now contains
+  875 unique paths; the vendored legacy BASIC subtree remains unchanged.
+
+2026-07-20 14:23:16 PDT, remove score-renderer stack tricks and unnecessary upstream naming
+------------------------------------------------------------------------
+* Replace both undocumented `LAX` instructions and the temporary use of the
+  hardware stack-pointer register in example 03 with a cycle-for-cycle official
+  6502 sequence. One ordinary zero-page byte, `delayed_glyph`, now carries the
+  fourth glyph between TIA writes; the 34-cycle row segment is unchanged.
+* Remove `-Wa,--illegals` from the example, staged install build, regression
+  build, and timing harness. Add regression checks forbidding `LAX`, `TSX`,
+  `TXS`, and the obsolete saved-stack object in the generated score routine.
+* Rename the retained upstream source directory to
+  `libraries/vcs/legacy-basic-renderers/` and the conversion inventory to
+  `LEGACY_RENDERER_CONVERSION.md`. Remove unnecessary project-name references
+  from paths, project documentation, tests, example provenance, conversion
+  notes, and retained source comments. Preserve the exact upstream
+  `LICENSE.txt` verbatim as the sole intentional occurrence.
+* Add a branding regression that rejects the removed upstream project name in
+  every path and text file except license files. Rename the alternate score font
+  to the descriptive `classic_8x8.c26` name.
+* Pass 272/272 compile tests and 123/123 end-to-end/generic tests. The staged
+  installation builds exact 4096-byte cartridges without illegal-opcode mode;
+  the timing regression remains stable at 262 NTSC scanlines. Stella 7.0 renders
+  the centered white score correctly on medium blue using the official-opcode
+  renderer. `remove.txt` contains 875 paths. The retained licensing overview is
+  byte-for-byte identical to the input archive.
+
+2026-07-20 15:43:15 PDT, repair six-digit delayed-player write deadlines
+------------------------------------------------------------------------
+* Reproduce the reported colon-like artifact from the delivered archive using
+  Stella 7.0's own 1x TIA snapshot. Confirm that the first digit's right edge
+  follows the third digit when the test update is changed to `score += 1000`.
+* Correct the diagnosis from the prior official-opcode conversion: preserving
+  the total 76-cycle row was insufficient. The replacement moved a delayed
+  `GRP1` write one CPU cycle early and violated the TIA latch deadline.
+* Replace the visible row with a documented-opcode pipeline that builds six
+  glyph pointers in normal left-to-right order, preloads digit 1 immediately
+  before `WSYNC`, stores digit 4 in one ordinary zero-page byte, and keeps the
+  row number in RAM. The six post-`WSYNC` graphics writes complete at cycles
+  8, 16, 44, 47, 50, and 53.
+* Move horizontal player positioning and `HMOVE` to one-time setup while
+  `VBLANK` is asserted. The visible renderer contains no `HMOVE`, undocumented
+  opcode, stack-pointer access, nested call, push, or pull.
+* Strengthen `vcs_six_digit_score.test` to compare the complete generated row
+  loop and calculate every graphics-register write deadline rather than merely
+  checking total row and frame lengths.
+* Verify both normal `score++` and a temporary `score += 1000` cartridge with
+  Stella snapshots; neither shows first/third-digit pixel bleed. Pass 272/272
+  compile tests, 123/123 end-to-end/generic tests, staged installation, exact
+  4096-byte cartridge checks, and 42 consecutive 262-line NTSC frames.
+  `remove.txt` remains at 875 paths; the user's branding-test repair is retained.
+
+2026-07-20 16:59:01 PDT, add shared decimal and hexadecimal score-font catalog
+------------------------------------------------------------------------
+* Move all score-font data out of `examples/03_six_digit_score` into the shared
+  installed `libraries/vcs/fonts/` catalog. Remove the example-private
+  `fonts/clean.c26` and `fonts/classic.c26` files; `remove.txt` now contains
+  876 unique paths.
+* Convert all nine retained 8x8 font families into readable VCSC modules:
+  Default, 21st Century, Alarm Clock, Handwritten, Interrupted, Retroputer,
+  Whimsey, Tiny, and Hexadecimal. Each family has an 80-byte decimal `0-9`
+  module and a 128-byte hexadecimal `0-9A-F` module, for eighteen modules total.
+* Preserve each family's original decimal glyphs exactly. Preserve the original
+  Hexadecimal-family `A-F` glyphs and append that same official six-glyph suffix
+  to the other eight hexadecimal variants rather than inventing undocumented
+  style-specific letters. Every module exports the common `score_font` table.
+* Keep every row as one top-to-bottom visual-binary byte in source;
+  `VCS_FONT_GLYPH` reverses each eight-row glyph into the order consumed by the
+  score renderer. Add `libraries/vcs/fonts/README.md` with the complete module
+  catalog, selection instructions, representation notes, and CC0 provenance.
+* Make example 03 include the shared `fonts/21st_century_decimal.c26` module.
+  Install/uninstall the complete catalog with VCS support files and remove the
+  obsolete example-local include path from the build.
+* Add `vcs_font_catalog.test`: verify all eighteen files, decimal/hex prefix
+  identity, the common official `A-F` suffix, visual-row counts, provenance
+  notes, absence of private example font data, and a real exact-4096-byte score
+  cartridge build with every module.
+* Pass 272/272 compile tests and 124/124 end-to-end/generic tests. The staged
+  installation check builds example 03 using the installed font catalog, and
+  Stella 7.0 renders the selected 21st Century font correctly on the centered
+  blue score display.
+
+2026-07-20 17:36:56 PDT, add unstable-ARR silicon fingerprint example
+------------------------------------------------------------------------
+* Add `examples/04_fingerprint`, an exact 4096-byte unbanked NTSC cartridge.
+  Four exact raw `op6b` immediate probes preserve the uploaded D/C/A/operand
+  combinations, capture A' and masked NVZC with balanced `PHP`/`PLA`, and feed
+  the eight bytes in the specified order.
+* Express CRC-24/OPENPGP in VCSC using `uint24_t`: initial value `0xB704CE`,
+  polynomial `0x864CFB`, high-byte input XOR, and eight MSB-first shifts per
+  byte. A conditional self-test checks the standard ASCII `123456789` vector
+  against `0x21CF02`, independently of unstable-opcode emulation.
+* Display the resulting 24-bit value as six centered hexadecimal digits on the
+  existing medium-blue/white presentation. Reuse the corrected official-opcode
+  six-glyph pipeline and select the shared `fonts/hexadecimal_hex.c26` module.
+* Add `vcs_fingerprint.test` to verify exact probe opcode/flag sequences, feed
+  order, CRC constants and standard vector, embedded 128-byte font, ROM/vectors,
+  glyph-loop instruction sequence, stable 262-line timing, and exact 4096-byte
+  output. Extend staged installcheck and the root/VCS/font documentation.
+* Stella 7.0 displays `8A55CE` for its CPU model; the bundled simulator displays
+  `BDBAF3`. Treat those as model fingerprints, not universal expected values.
+* Restore example 03's source include to `21st_century_decimal.c26`, matching
+  its existing Makefile, documentation, and regressions.
+* Pass 272/272 compile tests and 125/125 end-to-end/generic tests. Staged
+  installation builds all four examples as exact 4096-byte cartridges.
+  `remove.txt` remains at 876 paths; retained legacy sources are unchanged.
+
+2026-07-20 18:00:31 PDT, share six-glyph timing and restore example-03 default font
+------------------------------------------------------------------------
+* Diagnose why example 04 reproduced a pixel-bleed bug already repaired in
+  example 03: it copied the row loop but reimplemented RESP0/RESP1 positioning
+  with ordinary compiled assignments. The row loop's cycle-16 GRP0 update is
+  safe only with the exact horizontal-positioning sequence used by example 03.
+* Add installed `libraries/vcs/six_glyph_display.c26`, owning the inseparable
+  one-time positioning/HMOVE sequence, shared RAM state, and canonical
+  documented-opcode six-glyph row loop. Both examples now include this module;
+  neither retains a private setup or draw implementation.
+* Make example 03 deliberately select `fonts/default_decimal.c26`. Update its
+  Makefile, README, font-catalog documentation, catalog substitution test, and
+  score regression to enforce Default rather than repeatedly restoring the old
+  21st Century selection.
+* Strengthen both example regressions to verify the identical generated setup
+  sequence and row renderer, and reject local copies of either shared timing
+  function. Install and uninstall the shared module with the VCS support files.
+* Verify in Stella 7.0 that example 04 displays `8A55CE` without the extra
+  first-digit upper-right pixel and that example 03 renders with the Default
+  decimal font. Both remain exact 4096-byte, stable 262-line NTSC cartridges.
+* Pass 272/272 compile tests and 125/125 end-to-end/generic tests plus
+  staged installation. `remove.txt` remains at 876 paths because this slice
+  adds one shared module and deletes no tracked source files.
+
+2026-07-20 18:19:10 PDT, use the named ARR mnemonic in example 04
+------------------------------------------------------------------------
+* Replace the four raw `op6b` spellings in `examples/04_fingerprint` with the
+  readable unofficial `ARR` mnemonic. Pass `-Wa,--illegals` explicitly from the
+  example Makefile, staged installation build, root command example, and focused
+  regression.
+* Add an end-of-line warning to every `ARR` statement identifying it as unstable
+  and unofficial and recording the exact emitted opcode/operand bytes (`$6B,$B8`
+  or `$6B,$6B`). Strengthen `vcs_fingerprint.test` to require those comments, the
+  named generated mnemonic, and the explicit assembler mode.
+* This is a source-readability change only: probe bytes, CRC input order, display
+  timing, cartridge contents, and expected model fingerprints remain unchanged.
+* Confirm the old raw-opcode and new named-mnemonic builds are byte-for-byte
+  identical (SHA-256 `db17b72cb57a0f80694a870cc8efb35de7bf80569a812f661bd7fff94b4b6f99`).
+  Pass 272/272 compile tests, 125/125 end-to-end/generic tests, staged
+  installation, exact 4096-byte cartridge checks, and a Stella 7.0 render of
+  `8A55CE`. `remove.txt` remains at 876 paths.
+
+2026-07-20 19:41:27 PDT, queue inline functions and clarify renderer integration
+------------------------------------------------------------------------
+* Add true source-level inline functions as task 20a, ahead of any full legacy
+  renderer port. Require direct-call type checking, call-site expansion without
+  JSR/RTS, hygienic labels and bindings, integration with existing static
+  storage/scratch allocation, safe return rewriting, expansion-cycle rejection,
+  and coverage for inline assembly used by cycle-sensitive helpers.
+* Renumber the former task 20a and following slices to 20b through 20f.
+* Replace the proposed universal standard-renderer ABI/fixed-RAM profile with a
+  per-renderer source-integration contract. Converted renderers are expected to be
+  included VCSC modules that declare and own their state; ordinary compiler and
+  linker allocation remains the default, with special placement only where the
+  source demonstrably requires it.
+* Require the first standard-renderer contract to document frame ownership,
+  entry points, hooks, clobbers, hidden hardware-stack use, timing constraints,
+  and feature costs. Explicitly exclude vertical-reflect, multisprite,
+  status-bar, banking, and Superchip variants from that first contract.
+* Update only `context.txt`; make no compiler, library, example, test, build, or
+  other documentation changes in this revision.
+
+2026-07-20 20:35:54 PDT, add true source-level inline functions
+------------------------------------------------------------------------
+* Add explicit `inline` function declarations and definitions. Calls retain the
+  ordinary direct-call signature checks and left-to-right argument evaluation,
+  then expand the visible source body directly without emitting a callable
+  function symbol, ABI metadata, JSR, RTS, or an inline hardware-stack level.
+* Give every call-site expansion private parameter, automatic-local, scratch,
+  return-object, and label namespaces. Rewrite source labels/gotos and inline-
+  assembly `@labels` hygienically, with a separate assembler-label namespace
+  from the private return join. Lower every early return through that join.
+* Support nested nonrecursive inline helpers, value and `ref` parameters,
+  automatic locals, void/value returns, and inline assembly. Attribute ordinary
+  calls inside an expansion to the enclosing ordinary function for call-graph
+  stack sizing. Reject missing visible bodies, `extern inline`, inline `main`,
+  incompatible inline/non-inline declarations, modifier misuse, and direct or
+  mutual inline-expansion cycles.
+* Fix bare reads of ordinary `ref` parameters to dereference the stored address
+  rather than copying the two-byte reference slot. The shared lvalue path now
+  gives both ordinary and inline ref parameters the pointed object width.
+* Document that inline functions are source expansion and have no callable ABI;
+  each expansion deliberately receives distinct static storage to prevent
+  hidden re-entry corruption through ordinary calls, trading RAM and ROM for
+  predictable behavior appropriate to small cycle-sensitive helpers.
+* Add compile and end-to-end coverage for duplicate expansions, private locals
+  and returns, source and assembler-label hygiene, early returns, ref mutation
+  and reads, nested inline calls, argument order, ordinary calls from expanded
+  bodies, cycle rejection, body visibility, and invalid modifier placements.
+  Pass 281/281 compile tests and 126/126 end-to-end/generic tests. Task 20b is
+  now the next queued action.
+
+2026-07-20 21:46:00 PDT, broaden ref-parameter runtime coverage
+----------------------------------------------------------------
+* Add `test/e2e_ref_parameter_matrix_verify.c26` as permanent runtime coverage
+  for bare reads through ordinary and `static ref` parameters.
+* Cover unsigned values of one through four bytes, widening, narrowing, signed
+  extension, forwarding one ref parameter to another function, write-then-read,
+  two-ref swaps, same-object aliasing, and a static-ref parameter mixed with an
+  ordinary value parameter.
+* Cover ref arguments formed from array elements, structure members, and
+  dereferenced pointers in addition to simple variables.
+* The current compiler passes the expanded matrix without code changes.
+
+2026-07-20 22:18:43 PDT, define the first standard-renderer source contract
+------------------------------------------------------------------------
+* Complete task 20b with one deliberately narrow profile under
+  `libraries/vcs/renderers/standard_4k_ntsc/`: NTSC, unbanked 4K,
+  non-reflected standard renderer, default asymmetric playfield and decimal score,
+  with no Superchip, banking, multisprite, status-bar, interlace, optional
+  color/height tables, paddle path, debug path, mini-renderer, or application hook.
+* Add the compiler-visible `standard_4k_ntsc.c26` contract. It owns 86 bytes of
+  genuinely used state through ordinary allocation: contiguous five-object X
+  positions, sprite/Y/height pointers and values, `bcd24_t` score, contiguous
+  twelve-byte score-pointer/transient workspace, score color, contiguous
+  48-byte playfield, playfield position, and two private transient bytes. Do not
+  preserve the legacy `$80`-based variable map; the unused legacy random byte is
+  not renderer state.
+* Document one void `vcs_standard_renderer_drawscreen()` boundary, VCSC ownership
+  of reset/vectors/startup and application overscan logic, module ownership of
+  sync/positioning/visible drawing, A/X/Y and N/V/Z/C clobbers, decimal-clear
+  entry/exit, TIA/RIOT ownership, stable 262-line NTSC timing, page and adjacency
+  requirements, excluded variants, and measured-versus-deferred RAM/ROM costs.
+* Add `callstack_extra = N` to linker MEMORY regions. It augments normal
+  call-graph and initializer sizing for explicitly known assembly-hidden stack
+  use, is rejected without `callstack = callgraph`, appears in the map, and is
+  exported as `__call_stack_extra`. The selected profile reserves two bytes for
+  the retained overscan routine's one nested `scorepointerset` JSR level; the
+  temporary score-renderer use of S adds no bytes because S is restored and no
+  push, pull, call, or return occurs while it is repurposed.
+* Add a focused contract regression and source smoke test covering declarations,
+  exact 86-byte adjacency span, absence of fixed RAM refs, documentation,
+  explicit hidden-stack enforcement, generated map/symbols, bad-configuration
+  rejection, ordinary allocation, and an exact 4096-byte cartridge. Install and
+  staged-build the contract module and matching linker profile.
+* Keep the retained legacy source tree byte-for-byte unchanged. Pass 282/282
+  compile tests, 128/128 end-to-end/generic tests, and staged installation.
+  Task 20c is now the next queued action.
+
+2026-07-20 23:01:08 PDT, finish the standard-renderer storage contract
+------------------------------------------------------------------------
+* Correct task 20b's RAM accounting. The included module now declares 38 bytes:
+  23 bytes of application-visible object/score state and 15 bytes of genuinely
+  private score-pointer, row-position, and scratch workspace. Stop describing
+  the optional 48-byte playfield as mandatory module-owned RAM.
+* Require the application to define the exact contiguous symbol
+  `vcs_standard_playfield[48]` before including the module. Permit either mutable
+  `uint8_t` RIOT RAM or `const uint8_t` cartridge ROM storage and expose it as
+  `VCS_STANDARD_PLAYFIELD`. Retain direct absolute-indexed access; do not add a
+  two-byte runtime pointer or indirect-load timing cost.
+* Document that the 48 bytes are a 32-column by 12-row coarse playfield, four
+  bytes per row, with each default row repeated for 16 scanlines. Record the
+  retained default path's timing-safe playfield-symbol low-byte window as
+  `$54..$D0`.
+* Expand the task-20b regression to build both RAM and ROM playfield forms,
+  require the same direct symbol, verify exact 48-byte RIOT savings for the ROM
+  form, preserve the 38-byte module span and two-byte hidden stack reserve, and
+  reject timing-unsafe smoke placements. Task 20d remains responsible for
+  enforcing the final real-renderer linked address and scanline timing.
+* Keep task 20c as the next queued action. Pass 283/283 compile tests,
+  128/128 end-to-end/generic tests, and staged installation with both storage
+  choices. The retained legacy source tree and `remove.txt` remain unchanged.
+
+2026-07-20 23:51:55 PDT, hard-split VCSC artifact names and formats from N
+------------------------------------------------------------------------
+* Rename all 417 maintained VCSC language sources from the long project suffix
+  to `.c26`, including examples, installed headers/modules, fixtures, compile and
+  execution tests, generated temporary names, Makefile dependencies, install
+  paths, documentation, and the deletion ledger.
+* Rename relocatable objects to `.o26` and archive libraries to `.l26` throughout
+  the assembler, archiver, linker, driver, runtime build, tests, examples,
+  installation layout, and documentation. The runtime is now `libvcsc.l26` and
+  its members use `.o26`.
+* Rename the assembler object writer implementation and all internal object
+  format identifiers to o26/O26. Change the object header identity
+  to `\x01\x00o26` and the archive identity to `VCSL26\x01`; the linker
+  rejects prior object and archive magics even when they are placed in files
+  carrying the new suffixes.
+* Remove all recognition of the former source, object, and archive suffixes.
+  Keep the executable names `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
+  and `vcsc-sim` unchanged. Keep `.a26` available for finished cartridge ROMs
+  rather than using it for object libraries.
+* Extend the hard-rename regression to require `.c26`/`.o26`/`.l26` paths,
+  inspect both new magics inside the built runtime archive, and prove that the
+  linker rejects pre-o26 and pre-l26 magics. Pass 283/283 compile tests and
+  128/128 end-to-end/generic tests. Task 20c remains the next queued action.

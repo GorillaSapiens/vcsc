@@ -35,6 +35,9 @@ index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `instruction.txt`
    or die ".../README.md does not document instruction.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `context-history/`')>=0
+   or die ".../README.md does not document the compact-context split\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
 index($bankswitching,'BANK0                $F000-$FFFF')>=0
    or die "bankswitching plan lost descending BANK0 logical origin\n";
@@ -346,22 +349,47 @@ my $component_guide=slurp(File::Spec->catfile(
 index($component_guide,'Retirement of these working profiles is not a completion')>=0
    or die "component guide restored retirement as a roadmap gate\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
-$context !~ /^\s*\[ \]\s+22i4d\./m
+my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
+index($context,'.../roadmap.txt')>=0 &&
+index($context,'bankswitching roadmap item 29')>=0 &&
+length($context) <= 100 * 1024
+   or die "compact context lost its roadmap pointer, active bankswitching item, or size ceiling\n";
+$roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$context =~ /^Current next action: 23\b/m
-   or die "roadmap next action is not task 23\n";
-$context =~ /^\s*\[x\] 22i4b5\./m
+$roadmap =~ /^Current next action: 23\b/m
+   or die "main roadmap next action is not task 23\n";
+$roadmap =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";
-$context =~ /^\s*\[x\] 22i4b6\./m
+$roadmap =~ /^\s*\[x\] 22i4b6\./m
    or die "composition-matrix roadmap leaf is not complete\n";
-$context =~ /^\s*\[x\] 22i4c1\./m
+$roadmap =~ /^\s*\[x\] 22i4c1\./m
    or die "public composition-matrix roadmap leaf is not complete\n";
-$context =~ /^\s*\[x\] 22i4\./m
+$roadmap =~ /^\s*\[x\] 22i4\./m
    or die "visible-component roadmap gate is not complete\n";
-$context =~ /^\[x\] 34\./m
+$roadmap =~ /^\[x\] 34\./m
    or die "animated-sprite roadmap item is not complete\n";
-$context !~ /Task 22 remains the active roadmap family/
+$roadmap !~ /Task 22 remains the active roadmap family/
    or die "stale task-22 active-roadmap summary was restored\n";
+
+$context !~ /^Change log$/m
+   or die "compact context regained an embedded chronological changelog\n";
+my @context_history=sort glob(File::Spec->catfile($repo,'...','context-history','*.txt'));
+@context_history
+   or die "context-history contains no daily files\n";
+for my $history_path (@context_history) {
+   my $name=basename($history_path);
+   $name =~ /\A(\d{4}-\d{2}-\d{2})\.txt\z/
+      or die "invalid context-history filename $name\n";
+   my $date=$1;
+   my $body=slurp($history_path);
+   my @timestamps=($body =~ /^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}, /mg);
+   @timestamps
+      or die "$name contains no timestamped history entries\n";
+   for my $entry_date (@timestamps) {
+      $entry_date eq $date
+         or die "$name contains an entry dated $entry_date\n";
+   }
+}
 
 my @markdown;
 find(sub {

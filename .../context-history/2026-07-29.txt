@@ -1,0 +1,248 @@
+VCSC CONTEXT HISTORY — 2026-07-29
+=================================
+
+Historical development entries for 2026-07-29, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-29 12:17:07 PDT, collapse public renderer examples into four interactive diagnostics
+-------------------------------------------------------------------------------------------
+* Replace the ten separate faithful-legacy, 192-line static/X/X+Y, and 181-line
+  score-above/score-below static/X/X+Y example leaves with exactly four public
+  cartridges:
+
+      examples/02_faithful_legacy_playercolors/01_interactive/
+      examples/03_player_color_192/01_interactive/
+      examples/04_player_color_181/01_score_above/01_interactive/
+      examples/04_player_color_181/02_score_below/01_interactive/
+
+* Preserve each renderer's former static certification positions. All four
+  start P0/P1/Ball at X=44/108/78; P1 and Ball start at Y=42/45, P0 starts at
+  Y=78 in the faithful legacy profile and Y=70 in the modern profiles.
+* Add selected-object state. The active-low console SELECT switch advances
+  once per press through P0, P1, and Ball; a release latch prevents held-switch
+  repetition. The left joystick moves the selected object by one horizontal
+  pixel or one renderer Y unit per frame and clamps X to 0..159. The 192-line
+  Y range is 0..95; the faithful legacy and scored 181-line ranges are 0..87.
+  These public player-color profiles do not expose independently movable M0 or
+  M1 objects, and the READMEs state that explicitly.
+* For the faithful legacy and both 181-line scored examples, add selected-digit
+  state indexed from ones through hundred-thousands. Right-joystick left/right
+  selects a more-/less-significant digit only after horizontal release;
+  up/down adds/subtracts the selected 10^n weight. Three six-byte ROM tables
+  supply the packed-BCD byte weights, and short SED/ADC or SED/SBC sequences
+  update the three-byte score without consuming a bcd24_t RAM temporary.
+* Make RESET execute `jmp ($fffc)`, so it enters through the exact address held
+  by the cartridge reset vector and reinitializes the complete scene and both
+  selection latches. Normal interactive frames retain the renderer's exact
+  264-line legacy or 262-line modern period; the reset transition itself may be
+  longer while initialization reruns.
+* Replace the old example matrix with a 6502 input harness that drives SWCHA and
+  SWCHB. It verifies initial positions, one-unit motion in all directions,
+  selection cycling and held-switch suppression, X/Y endpoint clamps, score
+  digit move-and-release behavior, decimal increments/decrements, ordinary
+  frame timing, and reset-state restoration for all four examples. Retain the
+  exact initial-raster checks for the legacy and 192-line profiles and teach all
+  older harnesses to present idle console inputs.
+* Update recursive example discovery, staged installcheck paths, root/VCS/test
+  documentation, renderer-group and leaf READMEs, and record the 40 retired
+  leaf files in `.top_secret/remove.txt`.
+* Final linked footprints: faithful legacy ROM 2961 bytes and RAM 126/128;
+  scoreless 192-line ROM 2557 bytes and RAM 102/128 in its leaf build; each
+  scored 181-line ROM 3628 bytes and RAM 122/128. Staged stack sizing reports
+  106 RAM bytes for the 192-line cartridge.
+* Verification: all four leaf Makefiles build; recursive editable-example
+  discovery, exact legacy/192 initial-raster tests, source-tree hygiene,
+  branding, and the interactive control harness pass. Compile-only tests pass
+  325/325. All 193 end-to-end/generic tests are accounted for and pass; the
+  first 157 passed before the outer runner ceiling and the renderer-heavy tail
+  passed in explicit chunks. Staged `make installcheck` passes.
+
+2026-07-29 17:29:09 PDT, filter interactive score controls and cycle digit-selection color
+--------------------------------------------------------------------------------------
+* Change the right-joystick controls in all three scored interactive diagnostics to
+  sample SWCHA only once every ten frames. Pack the ten-frame countdown into the
+  high nibble of `right_joystick_state` and the previous sampled joystick position
+  into its low nibble, so the filter costs only one RAM byte.
+* Require two consecutive ten-frame samples with the same joystick position before
+  applying any horizontal or vertical action. A held direction then repeats at the
+  ten-frame sample cadence; changing direction requires a fresh pair of matching
+  samples. Neutral and unstable samples produce no score or digit-selection change.
+* Add `$10` to the score color whenever a qualified horizontal sample changes the
+  selected digit. Vertical score increments/decrements do not change the color.
+  RESET restores the neutral filter state, selected digit, score, and initial gray
+  color through the existing reset-vector jump.
+* Add `libraries/vcs/six_glyph_color_component.c26`, a mutable-color twin of the
+  fixed-white six-glyph component. Preserve its exact eleven-scanline contract and
+  horizontal positioning phase by loading the application color only after RESP0
+  and RESP1. Keep the original fixed-color component unchanged for existing tight
+  compositions, and install/uninstall/check the new component with the normal VCS
+  library payload.
+* Extend the interactive emulator harness to verify the 20-frame initial
+  qualification delay, ten-frame held-repeat cadence, direction-change
+  requalification, qualified horizontal color steps, vertical score edits without
+  color changes, and reset restoration. Update leaf, renderer-group, VCS-library,
+  and test documentation.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic tests
+  are accounted for and pass; the first 172 passed before the outer command window
+  expired and the remaining 21 passed explicitly. Focused source-tree hygiene,
+  software-stack inventory, branding, and interactive renderer tests pass. Staged
+  `make installcheck` passes with the new mutable-color component installed.
+
+2026-07-29 17:34:00 PDT, add the VCSC logo to the fingerprint example
+------------------------------------------------------------------------
+* Include `libraries/vcs/fonts/logo_font.c26` in the fingerprint cartridge and
+  instantiate a second `six_glyph_component.c26` lifecycle component named
+  `logo`. Keep its packed-BCD score fixed at `012345` (`logo_score := 12345`),
+  then redirect its six glyph pointers to the six consecutive logo-font slices.
+* Correct the previously unused logo font to the standard score-component shape:
+  six page-contained 8-byte glyph cells, with the original seven visible rows
+  followed by one blank row. Rename its private reversal alias so it can coexist
+  with the ordinary hexadecimal font in one translation unit.
+* Preserve the fingerprint's calibrated raw-scanline-131 entry. After its
+  eleven-line component, wait 79 calibrated blank lines and enter the logo on
+  raw scanline 221, so the logo component consumes the final eleven lines of the
+  192-line visible field without changing the 262-line frame period.
+* Extend the fingerprint regression to verify both component instances, both
+  page-contained font tables in linked ROM, the fixed `012345` logo value, the
+  six redirected pointers, and calibrated component entries at raw scanlines
+  131 and 221. Refresh the reviewed Stella 7.0 reference capture to include the
+  bottom logo and update example, font, VCS-library, and test documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic tests
+  are accounted for and pass; the first 172 passed before the outer command window
+  expired and the remaining 21 passed explicitly. Focused fingerprint, font-catalog,
+  example-build, six-digit-score, six-glyph-component, and source-tree-hygiene tests
+  pass. Staged `make installcheck` passes.
+
+2026-07-29 18:50:22 PDT, add edge-justified score components and recompose fingerprint
+-------------------------------------------------------------------------------------
+* Add fixed-white, eleven-scanline `six_glyph_left_component.c26` and
+  `six_glyph_right_component.c26` lifecycle components. Preserve the centered
+  component's score/pointer interface and use cycle-exact unrolled eight-row
+  schedules rather than extra RAM state.
+* Calibrate the left component to the exact visible range X=0..47 with P0/P1
+  bases at X=0/X=8, HMP0/HMP1 values `$30`/`$b0`, and row TIA write events at
+  CPU cycles 18, 21, 24, and 27. Calibrate the right component to X=112..159
+  with bases at X=112/X=120, HMP0/HMP1 values `$c0`/`$d0`, eleven positioning
+  NOPs, and row write events at cycles 55, 58, 61, and 64.
+* Recompose the fingerprint example as three independent eleven-line displays:
+  a fixed `012345` VCSC logo in the upper-right corner at raw scanlines 40..50,
+  the 24-bit fingerprint centered at raw scanlines 131..141 using
+  `fonts/whimsey_hex.c26`, and a second fixed `012345` VCSC logo in the
+  lower-left corner at raw scanlines 221..231. Preserve the 262-line frame.
+* Install, uninstall, and stage-check both edge components with the normal VCS
+  library payload. Update root, example, font, VCS-library, and test
+  documentation and refresh the reviewed Stella 7.0 fingerprint reference.
+* Extend the fingerprint and six-glyph regressions to verify all three component
+  instances, both exact edge ranges, calibrated entry/write timing, Whimsey and
+  logo tables, pointer redirection, fixed logo values, and complete frame timing.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic tests
+  are accounted for and pass; the first 172 passed before the outer command
+  ceiling and the remaining 21 passed explicitly. Focused fingerprint,
+  font-catalog, example-build, six-glyph-component, source-tree-hygiene, and
+  software-stack-inventory tests pass. Staged `make installcheck` passes using
+  the supplied locally unpacked Bison/Flex packages.
+
+2026-07-29 19:14:00 PDT, normalize faithful interactive score digit order
+----------------------------------------------------------------------------
+* Preserve the retained faithful legacy renderer's historical score-byte order by
+  default so the pristine oracle and exact legacy behavior remain unchanged.
+* Add the object-like alias `VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER` to opt into
+  normal VCSC packed-BCD display order: the most-significant digit pair appears
+  at the left and the least-significant digit pair appears at the right.
+* Enable that adapter in the public faithful interactive example. Initialize its
+  ordinary little-endian packed-BCD score as `$56,$34,$12`, displaying `123456`,
+  so right-joystick LEFT/RIGHT now selects visually adjacent digits in the same
+  intuitive order used by the eleven-line score components. Decimal `10^n`
+  increments and decrements therefore affect the digit at the selected position.
+* Update renderer, example, and test documentation and strengthen regressions to
+  require the opt-in adapter, standard packed-BCD initialization, and preservation
+  of the historical default renderer branch.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 325/325 compile-only tests and all 193 end-to-end/generic tests
+  pass. Focused faithful renderer, faithful example, and interactive matrix tests
+  pass. Staged `make installcheck` passes.
+
+2026-07-29 19:30:08 PDT, reject empty address bindings on non-ref declarations
+-----------------------------------------------------------------------------
+* Treat shorthand `@none` as the same empty read/write address specification as
+  `@[none/none]` instead of parsing `none` as an ordinary address identifier.
+* Reject both `uint8_t foo@none` and `uint8_t foo@[none/none]` on non-`ref`
+  declarations with a hard diagnostic. Preserve the existing compatibility
+  behavior for meaningful non-`ref` address annotations such as `@0x10`, which
+  still warn that the ignored `@` annotation has no effect.
+* Add file-scope shorthand and block-scope split-form regression tests and
+  document the degenerate-address rejection in `compiler/README.md`.
+* Verification: the four focused address-binding diagnostics pass and the full
+  compile-only suite passes 327/327.
+
+2026-07-29 19:48:37 PDT, require ref for every address binding
+--------------------------------------------------------------
+* Reject every `@...` address binding on a non-`ref` declaration with a hard
+  diagnostic that tells the programmer to add `ref`; this includes `@0x10`,
+  split read/write bindings, `@none`, and `@[none/none]`.
+* Replace the former global and local compatibility-warning regressions with
+  explicit requires-`ref` error tests, and update the existing empty-binding
+  tests to expect the same general diagnostic.
+* Document that `@...` is exclusively an absolute-`ref` binding, never an
+  advisory placement annotation for an ordinary allocated object.
+* Record the two renamed warning-test paths in `.top_secret/remove.txt`.
+* Verification: all four focused address-binding errors pass and the full
+  compile-only suite passes 327/327.
+
+2026-07-29 20:12:44 PDT, add the lone-underscore discard token
+------------------------------------------------------------
+* Have the lexer return a dedicated `DISCARD` token for the exact one-character
+  spelling `_`; longer identifiers containing underscores remain ordinary
+  identifiers.
+* Add value-less simple-assignment forms in both directions. `lvalue := _`
+  performs no source load or conversion and stores whatever byte is already in
+  A; a direct one-byte absolute register such as `WSYNC` therefore lowers to
+  one bare `STA`. `_ := expression` evaluates the expression normally for
+  calls, assignments, and other effects without creating a destination object.
+* Restrict assignment from discard to one-byte, non-bitfield lvalues. Reject
+  wider and bitfield targets rather than inventing ambiguous multibyte or
+  read-modify-write semantics. Both discard forms are intended as value-less
+  expression statements rather than operands in larger expressions.
+* Add direct-codegen, lexer-distinction, rejection, parser-coverage, and generic
+  simulator regressions. Update the root language summary, compiler reference,
+  and test documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 194 end-to-end/generic
+  tests are accounted for and pass; the first 173 passed before the outer
+  command ceiling and the complete 36-test VCS tail passed explicitly. Staged
+  `make installcheck` also passes.
+
+2026-07-29 22:33:50 PDT, generate Stella debugger sidecars by default
+------------------------------------------------------------------------
+* Make every successful `vcsc-ld` link derive and write same-stem `.map`,
+  `.sym`, `.lst`, and `.cfg` files from the primary output name. The `.sym`
+  file uses the two-column DASM symbol form accepted by Stella, the `.lst`
+  file records final linked bytes plus DASM-compatible RAM constant rows, and
+  the DiStella `.cfg` marks known executable layouts as `CODE` and all other
+  occupied cartridge bytes as `DATA`.
+* Add linker and high-level driver naming options `-Map`/`--map`,
+  `-Sym`/`--sym`, `-List`/`--list`, and `-Cfg`/`--cfg`, including joined `=`
+  forms, plus `--no-map`, `--no-sym`, `--no-list`, and `--no-cfg` suppression.
+  A later explicit name re-enables an output after its disable switch.
+* Protect output files from collisions. In particular, when a same-stem linker
+  script already occupies the default Stella `.cfg` path, preserve the input
+  script and omit only that generated sidecar; explicitly naming the linker
+  script as the Stella output is an error. Reject sidecars that collide with
+  the ROM or with one another.
+* Do not generate Stella's ROM-specific `.script`: it stores user-owned
+  breakpoints, traps, watches, and debugger setup and must not be overwritten
+  by a link. The VCSC `.map` remains a richer linker report rather than a file
+  consumed by Stella.
+* Add `linker_stella_sidecars.pl` coverage for default files, file contents,
+  renamed files, disabled files, driver passthrough, same-stem config
+  preservation, and explicit collision rejection. Update linker, driver, root,
+  Doxygen, test, and example-cleanup documentation.
+* No files were removed; `.top_secret/remove.txt` is unchanged.
+* Verification: 331/331 compile-only tests pass. All 195 end-to-end/generic
+  tests are accounted for and pass; the first 159 passed before the outer
+  command ceiling, the first 14 VCS-tail tests passed in a second chunk, and
+  the remaining 22 passed in two explicit chunks. Staged `make installcheck`
+  passes with the installed toolchain.

@@ -1,0 +1,380 @@
+VCSC CONTEXT HISTORY — 2026-08-04
+=================================
+
+Historical development entries for 2026-08-04, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-08-04 02:07:16 PDT, add Superchip-backed automatic locals
+----------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 13. Automatic local scalars,
+  arrays, structures, packed bitfields, and inline-expansion-private locals may
+  select a split-address writable region such as `superchip` while retaining
+  VCSC's fixed non-reentrant activation-storage model.
+* Preserve region identity plus read/write aliases on local context entries and
+  lvalues. Reads use the read alias; assignments, declaration initializers,
+  compound operations, increments/decrements, and indexed writes use the write
+  alias. Existing alias-aware lowering handles ordinary operations.
+* Replace the former split-bitfield-write rejection with a two-alias sequence:
+  evaluate the destination once, load the physical storage through its read
+  alias, edit a compiler scratch copy, and store through the write alias. An
+  arbitrary explicit split ref still requires a known constant alias delta for
+  this generated operation.
+* Emit split automatic storage in per-function
+  `BSS.<region>.__vcsc_activation$<owner>` layouts, including private inline
+  locals. Fix activation BSS zero records so startup initialization targets a
+  split region's write window rather than its read-only window. Physical bytes
+  remain region-local activation-overlay storage and are counted once.
+* Add compile-only regressions for local declarations, direct/runtime indexing,
+  inline locals, alias-aware packed-bitfield writes, and the deliberate
+  function-scope-static restriction. Add `superchip_locals.pl`, which runs
+  F8SC/F6SC/F4SC from every physical startup bank and verifies initializers,
+  compounds, increments, bitfields, inline expansion, repeated nested
+  cross-bank calls, exact eleven-byte map occupancy, read/write alias coherence,
+  and deterministic overflow.
+* Update compiler ABI/storage documentation, linker activation documentation,
+  VCS Superchip usage documentation, detailed roadmap status, and source-tree
+  hygiene. Roadmap item 14, Superchip-backed value parameters, is next.
+* Verification: all 354 compile-only tests pass. All 216 end-to-end/generic
+  tests pass in ordered chunks, including every new Superchip-local execution
+  case. Staged `make installcheck` passes.
+
+2026-08-04 02:40:44 PDT, complete function-scope static Superchip locals
+------------------------------------------------------------------------
+* Complete the previously omitted function-scope `static superchip` portion of
+  bankswitching roadmap item 13. Static split-address locals use persistent
+  `BSS.superchip` or `DATA.superchip` storage and never consume or overlap
+  the owning function's activation overlay.
+* Reuse the established one-time static-local initialization semantics. An
+  uninitialized object is cleared at startup, a constant initializer uses the
+  startup DATA-copy path, and a nonconstant initializer runs once in the
+  translation unit's startup initializer. Every destination uses the region's
+  write alias while subsequent reads use its read alias.
+* Add compile and end-to-end coverage for uninitialized, constant-initialized,
+  and runtime-initialized static Superchip scalars, arrays, and packed
+  bitfields. The execution test calls the function repeatedly across banks,
+  starts F8SC/F6SC/F4SC from every physical bank, checks exact alias contents,
+  and requires six bytes of persistent physical occupancy with no activation
+  allocation.
+* Update compiler, linker, VCS, test, detailed-roadmap, deletion-ledger, and
+  source-tree-hygiene documentation. Roadmap item 14, Superchip-backed value
+  parameters, remains next.
+* Verification: all 354 compile-only tests pass; all 217 end-to-end/generic
+  tests pass in ordered chunks; focused static-Superchip and hygiene tests pass;
+  staged `make installcheck` passes.
+
+2026-08-04 03:02:03 PDT, prove generic split-address memory regions
+--------------------------------------------------------------------
+* Add `split_memory_generic_regions.pl`, a mapper-independent execution test
+  using regions named `banana`, `pair`, and `orange` rather than `superchip`.
+  Their windows use different sizes, unaligned starts, wide noncontiguous
+  spacing, and both read-below-write and read-above-write ordering.
+* Exercise persistent globals, automatic activation storage, function-scope
+  static storage, BSS clearing, DATA copying, runtime initialization, arrays,
+  compound operations, increment, packed-bitfield updates, exact occupancy,
+  and deterministic per-region overflow. The compiler metadata and linker map
+  are checked for every declared name, address pair, and size.
+* Generalize `vcsc-sim` split-address modeling. It now discovers every shared
+  `MEMORY` entry with `read_start` and `write_start`, allocates one physical
+  byte array per region, maps reads and writes through their declared aliases,
+  mirrors both windows for memory dumps, and reports wrong-direction accesses.
+  F8SC/F6SC/F4SC continue to obtain their 128-byte behavior from the cfg's
+  ordinary `superchip` entry; only the mapper name remains hardware-specific.
+* Update compiler, linker, simulator, test, detailed-roadmap, and source-tree
+  hygiene documentation to state that region names, window order, spacing,
+  alignment, and capacity come from `mem`/cfg attributes rather than a fixed
+  Superchip layout. Roadmap item 14, Superchip-backed value parameters, remains
+  next.
+* Verification: all 354 compile-only tests pass. All 218 end-to-end/generic
+  tests pass in ordered chunks, including the new fruit-region test and all
+  F8SC/F6SC/F4SC allocation/local/static-local regressions. Staged
+  `make installcheck` passes.
+
+2026-08-04 03:48:33 PDT, add generic startup-main placement and split value parameters
+---------------------------------------------------------------------------------------
+* Remove the compiler's spelling-based `bank0` rule for `main`. In a banked
+  configuration, unqualified `main` is now pinned by `vcsc-ld` to the unique
+  BANKS entry marked `startup=yes`, using that bank's ordinary allocatable ROM
+  MEMORY region. An explicitly qualified `main` is accepted only when its
+  MEMORY region belongs to the same startup bank; diagnostics report the actual
+  configured region and bank names.
+* Generalize mapper-table validation so logical bank names are labels rather
+  than required BANK0/BANK1 tokens. Physical file order and selector hotspots
+  remain derived from logical start addresses and mapper rules. Public profiles
+  retain their conventional BANK0 startup names without making those spellings
+  semantic.
+* Complete bankswitching roadmap item 14. Any split-address writable `mem`
+  region may back a value parameter. The parameter remains an exact-sized,
+  callee-owned symbol in its region-local activation layout. Callers evaluate
+  and convert all arguments left-to-right into scratch, then copy split
+  parameters through their write aliases immediately before JSR. Callee loads
+  use read aliases and callee stores use write aliases; inline parameters use
+  the same generic lowering.
+* Extend same-translation-unit function signatures with parameter region
+  identity and linker-visible ABI metadata with that identity plus read and
+  write starts. Declarations and definitions cannot silently disagree about
+  split storage. Keep split-address `ref` parameters rejected because the
+  ordinary pointer/reference ABI carries only one address.
+* Add `superchip_parameters.pl` for F8SC/F6SC/F4SC ordinary and BCD widths,
+  caller-side nested evaluation, mutation, inline and cross-bank calls, every
+  physical startup bank, exact 21-byte activation occupancy, alias coherence,
+  and deterministic overflow. Add mapper-independent
+  `split_memory_value_parameters.pl` using `banana`, `pair`, and `orange`, with
+  reversed and noncontiguous aliases, separate compilation, exact occupancy,
+  nested lifetimes, and ABI mismatch diagnostics.
+* Add `linker_startup_main_generic.pl`, using PEAR/BANANA logical banks and
+  `pear_code`/`orange_code` MEMORY regions. Its ordinary CODE fallback is the
+  non-startup bank, proving plain `main` follows `startup=yes`; it also proves
+  an explicit non-startup qualifier fails without leaking BANK0/BANK1 names.
+* Update compiler ABI/language documentation, linker placement and activation
+  documentation, VCS Superchip usage, test inventory, detailed roadmap status,
+  existing image-model and hygiene regressions, and the deletion ledger.
+  Bankswitching roadmap item 15, split-address function return storage, is next.
+* Verification: all 356 compile-only tests pass. All 221 end-to-end/generic
+  tests pass in ordered chunks; the first long run reached test 164 with only
+  two deliberately updated expectation tests failing, both were corrected and
+  rerun, and the remaining 57 tests passed in two ordered chunks. Focused
+  startup-main, generic split-parameter, Superchip-parameter, fruit-region,
+  image-model, and source-hygiene tests pass. Staged `make installcheck` passes.
+
+2026-08-04 08:16:42 PDT, make direct-call argument staging selective
+-----------------------------------------------------
+* Replace whole-list direct-call staging with a generic liveness rule. Argument
+  expressions still evaluate left-to-right, but a converted value is copied to
+  its callee-owned parameter object immediately unless a later argument may
+  execute a function call. Only values which must survive such a later call
+  remain in caller-owned scratch until all evaluations finish.
+* Keep one reusable conversion slot for the largest unstaged argument and place
+  preserved arguments before it in the same caller scratch lease. Call-free
+  lists therefore reserve the maximum argument width rather than the sum of all
+  widths; nested-call sites reserve only the crossing values plus that reusable
+  slot. Split-address parameters use the same generic immediate/delayed decision
+  and always copy through their configured write expression.
+* Treat ordinary and inline call expressions conservatively as possible runtime
+  calls; exclude compile-time compiler builtins and unevaluated sizeof operands.
+  This preserves sibling activation overlay safety, including self-target nested
+  calls, without hard-coding parameter regions or mapper names.
+* Add call_selective_staging.pl. It proves a 1+2+1+4-byte call-free list uses a
+  four-byte reusable slot, a nested-call list stages only the first byte plus
+  that four-byte slot, and a call in the first argument needs no preserved
+  prefix. Update call-order expectations, compiler/ABI, VCS, test, and detailed
+  bankswitching-roadmap documentation.
+* Verification: all 357 compile-only tests pass. All 221 end-to-end/generic
+  tests pass; the long suite was completed in ordered continuation chunks after
+  the execution timeout, with source-tree hygiene rerun after removing the
+  temporary resume helper. Focused call-order, selective-staging, sibling-
+  overlay, Superchip-parameter, and generic split-parameter tests pass. Staged
+  `make installcheck` passes.
+
+2026-08-04 11:38:02 PDT, add generic split-address function return storage
+----------------------------------------------------------
+* Complete bankswitching roadmap item 15. A non-void function may select any
+  writable split-address `mem` region for its existing exact-sized hidden
+  `function$__return` object. The function body remains automatically placed;
+  item 16 will separate an explicit read-only code-region set from the writable
+  result region.
+* Derive the return object's read symbol, write expression, addressing mode, and
+  region-local activation segment from ordinary `mem` metadata. Split results
+  use absolute import/export; default results retain the established zero-page
+  ABI. No compiler or linker path recognizes the spelling `superchip` or
+  assumes a particular window order, distance, alignment, or size.
+* Lower `return expression;`, direct `$$` assignment, and compound `$$`
+  updates through the write alias. Reads inside the callee and caller result
+  copies use the read alias; a bare `return;` preserves the value already
+  stored. Carry the result region and both starts through same-translation-unit
+  signatures, separate-compilation ABI fingerprints, map output, and overflow
+  diagnostics. Reject split result storage on `void` functions.
+* Add `split_memory_function_returns.pl` using separately compiled `banana`,
+  `pair`, and `orange` regions with different capacities, reversed window
+  ordering, and noncontiguous aliases; it also covers a 16-bit pointer result.
+  Add `superchip_function_returns.pl` for F8SC/F6SC/F4SC one- through four-byte
+  ordinary and BCD results, explicit
+  `$$` write/read/update and bare-return paths, same-bank and generated
+  cross-bank calls, every physical startup bank, exact four-byte physical
+  overlay occupancy, alias coherence, and deterministic overflow. Add focused
+  compile-only checks for absolute import/export, void rejection, and region
+  conflicts.
+* Update compiler ABI/language documentation, linker activation and mem-region
+  documentation, VCS Superchip usage, test inventory, source-tree hygiene, and
+  the detailed bankswitching roadmap. Give the existing recursive example-build
+  regression an explicit 30-second timeout because it takes about nine seconds
+  on this build host rather than the runner's six-second default.
+* Verification: all 360 compile-only tests pass. The two new return regressions,
+  all generic split-region/Superchip allocation-local-static-parameter tests,
+  and source-tree hygiene pass. 222 of the 223 end-to-end/generic tests pass in
+  ordered chunks; the unrelated heavyweight `vcs_score_composition_raster.pl`
+  did not finish within the available execution window and produced no failure
+  before timeout. Staged `make installcheck` passes.
+
+2026-08-04 19:13:18 PDT, make address annotations imply absolute external bindings
+--------------------------------------------------------------------------
+* Complete bankswitching roadmap item 16. A file-scope or block-scope
+  `@[read/write]` annotation now defines a non-owning absolute external binding
+  by itself. The compiler allocates no storage and emits no initializer for the
+  binding. Installed TIA, RIOT, and Superchip headers, examples, tests, and
+  documentation now use declarations such as
+  `uint8_t VSYNC @[none/0x00];` without an object-level `ref` modifier.
+* Reserve `ref` for function parameters. Diagnose it on file-scope objects,
+  local objects, functions, and aggregate members. Absolute bindings reject
+  initializers, `static`, `extern`, `page`, named `mem` placement, use
+  contracts, and `@[none/none]` while preserving either one-sided `none`.
+* Keep access lowering generic. Direct, indexed, member, aggregate, array, and
+  inline-assembly uses continue to consume the lvalue's independent read and
+  write expressions; no code recognizes a hardware-register name, the spelling
+  `superchip`, window order, adjacency, or distance.
+* Compare same-translation-unit redeclarations by canonical address value, so
+  equivalent numeric spellings agree. Emit linker-visible global ABI metadata
+  containing the canonical read address, write address, and object type; force
+  an otherwise-unused companion object into the mismatch regression so the
+  linker proves different bindings fail across separate compilation.
+* Raise the assembler's obsolete 255-export writer ceiling to the full 16-bit
+  count already encoded by the `.o26` format. Absolute-binding metadata from the
+  installed VCS headers can therefore coexist with large function/return ABI
+  fixtures without suppressing records or failing object generation.
+* Preserve automatic split-memory initialization separately from true absolute
+  bindings. A focused fruit-region regression caught and prevented an early
+  return from skipping initialization of split-address automatic locals.
+* Rename absolute-binding tests away from the obsolete absolute-ref terminology,
+  update the deletion ledger and coverage fixture, and extend compiler language,
+  ABI, VCS, test-inventory, roadmap, and source-hygiene documentation.
+* Verification: all 372 compile-only tests pass. All 223 end-to-end/generic
+  tests pass in ordered chunks, including generic fruit regions, Superchip
+  locals/parameters/returns, every VCS renderer and profile regression, the
+  cross-translation-unit absolute-binding mismatch, and source-tree hygiene.
+  Staged `make installcheck` passes. Bankswitching roadmap item 17,
+  the `writeonly` access qualifier, is next.
+
+2026-08-04 19:35:00 PDT, remove the public Superchip raw alias and rename developer records
+-------------------------------------------------------------------------------------------
+* Remove the non-owning `superchip_ram[128]@[0xF080/0xF000]` whole-window alias
+  from the installed `superchip.c26` header. The allocatable generic
+  `mem superchip` definition remains the complete public interface, so ordinary
+  allocator-managed objects are not visually or semantically shadowed by a
+  header-provided alias covering the same physical bytes.
+* Give `bankswitching_diagnostic_suite.c26` its own private
+  `diagnostic_superchip_ram` absolute binding. The diagnostic still probes the
+  complete read and write windows and shared persistence, while ordinary users
+  see only allocator-backed Superchip storage unless they deliberately declare
+  a raw non-owning binding themselves.
+* Rename the developer-only `.top_secret/` directory to `.../`, update active
+  tests and maintenance references, document the intentionally terse name, and
+  record the five renamed old paths in `.../remove.txt`.
+* Update VCS and roadmap documentation plus source-tree hygiene checks to enforce
+  the public-region/private-diagnostic-alias split.
+* Verification: all 372 compile-only tests pass. Focused source-tree hygiene,
+  branding, source-suffix migration, bankswitching-diagnostic, and example-build
+  end-to-end tests pass. Staged `make installcheck` passes.
+
+2026-08-04 20:29:36 PDT, reject absolute bindings inside allocator-managed memory
+----------------------------------------------------------------------------------
+* Strengthen bankswitching roadmap item 16 so an absolute external binding is
+  truly outside allocator-managed storage. File-scope and block-scope
+  `@[read/write]` objects now emit linker-visible region-guard metadata carrying
+  the complete object size and both canonical address ranges.
+* Before allocation, `vcsc-ld` rejects a readable absolute-binding range which
+  overlaps any configured MEMORY region's read or ordinary window, and rejects a
+  writable range which overlaps that region's write or ordinary window. The
+  check is directional and generic: split windows may be reversed,
+  noncontiguous, differently sized, or arbitrarily named, and an address in the
+  opposite-direction window is not mistaken for an overlap.
+* Convert `diagnostic_superchip_ram` from a non-owning absolute alias into
+  `superchip uint8_t diagnostic_superchip_ram[128]`. The bankswitching diagnostic
+  now owns and reserves the entire physical Superchip region while continuing to
+  probe offsets 0, 1, and 127 through ordinary split-memory lowering.
+* Add `absolute_binding_memory_region_overlap.pl` for ordinary and split regions,
+  reversed and noncontiguous windows, global and block-scope bindings, full-array
+  boundary overlap, and valid external holes. Add
+  `external_binding_holes.cfg` and migrate old generic tests whose intentionally
+  fixed helper buffers must remain outside managed memory. Update compiler ABI,
+  linker, VCS, test-inventory, roadmap, and source-hygiene documentation.
+* Verification: all 372 compile-only tests pass. All 224 end-to-end/generic tests
+  pass; the long suite was completed in ordered continuation chunks after the
+  execution windows, including every VCS renderer/profile regression and the new
+  overlap checks. Staged `make installcheck` passes.
+
+2026-08-04 21:59:33 PDT, add the writeonly one-address pointer capability
+-------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 17 with `writeonly T *`, the write-side
+  counterpart to `const T *`. The qualifier changes permitted access and ABI
+  compatibility without changing the target's two-byte pointer representation.
+* Carry pointer access capability through declarations, context/lvalue metadata,
+  expression propagation, assignments and initializers, returns, value
+  parameters, aggregate fields, same-translation-unit compatibility, and
+  linker-visible ABI fingerprints. Fix global-expression qualification to use
+  the canonical global context-entry initializer rather than inspecting AST
+  children ad hoc.
+* Reject reads through writeonly pointers, writes through const pointers, and
+  hidden reads from compound assignment, pointed-to increment/decrement, and
+  packed-bitfield preservation. Permit ordinary pointers to narrow implicitly to
+  const or writeonly; reject implicit capability recovery and const/writeonly
+  cross-conversion, `const writeonly`, and non-pointer writeonly declarations.
+* Add positive compile/execution coverage plus focused conversion, lvalue,
+  redeclaration, aggregate ABI, function ABI, and global-expression failures.
+  Update compiler, ABI, test-inventory, and bankswitching roadmap documentation.
+* Verification: all 390 compile-only tests pass. All 227 end-to-end/generic
+  tests pass in ordered continuation chunks, including the new execution and
+  cross-object ABI cases, every split-memory/bankswitching profile, and the full
+  renderer suite. Staged `make installcheck` passes.
+* Bankswitching roadmap item 18, the generic `&<` and `&>` directional address
+  projections, is next.
+
+2026-08-04 22:33:26 PDT, unify interactive player glyphs as edge-touching space invaders
+-----------------------------------------------------------------------------------------
+* Replace the interactive-example player glyphs everywhere they are defined so
+  every interactive cartridge uses the same `P0` bitmap and the same distinct
+  `P1` bitmap. Both new 8x8 sprites are space-invader-style aliens rather than
+  letterforms.
+* Apply the new shared alien silhouettes to the faithful legacy interactive
+  example, the 192-line player-color and all-five interactives, the common
+  181-line helper sources, and the duplicated 181-line score-above/score-below
+  interactive cartridges in the official and unofficial player-color and
+  all-five trees.
+* Ensure each alien sprite has at least one lit pixel on the top, bottom, left,
+  and right edges of the 8x8 cell so edge cases remain visually obvious when
+  checking width and clipping behavior.
+* Verification: staged tools build successfully and every example leaf Makefile
+  builds cleanly after a per-example `make clean`, covering the full public
+  example tree and all interactive cartridges.
+
+2026-08-04 22:55:04 PDT, update sprite raster oracles without weakening retained fixtures
+------------------------------------------------------------------------------------------
+* Fix the two end-to-end failures exposed after changing every public interactive
+  cartridge to the shared space-invader glyphs. The faithful-legacy comparator
+  now has a dedicated `--alien-sprites` mode for the public interactive example,
+  while its original `--sprites` mode remains locked to the pristine upstream
+  BASIC and retained-reference glyphs.
+* Give the 192-line player-color pixel harness a `static-alien` mode for the
+  public interactive example. Its existing `static` and `terminal` modes retain
+  the original fixture bitmaps used by renderer, poison-handoff, and regression
+  tests, so changing example artwork does not silently rewrite renderer oracles.
+* Update only the public-example tests to select the new alien modes. Preserve
+  the independent historical and renderer fixtures unchanged.
+* Verification: the two originally reported failures pass; the pristine BASIC
+  oracle, ordinary 192-line fixture, and poison-handoff regressions also pass.
+  The complete 227-test end-to-end plan was covered in ordered chunks: tests
+  1-167 passed in the initial run before the execution-window cutoff, and tests
+  168-227 all passed in subsequent explicit chunks after the oracle split.
+
+2026-08-04 23:39:52 PDT, add directional read/write address projections
+------------------------------------------------------------------------
+* Complete bankswitching roadmap item 18 with adjacent unary `&<` and `&>`
+  operators at ordinary address-of precedence. `&<lvalue` produces the exact
+  readable address as `const T *`; `&>lvalue` produces the exact writable
+  address as `writeonly T *` without loading from or storing to the object.
+* Lower both projections from generic lvalue read/write metadata across ordinary
+  objects, named split-memory objects, absolute bindings, arrays, structure
+  members, and dereferenced pointers. Evaluate computed lvalue locations once
+  and preserve relocatable alias expressions in global initializers.
+* Restrict plain `&` to objects with one identical readable and writable address.
+  Distinct or one-sided locations diagnose the need for `&<` or `&>`, while
+  implicit decay of split-address arrays remains invalid. No fat-pointer ABI is
+  introduced.
+* Add generic exact-address execution coverage using `banana`, reversed `pair`,
+  and noncontiguous `orange` regions, plus focused failures for spaced operators,
+  missing directions, bitfields, invalid const/writeonly access, and attempts to
+  recover ordinary pointer capability.
+* Verification: all 398 compile-only tests pass. All 228 end-to-end/generic tests
+  pass in ordered continuation chunks, including every existing renderer and
+  bankswitching profile plus the new exact-address execution case. Staged
+  `make installcheck` passes. Bankswitching roadmap item 19, directional `ref`
+  parameters, is next.

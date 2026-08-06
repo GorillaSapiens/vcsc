@@ -1,0 +1,425 @@
+VCSC CONTEXT HISTORY — 2026-07-21
+=================================
+
+Historical development entries for 2026-07-21, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-21 00:21:00 PDT, clean driver intermediates on failing pipelines
+------------------------------------------------------------------------
+* Fix the driver so compiler, assembler, or linker failures reached through
+  `exit()` cannot bypass temporary-file cleanup. Register one idempotent
+  process-exit cleanup for the active temp store, disarm it after normal
+  cleanup, and free/reset the store so repeated cleanup is safe.
+* Honor `TMPDIR` when creating the private `vcsc.XXXXXX` directory, retaining
+  `/tmp` as the default. Add an end-to-end regression that forces a linker
+  configuration failure after `.s` and `.o26` intermediates have been created
+  and rejects any surviving `vcsc.*` path. Pass 283/283 compile tests,
+  129/129 end-to-end/generic tests, and staged installation. Task 20c remains
+  the next queued action.
+
+2026-07-21 01:03:00 PDT, normalize the selected standard-renderer source
+------------------------------------------------------------------------
+* Complete task 20c with a deterministic narrow normalizer under
+  `libraries/vcs/renderers/standard_4k_ntsc/`. It reads only the five retained
+  source inputs selected by the task-20b contract, embeds each input SHA-256,
+  fails when expected retained relationships change, and regenerates checked-in
+  output byte-for-byte.
+* Port `SLEEP`, `VERTICAL_SYNC`, `CLEAN_START`, `SET_POINTER`, and `RETURN` into
+  `standard_4k_ntsc_macros.inc`. Keep hygienic macro locals, exact odd-cycle
+  `$04,$00` NOP behavior, named parameters, and an explicit error for the
+  excluded bankswitch return path.
+* Generate `standard_4k_ntsc_renderer.s` from the active unbanked, non-reflected
+  NTSC branches of the retained overscan/renderer sources and the exact 88-byte
+  default score table. Preserve retained comments; localize assembly labels;
+  bind fixed-map names to task-20b module symbols; preserve retained `SBX` and
+  `ASR` spellings through active aliases in `illegals.cfg`; convert DASM forced
+  `.w` modes; and preserve both page guards.
+  Express the address-dependent DASM page-tail repeat as sixteen layout-time
+  conditional NOP slots because `vcsc-as` expands `.repeat` before layout.
+* Add a focused regression that checks reproducible generation, all five macro
+  ports, selected dialect removal, exact score data, explicit addressing modes,
+  page guards, current o26/map output, rejection without `--illegals`, and a
+  smoke assembly invoking every macro. Install and staged-assemble the generated
+  `.s` and `.inc` files while keeping `normalize.pl` source-tree-only because the
+  installed data set does not include all retained generator inputs.
+* Keep the retained legacy source tree byte-for-byte unchanged. Pass 283/283
+  compile tests, 130/130 end-to-end/generic tests, and staged installation.
+  Task 20d is the next queued action: link this normalized object into the first
+  real standard-renderer cartridge and verify final placement, bytes, and scanline
+  timing.
+
+2026-07-21 01:31:00 PDT, accept retained ASR and SBX opcode spellings
+------------------------------------------------------------------------
+* Add active `ASR imm $4B` and `SBX imm $CB` aliases to `illegals.cfg` alongside
+  canonical `ALR` and `AXS`. Keep them gated by `--illegals` and verify their
+  exact bytes in the existing rich-opcode assembler smoke test.
+* Keep a commented catalog of broader established unofficial-opcode aliases in
+  `illegals.cfg`, with provenance and notes for duplicate encodings, unstable
+  silicon behavior, and possible naming conflicts. Leave those aliases disabled
+  until imported source actually requires them.
+* Simplify the standard-renderer normalizer so it preserves retained lowercase
+  `asr` and `sbx` spellings rather than rewriting them. Regenerate the checked-in
+  renderer source and update the normalization regression and documentation.
+* Keep task 20d as the next queued action.
+
+2026-07-21 08:49:03 PDT, quarantine developer-only records and expand alias notes
+------------------------------------------------------------------------
+* Move the still-active project handoff and cumulative removal ledger from the
+  repository root to `.top_secret/context.txt` and `.top_secret/remove.txt`.
+  Add `.top_secret/README.md` identifying the directory as developer-only and
+  explaining both retained files. Update active workflow text and regressions
+  for the new paths.
+* Delete the obsolete top-level `NOTES.md`, whose feature table had become stale
+  and duplicated maintained documentation. Delete the frozen
+  `software_stack_inventory.txt`; the live `test/software_stack_inventory.pl`
+  regression is now the authoritative inventory. Record all four retired root
+  paths in `.top_secret/remove.txt`.
+* Expand the disabled alias catalog in `assembler/illegals.cfg` with complete
+  DOP/TOP encoding families, unstable LXA/OAL/ATX spellings for `$AB`, both
+  mutually conflicting XAS meanings (`SHX $9E` and `TAS $9B`), and the
+  memory-addressed AXS spelling for SAX. Document historical usage, config-table
+  collisions, silicon instability, page-cross hazards, and exact-opcode escape
+  hatches. Keep every newly cataloged spelling commented out.
+* Pass 283/283 compile tests, 131/131 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` now contains 880 cumulative paths.
+  Keep task 20d as the next queued action.
+
+2026-07-21 09:31:00 PDT, document and test opcode-config replacement order
+------------------------------------------------------------------------
+* Document explicitly that mnemonic plus addressing mode is the opcode-table
+  key and that repeating that key is silently last-definition-wins, both within
+  one config file and across repeated `--opcode-cfg` options. Use real
+  immediate-mode bytes `$80` and `$82` in the example; explain that arbitrary
+  bytes such as `$12` can instead be rejected by the byte's existing
+  operand-shape metadata.
+* Add the same warning to `illegals.cfg`: duplicate active same-mode entries do
+  not coexist, while exact `opXX` spellings remain available for every byte.
+* Add `assembler_opcode_override.test` to verify same-file replacement,
+  command-line config ordering in both directions, continued exact access to
+  both raw bytes, and rejection of a byte assigned to an incompatible mode.
+  Pass 283/283 compile tests, 132/132 end-to-end/generic tests, and staged
+  installation. Keep task 20d as the next queued action.
+
+2026-07-21 11:18:00 PDT, queue inherited runtime-workspace reduction side quest
+------------------------------------------------------------------------
+* Add a four-part side quest immediately before task 20: split the monolithic
+  runtime workspace into independently linked pieces; replace generic N copy,
+  fill, extension, comparison, bitwise, and shift helpers with fixed-width VCSC
+  lowering; handle multiplication and division/remainder separately; then add
+  call-graph/liveness overlay for compiler scratch, parameters, locals, and
+  callee-owned return objects.
+* Make the workspace split the next queued action ahead of task 20d. Record that
+  moving bytes from ZEROPAGE to BSS alone cannot recover physical RIOT RAM.
+
+2026-07-21 12:16:00 PDT, split the inherited runtime workspace
+------------------------------------------------------------------------
+* Complete side-quest item a. Replace the monolithic 16-byte
+  `vcsc-zeropage.s` archive member with twelve independently selectable
+  `vcsc-zp-*.s` members: one byte each for `arg0`, `arg1`, and `tmp0` through
+  `tmp5`, and two bytes each for `ptr0` through `ptr3`.
+* Make `vcsc-runtime.inc` alias-only. Startup and every generated runtime-helper
+  member now declare exact zero-page imports. The compiler scans its final
+  post-peephole assembly and imports only workspace cells that remain referenced,
+  including direct inline-assembly references.
+* Preserve startup semantics without relying on `arg0`/`arg1` adjacency. Keep
+  the former startup member size and downstream ROM layout by deliberately using
+  forced-absolute accesses for the split high count byte.
+* Ordinary linked programs now pay an eight-byte startup baseline instead of all
+  16 bytes. Focused maps prove 8 bytes for ordinary code, 9 for one direct extra
+  cell, 12 for division/remainder, 13 for variable arithmetic shift, and 16 for
+  multiplication. Update RAM-address regressions to the recovered `$0088` first
+  allocatable byte while preserving the standard-renderer timing-safe ROM layout.
+* Remove `libraries/runtime/vcsc-zeropage.s`, update install and inventory rules,
+  and add a focused archive/import/map regression. Pass 283/283 compile tests,
+  133/133 end-to-end/generic tests, and staged installation. The cumulative
+  removal ledger now contains 881 paths. Side-quest item b is the next queued
+  action before task 20d.
+
+2026-07-21 12:54:00 PDT, replace inherited generic scalar helpers
+------------------------------------------------------------------------
+* Complete side-quest item b. Emit one- through four-byte scalar copies, fills,
+  extension, two's-complement negation, comparisons, and bitwise operations
+  directly in compiler output. Remove the now-dead generic helper-selection
+  plumbing from add/subtract lowering.
+* Replace the arbitrary-width shift family with twelve archive-selected helpers:
+  logical left, logical right, and arithmetic right at 8, 16, 24, and 32 bits.
+  Each helper uses `ptr0`, `ptr1`, and `arg1`, preserves the pointers, and keeps
+  variable shifts at the ordinary eight-byte startup workspace baseline.
+* Delete `stack.asm`, `cmp.asm`, and `bitwise.asm` and their generated helper
+  families. Retain `_copy_bytes`, `_fill_bytes`, and `_zero_bytes` only for
+  objects wider than four bytes; multiplication and division/remainder remain
+  for side-quest item c.
+* Add `fixed_scalar_runtime.test` to reject every removed archive member, require
+  all twelve fixed-width shifts, verify inline scalar lowering and aggregate
+  zeroing, and prove an operation-rich scalar program links only the eight-byte
+  startup workspace. Update runtime/compiler/test documentation and direct
+  shift-helper coverage.
+* Pass 283/283 compile tests, 134/134 end-to-end/generic tests, and staged
+  installation. Add three removed runtime source paths to `.top_secret/remove.txt`,
+  now 884 unique cumulative paths. Side-quest item c is next before task 20d.
+
+2026-07-21 13:24:10 PDT, replace inherited multiply/divide workspace
+------------------------------------------------------------------------
+* Complete runtime-workspace side-quest item c. Replace `_mulNle`, `_divNle`,
+  and `_remNle` with fixed-width `_mul8`/`16`/`24`/`32` and
+  `_div8`/`16`/`24`/`32` archive members.
+* Let multiplication destructively shift dead compiler-expression operands and
+  write only the language-width low product. Let division destructively shift
+  the dividend and write quotient followed immediately by remainder into one
+  adjacent compiler scratch block. Preserve the divisor and the historical
+  divide-by-zero result convention.
+* Remove the private four-byte division BSS object, `ptr3`, and `tmp0` through
+  `tmp5`. The runtime now has exactly five independently linked workspace
+  members totaling the ordinary eight-byte startup baseline; multiply,
+  divide, and remainder add no RIOT RAM.
+* Reduce multiplication scratch reservations from a double-width product to an
+  exact-width result, including compound assignment and non-power-of-two index
+  scaling. Retain adjacent exact-width quotient/remainder storage for division.
+* Add fixed-width helper selection/code-generation, direct helper ABI, all-width
+  execution, workspace-map, and archive regressions. Rename the obsolete
+  input-preservation probe to `e2e_fixed_muldiv_helpers_verify.c26`.
+* Pass 285/285 compile tests and 135/135 end-to-end/generic tests. The cumulative
+  removal ledger now contains 893 unique paths. Side-quest item d is next.
+
+2026-07-21 14:53:42 PDT, overlay whole-program function activations
+------------------------------------------------------------------------
+* Complete runtime-workspace side-quest item d. Emit ordinary parameters,
+  automatic locals, callee-owned return objects, and pooled expression scratch
+  in function-owned activation segments rather than independently placed BSS/ZP
+  blocks. Static source objects remain ordinary persistent storage.
+* Add a linker activation planner driven by the complete selected call graph.
+  Weight each physical memory region independently so a callee begins after all
+  live caller bytes while siblings and other mutually exclusive functions share
+  addresses. Preserve source-declared named-memory placement.
+* Stage every direct-call argument left-to-right in caller-owned scratch before
+  writing any callee parameter symbol. This prevents a call in a later argument
+  from corrupting an earlier argument through sibling overlay.
+* Qualify internal-linkage call-graph nodes by object origin. Same-named static
+  helpers in separate translation units remain distinct and no longer create
+  false cycles or unsafe merged activations.
+* Update code-generation and map regressions for activation segments and add
+  execution coverage for sibling overlay, caller/callee separation, argument
+  staging, cross-object siblings, named regions, return-object overlay, and
+  duplicate static helper names.
+* Pass 285/285 compile tests and 139/139 end-to-end/generic tests. The staged
+  installation check passes. `.top_secret/remove.txt` remains at 893 cumulative
+  paths. Task 20d is next.
+
+2026-07-21 16:33:10 PDT, build the static standard-renderer cartridge
+------------------------------------------------------------------------
+* Complete task 20d with `examples/06_static_renderer_test`, an exact 4096-byte
+  unbanked NTSC cartridge using the normalized no-Superchip standard renderer.
+  The deterministic Breakout-style scene exercises the asymmetric 32x12 ROM
+  playfield, both players, both missiles, the ball, and score `123456`.
+* Fix assembler relocation handling so one-byte imported-symbol expressions
+  retain constant addends and `.importzp` declarations select zero-page modes
+  before relaxation. This restores the six distinct score pointers and the
+  cycle/byte lengths required by the retained renderer.
+* Add linker-script segment alignment and narrowly accept the retained renderer's
+  one-page backward segment-relative operand bias. Fix renderer/table placement at
+  `$F300` and `$F600`, and deliberately place the immutable playfield at `$F154`
+  inside its timing-safe low-byte window.
+* Add focused assembler, linker, cartridge-map/opcode, and Stella-calibrated
+  frame-timing regressions. The final Stella 7.0 developer overlay reports a
+  stable `262 / 60.0Hz => NTSC*` frame and the rendered score reads `123456`.
+* Extend staged installation to build example 05 with installed tools, headers,
+  renderer source, and profile script. Pass 285/285 compile tests, 142/142
+  end-to-end/generic tests, and staged installation. `.top_secret/remove.txt`
+  remains at 893 cumulative paths. Task 20e is next.
+
+2026-07-21 18:03:45 PDT, repair audio and visible-renderer regressions
+------------------------------------------------------------------------
+* Stop task 20e work and reproduce the reported regressions in examples 02, 03,
+  and 05 under Stella 7.0 before making further renderer changes.
+* Make Ode to Joy start both audio channels silent. Use `$ff` as the not-yet-
+  started music-counter state, begin the first note during the first synchronized
+  overscan, and write `AUDC0`, `AUDF0`, then `AUDV0` last. Extend the timing
+  harness and cartridge regression to require this startup phase and ordering.
+* Flush the shared six-glyph display's delayed player latches with
+  `GRP0`/`GRP1`/`GRP0` before drawing and before disabling VDEL. Add generated-
+  code checks and verify seven consecutive score-update-adjacent Stella captures
+  have identical eight-row geometry with no duplicated first row.
+* Set example 05 `CTRLPF` to reflected mode. Preserve the retained standard
+  renderer's original ten-cycle player draw/skip paths, align the hot loop, and
+  move the skip stubs onto the same page outside fall-through execution. This
+  removes conditional page-cross drift without retiming the visible paths.
+* Add `test/vcs_playfield_phase.cpp` and integrate it into the static-renderer
+  regression. More than 150 complete visible scanlines must write PF1/PF2 in
+  order at CPU cycles 24, 31, 38, and 45. Keep the normalizer regression pinned
+  to the page-aligned loop, local skip stubs, and retained `SLEEP 2` path.
+* Calibrate the lightweight frame harness per cartridge against Stella's
+  displayed 262-line frame rather than treating its raw VSYNC interval as the
+  display line count. Stella now shows example 05 centered and untorn with score
+  `123456`; example 03 remains stable while updating.
+* Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
+  20e remains next, now unblocked by the repaired examples and timing renderers.
+
+2026-07-21 20:24:32 PDT, finish score-page and static-object repairs
+------------------------------------------------------------------------
+* Reproduce the remaining rightmost-`1` six-glyph glitch and trace it to a
+  conditional `(font),Y` page crossing inside the visible renderer. Page-align
+  RODATA in both stock VCS linker profiles, require the 80-byte font to remain
+  within one page, and anchor six-glyph setup to a fresh scanline before the
+  delayed-latch flush. Add map/code/timing regressions for the contract.
+* Extend `.align` to accept `.align boundary, offset`, meaning the next emitted
+  address satisfies `address % boundary == offset`. Cover direct and o26 output,
+  diagnostics, and documentation.
+* Remove the 97-byte source padding arrays from example 05 and the ROM contract
+  fixture. Put each immutable 48-byte playfield in a dedicated assembly source
+  using `.align 256, $54`, and extend staged installation builds accordingly.
+* Make every standard-renderer object unmistakably visible in example 05. Use
+  reflected playfield plus an eight-clock ball, wider missiles, valid vertical
+  coordinates, a double-width paddle, separated projectile positions, and the
+  public `VCS_STANDARD_SPRITE_GLYPH` top-to-bottom reversal helper for player
+  art. Add a CPU-level object-emission regression proving nonzero P0/P1 graphics
+  and enabled M0/M1/BL output.
+* Verify the rightmost-`1` probe and static scene in Stella 7.0. The repaired
+  static frame shows the paddle, upright alien, both missiles, ball, reflected
+  untorn playfield, and score `123456`; frame timing remains 262-line NTSC.
+* Pass 285/285 compile tests, 142/142 end-to-end/generic tests, and staged
+  installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
+  20e remains next and was not started.
+
+2026-07-21 21:20:00 PDT, plan page-aware linker and legal-renderer cleanup
+------------------------------------------------------------------------
+* Insert tasks 20e through 20s before the gameplay hook and split the work into
+  short, independently testable slices. Defer the stack-safe VCSC hook to 20t
+  and multisprite integration to 20u.
+* Plan removal of the inherited `$54`-biased playfield indexing before adding
+  general page-placement machinery. The normalized renderer should use ordinary
+  zero-based array addressing and no longer require a `$54..$D0` low-byte
+  window or backward relocation.
+* Plan hard page-containment metadata and source declarations, followed by a
+  compact soft pagefit preference for all objects. The linker will derive the
+  legal start range from final object size and place constrained arrays wherever
+  they fit rather than requiring hand-selected `.align` offsets.
+* Plan function-boundary metadata, preferred/hard function page containment,
+  preserved branch-edge metadata, bounded branch-aware placement, and explicit
+  indexed-table range constraints.
+* Plan hard NMOS wrap-hazard checks for indirect-JMP vectors at `$xxFF` and
+  two-byte zero-page pointers at `$FF`.
+* Plan an unofficial-opcode inventory followed by small legalization slices for
+  `LAX`, `DCP`/other RMW operations, and delay/one-off opcodes. The final
+  normalized standard profile must assemble without `--illegals`; dedicated
+  silicon-probe examples remain explicit opt-in users of unofficial opcodes.
+* This revision changes `.top_secret/context.txt` only. No compiler, assembler,
+  linker, renderer, example, test, or removal-ledger file is changed.
+
+2026-07-21 21:24:42 PDT, inventory standard-renderer timing hazards
+------------------------------------------------------------------------
+* Complete task 20e without modifying generated renderer behavior. Add
+  `inventory.pl` and a committed TSV baseline generated from the normalized
+  macro and renderer sources.
+* Record 13 relative branches, 30 indexed reads, 11 indexed-indirect pointer
+  reads, 28 explicit padding sites, four page/alignment anchors, and both linked
+  renderer segment ranges.
+* Classify all 19 source-level unofficial-opcode sites: 11 DCP, five LAX, one
+  SBX, one ASR, and the odd-SLEEP NOP.z hidden in the macro layer. Record the
+  purpose of every site so later legalization work can explain exact changes.
+* Add `TIMING_INVENTORY.md` and an end-to-end regression that regenerates the
+  TSV byte-for-byte, validates category/family counts, and rejects undocumented
+  inventory drift.
+* Stop before task 20f under the requested short-session budget. Task 20f is
+  next: remove the inherited `$54`-biased playfield index. No files are removed.
+
+2026-07-21 21:45:00 PDT, remove the biased playfield index
+------------------------------------------------------------------------
+* Complete task 20f. Normalize the selected standard renderer to start X at zero
+  and read each playfield row directly as `vcs_standard_playfield+0..3,x`.
+  Remove the inherited `$54` operand bias and sign-bit termination trick.
+* Keep the retained two-cycle `SBX #252` row increment temporarily, but terminate
+  explicitly with `CPX #44` and `BCS`. Consume the two additional compare cycles
+  from the existing non-last and last-line `SLEEP 10` pads, reducing each to
+  `SLEEP 8`; the visible PF1/PF2 write phases remain unchanged.
+* Replace the special `$54..$D0` placement contract with the ordinary requirement
+  that the complete 48-byte playfield fit within one page, allowing low bytes
+  `$00..$D0`. Until task 20g/20h provide linker metadata, ROM fixtures use
+  temporary plain `.align 256` rather than `.align 256, $54`.
+* Update the deterministic normalizer, generated renderer, timing inventory,
+  profile/example documentation, and contract/normalization/static-renderer
+  regressions. Preserve the retained legacy BASIC source tree unchanged.
+* Pass 285/285 compile tests and all 143/143 end-to-end/generic tests (the long
+  continuous e2e invocation reached 134/143 before timeout; the remaining nine
+  fixtures then passed explicitly). Focused normalization, source-contract,
+  timing-inventory, PF-phase, and object-emission checks pass. No files are
+  removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Stop before
+  task 20g under the requested short-session budget.
+
+2026-07-21 22:16:00 PDT, add hard object page containment
+------------------------------------------------------------------------
+* Complete task 20g. Extend each named o26 layout record with a flags byte and
+  define bit 0 as a hard requirement that the complete final-sized layout fit
+  within one 256-byte page. Keep the linker backward-compatible with both older
+  layout-tail encodings.
+* Place packed text objects at the earliest aligned base satisfying every hard
+  contained sub-layout, without reordering unrelated objects. Apply the same
+  earliest-fit rule to independently allocated DATA, BSS, and zero-page layouts.
+* Derive the valid low-byte range from the final object size. Reject objects
+  larger than 256 bytes and region layouts with no legal placement using stable,
+  explicit diagnostics.
+* Add an end-to-end raw-object regression that sets the new layout bit, proves a
+  crossing object is shifted only to the earliest legal address, and proves a
+  257-byte constrained object is rejected. Document the object-format flag and
+  intentionally defer user-facing declaration syntax to task 20h.
+* Pass 285/285 compile tests, 144/144 end-to-end/generic tests, the focused
+  hard-page-containment regression, and staged installation. No files are
+  removed; `.top_secret/remove.txt` remains at 893 cumulative paths. Task 20h
+  is next.
+
+2026-07-21 22:40:00 PDT, expose hard page-contained data declarations
+------------------------------------------------------------------------
+* Complete task 20h. Add the file-scope VCSC `page` modifier for data-object
+  definitions. The compiler emits one private named segment per constrained
+  object, marks it with `.pagecontain`, and restores the ordinary segment after
+  the object. Reject functions, locals, extern declarations, absolute refs, and
+  named `mem` combinations until their later dedicated placement tasks.
+* Add assembler `.pagecontain`, which marks the complete current named o26
+  layout with `O26_LAYOUT_PAGE_CONTAINED`. It takes no operands and leaves
+  address selection entirely to the linker. Compiler-owned page segment names
+  use the default DATA/BSS/ZEROPAGE region rather than being mistaken for named
+  memory regions.
+* Convert every shared decimal/hex score font to `page const`. Move the example
+  05 and ROM-contract 48-byte playfields into ordinary VCSC `page const`
+  declarations, and mark example 05's two timing-sensitive player tables `page`.
+  Remove the two companion assembly sources and broad RODATA alignment; retain
+  only the renderer code/table page guards required by the converted renderer.
+* Add `page_object_codegen_test.c26`, extend grammar coverage, and update the
+  static-renderer, ROM-contract, six-digit-score, font-catalog, documentation, and
+  staged-install inputs for declaration-carried constraints.
+* Pass 286/286 compile tests and all 144/144 end-to-end/generic tests. The
+  continuous e2e invocation reached 134/144 before its execution timeout; the
+  remaining ten fixtures then passed explicitly. Staged installation passes,
+  both 4K cartridges remain exact size, and constrained tables are verified not
+  to cross a page. The two retired companion assembly sources raise
+  `.top_secret/remove.txt` to 895 cumulative paths. Stop before task 20i.
+
+2026-07-21 23:27:16 PDT, add soft page-aware object packing
+------------------------------------------------------------------------
+* Complete task 20i. Emit every file-scope VCSC data definition in a private
+  compiler-owned layout, including ordinary one- and two-byte scalars. Retain
+  `.pagecontain` only as the hard form; ordinary objects carry no hard flag.
+* Place named ROM text, constant data, initialized-data load images, DATA, BSS,
+  zero-page data, activation overlays, and linker-generated startup tables as
+  independent objects. Preserve each layout's own alignment and named-memory
+  region instead of forcing a complete translation unit to share one packed
+  address.
+* Track alignment and hard-constraint gaps as per-MEMORY-region holes. Objects
+  no larger than 256 bytes reuse the earliest hole in which their complete range
+  stays on one page. If no such hole exists, retain compact high-water placement
+  and report the unavoidable crossing instead of adding padding. Hard page
+  containment remains mandatory and fails deterministically when impossible.
+* Extend map output with `page=hard`, `page=preferred`, and `page=crossing`;
+  initialized RAM objects report both load-image and runtime page results. Update
+  segment-alignment coverage to accept independently aligned layouts that were
+  formerly rejected only because their packed translation-unit offset was not
+  aligned.
+* Zero compiler-owned uninitialized zero-page objects through the startup zero
+  table while deliberately excluding the runtime's own zero-page workspace,
+  whose pointers drive that table. Add compiler private-object coverage and a
+  linker regression proving same-page hole reuse without increasing the region
+  high-water mark, plus compact crossing when no hole is available.
+* Pass 287/287 compile tests and 145/145 end-to-end/generic tests. Staged
+  installation passes. No files are removed; `.top_secret/remove.txt` remains
+  at 895 cumulative paths. Stop before task 20j.

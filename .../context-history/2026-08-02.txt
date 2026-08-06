@@ -1,0 +1,309 @@
+VCSC CONTEXT HISTORY — 2026-08-02
+=================================
+
+Historical development entries for 2026-08-02, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-08-02 10:59:18 PDT, repair stale frame-pointer-removal stack assertion
+----------------------------------------------------------------------------
+* Fix `test/fp_removed.pl`, which still required the pre-bankswitching source
+  spelling `bytes = (uint32_t)depth * 2u`.  Bankswitching roadmap item 6
+  intentionally changed the reservation basis to `weighted_depth`, where every
+  active source call contributes one return-address slot and every active
+  cross-bank edge contributes one additional trampoline return-address slot.
+* Keep the original regression's real ABI requirement: reserve exactly two
+  bytes per hardware return-address slot, never the obsolete four bytes per
+  source-call depth used while frame-pointer state was pushed.  Also require
+  the linker's weighted depth to be clamped to at least the ordinary call depth.
+* This is a test repair rather than a linker semantic change.  The linker was
+  already reserving the correct `2 * weighted_depth` bytes; the stale textual
+  assertion caused `make test` to report 206/207 despite the focused weighted
+  call-stack test passing.
+* Update the current source-lineage input archive to
+  `vcsc.20260802_030441.tar.gz`.
+* Verification: the repaired `fp_removed.pl` passes directly; all 341
+  compile-only tests pass; all 207 end-to-end/generic tests pass (the first
+  complete-order run reached 164 before the command window, then the final 43
+  passed as groups of 18 and 25); and staged `make installcheck` passes.
+
+2026-08-02 12:14:51 PDT, add deterministic automatic bank placement
+------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 7.  Before assigning final
+  addresses, the linker now gathers every selected bank-owned private CODE and
+  RODATA layout, pins `main`, startup/non-private runtime material, reserved-name
+  private runtime functions, and explicitly named `mem` layouts, then collapses
+  every cross-bank-forbidden ROM relocation and retained branch into an
+  indivisible hard same-bank component.  Contradictory inherited or explicit
+  pins fail before ordinary layout.
+* Treat direct JSR and direct absolute JMP relationships as soft placement edges
+  because the replicated trampoline table can implement them.  Use deterministic
+  bridge-payload weights of 15 for JSR and 8 for JMP, reserve fixed initialized
+  ROM images and generated copy/zero/init tables first, assign pins in stable
+  order, then place unpinned components by decreasing size, decreasing soft-edge
+  degree, and stable input order.  Choose the candidate bank with minimum
+  incremental cut weight; ties prefer BANK0/startup, then the higher logical
+  address and bank name.
+* Preserve hard programmer control through existing named `mem` modifiers.  A
+  `const` object defined in a named `$ro` region now emits an independently
+  placeable `RODATA.region.__vcsc_object$NAME` layout.  Reject mutable definitions
+  and runtime-only initializers in read-only named regions instead of silently
+  creating DATA/BSS that startup would need to write.
+* Add `BANK PLACEMENT` map reporting for component number, pinned/automatic
+  assignment, logical bank, concrete MEMORY region, component bytes, incident
+  cut weight, member layout, and input object.  Capacity diagnostics report the
+  component size and free ordinary-ROM bytes in every candidate bank; final
+  alignment, page, branch, and hole constraints remain enforced by the normal
+  allocator.
+* Add `test/linker_banked_auto_placement.pl`.  It locks deterministic repeated
+  links, call-connected home placement, capacity spill, hard ROM-data affinity,
+  contradictory pins, BANK0 `main`, expected bridge counts, and a source-compiled
+  named `$ro` object whose unpinned reader follows it into BANK1.  Add three
+  compile-only tests for read-only named object emission and rejection cases,
+  and update compiler, linker, test, source-hygiene, and detailed bankswitching
+  documentation.  Detailed roadmap item 8, a certified installed
+  `vcs_8k_f8.cfg` profile and complete diagnostic cartridge, is next.
+* Verification: all 344 compile-only tests pass.  All 208 end-to-end/generic
+  tests pass; the full ordered run reached 165 before the command window, then
+  the remaining 43 passed in deterministic groups of 27 and 16.  Focused F8/F6/
+  F4 image, reset, relocation/trampoline, weighted-stack, automatic-placement,
+  and source-hygiene tests pass.  Staged `make installcheck` passes using the
+  supplied bison/flex packages.
+
+2026-08-02 12:33:41 PDT, certify the installed F8 profile and record explicit bank duplication
+------------------------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 8 by adding the public installed
+  `libraries/vcs/vcs_8k_f8.cfg` profile.  It uses VCSC BANK1 at `$D000` as
+  physical/file chunk 0 selected by `$1FF8`, VCSC BANK0 at `$F000` as the
+  startup/home chunk 1 selected by `$1FF9`, and writes BANK0 last.  Ordinary
+  allocation ends at `$xEFF`; `$xF00-$xFDF` is the byte-identical common
+  trampoline corridor, `$xFE0-$xFF1` is the byte-identical vector bridge,
+  `$xFF2-$xFF9` is reserved tail/hotspot space, and vectors occupy
+  `$xFFA-$xFFF` in both banks.
+* Name the public allocatable regions `bank0` and `bank1`, with matching
+  `CODE.bankN` and `RODATA.bankN` segment rules, so existing named `mem`
+  modifiers provide hard pins while unmarked private CODE/RODATA remains
+  eligible for deterministic automatic placement.  Keep `main`, startup, and
+  required runtime material in BANK0.
+* Add the private `test/fixtures/bankswitching/f8_profile_diagnostic.c26` and
+  `test/vcs_f8_profile.pl`.  The source diagnostic proves explicit BANK0/BANK1
+  pins, an unpinned reader following a pinned BANK1 const object, cross-bank
+  JMP, nested cross-bank JSR, byte-identical common corridors, exact selector
+  identities, map output, and exact 8192-byte output.  A small profile-specific
+  opcode model starts from both possible initially selected physical chunks,
+  follows the reset bridge into BANK0, executes BANK0 -> BANK1 -> BANK0 nested
+  calls, and proves LIFO bank restoration and balanced hardware-stack returns.
+* Install and uninstall `share/vcs/vcs_8k_f8.cfg`; extend `make installcheck` to
+  compile the diagnostic with the staged driver/profile and verify the exact
+  image size and BANK0/BANK1 map identities.  Update the VCS catalog, driver,
+  linker, test, source-hygiene, and generic-target-retention documentation.
+* Add a new roadmap item immediately after automatic Superchip allocation for
+  explicit multi-bank duplication.  Planned syntax such as
+  `bank0 bank1 const uint8_t table[] := { ... };` creates one immutable object
+  copy per listed bank and binds references to the local copy.  The same
+  multi-region syntax will duplicate functions and prefer a local function copy
+  before generating a cross-bank bridge.  Region sets are order-insensitive but
+  must agree across declarations/definitions; duplicate region names and mutable
+  object replication are errors.  Combining `inline` with any named bank or
+  memory-region specification is always an error.
+* Detailed bankswitching roadmap item 9, public F6 and F4 profiles through the
+  same implementation, is next.
+
+2026-08-02 12:39:18 PDT, finish F8-profile certification verification
+---------------------------------------------------------------------
+* Complete verification of the roadmap item 8 work above.  All 344
+  compile-only tests pass.  All 209 end-to-end/generic tests pass; the ordered
+  suite was completed in deterministic groups because one uninterrupted run
+  exceeds the command window.  The focused installed F8 profile, source-tree
+  hygiene, generic-target retention, and staged `make installcheck` tests pass.
+* Restore build products and generated version headers from the input archive
+  before packaging, so the delivered diff contains only the intended roadmap,
+  profile, test, Makefile, fixture, and documentation changes rather than a
+  gratuitous rebuild of every host tool.
+
+2026-08-02 13:46:34 PDT, certify public F6/F4 profiles and lock Superchip allocation spelling
+------------------------------------------------------------------------------------------------
+* Complete detailed bankswitching roadmap item 9 by adding the public installed
+  `libraries/vcs/vcs_16k_f6.cfg` and `libraries/vcs/vcs_32k_f4.cfg` profiles
+  through the existing full-window implementation.  F6 writes VCSC
+  BANK3/BANK2/BANK1/BANK0 in physical-file order with `$1FF6-$1FF9`; F4 writes
+  BANK7 through BANK0 with `$1FF4-$1FFB`.  BANK0 remains the `$F000` home bank
+  and final file chunk in both profiles.
+* Reserve the same `$xF00-$xFDF` trampoline table, `$xFE0-$xFF1` vector bridge,
+  `$xFF2-$xFF9` tail, and `$xFFA-$xFFF` vectors in every physical bank.  F4's
+  `$1FFA/$1FFB` NMI-vector overlap remains deterministic because every physical
+  bank contains identical vector bytes and the fetch finishes with BANK0
+  selected.
+* Add `test/vcs_f6_f4_profiles.pl`.  It assembles a nested call chain with one
+  function in every logical bank, starts from every possible initially selected
+  physical chunk, exercises every mapper selector on outward and return paths,
+  verifies LIFO bank restoration and balanced hardware stack, locks exact
+  logical-bank/file-index/hotspot map identities, byte-identical common
+  corridors, reserved hotspot bytes, F4 vector overlap, and exact 16K/32K image
+  sizes.
+* Install and uninstall both profiles, extend staged `make installcheck` to
+  compile diagnostics through F8, F6, and F4, and update the VCS catalog,
+  driver/linker/test documentation, generic-target retention, and source-tree
+  hygiene checks.
+* Lock the planned automatic Superchip allocation spelling and address order in
+  `.top_secret/bankswitching.txt`: an SC header will define
+  `mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };`,
+  applications will write `superchip uint8_t foo;`, and the explicit equivalent
+  is `ref uint8_t foo@[0xF080/0xF000];`.  Existing syntax is always
+  `@[read_address/write_address]`; loads use the read alias and stores,
+  initializers, and BSS clearing use the write alias.  The 128 bytes are one
+  shared physical region across every bank.
+* Verification: all 344 compile-only tests pass.  All 210 end-to-end/generic
+  tests pass; the ordered run reached 165 before the command window and the
+  remaining 45 passed in two groups of 22 plus the one legacy legal-byte test.
+  Staged `make installcheck` passes with the supplied bison/flex packages.
+* Detailed bankswitching roadmap item 10, fully bank-aware archive/listing/map
+  and simulator execution, is next.
+
+2026-08-02 14:20:00 PDT, require Stella diagnostic carts for banking and Superchip
+----------------------------------------------------------------------------------
+* Expand detailed bankswitching roadmap item 10 so Stella is the authoritative
+  independent end-to-end execution test for F8/F6/F4 and later F8SC/F6SC/F4SC
+  cartridges.  `vcsc-sim` and small test interpreters may provide useful
+  diagnostics, but they may not be the sole certification of mapper behavior.
+* Plan an example diagnostic cartridge which runs from every forced physical
+  startup bank and under Stella's randomized developer startup-bank mode, tests
+  every ordered source-bank to destination-bank transition, and covers direct
+  selector accesses, cross-bank JMP, cross-bank JSR/return, and nested calls.
+* Require each transition to write and validate known source, destination, phase,
+  and sequence values in RIOT RAM, verify bank restoration and balanced hardware
+  stack, and render a distinctive per-transition PASS or FAIL sprite followed by
+  a stable final all-pass frame suitable for the Stella screenshot/oracle tests.
+* Extend the same Stella diagnostic framework to Superchip profiles and automatic
+  allocation, proving `@[read_address/write_address]` direction, initialization,
+  bounds, and 128-byte shared-RAM persistence across every bank switch.
+* Update source-tree hygiene and test documentation so this roadmap contract
+  cannot silently regress.  Detailed roadmap item 10 remains the next unfinished
+  bankswitching action.
+
+2026-08-02 17:12:04 PDT, complete bank-aware simulator and Stella mapper certification
+---------------------------------------------------------------------------------------
+* Continue from `vcsc.20260802_142216.tar.gz` and complete detailed
+  bankswitching roadmap item 10.  Archive selection remains lazy and now has a
+  focused regression which proves that a selected `archive.l26(member.o26)`
+  keeps its archive-member origin while its final logical-bank placement,
+  symbol/listing addresses, and generated cross-bank bridge are reported; an
+  unused member remains absent.
+* Teach `vcsc-sim` to consume the public F8/F6/F4 `CARTRIDGE`, `BANKS`, and
+  `MEMORY` descriptions, load exact raw cartridge chunks in physical/file
+  order, map all cartridge-window accesses through the currently selected
+  chunk, and switch on configured hotspot reads and writes.  Add physical
+  `--start-bank`, deterministic `--stop-pc`, and `--dump-on-stop` controls;
+  reset-vector reads run through the selected bank, including F4's
+  `$1FFA/$1FFB` vector/hotspot overlap.  Keep the `$FFFF` host dispatch only for
+  flat unbanked images.
+* Add installed `libraries/vcs/bankswitching_diagnostic_suite.c26` and the
+  editable `examples/09_bankswitching/01_diagnostic` wrapper.  The parameterized
+  suite builds all 84 ordered F8/F6/F4 source-bank/direct-JMP-destination pairs.
+  Each source calls and returns from every bank, includes a nested cross-bank
+  path, records known RIOT-RAM signatures, checks hardware-stack balance, and
+  renders transition-colored status frames followed by a stable green-P success
+  or dark-red-X failure frame.
+* Add `test/vcs_bankswitching_diagnostic.pl`.  Ordinary `make test` runs all 84
+  images through the cfg-driven simulator and also forces a representative ROM
+  to reset from every physical/file bank.  Add `make stella-bank-test
+  STELLA=/path/to/stella` as the authoritative independent mapper test.  Its
+  headless Xvfb runner grades 112 actual Stella snapshots: the complete 84-ROM
+  transition matrix, all 14 forced physical startup-bank cases, and 14
+  developer-mode randomized startup-bank trials.  Deterministic TIA setup keeps
+  the PASS/FAIL glyph stable across randomized power-on state.
+* Install and uninstall the shared diagnostic source, make staged
+  `installcheck` compile it with the installed F8 profile, and execute the
+  resulting banked image in the installed simulator from both physical startup
+  banks.  Make `installcheck` fail fast so simulator or staging failures cannot
+  scroll past unnoticed.
+* Update the root, VCS-library, examples, linker, simulator, and test
+  documentation plus source-tree hygiene.  Keep extension of this same visible
+  Stella diagnostic to Superchip alias direction, initialization, bounds, and
+  persistence mandatory when the SC profiles arrive.
+* Verification: all 344 compile-only tests pass; all 212 end-to-end/generic
+  tests pass; staged `make installcheck` passes; the focused archive, examples,
+  simulator-matrix, branding, and source-hygiene tests pass; and all 112 Stella
+  snapshots grade as PASS.  The next detailed bankswitching action is roadmap
+  item 11, explicit-ref F8SC/F6SC/F4SC profiles.
+
+2026-08-02 17:30:54 PDT, replace unnecessary Python Stella helpers with Perl
+--------------------------------------------------------------------------------
+* Remove the two Python files introduced for the headless Stella bank-switching
+  certification.  Neither job requires Python: PNG grading now uses a compact
+  Perl PNG decoder built on `Compress::Zlib`, and snapshot capture uses a Perl
+  helper which speaks the required core X11 requests directly and obtains the
+  F12 keycode from `xkbcomp`.
+* Rename the helpers to `test/stella_snapshot_keys.pl` and
+  `test/stella_grade_bank_snapshot.pl`; update the bank diagnostic runner to
+  invoke them with Perl and remove the python3, python-xlib, and Pillow checks.
+  The X11 helper retains the private-Xvfb largest-window selection, focus, and
+  F12 press/release behavior.  The grader retains the center-pixel green check
+  and minimum bright-green PASS-glyph area check while supporting the PNG color
+  formats emitted by Stella.
+* Update test/example documentation and source-tree hygiene.  The hygiene test
+  now rejects any top-level Python helper under `test/`, requires the two Perl
+  replacements, and requires the obsolete `.py` paths to remain absent.
+* Verification: all 344 compile-only tests pass.  All 212 end-to-end/generic
+  tests pass; the long ordered run was completed in contiguous chunks after the
+  command window expired.  Staged `make installcheck` passes.  A real headless
+  Stella F8 run successfully captured and graded its PASS snapshot through the
+  new Perl helpers, and the ordinary 84-image simulator matrix plus source-tree
+  hygiene pass.
+
+2026-08-02 17:48:48 PDT, fix diagnostic-example nested command substitutions
+-----------------------------------------------------------------------------
+* Fix `examples/09_bankswitching/01_diagnostic/Makefile`: its output-stem recipes
+  nested legacy backtick substitutions.  `/bin/sh` therefore parsed source-bank
+  numbers (`0`, `1`, ...) and mapper names (`F8`, `F6`, `F4`) as commands,
+  printed `not found`, and left `stem` empty even though the compiler invocations
+  themselves continued.  Replace the nested backticks with quoted POSIX `$(...)`
+  command substitutions and a separate lower-case mapper variable.
+* Extend `clean` to remove `*.bin` plus the hidden `.bin/.hex/.map/.sym/.lst/.cfg`
+  debris produced by the broken empty stem.
+* Add `test/vcs_bankswitching_example_make.pl`.  It builds the public example in
+  a temporary directory, requires all 14 representative F8/F6/F4 output stems,
+  rejects shell `not found` diagnostics, and rejects empty-stem hidden sidecars.
+  Update test documentation and source-tree hygiene to retain the regression.
+
+2026-08-02 22:24:49 PDT, complete explicit-ref Superchip cartridge profiles
+----------------------------------------------------------------------------
+* Continue from `vcsc.20260802_175058.tar.gz` and complete detailed
+  bankswitching roadmap item 11. Add and install `vcs_8k_f8sc.cfg`,
+  `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`. They retain the established
+  logical-bank, physical-file, hotspot, reset-bridge, and trampoline conventions,
+  reserve each `$x000-$x0FF` Superchip port prefix, allocate ordinary ROM only in
+  `$x100-$xEFF` (`$0E00` bytes), and still emit complete 4K physical chunks.
+* Add installed `superchip.c26` with the existing split-reference spelling
+  `ref uint8_t superchip_ram[128]@[0xF080/0xF000];`. Preserve and document the
+  compiler's actual `@[read_address/write_address]` order: loads use the
+  `$x080-$x0FF` aliases and stores use `$x000-$x07F`. Automatic declarations such
+  as `superchip uint8_t foo;` remain roadmap item 12 rather than being faked by
+  this explicit-ref slice.
+* Extend the full-window linker validator to accept F8SC/F6SC/F4SC through the
+  common F8/F6/F4 implementation and reject any bank-owned read-only MEMORY
+  region overlapping the shared RAM-port prefix. Add structural tests for exact
+  `$x100+$0E00` allocation and deliberately malformed profiles which must fail
+  with a Superchip-prefix diagnostic. Correct the older named-bank examples and
+  tests from the impossible `$x100+$0F00` span to `$x100+$0E00`, because the
+  common trampoline corridor begins at `$xF00`.
+* Teach `vcsc-sim` the shared 128-byte SC write/read windows and persistence
+  across every selected ROM bank. Extend the reusable bank diagnostic so every
+  called, nested, and jumped-to bank checks boundary sentinels and advances a
+  shared Superchip counter. Ordinary tests verify all three exact image sizes,
+  every logical source bank, every physical reset bank, reserved prefixes, and
+  final read-alias contents.
+* Extend the authoritative Stella harness to F8SC/F6SC/F4SC. The completed
+  42-case SC set covers every logical source bank, every forced physical startup
+  bank, and randomized developer-mode startup trials, all grading the visible
+  green-P/red-X frame. Make `VCSC_STELLA_FILTER` avoid constructing unrelated
+  cartridges and keep `--stella` independent of the ordinary simulator matrix so
+  focused or complete Stella certification does not pointlessly run both suites.
+* Update the public diagnostic example, VCS/linker/simulator/test/example
+  documentation, staged install/uninstall rules, `make installcheck`, roadmap,
+  and source-tree hygiene. Verification: all 344 compile-only tests pass; all
+  213 end-to-end tests pass (completed in ordered chunks because one invocation
+  exceeds the execution window); staged `make installcheck` passes; the complete
+  42-case Superchip Stella set passes; and focused profile, example, simulator,
+  branding, and hygiene tests pass. The next detailed bankswitching action is
+  roadmap item 12, automatic allocation of variables into Superchip RAM.

@@ -1,0 +1,341 @@
+VCSC CONTEXT HISTORY — 2026-07-24
+=================================
+
+Historical development entries for 2026-07-24, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-24 09:08:44 PDT, audit and control compiler peephole optimization
+----------------------------------------------------------------------------
+* Confirm the peephole pass is part of `vcsc-cc1` and runs only over the emitted
+  CODE sink after source compilation. Add `-fno-peephole` and `-fpeephole` to
+  both `vcsc-cc1` and the `vcsc` driver; disabled mode performs no rewrite but
+  still removes internal inline-assembly boundary markers.
+* Add a canonical catalog of all sixteen low-level rewrite kinds and make the
+  optimizer reject unregistered rewrite names. Expand the direct pattern suite
+  so every catalog entry fires at least once, including all load/store register
+  forms, transfers, simple status writes, constant ALU folds, dead loads,
+  provably-never branches, and branch/jump-to-next-label removal. Require the
+  disabled mode to preserve a composite catalog of candidate patterns.
+* Add a private ordinary-source fixture and a two-mode integration regression.
+  With peepholes disabled it must contain every pattern the current compiler
+  actually emits (`dup_lda`, `dup_ldy`, `jump_next`, and `branch_next`); with
+  peepholes enabled each pattern must disappear and its named rewrite must be
+  logged. Verify driver and direct-compiler disabled output are identical.
+* Strengthen inline-assembly coverage with optimization-shaped loads, stores,
+  transfers, flag writes, and immediate ALU instructions. Require the exact
+  sequence to survive unchanged with peepholes both enabled and disabled, and
+  require no internal marker leakage.
+* Document the switches, two-layer regression policy, and strict opacity of
+  source inline assembly. Pass 290/290 compile-only tests, 160/160 end-to-end/
+  generic tests, and staged installation. No roadmap item is advanced; task 22
+  remains next.
+
+2026-07-24 17:53:28 PDT, add fill-byte alignment and retire page-tail padding sludge
+-----------------------------------------------------------------------------------
+* Extend `vcsc-as` `.align` from one/two operands to
+  `.align boundary, offset, fill`. The optional fill expression defaults to
+  zero and must fit one byte. Apply the selected fill in both direct image
+  emission and relocatable o26 object output; keep the existing boundary and
+  offset semantics unchanged.
+* Expand `assembler_align_directive.test` to prove default-zero padding,
+  nonzero `$EA` padding, invalid fill rejection, and preservation of the fill
+  bytes through o26 assembly and linking. Document the third operand and its
+  page-tail NOP use in `assembler/README.md`.
+* Replace the standard and player-color renderers' sixteen hand-expanded
+  conditional `NOP` slots with the retained outer layout guard plus one
+  `.align 256, $FA, $EA`. Update the standard normalizer so regenerated
+  profiles cannot restore the sludge, and strengthen normalization coverage to
+  require the new form and reject the old form.
+* Regenerate the timing inventory: the source-level count changes from 34
+  padding sites/four alignments to 18 padding sites/five alignments, while the
+  emitted horizontal-positioning bytes and timing remain covered by the static,
+  motion, pairwise, legal-schedule, and player-color regressions. Independently
+  rebuild the standard static and player-color static fixtures with the old
+  hand-expanded renderers and the new fill-aligned renderers; each old/new 4K ROM
+  pair is byte-for-byte identical. Pass 290/290 compile-only tests, 160/160
+  end-to-end/generic tests, and staged installation. No roadmap item is
+  advanced; task 22 remains next.
+
+2026-07-24 18:31:48 PDT, specify template instantiation and use contracts
+----------------------------------------------------------------------------
+* Add top-level `TEMPLATE.md` as a design specification only; no lexer, parser,
+  compiler, assembler, object-format, linker, runtime, renderer, example, or test
+  behavior changes in this revision.
+* Specify file-scope `require` and `recommend` contracts, linker checking after
+  archive selection and reachability, semantic use metadata for true inline
+  functions and object operations, and external-use ownership so a template's
+  own references cannot satisfy its public contract.
+* Specify `template "file.c26" as instance` as repeatable include-path source
+  instantiation that bypasses MD5 include suppression and rewrites only exact
+  `TEMPLATE` and leading `TEMPLATE_` identifiers. Preserve comments, strings,
+  unrelated identifiers, UTF-8 mangling, and inline-assembly opacity; require
+  instance-owned file-scope names to follow template hygiene.
+* Standardize the proposed display-component lifecycle as `init`, `vblank`,
+  `draw`, and `overscan`, with a machine-readable `VISIBLE_SCANLINES` constant
+  and documented/tested scanline, cycle, TIA, clobber, stack, RAM/ROM, placement,
+  and blanking-budget contracts. Keep generic `update` outside the lifecycle.
+* Insert this work as new roadmap task 22 with sub-items 22a through 22h. Renumber
+  the former tasks 22 through 30 to 23 through 31 without changing their scope.
+  The new task 22 is now the first unfinished item.
+
+2026-07-24 18:57:30 PDT, correct template blanking-phase scheduling contract
+----------------------------------------------------------------------------
+* Update `TEMPLATE.md` so the application scheduler asserts VBLANK and starts
+  the shared 37-scanline deadline before invoking any component `vblank()`
+  function. All component callbacks consume the remaining shared budget; they
+  do not own VBLANK, WSYNC, or the RIOT timer.
+* Require the scheduler to detect deadline overrun, wait only for unused time,
+  issue the final WSYNC, and clear VBLANK at cycle zero. Replace the misleading
+  wait-37-lines-before-callbacks example with deadline-helper pseudocode and
+  apply the same scheduler-owned model to overscan.
+* Add conservative `VBLANK_MAX_CYCLES` and `OVERSCAN_MAX_CYCLES` component
+  metadata to the design and roadmap, plus emulator regressions for callback
+  budget, overrun detection, timer ownership, and cycle-zero phase transitions.
+* Documentation and roadmap only; no implementation, build, test, renderer, or
+  example behavior changes. Task 22 remains next.
+
+2026-07-24 19:08:16 PDT, expand template scheduler and renderer-conversion roadmap
+-------------------------------------------------------------------------------
+* Flesh out task 22i into a staged conversion of both maintained gameplay
+  renderers from monolithic score-owning profiles into composable lifecycle
+  components. Require exact cycle/TIA/state/RAM/ROM/stack equivalence evidence,
+  removal of embedded six-glyph storage and code, zero score cost when no score
+  component is instantiated, editable above/below-score examples, private exact
+  fixtures, and source-tree plus installed-toolchain regressions.
+* Expand task 22g to assign shared NTSC scheduling primitives to the proposed
+  `libraries/vcs/frame_ntsc.c26`. Keep `vcs.c26` as hardware definition only,
+  keep `main()` responsible for composition policy, and defer any full
+  `framework.c26` abstraction until repeated applications establish a stable
+  policy worth extracting.
+* Specify the public phase API, private timer-wait details, scheduler ownership
+  of VSYNC/VBLANK/WSYNC and RIOT timing registers, deterministic overrun
+  handling, exact 3/37/192/30 scanline accounting, stable 262-line frames, and
+  emulator coverage for partial-budget, exact-boundary, and overrun cases.
+* Roadmap/documentation update only; no compiler, linker, assembler, runtime,
+  renderer, example, build, or test implementation changes.
+
+2026-07-24 19:19:28 PDT, begin use-contract syntax and add PAL/SECAM roadmap
+----------------------------------------------------------------------------
+* Append native PAL and SECAM support as roadmap tasks 32 and 33. Keep each as a
+  separate video-standard family with its own frame scheduler, target bindings,
+  palette/timing contracts, examples, installation coverage, and emulator-backed
+  verification; PAL must not disturb NTSC, and SECAM must expose its restricted
+  color model explicitly rather than treating PAL colors as portable.
+* Complete task 22a1 as a clean compiler slice. Reserve `require` and `recommend`,
+  accept them as file-scope object/function declaration modifiers, and add a
+  normalized contract-strength query where `require` dominates `recommend` when
+  both appear. No o26 metadata or linker enforcement is emitted yet.
+* Reject use contracts on local objects, parameters, aggregate members, typedef/
+  enum positions, and labels. Add positive coverage for ordinary and inline
+  functions, objects, combined modifiers, and compatible repeated function
+  declarations, plus focused negative regressions for every forbidden context.
+* Leave task 22a open at 22a2: compatible repeated object/function declarations
+  still need to retain the strongest contract and diagnostic location before o26
+  metadata work begins. Pass 297/297 compile-only tests and 160/160 end-to-end/
+  generic tests.
+
+2026-07-24 19:58:00 PDT, complete declaration-contract merging
+-------------------------------------------------------------------------------
+* Complete roadmap task 22a2 and therefore task 22a. Predeclare file-scope
+  objects, accept compatible repeated `extern` declarations plus one
+  definition, select exactly one declaration for storage/import/export lowering,
+  and preserve ordinary duplicate-definition and incompatible-type diagnostics.
+* Add a translation-unit contract registry shared by objects and functions.
+  Merge declaration strengths as `none < recommend < require`, retain the source
+  token that introduced the strongest contract, and expose a query for task 22b
+  object metadata without depending on whichever prototype or definition became
+  the lowering representative.
+* Preserve compatible repeated function behavior while recording contracts from
+  prototypes and definitions. Add positive coverage for a weaker object
+  declaration followed by a stronger declaration and later definition, including
+  use before the defining declaration, plus focused conflicting-object and
+  duplicate-definition regressions.
+* Pass 300/300 compile-only tests and 160/160 end-to-end/generic tests. Stop
+  before 22b because o26 contract/type/location metadata and semantic use records
+  form the next larger atomic slice.
+
+2026-07-24 20:16:25 PDT, preserve declaration contracts in o26 metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b1. Emit reserved `__contractmeta$V1$` absolute-export
+  records for contracted objects and functions, including true inline functions
+  that have no ordinary callable symbol. Each record carries the merged contract
+  strength, logical assembler symbol, translation-unit owner, strongest-contract
+  source file/line/column, explicit no-template-invocation placeholder, and a
+  canonical object type or complete function signature.
+* Retain the records through ordinary `.s26` to `.o26` assembly and reserve the
+  prefix in the linker so metadata symbols do not appear as program globals or
+  consume layout. Document the record contract in `compiler/ABI.txt`.
+* Add an end-to-end metadata regression proving strongest-declaration source
+  retention, object and function fingerprints, true-inline metadata, and raw o26
+  preservation. Leave 22b open at 22b2 for semantic call/read/write/address/ref
+  use records; do not begin linker enforcement in 22c yet.
+
+2026-07-24 20:41:00 PDT, preserve direct and inline call-use metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b2a. Emit reserved `__usemeta$V1$call$` absolute-
+  export records for every resolved direct source-level call, including true-
+  inline expansion sites that leave no `JSR`, relocation, or callable symbol in
+  generated code.
+* Preserve the callee symbol, referencing translation-unit owner, containing
+  function, and exact source file/line/column through `.s26` and `.o26` output.
+  Reserve the prefix in the linker so use records remain metadata rather than
+  ordinary program globals or layout-consuming symbols.
+* Extend the declaration-contract metadata regression to prove ordinary and
+  true-inline call records independently and verify raw o26 retention. Document
+  the call-use record in `compiler/ABI.txt`.
+* Leave task 22b open at 22b2b for object read/write/address/ref records; do not
+  begin link-time contract enforcement in 22c.
+
+2026-07-24 20:51:02 PDT, preserve object semantic-use metadata
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22b2b and therefore tasks 22b2 and 22b. Emit reserved
+  `__usemeta$V1$read$`, `$write$`, `$address$`, and `$ref$` absolute-export
+  records for contracted file-scope object uses, including direct fixed-symbol and absolute-
+  ref shortcuts that can leave no ordinary relocation after code generation.
+* Preserve the referenced base-object symbol, translation-unit owner, containing
+  function, and exact source file/line/column through `.s26` and `.o26`. Classify
+  compound assignment and increment/decrement as both read and write, array/address
+  formation as address, and arguments passed to `ref` parameters as ref. Access
+  through a named global pointer records a read of the pointer object rather than
+  inventing a statically named pointee.
+* Extend the declaration-contract fixture and raw-o26 regression to prove all four
+  object-use kinds independently alongside ordinary and true-inline call records.
+  Document the complete semantic-use record family in `compiler/ABI.txt`.
+* Leave task 22c next; do not begin whole-program linker enforcement in this
+  timebox because archive selection, reachability, and external-instance use must
+  be implemented and tested as one coherent slice.
+* Pass 300/300 compile-only tests, 161/161 end-to-end/generic tests, the staged
+  installation check, and source-tree hygiene.
+
+2026-07-24 21:18:00 PDT, enforce declaration-use contracts at link time
+-------------------------------------------------------------------------------
+* Complete roadmap task 22c. Decode selected `__contractmeta$V1$` and
+  `__usemeta$V1$` exports after ordinary symbol resolution, merge repeated
+  contracts by symbol/owner/invocation with `require` dominating `recommend`,
+  and keep all metadata out of program globals and layout.
+* Build whole-program reachability from `main` and runtime initializer roots
+  using the existing compiler and hidden-assembly call-graph edges. Count only
+  reachable semantic uses from a different translation-unit/template-instance
+  owner; same-owner uses and references in unreachable functions do not satisfy
+  a contract.
+* Diagnose an unused `require` as a fatal source-located linker error and an
+  unused `recommend` as a source-located warning while allowing the link to
+  continue. Preserve ordinary undefined-symbol precedence by enforcing
+  contracts only after relocation resolution.
+* Add end-to-end linker coverage for required functions and objects,
+  recommended warnings, reachable external uses, same-owner uses, dead-code
+  uses, selected archive members, and silent unselected archive members. Leave
+  task 22d next: repeatable `template "file.c26" as instance` source
+  instantiation and controlled identifier-prefix rewriting.
+
+2026-07-24 21:42:00 PDT, add repeatable template source instantiation
+-------------------------------------------------------------------------------
+* Complete roadmap task 22d. Add `template "file.c26" as instance` using the
+  ordinary include search path while bypassing include's MD5-seen suppression,
+  so the same component source can be processed repeatedly under independent
+  instance names. Keep ordinary includes encountered inside a template on their
+  existing include-once path.
+* Rewrite the exact identifier `TEMPLATE` and the leading `TEMPLATE_` prefix
+  before identifier classification and UTF-8 assembler-name mangling. Preserve
+  comments, strings, and unrelated substrings. Apply the same identifier-aware
+  treatment to alias names, parameters, and unquoted identifier tokens in alias
+  replacement text. Support UTF-8 instance names and nested templates, and
+  reject recursive canonical-path instantiation.
+* Carry each template invocation's stable `instance@file:line:column` identity
+  through declaration-contract and semantic-use metadata, allowing application
+  uses in the same translation unit to remain external to the declaring
+  instance for link-time `require`/`recommend` enforcement.
+* Add compile and end-to-end coverage for repeated ASCII and UTF-8 instances,
+  exact/prefix/nonmatching rewriting, strings, aliases, nested templates, cycle
+  diagnostics, independent state, satisfied contracts, and unused-contract
+  diagnostics. Pass 303/303 compile-only tests, 164/164 end-to-end/generic
+  tests, the staged installation check, and source-tree hygiene. Leave task 22e
+  next for inline-assembly operand rewriting and template-hygiene enforcement.
+
+2026-07-24 22:14:00 PDT, rewrite template identifiers in inline assembly
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22e1. Rewrite exact `TEMPLATE` and leading
+  `TEMPLATE_` identifier tokens on assembler-identifier boundaries while
+  lexing inline assembly under a template instance. Apply ordinary UTF-8
+  assembler-safe mangling to rewritten instance names, while preserving quoted
+  assembler data and unrelated identifiers.
+* Keep the existing inline-assembly begin/end barriers unchanged so peephole
+  optimization remains unable to rewrite instructions inside the block or carry
+  machine-state facts across it.
+* Add a focused regression that instantiates one template with ASCII and UTF-8
+  names, checks object and function operands plus exact `TEMPLATE`, preserves a
+  quoted `"TEMPLATE_value"` and `MY_TEMPLATE_HELPER`, and proves duplicate
+  timing-sensitive instructions survive with both `-fpeephole` and
+  `-fno-peephole`.
+* Leave task 22e open at 22e2 for file-scope template-hygiene enforcement; do
+  not begin that distinct AST/source-ownership slice in this timebox.
+
+2026-07-24 23:05:00 PDT, enforce direct-template file-scope hygiene
+-------------------------------------------------------------------------------
+* Complete roadmap task 22e2 and therefore task 22e. Preserve each token's
+  original pre-rewrite spelling and whether it came directly from the active
+  template file rather than an ordinary included support file. Use that
+  provenance to require exact `TEMPLATE` or leading `TEMPLATE_` spelling for
+  directly template-owned file-scope functions, objects/tables, typedefs, type
+  and memory names, struct/union/enum tags, and enum constants.
+* Apply the same rule to source-visible nonlocal labels defined by inline
+  assembly while retaining ordinary assembler-local `@labels`. Keep function
+  locals, parameters, aggregate members, references to shared names, and
+  declarations supplied by ordinary include-once support files unrestricted.
+* Move the template fixture's genuinely shared `MY_TEMPLATE_HELPER` declaration
+  into an ordinary included support file. Add focused negative coverage for
+  every required definition class plus a positive two-instance test proving
+  prefixed names, local names, local assembler labels, and shared included
+  declarations coexist. Leave task 22f next; do not begin lifecycle
+  standardization in this timebox.
+
+2026-07-24 23:18:00 PDT, standardize reusable component lifecycle contract
+-------------------------------------------------------------------------------
+* Complete roadmap task 22f. Add a canonical lifecycle component fixture with
+  required inline `init`, `vblank`, `draw`, and `overscan` entry points plus
+  machine-readable `VISIBLE_SCANLINES`, `VBLANK_MAX_CYCLES`, and
+  `OVERSCAN_MAX_CYCLES` constants.
+* Add a two-instance end-to-end regression proving all four lifecycle calls,
+  independent instance state, and use of each timing constant. Leave a
+  component-specific setter unused to prove helpers outside the universal
+  lifecycle remain optional.
+* Add four focused negative link regressions, each omitting exactly one lifecycle
+  call and requiring the corresponding source-level `require` diagnostic.
+* Document the maintained conformance fixture in `TEMPLATE.md`. Leave task 22g
+  next for the shared `frame_ntsc.c26` scheduler, timer ownership, overrun
+  handling, and cycle-zero phase transitions.
+
+2026-07-24 23:49:00 PDT, add foundational NTSC frame scheduler support
+-------------------------------------------------------------------------------
+* Complete roadmap slice 22g1. Add `libraries/vcs/frame_ntsc.c26` with the
+  canonical 76-cycle scanline and 3/37/192/30/262-line NTSC constants, a
+  zero-safe inline `vcs_ntsc_wait_scanlines()` helper, and an inline
+  `vcs_ntsc_vsync()` operation that emits the standard three WSYNC lines.
+* Install and uninstall the new support file, include it in staged-installation
+  checks, document it beside `vcs.c26` and `sound_ntsc.c26`, and extend the VCS
+  header smoke build so installed toolchains must consume it successfully.
+* Add compile-only coverage proving both helpers inline without source-level
+  `JSR` calls and that the phase constants remain usable. Leave 22g2 next for
+  RIOT-deadline ownership, underflow-safe overrun handling, and cycle-zero
+  VBLANK/overscan transitions; do not ship uncalibrated timer preloads in this
+  foundational slice.
+
+2026-07-24 23:58:00 PDT, add scheduler-owned NTSC blanking deadlines
+-------------------------------------------------------------------------------
+* Complete roadmap task 22g2. Extend `libraries/vcs/frame_ntsc.c26` with
+  scheduler-owned `vcs_ntsc_begin_vblank()`, `vcs_ntsc_end_vblank()`,
+  `vcs_ntsc_begin_overscan()`, and `vcs_ntsc_end_overscan()` operations plus
+  the standard TIM64T preload and phase-status constants.
+* Keep the low-level deadline wait private. Sample TIMINT before INTIM and also
+  reject a high-bit INTIM value so an underflow racing between the two reads is
+  still detected even though reading INTIM clears the RIOT timer flag. Return
+  `VCS_NTSC_PHASE_OK` or `VCS_NTSC_PHASE_OVERRUN`, wait only for unused phase
+  time, issue the final WSYNC, clear VBLANK only at the end of VBLANK, and leave
+  it asserted across overscan into VSYNC.
+* Add compile coverage proving both preloads, both timer/status reads, final TIA
+  writes, and full inlining without JSR calls. Extend the installed-header smoke
+  source and update `libraries/vcs/README.md` and `TEMPLATE.md` to use the real
+  API instead of scheduler pseudocode.
+* Leave task 22g3 next for emulator-backed exact-boundary, partial-budget,
+  deliberate-overrun, timer-abstinence, and full-frame timing/resource tests.

@@ -1,0 +1,205 @@
+VCSC CONTEXT HISTORY — 2026-07-16
+=================================
+
+Historical development entries for 2026-07-16, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-16 14:18:32 PDT, initial context
+* Documented the static-frame VCS goal and mirrored-RAM problem.
+* Added top-level context.txt and remove.txt policy.
+
+2026-07-16 14:53:31 PDT, A:X return slice
+* Changed one- and two-byte scalar/pointer returns to A:X.
+* Made `$$` a callee-local return scratch object.
+* Added return_ax metadata and simulator coverage.
+* Temporarily retained legacy oversized/aggregate return storage.
+
+2026-07-16 15:28:56 PDT, default direct-parameter symbols
+* Made direct fixed parameters symbol-backed by default.
+* Removed fixed direct parameters from software-stack call frames.
+* Expanded recursion/cycle validation.
+* Rejected parameterized function pointers; retained zero-argument pointers.
+
+2026-07-16 15:58:23 PDT, legal-return enforcement
+* Recorded and enforced the two-byte maximum and aggregate-return prohibition.
+* Added declaration/definition validation and indirect-call validation.
+* Deleted the caller-owned return-slot call-frame path.
+* Replaced `return_value` ABI metadata with only return_void or return_ax.
+* Renamed user diagnostics from return "slot" to return "object".
+* Added negative tests for aggregate, array, float, wide, and big-endian returns.
+* Added a positive pointer-to-aggregate A:X test.
+* Deleted 35 obsolete positive tests; all paths are in remove.txt.
+* Curated the retained suites to 279/279 compile and 118/118 E2E.
+
+2026-07-16 16:23:03 PDT, physical VCS RAM partition
+* Removed the fictitious independent CPUSTACK region from vcs_4k.cfg.
+* Limited linker-allocatable RIOT RAM to $80-$DF.
+* Reserved $E0-$FF, mirrored at $01E0-$01FF, for the 6502 hardware stack.
+* Mapped transitional ARGSTACK to the real RAM pool.
+* Added map, overflow, and configuration-regression tests.
+* No files were removed.
+
+2026-07-16 17:21:54 PDT, fixed-address automatic locals
+* Converted named automatic locals and the hidden `$$` object to function-
+  qualified fixed-address symbols.
+* Kept automatic initialization semantics: initialization executes each time
+  control reaches the declaration.
+* Expanded cycle rejection to every function body because every function now
+  owns fixed activation storage.
+* Retained balanced software-stack scratch only for expression evaluation,
+  conversions, and other transitional compiler machinery.
+* Fixed array-to-pointer decay when assignment evaluation uses temporary
+  scratch; the previous transitional lowering copied the first array byte.
+* Added focused code-generation and repeated-call execution tests.
+* No files were removed.
+
+2026-07-16 17:37:15 PDT, software-stack inventory
+* Counted and classified all 30 compiler `_pushN` allocation sites and their 78
+  normal/error `_popN` emissions.
+* Confirmed that no ordinary named automatic local or `$$` allocation remains
+  on the software stack.
+* Added top-level software_stack_inventory.txt with per-file/per-purpose
+  disposition and an ordered removal plan.
+* Added a generic regression test that rejects unclassified stack-emission
+  changes.
+* Selected direct-call argument/result scratch as the next implementation slice.
+* No files were removed.
+
+2026-07-16 18:02:02 PDT, fixed direct-call scratch
+* Replaced ordinary nonvariadic direct-call `_pushN`/`_popN` call frames with
+  private fixed BSS symbols named `__n65_calltmp_N`.
+* Temporarily redirects `fp` to call-site scratch while evaluating arguments,
+  then copies converted values to callee-owned parameter symbols.
+* Captures A:X through the same scratch only when old expression machinery needs
+  a memory-backed result.
+* Added scratch high-water tracking so nested expression temporaries determine
+  the correct fixed allocation size.
+* Kept variadic and indirect calls on the isolated legacy stack paths.
+* Added a code-generation test forbidding `_pushN`/`_popN` in a simple direct
+  call and updated affected assembly expectations.
+* Passed 281/281 compile tests and 123/123 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16 18:22:34 PDT, variadic removal
+* Removed `...` from the parser grammar and made the lexer reject it directly.
+* Deleted variadic direct and indirect call lowering, hidden variadic locals,
+  builtin `va_start`/`va_arg`/`va_end`, and variadic ABI metadata.
+* Deleted `libraries/nlib/stdarg.n` and `libraries/nlib/sprintf.n`.
+* Deleted 13 obsolete variadic/stdarg tests and added two rejection tests.
+* Deleted the obsolete direct-call stack fallback and persistent function-frame
+  `_pushN`/`_popN` emissions.
+* Reduced the checked compiler stack inventory from 30/78 to 28/75.
+* Passed 269/269 compile tests and 122/122 end-to-end/generic tests.
+
+2026-07-16 19:15:02 PDT, function-pointer removal
+* Rejected all function-pointer declarators while retaining parser recognition
+  for a direct diagnostic.
+* Rejected bare function names and `&function` used as data values, including
+  attempts to store code addresses in ordinary data pointers.
+* Deleted indirect-call lowering, function-designator overload matching,
+  function-pointer ABI fingerprinting, and the `_callptr0` runtime trampoline.
+* Removed four obsolete positive tests and added three focused rejection tests.
+* Reduced the checked compiler stack inventory from 28/75 to 27/73; no
+  software-stack call frame remains in `compile_call.c`.
+
+2026-07-16 19:45:13 PDT, fixed truth/discard expression scratch
+* Replaced general truth-value `_pushN`/`_popN` scratch with fixed per-site BSS
+  symbols named `__n65_truthtmp_N`.
+* Replaced discarded non-call expression-result stack scratch with fixed per-site
+  BSS symbols named `__n65_discardtmp_N`.
+* Temporarily redirects `fp` to each symbol, tracks nested scratch high-water,
+  restores `fp` through the 6502 hardware stack, and reads truth bytes directly
+  from fixed storage.
+* Added focused code-generation tests and updated affected assembly expectations.
+* Reduced the checked compiler stack inventory from 27/73 to 25/69.
+* Passed 273/273 compile tests and 120/120 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16 20:14:46 PDT, fixed simple-assignment scratch
+* Replaced the fixed-symbol simple-assignment conversion `_pushN`/`_popN`
+  buffer with private per-site BSS symbols named `__n65_assigntmp_N`.
+* Made assignment scratch explicitly destination-typed so widening, narrowing,
+  signedness, and endian conversion happen before the final symbol copy.
+* Added code-generation and runtime tests for an 8-bit-to-16-bit assignment.
+* Moved four legacy wide-shift dump buffers from $0300 to unused $E000 because
+  the new fixed BSS scratch legitimately expands beyond their old hard-coded
+  buffer address; their computed output bytes remain unchanged.
+* Reduced the checked compiler stack inventory from 25/69 to 24/67.
+* Passed 274/274 compile tests and 121/121 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16 20:43:14 PDT, fixed comparison and binary-expression scratch
+* Replaced the two-operand comparison `_pushN`/`_popN` buffer with fixed per-site
+  BSS symbols named `__n65_comparetmp_N`.
+* Replaced stack scratch for pointer subtraction, scalar/pointer addition and
+  subtraction, shifts, bitwise operations, multiplication, division, and
+  remainder with `__n65_ptrdifftmp_N`, `__n65_addtmp_N`,
+  `__n65_shifttmp_N`, and `__n65_binarytmp_N`.
+* Added fixed-symbol-to-fixed-symbol conversion support for copied expression
+  results while preserving the caller frame.
+* Added focused code-generation and execution tests and updated two exact-
+  assembly expectations.
+* Reduced the checked compiler stack inventory from 24/67 to 19/52.
+* Passed 276/276 compile tests and 122/122 end-to-end/generic tests.
+* No files were removed.
+
+2026-07-16 21:23:40 PDT, fixed cast/absolute-reference/increment scratch
+* Replaced cast-conversion software-stack scratch with fixed per-site BSS
+  symbols named `__n65_casttmp_N`.
+* Replaced function-local and global absolute-reference conversion scratch with
+  `__n65_abslocaltmp_N` and `__n65_absglobaltmp_N`.
+* Replaced built-in pre/post increment/decrement scratch with
+  `__n65_incdectmp_N`.
+* Added fixed symbol-to-lvalue and bit-field-lvalue-to-symbol helpers so built-in
+  increment/decrement covers ordinary, indirect, absolute, and bit-field
+  lvalues without `_pushN`/`_popN`.
+* Added focused code-generation and execution tests.
+* Reduced the checked compiler stack inventory from 19/52 to 15/41.
+* Passed 277/277 compile tests and 123/123 end-to-end/generic tests.
+* Recorded the pre-existing assignment-expression `post++` fast-path defect for
+  a later independent fix; standalone built-in increment/decrement is correct.
+* No files were removed.
+
+2026-07-16 22:11:56 PDT, compound/switch/initializer fixed-scratch batch
+* Replaced built-in compound-assignment scratch with `__n65_compoundtmp_N`.
+* Replaced switch expression/case scratch with reusable `__n65_switchtmp_N`; fp
+  is restored before every generated branch and before case bodies.
+* Replaced simple indirect/absolute/bit-field assignment scratch with
+  `__n65_lvalueassigntmp_N`.
+* Replaced runtime local and return-object initialization with `__n65_inittmp_N`.
+* Replaced local absolute-reference initialization with `__n65_absinittmp_N`.
+* `compile_stmt.c` no longer emits `_pushN` or `_popN`.
+* Software-stack inventory fell from 15/41 to 10/22.
+* Moved the two obsolete 9-16-byte shift-test dump buffers from $E000 to $1800;
+  fixed-scratch code growth had reached $E000, while $1800 remains unused RAM in
+  their generic test map.
+* No files were removed.
+
+2026-07-16 22:58:49 PDT, lvalue/braced/global-init fixed-scratch batch
+* Replaced nonconstant pointer/index lvalue scratch with per-site
+  `__n65_indextmp_N` BSS storage.
+* Removed unnecessary software-stack pointer saves from bit-field read/write
+  helpers; preparing `ptr1` does not clobber the lvalue address in `ptr0`.
+* Replaced braced-assignment scratch with `__n65_bracedtmp_N`.
+* Replaced the synthesized runtime-global-initializer software frame with
+  `__n65_globalinittmp_N`, preserving and restoring the caller `fp` through the
+  6502 hardware stack.
+* `compile_lvalue.c` and `compile_init.c` no longer emit `_pushN` or `_popN`.
+* Software-stack inventory fell from 10/22 to 5/13; every survivor is an
+  obsolete operator-overload/weak-operator path.
+* No files were removed.
+
+2026-07-16 23:48:16 PDT, operator-overload and final compiler-stack-emitter removal
+* Removed user-defined operator declarations, lookup, mangling, dispatch, `$exactops`,
+  and weak built-in operator fallback while retaining ordinary function overloading.
+* The lexer keeps explicit rejection rules for `operator...` and `$exactops`.
+* Removed the final five compiler `_pushN` sites and thirteen `_popN` emissions; the
+  checked compiler inventory is now 0/0.
+* Removed the weak-operator generator/runtime members, custom-float exact-operator
+  generator, generated fixture plumbing, and 167 obsolete source/test/fixture files.
+* Localized the transitional half/float/double subtraction sign flip inside each
+  float subtraction object, removing its dependency on the deleted weak unary-negation
+  symbol without reviving the generic weak-operator runtime.
+* Added focused rejection tests for operator overloading and `$exactops`.
+* All intentionally deleted paths are listed cumulatively in remove.txt.

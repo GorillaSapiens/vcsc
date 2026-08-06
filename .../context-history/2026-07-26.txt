@@ -1,0 +1,374 @@
+VCSC CONTEXT HISTORY — 2026-07-26
+=================================
+
+Historical development entries for 2026-07-26, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-26 00:40:00 PDT, add faithful retained player-color template baseline
+-------------------------------------------------------------------------------
+* Select the simplest useful retained legacy profile: NTSC unbanked 4K P0/P1/
+  Ball with per-row player colors and the integrated six-digit score. Preserve
+  its original DCP/LAX/SBX/ASR instructions, instruction ordering, monolithic
+  frame ownership, score path, workspace, and 20,140-cycle frame period.
+* Add `renderers/faithful_legacy_playercolors` as a repeatable template namespace
+  plus a separately linked raw audit assembly tied to SHA-256 hashes of the
+  retained source inputs. Differentially compare 1,230 visible TIA events and
+  42 stable frames; ignore only data values written to TIA strobe registers,
+  whose bus value is hardware-irrelevant and may differ with page placement.
+* Add public `examples/05_faithful_legacy_static_test` with deliberately
+  asymmetric playfield rows. Renumber the former examples 05 through 09 to
+  06 through 10 and update catalogs, build tests, install checks, and removal
+  history accordingly.
+* Make this faithful baseline task 22i4b0 and require all later renderer work to
+  introduce and prove one transformation at a time instead of combining score
+  extraction, opcode legalization, new objects, new line budgets, and component
+  boundaries in one conversion.
+
+2026-07-26 09:52:36 PDT, add pristine upstream BASIC gold ROM
+----------------------------------------------------------------
+* Build upstream Atari 2600 BASIC tag v1.9 at commit
+  `1cefae05151da014467a0ecfcbacee6847d61404` from the supplied pristine archive
+  with the supplied Flex package and DASM 2.20.14.1. The stock compiler rejects
+  `set renderer_options playercolors` even though its shipped standard renderer
+  supports those conditional branches, so the oracle source selects the exact
+  profile with direct `playercolors=1` and `player1colors=1` constants without
+  patching compiler, include, or assembler source.
+* Add the complete upstream BASIC source and independently generated 4096-byte
+  ROM under `test/oracles/pristine_basic_v1.9_playercolors/`. A fresh second
+  extraction and build reproduces SHA-256
+  `573cc86c7ba12c0626fb73678480721e043e3468795151635beaae8f7f3e0b6a`
+  byte for byte.
+* Add `vcs_pristine_basic_oracle.test`. It locks the source/ROM hashes and
+  proves that the existing VCSC retained-source audit is not yet a gold
+  standard: pristine upstream BASIC has a stable 20,064-cycle/264-raw-line
+  frame rather than 20,140/265, and the first visible TIA mismatch is HMM0
+  `$60` versus `$70`. The cause is stock upstream BASIC's selected-profile RAM alias
+  `player0colorstore = missile0x`, which the current VCSC baseline separated.
+* Reopen 22i4b0 and make 22i4b0b the next work. Rename the existing regression
+  wording from "raw retained renderer" to "retained-source audit" and document
+  that example 05 remains provisional until the template matches the pristine
+  upstream BASIC ROM positively. No files are removed.
+
+2026-07-26 10:54:56 PDT, repair pristine BASIC player-color oracle
+-------------------------------------------------------------------------------
+* Reproduce the reported black sprites in Stella 7.0. The first oracle source
+  installed `player0color` and `player1color`, then zeroed the aliased
+  `missile0height/missile0y` and `missile1height/missile1y` bytes. Stock bB maps
+  those four bytes directly over the two color-table pointers, so both pointers
+  became `$0000`; the ROM was reproducible but visually invalid.
+* Move all disabled-missile initialization before the two color declarations so
+  the declarations install the final pointers. Rebuild twice from pristine bB
+  v1.9 and DASM 2.20.14.1; the corrected 4096-byte ROM is reproducible at
+  SHA-256 `eaae118b4770b7d7e45a5f0ca958ef1c1c54e51d8bc992dba293c09d753fc364`.
+* Add a headless Stella 7.0 reference capture. Both players now use the intended
+  row colors. All eight bitmap rows are present for P0 and P1, with each source
+  row occupying two raw scanlines in the stock two-line renderer; the earlier
+  apparent missing rows were black-on-blue camouflage rather than lost GRP data.
+* Extend `vcs_faithful_legacy_compare` with an oracle-only sprite mode and make
+  `vcs_pristine_basic_oracle.test` lock the exact eight-row P0/P1 graphics,
+  two-line row spacing, and row-color sequences. Update provenance and known-gap
+  diagnostics. The corrected oracle still measures 264 raw lines versus the
+  retained VCSC audit's 265, and now exposes the expected disabled-M0 positioning
+  difference caused by `player0colorstore = missile0x` before deeper comparison.
+* This entry supersedes the sprite-validity claim in the 09:52 oracle entry. The
+  next roadmap work remains 22i4b0b: reproduce stock RAM aliases and frame timing,
+  then convert the known-gap comparison into positive equivalence.
+
+2026-07-26 11:41:52 PDT, complete faithful example-05 oracle equivalence
+-------------------------------------------------------------------------------
+* Complete roadmap task 22i4b0b and restore example 05 as the faithful
+  monolithic Atari 2600 BASIC 1.9 player-color baseline. The uploaded example
+  had four independent defects: graphics/color macros reversed source-order
+  table bytes, the playfield lived in ROM instead of zero-page RAM, selected-
+  profile missile/color storage aliases were split, and the cycle-critical
+  visible loop landed on the wrong ROM page boundaries.
+* Preserve the stock aliases `player0colorstore = missile0x`, `player0color =
+  missile0height/missile0y`, and `player1color = missile1height/missile1y` with
+  source-level aliases/unions. Initialize disabled missile fields before
+  installing either color-table pointer so ordinary example setup cannot erase
+  them.
+* Make the 48-byte playfield RAM-backed and force all eight dynamic renderer loads
+  to zero-page-indexed `.zx` addressing. Retain source-order sprite and color
+  bytes because the two-line renderer indexes those tables downward itself.
+* Place the main loop at ROM low byte `$83`. Its ordinary BCC/BNE branches now
+  stay on-page, while the terminal BMI crosses exactly once as in stock bB.
+  This removes the former accumulating one-cycle-per-line drift and restores the
+  deliberate final transition cycle.
+* Repair the separately linked retained-source audit fixture and convert both
+  former known-gap regressions into positive comparisons. The pristine upstream
+  ROM, retained-source audit, and public example now agree on all 1,230 visible
+  TIA events and 42 stable 20,064-cycle/264-raw-line frames. Both players expose
+  all eight exact two-line graphics/color rows.
+* Update profile, example, oracle, and source-order documentation. Add structural
+  regression gates for the three RAM overlays, RAM playfield, eight `.zx`
+  accesses, and exactly one intentional BMI page crossing. No files are removed.
+* Verify 309/309 compile-only tests. The full end-to-end runner passed its first
+  174 tests before the execution window ended; an explicit final-eight run then
+  passed 8/8, covering all 182 end-to-end tests with no failures.
+* Leave 22i4b1a next: repair and screenshot-verify the player-color component's
+  first-row entry, then prove both special 192-line twelfth-row paths.
+
+2026-07-26 12:25:45 PDT, add linker-enforced branch page annotations
+-------------------------------------------------------------------------------
+* Add relative-branch opcode suffixes `.flex`, `.same`, and `.cross`. A bare
+  branch and explicit `.flex` are equivalent: placement remains flexible and
+  the linker prefers a same-page taken branch. `.same` and `.cross` are hard
+  timing contracts. The syntax works on named conditional branches and matching
+  raw relative opcode spellings; hard contracts must remain short branches.
+* Extend the object branch table from `B26\1` to backward-compatible `B26\2`
+  with one page-policy byte per record. The linker continues accepting `B26\1`
+  as all-flexible metadata, filters placements that violate hard contracts, and
+  minimizes crossings only among flexible branches before its existing growth,
+  page, and address tie-breakers. Maps now report both `taken-page=` and
+  `policy=` for every retained branch.
+* Reject hard annotations whose target lies outside the source's movable code
+  layout, long-branch expansions carrying `.same`/`.cross`, invalid suffix use
+  on non-relative instructions, and layouts for which no satisfying page phase
+  exists. Keep `.flex` eligible for ordinary long-branch relaxation.
+* Annotate all twelve timing-critical branches in the faithful retained bB
+  player-color renderer and its independent retained-source audit: eleven are
+  `.same`, and the terminal visible-loop `BMI` is `.cross`. Remove the old
+  `.align 256, $83, $ea` source hack and the RENDERER_CODE 256-byte alignment;
+  the linker now chooses the satisfying low-byte phase from the stated timing
+  contracts.
+* Add `linker_branch_annotations.test` covering named and raw `.flex`, required
+  same/cross placement, invalid nonbranch use, prohibited long hard branches,
+  an unsatisfiable crossing, and a hard target outside its movable layout.
+  Update branch-metadata/page-containment readers and the faithful-renderer test
+  to lock eleven satisfied same-page contracts plus exactly one crossing.
+* Update the root, assembler, linker, template-design, profile, and example-05
+  documentation. Preserve positive equivalence with the pristine bB 1.9 oracle:
+  1,230 visible TIA events, 42 stable frames, and 20,064 cycles/264 raw lines.
+* Verify 309/309 compile-only tests. The end-to-end runner passed its first 165
+  tests before the execution window ended; the explicit remaining eighteen then
+  passed 18/18, covering all 183 end-to-end tests with no failures. No files are
+  removed. Leave roadmap task 22i4b1a next.
+
+2026-07-26 12:53:04 PDT, make example 05 source visually readable
+-------------------------------------------------------------------------------
+* Add installed `libraries/vcs/color_ntsc.c26` with human-readable aliases for
+  the thirteen Atari 2600 NTSC TIA color bytes used by example 05. The names are
+  approximate display names selected from nearby X11 `rgb.txt` entries; comments
+  retain the Stella 7.0 reference-capture RGB values so the mapping is explicit
+  rather than folklore disguised as a specification.
+* Reformat example 05 into logical setup blocks with one assignment per line.
+  Replace hexadecimal sprite bytes with left-to-right visual binary rows such
+  as `0b..XXXX..`, while preserving the source-order row contract required by
+  the faithful two-line renderer. Replace unexplained color literals with the new
+  shared aliases.
+* Install and uninstall `color_ntsc.c26` with the other VCS support includes,
+  make example 05 depend on it, and extend installcheck to compile the example
+  entirely against the staged installation. Make successful installcheck runs
+  remove their staging tree so a subsequent source-hygiene run sees only source.
+* Add a compile-only alias-value regression and extend the faithful example
+  regression to require the include, all thirteen definitions/usages, and visual
+  rather than hexadecimal glyph rows. The retained-audit and pristine-bB oracle
+  comparisons remain unchanged and pass.
+* Verify 310/310 compile-only tests and staged installcheck. The full end-to-end
+  run passed through 175/183 before the command window expired; the initial
+  source-hygiene check exposed installcheck's leftover staging directory, the
+  cleanup above fixed it, source-tree hygiene passed, and
+  the remaining eight tests passed 8/8. Thus all 183 end-to-end tests are
+  covered with no product failures. No files are removed; leave roadmap task
+  22i4b1a next.
+
+2026-07-26 13:27:40 PDT, add extensible compile-time RGB builtin framework
+-------------------------------------------------------------------------------
+* Add the compiler-owned `__builtin_ntsc_rgb(r,g,b)` constant expression. Each
+  argument must be a compile-time integer in `0..255`; the result is a
+  `uint8_t` TIA byte. Match against all 128 meaningful even NTSC values using
+  squared RGB distance, and choose the lower TIA byte on an exact tie. The
+  fold emits no runtime search, palette table, or function call.
+* Introduce a descriptor-driven builtin registry carrying name, result type,
+  arity, argument contract, and evaluator. Share its already-folded integer
+  dispatch between normal constant-expression lowering and `#if`/`#elif`
+  conditional evaluation. Keep reusable RGB nearest-palette logic and the NTSC
+  table in `builtin_rgb.c`, so later PAL/SECAM matchers require a palette,
+  evaluator, and registry row rather than new parser or lowering paths.
+* Convert every selected alias in `libraries/vcs/color_ntsc.c26` from a copied
+  TIA literal to its documented reference RGB triplet passed through the
+  builtin. Preserve exact resulting values and retain comments naming both the
+  TIA byte and nearby X11 display name.
+* Add a complete 128-entry exact-palette folding regression, runtime checks for
+  exact/nearest/tie/type behavior, conditional-preprocessor coverage, and
+  negative tests for arity, nonconstant arguments, range, unknown builtin, and
+  reserved-name misuse. Update root, compiler, VCS-library, and example-05
+  documentation. No packed RGB form is added.
+* Verify 316/316 compile-only tests and staged `installcheck`. The main
+  end-to-end run exercised tests 1..178 and exposed only a stale example-05
+  source-structure expectation; after updating it to require builtin RGB
+  triplets and folded TIA comments, that test passed. The remaining six tests
+  passed after replacing one prohibited upstream proper name in a source
+  comment, covering all 184 end-to-end tests with no product failures. No files
+  are removed; leave roadmap task 22i4b1a next.
+
+2026-07-26 14:17:15 PDT, add poison debug score probes and linker RAM accounting
+-------------------------------------------------------------------------------
+* Add installed `renderers/poison_debug_score/poison_debug_score.c26`, a zero-RAM
+  deterministic adversarial eleven-line score-profile component. It paints a
+  red background and deliberately leaves hostile playfield, P0/P1, missile,
+  Ball, reflection, vertical-delay, copy/size, fine-motion, coarse-position,
+  and HMOVE state. It owns exactly eleven WSYNC boundaries and never owns
+  VSYNC, VBLANK, the RIOT timer, or CXCLR. Add standalone source/timing/source-
+  structure coverage and staged-install compilation.
+* Add player-color poison fixtures for score above, score below, and a 192-line
+  scoreless frame following hostile prior-overscan state. All three retain
+  stable 262-line scheduling and the existing P0/P1 color/GRP/Ball register
+  raster checks. The probes intentionally expose the remaining score-above
+  position handoff gap: gameplay RESP/HMxx/HMOVE positioning occurs in VBLANK,
+  then the poison score overwrites it, and `game_draw()` does not yet restore
+  positions. Keep 22i4b1b/22i4b2/22i4b3 open; this is diagnostic progress, not
+  a claim of full object-pixel composability.
+* Make `vcsc-ld` print and map writable-memory usage after every successful
+  link. Count unique runtime DATA/BSS/ZP addresses so overlaid activations count
+  once; report `objects=`, `hardware-stack=`, combined `used=`, and physical
+  `free=` bytes and percentages. Preserve each MEMORY region's original size
+  before call-stack reservation. Add a focused fixture proving 13 object bytes,
+  a six-byte three-deep hardware stack, 19/128 total used, and 109 free.
+* Update all success-output consumers for the new RAM section, install/uninstall
+  rules, linker/VCS/component/test/root documentation, and player-color status
+  notes. No source files are removed.
+* Verify 316/316 compile-only tests and staged `installcheck`. The full
+  end-to-end run passed tests 1..177 of the then-discovered 186 before the
+  command window expired; the remaining nine passed after adding the required
+  VCSC banner to the new renderer README. Repair the poison-handoff `.test`
+  descriptor so the runner no longer skips it, verify the final discovery count
+  is 187, and pass that additional test separately. Thus all 187 end-to-end
+  tests are covered with no product failures.
+
+2026-07-26 15:49:42 PDT, repair player-color/score handoff and terminal paths
+-------------------------------------------------------------------------------
+* Standardize the maintained NTSC visible-component boundary: the scheduler's
+  VBLANK exit supplies cycle 3 to the first component, every visible component
+  returns at cycle zero after its final WSYNC, and
+  `vcs_ntsc_component_handoff()` supplies the same cycle-3 phase between
+  adjacent components without consuming another scanline. Update the public
+  lifecycle contract, examples, source comments, and composition fixtures.
+* Narrow the poison debug score to the resources a real P0/P1 score owns. It
+  now uses one caller-selected exit-background byte, paints its eleven-line red
+  diagnostic band, trashes deterministic P0/P1 graphics/color/size/reflection/
+  delay/RESP/HMxx/HMOVE state, and preserves playfield, missiles, and Ball.
+* Make the production six-glyph score establish its P0/P1 NUSIZ, color, motion,
+  coarse position, VDEL, and graphics state on every draw rather than relying on
+  `init()` or friendly gameplay leftovers. Both score-above and score-below
+  compositions now enter through the same measured phase contract.
+* Repair the official and unofficial 181-line and official 192-line player-color
+  entries. VBLANK positions Ball and performs constant-time P0/P1 lookup; the
+  first two visible setup lines re-establish P1/P0 position and fine motion, and
+  the third applies HMOVE, restores application NUSIZ, and clears stale graphics.
+  A page-contained 160-entry packed table carries the coarse-loop count and
+  HMxx nibble, keeping every X coordinate 0..159 inside its scanline.
+* Extend the simulator oracle from register-row checks to measured P0/P1/Ball
+  positioning transactions and clipped horizontal pixel endpoints over 320
+  asynchronous frames. Verify hostile score above and below, all X=0..159,
+  stable 262-line frames, exact 11+181 ownership, and no score HMOVE disturbance
+  of Ball. Add terminal fixtures proving all eight P0/P1 color rows and Ball
+  activity reach the final 181-line band and the 192-line twelfth-row path.
+* Retain 65-byte RAM for player-color 181 and 66 bytes for player-color 192.
+  The shared private positioning support is 176 ROM bytes. The matched official
+  and unofficial 181-line smoke cartridges are both 1605 linked bytes and retain
+  a measured zero-byte unofficial-opcode saving.
+* Add and hash-lock reviewed Stella 7.0 captures for the 181-line score-above
+  scene and the 192-line terminal-band fixture. Keep the broader 22i4b all-object
+  pixel matrix open; the deterministic endpoint model still does not substitute
+  for every future all-five-object analog rendering case.
+* Verify 316/316 compile-only tests and staged `installcheck`. The full
+  end-to-end run passed through test 174 before the execution window expired;
+  it exposed three stale expectations for the repaired score setup, new
+  official/unofficial size, and now-positive poison handoff. Correct those
+  test gates, pass them directly, and pass the remaining thirteen tests 13/13.
+  Thus all 187 end-to-end tests are covered with no product failures.
+
+2026-07-26 16:38:24 PDT, repair examples 03/04 standalone component entry
+-------------------------------------------------------------------------------
+* Reproduce the visible regressions in examples 03 and 04 under Stella 7.0:
+  the first five glyphs appear at the left edge while the sixth wraps to the
+  right. Both cartridges still compile and retain nominal frame timing, so the
+  previous build-only coverage did not detect the raster failure.
+* Identify the lifecycle mismatch. `vcs_ntsc_wait_scanlines(91)` owns exactly
+  91 WSYNC boundaries, but its compiler-generated loop bookkeeping returns at
+  an arbitrary phase. The repaired six-glyph component requires the canonical
+  measured entry phase supplied by `vcs_ntsc_end_vblank()` or an explicit
+  component handoff. Entering 32 cycles late moves RESP0/RESP1 far enough to
+  wrap one digit. Appending `vcs_ntsc_component_handoff()` alone is not valid;
+  it shifts the setup again and produces a 263-line frame.
+* Add `vcs_ntsc_wait_component_scanlines(count)` for a blank visible gap of at
+  least two scanlines immediately followed by a cycle-counted component. It
+  spends `count-1` ordinary WSYNC boundaries and uses a controlled 44-cycle
+  tail (a documented LDY/DEY/BNE loop plus harmless `BIT CXM0P`) to complete
+  the final blank line and reproduce the canonical component-entry phase
+  without consuming another scanline. Verify gaps of 2, 3, 10, 91, and 180
+  lines all enter the following component at the same cycle.
+* Change examples 03/04 and their golden sources to use the component-aware
+  91-line gap. Add a simulator oracle requiring the accepted line-131 setup
+  transactions: NUSIZ0/1 at cycles 0/3, colors at 8/11, HMCLR at 14, HMP0/1 at
+  19/24, RESP0/1 at 29/32, and HMOVE at 71, together with stable 262-line
+  frames. Add and hash-lock reviewed Stella 7.0 captures showing a centered
+  six-digit score and centered `8A55CE` fingerprint with no wrapped glyph.
+* Update the scheduler/VCS library documentation and both example READMEs.
+  Verify 316/316 compile-only tests, the first 170/187 end-to-end tests before
+  the execution window expired, the uncovered final 17 as 17/17, staged
+  `installcheck`, and final source-tree hygiene. No source files are removed;
+  keep the broader 22i4b all-object pixel matrix open.
+
+2026-07-26 17:13:18 PDT, rebuild public examples as a thirteen-cartridge matrix
+--------------------------------------------------------------------------------
+* Replace the historical public-example grab bag with an ordered progression:
+  `01_blank_screen`, `02_ode_to_joy`, `03_score`, `04_fingerprint`, followed by
+  nine official multicolor P0+P1+Ball cartridges. The multicolor set is a 3x3
+  matrix crossing full 192-line, score-above 181+11, and score-below 181+11
+  layouts with static, asynchronous X-only, and asynchronous X+Y motion.
+* Remove the faithful legacy and all-five cartridges from public `examples/`.
+  Preserve the faithful template source under private regression fixtures and
+  retain all-five exact/motion coverage under `test/fixtures/`; five-object work
+  remains blocked until the public multicolor matrix is stable.
+* Rename the first and third examples to match their visible purpose:
+  `01_blank_screen/blank_screen.c26` and `03_score/score.c26`. Add
+  `examples/README.md` with the ordered list and explicit 3x3 matrix.
+* Give every multicolor example the same readable structure, named NTSC colors,
+  visual-binary playfield and sprite rows, P0/P1 eight-row color tables, and
+  explicit lifecycle composition. X-only examples move P0/P1/Ball at distinct
+  rates; X+Y examples move all three objects independently on both axes.
+* Add `vcs_multicolor_examples.test`, which source-checks all nine matrix cells,
+  builds each exact 4K ROM, verifies the requested component order and motion
+  mode, runs 80+ frames, requires stable 262-line timing, checks X/Y bounds, and
+  proves static/X-only/X+Y RAM motion behavior. Expand the editable-example
+  smoke build and staged install check from ten to thirteen cartridges.
+* Update public documentation, driver examples, retired-profile references, the
+  faithful regression source location, removal ledger, and roadmap task 22i4c.
+  Do not begin the five-object renderer task.
+* Verify 316/316 compile-only tests and staged `installcheck`. The full
+  end-to-end run passed 171/188 before the execution window expired; execute
+  the remaining seventeen explicitly and pass 17/17, covering all 188 tests
+  with no failures. Final source-tree hygiene and VCSC branding checks pass.
+
+2026-07-26 20:09:43 PDT, repair and certify public example 05 only
+-------------------------------------------------------------------------------
+* Retract the previous claim that examples 05 through 13 formed a validated
+  display matrix. The matrix regression checked successful links, 262-line
+  frames, coordinate bounds, and RAM motion, but never inspected rendered TIA
+  pixels. Keep that test only as an explicitly nonvisual smoke test. Examples
+  06 through 13 remain untrusted and pending one-at-a-time repair.
+* Rebuild `05_multicolor_full_static` as a clean diagnostic scene: twelve
+  asymmetric playfield rows, a clear object lane, readable A/B glyphs, fixed
+  P0/P1/Ball positions, named NTSC colors, and no score or motion code. Add an
+  independent raw-byte golden source and a reviewed Stella 7.0 reference.
+* Fix a real `player_color_192` terminal-entry bug. The old final path jumped
+  directly to `enterlastrenderer`, leaving public playfield row twelve unused and
+  repeating row eleven through the bottom band. Route `lastrendererline` through
+  `enterfromNBL` so bytes 44..47 are installed before the shortened terminal
+  object pipeline. Update the terminal P1/Ball timing oracle and reviewed
+  terminal Stella image for the corrected schedule.
+* Add `vcs_multicolor_full_static.test`. Require exact trace equivalence with
+  the raw-byte golden ROM, all twelve playfield rows and their transition
+  writes, all eight P0/P1 graphics and color rows, Ball activity, absence of
+  missiles/score ownership, exact 262-line frames, and the hash-locked Stella
+  image. Strengthen `vcs_player_color_192.test` to use the same twelve-row TIA
+  display oracle instead of the old eleven-row checker.
+* Do not modify or certify examples 06 through 13 in this step. The next public
+  example task is 06. Do not begin five-object renderer work.
+* Verify 316/316 compile-only tests. The full 189-test end-to-end run passed
+  tests 1..169 before the execution window expired; run the remaining twenty
+  tests explicitly and pass 20/20, covering all 189 with no failures. Staged
+  `installcheck`, final source hygiene, and branding checks pass.

@@ -1,0 +1,236 @@
+VCSC CONTEXT HISTORY — 2026-07-28
+=================================
+
+Historical development entries for 2026-07-28, in chronological order. These files
+are archives, not the default project handoff. Read them only when investigating
+an older decision, regression, or implementation detail.
+
+2026-07-28 06:40:00 PDT, bounded 181-line renderer integration investigation
+-------------------------------------------------------------------------------
+Roadmap item 0 — finish the 181-line Stella repair before other unfinished work:
+* Start from `.top_secret/player_color_181_stella_candidate.patch`.  It applies
+  the already Stella-correct four-write playfield schedule to the official
+  181-line renderer while deliberately removing the hard `.align 256` and
+  retaining the loop's `.same` branch constraint.
+* This combination is the first candidate that simultaneously:
+  - builds all fourteen examples, including example 13 with no ROM overflow;
+  - keeps all examples 07-14 at exactly 262 raw lines in the matrix harness;
+  - preserves the exact 11 x 16 x 160 playfield audit for examples 07 and 08.
+* It is not yet suitable for activation because the official object trace still
+  places P1 register/color updates one scanline late, and the matched unofficial
+  renderer plus its byte-size/trace contract have not been ported.  Do not
+  normalize those failures by weakening the tests.  Complete the object schedule
+  or prove an equivalent delayed-latch schedule in Stella, then port the same
+  visible behavior to the unofficial twin.
+* Dead ends established in this pass:
+  - removing the `.same` constraint lets the code link but reintroduces a
+    motion-dependent 263-line frame through a page-crossing loop branch;
+  - preloading P1 on the setup line shifts its register writes two lines early;
+  - enabling delayed P1 and duplicating the transition tail produces 263-line
+    static frames;
+  - removing either terminal WSYNC shortens ordinary compositions to 261 lines.
+* The active source is intentionally restored to the uploaded compact baseline.
+  The candidate is kept only as a standalone patch, so this checkpoint has no
+  half-integrated renderer and retains the existing passing behavior.
+
+2026-07-28 00:52:00 PDT, derive and finish the 181-line renderer from the proven 192-line schedule
+---------------------------------------------------------------------------------------------------
+* Replace both 181-line raster bodies with the proven four-write beam schedule
+  from the corrected 192-line renderer, changing only the eleven-row limit,
+  score handoff, and terminal-line accounting required by the shorter profile.
+* Preserve PF1-left, PF2-left, PF2-right, and PF1-right writes at CPU cycles
+  10, 17, 40, and 47. Compensate the two-line score handoff for P0 before the
+  copied pipeline so P0/P1/Ball graphics and colors retain their established
+  positions while frames remain exactly 262 lines.
+* Certify examples 07 and 08 directly in Stella with objects moved offscreen in
+  diagnostic builds. Compare every logical playfield position from the literal
+  C26 rows: 11 x 16 x 32 = 5,632 positions per example, zero mismatches for both
+  score placements.
+* Keep example 13 within its 4K cartridge: 3,774 ROM bytes used, 316 bytes free.
+  The official smoke uses 1,799 linked bytes. The unofficial-enabled twin keeps
+  its two reviewed AXS substitutions and one zero-page NOP, uses 1,797 bytes,
+  and remains visibly trace-equivalent to the official implementation.
+* Update the player-color, composition, hostile-handoff, all-five, example
+  matrix, reference-image, and exact-raster tests. The nine renderer-focused
+  end-to-end tests pass, including every failure reported by the user.
+* A broad end-to-end run reached test 164 before the outer command window
+  expired. Its renderer-related tests through that point passed. Four earlier
+  assembler tests fail because their companion source fixtures are absent from
+  the supplied archive; the compile-only run likewise has one missing-fixture
+  failure. These pre-existing archive omissions are unrelated to this repair.
+* Delete `.top_secret/player_color_181_stella_candidate.patch`; the candidate is
+  obsolete now that the finished implementation is active.
+* Staged `installcheck` passes, including all fourteen examples and both the
+  official and unofficial-enabled renderer smoke cartridges.
+
+2026-07-28 08:54:07 PDT, clear the malformed 181-line entry scanline
+-------------------------------------------------------------------------------
+* Restrict this repair to examples 07 and 08, the official 181-line renderer,
+  and the single visible setup scanline immediately before the eleven complete
+  16-line playfield rows.
+* Diagnose the existing audit blind spot: it began at frame line 44, while frame
+  line 43 had already written only PF1/PF2's left-side bytes at cycles 20/27.
+  Stella therefore exposed a five-bit, half-initialized copy of row zero before
+  the first fully timed row scanline.
+* Remove those two premature playfield loads/stores. The setup scanline now
+  remains background-only, and the first complete row begins unchanged on the
+  following scanline with all four proven write phases.
+* Extend `vcs_playfield_phase.cpp` so the 181-line profile requires the setup
+  scanline to contain no active PF1/PF2 pixels. The new check rejects the input
+  archive and accepts the repaired cartridge.
+* Fresh Stella 7.0 captures of examples 07 and 08 differ from the input only on
+  that one scanline: exactly 40 erroneous goldenrod pixels become background.
+  The next line contains the six row-zero source bits at x=32,80,128,176,224,272,
+  and every subsequent captured pixel is unchanged.
+
+2026-07-28 09:07:00 PDT, synchronize the unofficial 181-line first-scanline fix and size contract
+-------------------------------------------------------------------------------
+* Apply the same setup-scanline repair to the unofficial-enabled 181-line
+  renderer: do not prime PF1/PF2 before the first complete timed playfield row.
+  This restores visible trace equivalence with the official renderer and keeps
+  the setup scanline background-only in both implementations.
+* Update the exact linked-size contract and documentation after removing the
+  obsolete setup writes: official smoke 1789 bytes, unofficial smoke 1787
+  bytes, preserving the intended two-byte unofficial-opcode saving.
+* Verification: vcs_player_color_181_unofficial passes all five official versus
+  unofficial cartridge comparisons, the AXS/NOP opcode inventory, RAM-layout
+  equality, and static/motion composition checks. The official 181-line,
+  composition, hostile-handoff, examples-build, and both all-five 181-line
+  focused tests also pass. vcs_multicolor_examples passes when run directly;
+  batched runs can exceed the test runner's three-second per-test timeout.
+
+2026-07-28 09:35:00 PDT, reorganize public examples by renderer and layout
+-------------------------------------------------------------------------------
+* Replace the flat globally numbered `examples/01_*` through `examples/14_*`
+  tree with locally numbered renderer and layout groups:
+
+      01_basic/{01_blank_screen,02_ode_to_joy,03_score,04_fingerprint}
+      02_faithful_legacy_playercolors/01_static
+      03_player_color_192/{01_static,02_dynamic_x,03_dynamic_xy}
+      04_player_color_181/01_score_above/{01_static,02_dynamic_x,03_dynamic_xy}
+      04_player_color_181/02_score_below/{01_static,02_dynamic_x,03_dynamic_xy}
+
+* Preserve every example source filename and cartridge stem. Directory numbers
+  are local, append-only presentation order; they are not stable global IDs.
+* Add top-level, renderer-level, and layout-level READMEs describing which
+  renderer is demonstrated, its visible-line and object contract, score
+  composition, timing handoff, and the motion progression within each layout.
+* Update root documentation, VCS support documentation, tool examples,
+  installcheck, focused renderer tests, and all source-tree path probes.
+* Make `vcs_examples_build.pl` recursively discover every editable `.c26` leaf
+  under `examples/`, while retaining special flags for the fingerprint and
+  faithful legacy cartridges. Keep explicit nested metadata in the multicolor
+  runtime matrix because placement and motion are behavioral expectations.
+* Update every leaf Makefile for its new depth. Verify all fourteen leaf
+  Makefiles, recursive example builds, and the nested multicolor matrix.
+* Give the nested multicolor matrix a ten-second test-runner limit. Its eight
+  compile/link/simulation cases pass directly but exceed the generic three-
+  second default on this container.
+* Verification: all fourteen leaf Makefiles pass; recursive example discovery
+  and the nested multicolor matrix pass; compile-only tests pass 317/317; all
+  190 end-to-end tests are accounted for and pass; staged `installcheck` passes;
+  and the documentation/branding checks accept every new README.
+
+2026-07-28 10:17:25 PDT, flatten the player_color_192 example group
+------------------------------------------------------
+* Remove the redundant `01_full` layout directory under
+  `examples/03_player_color_192/`. The renderer has no alternate layout: it
+  always owns the full 192-line visible field.
+* Move the three examples directly under the renderer group:
+
+      03_player_color_192/{01_static,02_dynamic_x,03_dynamic_xy}
+
+* Absorb the deleted layout README into the renderer README, update the leaf
+  Makefile root depth, and update every test, installcheck, documentation, and
+  source-tree path reference.
+* Keep the score-above and score-below layout directories under
+  `04_player_color_181`; those are real alternate compositions rather than a
+  redundant single-choice layer.
+* Verification: all three moved leaf Makefiles build independently; recursive
+  example discovery, the multicolor example matrix, the exact 192-line static
+  renderer test, the player-color renderer/composition tests, staged
+  `installcheck`, branding, and source-tree hygiene all pass. The compile-only
+  suite passes 317/317. A broad end-to-end run reached 154/190 with no failures
+  before the outer command window expired; all path-sensitive VCS tests were
+  then run directly and passed.
+
+2026-07-28 21:22:49 PDT, lower BCD decimal-power multiplication division and remainder inline
+* Added packed-BCD `*`, `/`, `%`, `*=`, `/=`, and `%=` support for positive
+  integer constant expressions exactly equal to powers of ten across `bcd8_t`,
+  `bcd16_t`, `bcd24_t`, and `bcd32_t`. Multiplication also accepts the constant
+  on the left; division and remainder keep the conventional constant-right
+  form. Other BCD multiply/divide/remainder operands remain rejected.
+* Added a shared decimal-power classifier and inline packed-digit lowering.
+  Even decimal shifts become byte moves and clears. Odd shifts use four `ASL`
+  or `LSR` instructions with `$0f` masks and nibble joins. No `_mul8`..`_mul32`
+  or `_div8`..`_div32` helper is selected, and generated code does not execute
+  `SED` for these operations.
+* Defined fixed-width behavior explicitly: multiplication drops high digits,
+  division drops low digits, and remainder retains the low N decimal digits.
+  Powers at least as wide as the type therefore produce zero for multiply and
+  divide, while modulo returns the original value. `10^0` acts as identity for
+  multiply/divide and produces zero remainder.
+* Added `test/bcd_power_of_ten_codegen_test.c26` and
+  `test/e2e_bcd_power_of_ten_verify.c26`, covering every stock BCD width,
+  odd/even powers, reversed multiplication, constant-expression powers,
+  static folding, overflow/truncation boundaries, and compound assignment.
+  Added focused non-power rejection tests for division, remainder, and compound
+  multiplication. Updated compiler/ABI/test documentation.
+* Passed 321/321 compile tests. The end-to-end/generic suite passed all 191
+  tests; the first 170 were observed passing before the runner command hit the
+  execution ceiling, and the remaining 21 were rerun explicitly and passed.
+  No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-28 22:22:07 PDT, add cheap integer and packed-BCD constant arithmetic optimizations
+--------------------------------------------------------------------------------------------
+* Add general fixed-width integer lowering for multiplication by zero or one,
+  division by one, remainder by one, and division/remainder by a positive
+  constant larger than every possible left-operand value. Apply the same rules
+  to compound assignments while evaluating operands and lvalues exactly once.
+* Add packed-BCD remainder by two and five using only low-digit masks and one
+  conditional subtract. Add multiplication by constants expressible as
+  `10^a + 10^b` or `10^a - 10^b`, provided the multiplier fits the BCD type;
+  form two decimal-shifted copies and combine them with one scoped decimal add
+  or subtract instead of selecting a general multiplication helper.
+* Fuse chains of packed-BCD multiplication, division, and remainder by powers
+  of ten into one contiguous digit-window copy. Also fuse
+  `x - (x % 10^n)` for ordinary variables while deliberately retaining both
+  evaluations for calls, indirect expressions, and hardware references.
+* Keep unsupported general BCD multiplication, division, and remainder
+  rejected. Add an explicit rejection boundary for cheap-form multipliers that
+  do not fit the destination BCD type, such as `bcd8_t *= 101`.
+* Add compile-time assembly-shape checks and simulator verification covering
+  zero/one identities, signed and unsigned oversized-divisor boundaries,
+  side-effect preservation, all four BCD widths, `% 2`, `% 5`, decimal
+  wraparound, compound forms, two-term multipliers, digit extraction,
+  repositioning, and truncation. Update root, compiler, ABI, and test
+  documentation.
+* Verification: 325/325 compile-only tests pass. All 193 end-to-end/generic
+  tests are accounted for and pass; the first 172 passed before the outer
+  command window expired, and the remaining 21 passed when run explicitly.
+  No files were removed; `.top_secret/remove.txt` is unchanged.
+
+2026-07-28 22:43:33 PDT, eliminate redundant Perl test wrappers
+------------------------------------------------------------
+* Teach `test/test.pl` to discover metadata-bearing `.pl` files directly.
+  Perl test drivers now keep their `runner:`, phase, timeout, and expectation
+  directives in the leading comment block after the shebang and invoke
+  themselves through `@FILE@`.
+* Move the metadata from 83 same-named `.test` forwarding files into their
+  corresponding Perl drivers and remove the wrappers. Keep the remaining 16
+  `.test` files because they run non-Perl tools, contain their own executable
+  test body, or intentionally test the top-level runner.
+* Update directory and default discovery so unmarked Perl support scripts are
+  skipped while explicitly selected runnable `.pl` tests work normally.
+  Update the single-file runner smoke test to select a metadata-bearing Perl
+  test directly.
+* Strengthen `source_tree_hygiene.pl` to treat metadata-bearing Perl files as
+  live tests and to reject any future `.test` file that merely invokes a
+  same-named `.pl` driver. Update current test names and runner documentation
+  throughout the public documentation.
+* Record all 83 intentionally removed wrappers in `.top_secret/remove.txt`.
+* Verification: 325/325 compile-only tests pass. The end-to-end/generic suite
+  remains 193/193: the first 172 passed before the outer command window
+  expired, the remaining 21 passed explicitly, and the subsequently tightened
+  direct-Perl selection smoke test passed on its own. Source-tree hygiene and
+  direct selection of migrated `.pl` tests also pass.

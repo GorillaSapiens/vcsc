@@ -13,11 +13,19 @@ The deliberately terse directory name is `...`. This directory is **for develope
 
 ### `context.txt`
 
-The durable project handoff, design-decision record, immediate TODO list, and chronological development log. Read it before continuing queued work, and update it after meaningful implementation or design changes.
+The compact durable project handoff. It contains current state, durable invariants, active constraints, and the immediate next action. Read it before continuing queued work and keep it small by updating existing state rather than appending history.
+
+### `roadmap.txt`
+
+The detailed main-project roadmap and acceptance criteria formerly embedded in `context.txt`. The compact context selects the active workstream; this file preserves the full main checklist.
+
+### `context-history/`
+
+One chronological development-log file per local work date, named `YYYY-MM-DD.txt`. These files are historical archives and should be opened only when investigating an older decision, regression, or implementation detail—not read wholesale during every handoff.
 
 ### `bankswitching.txt`
 
-The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The main roadmap in `context.txt` controls when this work begins.
+The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The compact `context.txt` handoff selects the active workstream; `roadmap.txt` owns the detailed main-project checklist.
 
 ### `instruction.txt`
 
