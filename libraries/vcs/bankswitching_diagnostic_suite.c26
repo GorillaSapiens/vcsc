@@ -7,10 +7,33 @@
 // hardware-stack balance are checked before the cartridge settles on a stable
 // green P (PASS) or dark-red F (FAIL) frame for emulator certification.
 
-include "vcs.c26"
-#ifdef SUPERCHIP_TEST
-include "superchip.c26"
+#ifndef MAPPER_BANKS
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
 
+#ifdef SUPERCHIP_TEST
+#if MAPPER_BANKS == 2
+include "vcs_8k_f8sc.c26"
+#elif MAPPER_BANKS == 4
+include "vcs_16k_f6sc.c26"
+#elif MAPPER_BANKS == 8
+include "vcs_32k_f4sc.c26"
+#else
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
+#else
+#if MAPPER_BANKS == 2
+include "vcs_8k_f8.c26"
+#elif MAPPER_BANKS == 4
+include "vcs_16k_f6.c26"
+#elif MAPPER_BANKS == 8
+include "vcs_32k_f4.c26"
+#else
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
+#endif
+
+#ifdef SUPERCHIP_TEST
 // Own the complete region with both BSS and DATA objects. Stock reset/startup
 // must clear every BSS byte and copy every DATA byte through the write window.
 // The diagnostic later poisons these objects before entering its result loop;
@@ -20,42 +43,6 @@ superchip uint8_t diagnostic_superchip_data_head := 0x5A;
 superchip uint8_t diagnostic_superchip_count;
 superchip uint8_t diagnostic_superchip_bss[124];
 superchip uint8_t diagnostic_superchip_data_tail := 0xA5;
-#endif
-
-#ifndef MAPPER_BANKS
-MAPPER_BANKS_must_be_2_4_or_8
-#endif
-
-#ifdef SUPERCHIP_TEST
-mem bank0 { $start:0xF100 $size:0x0E00 $ro };
-#if MAPPER_BANKS > 1
-mem bank1 { $start:0xD100 $size:0x0E00 $ro };
-#endif
-#if MAPPER_BANKS > 2
-mem bank2 { $start:0xB100 $size:0x0E00 $ro };
-mem bank3 { $start:0x9100 $size:0x0E00 $ro };
-#endif
-#if MAPPER_BANKS > 4
-mem bank4 { $start:0x7100 $size:0x0E00 $ro };
-mem bank5 { $start:0x5100 $size:0x0E00 $ro };
-mem bank6 { $start:0x3100 $size:0x0E00 $ro };
-mem bank7 { $start:0x1100 $size:0x0E00 $ro };
-#endif
-#else
-mem bank0 { $start:0xF000 $size:0x0F00 $ro };
-#if MAPPER_BANKS > 1
-mem bank1 { $start:0xD000 $size:0x0F00 $ro };
-#endif
-#if MAPPER_BANKS > 2
-mem bank2 { $start:0xB000 $size:0x0F00 $ro };
-mem bank3 { $start:0x9000 $size:0x0F00 $ro };
-#endif
-#if MAPPER_BANKS > 4
-mem bank4 { $start:0x7000 $size:0x0F00 $ro };
-mem bank5 { $start:0x5000 $size:0x0F00 $ro };
-mem bank6 { $start:0x3000 $size:0x0F00 $ro };
-mem bank7 { $start:0x1000 $size:0x0F00 $ro };
-#endif
 #endif
 
 uint8_t failure;

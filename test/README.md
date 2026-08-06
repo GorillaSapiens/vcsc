@@ -174,6 +174,16 @@ covers cross-object declaration conflicts with both C26 locations and ambiguous
 multi-owner containment. The four former `e2e_mem_region_cfg_*_mismatch` cases
 now prove stale or missing cfg allocator entries are ignored in favor of C26.
 
+`vcs_c26_cartridge_profiles.pl` certifies the installed 4K, F8, F6, F4, F8SC,
+F6SC, and F4SC C26 profile files against the reduced `vcs.cfg`. It verifies
+physical size and file ordering, ordinary versus SC mapped spans, selector and
+startup metadata, shared Superchip ownership, and byte-for-byte equality with
+the retained legacy cfg profiles. It also proves that the driver's implicit 4K
+profile equals an explicit build, that an explicitly supplied installed profile
+resolves sibling includes from its own directory, and that the generic direct
+two-chunk profile uses ordinary absolute cross-chunk calls, deterministic fill,
+and no selector or trampoline output.
+
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
 then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every
 possible initially selected bank. It locks the common eighteen-byte
@@ -199,24 +209,27 @@ call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
 
-`vcs_f8_profile.pl` certifies the installed `libraries/vcs/vcs_8k_f8.cfg`
-profile.  It compiles the private F8 source diagnostic, locks BANK1-first/BANK0-
-last file order, `$1FF8/$1FF9` selector identities, hard and automatic placement,
-cross-bank JMP and nested JSR bridges, byte-identical common corridors, vectors,
-map output, and exact 8192-byte output.  A small opcode model starts from each
-possible initially selected file chunk and proves the reset bridge reaches
-BANK0 and nested calls restore banks and hardware-stack returns correctly.
-`make installcheck` repeats the source build with the staged installed profile.
+`vcs_f8_profile.pl` certifies the installed `vcs_8k_f8.c26` profile through
+the reduced `vcs.cfg`. It compiles the private F8 source diagnostic, locks
+BANK1-first/BANK0-last file order, `$1FF8/$1FF9` selector identities, hard and
+automatic placement, cross-bank JMP and nested JSR bridges, byte-identical common
+corridors, vectors, map output, and exact 8192-byte output. A small opcode model
+starts from each possible initially selected file chunk and proves the reset
+bridge reaches BANK0 and nested calls restore banks and hardware-stack returns
+correctly. Differential coverage retains the legacy `vcs_8k_f8.cfg` only as a
+compatibility oracle. `make installcheck` repeats the source build with the
+staged installed C26 profile.
 
-`vcs_f6_f4_profiles.pl` certifies the installed `vcs_16k_f6.cfg` and
-`vcs_32k_f4.cfg` profiles through the same linker implementation.  It places a
-nested call-chain function in every logical bank, starts execution from every
-possible initially selected physical chunk, exercises every selector on the
-outward and return paths, locks BANK3..BANK0 and BANK7..BANK0 file order,
+`vcs_f6_f4_profiles.pl` certifies the installed `vcs_16k_f6.c26` and
+`vcs_32k_f4.c26` profiles through the same C26-topology implementation. It
+places a nested call-chain function in every logical bank, starts execution from
+every possible initially selected physical chunk, exercises every selector on
+the outward and return paths, locks BANK3..BANK0 and BANK7..BANK0 file order,
 reserved hotspot bytes, byte-identical trampoline/vector corridors, F4's NMI
 vector/hotspot overlap, balanced stack restoration, map identities, and exact
-16384/32768-byte output.  `make installcheck` also builds staged diagnostics
-through both installed profiles.
+16384/32768-byte output. Retained cfg profiles are used only for differential
+and compatibility checks. `make installcheck` also builds staged diagnostics
+through both installed C26 profiles.
 
 `linker_banked_auto_placement.pl` covers deterministic roadmap-item-7 placement.
 It links the same fixture twice, pins runtime and `main` to BANK0, spills an
@@ -479,7 +492,7 @@ BANK1 call bridge with the archive-member origin intact.
 `vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
 from `libraries/vcs/bankswitching_diagnostic_suite.c26`. Each image executes its
 complete ordered source-bank to destination-bank direct-JMP matrix internally.
-The normal `make test` path runs each image in cfg-driven `vcsc-sim` from every
+The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
 the nested cross-bank call, and hardware-stack balance. Superchip runs prefill
 the shared RAM with `$A7`, validate mixed BSS/DATA startup through the write
@@ -767,7 +780,7 @@ protection against overwriting a same-stem linker script. ROM-specific Stella
 
 `vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
 F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
-`$x100` with size `$0E00`, rejects cfgs which expose the RAM-port prefix to ROM,
+`$x100` with size `$0E00`, verifies the C26 profiles keep the RAM-port prefix out of ROM,
 verifies exact images, map-reported startup records, hostile initial RAM, both
 aliases, bank-switch persistence, poison-before-result, and reinitialization on
 a reset which preserves RAM externally. `stella-bank-test` independently runs

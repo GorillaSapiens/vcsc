@@ -12,8 +12,7 @@
 
 ```sh
 ../../../driver/vcsc -I ../../../libraries/vcs \
-  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=8 \
-  -T ../../../libraries/vcs/vcs_32k_f4.cfg \
+  -DMAPPER_BANKS=8 -T ../../../libraries/vcs/vcs.cfg \
   -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```
 
@@ -54,8 +53,8 @@ lifecycle but deliberately settles on the FAIL frame so the expected white F on
 dark red can be inspected. Folding this check into the existing reference keeps
 the public diagnostic set at seven cartridges.
 `make ordinary`, `make superchip`, and `make poisoned` build the three subsets.
-The normal regression runs the six mapper diagnostics through the cfg-driven
-simulator from every physical startup bank. SC runs use hostile initial RAM and
+The normal regression builds all six public images from C26 topology, then runs
+them through the compatibility-cfg-driven simulator from every physical startup bank. SC runs use hostile initial RAM and
 a one-shot reset before the final stop. Stella runs all six with forced and
 randomized startup banks, presses console Reset before snapshotting SC results,
 and separately grades the reset-tested poisoned FAIL image.

@@ -30,6 +30,7 @@ my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 my $runtime = File::Spec->catdir($repo, 'libraries', 'runtime');
 my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
 my $test_inc = File::Spec->catdir($repo, 'test');
+my $generic_cfg = File::Spec->catfile($test_inc, 'generic_6502.cfg');
 
 open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
 my $members = do { local $/; <$afh> };
@@ -47,7 +48,7 @@ for my $width (8, 16, 24, 32) {
    my $bin = File::Spec->catfile($tmp, "fixed_muldiv_$width.bin");
    my $map = File::Spec->catfile($tmp, "fixed_muldiv_$width.map");
    write_file($src, qq{include "machine_6502.c26"\n$type a := 200;\n$type b := 13;\n$type product;\n$type quotient;\n$type remainder;\nvoid main(void) { product := a * b; quotient := a / b; remainder := a % b; }\n});
-   system($driver, '-I', $test_inc, '-Map', $map, $src, '-o', $bin) == 0
+   system($driver, '-I', $test_inc, '-T', $generic_cfg, '-Map', $map, $src, '-o', $bin) == 0
       or die "fixed $width-bit build failed\n";
    my $text = read_file($map);
    $text =~ /libvcsc\.l26\(_mul\Q$width\E\.o26\)/ or die "map lacks _mul$width\n";

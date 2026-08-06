@@ -8867,3 +8867,42 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   execution window and the remaining 33 were completed in bounded continuation
   chunks from the same staging tree. Bankswitching roadmap item 26, migrating
   cartridge profiles to C26 topology files, is next.
+
+2026-08-05 16:39:25 PDT, migrate public cartridge profiles from cfg topology to C26 topology
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 26 by adding explicit installed C26
+  topology profiles for 4K, F8, F6, F4, F8SC, F6SC, and F4SC cartridges plus a
+  selector-free direct 8K packaging profile. Each file declares the complete
+  cartridge, bank, and allocatable-memory model; filenames carry no semantics.
+* Make `vcs.c26` describe the common VCS machine only and move the ordinary
+  unbanked ROM declaration into `vcs_4k.c26`. The driver implicitly compiles
+  that profile when no explicit `-T` selection is made. Explicit C26 inputs now
+  search their own source directory first for quoted includes, so installed
+  profiles can include sibling `vcs.c26` and `superchip.c26` without an extra
+  caller-supplied include path.
+* Reduce public profile linking to `vcs.cfg`, which retains operational RIOT
+  hardware-stack policy but no cartridge, bank, allocator, or ordinary segment
+  topology. When C26 topology is present, construct direct or selector-controlled
+  linker bank machinery from it and discard superseded legacy cfg cartridge and
+  generated-corridor declarations without disturbing retained component-specific
+  cfg constraints.
+* Retain configuration-only C26 objects during archive/input selection while
+  preserving ordinary runtime/program input order. Keep the old full profile cfg
+  files only for compatibility, byte-for-byte differential certification, and
+  simulator mapper selection.
+* Migrate the public seven-cartridge diagnostic, example builds, staged installed
+  builds, documentation, and test inventory to C26 profiles. Preserve physical
+  file order, image sizes, selectors, startup placement, bridge/vector bytes,
+  Superchip prefixes and shared aliases, simulator behavior, and map accounting.
+  Add direct-bank packaging checks proving ordinary absolute cross-chunk calls,
+  deterministic fill, and no selector or trampoline output.
+* Verification: all 437 compile-only tests pass. All 244 end-to-end/generic cases
+  pass against the final driver in exact ordered chunks. The heavyweight
+  score/raster case passed all 32 public cartridge builds, all 80 generated
+  static/motion compositions, and mixed score placement in bounded phases. The
+  staged installed toolchain passed every prerequisite and all 40 final renderer
+  cartridges; the last loop was completed in three twelve-cartridge continuation
+  chunks after four entries finished before the execution-window cutoff. Final
+  source-tree hygiene passes, and the project-wide top-level README remains
+  unchanged. Bankswitching roadmap item 27, moving component-specific placement
+  constraints out of cfg files, is next.

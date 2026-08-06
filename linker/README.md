@@ -226,54 +226,83 @@ and generated ranges. The map contains a `C26 CARTRIDGE TOPOLOGY` section with
 the output size, fill, generated ranges, physical order, mappings, access mode,
 selector, startup status, and defining object.
 
-C26 topology is authoritative for physical output packaging, and complete C26
-`mem` declarations are authoritative for allocator geometry and ordinary segment
-routing. During migration, cfg may still provide legacy mapper mechanics and
-component-specific operational properties such as call-stack reservation.
-A legacy cfg bank tag cannot turn an authoritative writable or split-address
-C26 region into bank-local storage; those regions remain shared and their stale
-cfg bank association is discarded. Selector-controlled topology must
-semantically match the retained hardware model until the public VCS profile
-migration in roadmap item 26.
+C26 topology is authoritative for physical output packaging and selector
+machinery, and complete C26 `mem` declarations are authoritative for allocator
+geometry and ordinary segment routing. When C26 topology is present, the linker
+constructs its internal direct or selector-controlled bank model from those
+records; a cfg `CARTRIDGE` or `BANKS` block is neither required nor consulted.
+The reduced VCS compatibility cfg retains only operational properties such as
+call-stack reservation. Legacy profile cfg files remain accepted when no C26
+topology is present and are exercised by differential tests. A legacy cfg bank
+tag cannot turn an authoritative writable or split-address C26 region into
+bank-local storage; those regions remain shared and their stale association is
+discarded.
 
-### Full-window banked image foundation
+Command-line objects carrying complete `cartridge`, `bank`, or `mem` metadata
+are selected even when they contain no ordinary referenced symbol. This permits
+an inspectable profile to be compiled as a configuration-only C26 input. Source
+which uses a named placement modifier must instead include the profile so the
+compiler can resolve that `mem` name while compiling the declaration.
 
-The first bank-aware image model uses the descending mirrored logical ranges
-BANK0 `$F000-$FFFF`, BANK1 `$D000-$DFFF`, and so on. A banked cfg describes the
-complete 4K output units separately from the allocatable `MEMORY` regions inside
-them:
+### C26 cartridge-profile foundation
 
-```text
-CARTRIDGE {
-    mapper = F8;
-    fillval = $FF;
-    trampoline = $0F00;
-    trampolinesize = $00E0;
-    vectorbridge = $0FE0;
-}
-BANKS {
-    BANK0: start=$F000, size=$1000, hotspot=$1FF9, startup=yes;
-    BANK1: start=$D000, size=$1000, hotspot=$1FF8, startup=no;
-}
-MEMORY {
-    bank1:               start=$D000, size=$0F00, type=ro, bank=BANK1;
-    BANK1_TRAMPOLINE:    start=$DF00, size=$00E0,          bank=BANK1;
-    BANK1_VECTOR_BRIDGE: start=$DFE0, size=$0012,          bank=BANK1;
-    BANK1_TAIL:          start=$DFF2, size=$0008,          bank=BANK1;
-    BANK1_VECTORS:       start=$DFFA, size=$0006,          bank=BANK1;
-    ROM:                 start=$F000, size=$0F00, type=ro, bank=BANK0;
-    BANK0_TRAMPOLINE:    start=$FF00, size=$00E0,          bank=BANK0;
-    BANK0_VECTOR_BRIDGE: start=$FFE0, size=$0012,          bank=BANK0;
-    BANK0_TAIL:          start=$FFF2, size=$0008,          bank=BANK0;
-    BANK0_VECTORS:       start=$FFFA, size=$0006,          bank=BANK0;
-}
+Public VCS cartridge topology is described by inspectable C26 profile files.
+For example, the F8 profile declares the output-wide fill policy, two physical
+4K chunks, their selector-controlled CPU mappings, and the allocatable ROM
+inside each synthetic linker range:
+
+```c
+cartridge {
+    $fill: 0xff
+    $trampoline_offset: 0x0f00
+    $trampoline_size: 0x00e0
+    $vector_bridge_offset: 0x0fe0
+    $vector_bridge_size: 0x0012
+    $vectors_offset: 0x0ffa
+    $vectors_size: 0x0006
+};
+
+bank bank0 {
+    $image_size: 0x1000
+    $file_index: 1
+    $image_offset: 0x0000
+    $link_start: 0xf000
+    $cpu_start: 0xf000
+    $map_size: 0x1000
+    $select_access: 0x1ff9
+    $startup
+};
+
+bank bank1 {
+    $image_size: 0x1000
+    $file_index: 0
+    $image_offset: 0x0000
+    $link_start: 0xd000
+    $cpu_start: 0xf000
+    $map_size: 0x1000
+    $select_access: 0x1ff8
+};
+
+mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
+mem bank1 { $start:0xd000 $size:0x0f00 $ro };
 ```
 
-The installed `libraries/vcs/vcs_8k_f8.cfg`, `vcs_16k_f6.cfg`, and
-`vcs_32k_f4.cfg` profiles are the certified public full-window profiles.  Each
-names every ordinary allocatable region `bankN`, reserves `$xF00-$xFFF`
-identically in every physical chunk, and is selected explicitly with `-T`; the
-default driver profile remains unbanked `vcs_4k.cfg`.
+The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_16k_f6.c26`,
+`vcs_32k_f4.c26`, and matching Superchip files are the certified public
+profiles. `vcs.c26` describes the common machine only; the driver implicitly
+adds `vcs_4k.c26` when no explicit `-T` profile selection is made. Public
+banked builds pass the reduced `vcs.cfg` for operational policy and add one C26
+profile as a normal configuration input or source include. The old full profile
+cfg files remain accepted for compatibility, differential certification, and
+simulator mapper selection, but no longer define public-build topology.
+
+Each profile names every ordinary allocatable region `bankN`, reserves the
+final generated corridor through the cartridge declaration, and derives bank
+behavior entirely from declared values rather than filenames. Superchip
+profiles keep 4K physical chunks while mapping ROM from physical offset `$0100`
+and declare the shared split-address RAM separately. The selector-free
+`vcs_direct_8k.c26` profile proves that the same topology model also packages
+directly mapped output chunks without hotspots or trampolines.
 
 The linker treats three identities as separate: the VCSC logical `BANKn`
 name, the zero-based physical/file chunk index, and the mapper selector hotspot.

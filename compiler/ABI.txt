@@ -402,6 +402,13 @@ records after archive selection and rejects conflicting declarations. These
 metadata prefixes are reserved and are excluded from ordinary global-symbol and
 ABI/type matching.
 
+A command-line object containing complete cartridge, bank, or memory-region
+metadata is configuration-bearing even when it defines no referenced ordinary
+symbol. The linker retains such an object before normal lazy archive selection.
+This makes a standalone C26 profile semantically equivalent to including the
+same declarations, except that source placement modifiers must still be visible
+inside the translation unit which uses them.
+
 Variadic functions
 ------------------
 

@@ -30,6 +30,7 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $cc1 = File::Spec->catfile($repo, 'compiler', 'vcsc-cc1');
 my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 my $test_inc = File::Spec->catdir($repo, 'test');
+my $generic_cfg = File::Spec->catfile($test_inc, 'generic_6502.cfg');
 my $runtime = File::Spec->catdir($repo, 'libraries', 'runtime');
 my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
 my @workspace = qw(arg0 arg1 ptr0 ptr1 ptr2);
@@ -61,7 +62,7 @@ sub build_case {
    my $out = File::Spec->catfile($tmp, "$name.bin");
    my $map = File::Spec->catfile($tmp, "$name.map");
    write_file($src, "include \"machine_6502.c26\"\n" . $source);
-   system($driver, '-I', $test_inc, '-Map', $map, $src, '-o', $out) == 0
+   system($driver, '-I', $test_inc, '-T', $generic_cfg, '-Map', $map, $src, '-o', $out) == 0
       or die "$name build failed\n";
    return read_file($map);
 }

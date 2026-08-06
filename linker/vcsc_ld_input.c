@@ -803,9 +803,41 @@ static void include_object(input_set_t *in, object_file_t *obj)
    in->objects[in->object_count++] = *obj;
 }
 
+//! @brief Return whether a command-line object carries authoritative configuration metadata.
+static int object_has_configuration_metadata(const object_file_t *obj)
+{
+   size_t i;
+   if (!obj)
+      return 0;
+   for (i = 0; i < obj->export_count; ++i) {
+      const char *name = obj->exports[i].name;
+      if (strncmp(name, MEM_DECL_META_PREFIX, sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+          strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
+                  sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+          strncmp(name, BANK_TOPOLOGY_META_PREFIX,
+                  sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0)
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Return whether an otherwise empty command-line object exists only to configure linking.
+static int object_is_configuration_only(const object_file_t *obj)
+{
+   return object_has_configuration_metadata(obj) &&
+          obj->text.length == 0 && obj->data.length == 0 &&
+          obj->blen == 0 && obj->zlen == 0;
+}
+
 //! @brief Compute needed objects and update linker object/archive loader state once prerequisite pass data is available.
 void select_needed_objects(input_set_t *in)
 {
+   size_t command_index;
+   for (command_index = 0; command_index < in->cmd_object_count; ++command_index) {
+      object_file_t *obj = &in->cmd_objects[command_index];
+      if (object_is_configuration_only(obj))
+         include_object(in, obj);
+   }
    int progress;
    do {
       char **needed = NULL;

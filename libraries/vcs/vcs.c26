@@ -4,7 +4,7 @@
 // - 128 physical RIOT RAM bytes at $80-$FF
 // - the linker dynamically reserves the top bytes for the hardware stack
 // - page-1 stack addresses are mirrors of the same physical RAM
-// - 4K cartridge ROM allocatable bytes conventionally linked at $F000-$FFF9
+// Cartridge ROM is supplied by an explicit C26 cartridge profile.
 
 type void     { $size:0 };
 type *        { $size:2 $integer:unsigned $endian:little };
@@ -23,9 +23,6 @@ type bcd24_t  { $size:3 $integer:unsigned $endian:little $bcd };
 type bcd32_t  { $size:4 $integer:unsigned $endian:little $bcd };
 
 mem ram      { $start:0x0080 $size:0x0080 $rw $priority:2 };
-#ifndef VCS_NO_DEFAULT_ROM
-mem rom      { $start:0xF000 $size:0x0FFA $ro $priority:1 };
-#endif
 
 xform {
    '\a' 0x07,

@@ -1813,7 +1813,7 @@ when main roadmap item 29 becomes active.
          ambiguous-owner diagnostics, map reporting, installed diagnostic builds,
          documentation, and source-tree hygiene checks.
 
-[ ] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.
+[x] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.
 
        * Provide explicit 4K, F8, F6, F4, F8SC, F6SC, and F4SC topology files whose
          contents, not filenames, define behavior. A build may include or compile
@@ -1833,6 +1833,41 @@ when main roadmap item 29 becomes active.
        * Retain cfg parsing temporarily for compatibility and run byte-for-byte or
          semantically exact differential tests. Remove cfg use from public VCS
          builds only after all migrated profiles certify cleanly.
+
+       Completed 2026-08-05:
+       * Add explicit installed `vcs_4k.c26`, `vcs_8k_f8.c26`,
+         `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and matching F8SC/F6SC/F4SC
+         profiles. Each file contains the complete inspectable cartridge, bank,
+         and allocatable-memory declarations; behavior is derived solely from
+         those values rather than the filename.
+       * Move the conventional unbanked ROM declaration out of `vcs.c26` and
+         into `vcs_4k.c26`. The machine header now describes only common types,
+         RIOT RAM, and hardware registers. A cartridge profile may therefore be
+         included for source-visible named placement or compiled independently
+         as a configuration-only input without a suppression macro.
+       * Reduce public-build linker policy to `vcs.cfg`, which retains dynamic
+         RIOT hardware-stack reservation but no cartridge, bank, allocator, or
+         ordinary segment topology. When C26 topology is present, construct the
+         direct or selector-controlled internal bank model from it and ignore
+         legacy cfg CARTRIDGE/BANKS mechanics. Retain the old profile cfg files
+         only for compatibility, differential certification, and simulator
+         mapper selection.
+       * Make command-line objects carrying complete cartridge, bank, or memory
+         metadata survive selection even when they export no referenced program
+         symbol. Preserve the requirement that source using `bankN` placement
+         include the corresponding profile so the compiler sees that `mem` name.
+       * Add the selector-free `vcs_direct_8k.c26` profile with two directly
+         mapped 4K chunks. Certify explicit file order, fill, vector reservation,
+         ordinary absolute cross-chunk JSR/data access, and the absence of
+         hotspot, bank-placement, bridge, and trampoline output.
+       * Migrate the public seven-cartridge bank diagnostic and installed builds
+         to C26 topology through reduced `vcs.cfg`. Preserve exact 4K/8K/16K/32K
+         output, startup bank, selectors, generated bridges/vectors, Superchip
+         prefix and shared aliases, simulator execution, and map accounting.
+       * Add differential coverage proving every migrated C26 profile emits the
+         same bytes as its retained legacy cfg, driver-default 4K equality,
+         configuration-only input selection, installation/uninstallation,
+         documentation, and source-tree hygiene.
 
 [ ] 27. Move component-specific placement constraints out of cfg files.
 

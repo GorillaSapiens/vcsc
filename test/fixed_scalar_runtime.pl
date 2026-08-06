@@ -31,6 +31,7 @@ my $cc1 = File::Spec->catfile($repo, 'compiler', 'vcsc-cc1');
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $ar = File::Spec->catfile($repo, 'archiver', 'vcsc-ar');
 my $test_inc = File::Spec->catdir($repo, 'test');
+my $generic_cfg = File::Spec->catfile($test_inc, 'generic_6502.cfg');
 my $runtime_dir = File::Spec->catdir($repo, 'libraries', 'runtime');
 my $archive = File::Spec->catfile($runtime_dir, 'libvcsc.l26');
 
@@ -122,7 +123,7 @@ $generated =~ /\beor\s+__vcsc_scratch_/ &&
 $generated =~ /cmp_(?:true|false|same_sign)_/
    or die "bitwise/comparison scalar operations were not lowered inline\n";
 
-system($driver, '-I', $test_inc, '-Map', $scalar_map,
+system($driver, '-I', $test_inc, '-T', $generic_cfg, '-Map', $scalar_map,
        $scalar_src, '-o', $scalar_bin) == 0
    or die "fixed scalar link probe failed\n";
 my $map = read_file($scalar_map);

@@ -73,6 +73,7 @@ my $direct_bin = File::Spec->catfile($tmp, 'direct.bin');
 my $direct_map = File::Spec->catfile($tmp, 'direct.map');
 write_file($direct_src, <<'SRC');
 include "vcs.c26"
+mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };
 mem bank1 { $start:0x3000 $size:0x1000 $ro };
 mem spare { $start:0x5000 $size:0x0100 $ro };
 cartridge { $fill:0xaa $vectors_offset:0x0ffa $vectors_size:0x0006 };

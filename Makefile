@@ -94,6 +94,15 @@ install-data:
 	install -m 0644 libraries/vcs/superchip.c26 $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
+	install -m 0644 libraries/vcs/vcs.cfg $(DESTDIR)$(DATADIR)/vcs/vcs.cfg
+	install -m 0644 libraries/vcs/vcs_4k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_4k.c26
+	install -m 0644 libraries/vcs/vcs_8k_f8.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.c26
+	install -m 0644 libraries/vcs/vcs_16k_f6.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.c26
+	install -m 0644 libraries/vcs/vcs_32k_f4.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.c26
+	install -m 0644 libraries/vcs/vcs_8k_f8sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.c26
+	install -m 0644 libraries/vcs/vcs_16k_f6sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.c26
+	install -m 0644 libraries/vcs/vcs_32k_f4sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.c26
+	install -m 0644 libraries/vcs/vcs_direct_8k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
 	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	install -m 0644 libraries/vcs/vcs_8k_f8.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
 	install -m 0644 libraries/vcs/vcs_16k_f6.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
@@ -190,6 +199,15 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
@@ -265,20 +283,22 @@ installcheck: tools
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	test -f "$$stage_vcs/bankswitching_diagnostic_suite.c26"; \
+	for profile in vcs.cfg vcs_4k.c26 vcs_8k_f8.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26; do test -f "$$stage_vcs/$$profile"; done; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
+	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map" \
+	  "$$stage_vcs/vcs_8k_f8.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"` -eq 8192; \
-	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
-	grep -q "BANK1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
+	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
+	grep -q "bank1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
-	  -T "$$stage_vcs/vcs_8k_f8.cfg" \
+	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
+	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
@@ -293,29 +313,31 @@ installcheck: tools
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -T "$$stage_vcs/vcs_16k_f6.cfg" \
+	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map" \
+	  "$$stage_vcs/vcs_16k_f6.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"` -eq 16384; \
-	grep -q "BANK3.*hotspot=\$$1FF6.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
-	grep -q "BANK0.*hotspot=\$$1FF9.*file=\$$00003000.*startup=yes" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
+	grep -q "bank3.*hotspot=\$$1FF6.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
+	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00003000.*startup=yes" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
 	test -f "$$stage_vcs/vcs_32k_f4.cfg"; \
 	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -T "$$stage_vcs/vcs_32k_f4.cfg" \
+	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map" \
+	  "$$stage_vcs/vcs_32k_f4.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"` -eq 32768; \
-	grep -q "BANK7.*hotspot=\$$1FF4.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
-	grep -q "BANK0.*hotspot=\$$1FFB.*file=\$$00007000.*startup=yes" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
+	grep -q "bank7.*hotspot=\$$1FF4.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
+	grep -q "bank0.*hotspot=\$$1FFB.*file=\$$00007000.*startup=yes" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
 	test -f "$$stage_vcs/superchip.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DVCS_NO_DEFAULT_ROM -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
-	  -T "$$stage_vcs/vcs_8k_f8sc.cfg" \
+	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
+	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
 	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \

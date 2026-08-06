@@ -23,6 +23,7 @@ my $vcsc_cc1 = File::Spec->catfile($repo, 'compiler', 'vcsc-cc1');
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $vcsc_sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $test_inc = File::Spec->catdir($repo, 'test');
+my $generic_cfg = File::Spec->catfile($test_inc, 'generic_6502.cfg');
 
 sub slurp_bytes {
    my ($path) = @_;
@@ -133,7 +134,7 @@ require_data_not_contains($asm, "\xce\xbb_count");
 require_data_not_contains($asm, "\xf0\x9f\xa6\x8d");
 
 my $hex = File::Spec->catfile($tmp, 'unicode_e2e.hex');
-($rc, $out, $err) = run_capture($vcsc, '-I', $test_inc, $e2e_src, '-o', $hex);
+($rc, $out, $err) = run_capture($vcsc, '-I', $test_inc, '-T', $generic_cfg, $e2e_src, '-o', $hex);
 die "vcsc failed for unicode e2e source:\n$err$out\n" if $rc != 0;
 ($rc, $out, $err) = run_capture($vcsc_sim, $hex);
 die "simulator failed for unicode e2e source:\n$err$out\n" if $rc != 0;

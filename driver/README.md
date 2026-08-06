@@ -24,8 +24,10 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `-fno-peephole` to disable compiler assembly peephole rewrites, and `-fpeephole` to re-enable them
 - `-v` and `-###` to print the subordinate commands
 
-When linking, it uses the bundled `libraries/vcs/vcs_4k.cfg` unless `-T` is
-supplied and links `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
+When linking without `-T`, it compiles the bundled `libraries/vcs/vcs_4k.c26`
+configuration profile and links through the reduced `libraries/vcs/vcs.cfg`.
+An explicit `-T` suppresses that implicit profile. The driver links
+`libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
 Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
 `.cfg` files by default. The naming and suppression options above are forwarded
 directly to `vcsc-ld`.
@@ -43,16 +45,19 @@ When run from the built repository tree, it finds:
 - `archiver/vcsc-ar` (only for path reporting via `-print-prog-name=ar`)
 - `simulator/vcsc-sim` (only for path reporting via `-print-prog-name=sim`)
 - `libraries/runtime/libvcsc.l26` for default linking
-- `libraries/vcs/vcs_4k.cfg` for the default unbanked VCS cartridge layout
-- `libraries/vcs/vcs_8k_f8.cfg`, `vcs_16k_f6.cfg`, and `vcs_32k_f4.cfg` as explicit installed full-window bank-switched profiles selected with `-T`
+- `libraries/vcs/vcs.cfg` for reduced VCS linker operational policy
+- `libraries/vcs/vcs_4k.c26` for the implicit unbanked cartridge topology
+- the installed F8/F6/F4 and Superchip `.c26` cartridge profiles for explicit builds
+- the old profile-specific cfg files only for compatibility and simulator selection
 
 When installed, it expects this layout under the same prefix:
 
 - `bin/vcsc`, `bin/vcsc-cc1`, `bin/vcsc-as`, `bin/vcsc-ld`, `bin/vcsc-ar`, `bin/vcsc-sim`
 - `lib/libvcsc.l26`
 - `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
-- `share/vcs/vcs_4k.cfg` for the default linker layout
-- `share/vcs/vcs_8k_f8.cfg`, `vcs_16k_f6.cfg`, and `vcs_32k_f4.cfg` for explicit F8/F6/F4 links
+- `share/vcs/vcs.cfg` plus `share/vcs/vcs_4k.c26` for the default link
+- `share/vcs/vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and their Superchip counterparts for explicit cartridge topology
+- retained profile-specific cfg files for compatibility and `vcsc-sim`
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 
@@ -70,6 +75,11 @@ The old generic `.s` suffix remains a temporary driver compatibility input and
 emits a warning. Maintained VCSC assembler sources and generated compiler output
 use `.s26`; new code should not use `.s`.
 
+Each `.c26` input searches its own directory first for quoted includes. `-I`
+adds further compiler and assembler include paths. This lets an installed
+cartridge profile include sibling machine headers without requiring callers to
+repeat the profile directory explicitly.
+
 ## Examples
 
 Build and link a program:
@@ -81,9 +91,12 @@ Build and link a program:
 Select an installed/repository full-window profile explicitly:
 
 ```sh
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs_8k_f8.cfg  banked.c26 -o banked-f8.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs_16k_f6.cfg banked.c26 -o banked-f6.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs_32k_f4.cfg banked.c26 -o banked-f4.bin
+./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_8k_f8.c26 banked.c26 -o banked-f8.bin
+./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_16k_f6.c26 banked.c26 -o banked-f6.bin
+./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_32k_f4.c26 banked.c26 -o banked-f4.bin
 ```
 
 Compile only:

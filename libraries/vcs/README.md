@@ -14,10 +14,12 @@ Files:
 - `vcs.c26` ... VCS machine definition with types, memory regions, and hardware includes
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
-- `vcs_4k.cfg` ... linker configuration for a conventional unbanked 4K cartridge
-- `vcs_8k_f8.cfg` ... installed two-bank F8 profile; BANK1 first, BANK0 last, exact 8K output
-- `vcs_16k_f6.cfg` ... installed four-bank F6 profile; BANK3 through BANK0 in file order, exact 16K output
-- `vcs_32k_f4.cfg` ... installed eight-bank F4 profile; BANK7 through BANK0 in file order, exact 32K output and deterministic vector/hotspot overlap handling
+- `vcs.cfg` ... reduced operational linker policy shared by C26 cartridge profiles
+- `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
+- `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
+- `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... matching Superchip profiles with a reserved physical prefix and shared split-address RAM
+- `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output
+- `vcs_*.cfg` ... retained legacy profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
 - `bankswitching_diagnostic_suite.c26` ... parameterized F8/F6/F4 all-transition diagnostic used by `vcsc-sim` and authoritative Stella certification
 - `color_ntsc.c26` ... readable aliases defined through the compile-time `__builtin_ntsc_rgb(r, g, b)` NTSC palette matcher
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
@@ -66,11 +68,10 @@ ROM; each `GRP0` update is aligned to `WSYNC`, and the complete frame is exactly
 262 scanlines.
 
 The editable wrapper and Makefile live under
-`examples/09_bankswitching/01_diagnostic/`. Banked builds pass
-`-DVCS_NO_DEFAULT_ROM` so `vcs.c26` contributes the machine types and shared RIOT
-RAM but not the unbanked `mem rom`; each mapper source then declares only its
-actual allocatable bank ranges. The default unbanked declaration is
-`mem rom { $start:0xF000 $size:0x0FFA $ro ... };`, excluding the six vector
+`examples/09_bankswitching/01_diagnostic/`. Each diagnostic includes the selected C26 cartridge profile. `vcs.c26` now
+describes only the common machine types, registers, and RIOT RAM; the profile
+supplies the cartridge topology and allocatable ROM. The default driver adds
+`vcs_4k.c26`, whose `mem rom` spans `$F000-$FFF9` and excludes the six vector
 bytes from allocation.
 
 A normal build emits the six mapper
@@ -229,13 +230,31 @@ vcsc -I libraries/vcs source.c26 -o game.bin
 A `.bin` output name asks the linker for a contiguous flat binary; this VCS
 layout produces exactly 4096 bytes mapped at `$F000-$FFFF`.
 
-Build a full-window bank-switched cartridge explicitly:
+Build a full-window bank-switched cartridge by compiling an inspectable C26
+profile as a configuration-only input:
 
 ```sh
-vcsc -I libraries/vcs -T libraries/vcs/vcs_8k_f8.cfg  source.c26 -o game-f8.bin
-vcsc -I libraries/vcs -T libraries/vcs/vcs_16k_f6.cfg source.c26 -o game-f6.bin
-vcsc -I libraries/vcs -T libraries/vcs/vcs_32k_f4.cfg source.c26 -o game-f4.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_8k_f8.c26 source.c26 -o game-f8.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_16k_f6.c26 source.c26 -o game-f6.bin
+vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
+  libraries/vcs/vcs_32k_f4.c26 source.c26 -o game-f4.bin
 ```
+
+When source uses `bank0`, `bank1`, or another named placement modifier, include
+the profile instead of merely passing it as a separate input:
+
+```vcsc
+include "vcs_8k_f8.c26"
+
+bank1 void remote_code(void) {
+   // ...
+}
+```
+
+The build still uses `-T libraries/vcs/vcs.cfg`; no profile-specific cfg and no
+special suppression macro are required.
 
 The profiles use descending VCSC logical banks with BANK0 at `$F000-$FFFF` as
 the home/startup bank and final 4K file chunk.  File order and selectors are:
@@ -258,9 +277,7 @@ Unmarked functions and const objects are placed automatically.  Hard source
 pins use named memory modifiers matching the profile:
 
 ```vcsc
-include "vcs.c26"
-mem bank0 { $start:0xF000 $size:0x0F00 $ro };
-mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+include "vcs_8k_f8.c26"
 
 bank1 void remote_code(void) {
    // ...
@@ -296,10 +313,10 @@ Notes:
 - `vcs.c26` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.c26` and `riot.c26`.
 - Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
-- `vcs_4k.cfg` assumes a standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`.
-- `vcs_8k_f8.cfg`, `vcs_16k_f6.cfg`, and `vcs_32k_f4.cfg` are opt-in with `-T`; they are installed beside `vcs_4k.cfg` and emit exactly 8192, 16384, and 32768 bytes.
-- `vcsc` discovers this file in the source tree or installed `share/vcs` directory and uses it by default. Pass `-T` only to select a different cartridge layout.
-- The 128 physical RIOT RAM bytes are not double-counted. `vcs_4k.cfg` declares the full `$80-$FF` block and asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
+- `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
+- The F8/F6/F4 and SC `.c26` profiles are installed beside `vcs.cfg` and emit exact 8K, 16K, and 32K images. The old profile-specific cfg files remain installed temporarily for compatibility and simulator selection.
+- `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
+- The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. A linker configuration may add `callstack_extra` bytes for hardware-stack use declared by an included assembly module. Both maintained standard-renderer objects export their assembly-initiated overscan-hook edge and use four supplementary bytes for the deeper internal mask-preparation chain. Arbitrary inline-assembly pushes and stack-pointer manipulation are still not inferred.
 - Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
 - `legacy-basic-renderers/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_RENDERER_CONVERSION.md` for the staged conversion inventory.
@@ -307,7 +324,7 @@ Notes:
 
 ### Superchip profiles and allocatable RAM
 
-The public `vcs_8k_f8sc.cfg`, `vcs_16k_f6sc.cfg`, and `vcs_32k_f4sc.cfg`
+The public `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, and `vcs_32k_f4sc.c26`
 profiles use the same logical-bank and hotspot order as F8/F6/F4 while reserving
 the first 256 bytes of every physical 4K chunk for the shared 128-byte
 Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K

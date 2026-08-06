@@ -69,27 +69,27 @@ sub terminate_child {
 
 sub profiles {
    return (
-      [F8=>2=>'vcs_8k_f8.cfg'=>0],
-      [F6=>4=>'vcs_16k_f6.cfg'=>0],
-      [F4=>8=>'vcs_32k_f4.cfg'=>0],
-      [F8SC=>2=>'vcs_8k_f8sc.cfg'=>1],
-      [F6SC=>4=>'vcs_16k_f6sc.cfg'=>1],
-      [F4SC=>8=>'vcs_32k_f4sc.cfg'=>1],
+      [F8=>2=>'vcs_8k_f8.cfg'=>'vcs_8k_f8.c26'=>0],
+      [F6=>4=>'vcs_16k_f6.cfg'=>'vcs_16k_f6.c26'=>0],
+      [F4=>8=>'vcs_32k_f4.cfg'=>'vcs_32k_f4.c26'=>0],
+      [F8SC=>2=>'vcs_8k_f8sc.cfg'=>'vcs_8k_f8sc.c26'=>1],
+      [F6SC=>4=>'vcs_16k_f6sc.cfg'=>'vcs_16k_f6sc.c26'=>1],
+      [F4SC=>8=>'vcs_32k_f4sc.cfg'=>'vcs_32k_f4sc.c26'=>1],
    );
 }
 
 sub build_matrix_rom {
    my($driver,$vcs,$source,$tmp,$profile,$simulator,$poisoned)=@_;
-   my($mapper,$banks,$cfg_name,$sc)=@$profile;
+   my($mapper,$banks,$cfg_name,$profile_name,$sc)=@$profile;
    my $stem=lc($mapper).'_matrix';
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
    my $map_path=File::Spec->catfile($tmp,"$stem.map");
-   my @defs=('-DVCS_NO_DEFAULT_ROM',"-DMAPPER_BANKS=$banks");
+   my @defs=("-DMAPPER_BANKS=$banks");
    push @defs,'-DSUPERCHIP_TEST' if $sc;
    push @defs,'-DSIMULATOR_TEST' if $simulator;
    push @defs,'-DPOISONED_RESULT' if $poisoned;
    require_ok("build $mapper complete matrix",
-      $driver,'-I',$vcs,@defs,'-T',File::Spec->catfile($vcs,$cfg_name),
+      $driver,'-I',$vcs,@defs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
       '-Map',$map_path,$source,'-o',$bin);
    -s $bin == $banks*4096
       or die "$mapper did not emit an exact ".($banks*4096)."-byte image\n";
@@ -138,29 +138,22 @@ sub run_simulator_matrix {
    my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 
    for my $profile (profiles()) {
-      my($mapper,$banks,$cfg_name,$sc)=@$profile;
+      my($mapper,$banks,$cfg_name,$profile_name,$sc)=@$profile;
       my $cfg=File::Spec->catfile($vcs,$cfg_name);
+      my $profile_text=read_file(File::Spec->catfile($vcs,$profile_name));
+      $profile_text =~ /\$select_access:/
+         or die "$profile_name does not declare selector-controlled topology\n";
+      for my $logical_bank (0..$banks-1) {
+         my $link_start=sprintf('%04x',($sc ? 0xF100 : 0xF000)-$logical_bank*0x2000);
+         my $alloc_size=$sc ? '0x0e00' : '0x0f00';
+         $profile_text =~ /mem\s+bank\Q$logical_bank\E\s*\{[^}]*\$start:0x$link_start[^}]*\$size:\Q$alloc_size\E[^}]*\$ro/s
+            or die "$profile_name does not declare the expected bank$logical_bank allocator\n";
+      }
       if ($sc) {
-         my $cfg_text=read_file($cfg);
-         $cfg_text =~ /mapper\s*=\s*\Q$mapper\E\s*;/
-            or die "$cfg_name does not declare mapper $mapper\n";
-         for my $logical_bank (0..$banks-1) {
-            my $start=sprintf('%04X',0xF100-$logical_bank*0x2000);
-            $cfg_text =~ /\bbank\Q$logical_bank\E\s*:\s*start\s*=\s*\$$start\s*,\s*size\s*=\s*\$0E00\s*,\s*type\s*=\s*ro\b/i
-               or die "$cfg_name does not reserve the Superchip prefix in bank$logical_bank\n";
-         }
-         my $bad=$cfg_text;
-         $bad =~ s/(\bbank0\s*:\s*start\s*=\s*)\$F100\s*,\s*size\s*=\s*\$0E00/$1\$F000, size = \$0F00/i
-            or die "could not make malformed $mapper Superchip cfg fixture\n";
-         my $bad_cfg=File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.cfg');
-         write_file($bad_cfg,$bad);
-         my($rc,$sig,$out,$err)=run_capture(
-            $driver,'-I',$vcs,'-T',$bad_cfg,
-            File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26'),
-            '-o',File::Spec->catfile($tmp,lc($mapper).'_bad_prefix.bin'));
-         $rc!=0 && !$sig or die "$mapper malformed Superchip cfg unexpectedly linked\n$out\n$err";
-         $err =~ /overlaps the Superchip RAM-port prefix/i
-            or die "$mapper malformed Superchip cfg did not diagnose the RAM-port overlap\n$err";
+         $profile_text =~ /\$image_offset:0x0100/ &&
+         $profile_text =~ /\$cpu_start:0xf100/ &&
+         $profile_text =~ /include\s+"superchip\.c26"/
+            or die "$profile_name does not describe the Superchip ROM/RAM split\n";
       }
 
       my($bin,$map_path)=build_matrix_rom($driver,$vcs,$source,$tmp,$profile,1);
@@ -290,7 +283,7 @@ sub run_stella_certification {
    };
 
    for my $profile (profiles()) {
-      my($mapper,$banks,undef,$sc)=@$profile;
+      my($mapper,$banks,undef,undef,$sc)=@$profile;
       my @runs;
       for my $physical_start (0..$banks-1) {
          push @runs,{label=>lc($mapper)."_forced_start_$physical_start",
@@ -309,7 +302,7 @@ sub run_stella_certification {
       }
    }
    if ($selected->('poisoned_failure')) {
-      my $profile=[F8SC=>2=>'vcs_8k_f8sc.cfg'=>1];
+      my $profile=[F8SC=>2=>'vcs_8k_f8sc.cfg'=>'vcs_8k_f8sc.c26'=>1];
       my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
       $run_one->(label=>'poisoned_failure',mapper=>'F8SC',start=>0,reset=>1,
                  rom=>$rom,result=>'fail');

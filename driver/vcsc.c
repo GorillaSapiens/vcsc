@@ -370,7 +370,7 @@ static void usage(FILE *fp)
       "  * default linked output is a.hex\n"
       "  * -S accepts only .c26 inputs\n"
       "  * with -c or -S, using -o requires exactly one source input\n"
-      "  * default linking uses the bundled VCS 4K script and adds libvcsc.l26\n",
+      "  * default linking uses the bundled VCS 4K C26 profile and adds libvcsc.l26\n",
       arg0);
 }
 
@@ -460,7 +460,8 @@ static void resolve_tool_paths(const char *self_path,
    char *sim_path, size_t sim_sz,
    char *runtime_path, size_t runtime_sz,
    char *runtime_inc, size_t runtime_inc_sz,
-   char *vcs_cfg_path, size_t vcs_cfg_sz)
+   char *vcs_cfg_path, size_t vcs_cfg_sz,
+   char *vcs_profile_path, size_t vcs_profile_sz)
 {
    char cc_repo[PATH_MAX];
    char as_repo[PATH_MAX];
@@ -470,6 +471,7 @@ static void resolve_tool_paths(const char *self_path,
    char runtime_repo[PATH_MAX];
    char runtime_inc_repo[PATH_MAX];
    char vcs_cfg_repo[PATH_MAX];
+   char vcs_profile_repo[PATH_MAX];
    char cc_inst[PATH_MAX];
    char as_inst[PATH_MAX];
    char ld_inst[PATH_MAX];
@@ -478,6 +480,7 @@ static void resolve_tool_paths(const char *self_path,
    char runtime_inst[PATH_MAX];
    char runtime_inc_inst[PATH_MAX];
    char vcs_cfg_inst[PATH_MAX];
+   char vcs_profile_inst[PATH_MAX];
 
    build_repo_tree_path(cc_repo, sizeof(cc_repo), self_path, "compiler", "vcsc-cc1");
    build_repo_tree_path(as_repo, sizeof(as_repo), self_path, "assembler", "vcsc-as");
@@ -486,7 +489,8 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(sim_repo, sizeof(sim_repo), self_path, "simulator", "vcsc-sim");
    build_repo_tree_path(runtime_repo, sizeof(runtime_repo), self_path, "libraries/runtime", "libvcsc.l26");
    build_repo_tree_path(runtime_inc_repo, sizeof(runtime_inc_repo), self_path, "libraries/runtime", "vcsc-runtime.inc");
-   build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs_4k.cfg");
+   build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs.cfg");
+   build_repo_tree_path(vcs_profile_repo, sizeof(vcs_profile_repo), self_path, "libraries/vcs", "vcs_4k.c26");
 
    if (path_is_accessible(cc_repo, X_OK) &&
        path_is_accessible(as_repo, X_OK) &&
@@ -503,6 +507,7 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(runtime_path, runtime_sz, runtime_repo);
       path_dirname(runtime_inc_repo, runtime_inc, runtime_inc_sz);
       copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_repo);
+      copy_cstr(vcs_profile_path, vcs_profile_sz, vcs_profile_repo);
       return;
    }
 
@@ -513,7 +518,8 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "vcsc-sim");
    build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.l26");
    build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "include", "vcsc-runtime.inc");
-   build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs_4k.cfg");
+   build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs.cfg");
+   build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "share/vcs", "vcs_4k.c26");
 
    if (path_is_accessible(cc_inst, X_OK) &&
        path_is_accessible(as_inst, X_OK) &&
@@ -530,6 +536,7 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(runtime_path, runtime_sz, runtime_inst);
       path_dirname(runtime_inc_inst, runtime_inc, runtime_inc_sz);
       copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_inst);
+      copy_cstr(vcs_profile_path, vcs_profile_sz, vcs_profile_inst);
       return;
    }
 
@@ -1047,9 +1054,13 @@ static void run_cc(const char *cc_path, const driver_options_t *opt, const char 
 {
    strvec_t cmd = {0};
    const char *dot = path_extension(input);
+   char input_dir[PATH_MAX];
 
+   path_dirname(input, input_dir, sizeof(input_dir));
    strvec_push(&cmd, cc_path);
    strvec_push(&cmd, "-quiet");
+   strvec_push(&cmd, "-I");
+   strvec_push(&cmd, input_dir);
    add_include_flags(&cmd, &opt->include_dirs);
    strvec_push(&cmd, "-I");
    strvec_push(&cmd, runtime_inc);
@@ -1176,6 +1187,7 @@ int main(int argc, char **argv)
    char runtime_path[PATH_MAX];
    char runtime_inc[PATH_MAX];
    char vcs_cfg_path[PATH_MAX];
+   char vcs_profile_path[PATH_MAX];
    strvec_t link_inputs = {0};
    size_t i;
 
@@ -1190,7 +1202,8 @@ int main(int argc, char **argv)
       sim_path, sizeof(sim_path),
       runtime_path, sizeof(runtime_path),
       runtime_inc, sizeof(runtime_inc),
-      vcs_cfg_path, sizeof(vcs_cfg_path));
+      vcs_cfg_path, sizeof(vcs_cfg_path),
+      vcs_profile_path, sizeof(vcs_profile_path));
 
    if (argc == 2 && strcmp(argv[1], "-V") == 0)
       return print_all_versions(self_path, cc_path, as_path, ld_path, ar_path, sim_path);
@@ -1263,8 +1276,21 @@ int main(int argc, char **argv)
       }
    }
 
-   if (!opt.asm_only && !opt.compile_only)
+   if (!opt.asm_only && !opt.compile_only) {
+      if (!opt.link_script) {
+         const char *asm_path;
+         const char *obj_path;
+         if (!path_is_accessible(vcs_profile_path, R_OK))
+            die("could not read default VCS cartridge profile '%s': %s",
+                vcs_profile_path, strerror(errno));
+         asm_path = temp_store_make_file(&temps, "vcs_4k_profile", ".s26");
+         obj_path = temp_store_make_file(&temps, "vcs_4k_profile", ".o26");
+         run_cc(cc_path, &opt, runtime_inc, vcs_profile_path, asm_path);
+         run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
+         strvec_push(&link_inputs, obj_path);
+      }
       run_ld(ld_path, &opt, &link_inputs, runtime_path, vcs_cfg_path);
+   }
 
    temp_store_cleanup(&temps);
    active_temp_store = NULL;

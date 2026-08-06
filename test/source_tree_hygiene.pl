@@ -58,6 +58,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
+-f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
@@ -155,33 +156,37 @@ index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
 index($bankswitching,'[x] 24. Define generic C26 cartridge-output and bank topology.')>=0 &&
 index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
-index($bankswitching,'Completed 2026-08-05:')>=0 &&
--f File::Spec->catfile($test,'cartridge_bank_metadata_codegen_test.c26') &&
--f File::Spec->catfile($test,'cartridge_generated_pair_error_test.c26') &&
--f File::Spec->catfile($test,'bank_missing_topology_field_error_test.c26') &&
--f File::Spec->catfile($test,'linker_c26_cartridge_topology.pl') &&
-index($compiler_readme,'### Cartridge-output topology')>=0 &&
-index($compiler_readme,'`bank` and `mem` have separate namespaces')>=0 &&
-index($abi_text,'Cartridge topology metadata')>=0 &&
-index($linker_readme,'### C26 cartridge topology metadata')>=0 &&
-index($linker_readme,'C26 CARTRIDGE TOPOLOGY')>=0 &&
-index($test_readme,'linker_c26_cartridge_topology.pl')>=0
-   or die "C26 cartridge topology implementation, documentation, or regression coverage is incomplete\n";
-index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
-index($bankswitching,'[ ] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.')>=0 &&
+index($bankswitching,'[x] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.')>=0 &&
+index($bankswitching,'[ ] 27. Move component-specific placement constraints out of cfg files.')>=0 &&
 -f File::Spec->catfile($test,'linker_c26_mem_authority.pl') &&
+-f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
 index($compiler_readme,'Complete declarations are authoritative linker metadata')>=0 &&
+index($compiler_readme,'configuration-only input')>=0 &&
 index($abi_text,'Authoritative memory-region metadata')>=0 &&
 index($linker_readme,'## Authoritative C26 memory regions')>=0 &&
-index($test_readme,'linker_c26_mem_authority.pl')>=0
-   or die "authoritative C26 mem implementation, ownership inference, documentation, or regression coverage is incomplete\n";
+index($linker_readme,'constructs its internal direct or selector-controlled bank model')>=0 &&
+index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0
+   or die "C26 profile migration, authoritative memory, or regression documentation is incomplete\n";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
-index($vcs_machine,'mem rom      { $start:0xF000 $size:0x0FFA $ro $priority:1 };')>=0
-   or die "vcs.c26 lost its allocatable-bytes-only unbanked ROM declaration\n";
-index(slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26')),'#define VCS_NO_DEFAULT_ROM')<0 &&
-index(slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile')),
-      '-DVCS_NO_DEFAULT_ROM')>=0
-   or die "banked diagnostics must suppress the unbanked ROM declaration through the compiler command line\n";
+index($vcs_machine,'mem rom')<0
+   or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";
+my $vcs_4k_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_4k.c26'));
+index($vcs_4k_profile,'mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };')>=0
+   or die "vcs_4k.c26 lost its allocatable-bytes-only ROM declaration\n";
+my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
+index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
+index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
+index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
+   or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
+for my $profile (qw(vcs_4k.c26 vcs_8k_f8.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26)) {
+   -f File::Spec->catfile($repo,'libraries','vcs',$profile)
+      or die "missing migrated C26 cartridge profile $profile\n";
+   index($top_make,"libraries/vcs/$profile")>=0
+      or die "$profile is not installed/uninstalled by the top-level Makefile\n";
+}
+-f File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
+index($top_make,'libraries/vcs/vcs.cfg')>=0
+   or die "reduced vcs.cfg is missing from installation coverage\n";
 for my $name (qw(missing size start type)) {
    my $body=slurp(File::Spec->catfile($test,"e2e_mem_region_cfg_${name}_mismatch.c26"));
    index($body,'expectlinkfail')<0
@@ -418,6 +423,9 @@ for my $line (split(/\n/,slurp($ledger))) {
 
 for my $required (qw(
    libraries/vcs/superchip.c26
+   libraries/vcs/vcs_8k_f8sc.c26
+   libraries/vcs/vcs_16k_f6sc.c26
+   libraries/vcs/vcs_32k_f4sc.c26
    libraries/vcs/vcs_8k_f8sc.cfg
    libraries/vcs/vcs_16k_f6sc.cfg
    libraries/vcs/vcs_32k_f4sc.cfg
@@ -448,6 +456,7 @@ index($snapshot_keys,"function_keycode('F2')")>=0
    or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
+index($top_make,'libraries/vcs/vcs_8k_f8sc.c26')>=0 &&
 index($top_make,'libraries/vcs/vcs_8k_f8sc.cfg')>=0 &&
 index($top_make,'libraries/vcs/superchip.c26')>=0
    or die "Superchip profiles/header are not installed and uninstalled\n";

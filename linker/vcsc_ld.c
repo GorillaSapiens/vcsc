@@ -349,6 +349,7 @@ static const memory_region_t *find_memory(const linker_config_t *cfg, const char
 }
 
 static int parse_topology_source_suffix(const char *suffix, char *out, size_t out_size);
+static cartridge_bank_t *append_cartridge_bank(linker_config_t *cfg);
 static memory_region_t *append_memory_region(linker_config_t *cfg);
 static segment_rule_t *append_segment_rule(linker_config_t *cfg);
 
@@ -766,19 +767,6 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
    }
 }
 
-//! @brief Find topology bank whose selector corresponds to one retained cfg bank.
-static const cartridge_bank_t *legacy_bank_for_topology(const linker_config_t *cfg,
-                                                        const topology_bank_t *top)
-{
-   size_t i;
-   if (!cfg || !top || !top->has_selector)
-      return NULL;
-   for (i = 0; i < cfg->bank_count; ++i)
-      if (cfg->banks[i].hotspot == top->select_access)
-         return &cfg->banks[i];
-   return NULL;
-}
-
 //! @brief Infer output owner from unique containment in synthetic topology ranges.
 static void infer_c26_mem_output_ownership(linker_config_t *cfg)
 {
@@ -840,14 +828,12 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
          exit(1);
       }
       if (matches == 1) {
-         const cartridge_bank_t *legacy;
          snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
                   owner->name);
          mem->output_mode = owner->has_selector ? MEM_OUTPUT_SWITCHED
                                                 : MEM_OUTPUT_DIRECT;
-         legacy = legacy_bank_for_topology(cfg, owner);
-         if (legacy)
-            snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", legacy->name);
+         if (owner->has_selector)
+            snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", owner->name);
       }
    }
 }
@@ -993,18 +979,103 @@ static int ranges_overlap_u32(uint32_t a, uint32_t as, uint32_t b, uint32_t bs)
    return as && bs && a < b + bs && b < a + as;
 }
 
-static size_t cfg_bank_file_index(const linker_config_t *cfg,
-                                  const cartridge_bank_t *bank)
+//! @brief Drop legacy cfg bank-only corridors superseded by authoritative C26 topology.
+static void discard_legacy_banked_cfg_regions(linker_config_t *cfg)
 {
-   size_t index = 0;
-   size_t i;
-   for (i = 0; i < cfg->bank_count; ++i)
-      if (cfg->banks[i].start < bank->start)
-         index++;
-   return index;
+   char (*removed)[MAX_NAME] = NULL;
+   size_t removed_count = 0;
+   size_t read_index, write_index;
+
+   if (!cfg || cfg->topology_bank_count == 0)
+      return;
+
+   if (cfg->mem_count) {
+      removed = calloc(cfg->mem_count, sizeof(*removed));
+      if (!removed) {
+         fprintf(stderr, "vcsc-ld: out of memory while replacing legacy bank regions\n");
+         exit(1);
+      }
+   }
+
+   write_index = 0;
+   for (read_index = 0; read_index < cfg->mem_count; ++read_index) {
+      memory_region_t *mem = &cfg->mem[read_index];
+      if (!mem->compiler_declared && mem->bank_name[0]) {
+         snprintf(removed[removed_count++], MAX_NAME, "%s", mem->name);
+         continue;
+      }
+      if (write_index != read_index)
+         cfg->mem[write_index] = cfg->mem[read_index];
+      write_index++;
+   }
+   cfg->mem_count = write_index;
+
+   write_index = 0;
+   for (read_index = 0; read_index < cfg->seg_count; ++read_index) {
+      segment_rule_t *seg = &cfg->seg[read_index];
+      size_t i;
+      int discard = 0;
+      for (i = 0; i < removed_count; ++i) {
+         if ((seg->load_name[0] && strcasecmp(seg->load_name, removed[i]) == 0) ||
+             (seg->run_name[0] && strcasecmp(seg->run_name, removed[i]) == 0)) {
+            discard = 1;
+            break;
+         }
+      }
+      if (discard)
+         continue;
+      if (write_index != read_index)
+         cfg->seg[write_index] = cfg->seg[read_index];
+      write_index++;
+   }
+   cfg->seg_count = write_index;
+   free(removed);
 }
 
-//! @brief Validate generic C26 topology independently and against retained cfg hardware data.
+//! @brief Build the linker's full-window selector machinery from C26 topology.
+static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
+{
+   size_t i;
+   size_t selector_count = 0;
+
+   if (!cfg || cfg->topology_bank_count == 0)
+      return;
+
+   discard_legacy_banked_cfg_regions(cfg);
+
+   for (i = 0; i < cfg->topology_bank_count; ++i)
+      selector_count += cfg->topology_banks[i].has_selector ? 1u : 0u;
+
+   free(cfg->banks);
+   cfg->banks = NULL;
+   cfg->bank_count = 0;
+   cfg->mapper[0] = '\0';
+   cfg->cartridge_banked = selector_count != 0;
+   cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
+
+   if (!selector_count)
+      return;
+
+   snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", "C26");
+   cfg->trampoline_offset = cfg->topology_cartridge.trampoline_offset;
+   cfg->trampoline_size = cfg->topology_cartridge.trampoline_size;
+   cfg->vector_bridge_offset = cfg->topology_cartridge.vector_bridge_offset;
+   cfg->has_trampoline_offset = 1;
+   cfg->has_trampoline_size = 1;
+   cfg->has_vector_bridge_offset = 1;
+
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *top = &cfg->topology_banks[i];
+      cartridge_bank_t *bank = append_cartridge_bank(cfg);
+      snprintf(bank->name, sizeof(bank->name), "%s", top->name);
+      bank->start = (uint16_t)(top->link_start - top->image_offset);
+      bank->size = top->image_size;
+      bank->hotspot = top->select_access;
+      bank->startup = top->startup;
+   }
+}
+
+//! @brief Validate generic C26 topology independently of legacy cfg topology.
 static void validate_c26_topology(linker_config_t *cfg)
 {
    size_t i, j;
@@ -1092,6 +1163,19 @@ static void validate_c26_topology(linker_config_t *cfg)
          fprintf(stderr, "vcsc-ld: selector-controlled topology requires all trampoline, vector-bridge, and vector ranges\n");
          exit(1);
       }
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *bank = &cfg->topology_banks[i];
+         if (bank->image_size != 0x1000u ||
+             bank->image_offset > 0x0100u ||
+             bank->map_size != (uint16_t)(0x1000u - bank->image_offset) ||
+             bank->cpu_start != (uint16_t)(0xf000u + bank->image_offset) ||
+             bank->link_start < bank->image_offset ||
+             ((uint16_t)(bank->link_start - bank->image_offset) & 0x0fffu) != 0) {
+            fprintf(stderr, "vcsc-ld: selector-controlled bank '%s' is not a supported full-window 4K mapping\n",
+                    bank->name);
+            exit(1);
+         }
+      }
       for (i = 1; i < cfg->topology_bank_count; ++i) {
          const topology_bank_t *a = &cfg->topology_banks[0];
          const topology_bank_t *b = &cfg->topology_banks[i];
@@ -1142,48 +1226,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       }
    }
 
-   if (selector_count) {
-      if (!cfg->cartridge_banked) {
-         fprintf(stderr, "vcsc-ld: selector-controlled C26 topology still requires a matching cfg during migration\n");
-         exit(1);
-      }
-      if (cfg->bank_count != cfg->topology_bank_count) {
-         fprintf(stderr, "vcsc-ld: C26 topology has %zu banks but cfg has %zu\n",
-                 cfg->topology_bank_count, cfg->bank_count);
-         exit(1);
-      }
-      if (cfg->cartridge_fill_value != cfg->topology_cartridge.fill_value ||
-          cfg->trampoline_offset != cfg->topology_cartridge.trampoline_offset ||
-          cfg->trampoline_size != cfg->topology_cartridge.trampoline_size ||
-          cfg->vector_bridge_offset != cfg->topology_cartridge.vector_bridge_offset ||
-          cfg->topology_cartridge.vector_bridge_size != VECTOR_BRIDGE_SIZE ||
-          cfg->topology_cartridge.vectors_offset != 0x0ffau ||
-          cfg->topology_cartridge.vectors_size != 6u) {
-         fprintf(stderr, "vcsc-ld: C26 cartridge declaration disagrees with retained cfg generated ranges\n");
-         exit(1);
-      }
-      for (i = 0; i < cfg->topology_bank_count; ++i) {
-         const topology_bank_t *top = &cfg->topology_banks[i];
-         const cartridge_bank_t *legacy = NULL;
-         for (j = 0; j < cfg->bank_count; ++j)
-            if (cfg->banks[j].hotspot == top->select_access)
-               legacy = &cfg->banks[j];
-         if (!legacy || legacy->size != top->image_size ||
-             top->map_size != (uint16_t)(legacy->size - top->image_offset) ||
-             (uint32_t)legacy->start + top->image_offset != top->link_start ||
-             top->cpu_start != (uint16_t)(0xf000u + top->image_offset) ||
-             cfg_bank_file_index(cfg, legacy) != top->file_index ||
-             legacy->startup != top->startup) {
-            fprintf(stderr, "vcsc-ld: C26 bank '%s' disagrees with retained cfg topology\n",
-                    top->name);
-            exit(1);
-         }
-      }
-   }
-   else if (cfg->cartridge_banked) {
-      fprintf(stderr, "vcsc-ld: direct C26 topology cannot be combined with a banked cfg\n");
-      exit(1);
-   }
+
 }
 
 //! @brief Validate compiler mem declarations against linker cfg MEMORY entries.
@@ -1744,7 +1787,7 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
 
-   {
+   if (cfg->topology_bank_count == 0) {
       size_t expected_count = 0;
       uint16_t first_file_hotspot = 0;
       int superchip_mapper = 0;
@@ -8099,9 +8142,10 @@ int main(int argc, char **argv)
    collect_c26_topology(&cfg, &inputs);
    collect_c26_mem_declarations(&cfg, &inputs);
    infer_c26_mem_output_ownership(&cfg);
+   validate_c26_topology(&cfg);
+   apply_c26_topology_to_linker_config(&cfg);
    synthesize_c26_segment_rules(&cfg);
    validate_linker_config(&cfg);
-   validate_c26_topology(&cfg);
    if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,
               "vcsc-ld: cartridge topology requires a flat .bin output\n");

@@ -256,7 +256,7 @@ join("\n",@actual) eq join("\n",@expected)
 
 # Verify CRC VCSC independently of unstable-opcode modeling.
 ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-D','FINGERPRINT_SELFTEST',$src,'-o',$selftest);
+   $driver,'-I',$vcs,'-Wa,--illegals','-D','FINGERPRINT_SELFTEST','-T',$cfg,$src,'-o',$selftest);
 die "CRC selftest build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 ($exit,$sig,$out,$err)=run_capture($sim,'-T',$cfg,$selftest);
 die "CRC selftest exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;

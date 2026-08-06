@@ -465,12 +465,14 @@ link errors naming both objects.
 
 The compiler emits versioned absolute metadata exports; it emits no cartridge
 instructions itself. Complete `mem` declarations are emitted independently of
-whether a translation unit places an object in the region. During migration,
-`-T` may still supply mapper mechanics and component-specific constraints, but
-C26 `mem` metadata supplies allocator facts and ordinary segment routing. A
-selector-controlled C26 topology must still match the retained cfg hardware
-model until the public profile migration in roadmap item 26. The linker map
-reports the resulting `C26 CARTRIDGE TOPOLOGY`.
+whether a translation unit places an object in the region. A C26 profile may be
+included when its named `mem` regions are needed as source placement modifiers,
+or compiled as a configuration-only input when only link-time topology is
+needed. The linker retains such metadata-only command-line objects even when
+they export no ordinary program symbol. The reduced `vcs.cfg` now contributes
+only operational policy such as call-stack reservation; C26 topology supplies
+mapper mechanics, physical output order, allocator facts, and ordinary segment
+routing. The linker map reports the resulting `C26 CARTRIDGE TOPOLOGY`.
 
 ### Memory regions
 
