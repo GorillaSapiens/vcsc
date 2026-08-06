@@ -28,3 +28,16 @@ an older decision, regression, or implementation detail.
   with the new layout and daily-file checks. `make tools -j2` could not run in
   this container because `bison` is unavailable; it failed before compilation,
   and the clean target's incidental generated-file changes were restored.
+
+2026-08-06 08:09:03 PDT, repair branding test for split developer records
+--------------------------------------------------
+* Update `test/vcsc_branding.pl` to accept and require the new
+  `.../roadmap.txt` file and `.../context-history/` directory introduced by the
+  compact-context reorganization.
+* Exclude archived daily history from current-branding scans because those
+  files intentionally preserve historical names verbatim; keep the live
+  roadmap and all other current files subject to the normal branding checks.
+* Verification: `perl test/vcsc_branding.pl "$PWD"` passes using a locally
+  built linker and a temporary minimal valid runtime archive; the temporary
+  build products are not retained in the source archive. The source-tree
+  hygiene test also passes.

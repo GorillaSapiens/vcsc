@@ -1,1 +1,4 @@
-Here is the latest tarball.  Work for up to 30 minutes. Complete as many small roadmap steps as possible, in order. Do not begin a step unless it is likely to finish within the remaining time. Reserve the final two minutes for tests, updating context.txt, cleanup, and packaging a tarball. Do not leave the tree half-modified.  When responding, give the download link first to avoid problems that mangle Download links after long responses.
+We’re working on this VCSC tarball. Unpack it and first read `.top_secret/README.md`, then read all of `.top_secret/context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.top_secret/context-history/` unless you need to investigate an older decision or regression.
+
+[Describe the task here.]
+

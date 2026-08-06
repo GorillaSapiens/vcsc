@@ -101,7 +101,8 @@ my $obsolete_developer_records = File::Spec->catdir($repo, '.top_secret');
 my $developer_records = File::Spec->catdir($repo, '...');
 opendir(my $developer_records_dh, $developer_records) or die "could not open $developer_records: $!\n";
 my @developer_records_extra = sort grep {
-   $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'bankswitching.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
+   $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'roadmap.txt' &&
+   $_ ne 'context-history' && $_ ne 'bankswitching.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
 } readdir($developer_records_dh);
 closedir($developer_records_dh);
 @developer_records_extra and die "unexpected developer-only files remain: @developer_records_extra\n";
@@ -109,6 +110,7 @@ closedir($developer_records_dh);
 for my $parts (
    [qw(... README.md)],
    [qw(... context.txt)],
+   [qw(... roadmap.txt)],
    [qw(... bankswitching.txt)],
    [qw(... remove.txt)],
    [qw(... instruction.txt)],
@@ -116,6 +118,9 @@ for my $parts (
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required developer-only record is missing: $path\n";
 }
+
+my $context_history = File::Spec->catdir($developer_records, 'context-history');
+-d $context_history or die "required developer-only history directory is missing: $context_history\n";
 
 for my $parts (
    [qw(NOTES.md)],
@@ -153,7 +158,8 @@ find({
       return if $rel !~ /(?:Makefile|\.(?:c|h|cpp|l|y|pl|md|txt|dox|c26|s|asm|inc|cfg))$/;
       my $data = slurp($path);
       push @unneeded_upstream_name, $rel if $data =~ /\Q$upstream_name\E/i;
-      return if $rel eq '.../context.txt' || $rel eq '.../remove.txt';
+      return if $rel eq '.../context.txt' || $rel eq '.../remove.txt' ||
+                $rel =~ m{^\.\.\./context-history/};
       push @old_branding, $rel if $data =~ /(?:n65|libraries\/nlib|\bnlib\.(?:l26|inc)\b|\/opt\/n(?:\/|\b))/;
    },
 }, $repo);
