@@ -8972,3 +8972,37 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   item 28, composing the maintained standard renderer with generic banked C26
   profiles, is next.
 
+
+2026-08-05 21:19:21 PDT, compose maintained standard renderer with generic banked profiles
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 28 with one consolidated public F8
+  diagnostic under `examples/09_bankswitching/02_standard_renderer/`. Build
+  private 4K, F6, F4, and F8SC variants from the same source and maintained
+  all-five renderer component rather than creating renderer/profile copies.
+* Permit a file-scope `page` object to carry one named read-only `mem` region.
+  Keep the existing private region-specific segment lowering and emit
+  `.pagecontain`, so beam-critical playfield and sprite tables are both hard
+  page-contained and explicitly owned by startup bank0.
+* Keep renderer code and data, startup, score tables, and frame preparation in
+  bank0. Place a real game routine and strong overscan hook in bank1. The
+  renderer calls that hook only after asserting VBLANK; runtime checks reject
+  selector access outside VBLANK and require every VSYNC boundary to begin in
+  the startup bank.
+* Measure one cross-bank JSR round trip per frame at 37 cycles total, 25 cycles
+  over direct JSR/RTS. Current F8/F6/F4 placement uses 1940 bytes in bank0 and
+  94 bytes in bank1; F8SC uses 123 bytes in bank1. Replicated bridge usage is
+  30, 60, and 120 bytes for F8, F6, and F4 respectively.
+* Keep 95 ordinary RIOT object bytes plus a 12-byte hardware stack for
+  F8/F6/F4. The F8SC variant keeps 93 RIOT object bytes and the same stack while
+  placing three non-critical hook-state bytes in shared Superchip RAM. Direct
+  Superchip split-alias accesses never select a bank.
+* Add exact runtime certification for a 20140-cycle frame, bank restoration,
+  VBLANK-only switching, and identical visible TIA writes across 4K, F8, F6,
+  F4, and F8SC. Add independent Stella 4K/F8/F8SC pixel equality, map and
+  trampoline assertions, installed-profile coverage, documentation, and
+  source-tree hygiene. Multisprite remains deferred to its main-roadmap work.
+* Verification: all 438 compile-only tests pass and all 247 end-to-end/generic
+  cases are explicitly accounted for and pass. The staged installed toolchain
+  passes, including all final cartridge builds. Bankswitching roadmap item 29,
+  placement-heuristic measurement and diagnostics without semantic changes, is
+  next.

@@ -1,0 +1,184 @@
+// Standard all-five renderer composed with generic C26 cartridge topology.
+// The public example is F8. Tests build this same source as 4K, F6, F4, and F8SC.
+
+#ifdef UNBANKED_REFERENCE
+include "vcs_4k.c26"
+#else
+#ifdef SUPERCHIP_TEST
+#if MAPPER_BANKS == 2
+include "vcs_8k_f8sc.c26"
+#elif MAPPER_BANKS == 4
+include "vcs_16k_f6sc.c26"
+#elif MAPPER_BANKS == 8
+include "vcs_32k_f4sc.c26"
+#else
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
+#else
+#if MAPPER_BANKS == 2
+include "vcs_8k_f8.c26"
+#elif MAPPER_BANKS == 4
+include "vcs_16k_f6.c26"
+#elif MAPPER_BANKS == 8
+include "vcs_32k_f4.c26"
+#else
+MAPPER_BANKS_must_be_2_4_or_8
+#endif
+#endif
+#endif
+
+#ifdef UNBANKED_REFERENCE
+page const uint8_t vcs_standard_playfield[48] := {
+#else
+bank0 page const uint8_t vcs_standard_playfield[48] := {
+#endif
+   0xff, 0xff, 0xff, 0xff,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0x81, 0x00, 0x00, 0x81,
+   0x81, 0x18, 0x18, 0x81,
+   0xff, 0xff, 0xff, 0xff,
+   0x00, 0x00, 0x00, 0x00
+};
+
+include "renderers/standard_4k_ntsc/standard_4k_ntsc.c26"
+
+#ifdef UNBANKED_REFERENCE
+page const uint8_t player0_graphics[8] := {
+#else
+bank0 page const uint8_t player0_graphics[8] := {
+#endif
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX...XXX,
+      0bXX..X.XX,
+      0bXX.X..XX,
+      0bXXX...XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+#ifdef UNBANKED_REFERENCE
+page const uint8_t player1_graphics[8] := {
+#else
+bank0 page const uint8_t player1_graphics[8] := {
+#endif
+   VCS_STANDARD_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXX....XX,
+      0bXX....XX,
+      0bXX.XX.XX,
+      0bXX.XX.XX,
+      0bXX....XX,
+      0bXX....XX,
+      0b.XXXXXX.
+   )
+};
+
+#ifdef SUPERCHIP_TEST
+superchip uint8_t banked_hook_count;
+superchip uint8_t banked_hook_signature := 0x5a;
+superchip uint8_t banked_hook_epoch;
+#else
+uint8_t banked_hook_count;
+uint8_t banked_hook_signature := 0x5a;
+uint8_t banked_hook_epoch;
+#endif
+uint8_t banked_hook_failure;
+
+#ifdef UNBANKED_REFERENCE
+void banked_game_logic(void) {
+#else
+bank1 void banked_game_logic(void) {
+#endif
+   if (banked_hook_signature != 0x5a) {
+      banked_hook_failure := 1;
+   }
+   if (banked_hook_count == 0) {
+      VCS_STANDARD_BALL_X := 104;
+      vcs_standard_score := 654321;
+      banked_hook_epoch := 1;
+   }
+   banked_hook_count++;
+}
+
+#ifdef UNBANKED_REFERENCE
+void vcs_standard_overscan_hook(void) {
+#else
+bank1 void vcs_standard_overscan_hook(void) {
+#endif
+   banked_game_logic();
+}
+
+#ifdef UNBANKED_REFERENCE
+void initialize_banked_scene(void) {
+#else
+bank0 void initialize_banked_scene(void) {
+#endif
+   COLUBK := 0x84;
+
+   VCS_STANDARD_PLAYER0_X := 24;
+   VCS_STANDARD_PLAYER1_X := 132;
+   VCS_STANDARD_MISSILE0_X := 54;
+   VCS_STANDARD_MISSILE1_X := 112;
+   VCS_STANDARD_BALL_X := 80;
+
+   vcs_standard_player0_y := 18;
+   vcs_standard_missile0_y := 34;
+   vcs_standard_ball_y := 48;
+   vcs_standard_missile1_y := 62;
+   vcs_standard_player1_y := 78;
+
+   vcs_standard_player0_graphics := player0_graphics;
+   vcs_standard_player1_graphics := player1_graphics;
+   vcs_standard_player0_height := 7;
+   vcs_standard_player1_height := 7;
+   vcs_standard_missile0_height := 5;
+   vcs_standard_missile1_height := 7;
+   vcs_standard_ball_height := 3;
+
+   vcs_standard_score := 123456;
+   vcs_standard_score_color := 0x0e;
+   vcs_standard_playfield_position := 8;
+
+   VBLANK := 2;
+   TIM64T := 0;
+}
+
+#ifdef UNBANKED_REFERENCE
+void configure_banked_frame(void) {
+#else
+bank0 void configure_banked_frame(void) {
+#endif
+   if (banked_hook_failure) {
+      COLUBK := 0x20;
+   }
+   else {
+      COLUBK := 0x84;
+   }
+   COLUPF := 0x2e;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
+}
+
+#ifdef UNBANKED_REFERENCE
+void main(void) {
+#else
+bank0 void main(void) {
+#endif
+   initialize_banked_scene();
+   while (1) {
+      configure_banked_frame();
+      vcs_standard_renderer_drawscreen();
+   }
+}

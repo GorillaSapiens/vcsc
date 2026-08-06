@@ -808,3 +808,10 @@ the same SC lifecycle from every forced and randomized physical startup bank.
 `VCSC_STELLA_FILTER` limits focused Stella reruns. Staged `make installcheck`
 uses the installed compiler, profile, diagnostic source, and simulator options
 to prove the same second-arrival reset lifecycle and a zero final failure byte.
+
+`vcs_standard_renderer_banked.pl` composes the maintained standard all-five
+renderer with 4K, F8, F6, F4, and F8SC C26 profiles.  It locks bank-local hard
+page objects, component-owned startup placement, one VBLANK-only bank1 hook,
+per-bank ROM and replicated bridge costs, 37-cycle cross-bank calls, RIOT and
+Superchip usage, 12 hardware-stack bytes, 20140-cycle frame length, exact raster
+identity, mapper restoration, and the consolidated one-cartridge public example.

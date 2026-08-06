@@ -69,7 +69,8 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
-   } elsif ($file eq 'bankswitching_diagnostic.c26') {
+   } elsif ($file eq 'bankswitching_diagnostic.c26' ||
+            $file eq 'banked_standard_renderer.c26') {
       push @extra,'-DMAPPER_BANKS=2',
                   '-T',File::Spec->catfile($vcs,'vcs.cfg');
    }
@@ -80,13 +81,18 @@ for my $entry (@examples) {
    # operand after the example while leaving compiler/linker options in place.
    my @renderer=grep { /\.s26\z/ } @cmd;
    @cmd=grep { !/\.s26\z/ } @cmd;
+   if ($file eq 'banked_standard_renderer.c26') {
+      push @renderer,File::Spec->catfile(
+         $vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
+   }
    push @cmd,$source,@renderer,'-o',$bin;
    my($rc,$sig,$out,$err)=capture(@cmd);
    $rc==0 && !$sig or die "$dir build failed\nstdout:\n$out\nstderr:\n$err";
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";
    $err eq '' or die "$dir wrote stderr:\n$err";
    my $rom=read_file($bin);
-   my $expected_size = $file eq 'bankswitching_diagnostic.c26' ? 8192
+   my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
+                        $file eq 'banked_standard_renderer.c26') ? 8192
       : $file eq 'score.c26' ? 2048 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";

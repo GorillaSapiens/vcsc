@@ -19,3 +19,10 @@ certify hostile initial RAM, mixed BSS/DATA startup, bank-switch persistence,
 and reinitialization after console reset without adding more cartridges. Each
 mapper diagnostic executes its complete ordered direct bank-transition matrix
 internally.
+
+## Banked standard renderer
+
+`02_standard_renderer/` is the consolidated F8 integration of the maintained
+standard all-five renderer with generic C26 topology.  Its only bank switch is a
+VBLANK-only overscan-hook round trip; F6, F4, F8SC, and unbanked-reference builds
+remain private regression variants of the same source.

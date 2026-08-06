@@ -118,8 +118,10 @@ $module_text !~ /(?:const\s+)?uint8_t\s+vcs_standard_playfield\s*\[/
    or die "renderer module still allocates the application playfield\n";
 $module_text !~ /\*\s*vcs_standard_playfield|vcs_standard_playfield\s*\*/
    or die "renderer module introduced a runtime playfield pointer\n";
-require_re($module_text,qr/extern\s+void\s+vcs_standard_overscan_hook\s*\(\s*void\s*\)\s*;/,
-   'void overscan-hook declaration is missing');
+$module_text !~ /extern\s+void\s+vcs_standard_overscan_hook\s*\(\s*void\s*\)\s*;/
+   or die "overscan hook must remain definition-only so named bank modifiers are legal\n";
+require_re($module_text,qr/hook is intentionally not declared here/,
+   'bank-aware overscan-hook declaration rationale is missing');
 require_re($module_text,qr/extern\s+void\s+vcs_standard_renderer_drawscreen\s*\(\s*void\s*\)\s*;/,
    'drawscreen entry declaration is missing');
 $module_text !~ /\b(?:absolute\s+)?ref\b[^;]*(?:0x|\$)[0-9A-Fa-f]+/
@@ -132,7 +134,7 @@ my @required_readme=(
    'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
    '.callstackextra 4', 'Mandatory module-declared RAM', '80',
-   'vcs_standard_overscan_hook', 'weak no-op', '**next** frame',
+   'vcs_standard_overscan_hook', 'weak no-op', '**next** frame', 'Banked composition',
    'fixed ROM playfield', 'mutable playfield', '32 independently controlled bits',
    '16 scanlines', '$00..$D0', 'runtime playfield',
    '88-byte default score table'

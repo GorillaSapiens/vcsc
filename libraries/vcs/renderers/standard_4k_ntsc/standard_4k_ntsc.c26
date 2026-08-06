@@ -1,4 +1,9 @@
-// Minimal unbanked 4K NTSC standard-renderer source-integration contract.
+// Standard NTSC all-five renderer source-integration contract.
+//
+// The original reference profile is unbanked 4K.  The same contract and
+// renderer object may be composed with a generic banked C26 cartridge profile
+// when the renderer and every beam-critical ROM object are owned by the startup
+// bank.
 //
 // Include vcs.c26 before this module. The application must define exactly one
 // contiguous 48-byte object named vcs_standard_playfield before including this
@@ -93,8 +98,11 @@ uint8_t vcs_standard_object_masks[44];
 // no-op fallback, so applications define this exact void(void) symbol only when
 // they need it. It runs once after persistent display state has been restored
 // and VBLANK has been asserted; changes therefore apply to the next frame.
-extern void vcs_standard_overscan_hook(void);
-
 // The draw call begins during application-owned overscan and returns after the
 // hook, with VBLANK asserted and the overscan timer still running.
+//
+// The hook is intentionally not declared here.  A banked application may define
+// it after this include with a named code-region modifier such as `bank1`; an
+// unqualified declaration here would falsely require the definition to use the
+// default code region.  The renderer object still supplies a weak no-op fallback.
 extern void vcs_standard_renderer_drawscreen(void);

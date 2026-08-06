@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasm: .segment "RODATA.bank0.__vcsc_object$banked_table"
+// expectasm: .pagecontain
+// expectasm: .indexrange 0, 3
+// expectasm: .segment "RODATA"
+// expectasm: banked_table:
+
+include "machine_6502.c26"
+
+mem bank0 { $start:0xf000 $size:0x1000 $ro };
+
+bank0 page const uint8_t banked_table[4] := { 1, 2, 3, 4 };
+
+uint8_t main(void) {
+   return banked_table[2];
+}

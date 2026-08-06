@@ -11,6 +11,7 @@ INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
 DOXYGEN ?= doxygen
 STELLA ?= stella
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
+STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 
 all: test
 
@@ -50,7 +51,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -500,6 +501,15 @@ installcheck: tools
 	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -DMAPPER_BANKS=2 \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  -Map "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map" \
+	  "$(CURDIR)/examples/09_bankswitching/02_standard_renderer/banked_standard_renderer.c26" \
+	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.bin"` -eq 8192; \
+	grep -q 'vcs_standard_overscan_hook source=bank0.*destination=bank1' "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map"; \
+	grep -q 'RENDERER_CODE.*bank=bank0.*component-region=@startup' "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map"; \
 	for src in $$(find \
 	  "$(CURDIR)/examples/04_player_color_181" \
 	  "$(CURDIR)/examples/06_all_five_181" \
@@ -541,4 +551,10 @@ stella-bank-test: tools
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)" --stella
 	rm -rf $(STELLA_BANK_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test docs
+stella-renderer-bank-test: tools
+	rm -rf $(STELLA_RENDERER_BANK_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_standard_renderer_banked_stella.pl \
+	  "$(CURDIR)" "$(STELLA_RENDERER_BANK_TEST_TMP)"
+	rm -rf $(STELLA_RENDERER_BANK_TEST_TMP)
+
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test docs

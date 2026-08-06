@@ -5,7 +5,7 @@
    \_/  \___||___/ \___|
 ```
 
-# Minimal unbanked 4K NTSC standard-renderer contract
+# Standard NTSC all-five renderer contract
 
 > **Legacy monolithic profile.** This profile remains installed as a stable
 > regression and compatibility target. New applications should use the explicit
@@ -14,8 +14,10 @@
 
 This directory defines the first source-integration contract for the retained
 standard renderer. It is deliberately narrower than “the standard renderer” as a
-whole. It covers one non-reflected, non-banked, non-Superchip NTSC configuration
-and nothing else.
+whole. Its original reference cartridge is the non-reflected, unbanked 4K NTSC
+configuration.  The same maintained object is now also certified as a component
+of F8, F6, F4, and F8SC cartridges when the bank-local requirements below are
+followed.
 
 A deterministic source normalizer and checked-in `vcsc-as` output live beside
 this contract. The normalized source assembles independently to a reviewable
@@ -35,7 +37,7 @@ The following retained options are absent and are outside this contract:
 - vertical reflection;
 - multisprite;
 - status bar or six-lives mini-renderers;
-- banking, 2K layout, Superchip, DPC+, or PXE;
+- 2K layout, DPC+, PXE, banked RAM, or mapper switching during beam-critical work;
 - interlace;
 - custom renderer macros or mini-renderers;
 - player-color tables, playfield-color/height tables, paddle reading, screen
@@ -149,19 +151,47 @@ An explicit build may equivalently pass `-T libraries/vcs/vcs.cfg` and
 deprecated compatibility filename for old commands; it contains no renderer-
 specific placement or stack facts.
 
-The module declares the draw entry and the optional hook:
+The module declares the draw entry:
 
 ```vcsc
-extern void vcs_standard_overscan_hook(void);
 extern void vcs_standard_renderer_drawscreen(void);
 ```
 
-Both signatures are exactly `void(void)`. The application calls only
-`vcs_standard_renderer_drawscreen()`. A strong application definition of
-`vcs_standard_overscan_hook()` overrides the renderer object's weak no-op. The
+The optional `vcs_standard_overscan_hook()` signature remains exactly
+`void(void)`, but the contract intentionally does not predeclare it.  An
+application defines the hook after including the contract; this permits a
+banked definition such as `bank1 void vcs_standard_overscan_hook(void)` without
+an incompatible unqualified declaration.  A strong application definition
+overrides the renderer object's weak no-op. The
 application communicates through the module-owned display declarations and the
 application-provided playfield object; no separately maintained fixed RIOT
 address map is part of this interface.
+
+## Banked composition
+
+`examples/09_bankswitching/02_standard_renderer/` is the consolidated public F8
+diagnostic.  It links this exact renderer object with the generic F8 C26 profile.
+The renderer object's `@startup` component contract pins its code and score table
+to the startup bank, while the application declares its playfield and sprite art
+as `bank0 page const` objects.  The only deliberate cross-bank edge is the
+end-of-frame hook, defined in `bank1` and called after `VBLANK` has been asserted.
+Its generated JSR trampoline restores bank0 before drawscreen returns, so the next
+VSYNC and every visible access begin in the renderer bank.
+
+Private regressions build the same source and component against F6 and F4; no
+renderer-by-mapper source or cfg copies exist.  The F8SC variant keeps the
+timing-critical 80-byte renderer state in RIOT RAM and places only three bytes of
+non-critical hook state in shared Superchip RAM.  Superchip reads and writes are
+direct split-alias accesses and never generate selector traffic.
+
+The certified diagnostic measures a 20140-cycle, 262-scanline frame.  Its banked
+profiles have the same visible-write raster digest as the unbanked 4K reference.
+One hook round trip costs 37 cycles in total—25 cycles more than direct JSR/RTS—
+and occurs entirely during VBLANK.  Current map-locked costs are 1940 startup-bank
+bytes, 94 F8/F6/F4 bank1 bytes (123 for F8SC), 30/60/120 replicated bridge bytes
+for F8/F6/F4, 95 RIOT object bytes plus a 12-byte hardware stack for ordinary
+banked builds, and 93 RIOT object bytes plus three shared Superchip bytes for
+F8SC.
 
 ## What the 48-byte playfield represents
 

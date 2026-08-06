@@ -62,12 +62,19 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
 -f File::Spec->catfile($test,'vcs_interactive_sprite_orientation.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
+-f File::Spec->catfile($test,'vcs_standard_renderer_banked.pl') &&
+-f File::Spec->catfile($test,'vcs_standard_renderer_banked.cpp') &&
+-f File::Spec->catfile($test,'vcs_standard_renderer_banked_stella.pl') &&
+-f File::Spec->catfile($test,'page_named_mem_object_codegen_test.c26') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
+-f File::Spec->catfile($test,'stella_png_rgb_digest.pl') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 -f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26')
+-f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','banked_standard_renderer.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
 my $top_make=slurp(File::Spec->catfile($repo,'Makefile'));
 index($top_make,'stella-bank-test: tools')>=0 &&
@@ -76,7 +83,9 @@ index($top_make,'install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c2
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
 index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
 index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&
-index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0
+index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0 &&
+index($top_make,'stella-renderer-bank-test: tools')>=0 &&
+index($top_make,'standard_renderer_banked_f8.map')>=0
    or die "top-level installed simulator/Stella bank diagnostics are incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
@@ -173,6 +182,18 @@ index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0 &&
 index($test_readme,'assembler_component_constraints.pl')>=0 &&
 index($test_readme,'vcs_interactive_sprite_orientation.pl')>=0
    or die "C26 profile migration, authoritative memory, or regression documentation is incomplete\n";
+
+index($bankswitching,'[x] 28. Add the first composable banked profile for the maintained standard renderer.')>=0 &&
+index($bankswitching,'37 cycles total, 25 more than direct JSR/RTS')>=0 &&
+index($compiler_readme,'bank0 page const uint8_t glyph[8]')>=0 &&
+index($test_readme,'vcs_standard_renderer_banked.pl')>=0 &&
+index($linker_readme,'VBLANK-only')>=0
+   or die "banked standard-renderer composition documentation is incomplete\n";
+my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','Makefile'));
+$banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
+$banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
+index($banked_renderer_make,'vcs_standard_4k_ntsc.cfg')<0
+   or die "banked standard renderer must remain one consolidated F8 public diagnostic\n";
 
 my $standard_renderer_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','standard_4k_ntsc_renderer.s26'));
 index($standard_renderer_source,'.segmentregion "RENDERER_CODE", startup')>=0 &&

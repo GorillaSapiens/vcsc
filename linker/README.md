@@ -886,3 +886,20 @@ binding range may not overlap a managed read/ordinary window, and a writable
 binding range may not overlap a managed write/ordinary window. This prevents a
 non-owning alias from silently colliding with an allocated Superchip byte or any
 other linker-owned storage.
+
+## Banked standard-renderer composition
+
+The maintained standard all-five renderer is certified with the generic F8,
+F6, F4, and F8SC C26 topologies. Its object-owned `startup` contracts keep
+renderer CODE and RODATA in the startup bank, while application `bank0 page
+const` objects combine explicit ownership with hard page containment. The
+consolidated diagnostic places a real overscan hook in bank1. That edge is
+VBLANK-only: the renderer asserts VBLANK before the generated cross-bank JSR,
+and the trampoline restores bank0 before the next beam-critical phase.
+
+The linker map is the measurement contract. It reports the pinned renderer and
+hook components, one JSR bridge, per-bank ROM usage, replicated bridge bytes,
+RIOT/Superchip allocation, and hardware-stack reservation. The current bridge
+executes in 37 cycles including call and return, 25 cycles above direct JSR/RTS.
+Shared Superchip regions have no output-bank owner and therefore never acquire
+selector code.

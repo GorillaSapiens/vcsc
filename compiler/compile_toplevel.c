@@ -1275,10 +1275,6 @@ void compile_global_decl_item(ASTNode *node) {
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
 
-   if (is_page && region_count > 0) {
-      error_user("[%s:%d.%d] 'page' with a named mem region is not supported until region-aware object naming is added",
-                 node->file, node->line, node->column);
-   }
    if (is_split_mem && (is_ref || is_absolute_binding)) {
       error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with an '@' absolute binding",
                  node->file, node->line, node->column,

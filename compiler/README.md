@@ -513,6 +513,13 @@ at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
 keeps absolute-family addressing. Named zero-page regions continue to use their
 own ZEROPAGE layouts.
 
+A file-scope object may combine one named read-only `mem` region with the hard
+`page` qualifier.  The compiler emits a private region-specific RODATA segment,
+`.pagecontain`, and the ordinary index-range metadata, so constructs such as
+`bank0 page const uint8_t glyph[8]` retain both explicit bank ownership and a
+true 256-byte containment requirement.  This is used for beam-critical banked
+renderer tables; it is not merely preferred alignment.
+
 Named regions also describe non-inline function code and return-object
 placement. The compiler classifies each modifier from the region's declared
 properties rather than its name: a `$ro` region selects code placement, while

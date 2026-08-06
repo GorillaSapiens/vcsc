@@ -1919,7 +1919,7 @@ when main roadmap item 29 becomes active.
          source-tree rule allowing only the three grandfathered compatibility or
          reference cfgs while forbidding any new renderer x mapper cfg product.
 
-[ ] 28. Add the first composable banked profile for the maintained standard renderer.
+[x] 28. Add the first composable banked profile for the maintained standard renderer.
 
        * Use the existing standard all-five P0/P1/M0/M1/Ball renderer, not
          multisprite. Multisprite remains deferred until the main-roadmap
@@ -1938,6 +1938,35 @@ when main roadmap item 29 becomes active.
          against the unbanked profile. Keep public diagnostic count consolidated.
        * Add map assertions, installed-toolchain coverage, authoritative Stella
          raster/timing coverage, documentation, and source-hygiene enforcement.
+
+       Completed 2026-08-05:
+
+       * Add one consolidated public F8 diagnostic under
+         `examples/09_bankswitching/02_standard_renderer/`. It composes the
+         maintained all-five renderer object with the generic C26 profile; F6,
+         F4, F8SC, and unbanked 4K are private variants of the same source.
+       * Permit one named read-only `mem` region together with hard `page` on a
+         file-scope object. The compiler emits a private region-specific segment
+         plus `.pagecontain`, allowing playfield and sprite tables to be both
+         page-contained and explicitly owned by startup bank0.
+       * Keep renderer CODE/RODATA, playfield, sprite art, score table, startup,
+         and frame setup in bank0. Put the real game routine and strong overscan
+         hook in bank1. The renderer invokes the hook only after asserting
+         VBLANK; the runtime regression rejects selector access outside VBLANK
+         and requires every VSYNC boundary to begin in the startup bank.
+       * Lock one cross-bank JSR round trip per frame. Its generated path costs
+         37 cycles total, 25 more than direct JSR/RTS. Current ROM measurements
+         are bank0=1940 and bank1=94 bytes for F8/F6/F4, bank1=123 for F8SC,
+         with 30/60/120 replicated bridge bytes for F8/F6/F4.
+       * Keep 95 ordinary RIOT object bytes plus a 12-byte hardware stack in
+         F8/F6/F4. The F8SC case keeps 93 RIOT object bytes and the same stack,
+         while three non-critical hook-state bytes occupy shared Superchip RAM
+         through direct split aliases. No Superchip access selects a bank.
+       * Prove exact 20140-cycle frame length and identical visible-write raster
+         against the unbanked reference for all five profiles. Add independent
+         Stella 4K/F8/F8SC snapshot equality, installed-profile compilation,
+         map/trampoline assertions, documentation, and source-hygiene coverage.
+         Multisprite remains deferred to its main-roadmap prerequisites.
 
 [ ] 29. Improve automatic placement heuristics without changing semantics.
 
