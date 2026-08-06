@@ -77,11 +77,7 @@ for my $spec (@components) {
       or die "$label draw writes scheduler or audio state\n";
    $body !~ /\bsta(?:\.[A-Za-z]+)?\s+(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b/
       or die "$label draw writes scheduler or audio state in assembly\n";
-   if ($label eq 'wide six-glyph') {
-      $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+sta\s+VDELP0;\s*asm\s+sta\s+VDELP1;/s
-         or die "$label does not clear hostile reflection and vertical delay before drawing\n";
-   }
-   elsif ($label =~ /six-glyph/) {
+   if ($label =~ /six-glyph/) {
       $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
          or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
    }

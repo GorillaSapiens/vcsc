@@ -5,13 +5,10 @@
 //     template "six_glyph_wide_component.c26" as score1
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
-// must define the shared page-contained score_font table. Each instance owns
-// its score, six 16-bit glyph pointers, and prepared row caches for glyphs five
-// and six.
-//
-// Glyph-origin contract: the six 8-pixel glyphs begin at visible X coordinates
-// 36, 52, 68, 84, 100, and 116. The 16-pixel origin pitch leaves one
-// glyph-width of blank space between adjacent glyphs and spans X=36..123.
+// must define the shared page-contained score_font table.  Each instance owns
+// its score, six 16-bit glyph pointers, row counter, and delayed glyph byte.
+// The 8-pixel glyph origins are X=36,52,68,84,100,116: 16-pixel pitch
+// with one glyph-width of blank space between adjacent glyphs, spanning X=36..123.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
 // VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
@@ -20,9 +17,9 @@
 // horizontal motion, and RESP0/RESP1 while drawing. It may leave all of that
 // P0/P1 state clobbered.
 // It preserves playfield, missile, and Ball state, flushes GRP0/GRP1, and
-// disables player VDEL before returning. It never touches VSYNC, VBLANK, the
-// RIOT timer, or collision latches. A/X/Y and arithmetic flags are clobbered;
-// hardware stack depth is unchanged at lifecycle boundaries.
+// disables player VDEL before returning. It never touches VSYNC, VBLANK,
+// the RIOT timer, or collision latches.  A/X/Y and arithmetic flags are clobbered; hardware stack depth is
+// unchanged at lifecycle boundaries.
 
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
@@ -36,6 +33,8 @@ enum TEMPLATE_contract {
    TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
    TEMPLATE_DRAW_HMOVE_COUNT := 1,
    TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1,
+   TEMPLATE_VBLANK_MAX_CYCLES := 260,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
    TEMPLATE_GLYPH_ORIGIN_0 := 36,
    TEMPLATE_GLYPH_ORIGIN_1 := 52,
    TEMPLATE_GLYPH_ORIGIN_2 := 68,
@@ -43,15 +42,13 @@ enum TEMPLATE_contract {
    TEMPLATE_GLYPH_ORIGIN_4 := 100,
    TEMPLATE_GLYPH_ORIGIN_5 := 116,
    TEMPLATE_GLYPH_WIDTH := 8,
-   TEMPLATE_GLYPH_ORIGIN_PITCH := 16,
-   TEMPLATE_VBLANK_MAX_CYCLES := 464,
-   TEMPLATE_OVERSCAN_MAX_CYCLES := 0
+   TEMPLATE_GLYPH_ORIGIN_PITCH := 16
 };
 
 recommend bcd24_t TEMPLATE_score := 0;
 uint8_t TEMPLATE_pointers[12];
-uint8_t TEMPLATE_fifth_rows[8];
-uint8_t TEMPLATE_sixth_rows[8];
+uint8_t TEMPLATE_row;
+uint8_t TEMPLATE_delayed;
 
 static inline void TEMPLATE_prepare_pointers(void) {
    // Build six complete 16-bit pointers in human digit order. Packed BCD is
@@ -121,18 +118,6 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda #>score_font;
    asm adc #0;
    asm sta TEMPLATE_pointers+11;
-
-   // The final two glyphs must be available through three-cycle direct
-   // loads inside the visible row. Glyphs one through four remain pointer-
-   // driven, avoiding a needless 48-byte full-row cache.
-   asm ldy #7;
-   asm @TEMPLATE_cache_outer_loop:;
-   asm lda (TEMPLATE_pointers+$8),y;
-   asm sta.ay TEMPLATE_fifth_rows,y;
-   asm lda (TEMPLATE_pointers+$a),y;
-   asm sta.ay TEMPLATE_sixth_rows,y;
-   asm dey;
-   asm bpl.same @TEMPLATE_cache_outer_loop;
 }
 
 require inline void TEMPLATE_init(void) {
@@ -144,9 +129,10 @@ require inline void TEMPLATE_vblank(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
-   // Line one re-establishes an exact fixed geometry. Three medium-spaced
-   // copies of each player are interleaved: P0 at 36/68/100 and P1 at
-   // 52/84/116. The final glyph ends at X=123.
+   // Three medium-spaced copies of each player are interleaved at the wide
+   // origins: P0 at 36/68/100 and P1 at 52/84/116. The delayed-player
+   // pipeline is the same compact six-pointer schedule used by the centered
+   // component; only the copy mode and fixed positioning differ.
    asm lda #$06;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
@@ -172,218 +158,50 @@ require inline void TEMPLATE_draw(void) {
    asm sta HMP1;
    asm sta WSYNC;
 
-   // Line two applies motion, clears player state, and disables VDEL.
+   // Line two applies motion, flushes both current/delayed player latches, and
+   // enters the canonical eight-row delayed-latch glyph schedule.
    asm sta HMOVE;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   // Preserve the exact eight-cycle pre-row phase while clearing reflection.
+   // A is still zero after the latch flush.
    asm sta REFP0;
    asm sta REFP1;
-   asm sta VDELP0;
-   asm sta VDELP1;
-   asm ldy #7;
-   asm sta WSYNC;
+   asm nop;
+   VDELP0 := 1;
+   VDELP1 := 1;
+   TEMPLATE_row := 7;
 
-   // Glyph row 1: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
+   asm @TEMPLATE_draw_loop:;
+   asm ldy TEMPLATE_row;
    asm lda (TEMPLATE_pointers),y;
    asm sta GRP0;
+   asm sta WSYNC;
    asm lda (TEMPLATE_pointers+$2),y;
    asm sta GRP1;
    asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
+   asm sta GRP0;
    asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+7;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+7;
-   asm sta GRP1;
-   asm ldy #6;
-   asm sta WSYNC;
-
-   // Glyph row 2: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$8),y;
    asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
+   asm lda (TEMPLATE_pointers+$a),y;
    asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
    asm stx GRP0;
-   asm nop;
    asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+6;
    asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+6;
-   asm sta GRP1;
-   asm ldy #5;
-   asm sta WSYNC;
+   asm dec TEMPLATE_row;
+   asm bpl.same @TEMPLATE_draw_loop;
 
-   // Glyph row 3: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+5;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+5;
-   asm sta GRP1;
-   asm ldy #4;
-   asm sta WSYNC;
-
-   // Glyph row 4: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+4;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+4;
-   asm sta GRP1;
-   asm ldy #3;
-   asm sta WSYNC;
-
-   // Glyph row 5: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+3;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+3;
-   asm sta GRP1;
-   asm ldy #2;
-   asm sta WSYNC;
-
-   // Glyph row 6: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+2;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+2;
-   asm sta GRP1;
-   asm ldy #1;
-   asm sta WSYNC;
-
-   // Glyph row 7: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+1;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+1;
-   asm sta GRP1;
-   asm ldy #0;
-   asm sta WSYNC;
-
-   // Glyph row 8: GRP0/GRP1 writes land at cycles 0, 8, 31, 36,
-   // 42, and 48. Those windows fall between consecutive medium-spaced
-   // copies of each player.
-   asm lda (TEMPLATE_pointers),y;
-   asm sta GRP0;
-   asm lda (TEMPLATE_pointers+$2),y;
-   asm sta GRP1;
-   asm lda (TEMPLATE_pointers+$4),y;
-   asm tax;
-   asm lda (TEMPLATE_pointers+$6),y;
-   asm tay;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm stx GRP0;
-   asm nop;
-   asm sty GRP1;
-   asm lda.z TEMPLATE_fifth_rows+0;
-   asm sta GRP0;
-   asm lda.z TEMPLATE_sixth_rows+0;
-   asm sta GRP1;
-   asm ldy #0;
-   asm sta WSYNC;
-
-   // Line eleven removes both player graphics and leaves VDEL disabled.
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta GRP0;
-   asm sta VDELP0;
-   asm sta VDELP1;
-   asm sta WSYNC;
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+   WSYNC := 0;
 }
 
 require inline void TEMPLATE_overscan(void) {

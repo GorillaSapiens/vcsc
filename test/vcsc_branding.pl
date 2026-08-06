@@ -102,7 +102,7 @@ my $developer_records = File::Spec->catdir($repo, '...');
 opendir(my $developer_records_dh, $developer_records) or die "could not open $developer_records: $!\n";
 my @developer_records_extra = sort grep {
    $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'roadmap.txt' &&
-   $_ ne 'context-history' && $_ ne 'bankswitching.txt' && $_ ne 'remove.txt' && $_ ne 'instruction.txt'
+   $_ ne 'context-history' && $_ ne 'bankswitching.txt' && $_ ne 'instruction.txt'
 } readdir($developer_records_dh);
 closedir($developer_records_dh);
 @developer_records_extra and die "unexpected developer-only files remain: @developer_records_extra\n";
@@ -112,7 +112,6 @@ for my $parts (
    [qw(... context.txt)],
    [qw(... roadmap.txt)],
    [qw(... bankswitching.txt)],
-   [qw(... remove.txt)],
    [qw(... instruction.txt)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);
@@ -126,6 +125,7 @@ for my $parts (
    [qw(NOTES.md)],
    [qw(context.txt)],
    [qw(remove.txt)],
+   [qw(... remove.txt)],
    [qw(software_stack_inventory.txt)],
    [qw(compiler parserparser.pl)],
    [qw(test unimpl_audit.pl)],
@@ -158,7 +158,7 @@ find({
       return if $rel !~ /(?:Makefile|\.(?:c|h|cpp|l|y|pl|md|txt|dox|c26|s|asm|inc|cfg))$/;
       my $data = slurp($path);
       push @unneeded_upstream_name, $rel if $data =~ /\Q$upstream_name\E/i;
-      return if $rel eq '.../context.txt' || $rel eq '.../remove.txt' ||
+      return if $rel eq '.../context.txt' ||
                 $rel =~ m{^\.\.\./context-history/};
       push @old_branding, $rel if $data =~ /(?:n65|libraries\/nlib|\bnlib\.(?:l26|inc)\b|\/opt\/n(?:\/|\b))/;
    },

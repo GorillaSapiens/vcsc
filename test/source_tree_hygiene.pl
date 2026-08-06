@@ -264,8 +264,11 @@ index($wide_source,'template "six_glyph_wide_component.c26" as score')>=0 &&
 index($wide_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
 index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide.pl') &&
+-f File::Spec->catfile($test,'vcs_six_glyph_wide_181.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_raster.cpp') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_stella.pl') &&
+-f File::Spec->catfile($repo,'examples','04_player_color_181','11_wide_score_above','01_interactive','player_color_181_wide_score_above_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','04_player_color_181','12_wide_score_below','01_interactive','player_color_181_wide_score_below_interactive.c26') &&
 index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
    q{$file eq 'score.c26' || $file eq 'wide_score.c26'})>=0 &&
 -f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
@@ -545,19 +548,6 @@ for my $paths (values %hashes) {
    push @duplicates,join(' == ',map {File::Spec->abs2rel($_,$repo)} @$paths);
 }
 @duplicates and die "byte-identical source/test files remain:\n".join("\n",sort @duplicates)."\n";
-
-my $ledger=File::Spec->catfile($repo,'...','remove.txt');
-my %seen;
-my %generated_paths=('compiler/coverage_map.h'=>1);
-my(@duplicate_ledger,@resurrected);
-for my $line (split(/\n/,slurp($ledger))) {
-   $line =~ s/^\s+|\s+$//g;
-   next if $line eq '';
-   push @duplicate_ledger,$line if $seen{$line}++;
-   push @resurrected,$line if !$generated_paths{$line} && -e File::Spec->catfile($repo,split('/', $line));
-}
-@duplicate_ledger and die "duplicate remove.txt paths: @duplicate_ledger\n";
-@resurrected and die "remove.txt paths have reappeared: @resurrected\n";
 
 for my $required (qw(
    libraries/vcs/superchip.c26

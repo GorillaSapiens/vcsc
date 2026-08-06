@@ -23,17 +23,17 @@ The application owns frame scheduling. The component consumes exactly eleven
 visible scanlines, so this example places 91 blank lines above it and 90 below
 it for a stable 262-line frame.
 
-The row schedule does not use player vertical delay. `NUSIZ0=NUSIZ1=$06`
-creates three medium-spaced copies of each player, and each row writes
-`GRP0/GRP1` at cycles `0, 8, 31, 36, 42, 48`. Those writes occur between
-successive copies. Glyphs five and six are prepared into two 8-byte row caches
-during VBLANK so their visible loads remain fixed three-cycle accesses.
+`NUSIZ0=NUSIZ1=$06` creates three medium-spaced copies of each player. The
+component uses the compact delayed-player pipeline: glyph one is staged before
+each row boundary; glyphs two through six write at row cycles `0, 8, 36, 39,
+42`; and cycle `45` commits the delayed latch. No glyph rows are cached in RAM.
 
-The component owns 31 RIOT-RAM bytes: the three-byte packed-BCD score, twelve
-pointer bytes, and sixteen cached row bytes. In this exact 2K example the linked
-program uses 1,366 ROM bytes and 57 total RAM bytes, including scheduler and
-application state. The regression map and raster oracle lock the authoritative
-numbers; update this README with them if the implementation changes.
+The component owns 17 RIOT-RAM bytes: the three-byte packed-BCD score, twelve
+pointer bytes, one row counter, and one delayed glyph byte. In this exact 2K
+example the linked program uses 1,110 ROM bytes and 43 total RAM bytes, including
+scheduler and application state. The regression map and raster oracle lock the
+authoritative numbers; update this README with them if the implementation
+changes.
 
 Build after building the toolchain:
 

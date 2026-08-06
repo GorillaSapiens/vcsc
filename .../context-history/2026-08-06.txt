@@ -85,3 +85,37 @@ passes including final banked cartridge and renderer builds.
   focused exact-raster, visible-handoff, source-hygiene, and Stella snapshot
   tests pass; staged `make installcheck` passes including the installed public
   example. Main-roadmap item 23 remains the next action.
+
+2026-08-06 10:29:15 PDT
+- Corrected main-roadmap item 24 after review showed that the standalone wide-score example did not prove composition with the official 181-line renderer.
+- Added focused dynamic public cartridges for the wide six-glyph score above and below `player_color_181`, with explicit component handoffs and packed-BCD score updates every 20 frames.
+- A full interactive-control composition is not viable in current RIOT RAM: the renderer and score own 95 bytes before scheduler/application state. The focused cartridges link at 2,631 ROM bytes and 124/128 total RAM bytes, leaving four bytes free.
+- Added `vcs_six_glyph_wide_181.pl`, which verifies the exact score schedule at visible entry lines 40 and 221, the complete P0/P1/Ball/playfield/per-row-color gameplay raster in both draw orders, exact 262-line frames, accounting, public inventory, and dynamic updates.
+- Verified 438/438 compile-only tests, all 250/250 end-to-end tests, recursive public-example builds, source hygiene, and staged installed-toolchain checks.
+
+2026-08-06 10:53:47 PDT
+-----------------------
+- Correct the wide-score RAM design after review showed the original two
+  eight-row caches made the 181-line compositions practically useless. Reuse
+  the centered display's delayed-player pipeline with medium-spaced copies.
+- The wide component now owns 17 bytes rather than 31 while preserving the
+  reviewed 88-pixel Stella raster and exact 262-line frame. Accounting is now
+  962 ROM/39 RAM for the fixed fixture and 1,110 ROM/43 RAM for the public 2K
+  example.
+- Replace the focused dynamic 181-line examples with interactive score-above
+  and score-below cartridges. Each supports independent P0/P1 joystick motion
+  while the Ball, playfield, and changing six-digit BCD score remain active.
+  Each links at 3,013 ROM bytes and 114/128 RAM bytes, leaving fourteen bytes
+  free. A control-free composition measures 110 RAM bytes.
+
+2026-08-06 11:35:51 PDT, repair interactive inventory and retire deletion ledger
+--------------------------------------------------
+* Update `vcs_interactive_sprite_orientation.pl` for the two added wide-score
+  181-line interactive cartridges: recursive discovery now expects and checks
+  all 45 interactive sources rather than the previous 43.
+* Remove the internal deletion ledger and remove its live workflow, roadmap,
+  developer-record, hygiene-test, and test-documentation requirements. Branding
+  now requires the obsolete ledger path to remain absent.
+* Verification: compile-only 438/438 and end-to-end 250/250 pass. The end-to-end
+  suite was run in named slices because renderer-heavy groups exceed the outer
+  command timeout; every test is accounted for with no failures.

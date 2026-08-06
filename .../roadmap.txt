@@ -150,9 +150,8 @@ than ship a fragile schedule if the hardware budget does not close.
                   aggregate element under strict side-effect-free conditions.
                   Unsupported index forms use generic pooled scratch.
 
-[x] 16. Delete unsupported tools/runtime/language features one group at a time,
-        recording all removed paths in `.top_secret/remove.txt` and keeping retained tests
-        green.
+[x] 16. Delete unsupported tools/runtime/language features one group at a time
+        while keeping retained tests green.
 
         [x] 16a. Remove heap/sbrk support and its initialization/runtime tests.
         [x] 16b. Remove residual `_vcsc_sp`, `_pushN`, `_popN`, and `sp2ptr*`
@@ -1243,18 +1242,25 @@ than ship a fragile schedule if the hardware budget does not close.
         * Interleave three medium-spaced copies of P0 and P1 at glyph origins
           X=36,52,68,84,100,116. Eight-pixel glyphs at 16-pixel pitch span
           X=36..123, or 88 visible pixels.
-        * Disable player vertical delay and use exact per-row GRP0/GRP1 writes
-          at CPU cycles 0,8,31,36,42,48. The component consumes eleven visible
+        * Use the same compact delayed-player pipeline as the centered display,
+          with three medium-spaced copies. Glyph one is staged before each row;
+          glyphs two through six write at row cycles 0,8,36,39,42, and cycle 45
+          commits the delayed latch. The component consumes eleven visible
           scanlines and composes into an exact 262-line NTSC frame.
-        * Keep glyphs one through four pointer-driven and prepare only glyphs
-          five and six as two eight-byte row caches. Component-owned RIOT RAM is
-          31 bytes: three score bytes, twelve pointer bytes, and sixteen cache
-          bytes.
+        * Keep all six glyphs pointer-driven. Component-owned RIOT RAM is 17
+          bytes: three score bytes, twelve pointer bytes, one row counter, and
+          one delayed glyph byte. No glyph-row cache is required.
         * Add a dynamic public 2K example, exact event-trace regression, reviewed
           Stella 7.0 raster oracle, documentation, source-hygiene coverage, and
-          staged installed-toolchain builds. The fixed fixture measures 1,218 ROM
-          bytes and 53 total RAM bytes; the public example measures 1,366 ROM
-          bytes and 57 total RAM bytes.
+          staged installed-toolchain builds. The fixed fixture measures 962 ROM
+          bytes and 39 total RAM bytes; the public example measures 1,110 ROM
+          bytes and 43 total RAM bytes.
+        * Add explicit interactive official `player_color_181` compositions with
+          the wide score both above and below gameplay. Each 4K cartridge retains
+          the exact 88-pixel score schedule, the complete P0/P1/Ball gameplay
+          raster, direct two-joystick player motion, a changing six-digit score,
+          and a 262-line frame. Each measures 3,013 ROM bytes and 114 total RAM
+          bytes, leaving fourteen bytes free.
 
 [ ] 25. Add a left/right dual-score variant of the six-glyph display. Divide the
         six visible glyph slots into independent three-glyph left and right score

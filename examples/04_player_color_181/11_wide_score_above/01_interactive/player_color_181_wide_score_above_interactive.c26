@@ -1,0 +1,135 @@
+// P0/P1/BL player-color gameplay with an interactive widely spaced score above gameplay.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+page const uint8_t game_playfield[44] := {
+   0xff,0xff,0xff,0xff,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0x81,0x00,0x00,0x81,
+   0x81,0x18,0x18,0x81,
+   0xff,0xff,0xff,0xff
+};
+page const uint8_t game_player0_colors[8] := {
+   0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e
+};
+page const uint8_t game_player1_colors[8] := {
+   0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
+};
+template "renderers/player_color_181/player_color_181.c26" as game
+template "six_glyph_wide_component.c26" as score
+
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e)
+};
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe)
+};
+
+void configure_game_frame(void) {
+   COLUPF := 0x2e;
+   CTRLPF := 0x21;
+}
+
+void initialize_scene(void) {
+   VBLANK := 2;
+   COLUBK := 0x84;
+   game_PLAYER0_X := 44;
+   game_PLAYER1_X := 108;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_BALL_X := 78;
+   game_player0_y := 70;
+   game_player1_y := 42;
+   game_ball_y := 45;
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+   score_score := 123456;
+   game_init();
+   score_init();
+}
+
+alias OBJECT_MAX_Y 87
+
+// Keep the demonstration useful without spending RAM on a diagnostic selection
+// state machine: the left joystick moves P0 and the right joystick moves P1.
+inline void update_controls(void) {
+   asm lda SWCHB;
+   asm and #$01;
+   asm bne @reset_not_pressed;
+   asm jmp ($fffc);
+   asm @reset_not_pressed:;
+
+   if (!(SWCHA & 0x40)) {
+      if (game_PLAYER0_X > 0) { game_PLAYER0_X--; }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (game_PLAYER0_X < 159) { game_PLAYER0_X++; }
+      }
+   }
+   if (!(SWCHA & 0x10)) {
+      if (game_player0_y > 0) { game_player0_y--; }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         if (game_player0_y < OBJECT_MAX_Y) { game_player0_y++; }
+      }
+   }
+
+   if (!(SWCHA & 0x04)) {
+      if (game_PLAYER1_X > 0) { game_PLAYER1_X--; }
+   }
+   else {
+      if (!(SWCHA & 0x08)) {
+         if (game_PLAYER1_X < 159) { game_PLAYER1_X++; }
+      }
+   }
+   if (!(SWCHA & 0x01)) {
+      if (game_player1_y > 0) { game_player1_y--; }
+   }
+   else {
+      if (!(SWCHA & 0x02)) {
+         if (game_player1_y < OBJECT_MAX_Y) { game_player1_y++; }
+      }
+   }
+}
+
+uint8_t frame_counter := 0;
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   initialize_scene();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      score_vblank();
+      configure_game_frame();
+      vcs_ntsc_end_vblank();
+      score_draw();
+      vcs_ntsc_component_handoff();
+      game_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      update_controls();
+      frame_counter++;
+      if (frame_counter == 20) {
+         frame_counter := 0;
+         score_score++;
+      }
+      vcs_ntsc_end_overscan();
+   }
+}

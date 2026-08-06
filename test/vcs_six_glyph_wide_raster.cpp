@@ -20,6 +20,8 @@ constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTimint = 0x0285;
+constexpr uint16_t kSwcha = 0x0280;
+constexpr uint16_t kSwchb = 0x0282;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
 constexpr uint16_t kTim64t = 0x0296;
@@ -45,6 +47,8 @@ public:
    explicit TraceMachine(const char *path) : cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
       std::memset(memory_, 0, sizeof(memory_));
+      memory_[kSwcha] = 0xff;
+      memory_[kSwchb] = 0xff;
       std::ifstream rom(path, std::ios::binary);
       if (!rom) fail("could not open ROM");
       rom.read(reinterpret_cast<char *>(memory_ + kRomBase), kRomSize);
@@ -280,26 +284,35 @@ int main(int argc, char **argv) {
    require_value(events,entry,50,kHmp1,0xc0,"HMP1");
    (void)find_event(events,entry,71,kHmove,"HMOVE");
 
-   require_value(events,entry+1,6,kRefp0,0,"REFP0 reset");
-   require_value(events,entry+1,9,kRefp1,0,"REFP1 reset");
-   require_value(events,entry+1,12,kVdelp0,0,"VDELP0 disabled");
-   require_value(events,entry+1,15,kVdelp1,0,"VDELP1 disabled");
+   require_value(events,entry+1,9,kRefp0,0,"REFP0 reset");
+   require_value(events,entry+1,12,kRefp1,0,"REFP1 reset");
+   require_value(events,entry+1,19,kVdelp0,1,"VDELP0 enabled");
+   require_value(events,entry+1,22,kVdelp1,1,"VDELP1 enabled");
 
-   constexpr uint64_t cycles[6]={0,8,31,36,42,48};
-   constexpr uint16_t regs[6]={kGrp0,kGrp1,kGrp0,kGrp1,kGrp0,kGrp1};
+   // The delayed-player pipeline stages digit 1 before each row boundary.
+   // Digits 2-6 and the final delayed-latch commit occur on the row itself.
+   constexpr uint64_t cycles[5]={0,8,36,39,42};
+   constexpr uint16_t regs[5]={kGrp1,kGrp0,kGrp1,kGrp0,kGrp1};
    for (unsigned row=0; row<8; ++row) {
+      const uint64_t first_line=row==0 ? entry+1 : entry+1+row;
+      const uint64_t first_cycle=row==0 ? 39 : 64;
+      require_value(events,first_line,first_cycle,kGrp0,
+         kFont[argv[3][0]-'0'][row],"glyph 1 row byte");
+
       const uint64_t line=entry+2+row;
-      for (unsigned digit=0; digit<6; ++digit) {
-         const uint8_t expected=kFont[argv[3][digit]-'0'][row];
-         require_value(events,line,cycles[digit],regs[digit],expected,"glyph row byte");
+      for (unsigned digit=1; digit<6; ++digit) {
+         require_value(events,line,cycles[digit-1],regs[digit-1],
+            kFont[argv[3][digit]-'0'][row],"glyph row byte");
       }
+      require_value(events,line,45,kGrp0,
+         kFont[argv[3][3]-'0'][row],"delayed-latch commit");
    }
 
-   require_value(events,entry+9,73,kGrp0,0,"GRP0 cleanup 1");
-   require_value(events,entry+10,0,kGrp1,0,"GRP1 cleanup");
-   require_value(events,entry+10,3,kGrp0,0,"GRP0 cleanup 2");
-   require_value(events,entry+10,6,kVdelp0,0,"VDELP0 cleanup");
-   require_value(events,entry+10,9,kVdelp1,0,"VDELP1 cleanup");
+   require_value(events,entry+9,57,kGrp0,0,"GRP0 cleanup 1");
+   require_value(events,entry+9,60,kGrp1,0,"GRP1 cleanup");
+   require_value(events,entry+9,63,kGrp0,0,"GRP0 cleanup 2");
+   require_value(events,entry+9,66,kVdelp0,0,"VDELP0 cleanup");
+   require_value(events,entry+9,69,kVdelp1,0,"VDELP1 cleanup");
 
    std::printf("vcs_six_glyph_wide_raster ok: exact 88x8 score schedule and 262-line frames\n");
    return 0;

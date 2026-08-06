@@ -82,7 +82,8 @@ VBLANK time independent of X and keeps both positioning lines inside one
 scanline for every coordinate from 0 through 159.
 
 Maintained static and 320-frame asynchronous-motion fixtures prove every
-centered, left-justified, right-justified, two-plus-two, and poison score order, all P0/P1/Ball X coordinates, clipped horizontal pixel endpoints, exact
+centered, left-justified, right-justified, two-plus-two, and poison score order,
+all P0/P1/Ball X coordinates, clipped horizontal pixel endpoints, exact
 per-row color writes, terminal gameplay lines, stable 262-line frames, and
 disjoint eleven-line score plus 181-line gameplay regions. The poison debug
 score supplies hostile P0/P1 position, size, reflection, delay, graphics, and
@@ -93,9 +94,13 @@ checkerboard fixture places both players at X=159, covering the subtle bit-row
 swap that solid glyphs can hide at the extreme right edge and the earlier tear that
 late graphics writes can cause.
 
-A composed link measures 64 bytes of gameplay RAM plus 17 bytes for the
-production score. A poison composition adds one byte for its caller-selected
-background handoff. A gameplay-only link contains no score state or font.
+A centered composed link measures 64 bytes of gameplay RAM plus 17 bytes for
+the production score. The wide score now has the same 17-byte component cost;
+the interactive public examples link at 114 of 128 total RAM bytes and 3,013 ROM
+bytes, leaving fourteen bytes free while supporting direct two-joystick player
+motion and a changing six-digit score. A focused composition without those controls links at 110 total RAM
+bytes. A poison composition adds one byte for its caller-selected background
+handoff. A gameplay-only link contains no score state or font.
 
 ## Reviewed Stella reference
 
@@ -111,6 +116,6 @@ The image is hash-locked by the regression. It confirms the centered score,
 playfield, both multicolor players, and Ball coexist without the red poison
 background or obvious first-row corruption.
 
-The ten official public compositions live under `examples/04_player_color_181/`;
+The twelve official public compositions live under `examples/04_player_color_181/`;
 the separately named unofficial-opcode matrix lives under
 `examples/07_player_color_181_unofficial/`.

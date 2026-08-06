@@ -135,12 +135,12 @@ guaranteed untouched.
 
 **Widely spaced six-glyph display.** This is a separate profile with glyph
 origins at X=36,52,68,84,100,116. It uses three medium-spaced copies of each
-player and rewrites GRP0/GRP1 at cycles 0,8,31,36,42,48 on each glyph row.
-Unlike the close-copy profiles it keeps `VDELP0=VDELP1=0`; the 16-pixel origin
-pitch provides enough time to update each player between copies. It owns 31
-RIOT-RAM bytes per instance: three score bytes, twelve pointer bytes, and two
-eight-row caches used for the cycle-42/cycle-48 writes. Its TIA ownership and
-exit guarantees otherwise match the production six-glyph family.
+player and the production delayed-player pipeline. Glyph one is staged before
+each row boundary; glyphs two through six write at row cycles 0,8,36,39,42,
+and cycle 45 commits the delayed latch. It owns 17 RIOT-RAM bytes per instance:
+three score bytes, twelve pointer bytes, one row counter, and one delayed glyph
+byte. Its TIA ownership and exit guarantees match the production six-glyph
+family, including flushed graphics latches and disabled VDEL on return.
 
 **Left/right two-plus-two score.** This establishes and clobbers
 `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the

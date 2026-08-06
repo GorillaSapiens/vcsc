@@ -23,7 +23,6 @@ When asked to read `.../context.txt` and continue:
        .../roadmap.txt                 detailed main-project roadmap
        .../bankswitching.txt           bankswitching design and sub-roadmap
        .../instruction.txt             bounded-work and packaging procedure
-       .../remove.txt                  cumulative deletion/rename ledger
        .../context-history/YYYY-MM-DD.txt
                                        historical daily development log
 
@@ -72,9 +71,6 @@ General workflow invariants
 * The repository archive has no wrapper directory. Top-level entries such as
   `COPYING`, `Makefile`, `compiler/`, and `test/` remain at archive root.
 * Preserve `.../instruction.txt`; it is intentional durable guidance.
-* Keep `.../remove.txt` accurate, one repository-relative path per intentional
-  deletion or rename. When the user explicitly requests erasing a proper name,
-  do not retain obsolete paths containing that name merely for the ledger.
 * Package returned archives with a UTC timestamp:
 
       date -u "+%Y%m%d_%H%M%S"
@@ -96,9 +92,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for the latest wide-score work:
+Input archive for the latest maintenance work:
 
-    vcsc.20260806_160105.tar.gz
+    vcsc.20260806_180419.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -177,9 +173,14 @@ Renderer and example state
   common `score_font` symbol. Do not duplicate font tables inside examples.
 * The centered and widely spaced six-glyph score displays are separate lifecycle
   components. The wide component places 8-pixel glyphs at X=36,52,68,84,100,116
-  using three medium-spaced copies per player and exact GRP0/GRP1 row writes at
-  cycles 0,8,31,36,42,48. It consumes eleven visible scanlines, owns 31 RIOT-RAM
-  bytes, and has its own public 2K example and reviewed Stella raster oracle.
+  using three medium-spaced copies per player and the compact delayed-player
+  pipeline: glyph one is staged before each row boundary, glyphs two through six
+  write at row cycles 0,8,36,39,42, and cycle 45 commits the delayed latch. It
+  consumes eleven visible scanlines and owns 17 RIOT-RAM bytes. Its public 2K
+  example, reviewed Stella raster oracle, and interactive official
+  `player_color_181` score-above/score-below compositions are maintained. Each
+  interactive 181 composition measures 3,013 ROM bytes and 114 total RAM bytes,
+  leaving fourteen bytes free.
 * Beam-critical tables and renderer code may carry object-owned placement,
   alignment, page-containment, privacy, and hidden-stack metadata. Do not move
   them based on generic packing convenience when their component contract pins
@@ -233,18 +234,20 @@ When removing or changing a feature:
 1. remove obsolete positive tests whose only purpose was the removed feature;
 2. retain or add focused negative tests for clean rejection;
 3. rewrite still-useful tests to use supported behavior;
-4. record every intentional deletion/rename in `.../remove.txt`;
-5. update documentation and source-tree hygiene checks in the same slice.
+4. update documentation and source-tree hygiene checks in the same slice.
 
 The latest verified full baseline, after main-roadmap item 24, is:
 
     compile-only:             438 passed
-    end-to-end/generic:       249 passed
+    end-to-end/generic:       250 passed
     staged installed tools:   passed, including all final cartridge builds
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
 7.0 raster certification, recursive public-example discovery, source-hygiene, and
-installed component/fixture/public-example builds. Bankswitching item 29's focused
+installed component/fixture/public-example builds. Dedicated integration coverage
+proves both official 181-line draw orders: score above at visible line 40 and score
+below at visible line 221, with the complete gameplay raster and exact 262-line
+frames preserved. Bankswitching item 29's focused
 placement coverage and item 28's runtime, map, installed-profile, and Stella
 4K/F8/F8SC certification remain intact.
 
@@ -273,9 +276,10 @@ requires hardware semantics the maintained full-window/direct/shared-memory
 model cannot represent honestly.
 
 Main-roadmap item 24 is complete out of numerical order: the widely spaced
-six-glyph score component, public example, exact raster schedule, reviewed Stella
-oracle, accounting, and installation coverage are integrated while the centered
-component remains byte-identical.
+six-glyph score component, standalone example, explicit official 181-line
+score-above/score-below examples, exact raster schedules, reviewed Stella oracle,
+accounting, and installation coverage are integrated while the centered component
+remains byte-identical.
 
 The next unfinished main-roadmap item is 23: investigate an all-five-object
 standard renderer with per-row P0/P1 colors, measure the real RAM/ROM/timing

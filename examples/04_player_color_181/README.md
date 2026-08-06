@@ -11,10 +11,11 @@ This group demonstrates the official-opcode `renderers/player_color_181/player_c
 181 gameplay scanlines and P0, P1, and Ball; an adjacent eleven-line score-profile
 component completes the 192-line visible field.
 
-The ten public cartridges form the complete score-composition slice for this
-gameplay family: four production score layouts plus the poison diagnostic, each
-above and below gameplay. Each layout has one interactive cartridge rather than
-separate static and motion variants.
+The first ten public cartridges form the original score-composition matrix for
+this gameplay family: four production score layouts plus the poison diagnostic,
+each above and below gameplay. Two additional interactive cartridges prove the widely spaced score above
+and below the renderer. They provide direct two-joystick player motion and a changing six-digit score
+while leaving fourteen RAM bytes free.
 
 | Layout | Score profile | Draw order | Diagnostic |
 |---|---|---|---|
@@ -28,6 +29,10 @@ separate static and motion variants.
 | [`08_two_plus_two_score_below`](08_two_plus_two_score_below/) | independent left/right two-plus-two | gameplay, handoff, score | object motion plus independently movable score fields |
 | [`09_poison_score_above`](09_poison_score_above/) | hostile poison diagnostic | score, handoff, gameplay | predecessor-state recovery stress |
 | [`10_poison_score_below`](10_poison_score_below/) | hostile poison diagnostic | gameplay, handoff, score | next-frame recovery stress |
+| [`11_wide_score_above`](11_wide_score_above/) | widely spaced fixed-color six-digit | score, handoff, gameplay | exact 88-pixel score raster plus gameplay preservation |
+| [`12_wide_score_below`](12_wide_score_below/) | widely spaced fixed-color six-digit | gameplay, handoff, score | exact 88-pixel score raster plus gameplay preservation |
 
-The automated matrix builds static and moving-game fixtures for every row and
-checks score pixels, gameplay pixels, handoff state, and exact 262-line frames.
+The automated matrix builds static and moving-game fixtures for the original
+forty compositions. A separate wide-score composition regression builds both
+new public cartridges and checks the exact six-glyph write schedule, the complete
+181-line gameplay raster, the handoff boundary, and exact 262-line frames.

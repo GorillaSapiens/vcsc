@@ -14,6 +14,8 @@
 #include "mos6502.h"
 
 namespace {
+constexpr uint16_t kSwcha = 0x0280;
+constexpr uint16_t kSwchb = 0x0282;
 constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerScanline = 76;
@@ -792,6 +794,8 @@ int main(int argc, char **argv) {
    else expected_x = {{44,108,0,0,78}};
 
    std::memset(memory_image, 0, sizeof(memory_image));
+   memory_image[kSwcha] = 0xff;
+   memory_image[kSwchb] = 0xff;
    std::ifstream rom(argv[2], std::ios::binary);
    if (!rom) fail("could not open ROM");
    rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);
