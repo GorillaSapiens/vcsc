@@ -1,9 +1,16 @@
-// This font is covered under CC0-1.0. See LICENSE.txt.
+// Handwritten printable ASCII font.
+//
+// The original legacy glyph data was released under CC0-1.0. See
+// libraries/vcs/fonts/README.md and the retained upstream LICENSE.txt.
+// Glyph rows are written top-to-bottom for visual readability; the
+// VCS_FONT_GLYPH alias reverses each glyph for the score renderer.
+// Characters are stored in ASCII order from SPACE (0x20) through
+// TILDE (0x7e).
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
 page const uint8_t score_font[760] := {
-   // 0x20 space
+   // 0x20 SPACE
    VCS_FONT_GLYPH(
       0b........,
       0b........,
@@ -15,82 +22,82 @@ page const uint8_t score_font[760] := {
       0b........
    ),
 
-   // 0x21 exclamation mark
+   // 0x21 !
    VCS_FONT_GLYPH(
-      0b.....X..,
-      0b.....X..,
-      0b....X...,
-      0b....X...,
-      0b...X....,
-      0b........,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x22 quotation mark
-   VCS_FONT_GLYPH(
-      0b....X.X.,
-      0b....X.X.,
-      0b...X.X..,
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0b........
-   ),
-
-   // 0x23 number sign
-   VCS_FONT_GLYPH(
-      0b....X.X.,
-      0b....X.X.,
-      0b..XXXXX.,
-      0b...X.X..,
-      0b.XXXXX..,
-      0b..X.X...,
-      0b.X.X....,
-      0b........
-   ),
-
-   // 0x24 dollar sign
-   VCS_FONT_GLYPH(
-      0b.....X..,
-      0b....XXXX,
-      0b..X.X...,
-      0b...XXX..,
-      0b...X.X..,
-      0b.XXXX...,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x25 percent sign
-   VCS_FONT_GLYPH(
-      0b...XX..X,
-      0b...XX.X.,
-      0b....X...,
-      0b...X....,
-      0b.X.XX...,
+      0b.....XX.,
+      0b....XX..,
+      0b....XX..,
+      0b...XX...,
       0b...XX...,
       0b........,
-      0b........
+      0b........,
+      0b..XX....
    ),
 
-   // 0x26 ampersand
+   // 0x22 DOUBLE QUOTE
    VCS_FONT_GLYPH(
-      0b....XX..,
+      0b....X..X,
       0b...X..X.,
-      0b..X.X...,
-      0b...X....,
-      0b.X.X.X..,
+      0b...X..X.,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 0x23 #
+   VCS_FONT_GLYPH(
+      0b....X..X,
+      0b...X..X.,
+      0b..XXXXX.,
+      0b..X..X..,
+      0b.XXXXXX.,
       0b.X..X...,
-      0b.XX.X...,
-      0b........
+      0b.X..X...,
+      0b.X..X...
    ),
 
-   // 0x27 apostrophe
+   // 0x24 $
    VCS_FONT_GLYPH(
-      0b.....X..,
-      0b.....X..,
+      0b.....XX.,
+      0b...XXXXX,
+      0b..X.XX..,
+      0b..XXXX..,
+      0b...XX.X.,
+      0bXXXXX...,
+      0b.XXXX...,
+      0b..XX....
+   ),
+
+   // 0x25 %
+   VCS_FONT_GLYPH(
+      0b...XX...,
+      0b..XX..X.,
+      0b......X.,
+      0b...XX...,
+      0b..X.....,
+      0b.X..XX..,
+      0b.X..XX..,
+      0bX...XX..
+   ),
+
+   // 0x26 &
+   VCS_FONT_GLYPH(
+      0b....XXX.,
+      0b..X...X.,
+      0b..X.XX..,
+      0b..XXX...,
+      0b.X.XX.X.,
+      0bX...X...,
+      0bX...X...,
+      0b.XXX.X..
+   ),
+
+   // 0x27 APOSTROPHE
+   VCS_FONT_GLYPH(
+      0b.....XX.,
+      0b....XX..,
       0b...X....,
       0b........,
       0b........,
@@ -99,103 +106,103 @@ page const uint8_t score_font[760] := {
       0b........
    ),
 
-   // 0x28 left parenthesis
+   // 0x28 (
    VCS_FONT_GLYPH(
+      0b.......X,
+      0b....XX..,
+      0b...X....,
+      0b..X.....,
+      0b..X.....,
+      0b..XX....,
+      0b..XX....,
+      0b....X...
+   ),
+
+   // 0x29 )
+   VCS_FONT_GLYPH(
+      0b....X...,
+      0b....XX..,
       0b......X.,
       0b.....X..,
-      0b...X....,
-      0b...X....,
-      0b..X.....,
-      0b...X....,
-      0b...X....,
+      0b.....X..,
+      0b..XX....,
+      0b..XX....,
+      0b.X......
+   ),
+
+   // 0x2A *
+   VCS_FONT_GLYPH(
+      0b........,
+      0b..X.XX.X,
+      0b....XXX.,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0bX.XX.X..,
+      0b..XX.X..,
       0b........
    ),
 
-   // 0x29 right parenthesis
-   VCS_FONT_GLYPH(
-      0b....X...,
-      0b.....X..,
-      0b.....X..,
-      0b.....X..,
-      0b....X...,
-      0b...X....,
-      0b.X......,
-      0b........
-   ),
-
-   // 0x2A asterisk
+   // 0x2B +
    VCS_FONT_GLYPH(
       0b........,
-      0b...X.X.X,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b..XXX...,
-      0b.X.X.X..,
-      0b........,
-      0b........
-   ),
-
-   // 0x2B plus sign
-   VCS_FONT_GLYPH(
-      0b........,
-      0b.....X..,
-      0b....X...,
-      0b..XXXXX.,
-      0b...X....,
-      0b...X....,
-      0b........,
-      0b........
-   ),
-
-   // 0x2C comma
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b........,
+      0b....XX..,
+      0b....XX..,
+      0b.XXXXXX.,
       0b...XX...,
-      0b...X....,
-      0b.X......,
+      0b..XX....,
+      0b..XX....,
       0b........
    ),
 
-   // 0x2D hyphen-minus
+   // 0x2C ,
    VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b..XXXXX.,
-      0b........,
-      0b........,
-      0b........,
-      0b........
-   ),
-
-   // 0x2E full stop
-   VCS_FONT_GLYPH(
-      0b........,
       0b........,
       0b........,
       0b........,
       0b........,
       0b...XX...,
       0b..XX....,
-      0b........
+      0b..XX....,
+      0b.X......
    ),
 
-   // 0x2F solidus
+   // 0x2D -
    VCS_FONT_GLYPH(
-      0b.......X,
-      0b......X.,
-      0b....X...,
-      0b...X....,
-      0b.X......,
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b........,
       0b........,
       0b........,
       0b........
    ),
 
-   // 0x30 digit zero
+   // 0x2E .
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b..XX....,
+      0b..XX....,
+      0b..XX....
+   ),
+
+   // 0x2F /
+   VCS_FONT_GLYPH(
+      0b........,
+      0b......X.,
+      0b......X.,
+      0b...XX...,
+      0b..X.....,
+      0b.X......,
+      0b.X......,
+      0bX.......
+   ),
+
+   // 0x30 0
    VCS_FONT_GLYPH(
       0b....XX..,
       0b...X..X.,
@@ -207,7 +214,7 @@ page const uint8_t score_font[760] := {
       0b..XX....
    ),
 
-   // 0x31 digit one
+   // 0x31 1
    VCS_FONT_GLYPH(
       0b.....X..,
       0b.....X..,
@@ -219,7 +226,7 @@ page const uint8_t score_font[760] := {
       0b...X....
    ),
 
-   // 0x32 digit two
+   // 0x32 2
    VCS_FONT_GLYPH(
       0b...XXX..,
       0b..X...X.,
@@ -231,7 +238,7 @@ page const uint8_t score_font[760] := {
       0b.XXX....
    ),
 
-   // 0x33 digit three
+   // 0x33 3
    VCS_FONT_GLYPH(
       0b...XXX..,
       0b..X...X.,
@@ -243,7 +250,7 @@ page const uint8_t score_font[760] := {
       0b..XX....
    ),
 
-   // 0x34 digit four
+   // 0x34 4
    VCS_FONT_GLYPH(
       0b......X.,
       0b...X..X.,
@@ -255,7 +262,7 @@ page const uint8_t score_font[760] := {
       0b...X....
    ),
 
-   // 0x35 digit five
+   // 0x35 5
    VCS_FONT_GLYPH(
       0b....XX..,
       0b...X..X.,
@@ -267,7 +274,7 @@ page const uint8_t score_font[760] := {
       0b..XX....
    ),
 
-   // 0x36 digit six
+   // 0x36 6
    VCS_FONT_GLYPH(
       0b.....XX.,
       0b....X...,
@@ -279,7 +286,7 @@ page const uint8_t score_font[760] := {
       0b...X....
    ),
 
-   // 0x37 digit seven
+   // 0x37 7
    VCS_FONT_GLYPH(
       0b....XXX.,
       0b..XX..X.,
@@ -291,7 +298,7 @@ page const uint8_t score_font[760] := {
       0b...X....
    ),
 
-   // 0x38 digit eight
+   // 0x38 8
    VCS_FONT_GLYPH(
       0b.....XX.,
       0b....X.X.,
@@ -303,7 +310,7 @@ page const uint8_t score_font[760] := {
       0b..XX....
    ),
 
-   // 0x39 digit nine
+   // 0x39 9
    VCS_FONT_GLYPH(
       0b....XX..,
       0b...X..X.,
@@ -315,91 +322,91 @@ page const uint8_t score_font[760] := {
       0b...X....
    ),
 
-   // 0x3A colon
+   // 0x3A :
    VCS_FONT_GLYPH(
       0b........,
-      0b.....XX.,
+      0b....XX..,
       0b....XX..,
       0b........,
       0b...XX...,
-      0b...XX...,
-      0b........,
+      0b..XX....,
+      0b..XX....,
       0b........
    ),
 
-   // 0x3B semicolon
+   // 0x3B ;
    VCS_FONT_GLYPH(
       0b........,
-      0b.....XX.,
+      0b....XX..,
       0b....XX..,
       0b........,
       0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b.X......
+   ),
+
+   // 0x3C <
+   VCS_FONT_GLYPH(
+      0b.......X,
+      0b....XX..,
       0b...X....,
       0b.X......,
-      0b........
+      0b..X.....,
+      0b..XX....,
+      0b..XX....,
+      0b....X...
    ),
 
-   // 0x3C less-than sign
-   VCS_FONT_GLYPH(
-      0b......X.,
-      0b.....X..,
-      0b...X....,
-      0b..X.....,
-      0b..X.....,
-      0b...X....,
-      0b...X....,
-      0b........
-   ),
-
-   // 0x3D equals sign
+   // 0x3D =
    VCS_FONT_GLYPH(
       0b........,
-      0b...XXXXX,
       0b........,
       0b..XXXXX.,
       0b........,
+      0b.XXXXXX.,
       0b........,
       0b........,
       0b........
    ),
 
-   // 0x3E greater-than sign
+   // 0x3E >
    VCS_FONT_GLYPH(
       0b....X...,
-      0b.....X..,
-      0b.....X..,
+      0b....XX..,
       0b......X.,
-      0b....X...,
-      0b...X....,
-      0b.X......,
-      0b........
+      0b......X.,
+      0b.....X..,
+      0b..XX....,
+      0b..XX....,
+      0b.X......
    ),
 
-   // 0x3F question mark
+   // 0x3F ?
    VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b...X...X,
-      0b......X.,
+      0b....XXXX,
+      0b..X....X,
+      0b.......X,
       0b.....X..,
-      0b...X....,
+      0b...XX...,
       0b........,
-      0b..X.....,
-      0b........
+      0b........,
+      0b..XX....
    ),
 
-   // 0x40 commercial at
+   // 0x40 @
    VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b...X...X,
-      0b..X.XXX.,
-      0b..X.X.X.,
-      0b.X.XXX..,
-      0b.X......,
-      0b.XXXX...,
-      0b........
+      0b....XXXX,
+      0b..X....X,
+      0b....XXXX,
+      0b.X.XX.X.,
+      0b.X.XXXX.,
+      0bX.......,
+      0bX.......,
+      0b.XXXXX..
    ),
 
-   // 0x41 latin capital letter a
+   // 0x41 A
    VCS_FONT_GLYPH(
       0b.....X..,
       0b....X.X.,
@@ -411,7 +418,7 @@ page const uint8_t score_font[760] := {
       0b.X..X...
    ),
 
-   // 0x42 latin capital letter b
+   // 0x42 B
    VCS_FONT_GLYPH(
       0b....XXX.,
       0b...X..X.,
@@ -423,7 +430,7 @@ page const uint8_t score_font[760] := {
       0b.XXX....
    ),
 
-   // 0x43 latin capital letter c
+   // 0x43 C
    VCS_FONT_GLYPH(
       0b.....XX.,
       0b....X...,
@@ -435,7 +442,7 @@ page const uint8_t score_font[760] := {
       0b..XX....
    ),
 
-   // 0x44 latin capital letter d
+   // 0x44 D
    VCS_FONT_GLYPH(
       0b...XXX..,
       0b...X..X.,
@@ -447,7 +454,7 @@ page const uint8_t score_font[760] := {
       0b.XXX....
    ),
 
-   // 0x45 latin capital letter e
+   // 0x45 E
    VCS_FONT_GLYPH(
       0b....XXX.,
       0b...X....,
@@ -459,7 +466,7 @@ page const uint8_t score_font[760] := {
       0b.XXX....
    ),
 
-   // 0x46 latin capital letter f
+   // 0x46 F
    VCS_FONT_GLYPH(
       0b....XXX.,
       0b...X....,
@@ -471,673 +478,673 @@ page const uint8_t score_font[760] := {
       0b.X......
    ),
 
-   // 0x47 latin capital letter g
+   // 0x47 G
    VCS_FONT_GLYPH(
       0b....XXXX,
-      0b...X....,
+      0b..X....X,
       0b..X.....,
-      0b..X.XXX.,
-      0b.X...X..,
-      0b.X...X..,
-      0b.XXXX...,
-      0b........
+      0b.X.XXXX.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXX...
    ),
 
-   // 0x48 latin capital letter h
+   // 0x48 H
    VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b..X...X.,
-      0b..XXXXX.,
-      0b.X...X..,
-      0b.X...X..,
-      0bX...X...,
-      0b........
+      0b...X....,
+      0b..X....X,
+      0b..X....X,
+      0b.XXXXXX.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0bX....X..
    ),
 
-   // 0x49 latin capital letter i
+   // 0x49 I
    VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b.....X..,
-      0b....X...,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b.XXX....,
-      0b........
+      0b...XXXXX,
+      0b....XX..,
+      0b....XX..,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0bXXXXXX..
    ),
 
-   // 0x4A latin capital letter j
+   // 0x4A J
    VCS_FONT_GLYPH(
       0b.....XXX,
       0b......X.,
+      0b......X.,
       0b.....X..,
       0b.....X..,
-      0b....X...,
-      0b.X..X...,
+      0bX...X...,
+      0bX...X...,
+      0b.XXX....
+   ),
+
+   // 0x4B K
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X...X.,
+      0b..X.XX..,
       0b.XX.....,
-      0b........
-   ),
-
-   // 0x4B latin capital letter k
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X..X.,
-      0b..X.X...,
-      0b..XX....,
-      0b.X.X....,
-      0b.X..X...,
+      0b.X.XX...,
       0bX...X...,
-      0b........
+      0bX...X...,
+      0bX....X..
    ),
 
-   // 0x4C latin capital letter l
+   // 0x4C L
    VCS_FONT_GLYPH(
-      0b...X....,
       0b...X....,
       0b..X.....,
       0b..X.....,
-      0b.X......,
-      0b.X......,
-      0bXXXXX...,
-      0b........
-   ),
-
-   // 0x4D latin capital letter m
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...XX.XX,
-      0b..X.X.X.,
-      0b..X.X.X.,
-      0b.X...X..,
-      0b.X...X..,
-      0bX...X...,
-      0b........
-   ),
-
-   // 0x4E latin capital letter n
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...XX..X,
-      0b..X.X.X.,
-      0b..X..XX.,
-      0b.X...X..,
-      0b.X...X..,
-      0bX...X...,
-      0b........
-   ),
-
-   // 0x4F latin capital letter o
-   VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b...X...X,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X...X..,
-      0b.X...X..,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x50 latin capital letter p
-   VCS_FONT_GLYPH(
-      0b...XXXX.,
-      0b...X...X,
-      0b..X...X.,
-      0b..XXXX..,
       0b.X......,
       0b.X......,
       0bX.......,
-      0b........
+      0bX.......,
+      0bXXXXXX..
    ),
 
-   // 0x51 latin capital letter q
+   // 0x4D M
    VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b...X...X,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X.X.X..,
-      0b.X..X...,
-      0b.XX.X...,
-      0b........
+      0b...X....,
+      0b..XX..XX,
+      0b..X.XX..,
+      0b.X.XX.X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0bX....X..
    ),
 
-   // 0x52 latin capital letter r
+   // 0x4E N
    VCS_FONT_GLYPH(
-      0b...XXXX.,
-      0b...X...X,
-      0b..X...X.,
-      0b..XXXX..,
-      0b.X.X....,
-      0b.X..X...,
-      0bX...X...,
-      0b........
+      0b...X....,
+      0b..XX...X,
+      0b..XX...X,
+      0b.X.XX.X.,
+      0b.X...XX.,
+      0bX...XX..,
+      0bX...XX..,
+      0bX....X..
    ),
 
-   // 0x53 latin capital letter s
+   // 0x4F O
    VCS_FONT_GLYPH(
       0b....XXXX,
-      0b...X....,
-      0b..X.....,
-      0b...XXX..,
-      0b.....X..,
-      0b.....X..,
-      0bXXXX....,
-      0b........
+      0b..X....X,
+      0b..X....X,
+      0b.X....X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXX...
    ),
 
-   // 0x54 latin capital letter t
+   // 0x50 P
    VCS_FONT_GLYPH(
       0b...XXXXX,
-      0b.....X..,
-      0b....X...,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x55 latin capital letter u
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X...X..,
-      0b.X...X..,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x56 latin capital letter v
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X...X..,
-      0b..X.X...,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x57 latin capital letter w
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b..X...X.,
-      0b..X.X.X.,
-      0b.X.X.X..,
-      0b.X.X.X..,
-      0b.X.X....,
-      0b........
-   ),
-
-   // 0x58 latin capital letter x
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b...X.X..,
-      0b....X...,
-      0b..X.X...,
-      0b.X...X..,
-      0bX...X...,
-      0b........
-   ),
-
-   // 0x59 latin capital letter y
-   VCS_FONT_GLYPH(
-      0b...X...X,
-      0b...X...X,
-      0b...X.X..,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x5A latin capital letter z
-   VCS_FONT_GLYPH(
-      0b...XXXXX,
-      0b.......X,
-      0b.....X..,
-      0b....X...,
-      0b..X.....,
-      0b.X......,
-      0bXXXXX...,
-      0b........
-   ),
-
-   // 0x5B left square bracket
-   VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b..X.....,
-      0b..X.....,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x5C reverse solidus
-   VCS_FONT_GLYPH(
-      0b...X....,
-      0b....X...,
-      0b....X...,
-      0b.....X..,
-      0b.....X..,
-      0b........,
-      0b........,
-      0b........
-   ),
-
-   // 0x5D right square bracket
-   VCS_FONT_GLYPH(
-      0b....XXX.,
-      0b......X.,
-      0b.....X..,
-      0b.....X..,
-      0b....X...,
-      0b....X...,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x5E circumflex accent
-   VCS_FONT_GLYPH(
-      0b.....X..,
-      0b....X.X.,
-      0b..X...X.,
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0b........
-   ),
-
-   // 0x5F low line
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0bXXXXX...,
-      0b........
-   ),
-
-   // 0x60 grave accent
-   VCS_FONT_GLYPH(
-      0b....X...,
-      0b.....X..,
-      0b.....X..,
-      0b........,
-      0b........,
-      0b........,
-      0b........,
-      0b........
-   ),
-
-   // 0x61 latin small letter a
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b...XXX..,
-      0b......X.,
-      0b..XXXX..,
-      0b.X...X..,
-      0b.XXXX...,
-      0b........
-   ),
-
-   // 0x62 latin small letter b
-   VCS_FONT_GLYPH(
-      0b...X....,
-      0b...X....,
-      0b..X.XX..,
-      0b..XX..X.,
-      0b.X...X..,
-      0b.X...X..,
-      0bXXXX....,
-      0b........
-   ),
-
-   // 0x63 latin small letter c
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b...XXXX.,
-      0b..X.....,
-      0b.X......,
-      0b.X......,
-      0b.XXXX...,
-      0b........
-   ),
-
-   // 0x64 latin small letter d
-   VCS_FONT_GLYPH(
-      0b.......X,
-      0b.......X,
-      0b...XX.X.,
-      0b..X..XX.,
-      0b.X...X..,
-      0b.X...X..,
-      0b.XXXX...,
-      0b........
-   ),
-
-   // 0x65 latin small letter e
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b...XXX..,
-      0b..X...X.,
+      0b..X....X,
+      0b..X....X,
       0b.XXXXX..,
       0b.X......,
-      0b.XXXX...,
-      0b........
+      0bX.......,
+      0bX.......,
+      0bX.......
    ),
 
-   // 0x66 latin small letter f
+   // 0x51 Q
    VCS_FONT_GLYPH(
-      0b.....XX.,
-      0b....X..X,
+      0b....XXXX,
+      0b..X....X,
+      0b..X....X,
+      0b.X....X.,
+      0b.X.XX.X.,
+      0bX...X...,
+      0bX...X...,
+      0b.XXX.X..
+   ),
+
+   // 0x52 R
+   VCS_FONT_GLYPH(
+      0b...XXXXX,
+      0b..X....X,
+      0b..X....X,
+      0b.XXXXX..,
+      0b.X.XX...,
+      0bX...X...,
+      0bX...X...,
+      0bX....X..
+   ),
+
+   // 0x53 S
+   VCS_FONT_GLYPH(
+      0b....XXXX,
+      0b..X.....,
+      0b..X.....,
+      0b..XXXX..,
+      0b......X.,
+      0b.....X..,
+      0b.....X..,
+      0bXXXXX...
+   ),
+
+   // 0x54 T
+   VCS_FONT_GLYPH(
+      0b...XXXXX,
+      0b....XX..,
+      0b....XX..,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b..XX....
+   ),
+
+   // 0x55 U
+   VCS_FONT_GLYPH(
       0b...X....,
-      0b..XXX...,
+      0b..X....X,
+      0b..X....X,
+      0b.X....X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXX...
+   ),
+
+   // 0x56 V
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X....X,
+      0b..X....X,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X..X...,
+      0b.X..X...,
+      0b..XX....
+   ),
+
+   // 0x57 W
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X....X,
+      0b..X....X,
+      0b.X.XX.X.,
+      0b.X.XX.X.,
+      0bXX..XX..,
+      0bXX..X...,
+      0bX....X..
+   ),
+
+   // 0x58 X
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X....X,
+      0b...X..X.,
+      0b...XX...,
+      0b..X..X..,
+      0bX....X..,
+      0bX....X..,
+      0bX....X..
+   ),
+
+   // 0x59 Y
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X....X,
+      0b...X..X.,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b..XX....
+   ),
+
+   // 0x5A Z
+   VCS_FONT_GLYPH(
+      0b...XXXXX,
+      0b.......X,
+      0b......X.,
+      0b...XX...,
+      0b..X.....,
+      0bX.......,
+      0bX.......,
+      0bXXXXXX..
+   ),
+
+   // 0x5B [
+   VCS_FONT_GLYPH(
+      0b....XXXX,
+      0b...X....,
+      0b...X....,
       0b..X.....,
       0b..X.....,
       0b.X......,
-      0b........
+      0b.X......,
+      0b.XXXX...
    ),
 
-   // 0x67 latin small letter g
-   VCS_FONT_GLYPH(
-      0b........,
-      0b....XXXX,
-      0b..X...X.,
-      0b..X...X.,
-      0b..XXXX..,
-      0b.....X..,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x68 latin small letter h
+   // 0x5C BACKSLASH
    VCS_FONT_GLYPH(
       0b...X....,
       0b...X....,
-      0b..X.....,
-      0b..X.XX..,
-      0b.XX..X..,
-      0b.X...X..,
-      0bX...X...,
-      0b........
-   ),
-
-   // 0x69 latin small letter i
-   VCS_FONT_GLYPH(
-      0b.....X..,
-      0b........,
+      0b...X....,
       0b...XX...,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x6A latin small letter j
-   VCS_FONT_GLYPH(
-      0b......X.,
-      0b........,
-      0b....XX..,
       0b.....X..,
       0b....X...,
-      0b.X..X...,
-      0b.XX.....,
-      0b........
+      0b....X...,
+      0b.....X..
    ),
 
-   // 0x6B latin small letter k
+   // 0x5D ]
    VCS_FONT_GLYPH(
-      0b...X....,
-      0b...X....,
-      0b..X..X..,
-      0b..X.X...,
-      0b.XX.....,
-      0b.X.X....,
-      0bX..X....,
-      0b........
-   ),
-
-   // 0x6C latin small letter l
-   VCS_FONT_GLYPH(
+      0b....XXXX,
+      0b......X.,
+      0b......X.,
+      0b.....X..,
+      0b.....X..,
       0b....X...,
       0b....X...,
-      0b...X....,
-      0b...X....,
-      0b..X.....,
-      0b..X..X..,
-      0b..XX....,
+      0b.XXXX...
+   ),
+
+   // 0x5E ^
+   VCS_FONT_GLYPH(
+      0b.....XX.,
+      0b...X..X.,
+      0b..X....X,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
       0b........
    ),
 
-   // 0x6D latin small letter m
+   // 0x5F _
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b..XX.X..,
-      0b..X.X.X.,
-      0b.X.X.X..,
-      0b.X.X.X..,
-      0bX.X.X...,
-      0b........
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0bXXXXXX..
    ),
 
-   // 0x6E latin small letter n
+   // 0x60 GRAVE ACCENT
    VCS_FONT_GLYPH(
+      0b....X...,
+      0b....XX..,
       0b........,
       0b........,
-      0b..X.XX..,
-      0b..XX..X.,
-      0b.X...X..,
-      0b.X...X..,
-      0bX...X...,
+      0b........,
+      0b........,
+      0b........,
       0b........
    ),
 
-   // 0x6F latin small letter o
+   // 0x61 a
    VCS_FONT_GLYPH(
       0b........,
       0b........,
       0b...XXX..,
-      0b..X...X.,
-      0b.X...X..,
-      0b.X...X..,
-      0b.XXX....,
-      0b........
+      0b......X.,
+      0b..XXXXX.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXXX..
    ),
 
-   // 0x70 latin small letter p
+   // 0x62 b
+   VCS_FONT_GLYPH(
+      0b...X....,
+      0b..X.....,
+      0b....XXX.,
+      0b.XX...X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0bXXXXX...
+   ),
+
+   // 0x63 c
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b..XXXX..,
-      0b..X...X.,
+      0b...XXX..,
+      0b.X....X.,
+      0b.X......,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXX...
+   ),
+
+   // 0x64 d
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.......X,
+      0b....XX.X,
+      0b.X...XX.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXXX..
+   ),
+
+   // 0x65 e
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b.X....X.,
+      0b.XXXXXX.,
+      0bX.......,
+      0bX.......,
+      0b.XXXXX..
+   ),
+
+   // 0x66 f
+   VCS_FONT_GLYPH(
+      0b.....XXX,
+      0b...X...X,
+      0b...X....,
       0b.XXXX...,
-      0b.X......,
-      0bX.......,
-      0b........
-   ),
-
-   // 0x71 latin small letter q
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b...XXXX.,
-      0b..X...X.,
-      0b..XXXX..,
-      0b.....X..,
-      0b....X...,
-      0b........
-   ),
-
-   // 0x72 latin small letter r
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X.XX..,
-      0b..XX..X.,
+      0b..X.....,
       0b.X......,
       0b.X......,
-      0bX.......,
-      0b........
+      0b.X......
    ),
 
-   // 0x73 latin small letter s
+   // 0x67 g
    VCS_FONT_GLYPH(
       0b........,
-      0b........,
-      0b...XXXX.,
-      0b..X.....,
-      0b..XXX...,
-      0b.....X..,
-      0bXXXX....,
-      0b........
-   ),
-
-   // 0x74 latin small letter t
-   VCS_FONT_GLYPH(
-      0b....X...,
-      0b....X...,
-      0b..XXX...,
-      0b...X....,
-      0b..X.....,
-      0b..X..X..,
-      0b..XX....,
-      0b........
-   ),
-
-   // 0x75 latin small letter u
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X...X..,
-      0b.X..XX..,
-      0b.XX.X...,
-      0b........
-   ),
-
-   // 0x76 latin small letter v
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b..X...X.,
-      0b.X...X..,
-      0b..X.X...,
-      0b..X.....,
-      0b........
-   ),
-
-   // 0x77 latin small letter w
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b..X.X.X.,
-      0b.X.X.X..,
-      0b.X.X.X..,
-      0b.X.X....,
-      0b........
-   ),
-
-   // 0x78 latin small letter x
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b...X.X..,
-      0b...X....,
-      0b..X.X...,
-      0bX...X...,
-      0b........
-   ),
-
-   // 0x79 latin small letter y
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b..X...X.,
-      0b..XXXX..,
-      0b.....X..,
-      0b.XXX....,
-      0b........
-   ),
-
-   // 0x7A latin small letter z
-   VCS_FONT_GLYPH(
-      0b........,
-      0b........,
+      0b...XXXXX,
+      0b..X....X,
+      0b.X....X.,
       0b..XXXXX.,
       0b.....X..,
+      0b.....X..,
+      0b.XXXX...
+   ),
+
+   // 0x68 h
+   VCS_FONT_GLYPH(
       0b...X....,
       0b..X.....,
-      0bXXXXX...,
-      0b........
+      0b....XXX.,
+      0b.XX...X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0bX....X..
    ),
 
-   // 0x7B left curly bracket
+   // 0x69 i
    VCS_FONT_GLYPH(
-      0b......X.,
-      0b.....X..,
-      0b....X...,
-      0b...X....,
-      0b...X....,
-      0b...X....,
-      0b...X....,
-      0b........
+      0b.....XX.,
+      0b........,
+      0b...XXX..,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b.XXXX...
    ),
 
-   // 0x7C vertical line
+   // 0x6A j
    VCS_FONT_GLYPH(
+      0b.......X,
+      0b........,
+      0b....XXX.,
       0b.....X..,
       0b.....X..,
-      0b....X...,
-      0b....X...,
-      0b...X....,
+      0bX...X...,
+      0bX...X...,
+      0b.XXX....
+   ),
+
+   // 0x6B k
+   VCS_FONT_GLYPH(
       0b...X....,
       0b..X.....,
-      0b........
+      0b..X...X.,
+      0b.X.XX...,
+      0b.XX.....,
+      0bX.XX....,
+      0bX.XX....,
+      0bX...X...
    ),
 
-   // 0x7D right curly bracket
+   // 0x6C l
    VCS_FONT_GLYPH(
-      0b....X...,
+      0b....XXX.,
+      0b....XX..,
+      0b....XX..,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b.XXXX...
+   ),
+
+   // 0x6D m
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b..XX..X.,
+      0b.X.XX.X.,
+      0b.X.XX.X.,
+      0bX.XX.X..,
+      0bX.XX....,
+      0bX.XX.X..
+   ),
+
+   // 0x6E n
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b....XXX.,
+      0b.XX...X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0bX....X..
+   ),
+
+   // 0x6F o
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b.X....X.,
+      0b.X....X.,
+      0bX....X..,
+      0bX....X..,
+      0b.XXXX...
+   ),
+
+   // 0x70 p
+   VCS_FONT_GLYPH(
+      0b........,
+      0b..XXXXX.,
+      0b..X....X,
+      0b.X....X.,
+      0b.XXXXX..,
+      0bX.......,
+      0bX.......,
+      0bX.......
+   ),
+
+   // 0x71 q
+   VCS_FONT_GLYPH(
+      0b........,
+      0b...XXXXX,
+      0b..X....X,
+      0b.X....X.,
+      0b..XXXXX.,
       0b.....X..,
-      0b....X...,
       0b.....X..,
-      0b...X....,
-      0b...X....,
+      0b.....X..
+   ),
+
+   // 0x72 r
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b....XXX.,
+      0b.XX...X.,
       0b.X......,
-      0b........
+      0bX.......,
+      0bX.......,
+      0bX.......
    ),
 
-   // 0x7E tilde
+   // 0x73 s
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b...X..X.,
-      0b..X.XX..,
+      0b...XXXX.,
+      0b.X......,
+      0b..XXXX..,
+      0b.....X..,
+      0b.....X..,
+      0bXXXXX...
+   ),
+
+   // 0x74 t
+   VCS_FONT_GLYPH(
+      0b....X...,
+      0b...X....,
+      0b...XXX..,
+      0b..X.....,
+      0b..X.....,
+      0b.X...X..,
+      0b.X...X..,
+      0b..XXX...
+   ),
+
+   // 0x75 u
+   VCS_FONT_GLYPH(
       0b........,
+      0b........,
+      0b..X....X,
+      0b.X....X.,
+      0b.X....X.,
+      0bX...XX..,
+      0bX...XX..,
+      0b.XXX.X..
+   ),
+
+   // 0x76 v
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b..X....X,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X..X...,
+      0b.X..X...,
+      0b..XX....
+   ),
+
+   // 0x77 w
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b..X....X,
+      0b.X.XX.X.,
+      0b.X.XX.X.,
+      0bX.XX.X..,
+      0bX.XX....,
+      0b.X..X...
+   ),
+
+   // 0x78 x
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b..X....X,
+      0b..X..X..,
+      0b...XX...,
+      0b.X..X...,
+      0b.X..X...,
+      0bX....X..
+   ),
+
+   // 0x79 y
+   VCS_FONT_GLYPH(
+      0b........,
+      0b..X....X,
+      0b..X....X,
+      0b.X....X.,
+      0b..XXXXX.,
+      0b.....X..,
+      0b.....X..,
+      0b.XXXX...
+   ),
+
+   // 0x7A z
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b...XXXXX,
+      0b.....X..,
+      0b...XX...,
+      0b.X......,
+      0b.X......,
+      0bXXXXXX..
+   ),
+
+   // 0x7B {
+   VCS_FONT_GLYPH(
+      0b.......X,
+      0b....XX..,
+      0b....XX..,
+      0b..X.....,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b....XX..
+   ),
+
+   // 0x7C |
+   VCS_FONT_GLYPH(
+      0b.....XX.,
+      0b....XX..,
+      0b....XX..,
+      0b...XX...,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0b..XX....
+   ),
+
+   // 0x7D }
+   VCS_FONT_GLYPH(
+      0b...XX...,
+      0b....XX..,
+      0b....XX..,
+      0b.....X..,
+      0b...XX...,
+      0b..XX....,
+      0b..XX....,
+      0bXX......
+   ),
+
+   // 0x7E ~
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b.X...XX.,
+      0b...XXX..,
       0b........,
       0b........,
       0b........

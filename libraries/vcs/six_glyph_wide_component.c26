@@ -1,4 +1,4 @@
-// Reusable widely spaced six-glyph TIA display component.
+// Reusable widely spaced six-glyph TIA display component with mutable color.
 //
 // Instantiate this source with:
 //
@@ -6,7 +6,7 @@
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
 // must define the shared page-contained score_font table.  Each instance owns
-// its score, six 16-bit glyph pointers, row counter, and delayed glyph byte.
+// its score, six 16-bit glyph pointers, row counter, delayed glyph byte, and color.
 // The 8-pixel glyph origins are X=36,52,68,84,100,116: 16-pixel pitch
 // with one glyph-width of blank space between adjacent glyphs, spanning X=36..123.
 //
@@ -49,6 +49,7 @@ recommend bcd24_t TEMPLATE_score := 0;
 uint8_t TEMPLATE_pointers[12];
 uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
+recommend uint8_t TEMPLATE_color := 0x0e;
 
 static inline void TEMPLATE_prepare_pointers(void) {
    // Build six complete 16-bit pointers in human digit order. Packed BCD is
@@ -148,7 +149,7 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm sta RESP0;
    asm sta RESP1;
-   asm lda #$0e;
+   asm lda TEMPLATE_color;
    asm sta COLUP0;
    asm sta COLUP1;
    asm sta HMCLR;

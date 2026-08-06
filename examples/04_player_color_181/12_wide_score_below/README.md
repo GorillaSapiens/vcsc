@@ -7,11 +7,11 @@
 
 # Wide score below gameplay
 
-The interactive example draws the 11-line widely spaced six-glyph score after
-the 181-line `player_color_181` gameplay component. It provides independent
-P0/P1 joystick motion while the six-digit score changes. It exists specifically to certify the top/bottom composition boundary, not
-merely the standalone score.
+The interactive cartridge uses the same Game Select, left-joystick object
+motion, right-joystick score editing, reset behavior, playfield, player glyphs,
+and per-row colors as the other official `player_color_181` examples. Only the
+score geometry changes: six 8-pixel glyphs at X=36,52,68,84,100,116.
 
-| No. | Example | Purpose |
-|---:|---|---|
-| 01 | [`interactive`](01_interactive/) | Move P0/P1 with two joysticks, show a changing score, and prove exact raster composition |
+| No. | Example | Draw order | Purpose |
+|---:|---|---|---|
+| 01 | [`interactive`](01_interactive/) | gameplay, handoff, score | Standard P0/P1/Ball selection and score controls with the exact 88-pixel score raster |

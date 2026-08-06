@@ -94,7 +94,7 @@ Initial archive recorded by the project:
 
 Input archive for the latest maintenance work:
 
-    vcsc.20260806_180419.tar.gz
+    vcsc.20260806_183639.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -176,11 +176,14 @@ Renderer and example state
   using three medium-spaced copies per player and the compact delayed-player
   pipeline: glyph one is staged before each row boundary, glyphs two through six
   write at row cycles 0,8,36,39,42, and cycle 45 commits the delayed latch. It
-  consumes eleven visible scanlines and owns 17 RIOT-RAM bytes. Its public 2K
-  example, reviewed Stella raster oracle, and interactive official
-  `player_color_181` score-above/score-below compositions are maintained. Each
-  interactive 181 composition measures 3,013 ROM bytes and 114 total RAM bytes,
-  leaving fourteen bytes free.
+  consumes eleven visible scanlines and owns 18 RIOT-RAM bytes,
+  including a mutable score color. Its public 2K example, reviewed Stella raster
+  oracle, and interactive official `player_color_181` score-above/score-below
+  compositions are maintained. The wide compositions use the same Game Select
+  object cycle, left-joystick selected-object motion, filtered right-joystick
+  score editing/color changes, reset behavior, sprites, playfield, and per-row
+  colors as the centered pair. Each measures 3,306 ROM bytes and 118 total RAM
+  bytes, leaving ten bytes free.
 * Beam-critical tables and renderer code may carry object-owned placement,
   alignment, page-containment, privacy, and hidden-stack metadata. Do not move
   them based on generic packing convenience when their component contract pins

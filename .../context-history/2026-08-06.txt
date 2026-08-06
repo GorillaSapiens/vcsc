@@ -119,3 +119,23 @@ passes including final banked cartridge and renderer builds.
 * Verification: compile-only 438/438 and end-to-end 250/250 pass. The end-to-end
   suite was run in named slices because renderer-heavy groups exceed the outer
   command timeout; every test is accounted for with no failures.
+
+2026-08-06 12:15:24 PDT, align wide-score 181 examples with the standard interactive contract
+
+* Replace the one-off direct two-joystick controls and alternate playfield/player
+  artwork in examples 04/11 and 04/12 with the same Game Select P0/P1/Ball
+  cycle, selected-object left-joystick motion, filtered right-joystick six-digit
+  editing, score-color changes, reset behavior, playfield, sprites, and per-row
+  colors used by the centered official player-color examples.
+* Make six_glyph_wide_component expose a mutable color byte like the centered
+  mutable-color score. The component now owns 18 bytes; the standalone fixture
+  measures 972 ROM/40 total RAM, the public 2K example 1,120 ROM/44 total RAM,
+  and each complete wide-score 181 interactive cartridge 3,306 ROM/118 total
+  RAM, leaving ten bytes.
+* Extend sprite-orientation, interactive-control, exact wide-raster, and
+  player-color composition coverage to the corrected examples. The exact score
+  geometry and glyph-row schedule remain unchanged; only setup color/HM writes
+  move one cycle later before the positioning WSYNC.
+* Verified compile-only 438/438, end-to-end 250/250 in bounded named chunks,
+  focused raster/control/orientation/hygiene/branding checks, and staged
+  make installcheck. Generated build products are cleaned before packaging.

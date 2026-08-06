@@ -277,11 +277,11 @@ int main(int argc, char **argv) {
    require_value(events,entry,3,kNusiz1,0x06,"NUSIZ1");
    require_value(events,entry,26,kResp0,0x06,"RESP0");
    require_value(events,entry,29,kResp1,0x06,"RESP1");
-   require_value(events,entry,34,kColup0,0x0e,"COLUP0");
-   require_value(events,entry,37,kColup1,0x0e,"COLUP1");
-   require_value(events,entry,40,kHmclr,0x0e,"HMCLR");
-   require_value(events,entry,45,kHmp0,0x30,"HMP0");
-   require_value(events,entry,50,kHmp1,0xc0,"HMP1");
+   require_value(events,entry,35,kColup0,0x0e,"COLUP0");
+   require_value(events,entry,38,kColup1,0x0e,"COLUP1");
+   require_value(events,entry,41,kHmclr,0x0e,"HMCLR");
+   require_value(events,entry,46,kHmp0,0x30,"HMP0");
+   require_value(events,entry,51,kHmp1,0xc0,"HMP1");
    (void)find_event(events,entry,71,kHmove,"HMOVE");
 
    require_value(events,entry+1,9,kRefp0,0,"REFP0 reset");

@@ -94,13 +94,15 @@ checkerboard fixture places both players at X=159, covering the subtle bit-row
 swap that solid glyphs can hide at the extreme right edge and the earlier tear that
 late graphics writes can cause.
 
-A centered composed link measures 64 bytes of gameplay RAM plus 17 bytes for
-the production score. The wide score now has the same 17-byte component cost;
-the interactive public examples link at 114 of 128 total RAM bytes and 3,013 ROM
-bytes, leaving fourteen bytes free while supporting direct two-joystick player
-motion and a changing six-digit score. A focused composition without those controls links at 110 total RAM
-bytes. A poison composition adds one byte for its caller-selected background
-handoff. A gameplay-only link contains no score state or font.
+A centered composed link measures 64 bytes of gameplay RAM plus 18 bytes for
+the mutable-color production score. The wide mutable-color score has the same
+18-byte component cost. Its public score-above and score-below examples use the
+same Game Select object cycling, left-joystick selected-object motion, filtered
+right-joystick digit editing, score-color changes, and reset behavior as the
+centered examples. Each links at 118 of 128 total RAM bytes and 3,306 ROM bytes,
+leaving ten bytes free. A poison composition adds one byte for its
+caller-selected background handoff. A gameplay-only link contains no score
+state or font.
 
 ## Reviewed Stella reference
 

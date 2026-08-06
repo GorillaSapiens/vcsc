@@ -1247,20 +1247,23 @@ than ship a fragile schedule if the hardware budget does not close.
           glyphs two through six write at row cycles 0,8,36,39,42, and cycle 45
           commits the delayed latch. The component consumes eleven visible
           scanlines and composes into an exact 262-line NTSC frame.
-        * Keep all six glyphs pointer-driven. Component-owned RIOT RAM is 17
-          bytes: three score bytes, twelve pointer bytes, one row counter, and
-          one delayed glyph byte. No glyph-row cache is required.
+        * Keep all six glyphs pointer-driven. Component-owned RIOT RAM is 18
+          bytes: three score bytes, twelve pointer bytes, one row counter, one
+          delayed glyph byte, and one mutable color byte. No glyph-row cache is
+          required.
         * Add a dynamic public 2K example, exact event-trace regression, reviewed
           Stella 7.0 raster oracle, documentation, source-hygiene coverage, and
-          staged installed-toolchain builds. The fixed fixture measures 962 ROM
-          bytes and 39 total RAM bytes; the public example measures 1,110 ROM
-          bytes and 43 total RAM bytes.
+          staged installed-toolchain builds. The fixed fixture measures 972 ROM
+          bytes and 40 total RAM bytes; the public example measures 1,120 ROM
+          bytes and 44 total RAM bytes.
         * Add explicit interactive official `player_color_181` compositions with
           the wide score both above and below gameplay. Each 4K cartridge retains
           the exact 88-pixel score schedule, the complete P0/P1/Ball gameplay
-          raster, direct two-joystick player motion, a changing six-digit score,
-          and a 262-line frame. Each measures 3,013 ROM bytes and 114 total RAM
-          bytes, leaving fourteen bytes free.
+          raster, the standard Game Select object cycle, selected-object left-
+          joystick motion, filtered right-joystick digit editing and score-color
+          changes, the standard player glyphs/playfield/colors, and a 262-line
+          frame. Each measures 3,306 ROM bytes and 118 total RAM bytes, leaving
+          ten bytes free.
 
 [ ] 25. Add a left/right dual-score variant of the six-glyph display. Divide the
         six visible glyph slots into independent three-glyph left and right score

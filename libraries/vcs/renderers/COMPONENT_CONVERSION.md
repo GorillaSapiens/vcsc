@@ -137,9 +137,9 @@ guaranteed untouched.
 origins at X=36,52,68,84,100,116. It uses three medium-spaced copies of each
 player and the production delayed-player pipeline. Glyph one is staged before
 each row boundary; glyphs two through six write at row cycles 0,8,36,39,42,
-and cycle 45 commits the delayed latch. It owns 17 RIOT-RAM bytes per instance:
-three score bytes, twelve pointer bytes, one row counter, and one delayed glyph
-byte. Its TIA ownership and exit guarantees match the production six-glyph
+and cycle 45 commits the delayed latch. It owns 18 RIOT-RAM bytes per instance:
+three score bytes, twelve pointer bytes, one row counter, one delayed glyph
+byte, and one caller-visible mutable color byte. Its TIA ownership and exit guarantees match the production six-glyph
 family, including flushed graphics latches and disabled VDEL on return.
 
 **Left/right two-plus-two score.** This establishes and clobbers

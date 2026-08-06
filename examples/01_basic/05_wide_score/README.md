@@ -28,9 +28,10 @@ component uses the compact delayed-player pipeline: glyph one is staged before
 each row boundary; glyphs two through six write at row cycles `0, 8, 36, 39,
 42`; and cycle `45` commits the delayed latch. No glyph rows are cached in RAM.
 
-The component owns 17 RIOT-RAM bytes: the three-byte packed-BCD score, twelve
-pointer bytes, one row counter, and one delayed glyph byte. In this exact 2K
-example the linked program uses 1,110 ROM bytes and 43 total RAM bytes, including
+The component owns 18 RIOT-RAM bytes: the three-byte packed-BCD score, twelve
+pointer bytes, one row counter, one delayed glyph byte, and one mutable color
+byte. In this exact 2K example the linked program uses 1,120 ROM bytes and 44
+total RAM bytes, including
 scheduler and application state. The regression map and raster oracle lock the
 authoritative numbers; update this README with them if the implementation
 changes.

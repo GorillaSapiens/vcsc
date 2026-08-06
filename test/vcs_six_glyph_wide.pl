@@ -54,6 +54,9 @@ $source =~ /asm lda #\$06;\s*asm sta NUSIZ0;\s*asm sta NUSIZ1;/s
    or die "wide component lost three-medium-copy setup\n";
 $source =~ /TEMPLATE_row;.*TEMPLATE_delayed;/s
    or die "wide component lost the compact delayed-player state\n";
+$source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
+   && $source =~ /asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
+   or die "wide component lost mutable color support\n";
 $source =~ /VDELP0 := 1;.*VDELP1 := 1;/s
    or die "wide component lost the delayed-player pipeline\n";
 sha256_hex(read_file($centered)) eq 'e613c1d35df47918b4e29d45c09fd3ea10b96d3721b56c78dd0c01413a9dfc4d'
@@ -64,20 +67,21 @@ $rc==0 && !$sig or die "wide fixture build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "wide fixture build wrote output\n$out$err";
 -s $bin==4096 or die "wide fixture is not 4096 bytes\n";
 my $map_text=read_file($map);
-$map_text =~ /rom\s+used=962 bytes/ or die "wide fixture ROM accounting changed\n";
-$map_text =~ /ram\s+used=39 bytes.*objects=35 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
+$map_text =~ /rom\s+used=972 bytes/ or die "wide fixture ROM accounting changed\n";
+$map_text =~ /ram\s+used=40 bytes.*objects=36 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
 $map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/ or die "wide pointer allocation changed\n";
 $map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide row allocation changed\n";
 $map_text =~ /score_delayed\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide delayed-byte allocation changed\n";
 $map_text =~ /score_score\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0003/ or die "wide packed-BCD score allocation changed\n";
+$map_text =~ /score_color\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide mutable color allocation changed\n";
 
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$public_map,$public,'-o',$public_bin);
 $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1110 bytes/ or die "public wide example ROM accounting changed\n";
-$public_map_text =~ /ram\s+used=43 bytes.*objects=39 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
+$public_map_text =~ /rom\s+used=1120 bytes/ or die "public wide example ROM accounting changed\n";
+$public_map_text =~ /ram\s+used=44 bytes.*objects=40 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));

@@ -101,6 +101,7 @@ enum class ScoreOrder { None, Above, Below };
 ScoreOrder score_order = ScoreOrder::None;
 bool poison_score = false;
 bool motion_mode = false;
+bool interactive_artwork = false;
 enum class TerminalMode { None, Lines181, Lines192 };
 TerminalMode terminal_mode = TerminalMode::None;
 int frames_to_check = 4;
@@ -560,8 +561,12 @@ void verify_raster() {
       return;
    }
    const uint64_t offset = score_order == ScoreOrder::Above ? 11 : 0;
-   const std::array<uint8_t, 8> p0_colors{{0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e,0xae}};
-   const std::array<uint8_t, 8> p1_colors{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
+   const std::array<uint8_t, 8> p0_colors = interactive_artwork
+      ? std::array<uint8_t,8>{{0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e}}
+      : std::array<uint8_t,8>{{0x3e,0x4e,0x5e,0x6e,0x7e,0x8e,0x9e,0xae}};
+   const std::array<uint8_t, 8> p1_colors = interactive_artwork
+      ? std::array<uint8_t,8>{{0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce}}
+      : std::array<uint8_t,8>{{0xce,0xbe,0xae,0x9e,0x8e,0x7e,0x6e,0x5e}};
    const int first = 2;
    const int last = motion_mode ? 8 : 2;
    for (int checked = first; checked <= last; ++checked) {
@@ -642,12 +647,16 @@ void verify_object_pixel_raster() {
    const auto found=timed_writes.find(2);
    if (found==timed_writes.end() || found->second.empty()) fail("missing object pixel trace");
    const auto &trace=found->second;
-   const std::array<uint8_t,8> p0=score_order==ScoreOrder::None
-      ? std::array<uint8_t,8>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}}
-      : std::array<uint8_t,8>{{0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e}};
-   const std::array<uint8_t,8> p1=score_order==ScoreOrder::None
-      ? std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}}
-      : std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe}};
+   const std::array<uint8_t,8> p0 = interactive_artwork
+      ? std::array<uint8_t,8>{{0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66}}
+      : (score_order==ScoreOrder::None
+         ? std::array<uint8_t,8>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}}
+         : std::array<uint8_t,8>{{0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e}});
+   const std::array<uint8_t,8> p1 = interactive_artwork
+      ? std::array<uint8_t,8>{{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}}
+      : (score_order==ScoreOrder::None
+         ? std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}}
+         : std::array<uint8_t,8>{{0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe}});
    int p0_first=165,p1_first=112,ball_first=127,ball_lines=8;
    int game_first=score_order==ScoreOrder::Above ? 51 : 40;
    int game_lines=181;
@@ -758,7 +767,7 @@ void verify_composition() {
 int main(int argc, char **argv) {
    if (argc < 7 || argc > 9) {
       std::fprintf(stderr,
-         "usage: %s static|terminal181|terminal192|motion ROM object_x p0_y p1_y ball_y [directions] [above|below|poison-above|poison-below|poison-prior]\n", argv[0]);
+         "usage: %s static|terminal181|terminal192|motion ROM object_x p0_y p1_y ball_y [directions] [above|below|interactive-above|interactive-below|poison-above|poison-below|poison-prior]\n", argv[0]);
       return 2;
    }
    const std::string mode = argv[1];
@@ -773,6 +782,14 @@ int main(int argc, char **argv) {
       const std::string order = argv[base_argc];
       if (order == "above") score_order = ScoreOrder::Above;
       else if (order == "below") score_order = ScoreOrder::Below;
+      else if (order == "interactive-above") {
+         score_order = ScoreOrder::Above;
+         interactive_artwork = true;
+      }
+      else if (order == "interactive-below") {
+         score_order = ScoreOrder::Below;
+         interactive_artwork = true;
+      }
       else if (order == "poison-above") {
          score_order = ScoreOrder::Above;
          poison_score = true;
@@ -785,7 +802,7 @@ int main(int argc, char **argv) {
          score_order = ScoreOrder::None;
          poison_score = true;
       }
-      else fail("score order must be above, below, poison-above, poison-below, or poison-prior");
+      else fail("score order must be above, below, interactive-above, interactive-below, poison-above, poison-below, or poison-prior");
    }
    frames_to_check = motion_mode ? 320 : 4;
    object_x_zp = parse_zp(argv[3]);

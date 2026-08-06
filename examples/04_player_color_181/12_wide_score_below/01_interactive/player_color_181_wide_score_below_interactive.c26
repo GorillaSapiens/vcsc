@@ -1,45 +1,90 @@
-// P0/P1/BL player-color gameplay with an interactive widely spaced score below gameplay.
+// Multicolor Wide Score Below Interactive.
 include "vcs.c26"
 include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
 include "fonts/default_decimal.c26"
 
 page const uint8_t game_playfield[44] := {
-   0xff,0xff,0xff,0xff,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
-   0xff,0xff,0xff,0xff
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
 };
-page const uint8_t game_player0_colors[8] := {
-   0xae,0x9e,0x8e,0x7e,0x6e,0x5e,0x4e,0x3e
-};
-page const uint8_t game_player1_colors[8] := {
-   0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
-};
+
 template "renderers/player_color_181/player_color_181.c26" as game
 template "six_glyph_wide_component.c26" as score
 
+// These source rows are intentionally bottom-to-top. The maintained renderers
+// reverse macro arguments for highest-index-to-zero traversal, so this makes
+// the displayed sprites match the faithful legacy interactive example.
 page const uint8_t p0_graphics[8] := {
-   game_SPRITE_GLYPH(0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e)
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
+   )
 };
+
 page const uint8_t p1_graphics[8] := {
-   game_SPRITE_GLYPH(0xfe,0xc3,0xc3,0xc3,0xfe,0xc3,0xc3,0xfe)
+   game_SPRITE_GLYPH(
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};
+
+page const uint8_t game_player0_colors[8] := {
+   game_SPRITE_GLYPH(
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_LIGHT_CORAL,
+      VCS_NTSC_SANDY_BROWN
+   )
+};
+
+page const uint8_t game_player1_colors[8] := {
+   game_SPRITE_GLYPH(
+      VCS_NTSC_ORCHID,
+      VCS_NTSC_VIOLET,
+      VCS_NTSC_MEDIUM_PURPLE,
+      VCS_NTSC_ROYAL_BLUE,
+      VCS_NTSC_SKY_BLUE_2,
+      VCS_NTSC_SKY_BLUE,
+      VCS_NTSC_AQUAMARINE,
+      VCS_NTSC_PALE_GREEN
+   )
 };
 
 void configure_game_frame(void) {
-   COLUPF := 0x2e;
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
    CTRLPF := 0x21;
 }
 
 void initialize_scene(void) {
    VBLANK := 2;
-   COLUBK := 0x84;
    game_PLAYER0_X := 44;
    game_PLAYER1_X := 108;
    game_PLAYER0_NUSIZ := 0x20;
@@ -55,62 +100,208 @@ void initialize_scene(void) {
    game_ball_height := 3;
    game_playfield_position := 8;
    score_score := 123456;
+   score_color := VCS_NTSC_GRAY_92;
    game_init();
    score_init();
 }
 
 alias OBJECT_MAX_Y 87
+alias SELECTED_PLAYER0 0
+alias SELECTED_PLAYER1 1
+alias SELECTED_BALL    2
+alias SELECTED_OBJECT_COUNT 3
 
-// Keep the demonstration useful without spending RAM on a diagnostic selection
-// state machine: the left joystick moves P0 and the right joystick moves P1.
+uint8_t selected_object := SELECTED_PLAYER0;
+uint8_t select_switch_ready := 1;
+uint8_t selected_score_digit := 0;
+uint8_t right_joystick_countdown := 19;
+uint8_t right_joystick_previous := 0x0f;
+
+// Decimal digit weights, indexed from ones through hundred-thousands.
+page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
+page const uint8_t score_digit_middle[6] := { 0x00, 0x00, 0x01, 0x10, 0x00, 0x00 };
+page const uint8_t score_digit_high[6] := { 0x00, 0x00, 0x00, 0x00, 0x01, 0x10 };
+
+inline void update_object_selection(void) {
+   if (SWCHB & 0x02) {
+      select_switch_ready := 1;
+   }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object >= SELECTED_OBJECT_COUNT) {
+            selected_object := SELECTED_PLAYER0;
+         }
+         select_switch_ready := 0;
+      }
+   }
+}
+
+inline void move_selected_object(void) {
+   if (!(SWCHA & 0x40)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (game_PLAYER0_X > 0) { game_PLAYER0_X--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (game_PLAYER1_X > 0) { game_PLAYER1_X--; }
+            break;
+         default:
+            if (game_BALL_X > 0) { game_BALL_X--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (game_PLAYER0_X < 159) { game_PLAYER0_X++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (game_PLAYER1_X < 159) { game_PLAYER1_X++; }
+               break;
+            default:
+               if (game_BALL_X < 159) { game_BALL_X++; }
+         }
+      }
+   }
+
+   if (!(SWCHA & 0x10)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (game_player0_y > 0) { game_player0_y--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (game_player1_y > 0) { game_player1_y--; }
+            break;
+         default:
+            if (game_ball_y > 0) { game_ball_y--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (game_player0_y < OBJECT_MAX_Y) { game_player0_y++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (game_player1_y < OBJECT_MAX_Y) { game_player1_y++; }
+               break;
+            default:
+               if (game_ball_y < OBJECT_MAX_Y) { game_ball_y++; }
+         }
+      }
+   }
+}
+
+inline void update_score_controls(void) {
+   // Sample once every twenty frames and require two matching samples.
+   asm lda right_joystick_countdown;
+   asm beq @sample;
+   asm dec right_joystick_countdown;
+   asm jmp @done;
+
+   asm @sample:;
+   asm lda SWCHA;
+   asm and #$0f;
+   asm tax;
+   asm eor right_joystick_previous;
+   asm bne @record;
+
+   // A stable horizontal sample selects a digit and advances the score hue.
+   asm txa;
+   asm and #$04;
+   asm bne @not_left;
+   asm inc selected_score_digit;
+   asm lda selected_score_digit;
+   asm cmp #6;
+   asm bcc @left_color;
+   asm lda #0;
+   asm sta selected_score_digit;
+   asm @left_color:;
+   asm lda score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta score_color;
+   asm jmp @vertical;
+
+   asm @not_left:;
+   asm txa;
+   asm and #$08;
+   asm bne @vertical;
+   asm lda selected_score_digit;
+   asm bne @decrement_digit;
+   asm lda #6;
+   asm sta selected_score_digit;
+   asm @decrement_digit:;
+   asm dec selected_score_digit;
+   asm lda score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta score_color;
+
+   // A stable vertical sample changes the currently selected decimal weight.
+   asm @vertical:;
+   asm txa;
+   asm and #$01;
+   asm bne @not_up;
+   asm sed;
+   asm clc;
+   asm ldy selected_score_digit;
+   asm lda score_score;
+   asm adc score_digit_low,y;
+   asm sta score_score;
+   asm lda score_score+1;
+   asm adc score_digit_middle,y;
+   asm sta score_score+1;
+   asm lda score_score+2;
+   asm adc score_digit_high,y;
+   asm sta score_score+2;
+   asm cld;
+   asm jmp @record;
+
+   asm @not_up:;
+   asm txa;
+   asm and #$02;
+   asm bne @record;
+   asm sed;
+   asm sec;
+   asm ldy selected_score_digit;
+   asm lda score_score;
+   asm sbc score_digit_low,y;
+   asm sta score_score;
+   asm lda score_score+1;
+   asm sbc score_digit_middle,y;
+   asm sta score_score+1;
+   asm lda score_score+2;
+   asm sbc score_digit_high,y;
+   asm sta score_score+2;
+   asm cld;
+
+   asm @record:;
+   asm stx right_joystick_previous;
+   asm lda #19;
+   asm sta right_joystick_countdown;
+   asm @done:;
+}
+
 inline void update_controls(void) {
+   // Keep the console Reset path scratch-free; the renderer's hidden
+   // assembly helper stack now consumes the bytes previously borrowed here.
    asm lda SWCHB;
    asm and #$01;
    asm bne @reset_not_pressed;
    asm jmp ($fffc);
    asm @reset_not_pressed:;
-
-   if (!(SWCHA & 0x40)) {
-      if (game_PLAYER0_X > 0) { game_PLAYER0_X--; }
-   }
-   else {
-      if (!(SWCHA & 0x80)) {
-         if (game_PLAYER0_X < 159) { game_PLAYER0_X++; }
-      }
-   }
-   if (!(SWCHA & 0x10)) {
-      if (game_player0_y > 0) { game_player0_y--; }
-   }
-   else {
-      if (!(SWCHA & 0x20)) {
-         if (game_player0_y < OBJECT_MAX_Y) { game_player0_y++; }
-      }
-   }
-
-   if (!(SWCHA & 0x04)) {
-      if (game_PLAYER1_X > 0) { game_PLAYER1_X--; }
-   }
-   else {
-      if (!(SWCHA & 0x08)) {
-         if (game_PLAYER1_X < 159) { game_PLAYER1_X++; }
-      }
-   }
-   if (!(SWCHA & 0x01)) {
-      if (game_player1_y > 0) { game_player1_y--; }
-   }
-   else {
-      if (!(SWCHA & 0x02)) {
-         if (game_player1_y < OBJECT_MAX_Y) { game_player1_y++; }
-      }
-   }
+   update_object_selection();
+   move_selected_object();
+   update_score_controls();
 }
-
-uint8_t frame_counter := 0;
 
 void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
    initialize_scene();
+
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
@@ -125,11 +316,6 @@ void main(void) {
       game_overscan();
       score_overscan();
       update_controls();
-      frame_counter++;
-      if (frame_counter == 20) {
-         frame_counter := 0;
-         score_score++;
-      }
       vcs_ntsc_end_overscan();
    }
 }

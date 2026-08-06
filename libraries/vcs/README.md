@@ -27,7 +27,7 @@ Files:
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
-- `six_glyph_wide_component.c26` ... separate fixed-color six-glyph profile with origins at X=36,52,68,84,100,116, an 88-pixel span, and no player vertical-delay dependency
+- `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116, an 88-pixel span, and the compact delayed-player pipeline
 - `six_glyph_left_component.c26` ... eleven-line fixed-color variant justified at X=0..47
 - `six_glyph_right_component.c26` ... eleven-line fixed-color variant justified at X=112..159
 - `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics, with the same hostile-state-safe reflection reset
@@ -48,7 +48,7 @@ Files:
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic
 - `../../examples/03_player_color_192/` ... full-height scoreless interactive player-color diagnostic
-- `../../examples/04_player_color_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix for 181-line player-color gameplay
+- `../../examples/04_player_color_181/` ... official-opcode twelve-cartridge centered/left/right/two-plus-two/poison/wide matrix for 181-line player-color gameplay
 - `../../examples/05_all_five_192/` ... official-opcode full-height all-five interactive diagnostic
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix for 181-line all-five gameplay
 - `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`

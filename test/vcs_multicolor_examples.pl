@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 30
-# expectstdout: vcs_multicolor_examples ok: six interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks
+# timeout: 60
+# expectstdout: vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -50,6 +50,16 @@ my @cases=(
    dir=>'04_player_color_181/02_score_below/01_interactive',
    stem=>'player_color_181_score_below_interactive', profile=>'below', prefix=>'game',
    score=>'score_score', color=>'score_color', extra=>[],
+ },
+ {
+   dir=>'04_player_color_181/11_wide_score_above/01_interactive',
+   stem=>'player_color_181_wide_score_above_interactive', profile=>'above', prefix=>'game',
+   score=>'score_score', color=>'score_color', extra=>[], component=>'six_glyph_wide_component',
+ },
+ {
+   dir=>'04_player_color_181/12_wide_score_below/01_interactive',
+   stem=>'player_color_181_wide_score_below_interactive', profile=>'below', prefix=>'game',
+   score=>'score_score', color=>'score_color', extra=>[], component=>'six_glyph_wide_component',
  },
  {
    dir=>'07_player_color_181_unofficial/01_score_above/01_interactive',
@@ -102,7 +112,8 @@ for my $case (@cases) {
       my $renderer=$case->{unofficial}
          ? 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26'
          : 'renderers/player_color_181/player_color_181.c26';
-      $text =~ /\Q$renderer\E/ && $text =~ /six_glyph_color_component/
+      my $score_component=$case->{component} || 'six_glyph_color_component';
+      $text =~ /\Q$renderer\E/ && $text =~ /\Q$score_component\E/
          or die "$dir lacks the selected 181-line renderer plus score composition\n";
       if ($case->{unofficial}) {
          join(' ',@{$case->{extra}}) eq '-Wa,--illegals'
@@ -154,4 +165,4 @@ for my $case (@cases) {
       or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: six interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks\n";
+print "vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks\n";

@@ -14,8 +14,10 @@ component completes the 192-line visible field.
 The first ten public cartridges form the original score-composition matrix for
 this gameplay family: four production score layouts plus the poison diagnostic,
 each above and below gameplay. Two additional interactive cartridges prove the widely spaced score above
-and below the renderer. They provide direct two-joystick player motion and a changing six-digit score
-while leaving fourteen RAM bytes free.
+and below the renderer. They follow the same Game Select, selected-object motion,
+right-joystick score editing, score-color, reset, playfield, sprite, and per-row
+color conventions as the centered interactive pair, while leaving ten RAM bytes
+free.
 
 | Layout | Score profile | Draw order | Diagnostic |
 |---|---|---|---|
@@ -29,8 +31,8 @@ while leaving fourteen RAM bytes free.
 | [`08_two_plus_two_score_below`](08_two_plus_two_score_below/) | independent left/right two-plus-two | gameplay, handoff, score | object motion plus independently movable score fields |
 | [`09_poison_score_above`](09_poison_score_above/) | hostile poison diagnostic | score, handoff, gameplay | predecessor-state recovery stress |
 | [`10_poison_score_below`](10_poison_score_below/) | hostile poison diagnostic | gameplay, handoff, score | next-frame recovery stress |
-| [`11_wide_score_above`](11_wide_score_above/) | widely spaced fixed-color six-digit | score, handoff, gameplay | exact 88-pixel score raster plus gameplay preservation |
-| [`12_wide_score_below`](12_wide_score_below/) | widely spaced fixed-color six-digit | gameplay, handoff, score | exact 88-pixel score raster plus gameplay preservation |
+| [`11_wide_score_above`](11_wide_score_above/) | widely spaced mutable-color six-digit | score, handoff, gameplay | standard object motion and score editing plus exact 88-pixel raster |
+| [`12_wide_score_below`](12_wide_score_below/) | widely spaced mutable-color six-digit | gameplay, handoff, score | standard object motion and score editing plus exact 88-pixel raster |
 
 The automated matrix builds static and moving-game fixtures for the original
 forty compositions. A separate wide-score composition regression builds both

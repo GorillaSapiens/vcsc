@@ -79,10 +79,13 @@ for my $case (
       ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
       : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;
    $source_text =~ $draw_order or die "$sources[0] has the wrong $order draw order\n";
-   $source_text =~ /update_controls\(\);/s
-      or die "$sources[0] no longer demonstrates interactive object/score controls\n";
-   $source_text =~ /SWCHA.*game_PLAYER0_X.*game_PLAYER1_X.*frame_counter.*score_score\+\+/s
-      or die "$sources[0] lost interactive player motion or dynamic score updates\n";
+   $source_text =~ /update_object_selection\(\);.*move_selected_object\(\);.*update_score_controls\(\);/s
+      or die "$sources[0] does not use the standard player-color interactive controls\n";
+   $source_text =~ /SELECTED_PLAYER0.*SELECTED_PLAYER1.*SELECTED_BALL/s
+      && $source_text =~ /right_joystick_countdown := 19;/
+      && $source_text =~ /asm eor right_joystick_previous;/
+      && $source_text =~ /asm adc #\$10;.*asm sta score_color;/s
+      or die "$sources[0] lost Game Select object cycling or filtered right-joystick score controls\n";
 
    my $tag="wide_181_$order";
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
@@ -93,8 +96,8 @@ for my $case (
    -s $bin==4096 or die "$tag is not a 4K cartridge\n";
 
    my $map=read_file($mapfile);
-   $map =~ /rom\s+used=3013 bytes/ or die "$tag ROM accounting changed\n";
-   $map =~ /ram\s+used=114 bytes.*objects=106 bytes hardware-stack=8 bytes/
+   $map =~ /rom\s+used=3306 bytes/ or die "$tag ROM accounting changed\n";
+   $map =~ /ram\s+used=118 bytes.*objects=110 bytes hardware-stack=8 bytes/
       or die "$tag RAM accounting changed\n";
 
    ($rc,$sig,$out,$err)=capture($wide_exe,$bin,$entry,'123456');
@@ -105,7 +108,7 @@ for my $case (
 
    my @game_zp=map { map_zp($map,$_) }
       qw(game_object_x game_player0_y game_player1_y game_ball_y);
-   ($rc,$sig,$out,$err)=capture($game_exe,'static',$bin,@game_zp,$order);
+   ($rc,$sig,$out,$err)=capture($game_exe,'static',$bin,@game_zp,"interactive-$order");
    $rc==0 && !$sig or die "$tag gameplay composition failed\n$out$err";
    $out eq "vcs_player_color_181 composition static $order ok\n"
       or die "unexpected $tag gameplay output: $out";
