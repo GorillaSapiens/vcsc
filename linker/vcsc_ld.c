@@ -57,6 +57,10 @@ static void usage(FILE *fp)
       "  --no-sym             Do not write the default Stella symbol file\n"
       "  --no-list            Do not write the default Stella list file\n"
       "  --no-cfg             Do not write the default Stella config file\n"
+      "  --bank-placement=MODE\n"
+      "                       Use optimized (default) or simple bank placement\n"
+      "  --explain-bank-placement\n"
+      "                       Explain every bank-placement decision on stderr\n"
       "  -h, --help           Show this help text\n"
       "  -v, --version        Show linker version\n"
       "  -V                   Show generated version string\n"
@@ -4785,6 +4789,10 @@ typedef struct {
    int first;
    int second;
    uint32_t weight;
+   uint32_t cycles;
+   uint32_t sites;
+   uint32_t jsr_sites;
+   uint32_t jmp_sites;
 } bank_placement_edge_t;
 
 typedef struct {
@@ -4793,6 +4801,7 @@ typedef struct {
    size_t stable_order;
    uint32_t bytes;
    uint32_t degree;
+   uint32_t cycle_degree;
    uint32_t cut_weight;
    const cartridge_bank_t *bank;
    uint64_t allowed_bank_mask;
@@ -4805,6 +4814,14 @@ typedef struct {
    uint32_t capacity;
    uint32_t used;
 } bank_placement_budget_t;
+
+typedef struct {
+   uint32_t weight;
+   uint32_t cycles;
+   uint32_t sites;
+   uint32_t jsr_sites;
+   uint32_t jmp_sites;
+} bank_placement_cost_t;
 
 //! @brief Return the allocatable ROM memory region configured for one layout before automatic banking.
 static const memory_region_t *bank_placement_layout_memory(const linker_config_t *cfg,
@@ -4943,7 +4960,9 @@ static void bank_placement_union(bank_placement_item_t *items, int first, int se
 static void bank_placement_add_edge(bank_placement_edge_t **edges,
                                     size_t *count,
                                     int first, int second,
-                                    uint32_t weight)
+                                    uint32_t weight,
+                                    uint32_t cycles,
+                                    uint8_t control)
 {
    size_t i;
 
@@ -4957,6 +4976,12 @@ static void bank_placement_add_edge(bank_placement_edge_t **edges,
    for (i = 0; i < *count; ++i) {
       if ((*edges)[i].first == first && (*edges)[i].second == second) {
          (*edges)[i].weight += weight;
+         (*edges)[i].cycles += cycles;
+         (*edges)[i].sites++;
+         if (control == O26_RTYPE_CONTROL_JSR)
+            (*edges)[i].jsr_sites++;
+         else if (control == O26_RTYPE_CONTROL_JMP)
+            (*edges)[i].jmp_sites++;
          return;
       }
    }
@@ -4965,6 +4990,10 @@ static void bank_placement_add_edge(bank_placement_edge_t **edges,
    (*edges)[*count].first = first;
    (*edges)[*count].second = second;
    (*edges)[*count].weight = weight;
+   (*edges)[*count].cycles = cycles;
+   (*edges)[*count].sites = 1;
+   (*edges)[*count].jsr_sites = control == O26_RTYPE_CONTROL_JSR ? 1u : 0u;
+   (*edges)[*count].jmp_sites = control == O26_RTYPE_CONTROL_JMP ? 1u : 0u;
    (*count)++;
 }
 
@@ -5172,6 +5201,118 @@ static int bank_placement_bank_precedes(const cartridge_bank_t *a,
    return strcmp(a->name, b->name) < 0;
 }
 
+//! @brief Find a compact placement component by its union-find root.
+static size_t bank_placement_component_index(const bank_placement_component_t *components,
+                                             size_t component_count,
+                                             int root)
+{
+   size_t i;
+   for (i = 0; i < component_count; ++i) {
+      if (components[i].root == root)
+         return i;
+   }
+   fprintf(stderr, "vcsc-ld: internal error: bank-placement component root %d is missing\n",
+           root);
+   exit(1);
+}
+
+//! @brief Return the cut cost incident to one component at a candidate bank.
+static bank_placement_cost_t bank_placement_component_cost(
+                                      bank_placement_item_t *items,
+                                      const bank_placement_edge_t *edges,
+                                      size_t edge_count,
+                                      const bank_placement_component_t *components,
+                                      size_t component_count,
+                                      const bank_placement_component_t *component,
+                                      const cartridge_bank_t *candidate,
+                                      int assigned_only)
+{
+   bank_placement_cost_t cost;
+   size_t i;
+
+   memset(&cost, 0, sizeof(cost));
+   for (i = 0; i < edge_count; ++i) {
+      int first_root = bank_placement_root(items, edges[i].first);
+      int second_root = bank_placement_root(items, edges[i].second);
+      int other_root = -1;
+      size_t other_index;
+      const bank_placement_component_t *other;
+
+      if (first_root == component->root)
+         other_root = second_root;
+      else if (second_root == component->root)
+         other_root = first_root;
+      if (other_root < 0 || other_root == component->root)
+         continue;
+      other_index = bank_placement_component_index(components, component_count,
+                                                   other_root);
+      other = &components[other_index];
+      if (assigned_only && !other->assigned)
+         continue;
+      if (!other->assigned || other->bank == candidate)
+         continue;
+      cost.weight += edges[i].weight;
+      cost.cycles += edges[i].cycles;
+      cost.sites += edges[i].sites;
+      cost.jsr_sites += edges[i].jsr_sites;
+      cost.jmp_sites += edges[i].jmp_sites;
+   }
+   return cost;
+}
+
+//! @brief Return the complete cut cost, counting each soft edge once.
+static bank_placement_cost_t bank_placement_total_cost(
+                                      bank_placement_item_t *items,
+                                      const bank_placement_edge_t *edges,
+                                      size_t edge_count,
+                                      const bank_placement_component_t *components,
+                                      size_t component_count)
+{
+   bank_placement_cost_t cost;
+   size_t i;
+
+   memset(&cost, 0, sizeof(cost));
+   for (i = 0; i < edge_count; ++i) {
+      int first_root = bank_placement_root(items, edges[i].first);
+      int second_root = bank_placement_root(items, edges[i].second);
+      size_t first_index;
+      size_t second_index;
+      if (first_root == second_root)
+         continue;
+      first_index = bank_placement_component_index(components, component_count,
+                                                   first_root);
+      second_index = bank_placement_component_index(components, component_count,
+                                                    second_root);
+      if (!components[first_index].assigned || !components[second_index].assigned ||
+          components[first_index].bank == components[second_index].bank)
+         continue;
+      cost.weight += edges[i].weight;
+      cost.cycles += edges[i].cycles;
+      cost.sites += edges[i].sites;
+      cost.jsr_sites += edges[i].jsr_sites;
+      cost.jmp_sites += edges[i].jmp_sites;
+   }
+   return cost;
+}
+
+//! @brief Return whether one placement cost is strictly better than another.
+static int bank_placement_cost_precedes(bank_placement_cost_t a,
+                                        bank_placement_cost_t b)
+{
+   if (a.weight != b.weight)
+      return a.weight < b.weight;
+   if (a.cycles != b.cycles)
+      return a.cycles < b.cycles;
+   return a.sites < b.sites;
+}
+
+//! @brief Return whether two placement costs are identical.
+static int bank_placement_cost_equal(bank_placement_cost_t a,
+                                     bank_placement_cost_t b)
+{
+   return a.weight == b.weight && a.cycles == b.cycles && a.sites == b.sites;
+}
+
 //! @brief Return one bank's bit in a validated at-most-64-bank profile.
 static uint64_t bank_placement_bank_bit(const linker_config_t *cfg,
                                         const cartridge_bank_t *bank)
@@ -5311,9 +5452,68 @@ static void bank_placement_assign_component(const linker_config_t *cfg,
    component->assigned = 1;
 }
 
+//! @brief Move one already assigned automatic component between ordinary ROM banks.
+static void bank_placement_move_component(const linker_config_t *cfg,
+                                          bank_placement_item_t *items,
+                                          size_t item_count,
+                                          bank_placement_component_t *component,
+                                          const cartridge_bank_t *bank,
+                                          bank_placement_budget_t **budgets,
+                                          size_t *budget_count)
+{
+   const memory_region_t *old_memory;
+   const memory_region_t *new_memory;
+   bank_placement_budget_t *old_budget;
+   bank_placement_budget_t *new_budget;
+   size_t i;
+
+   if (!component || !component->assigned || component->pinned || !component->bank ||
+       !bank || component->bank == bank)
+      return;
+   old_memory = bank_placement_auto_memory(cfg, component->bank);
+   new_memory = bank_placement_auto_memory(cfg, bank);
+   if (!old_memory || !new_memory) {
+      fprintf(stderr,
+              "vcsc-ld: internal error: automatic bank-placement move lacks an ordinary ROM region\n");
+      exit(1);
+   }
+   old_budget = bank_placement_budget_for(budgets, budget_count, old_memory);
+   new_budget = bank_placement_budget_for(budgets, budget_count, new_memory);
+   if (old_budget->used < component->bytes ||
+       new_budget->capacity - new_budget->used < component->bytes) {
+      fprintf(stderr,
+              "vcsc-ld: internal error: invalid automatic bank-placement move for component %u\n",
+              component->id);
+      exit(1);
+   }
+   old_budget->used -= component->bytes;
+   new_budget->used += component->bytes;
+   for (i = 0; i < item_count; ++i) {
+      if (bank_placement_root(items, (int)i) != component->root)
+         continue;
+      snprintf(items[i].layout->placement_memory,
+               sizeof(items[i].layout->placement_memory), "%s", new_memory->name);
+      snprintf(items[i].layout->placement_bank,
+               sizeof(items[i].layout->placement_bank), "%s", bank->name);
+      items[i].layout->placement_mode = BANK_PLACEMENT_AUTOMATIC;
+   }
+   component->bank = bank;
+}
+
+//! @brief Return the weighted hardware-return depth for the current placement.
+static uint16_t bank_placement_weighted_depth(const linker_config_t *cfg,
+                                              const input_set_t *in)
+{
+   uint16_t weighted = 0;
+   (void)enforce_symbol_backed_call_graph(in, cfg, &weighted);
+   return weighted;
+}
+
 //! @brief Perform deterministic hard-component and soft-call-aware full-window placement.
 static void assign_automatic_bank_placements(const linker_config_t *cfg,
-                                             input_set_t *in)
+                                             input_set_t *in,
+                                             uint8_t placement_mode,
+                                             int explain)
 {
    bank_placement_item_t *items = NULL;
    bank_placement_edge_t *edges = NULL;
@@ -5443,7 +5643,9 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                bank_placement_add_edge(&edges, &edge_count,
                   source_item, target_item,
                   control == O26_RTYPE_CONTROL_JSR ? BANK_JSR_ENTRY_SIZE
-                                                   : BANK_JMP_ENTRY_SIZE);
+                                                   : BANK_JMP_ENTRY_SIZE,
+                  control == O26_RTYPE_CONTROL_JSR ? 25u : 6u,
+                  control);
                continue;
             }
 
@@ -5574,6 +5776,39 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          second_component++;
       components[first_component].degree += edges[i].weight;
       components[second_component].degree += edges[i].weight;
+      components[first_component].cycle_degree += edges[i].cycles;
+      components[second_component].cycle_degree += edges[i].cycles;
+   }
+
+   if (explain) {
+      fprintf(stderr, "BANK PLACEMENT EXPLANATION mode=%s\n",
+              placement_mode == BANK_PLACEMENT_MODE_SIMPLE ? "simple" : "optimized");
+      for (i = 0; i < component_count; ++i) {
+         size_t k;
+         int first_allowed = 1;
+         fprintf(stderr,
+                 "  component=%u bytes=$%04" PRIX32
+                 " degree-bytes=$%04" PRIX32 " degree-cycles=%" PRIu32
+                 " assignment=%s allowed=",
+                 components[i].id, components[i].bytes, components[i].degree,
+                 components[i].cycle_degree,
+                 components[i].pinned ? "pinned" : "automatic");
+         for (k = 0; k < cfg->bank_count; ++k) {
+            if (components[i].allowed_bank_mask & (UINT64_C(1) << k)) {
+               fprintf(stderr, "%s%s", first_allowed ? "" : ",",
+                       cfg->banks[k].name);
+               first_allowed = 0;
+            }
+         }
+         fputc('\n', stderr);
+         for (k = 0; k < item_count; ++k) {
+            if (bank_placement_root(items, (int)k) != components[i].root)
+               continue;
+            fprintf(stderr, "     member=%s object=%s%s\n",
+                    items[k].layout->name, items[k].obj->origin,
+                    items[k].directly_pinned ? " hard-pin=yes" : "");
+         }
+      }
    }
 
    bank_placement_reserve_fixed_rom(cfg, in, &budgets, &budget_count);
@@ -5591,25 +5826,38 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          break;
       bank_placement_assign_component(cfg, items, item_count, next,
                                       next->bank, &budgets, &budget_count);
+      if (explain) {
+         fprintf(stderr,
+                 "  choose component=%u bank=%s reason=hard-pin bytes=$%04" PRIX32 "\n",
+                 next->id, next->bank->name, next->bytes);
+      }
    }
 
-   /* First-fit-decreasing component order, with a weighted cut-cost choice
-      among banks that still have enough ordinary ROM capacity. */
+   /* Simple mode uses stable component order and the ordinary bank preference
+      only.  Optimized mode retains size/degree ordering and minimizes the
+      incremental weighted cut against already assigned components. */
    for (;;) {
       bank_placement_component_t *next = NULL;
       const cartridge_bank_t *best_bank = NULL;
-      uint32_t best_cut = 0;
+      bank_placement_cost_t best_cost;
+      int have_best = 0;
 
+      memset(&best_cost, 0, sizeof(best_cost));
       for (i = 0; i < component_count; ++i) {
          if (components[i].assigned)
             continue;
-         if (!next || components[i].bytes > next->bytes ||
-             (components[i].bytes == next->bytes &&
-              components[i].degree > next->degree) ||
-             (components[i].bytes == next->bytes &&
-              components[i].degree == next->degree &&
-              components[i].stable_order < next->stable_order))
+         if (placement_mode == BANK_PLACEMENT_MODE_SIMPLE) {
+            if (!next || components[i].stable_order < next->stable_order)
+               next = &components[i];
+         }
+         else if (!next || components[i].bytes > next->bytes ||
+                  (components[i].bytes == next->bytes &&
+                   components[i].degree > next->degree) ||
+                  (components[i].bytes == next->bytes &&
+                   components[i].degree == next->degree &&
+                   components[i].stable_order < next->stable_order)) {
             next = &components[i];
+         }
       }
       if (!next)
          break;
@@ -5617,36 +5865,54 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
       for (i = 0; i < cfg->bank_count; ++i) {
          const cartridge_bank_t *candidate = &cfg->banks[i];
          const memory_region_t *memory = bank_placement_auto_memory(cfg, candidate);
-         uint32_t cut = 0;
-         size_t e;
+         uint64_t bank_bit = UINT64_C(1) << i;
+         uint32_t free_bytes = memory
+            ? bank_placement_budget_free(&budgets, &budget_count, memory) : 0;
+         bank_placement_cost_t cost;
 
-         if (!(next->allowed_bank_mask & (UINT64_C(1) << i)))
+         memset(&cost, 0, sizeof(cost));
+         if (!(next->allowed_bank_mask & bank_bit)) {
+            if (explain)
+               fprintf(stderr,
+                       "     candidate component=%u bank=%s rejected=replica-locality\n",
+                       next->id, candidate->name);
             continue;
-         if (!memory || bank_placement_budget_free(&budgets, &budget_count, memory) < next->bytes)
-            continue;
-         for (e = 0; e < edge_count; ++e) {
-            int first_root = bank_placement_root(items, edges[e].first);
-            int second_root = bank_placement_root(items, edges[e].second);
-            int other_root = -1;
-            size_t c;
-            if (first_root == next->root)
-               other_root = second_root;
-            else if (second_root == next->root)
-               other_root = first_root;
-            if (other_root < 0 || other_root == next->root)
-               continue;
-            for (c = 0; c < component_count; ++c) {
-               if (components[c].root == other_root && components[c].assigned) {
-                  if (components[c].bank != candidate)
-                     cut += edges[e].weight;
-                  break;
-               }
-            }
          }
-         if (!best_bank || cut < best_cut ||
-             (cut == best_cut && bank_placement_bank_precedes(candidate, best_bank))) {
+         if (!memory) {
+            if (explain)
+               fprintf(stderr,
+                       "     candidate component=%u bank=%s rejected=no-ordinary-rom\n",
+                       next->id, candidate->name);
+            continue;
+         }
+         if (free_bytes < next->bytes) {
+            if (explain)
+               fprintf(stderr,
+                       "     candidate component=%u bank=%s rejected=capacity free=$%04" PRIX32
+                       " need=$%04" PRIX32 "\n",
+                       next->id, candidate->name, free_bytes, next->bytes);
+            continue;
+         }
+         cost = bank_placement_component_cost(items, edges, edge_count,
+                                              components, component_count,
+                                              next, candidate, 1);
+         if (explain) {
+            fprintf(stderr,
+                    "     candidate component=%u bank=%s free=$%04" PRIX32
+                    " cut-byte-weight=$%04" PRIX32 " cut-cycle-weight=%" PRIu32
+                    " cut-sites=%" PRIu32 "\n",
+                    next->id, candidate->name, free_bytes, cost.weight,
+                    cost.cycles, cost.sites);
+         }
+         if (!have_best ||
+             (placement_mode == BANK_PLACEMENT_MODE_SIMPLE
+                ? bank_placement_bank_precedes(candidate, best_bank)
+                : bank_placement_cost_precedes(cost, best_cost) ||
+                  (bank_placement_cost_equal(cost, best_cost) &&
+                   bank_placement_bank_precedes(candidate, best_bank)))) {
             best_bank = candidate;
-            best_cut = cut;
+            best_cost = cost;
+            have_best = 1;
          }
       }
 
@@ -5665,6 +5931,173 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
       }
       bank_placement_assign_component(cfg, items, item_count, next,
                                       best_bank, &budgets, &budget_count);
+      if (explain) {
+         fprintf(stderr,
+                 "  choose component=%u bank=%s reason=%s cut-byte-weight=$%04" PRIX32
+                 " cut-cycle-weight=%" PRIu32 " cut-sites=%" PRIu32 "\n",
+                 next->id, best_bank->name,
+                 placement_mode == BANK_PLACEMENT_MODE_SIMPLE
+                    ? "stable-first-fit" : "minimum-incremental-cut",
+                 best_cost.weight, best_cost.cycles, best_cost.sites);
+      }
+   }
+
+   /* A deterministic single-component local search repairs decisions made
+      before important neighbors were assigned.  Pins, hard components,
+      replica-locality masks, and capacity remain absolute.  A move must improve
+      cut cost without increasing the weighted hardware-return depth, or leave
+      cut cost unchanged while reducing that depth. */
+   if (placement_mode == BANK_PLACEMENT_MODE_OPTIMIZED) {
+      uint16_t current_depth = bank_placement_weighted_depth(cfg, in);
+      int changed;
+      do {
+         size_t stable;
+         changed = 0;
+         for (stable = 0; stable < item_count; ++stable) {
+            bank_placement_component_t *component = NULL;
+            const cartridge_bank_t *old_bank;
+            const cartridge_bank_t *best_bank;
+            bank_placement_cost_t current_cost;
+            bank_placement_cost_t best_cost;
+            uint16_t best_depth;
+
+            for (i = 0; i < component_count; ++i) {
+               if (components[i].stable_order == stable) {
+                  component = &components[i];
+                  break;
+               }
+            }
+            if (!component || component->pinned)
+               continue;
+            old_bank = component->bank;
+            best_bank = old_bank;
+            current_cost = bank_placement_component_cost(items, edges, edge_count,
+                                                         components, component_count,
+                                                         component, old_bank, 0);
+            best_cost = current_cost;
+            best_depth = current_depth;
+
+            for (i = 0; i < cfg->bank_count; ++i) {
+               const cartridge_bank_t *candidate = &cfg->banks[i];
+               const memory_region_t *memory;
+               bank_placement_cost_t candidate_cost;
+               uint16_t candidate_depth;
+               int improves;
+
+               if (candidate == old_bank)
+                  continue;
+               if (!(component->allowed_bank_mask & (UINT64_C(1) << i))) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=replica-locality\n",
+                             component->id, candidate->name);
+                  continue;
+               }
+               memory = bank_placement_auto_memory(cfg, candidate);
+               if (!memory) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=no-ordinary-rom\n",
+                             component->id, candidate->name);
+                  continue;
+               }
+               if (bank_placement_budget_free(&budgets, &budget_count, memory) <
+                   component->bytes) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=capacity\n",
+                             component->id, candidate->name);
+                  continue;
+               }
+               candidate_cost = bank_placement_component_cost(
+                  items, edges, edge_count, components, component_count,
+                  component, candidate, 0);
+               if (!bank_placement_cost_precedes(candidate_cost, current_cost) &&
+                   !bank_placement_cost_equal(candidate_cost, current_cost)) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=no-cut-improvement"
+                             " current-byte-weight=$%04" PRIX32
+                             " candidate-byte-weight=$%04" PRIX32 "\n",
+                             component->id, candidate->name, current_cost.weight,
+                             candidate_cost.weight);
+                  continue;
+               }
+
+               bank_placement_move_component(cfg, items, item_count, component,
+                                             candidate, &budgets, &budget_count);
+               candidate_depth = bank_placement_weighted_depth(cfg, in);
+               bank_placement_move_component(cfg, items, item_count, component,
+                                             old_bank, &budgets, &budget_count);
+
+               improves = candidate_depth <= current_depth &&
+                  (bank_placement_cost_precedes(candidate_cost, current_cost) ||
+                   (bank_placement_cost_equal(candidate_cost, current_cost) &&
+                    candidate_depth < current_depth));
+               if (!improves) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=%s"
+                             " byte-weight=$%04" PRIX32 "->$%04" PRIX32
+                             " weighted-depth=%u->%u\n",
+                             component->id, candidate->name,
+                             candidate_depth > current_depth
+                                ? "weighted-depth-increase"
+                                : "no-objective-improvement",
+                             current_cost.weight, candidate_cost.weight,
+                             current_depth, candidate_depth);
+                  continue;
+               }
+               if (explain)
+                  fprintf(stderr,
+                          "     local-candidate component=%u bank=%s eligible"
+                          " byte-weight=$%04" PRIX32 "->$%04" PRIX32
+                          " weighted-depth=%u->%u\n",
+                          component->id, candidate->name, current_cost.weight,
+                          candidate_cost.weight, current_depth, candidate_depth);
+               if (best_bank == old_bank ||
+                   bank_placement_cost_precedes(candidate_cost, best_cost) ||
+                   (bank_placement_cost_equal(candidate_cost, best_cost) &&
+                    (candidate_depth < best_depth ||
+                     (candidate_depth == best_depth &&
+                      bank_placement_bank_precedes(candidate, best_bank))))) {
+                  best_bank = candidate;
+                  best_cost = candidate_cost;
+                  best_depth = candidate_depth;
+               }
+            }
+
+            if (best_bank != old_bank) {
+               bank_placement_move_component(cfg, items, item_count, component,
+                                             best_bank, &budgets, &budget_count);
+               if (explain) {
+                  fprintf(stderr,
+                          "  local-move component=%u from=%s to=%s"
+                          " cut-byte-weight=$%04" PRIX32 "->$%04" PRIX32
+                          " cut-cycle-weight=%" PRIu32 "->%" PRIu32
+                          " weighted-depth=%u->%u\n",
+                          component->id, old_bank->name, best_bank->name,
+                          current_cost.weight, best_cost.weight,
+                          current_cost.cycles, best_cost.cycles,
+                          current_depth, best_depth);
+               }
+               current_depth = best_depth;
+               changed = 1;
+            }
+         }
+      } while (changed);
+   }
+
+   if (explain) {
+      bank_placement_cost_t total = bank_placement_total_cost(
+         items, edges, edge_count, components, component_count);
+      uint16_t weighted_depth = bank_placement_weighted_depth(cfg, in);
+      fprintf(stderr,
+              "  final cut-byte-weight=$%04" PRIX32 " cut-cycle-weight=%" PRIu32
+              " cut-sites=%" PRIu32 " jsr-sites=%" PRIu32
+              " jmp-sites=%" PRIu32 " weighted-depth=%u\n",
+              total.weight, total.cycles, total.sites, total.jsr_sites,
+              total.jmp_sites, weighted_depth);
    }
 
    /* Record final component identity, pin state, byte cost, and cut weight for
@@ -7601,6 +8034,9 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       uint16_t max_component = 0;
       int have_component = 0;
       fprintf(fp, "\nBANK PLACEMENT\n");
+      fprintf(fp, "  mode=%s\n",
+              cfg->bank_placement_mode == BANK_PLACEMENT_MODE_SIMPLE
+                 ? "simple" : "optimized");
       for (i = 0; i < in->object_count; ++i) {
          const object_file_t *obj = &in->objects[i];
          size_t j;
@@ -8164,6 +8600,8 @@ int main(int argc, char **argv)
    sidecar_option_t sym_output = { NULL, 1, 0, NULL };
    sidecar_option_t list_output = { NULL, 1, 0, NULL };
    sidecar_option_t cfg_output = { NULL, 1, 0, NULL };
+   uint8_t bank_placement_mode = BANK_PLACEMENT_MODE_OPTIMIZED;
+   int explain_bank_placement = 0;
    linker_config_t cfg;
    input_set_t inputs;
    layout_t layout;
@@ -8322,6 +8760,42 @@ int main(int argc, char **argv)
             disable_sidecar(&cfg_output);
             continue;
          }
+         if (strcmp(arg, "--bank-placement") == 0) {
+            if (++argi >= argc) {
+               fprintf(stderr, "vcsc-ld: missing argument for --bank-placement\n");
+               return 1;
+            }
+            arg = argv[argi];
+            if (strcmp(arg, "optimized") == 0)
+               bank_placement_mode = BANK_PLACEMENT_MODE_OPTIMIZED;
+            else if (strcmp(arg, "simple") == 0)
+               bank_placement_mode = BANK_PLACEMENT_MODE_SIMPLE;
+            else {
+               fprintf(stderr,
+                       "vcsc-ld: bad bank-placement mode '%s'; expected optimized or simple\n",
+                       arg);
+               return 1;
+            }
+            continue;
+         }
+         if (strncmp(arg, "--bank-placement=", 17) == 0) {
+            const char *mode = arg + 17;
+            if (strcmp(mode, "optimized") == 0)
+               bank_placement_mode = BANK_PLACEMENT_MODE_OPTIMIZED;
+            else if (strcmp(mode, "simple") == 0)
+               bank_placement_mode = BANK_PLACEMENT_MODE_SIMPLE;
+            else {
+               fprintf(stderr,
+                       "vcsc-ld: bad bank-placement mode '%s'; expected optimized or simple\n",
+                       mode);
+               return 1;
+            }
+            continue;
+         }
+         if (strcmp(arg, "--explain-bank-placement") == 0) {
+            explain_bank_placement = 1;
+            continue;
+         }
 
          fprintf(stderr, "vcsc-ld: unsupported option '%s'\n", arg);
          return 1;
@@ -8395,6 +8869,7 @@ int main(int argc, char **argv)
       return 1;
    }
    parse_cfg_file(&cfg, cfg_path);
+   cfg.bank_placement_mode = bank_placement_mode;
 
    select_needed_objects(&inputs);
    collect_c26_topology(&cfg, &inputs);
@@ -8414,7 +8889,9 @@ int main(int argc, char **argv)
    validate_absolute_binding_memory_regions(&cfg, &inputs);
    validate_mem_region_metadata(&cfg, &inputs);
    prepare_replicated_rom(&cfg, &inputs);
-   assign_automatic_bank_placements(&cfg, &inputs);
+   assign_automatic_bank_placements(&cfg, &inputs,
+                                    bank_placement_mode,
+                                    explain_bank_placement);
    {
       uint16_t weighted_call_depth = 0;
       uint16_t call_depth = enforce_symbol_backed_call_graph(

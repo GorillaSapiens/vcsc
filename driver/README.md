@@ -30,7 +30,9 @@ An explicit `-T` suppresses that implicit profile. The driver links
 `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
 Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
 `.cfg` files by default. The naming and suppression options above are forwarded
-directly to `vcsc-ld`.
+directly to `vcsc-ld`. Bank-placement diagnostics are linker-only options; use
+`-Wl,--bank-placement=simple,--explain-bank-placement` for stable simple packing
+and its decision trace. Optimized placement remains the linker default.
 
 ## What it requires
 

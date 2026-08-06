@@ -284,12 +284,24 @@ index($bankswitching,'STA  source_hotspot')>=0 &&
 index($bankswitching,'__call_stack_weighted_depth')>=0
    or die "bankswitching plan lost the completed cross-bank JSR return path\n";
 index($bankswitching,'[x] 7. Add placement constraints and deterministic automatic bank placement.')>=0 &&
-index($bankswitching,'Pinned components are assigned first in stable input order')>=0 &&
-$bankswitching =~ /15 for JSR and 8 for\s+JMP/ &&
+$bankswitching =~ /placement modes assign pinned components first in stable input order/ &&
+$bankswitching =~ /15 bytes and 25 extra cycles\s+for JSR, or 8 bytes and 6 extra cycles\s+for JMP/ &&
 index($bankswitching,'RODATA.bank1.__vcsc_object$level_table')>=0
    or die "bankswitching plan lost completed deterministic automatic placement\n";
 -f File::Spec->catfile($test,'linker_banked_auto_placement.pl')
    or die "automatic bank-placement regression test is missing\n";
+index($bankswitching,'[x] 29. Improve automatic placement heuristics without changing semantics.')>=0 &&
+index($bankswitching,'`optimized` as the default')>=0 &&
+index($bankswitching,'`simple` as an explicit stable')>=0 &&
+index($bankswitching,'`--explain-bank-placement`')>=0 &&
+index($bankswitching,'refuses any cut')>=0 &&
+index($bankswitching,'weighted hardware-return depth')>=0
+   or die "bankswitching plan lost completed placement optimization and stack guard\n";
+-f File::Spec->catfile($test,'linker_banked_placement_modes.pl')
+   or die "placement-mode optimization regression test is missing\n";
+index($bankswitching,'30. Mapper-family policy gate — not an unfinished implementation item.')>=0 &&
+$bankswitching =~ /There is no\s+current action while no concrete program requires unsupported hardware/
+   or die "bankswitching plan no longer distinguishes the mapper-family policy gate from implementation work\n";
 index($bankswitching,'[x] 8. Add and certify `vcs_8k_f8.cfg`.')>=0
    or die "bankswitching plan no longer records the certified F8 profile\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_f8.cfg') &&
@@ -304,7 +316,7 @@ index($bankswitching,'[x] 9. Add F6 and F4 through the same implementation.')>=0
    or die "certified F6/F4 profiles or their regression test are missing\n";
 $bankswitching =~ /linker pins its private layout to the unique BANKS entry marked `startup=yes`/ &&
 $bankswitching =~ /The compiler does not interpret names such\s+as `bank0`/ &&
-$bankswitching =~ /Unpinned\s+components are considered by decreasing byte size/
+$bankswitching =~ /orders unpinned components by decreasing byte size/
    or die "bankswitching plan lost generic startup-main or constrained automatic placement\n";
 index($bankswitching,q{begin allocatable ROM at})>=0 &&
 index($bankswitching,'$x100')>=0
@@ -350,10 +362,11 @@ index($component_guide,'Retirement of these working profiles is not a completion
    or die "component guide restored retirement as a roadmap gate\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
-index($context,'.../roadmap.txt')>=0 &&
-index($context,'bankswitching roadmap item 29')>=0 &&
+index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
+index($context,'Bankswitching implementation is complete through item 29.')>=0 &&
+index($context,'The next unfinished main-roadmap item is 23:')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its roadmap pointer, active bankswitching item, or size ceiling\n";
+   or die "compact context lost its active roadmap pointer, bankswitching completion, or size ceiling\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
 $roadmap =~ /^Current next action: 23\b/m

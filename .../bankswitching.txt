@@ -715,20 +715,30 @@ The implemented placement policy is constrained and deterministic:
   of its members. Conflicting pins in one component are a fatal diagnostic that
   names the component, layout, object, and incompatible banks.
 * Direct JSR and direct JMP edges are soft relations because the replicated
-  trampoline table can implement them. Repeated edges accumulate; the initial
-  cost uses the actual per-entry replicated-table payload, 15 for JSR and 8 for
-  JMP. This is a deterministic placement heuristic, not a claim about dynamic
-  call frequency.
+  trampoline table can implement them. Repeated static relocation sites
+  accumulate deterministic weights equal to the bridge payload and one-execution
+  penalty: 15 bytes and 25 extra cycles for JSR, or 8 bytes and 6 extra cycles
+  for JMP. Sites remain separate weights even when final trampoline
+  deduplication can share an entry. These are relocation-derived priorities, not
+  invented dynamic call frequencies or a prediction of final replicated bytes.
 * Before packing movable components, the linker charges each ordinary ROM
   region for fixed initialized-data images and generated copy/zero/init tables.
   The largest `type=ro` MEMORY region owned by each bank is that bank's default
   automatic-placement region; named pins still use their exact region.
-* Pinned components are assigned first in stable input order. Unpinned
-  components are considered by decreasing byte size, then decreasing soft-edge
-  degree, then stable object/layout order. Among banks with enough preliminary
-  capacity, the chosen bank minimizes weighted edges cut against components
-  already assigned. Ties prefer the startup bank, then the higher logical bank
-  address, then the bank name.
+* Both placement modes assign pinned components first in stable input order and
+  preserve every hard component, pin, replica-locality mask, and capacity rule.
+  `optimized`, the default, orders unpinned components by decreasing byte size,
+  decreasing soft-edge byte degree, then stable object/layout order. Among banks
+  with enough preliminary capacity, it minimizes incremental byte weight,
+  then cycle weight and cut-site count. A deterministic single-component local
+  pass then scans stable order and accepts a move only when it improves the
+  incident cut without increasing weighted hardware-stack depth, or leaves the
+  cut unchanged while reducing that depth. It repeats to a fixed point.
+* `simple` ignores the soft-edge graph, takes unpinned components in stable input
+  order, and chooses the first bank under the normal deterministic preference
+  which has enough capacity. It is a debugging/reproducibility baseline, not a
+  fallback that weakens semantics. Bank ties prefer the startup bank, then the
+  higher logical bank address, then the bank name.
 * The preliminary budget catches clear capacity failures early. The normal
   layout allocator remains authoritative for alignment, page containment,
   branch-page constraints, and any holes those rules create.
@@ -737,12 +747,13 @@ The implemented placement policy is constrained and deterministic:
   component, moves a hard pin, duplicates a function, or invents a cross-bank
   ROM-data access to make the image fit.
 
-This first placer intentionally has no second placement language, explicit
-same-bank-group attribute, translation-unit preference, profile-guided call
-frequency, or local-search pass. Those can be added only when measured programs
-show a need. Existing hard data edges already express the most important
-same-bank grouping, while named `mem` modifiers give programmers a direct
-steering wheel for timing-critical or architectural decisions.
+There is still no second placement language, explicit same-bank-group attribute,
+translation-unit preference, or profile-guided dynamic call frequency. Current
+objects contain no runtime frequency evidence, so assigning guessed frequencies
+would merely replace linker astrology with numerology. Existing hard data edges
+already express the most important same-bank grouping, while named `mem`
+modifiers give programmers a direct steering wheel for timing-critical or
+architectural decisions.
 
 The call graph alone is insufficient: ROM-data edges, explicit pins, reserved
 trampoline/vector space, generated startup tables, and per-bank capacity all
@@ -759,11 +770,14 @@ duplicated automatically in this implementation.
 
 Archive selection remains normal symbol-driven selection. Placement runs only
 after the final object/archive-member set is known. The map's `BANK PLACEMENT`
-section reports every component, pinned versus automatic assignment, owning
-bank and concrete MEMORY region, component byte cost, incident cut weight, and
-originating object. The `TRAMPOLINES` section then reports the actual generated
-bridges. This makes placement reproducible and auditable rather than linker
-astrology.
+section reports the selected mode and every component, pinned versus automatic
+assignment, owning bank and concrete MEMORY region, component byte cost,
+incident cut weight, and originating object. `--explain-bank-placement` writes
+component membership and allowed banks, candidate capacity rejections and costs,
+chosen assignments, accepted local moves, final byte/cycle/site cut weights, and
+weighted stack depth to standard error. The `TRAMPOLINES` section then reports
+the actual generated bridges. This makes placement reproducible and auditable
+rather than linker astrology.
 
 Superchip RAM through split-address named memory
 -----------------------------------------------------
@@ -1969,25 +1983,55 @@ when main roadmap item 29 becomes active.
          map/trampoline assertions, documentation, and source-hygiene coverage.
          Multisprite remains deferred to its main-roadmap prerequisites.
 
-[ ] 29. Improve automatic placement heuristics without changing semantics.
+[x] 29. Improve automatic placement heuristics without changing semantics.
 
-       * Measure whether call-frequency weighting, component ordering, or local
-         moves materially reduce bridge count, cycles, and hardware-stack cost.
-       * Keep all explicit pins and hard ROM-data components inviolate.
-       * Preserve deterministic output and offer a diagnostic mode which explains
-         why each component was placed where it was.
-       * Permit a simple-placement mode for debugging and reproducibility; never
-         fall back to invented cross-bank data access.
+       * Keep `optimized` as the default and add `simple` as an explicit stable
+         input-order/capacity baseline. Both modes preserve pins, hard ROM-data
+         components, replicated-data locality, and deterministic bank tie-breaks.
+       * Extend soft-edge measurements with static site counts and bridge-form
+         weights: each JSR site contributes the 15-byte payload and 25-cycle
+         one-execution penalty; each JMP site contributes 8 bytes and 6 cycles.
+         Optimize lexicographically by byte weight, cycle weight, then site count.
+         Runtime-frequency profiles were not invented because no such evidence
+         exists in o26. Final actual entries remain authoritative in `TRAMPOLINES`.
+       * Add a deterministic fixed-point local pass. It moves only one automatic
+         hard component at a time, never exceeds capacity, and refuses any cut
+         improvement which increases weighted hardware-return depth. Equal-cut
+         moves are accepted only when they reduce that depth.
+       * Add `--explain-bank-placement`, including component members, pins and
+         allowed banks, every candidate's capacity/cut result, chosen assignments,
+         accepted or rejected local candidates, and final byte/cycle/site cut
+         weights and stack metrics. The map records `mode=optimized` or
+         `mode=simple`.
+       * The ordering fixture measures 2 JSR bridges, byte weight 30, cycle
+         weight 50, and weighted depth 6 in simple mode versus 1 bridge, byte
+         weight 15, cycle weight 25, and depth 5 when optimized. The local-move
+         fixture measures 4 bridges with byte/cycle weights 60/100 versus 1
+         bridge with weights 15/25, with weighted depth unchanged at 5 and all
+         pins intact. A third fixture rejects a 60-to-30 byte-weight improvement
+         because it would raise weighted depth from 5 to 7. Repeated optimized
+         links are byte-for-byte and map-for-map deterministic, and omitted mode
+         exactly matches explicit `optimized`.
+       * The maintained standard-renderer F8/F6/F4 builds are byte-identical under
+         simple and optimized modes, retain one cross-bank JSR and weighted depth
+         4, and retain 30/60/120 replicated bridge bytes respectively. That is the
+         correct result: item 28 deliberately hard-pins its architectural split,
+         leaving no heuristic freedom to improve.
 
-[ ] 30. Consider another mapper family only when a concrete program requires it.
+30. Mapper-family policy gate — not an unfinished implementation item.
+
+       This entry is a trigger condition and a list of guardrails. There is no
+       current action while no concrete program requires unsupported hardware
+       semantics.
 
        * Do not build a universal mapper-description language merely to reproduce
          every historical circuit. Full-window selector-controlled banks, direct
          banks, shared memory, and explicit replication are the maintained model.
        * If a real program eventually requires independently switched windows,
          value-controlled selection, banked RAM, or another unsupported behavior,
-         design that family separately rather than distorting the current bank
-         abstraction in advance.
+         open a new scoped roadmap item for that program and design that
+         family separately rather than distorting the current bank abstraction
+         in advance.
        * Reuse logical mapping, vector, output, relocation, and reporting pieces
          where honest; add a true window or device model only when the chosen
          hardware semantics actually require one.
@@ -2007,9 +2051,9 @@ The following are not settled by this document:
 * whether a concrete use case eventually justifies a built-in split/fat
   pointer rather than explicit `&<`/`&>` projections stored in a user-defined
   structure;
-* whether measured programs justify profile-guided edge weights, explicit
-  same-bank groups, translation-unit preferences, or a deterministic local-search
-  pass beyond the completed greedy placer.
+* whether future measured programs justify profile-guided dynamic edge weights,
+  explicit same-bank groups, or translation-unit preferences beyond the completed
+  deterministic greedy-plus-local optimizer.
 
 Those choices should be made in the roadmap slice that can implement and test
 them, not guessed here and fossilized without evidence.

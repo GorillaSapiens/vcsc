@@ -96,9 +96,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for this documentation reorganization:
+Input archive for the latest bankswitching placement work:
 
-    vcsc.20260806_143834.tar.gz
+    vcsc.20260806_152600.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -197,7 +197,17 @@ direct split aliases and must not trigger bank selection.
 Component placement constraints are carried in object metadata through
 `.segmentregion`, `.segmentalign`, `.segmentprivate`, `.pagecontain`, and
 `.callstackextra` as applicable. Explicit pins and hard ROM-data ownership are
-semantic constraints, not heuristic hints.
+semantic constraints, not heuristic hints. The linker's default
+`--bank-placement=optimized` mode uses deterministic weighted soft-edge packing
+plus guarded single-component local moves; `simple` provides stable first-fit
+capacity placement for comparison and debugging. Neither mode may break a hard
+component, move a pin, violate replica locality or capacity, or increase
+weighted hardware-return depth during local optimization.
+
+`--explain-bank-placement` reports component membership, allowed banks,
+candidate capacity/cut decisions, accepted and rejected local moves, and final
+byte/cycle/site cut weights plus weighted stack depth. Actual generated bridge
+entries remain authoritative in the map's `TRAMPOLINES` section.
 
 The consolidated standard-renderer bankswitching diagnostic is under:
 
@@ -221,16 +231,16 @@ When removing or changing a feature:
 4. record every intentional deletion/rename in `.../remove.txt`;
 5. update documentation and source-tree hygiene checks in the same slice.
 
-The latest recorded full baseline, after bankswitching item 28, is:
+The latest verified full baseline, after bankswitching item 29, is:
 
     compile-only:             438 passed
-    end-to-end/generic:       247 passed
+    end-to-end/generic:       248 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The bankswitching item-28 certification also passed exact runtime frame/raster,
-map/trampoline, installed-profile, and Stella 4K/F8/F8SC snapshot checks. These
-are historical baseline numbers, not a substitute for rerunning tests after
-source changes.
+Item 29 additionally passes focused deterministic placement, local-optimization,
+stack-depth-guard, explanation-trace, simple/optimized-mode, and source-hygiene
+coverage. Item 28's exact runtime frame/raster, map/trampoline, installed-profile,
+and Stella 4K/F8/F8SC snapshot certification remains intact.
 
 Important active constraints and open questions
 -----------------------------------------------
@@ -248,27 +258,15 @@ Important active constraints and open questions
 
 Immediate TODO
 --------------
-Active workstream: `.../bankswitching.txt`.
+Active workstream: `.../roadmap.txt`.
 
-Next item is bankswitching roadmap item 29: improve automatic placement
-heuristics without changing semantics.
+Bankswitching implementation is complete through item 29. Item 30 in
+`.../bankswitching.txt` is intentionally a mapper-family policy gate, not a
+pending implementation task: open a new scoped item only when a concrete program
+requires hardware semantics the maintained full-window/direct/shared-memory
+model cannot represent honestly.
 
-Required outcomes:
-
-* measure whether call-frequency weighting, component ordering, or deterministic
-  local moves materially reduce bridge count, cycles, or hardware-stack cost;
-* keep explicit placement pins and hard ROM-data components inviolate;
-* preserve deterministic output;
-* add a diagnostic mode explaining why each component was placed;
-* provide a simple-placement mode for debugging/reproducibility;
-* never invent cross-bank data access as a fallback.
-
-Complete and test item 29 as one bounded slice before item 30. Item 30 remains a
-policy gate: consider another mapper family only for a concrete program that
-cannot honestly use the maintained model.
-
-When returning to the main project roadmap, the default unfinished main item is
-23: investigate an all-five-object standard renderer with per-row P0/P1 colors,
-measure the real RAM/ROM/timing cost, preserve existing profiles, and abandon the
-variant rather than shipping a fragile schedule. Full criteria and later work
-are in `.../roadmap.txt`.
+The next unfinished main-roadmap item is 23: investigate an all-five-object
+standard renderer with per-row P0/P1 colors, measure the real RAM/ROM/timing
+cost, preserve existing profiles, and abandon the variant rather than shipping
+a fragile schedule. Full criteria and later work are in `.../roadmap.txt`.

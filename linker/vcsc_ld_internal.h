@@ -170,7 +170,11 @@ typedef struct {
    uint16_t call_stack_size;
    uint16_t call_stack_start;
    uint16_t call_stack_top;
+   uint8_t bank_placement_mode;
 } linker_config_t;
+
+#define BANK_PLACEMENT_MODE_OPTIMIZED 1
+#define BANK_PLACEMENT_MODE_SIMPLE    2
 
 //! Exported or imported o26 symbol record.
 typedef struct {

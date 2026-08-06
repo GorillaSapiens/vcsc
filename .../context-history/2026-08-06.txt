@@ -41,3 +41,25 @@ an older decision, regression, or implementation detail.
   built linker and a temporary minimal valid runtime archive; the temporary
   build products are not retained in the source archive. The source-tree
   hygiene test also passes.
+
+2026-08-06 08:59:46 PDT, completed bankswitching roadmap item 29
+
+Added explicit optimized and simple bank-placement modes, keeping optimized as
+the default. The optimized mode now uses deterministic byte/cycle/site-weighted
+component ordering and a fixed-point single-component local pass which preserves
+all hard components, pins, replica locality, and capacity constraints and rejects
+moves that increase weighted hardware-return depth. Added
+--explain-bank-placement candidate, rejection, move, and final-metric tracing;
+map output records the selected mode.
+
+Added focused placement fixtures. Simple versus optimized measures two JSR
+bridges versus one and weighted depth 6 versus 5 in the ordering case; four
+bridges versus one with depth held at 5 in the local-move case; and a tempting
+60-to-30 byte-weight move is rejected because weighted depth would rise from 5
+to 7. The maintained standard-renderer F8/F6/F4 images remain byte-identical
+between modes because their architectural split is hard-pinned. Reclassified
+roadmap item 30 as a mapper-family policy gate rather than unfinished work.
+
+Verification: compile-only 438/438, end-to-end 248/248, focused placement and
+source-hygiene regressions pass, and staged installed-toolchain/installcheck
+passes including final banked cartridge and renderer builds.

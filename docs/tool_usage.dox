@@ -22,7 +22,10 @@
 //!   emits Intel HEX or flat binary, reports occupied/free cartridge ROM space,
 //!   and writes same-stem `.map`, Stella `.sym`/`.lst`, and DiStella `.cfg`
 //!   sidecars. `-Map`, `-Sym`, `-List`, and `-Cfg` rename them; matching
-//!   `--no-*` switches suppress them.
+//!   `--no-*` switches suppress them. Banked links default to optimized
+//!   automatic placement; `--bank-placement=simple` selects stable simple
+//!   packing and `--explain-bank-placement` emits the decision trace. Through
+//!   `vcsc`, pass those linker-only controls with `-Wl,...` or `-Xlinker`.
 //! - `vcsc-sim` can run an emitted HEX image for smoke and regression checks.
 //!
 //! @section tool_usage_examples Examples

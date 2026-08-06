@@ -26,6 +26,8 @@ Supported options:
 - `-List FILE`, `-List=FILE`, or `--list=FILE` ... rename the Stella/DASM list file
 - `-Cfg FILE`, `-Cfg=FILE`, or `--cfg=FILE` ... rename the Stella/DiStella config file
 - `--no-map`, `--no-sym`, `--no-list`, `--no-cfg` ... suppress an individual sidecar
+- `--bank-placement=optimized|simple` ... select the automatic bank-placement policy (`optimized` is the default)
+- `--explain-bank-placement` ... write a component-by-component placement trace to standard error
 - `-h`, `--help` ... show usage
 - `-v`, `--version` ... print the linker name
 
@@ -459,9 +461,12 @@ layouts:
   same-bank edge;
 - direct JSR and direct absolute JMP edges are soft because the common table can
   bridge them;
-- repeated soft edges accumulate a deterministic weight of 15 per JSR and 8 per
-  JMP, matching the corresponding trampoline-entry payload rather than claiming
-  a runtime execution frequency.
+- repeated soft edges accumulate deterministic static weights equal to each
+  bridge form's payload and one-execution penalty: 15 bytes and 25 extra cycles
+  per JSR relocation site, or 8 bytes and 6 extra cycles per JMP site. Repeated
+  sites remain separate weights even when final trampoline deduplication can
+  share an entry. These are relocation-derived priorities, not guessed dynamic
+  call frequencies or a prediction of final replicated bytes.
 
 Hard edges are collapsed transitively into indivisible components. A component
 inherits any explicit or mandatory pin carried by a member; incompatible pins
@@ -470,21 +475,39 @@ copy/zero/init tables are charged against their ROM regions before automatic
 components are packed.
 
 For each logical bank, the largest owned `type=ro` MEMORY entry is its default
-automatic-placement region. Pinned components are assigned first in stable input
-order. Remaining components are ordered by decreasing byte size, decreasing
-soft-edge degree, then stable object/layout order. A component goes to the bank
-with enough preliminary capacity that adds the least cut weight against already
-assigned components. Ties prefer the startup bank, then the higher logical
-address, then the bank name. The ordinary allocator still performs the final
-alignment, page-containment, branch-page, and hole checks.
+automatic-placement region. Both placement modes assign pinned components first
+in stable input order and preserve all hard constraints:
 
-Failure never weakens the source contract: the linker does not split a hard
-component, move a pin, duplicate code/data, or synthesize a far ROM read. A
-capacity error reports the component size and free ordinary-ROM capacity of
-every bank. The map's `BANK PLACEMENT` section records component number, pinned
-or automatic assignment, bank, concrete MEMORY region, component bytes,
-incident cut weight, layout, and input object. The later `TRAMPOLINES` section
-reports the bridges actually created by the resulting cut call edges.
+- `optimized`, the default, orders movable components by decreasing byte size,
+  decreasing soft-edge byte degree, then stable object/layout order. It selects
+  the bank with enough preliminary capacity that minimizes incremental byte
+  weight, then cycle weight and cut-site count. After the greedy pass, a deterministic
+  single-component local search scans stable order to repair early choices. A
+  move is accepted only when it improves the incident cut without increasing
+  weighted hardware-return depth, or leaves the cut unchanged while reducing
+  that depth. The scan repeats to a fixed point.
+- `simple` ignores the soft-edge graph, takes movable components in stable input
+  order, and uses the normal deterministic bank preference among banks with
+  enough capacity. It exists to reproduce straightforward packing and to make
+  optimizer comparisons and debugging less mystical.
+
+Bank ties prefer the startup bank, then the higher logical address, then the
+bank name. The ordinary allocator still performs the final alignment,
+page-containment, branch-page, and hole checks. Neither mode weakens the source
+contract: the linker does not split a hard component, move a pin, duplicate
+code/data, or synthesize a far ROM read. A capacity error reports the component
+size and free ordinary-ROM capacity of every bank.
+
+`--explain-bank-placement` writes the mode, component membership, pins, allowed
+banks, capacity rejections, candidate weighted-cut costs, chosen assignments,
+accepted local moves, final byte/cycle/site cut weights, and final weighted
+stack depth to
+standard error. The map's `BANK PLACEMENT` section records the selected mode,
+component number, pinned or automatic assignment, bank, concrete MEMORY region,
+component bytes, incident cut weight, layout, and input object. The later
+`TRAMPOLINES` section reports the bridges actually created by the resulting cut
+control-flow edges. Through the public driver, pass these linker-only controls
+with, for example, `-Wl,--bank-placement=simple,--explain-bank-placement`.
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest

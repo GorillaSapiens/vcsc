@@ -249,6 +249,17 @@ that the resulting BANK0 `main` call creates exactly one JSR bridge. Map output
 must identify components, pinned/automatic members, concrete regions, byte cost,
 and incident cut weight.
 
+`linker_banked_placement_modes.pl` covers roadmap item 29. It proves omitted
+mode exactly matches explicit `optimized`, locks the stable `simple` comparison
+mode, rejects invalid modes, and checks the detailed explanation trace. One
+capacity fixture proves optimized component ordering reduces two JSR bridges to
+one and weighted hardware-return depth from 6 to 5. A second fixture forces a
+deterministic local move which reduces four JSR bridges to one without changing
+explicit pins or increasing weighted depth. A third fixture proves a lower
+byte-weight candidate is rejected when it would raise weighted depth from 5 to
+7, and requires the explanation to name that reason. Repeated optimized links
+must produce byte-identical binaries and maps.
+
 `fp_removed.pl` independently locks that the linker still reserves exactly two
 bytes per weighted hardware-return slot (never the obsolete four-byte frame-
 pointer-era allowance) and never lets weighted depth fall below ordinary call
