@@ -133,16 +133,21 @@ pointer: doing so would cost two RIOT bytes, add at least one cycle to every
 playfield read, risk an additional page-cross cycle, and interfere with Y usage
 inside the asymmetric visible renderer.
 
-Build with the matching linker configuration. This profile deliberately does
-not enable the assembler's unofficial-opcode table:
+The renderer carries its own linker constraints, so an ordinary default 4K
+build needs no renderer-specific cfg. This profile deliberately does not enable
+the assembler's unofficial-opcode table:
 
 ```sh
 vcsc -I libraries/vcs \
-  -T libraries/vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg \
   game.c26 \
   libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26 \
   -o game.bin
 ```
+
+An explicit build may equivalently pass `-T libraries/vcs/vcs.cfg` and
+`libraries/vcs/vcs_4k.c26`. The retained `vcs_standard_4k_ntsc.cfg` is only a
+deprecated compatibility filename for old commands; it contains no renderer-
+specific placement or stack facts.
 
 The module declares the draw entry and the optional hook:
 
@@ -260,9 +265,12 @@ Most state has no fixed address. Only these constraints are contractual:
 - The 88-byte default score table must occupy one page. Its ten glyphs plus the
   retained blank glyph therefore cannot cross a page boundary.
 - Two cycle-critical code regions retain page-alignment guards from the source.
-  The normalized source preserves both guards with `.align 256`.
-- The score-table segment has its own `.align 256`, and the linker profile
-  enforces page alignment for both `RENDERER_CODE` and `RENDERER_RODATA` objects.
+  The normalized source preserves both internal guards with `.align 256`.
+- The object declares `.segmentregion ..., startup`, `.segmentalign ..., 256`,
+  and `.segmentprivate ...` for `RENDERER_CODE` and `RENDERER_RODATA`. Those
+  object records place both layouts in the cartridge's startup read-only region,
+  align their final bases to pages, and keep the route private to this component.
+  No cartridge or renderer cfg repeats those facts.
 
 The source-contract regression builds a ROM playfield, rejects page crossing,
 and also proves that the formerly supported mutable 48-byte playfield now fails
@@ -292,10 +300,11 @@ VCSC call, including any ordinary helpers called by a strong hook definition.
 
 The packed object-mask builder still reaches an internal prepare/range chain
 that is deeper than the longest source-visible path. With the hook edge already
-adding one call-graph level, `vcs_standard_4k_ntsc.cfg` sets
-`callstack_extra = $0004`; the no-op cartridge still reserves ten physical
-stack bytes in total. The linker exposes the supplement as
-`__call_stack_extra`. The score row pipeline temporarily copies and restores S
+adding one call-graph level, the normalized object declares `.callstackextra 4`;
+the no-op cartridge still reserves ten physical stack bytes in total. The
+linker combines that object-owned supplement with the generic `vcs.cfg`
+`callstack=callgraph` policy and exposes it as `__call_stack_extra`. The score
+row pipeline temporarily copies and restores S
 but performs no push, pull, call, or return while S is repurposed, and the hook
 is called only after S has been restored.
 
@@ -305,10 +314,13 @@ must update this contract and its regression before it is accepted.
 ## ROM and feature-cost ledger
 
 The `.c26` source contract itself emits no code and no initialized data. A ROM
-playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized object contains a page-padded 768-byte `RENDERER_CODE` segment
-and an 88-byte `RENDERER_RODATA` score table. In the first complete cartridge they
-are fixed at `$F300..$F5FF` and `$F600..$F657`; the application playfield is ROM
-backed at `$F154`. These are measured map values for the selected profile.
+playfield costs 48 cartridge bytes instead of RIOT RAM bytes. The normalized
+object contains a page-padded 768-byte `RENDERER_CODE` segment and an 88-byte
+`RENDERER_RODATA` score table. In the current contract smoke cartridge they are
+placed at `$F200..$F4FF` and `$F500..$F557`; the application playfield is ROM
+backed at `$F100`. These are measured map values, not fixed addresses. The
+contractual facts are startup-region ownership, page alignment, and page-safe
+indexed ranges.
 
 The overscan hook adds no module RAM. Its no-op fallback is one `RTS`; the call
 site occupies three bytes inside the already page-padded renderer region. A strong

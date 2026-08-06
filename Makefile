@@ -398,12 +398,10 @@ installcheck: tools
 	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
 	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/03_player_color_192/01_interactive/player_color_192_interactive.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"` -eq 4096; \
@@ -415,13 +413,11 @@ installcheck: tools
 	test -f "$$stage_vcs/renderers/all_five_181/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five_181/all_five_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181.bin"` -eq 4096; \
 	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	    "$(CURDIR)/test/fixtures/all_five_181/$$fixture.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/$$fixture.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$fixture.bin"` -eq 4096; \
@@ -429,35 +425,30 @@ installcheck: tools
 	test -f "$$stage_vcs/renderers/all_five_181_unofficial/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/all_five_192/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five_192/all_five_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/all_five_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_192.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/player_color_181/README.md"; \
 	test -f "$$stage_vcs/renderers/player_color_181/player_color_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/player_color_181_unofficial/README.md"; \
 	test -f "$$stage_vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/player_color_192/README.md"; \
 	test -f "$$stage_vcs/renderers/player_color_192/player_color_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/fixtures/player_color_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192.bin"` -eq 4096; \
@@ -469,7 +460,6 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"` -eq 4096; \
 	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
 	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	    "$(CURDIR)/test/fixtures/player_color_181/$$fixture.c26" \
 	    -o "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"; \
 	  test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"` -eq 4096; \
@@ -492,9 +482,10 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" \
 	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"` -gt 0; \
+	grep -aFq '__componentmeta$$V1$$S$$4' "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"; \
+	grep -aFq '__componentmeta$$V1$$L$$52454E44455245525F434F4445$$4073746172747570$$256$$1' "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"; \
 	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
 	if "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_renderer_contract_smoke.c26" \
 	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.bin" \
@@ -505,7 +496,6 @@ installcheck: tools
 	test ! -s "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout"; \
 	grep -q "ram overflow" "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -T "$$stage_vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg" \
 	  "$(CURDIR)/test/vcs_standard_renderer_contract_rom_smoke.c26" \
 	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \

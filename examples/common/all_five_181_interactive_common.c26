@@ -168,9 +168,13 @@ inline void move_selected_object(void) {
 }
 
 inline void update_controls(void) {
-   if (!(SWCHB & 0x01)) {
-      asm jmp ($fffc);
-   }
+   // Keep the console Reset path scratch-free; the renderer's hidden
+   // assembly helper stack now consumes the bytes previously borrowed here.
+   asm lda SWCHB;
+   asm and #$01;
+   asm bne @reset_not_pressed;
+   asm jmp ($fffc);
+   asm @reset_not_pressed:;
    update_object_selection();
    move_selected_object();
    update_score_controls();

@@ -206,6 +206,13 @@ static int semantic_use_metadata_has_prefix(const char *name)
    return name && strncmp(name, SEMANTIC_USE_META_PREFIX, sizeof(SEMANTIC_USE_META_PREFIX) - 1) == 0;
 }
 
+//! @brief Return whether component-placement metadata has its reserved prefix.
+static int component_constraint_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, COMPONENT_CONSTRAINT_META_PREFIX,
+      sizeof(COMPONENT_CONSTRAINT_META_PREFIX) - 1) == 0;
+}
+
 //! @brief Return whether reserved metadata has prefix in linker layout and image writer.
 static int reserved_metadata_has_prefix(const char *name)
 {
@@ -214,6 +221,7 @@ static int reserved_metadata_has_prefix(const char *name)
           topology_metadata_has_prefix(name) ||
           replica_metadata_has_prefix(name) ||
           return_coalesce_metadata_has_prefix(name) ||
+          component_constraint_metadata_has_prefix(name) ||
           contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
 }
 
@@ -1368,6 +1376,222 @@ static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg
    return rule ? rule : fallback;
 }
 
+static int component_hex_value(int ch)
+{
+   if (ch >= '0' && ch <= '9') return ch - '0';
+   if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+   if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+   return -1;
+}
+
+static int component_hex_decode_field(const char *text, size_t len,
+                                      char *out, size_t out_size)
+{
+   size_t i;
+   if ((len & 1u) != 0 || len / 2u + 1u > out_size)
+      return 0;
+   for (i = 0; i < len; i += 2) {
+      int hi = component_hex_value((unsigned char)text[i]);
+      int lo = component_hex_value((unsigned char)text[i + 1]);
+      if (hi < 0 || lo < 0)
+         return 0;
+      out[i / 2u] = (char)((hi << 4) | lo);
+      if (out[i / 2u] == '\0')
+         return 0;
+   }
+   out[len / 2u] = '\0';
+   return 1;
+}
+
+static object_layout_t *component_find_layout(object_file_t *obj,
+                                               const char *name)
+{
+   size_t i;
+   for (i = 0; obj && i < obj->layout_count; ++i)
+      if (!strcmp(obj->layouts[i].name, name))
+         return &obj->layouts[i];
+   return NULL;
+}
+
+static const char *component_resolve_memory_name(const linker_config_t *cfg,
+                                                 const object_layout_t *lay,
+                                                 const char *fallback)
+{
+   if (!lay || !lay->component_memory[0])
+      return fallback;
+   if (!strcmp(lay->component_memory, "@startup")) {
+      const segment_rule_t *code = find_segment_rule(cfg, "CODE");
+      return code && code->load_name[0] ? code->load_name : fallback;
+   }
+   return lay->component_memory;
+}
+
+//! @brief Apply assembler-component placement and hidden-stack metadata.
+static void apply_component_constraints(linker_config_t *cfg, input_set_t *in)
+{
+   size_t i, j;
+   uint32_t stack_total = 0;
+   size_t stack_record_count = 0;
+
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->export_count; ++j) {
+         const char *name = obj->exports[j].name;
+         const char *p;
+         if (!component_constraint_metadata_has_prefix(name))
+            continue;
+         p = name + sizeof(COMPONENT_CONSTRAINT_META_PREFIX) - 1;
+         if (p[0] == 'S' && p[1] == '$') {
+            char *end = NULL;
+            unsigned long value = strtoul(p + 2, &end, 10);
+            if (!end || *end || value > 0xffffu) {
+               fprintf(stderr, "vcsc-ld: malformed component hidden-stack metadata in %s\n",
+                       obj->origin);
+               exit(1);
+            }
+            stack_total += value;
+            if (stack_total > 0xffffu) {
+               fprintf(stderr, "vcsc-ld: component hidden-stack requirements exceed 65535 bytes\n");
+               exit(1);
+            }
+            stack_record_count++;
+            continue;
+         }
+         if (p[0] == 'L' && p[1] == '$') {
+            const char *seg_start = p + 2;
+            const char *sep1 = strchr(seg_start, '$');
+            const char *region_start;
+            const char *sep2;
+            const char *align_start;
+            const char *sep3;
+            char segment[MAX_NAME];
+            char region[MAX_NAME];
+            char *end = NULL;
+            unsigned long alignment;
+            unsigned long private_route;
+            object_layout_t *lay;
+            const char *resolved;
+            const memory_region_t *memory;
+            const segment_rule_t *exact_rule;
+            if (!sep1) goto malformed_layout;
+            region_start = sep1 + 1;
+            sep2 = strchr(region_start, '$');
+            if (!sep2) goto malformed_layout;
+            align_start = sep2 + 1;
+            sep3 = strchr(align_start, '$');
+            if (!sep3) goto malformed_layout;
+            if (!component_hex_decode_field(seg_start, (size_t)(sep1 - seg_start),
+                                            segment, sizeof(segment)) ||
+                !component_hex_decode_field(region_start, (size_t)(sep2 - region_start),
+                                            region, sizeof(region)))
+               goto malformed_layout;
+            alignment = strtoul(align_start, &end, 10);
+            if (!end || end != sep3 || alignment > 32768u ||
+                (alignment && (alignment & (alignment - 1u))))
+               goto malformed_layout;
+            private_route = strtoul(sep3 + 1, &end, 10);
+            if (!end || *end || private_route > 1u)
+               goto malformed_layout;
+            lay = component_find_layout(obj, segment);
+            if (!lay) {
+               fprintf(stderr,
+                  "vcsc-ld: component metadata in %s names missing segment '%s'\n",
+                  obj->origin, segment);
+               exit(1);
+            }
+            if (lay->component_memory[0] && strcmp(lay->component_memory, region)) {
+               fprintf(stderr,
+                  "vcsc-ld: conflicting component memory requirements for segment '%s' in %s\n",
+                  segment, obj->origin);
+               exit(1);
+            }
+            if (lay->component_alignment && lay->component_alignment != alignment) {
+               fprintf(stderr,
+                  "vcsc-ld: conflicting component alignment requirements for segment '%s' in %s\n",
+                  segment, obj->origin);
+               exit(1);
+            }
+            snprintf(lay->component_memory, sizeof(lay->component_memory), "%s", region);
+            lay->component_alignment = (uint16_t)alignment;
+            lay->component_private = (uint8_t)private_route;
+            resolved = component_resolve_memory_name(cfg, lay, NULL);
+            if (lay->component_memory[0] && (!resolved || !*resolved)) {
+               fprintf(stderr,
+                  "vcsc-ld: component segment '%s' in %s requires a startup read-only memory region, but none exists\n",
+                  segment, obj->origin);
+               exit(1);
+            }
+            if (resolved && *resolved) {
+               memory = find_memory(cfg, resolved);
+               if (!memory) {
+                  fprintf(stderr,
+                     "vcsc-ld: component segment '%s' in %s requires unknown MEMORY region '%s'\n",
+                     segment, obj->origin, resolved);
+                  exit(1);
+               }
+               if (lay->segid == O26_SEG_TEXT && memory->compiler_declared &&
+                   !str_ieq(memory->type, "ro")) {
+                  fprintf(stderr,
+                     "vcsc-ld: component text segment '%s' in %s requires non-read-only MEMORY region '%s'\n",
+                     segment, obj->origin, resolved);
+                  exit(1);
+               }
+            }
+            exact_rule = find_segment_rule(cfg, segment);
+            if (exact_rule && resolved && exact_rule->load_name[0] &&
+                !str_ieq(exact_rule->load_name, resolved)) {
+               fprintf(stderr,
+                  "vcsc-ld: component segment '%s' in %s requires MEMORY region '%s' but cfg routes it to '%s'\n",
+                  segment, obj->origin, resolved, exact_rule->load_name);
+               exit(1);
+            }
+            if (exact_rule && alignment && exact_rule->align &&
+                exact_rule->align != alignment) {
+               fprintf(stderr,
+                  "vcsc-ld: component segment '%s' in %s requires alignment $%04lX but cfg requires $%04X\n",
+                  segment, obj->origin, alignment, exact_rule->align);
+               exit(1);
+            }
+            continue;
+malformed_layout:
+            fprintf(stderr, "vcsc-ld: malformed component layout metadata in %s\n",
+                    obj->origin);
+            exit(1);
+         }
+         fprintf(stderr, "vcsc-ld: unknown component metadata record in %s\n",
+                 obj->origin);
+         exit(1);
+      }
+   }
+
+   if (stack_record_count) {
+      memory_region_t *target = NULL;
+      for (i = 0; i < cfg->mem_count; ++i) {
+         memory_region_t *mem = &cfg->mem[i];
+         if (!mem->callstack_callgraph)
+            continue;
+         if (target) {
+            fprintf(stderr,
+               "vcsc-ld: component hidden-stack metadata requires exactly one callgraph MEMORY region\n");
+            exit(1);
+         }
+         target = mem;
+      }
+      if (!target) {
+         fprintf(stderr,
+            "vcsc-ld: component hidden-stack metadata requires a MEMORY region with callstack=callgraph\n");
+         exit(1);
+      }
+      if (target->callstack_extra && target->callstack_extra != stack_total) {
+         fprintf(stderr,
+            "vcsc-ld: component hidden-stack requirement $%04X conflicts with cfg callstack_extra $%04X in MEMORY region '%s'\n",
+            (unsigned)stack_total, target->callstack_extra, target->name);
+         exit(1);
+      }
+      target->callstack_extra = (uint16_t)stack_total;
+   }
+}
+
 //! @brief Trim leading and trailing whitespace in place and return the first non-space byte.
 static char *trim(char *s)
 {
@@ -2344,9 +2568,13 @@ static const cartridge_bank_t *call_graph_function_bank(const linker_config_t *c
       return find_cartridge_bank(cfg, layout->placement_bank);
    fallback = find_segment_rule(cfg, "CODE");
    rule = find_layout_segment_rule(cfg, layout->name, fallback);
-   if (!rule || !rule->load_name[0])
-      return NULL;
-   memory = find_memory(cfg, rule->load_name);
+   {
+      const char *memory_name = component_resolve_memory_name(cfg, layout,
+         (rule && rule->load_name[0]) ? rule->load_name : NULL);
+      if (!memory_name || !*memory_name)
+         return NULL;
+      memory = find_memory(cfg, memory_name);
+   }
    if (!memory || !memory->bank_name[0])
       return NULL;
    return find_cartridge_bank(cfg, memory->bank_name);
@@ -4590,9 +4818,13 @@ static const memory_region_t *bank_placement_layout_memory(const linker_config_t
    fallback = find_segment_rule(cfg,
       lay->segid == O26_SEG_TEXT ? "CODE" : "DATA");
    rule = find_layout_segment_rule(cfg, lay->name, fallback);
-   if (!rule || !rule->load_name[0])
-      return NULL;
-   return find_memory(cfg, rule->load_name);
+   {
+      const char *memory_name = component_resolve_memory_name(cfg, lay,
+         (rule && rule->load_name[0]) ? rule->load_name : NULL);
+      if (!memory_name || !*memory_name)
+         return NULL;
+      return find_memory(cfg, memory_name);
+   }
 }
 
 //! @brief Split a compiler-private layout name into its source segment prefix.
@@ -5915,9 +6147,12 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             continue;
          rule = find_layout_segment_rule(cfg, lay->name, code);
          load_name = lay->placement_memory[0] ? lay->placement_memory
-            : ((rule && rule->load_name[0]) ? rule->load_name : code_load_name);
+            : component_resolve_memory_name(cfg, lay,
+               (rule && rule->load_name[0]) ? rule->load_name : code_load_name);
          lay->load_addr = alloc_code_branch_aware(layout, cfg, load_name, obj, lay,
-            rule ? rule->align : 1, lay->name, obj->origin);
+            lay->component_alignment ? lay->component_alignment
+               : (rule && rule->align ? rule->align : 1),
+            lay->name, obj->origin);
          lay->run_addr = lay->load_addr;
       }
 
@@ -5933,9 +6168,12 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
              (lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT))
             continue;
          rule = find_layout_segment_rule(cfg, lay->name, data);
-         load_name = (rule && rule->load_name[0]) ? rule->load_name : data_load_name;
+         load_name = component_resolve_memory_name(cfg, lay,
+            (rule && rule->load_name[0]) ? rule->load_name : data_load_name);
          lay->load_addr = alloc_from_region_policy(layout, cfg, load_name, lay->size,
-            rule ? rule->align : 1, NULL, lay->name, obj->origin);
+            lay->component_alignment ? lay->component_alignment
+               : (rule && rule->align ? rule->align : 1),
+            NULL, lay->name, obj->origin);
       }
 
       for (j = 0; j < obj->layout_count; ++j) {
@@ -7511,6 +7749,12 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                        lay->placement_mode == BANK_PLACEMENT_PINNED
                           ? "pinned" : "automatic",
                        lay->placement_component);
+            if (lay->component_memory[0])
+               fprintf(fp, " component-region=%s", lay->component_memory);
+            if (lay->component_alignment)
+               fprintf(fp, " component-align=$%04X", lay->component_alignment);
+            if (lay->component_private)
+               fprintf(fp, " component-private=yes");
             fputc('\n', fp);
          }
          else if (lay->segid == O26_SEG_DATA) {
@@ -7522,10 +7766,17 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                fprintf(fp, " write=$%04X",
                        memory_runtime_write_address(cfg, runtime_mem->name,
                                                     lay->run_addr, lay->size));
-            fprintf(fp, " size=$%04X load-page=%s run-page=%s\n",
+            fprintf(fp, " size=$%04X load-page=%s run-page=%s",
                     lay->size, page_placement_name(lay->load_addr, lay->size, 0),
                     page_placement_name(lay->run_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
+            if (lay->component_memory[0])
+               fprintf(fp, " component-region=%s", lay->component_memory);
+            if (lay->component_alignment)
+               fprintf(fp, " component-align=$%04X", lay->component_alignment);
+            if (lay->component_private)
+               fprintf(fp, " component-private=yes");
+            fputc('\n', fp);
          }
          else {
             const memory_region_t *runtime_mem =
@@ -7535,9 +7786,16 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                fprintf(fp, " write=$%04X",
                        memory_runtime_write_address(cfg, runtime_mem->name,
                                                     lay->run_addr, lay->size));
-            fprintf(fp, " size=$%04X page=%s\n", lay->size,
+            fprintf(fp, " size=$%04X page=%s", lay->size,
                     page_placement_name(lay->run_addr, lay->size,
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
+            if (lay->component_memory[0])
+               fprintf(fp, " component-region=%s", lay->component_memory);
+            if (lay->component_alignment)
+               fprintf(fp, " component-align=$%04X", lay->component_alignment);
+            if (lay->component_private)
+               fprintf(fp, " component-private=yes");
+            fputc('\n', fp);
          }
       }
    }
@@ -8145,6 +8403,7 @@ int main(int argc, char **argv)
    validate_c26_topology(&cfg);
    apply_c26_topology_to_linker_config(&cfg);
    synthesize_c26_segment_rules(&cfg);
+   apply_component_constraints(&cfg, &inputs);
    validate_linker_config(&cfg);
    if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,

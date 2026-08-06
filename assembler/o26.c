@@ -1039,6 +1039,294 @@ static int decode_escaped_string(const char *quoted,
    return 1;
 }
 
+
+#define COMPONENT_CONSTRAINT_META_PREFIX "__componentmeta$V1$"
+
+typedef struct component_constraint_record {
+   char *segment;
+   char *region;
+   unsigned short alignment;
+   int has_region;
+   int has_alignment;
+   int private_route;
+   const stmt_t *region_stmt;
+   const stmt_t *alignment_stmt;
+   const stmt_t *private_stmt;
+   struct component_constraint_record *next;
+} component_constraint_record_t;
+
+static char *component_unquote_string(const char *text)
+{
+   size_t n;
+   char *out;
+   if (!text)
+      return NULL;
+   n = strlen(text);
+   if (n >= 2 && text[0] == '"' && text[n - 1] == '"') {
+      out = (char *)malloc(n - 1);
+      if (!out) {
+         fprintf(stderr, "out of memory\n");
+         exit(1);
+      }
+      memcpy(out, text + 1, n - 2);
+      out[n - 2] = '\0';
+      return out;
+   }
+   return xstrdup(text);
+}
+
+static component_constraint_record_t *component_find_or_add_constraint(
+   component_constraint_record_t **head, const char *segment)
+{
+   component_constraint_record_t *p;
+   for (p = *head; p; p = p->next)
+      if (!strcmp(p->segment, segment))
+         return p;
+   p = (component_constraint_record_t *)calloc(1, sizeof(*p));
+   if (!p) {
+      fprintf(stderr, "out of memory\n");
+      exit(1);
+   }
+   p->segment = xstrdup(segment);
+   p->next = *head;
+   *head = p;
+   return p;
+}
+
+static void component_free_constraints(component_constraint_record_t *head)
+{
+   while (head) {
+      component_constraint_record_t *next = head->next;
+      free(head->segment);
+      free(head->region);
+      free(head);
+      head = next;
+   }
+}
+
+static char *component_hex_encode(const char *text)
+{
+   static const char hex[] = "0123456789ABCDEF";
+   size_t n = strlen(text);
+   size_t i;
+   char *out = (char *)malloc(n * 2 + 1);
+   if (!out) {
+      fprintf(stderr, "out of memory\n");
+      exit(1);
+   }
+   for (i = 0; i < n; ++i) {
+      unsigned char ch = (unsigned char)text[i];
+      out[i * 2] = hex[ch >> 4];
+      out[i * 2 + 1] = hex[ch & 15];
+   }
+   out[n * 2] = '\0';
+   return out;
+}
+
+static void component_add_metadata_export(o26_writer_t *wr, char *name)
+{
+   o26_export_t *ex;
+   if (find_export(wr, name)) {
+      free(name);
+      return;
+   }
+   ex = (o26_export_t *)calloc(1, sizeof(*ex));
+   if (!ex) {
+      fprintf(stderr, "out of memory\n");
+      exit(1);
+   }
+   ex->name = name;
+   ex->segid = O26_SEG_ABS;
+   ex->value = 0;
+   ex->next = wr->exports;
+   wr->exports = ex;
+}
+
+static int component_eval_u16(o26_writer_t *wr, const stmt_t *stmt,
+                              const expr_t *expr, long minimum,
+                              long maximum, const char *what,
+                              unsigned short *out)
+{
+   long value;
+   if (!expr || expr_eval(expr, &wr->ctx->symbols, stmt->scope, stmt->file,
+                          stmt->address, &value) != EXPR_EVAL_OK ||
+       value < minimum || value > maximum) {
+      writer_error(wr->ctx, stmt, "%s must be a constant from %ld through %ld",
+                   what, minimum, maximum);
+      return 0;
+   }
+   *out = (unsigned short)value;
+   return 1;
+}
+
+static void add_component_constraint_exports(o26_writer_t *wr)
+{
+   const stmt_t *stmt;
+   component_constraint_record_t *constraints = NULL;
+   component_constraint_record_t *record;
+   unsigned short stack_extra = 0;
+   const stmt_t *stack_stmt = NULL;
+
+   for (stmt = wr->ctx->prog->head; stmt; stmt = stmt->next) {
+      const directive_info_t *dir;
+      char *segment;
+      if (!stmt->active || stmt->kind != STMT_DIR || !stmt->u.dir)
+         continue;
+      dir = stmt->u.dir;
+      if (!strcmp(dir->name, ".segmentregion")) {
+         const expr_t *region_expr;
+         const char *region;
+         if (!dir->string || !dir->exprs || dir->exprs->next ||
+             !dir->exprs->expr || dir->exprs->expr->kind != EXPR_IDENT) {
+            writer_error(wr->ctx, stmt,
+               ".segmentregion expects a quoted segment name and a memory-region name or startup");
+            continue;
+         }
+         segment = component_unquote_string(dir->string);
+         if (!segment || !*segment) {
+            writer_error(wr->ctx, stmt, ".segmentregion segment name cannot be empty");
+            free(segment);
+            continue;
+         }
+         region_expr = dir->exprs->expr;
+         region = !strcasecmp(region_expr->u.ident, "startup")
+            ? "@startup" : region_expr->u.ident;
+         record = component_find_or_add_constraint(&constraints, segment);
+         if (record->has_region && strcmp(record->region, region)) {
+            writer_error(wr->ctx, stmt,
+               "conflicting .segmentregion for '%s'; previous declaration at %s:%d",
+               segment, record->region_stmt && record->region_stmt->file
+                  ? record->region_stmt->file : "<input>",
+               record->region_stmt ? record->region_stmt->line : 0);
+         } else if (!record->has_region) {
+            record->region = xstrdup(region);
+            record->has_region = 1;
+            record->region_stmt = stmt;
+         }
+         free(segment);
+         continue;
+      }
+      if (!strcmp(dir->name, ".segmentalign")) {
+         unsigned short alignment;
+         if (!dir->string || !dir->exprs || dir->exprs->next) {
+            writer_error(wr->ctx, stmt,
+               ".segmentalign expects a quoted segment name and one power-of-two alignment");
+            continue;
+         }
+         segment = component_unquote_string(dir->string);
+         if (!segment || !*segment) {
+            writer_error(wr->ctx, stmt, ".segmentalign segment name cannot be empty");
+            free(segment);
+            continue;
+         }
+         if (!component_eval_u16(wr, stmt, dir->exprs->expr, 1, 32768,
+                                 ".segmentalign alignment", &alignment)) {
+            free(segment);
+            continue;
+         }
+         if ((alignment & (alignment - 1u)) != 0) {
+            writer_error(wr->ctx, stmt, ".segmentalign alignment must be a power of two");
+            free(segment);
+            continue;
+         }
+         record = component_find_or_add_constraint(&constraints, segment);
+         if (record->has_alignment && record->alignment != alignment) {
+            writer_error(wr->ctx, stmt,
+               "conflicting .segmentalign for '%s'; previous declaration at %s:%d",
+               segment, record->alignment_stmt && record->alignment_stmt->file
+                  ? record->alignment_stmt->file : "<input>",
+               record->alignment_stmt ? record->alignment_stmt->line : 0);
+         } else if (!record->has_alignment) {
+            record->alignment = alignment;
+            record->has_alignment = 1;
+            record->alignment_stmt = stmt;
+         }
+         free(segment);
+         continue;
+      }
+      if (!strcmp(dir->name, ".segmentprivate")) {
+         if (!dir->string || dir->exprs) {
+            writer_error(wr->ctx, stmt,
+               ".segmentprivate expects exactly one quoted segment name");
+            continue;
+         }
+         segment = component_unquote_string(dir->string);
+         if (!segment || !*segment) {
+            writer_error(wr->ctx, stmt, ".segmentprivate segment name cannot be empty");
+            free(segment);
+            continue;
+         }
+         record = component_find_or_add_constraint(&constraints, segment);
+         record->private_route = 1;
+         if (!record->private_stmt)
+            record->private_stmt = stmt;
+         free(segment);
+         continue;
+      }
+      if (!strcmp(dir->name, ".callstackextra")) {
+         unsigned short value;
+         if (dir->string || !dir->exprs || dir->exprs->next) {
+            writer_error(wr->ctx, stmt, ".callstackextra expects exactly one byte count");
+            continue;
+         }
+         if (!component_eval_u16(wr, stmt, dir->exprs->expr, 0, 65535,
+                                 ".callstackextra", &value))
+            continue;
+         if (stack_stmt && stack_extra != value) {
+            writer_error(wr->ctx, stmt,
+               "conflicting .callstackextra; previous declaration at %s:%d",
+               stack_stmt->file ? stack_stmt->file : "<input>", stack_stmt->line);
+         } else if (!stack_stmt) {
+            stack_extra = value;
+            stack_stmt = stmt;
+         }
+      }
+   }
+
+   for (record = constraints; record; record = record->next) {
+      o26_segment_layout_t *layout = find_layout(wr, record->segment);
+      char *segment_hex;
+      char *region_hex;
+      char *name;
+      size_t need;
+      const char *region = record->has_region ? record->region : "";
+      if (!layout) {
+         const stmt_t *where = record->region_stmt ? record->region_stmt
+            : (record->alignment_stmt ? record->alignment_stmt : record->private_stmt);
+         writer_error(wr->ctx, where,
+            "component constraint names missing or empty segment '%s'", record->segment);
+         continue;
+      }
+      segment_hex = component_hex_encode(record->segment);
+      region_hex = component_hex_encode(region);
+      need = strlen(COMPONENT_CONSTRAINT_META_PREFIX) + strlen(segment_hex) +
+         strlen(region_hex) + 64;
+      name = (char *)malloc(need);
+      if (!name) {
+         fprintf(stderr, "out of memory\n");
+         exit(1);
+      }
+      snprintf(name, need, "%sL$%s$%s$%u$%u",
+               COMPONENT_CONSTRAINT_META_PREFIX, segment_hex, region_hex,
+               record->has_alignment ? (unsigned)record->alignment : 0u,
+               record->private_route ? 1u : 0u);
+      component_add_metadata_export(wr, name);
+      free(segment_hex);
+      free(region_hex);
+   }
+   if (stack_stmt) {
+      char *name = (char *)malloc(strlen(COMPONENT_CONSTRAINT_META_PREFIX) + 32);
+      if (!name) {
+         fprintf(stderr, "out of memory\n");
+         exit(1);
+      }
+      sprintf(name, "%sS$%u", COMPONENT_CONSTRAINT_META_PREFIX,
+              (unsigned)stack_extra);
+      component_add_metadata_export(wr, name);
+   }
+   component_free_constraints(constraints);
+}
+
 //! @brief Add exports to assembler o26 object writer state, growing storage or preserving uniqueness as needed.
 static void add_exports(o26_writer_t *wr)
 {
@@ -1175,7 +1463,12 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
              !strcmp(stmt->u.dir->name, ".importzp") || !strcmp(stmt->u.dir->name, ".zpglobal") ||
              !strcmp(stmt->u.dir->name, ".zpexport") || !strcmp(stmt->u.dir->name, ".zpimport") ||
              !strcmp(stmt->u.dir->name, ".weak") || !strcmp(stmt->u.dir->name, ".proc") ||
-             !strcmp(stmt->u.dir->name, ".endproc") || directive_is_conditional(stmt->u.dir->name))
+             !strcmp(stmt->u.dir->name, ".endproc") ||
+             !strcmp(stmt->u.dir->name, ".segmentregion") ||
+             !strcmp(stmt->u.dir->name, ".segmentalign") ||
+             !strcmp(stmt->u.dir->name, ".segmentprivate") ||
+             !strcmp(stmt->u.dir->name, ".callstackextra") ||
+             directive_is_conditional(stmt->u.dir->name))
             return 1;
 
          if (!strcmp(stmt->u.dir->name, ".byte")) {
@@ -1642,6 +1935,7 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
       goto fail;
 
    add_exports(&wr);
+   add_component_constraint_exports(&wr);
    reset_mutable_symbols_for_o26(&ctx->symbols);
 
    for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {

@@ -1870,7 +1870,7 @@ when main roadmap item 29 becomes active.
          configuration-only input selection, installation/uninstallation,
          documentation, and source-tree hygiene.
 
-[ ] 27. Move component-specific placement constraints out of cfg files.
+[x] 27. Move component-specific placement constraints out of cfg files.
 
        * Add source/assembler object metadata for required `mem` region, alignment,
          page containment, private segment routing, and hidden hardware-stack use
@@ -1882,6 +1882,42 @@ when main roadmap item 29 becomes active.
          image, timing, stack reservation, segment placement, and diagnostics match
          the current renderer-specific cfg. Add conflict and malformed-metadata tests.
        * Define the source-tree rule which forbids new renderer x mapper cfg products.
+
+       Completed 2026-08-05:
+       * Add `.segmentregion`, `.segmentalign`, `.segmentprivate`, and
+         `.callstackextra` assembler directives. Serialize their normalized facts
+         as reserved object metadata, reject malformed constants, missing layouts,
+         and conflicting source declarations, and keep `.pagecontain` plus
+         `.indexrange` as the existing hard page and indexed-window contracts.
+       * Apply component records after C26 cartridge/memory synthesis and before
+         final config validation. Resolve the special `startup` role through the
+         selected topology's ordinary CODE route, honor named C26 `mem` regions,
+         constrain final layout alignment, and retain object-private routes without
+         creating global SEGMENTS rules.
+       * Combine assembly-only hidden-stack bytes with the generic
+         `callstack=callgraph` region. Accept retained cfg region/alignment/extra
+         values only when they match exactly; reject unknown regions, mismatched
+         routes or alignments, missing callgraph policy, malformed metadata, and
+         incompatible hidden-stack totals.
+       * Move the standard renderer's startup-region, 256-byte alignment, private
+         routing, and four-byte hidden-stack facts into its normalized assembly
+         object. Make the maintained C26 player-color and all-five renderer
+         templates emit the same hidden helper-JSR allowance through inline
+         `.callstackextra` metadata. Reduce `vcs_standard_4k_ntsc.cfg` to a
+         deprecated generic 4K compatibility description with no renderer-specific
+         segment or stack property. Ordinary/default 4K builds now require no
+         renderer cfg.
+       * Correct the public interactive RAM accounting to reserve the full
+         object-reported eight-byte hardware stack. Replace the compiler-temporary
+         console Reset expression with an equivalent scratch-free inline-assembly
+         test; the worst public cartridge now uses 119 object bytes plus eight
+         hardware-stack bytes and leaves one RIOT RAM byte free.
+       * Add map reporting for component region, alignment, and private routing;
+         byte-identical differential coverage against a reconstructed pre-item-27
+         cfg/object pair; final stack/placement checks; malformed and conflict
+         regressions; installed-object metadata checks; documentation; and a
+         source-tree rule allowing only the three grandfathered compatibility or
+         reference cfgs while forbidding any new renderer x mapper cfg product.
 
 [ ] 28. Add the first composable banked profile for the maintained standard renderer.
 

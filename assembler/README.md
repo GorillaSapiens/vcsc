@@ -770,6 +770,45 @@ therefore pin one source-level function to a named memory region without merging
 all functions assigned to that region into one indivisible layout. Procedures
 in unrelated explicit segments retain their existing whole-segment behavior.
 
+### Component-owned linker constraints
+
+Relocatable assembly components may carry their own final-placement and hidden
+hardware-stack requirements in reserved o26 metadata:
+
+```asm
+.segmentregion "RENDERER_CODE", startup
+.segmentalign "RENDERER_CODE", 256
+.segmentprivate "RENDERER_CODE"
+.callstackextra 4
+```
+
+`.segmentregion "SEGMENT", REGION` requires the named final layout to use that
+C26 `mem` region. The special identifier `startup` means the selected cartridge
+topology's default/startup read-only region, so one component can compose with
+4K, F8, F6, or F4 without naming `rom` or `bank0`. The named layout must exist.
+
+`.segmentalign "SEGMENT", ALIGNMENT` requires the final layout base to have the
+specified power-of-two alignment from 1 through 32768. This differs from
+`.align`: `.align` pads inside the assembler segment, whereas `.segmentalign`
+constrains the segment's final linker base. Components commonly use both.
+
+`.segmentprivate "SEGMENT"` records that the route belongs only to this object
+component rather than defining a global cfg `SEGMENTS` rule for every object
+using the same segment spelling. The linker reports private routes in the map.
+
+`.callstackextra BYTES` records hardware-stack bytes consumed by assembly-only
+calls, pushes, or stack-pointer use which are not visible in the compiler call
+graph. The linker combines the component metadata with a generic
+`callstack=callgraph` memory policy. Multiple declarations in one source must
+agree; malformed constants and missing segments are assembly errors. A retained
+cfg may duplicate a component constraint only when the region, alignment, and
+hidden-stack byte count agree exactly.
+
+These records complement `.pagecontain` and `.indexrange`, which remain the
+hard page-placement metadata for complete layouts and timing-sensitive indexed
+windows. Cartridge profile files describe hardware and allocatable memory; they
+must not repeat component-specific constraints.
+
 ### `.pagecontain`
 
 `.pagecontain` marks the current named segment as a hard page-contained o26 layout. It takes no arguments; keep one constrained object in that segment. The linker places the complete final-sized layout anywhere it fits within one 256-byte page.

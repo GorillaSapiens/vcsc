@@ -8937,3 +8937,38 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   prerequisite, the explicit 2K score build, and all 40 final interactive
   cartridges; the final loop completed in bounded continuation chunks after the
   execution window. The top-level README remains unchanged.
+
+2026-08-05 19:20:30 PDT, move component placement and hidden-stack contracts into object metadata
+--------------------------------------------------------------------------------
+* Complete bankswitching roadmap item 27 by adding `.segmentregion`,
+  `.segmentalign`, `.segmentprivate`, and `.callstackextra` assembler directives.
+  Normalize their facts into reserved object metadata and reject malformed,
+  contradictory, missing-layout, nonconstant, and out-of-range declarations.
+* Apply component records after authoritative C26 topology/memory synthesis and
+  before final layout validation. Resolve `startup` through the selected CODE
+  route, honor named C26 regions, constrain final alignment, retain private
+  routes without global segment rules, and diagnose cfg/object region,
+  alignment, callgraph-policy, or hidden-stack conflicts.
+* Move the maintained standard renderer's region, 256-byte alignment, private
+  routing, and four-byte hidden assembly JSR allowance into its normalized
+  object. Make all maintained C26 player-color and all-five renderer templates
+  emit their own four-byte `.callstackextra` allowance. Reduce the standard
+  compatibility cfg to generic 4K policy and preserve byte-identical output
+  against a reconstructed pre-item-27 cfg/object pair.
+* Correct public interactive RAM accounting to reserve the complete eight-byte
+  hardware stack. Replace the Reset expression with a scratch-free inline
+  assembly test; the worst public cartridge now occupies 119 object bytes plus
+  eight hardware-stack bytes, leaving one RIOT RAM byte free.
+* Add component region/alignment/private map reporting, malformed/conflict
+  regressions, installed-object checks, standard-renderer differential coverage,
+  documentation, test inventory, and source-tree hygiene that permits only the
+  three grandfathered compatibility/reference cfgs and forbids new renderer x
+  mapper cfg products. Leave the top-level README unchanged.
+* Verification: all 437 compile-only tests pass. All 246 end-to-end/generic
+  cases are explicitly accounted for and pass; the heavyweight score/raster
+  certification passed all 32 public cartridges, all 80 generated compositions,
+  and mixed placement in bounded phases. The staged installed toolchain passed
+  every prerequisite and all 40 final cartridge builds. Bankswitching roadmap
+  item 28, composing the maintained standard renderer with generic banked C26
+  profiles, is next.
+

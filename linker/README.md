@@ -536,6 +536,37 @@ units do not merge. Calls hidden inside assembly remain outside this analysis
 and must obey the integration contract's non-reentry rules.
 
 It is not trying to be a full `ld65` config parser.
+## Component-owned placement and hidden-stack contracts
+
+Assembler objects may export reserved component metadata for one named layout's
+required C26 memory region, final power-of-two alignment, object-private routing,
+and assembly-only hardware-stack bytes. The linker applies these records after
+merging C26 topology and authoritative `mem` declarations but before validating
+and allocating the final image.
+
+A region requirement names a C26 `mem` region or the special `startup` role.
+`startup` resolves through the synthesized ordinary `CODE` route, allowing the
+same renderer object to follow the selected 4K or banked cartridge profile.
+Object metadata wins over generic segment fallback. A retained exact cfg route
+or alignment may duplicate the object contract only when it agrees; a mismatch
+is a fatal diagnostic naming the segment, object, and competing values.
+
+`.callstackextra` records are combined with the one writable MEMORY region which
+requests `callstack=callgraph`. They replace component-specific cfg
+`callstack_extra` fields. A retained cfg value is accepted only when it exactly
+matches the object-owned total. Missing or multiple callgraph regions and
+conflicting values are errors.
+
+The map's `OBJECTS` entries report `component-region`, `component-align`, and
+`component-private` beside each constrained layout. Existing hard
+`.pagecontain` and `.indexrange` metadata continues to report whole-layout and
+effective-index-window page requirements independently.
+
+Cartridge topology and authoritative memory declarations therefore describe
+hardware and allocatable bytes only. Renderer and assembly-component constraints
+travel with the object which needs them; no renderer x mapper cfg product is
+required.
+
 ## Authoritative C26 memory regions
 
 Every complete C26 `mem` declaration is carried in hidden object metadata even
@@ -795,9 +826,8 @@ Function modifiers are property-classified by the compiler: an order-insensitive
 set of `$ro` regions is the code-placement ABI fact, while one `$rw` region is the
 independent return-storage fact. Linker ABI diagnostics report `code regions`
 mismatches separately from `return type` storage mismatches. The linker synthesizes `CODE.orchard`, `RODATA.orchard`, and the corresponding
-writable region routes directly from authoritative C26 declarations. Existing cfg
-rules may retain component-specific alignment or start constraints during
-migration, but they do not choose a different allocator region.
+writable region routes directly from authoritative C26 declarations. Retained cfg rules may duplicate a component-owned alignment during migration
+only when the values agree; they do not choose another allocator region.
 
 For a multi-region code contract, compiler metadata identifies one logical
 function and every requested `$ro` region. The linker clones the compiler's

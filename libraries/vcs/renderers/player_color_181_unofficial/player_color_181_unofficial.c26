@@ -98,6 +98,8 @@ require inline void TEMPLATE_init(void) {
 }
 
 require inline void TEMPLATE_vblank(void) {
+   // Internal assembly helpers add one hidden JSR level.
+   asm .callstackextra 4;
    // Preserve application Y coordinates before the visible renderer mutates them.
    asm lda.z TEMPLATE_player0_y;
    asm sta.z TEMPLATE_workspace + 1;

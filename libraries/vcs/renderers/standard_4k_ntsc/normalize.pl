@@ -432,6 +432,15 @@ sub renderer_output {
    push @out, split(/\n/, generated_header('Mechanically normalized source for the selected standard renderer.'));
    push @out, '.include "standard_4k_ntsc_macros.inc"';
    push @out, '';
+   push @out, '; Component-owned linker contracts.';
+   push @out, '.segmentregion "RENDERER_CODE", startup';
+   push @out, '.segmentalign "RENDERER_CODE", 256';
+   push @out, '.segmentprivate "RENDERER_CODE"';
+   push @out, '.segmentregion "RENDERER_RODATA", startup';
+   push @out, '.segmentalign "RENDERER_RODATA", 256';
+   push @out, '.segmentprivate "RENDERER_RODATA"';
+   push @out, '.callstackextra 4';
+   push @out, '';
    push @out, '; Module-owned state imported from standard_4k_ntsc.c26.';
    for my $name (qw(
       vcs_standard_object_x

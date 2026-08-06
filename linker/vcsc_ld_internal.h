@@ -55,6 +55,7 @@
 #define MEM_DECL_META_PREFIX "__memdecl$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
 #define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
+#define COMPONENT_CONSTRAINT_META_PREFIX "__componentmeta$V1$"
 
 #define MAX_NAME 128
 #define MAX_PATH 512
@@ -188,6 +189,9 @@ typedef struct {
    uint8_t flags;
    uint16_t index_range_start;
    uint16_t index_range_max;
+   char component_memory[MAX_NAME];
+   uint16_t component_alignment;
+   uint8_t component_private;
    uint16_t load_addr;
    uint16_t run_addr;
    /* Final full-window cartridge placement chosen before ordinary address

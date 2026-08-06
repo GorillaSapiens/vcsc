@@ -59,6 +59,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
 -f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
+-f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
 -f File::Spec->catfile($test,'vcs_interactive_sprite_orientation.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_example_make.pl') &&
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
@@ -158,17 +159,59 @@ index($test_readme,'return_local_coalescing.pl')>=0
 index($bankswitching,'[x] 24. Define generic C26 cartridge-output and bank topology.')>=0 &&
 index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
 index($bankswitching,'[x] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.')>=0 &&
-index($bankswitching,'[ ] 27. Move component-specific placement constraints out of cfg files.')>=0 &&
+index($bankswitching,'[x] 27. Move component-specific placement constraints out of cfg files.')>=0 &&
 -f File::Spec->catfile($test,'linker_c26_mem_authority.pl') &&
 -f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
+-f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
 index($compiler_readme,'Complete declarations are authoritative linker metadata')>=0 &&
 index($compiler_readme,'configuration-only input')>=0 &&
 index($abi_text,'Authoritative memory-region metadata')>=0 &&
 index($linker_readme,'## Authoritative C26 memory regions')>=0 &&
 index($linker_readme,'constructs its internal direct or selector-controlled bank model')>=0 &&
-index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0
-&& index($test_readme,'vcs_interactive_sprite_orientation.pl')>=0
+index($linker_readme,'## Component-owned placement and hidden-stack contracts')>=0 &&
+index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0 &&
+index($test_readme,'assembler_component_constraints.pl')>=0 &&
+index($test_readme,'vcs_interactive_sprite_orientation.pl')>=0
    or die "C26 profile migration, authoritative memory, or regression documentation is incomplete\n";
+
+my $standard_renderer_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','standard_4k_ntsc_renderer.s26'));
+index($standard_renderer_source,'.segmentregion "RENDERER_CODE", startup')>=0 &&
+index($standard_renderer_source,'.segmentalign "RENDERER_CODE", 256')>=0 &&
+index($standard_renderer_source,'.segmentprivate "RENDERER_CODE"')>=0 &&
+index($standard_renderer_source,'.callstackextra 4')>=0
+   or die "standard renderer lost object-owned placement or hidden-stack constraints
+";
+for my $component (
+   'all_five_181/all_five_181.c26',
+   'all_five_181_unofficial/all_five_181_unofficial.c26',
+   'all_five_192/all_five_192.c26',
+   'player_color_181/player_color_181.c26',
+   'player_color_181_unofficial/player_color_181_unofficial.c26',
+   'player_color_192/player_color_192.c26',
+) {
+   my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
+   index($source,'asm .callstackextra 4;')>=0
+      or die "$component lost its object-owned inline-assembly stack allowance\n";
+}
+my $standard_compat_cfg=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','vcs_standard_4k_ntsc.cfg'));
+$standard_compat_cfg !~ /callstack_extra|RENDERER_CODE|RENDERER_RODATA/
+   or die "standard renderer compatibility cfg regained component-specific constraints
+";
+my @renderer_cfg_products;
+find(sub {
+   return unless -f $_ && /\.cfg\z/;
+   push @renderer_cfg_products,$File::Find::name;
+}, File::Spec->catdir($repo,'libraries','vcs','renderers'));
+my %allowed_renderer_cfg = map { File::Spec->catfile($repo,split('/',$_)) => 1 } (
+   'libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg',
+   'libraries/vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg',
+   'libraries/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg',
+);
+my @unexpected_renderer_cfg = grep { !$allowed_renderer_cfg{$_} } @renderer_cfg_products;
+my @missing_renderer_cfg = grep { !-f $_ } sort keys %allowed_renderer_cfg;
+!@unexpected_renderer_cfg && !@missing_renderer_cfg
+   or die "new renderer x mapper cfg product is forbidden; unexpected=@unexpected_renderer_cfg missing=@missing_renderer_cfg
+";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0
    or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";

@@ -1489,7 +1489,11 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                 !strcmp(stmt->u.dir->name, ".zpimport") ||
                 !strcmp(stmt->u.dir->name, ".weak") ||
                 !strcmp(stmt->u.dir->name, ".proc") ||
-                !strcmp(stmt->u.dir->name, ".endproc")) {
+                !strcmp(stmt->u.dir->name, ".endproc") ||
+                !strcmp(stmt->u.dir->name, ".segmentregion") ||
+                !strcmp(stmt->u.dir->name, ".segmentalign") ||
+                !strcmp(stmt->u.dir->name, ".segmentprivate") ||
+                !strcmp(stmt->u.dir->name, ".callstackextra")) {
                break;
             }
 
@@ -1965,6 +1969,10 @@ static int directive_emit_pass2(asm_context_t *ctx,
        !strcmp(dir->name, ".weak") ||
        !strcmp(dir->name, ".proc") ||
        !strcmp(dir->name, ".endproc") ||
+       !strcmp(dir->name, ".segmentregion") ||
+       !strcmp(dir->name, ".segmentalign") ||
+       !strcmp(dir->name, ".segmentprivate") ||
+       !strcmp(dir->name, ".callstackextra") ||
        directive_is_conditional(dir->name)) {
       if (ctx->listing)
          listing_write_no_bytes(ctx->listing, stmt);

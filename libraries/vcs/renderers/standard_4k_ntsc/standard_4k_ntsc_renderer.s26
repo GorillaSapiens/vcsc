@@ -13,6 +13,15 @@
 ;   dc074ffbf3bbb3c7777892175c5264b1e15c8d667709c504f7b6d7649a34686b  legacy-basic-renderers/common/score_graphics.asm
 .include "standard_4k_ntsc_macros.inc"
 
+; Component-owned linker contracts.
+.segmentregion "RENDERER_CODE", startup
+.segmentalign "RENDERER_CODE", 256
+.segmentprivate "RENDERER_CODE"
+.segmentregion "RENDERER_RODATA", startup
+.segmentalign "RENDERER_RODATA", 256
+.segmentprivate "RENDERER_RODATA"
+.callstackextra 4
+
 ; Module-owned state imported from standard_4k_ntsc.c26.
 .importzp vcs_standard_object_x
 .importzp vcs_standard_player0_y

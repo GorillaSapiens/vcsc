@@ -84,10 +84,14 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'renderers','standard_4k_ntsc');
 my $module=File::Spec->catfile($profile,'standard_4k_ntsc.c26');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
+my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
+my $profile_c26=File::Spec->catfile($vcs,'vcs_4k.c26');
+my $compat_cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $readme=File::Spec->catfile($profile,'README.md');
 my $module_text=read_file($module);
 my $cfg_text=read_file($cfg);
+my $compat_cfg_text=read_file($compat_cfg);
+my $renderer_text=read_file($renderer);
 my $readme_text=read_file($readme);
 
 require_re($module_text,qr/alias\s+VCS_STANDARD_APPLICATION_DISPLAY_RAM_BYTES\s+23\b/,
@@ -127,7 +131,7 @@ my @required_readme=(
    'Register, flag, and hardware-register clobbers', 'Hidden hardware-stack use',
    'ROM and feature-cost ledger', 'Retained-source boundary used by the normalizer',
    '262-scanline', 'vertical reflection', 'multisprite', 'status bar', 'Superchip',
-   'callstack_extra = $0004', 'Mandatory module-declared RAM', '80',
+   '.callstackextra 4', 'Mandatory module-declared RAM', '80',
    'vcs_standard_overscan_hook', 'weak no-op', '**next** frame',
    'fixed ROM playfield', 'mutable playfield', '32 independently controlled bits',
    '16 scanlines', '$00..$D0', 'runtime playfield',
@@ -136,8 +140,23 @@ my @required_readme=(
 for my $phrase (@required_readme) {
    index($readme_text,$phrase) >= 0 or die "contract README is missing '$phrase'\n";
 }
-require_re($cfg_text,qr/RAM:.*callstack\s*=\s*callgraph.*callstack_extra\s*=\s*\$0004/s,
-   'profile cfg does not reserve the exact four-byte supplementary stack allowance');
+require_re($renderer_text,qr/^\.segmentregion\s+"RENDERER_CODE",\s*startup\s*$/m,
+   'renderer object does not own its code-region contract');
+require_re($renderer_text,qr/^\.segmentalign\s+"RENDERER_CODE",\s*256\s*$/m,
+   'renderer object does not own its code alignment');
+require_re($renderer_text,qr/^\.segmentprivate\s+"RENDERER_CODE"\s*$/m,
+   'renderer code route is not object-private');
+require_re($renderer_text,qr/^\.segmentregion\s+"RENDERER_RODATA",\s*startup\s*$/m,
+   'renderer object does not own its RODATA-region contract');
+require_re($renderer_text,qr/^\.segmentalign\s+"RENDERER_RODATA",\s*256\s*$/m,
+   'renderer object does not own its RODATA alignment');
+require_re($renderer_text,qr/^\.callstackextra\s+4\s*$/m,
+   'renderer object does not own its four-byte hidden-stack requirement');
+$compat_cfg_text !~ /callstack_extra|RENDERER_CODE|RENDERER_RODATA/
+   or die "compatibility cfg still contains renderer-specific constraints
+";
+require_re($cfg_text,qr/ram:.*callstack\s*=\s*callgraph/is,
+   'generic VCS cfg lost call-graph stack policy');
 
 my $ram_src=File::Spec->catfile($repo,'test','vcs_standard_renderer_contract_smoke.c26');
 my $rom_src=File::Spec->catfile($repo,'test','vcs_standard_renderer_contract_rom_smoke.c26');
@@ -151,14 +170,14 @@ $rom_src_text !~ /alignment_pad|\[97\]/ or die "ROM smoke padding array returned
 
 my ($ram_exit,$ram_sig,$ram_out,$ram_err)=run_capture(
    $driver,'-I',$vcs,'-T',$cfg,
-   $ram_src,$renderer,'-o',File::Spec->catfile($tmp,'standard_renderer_contract_ram.bin'));
+   $profile_c26,$ram_src,$renderer,'-o',File::Spec->catfile($tmp,'standard_renderer_contract_ram.bin'));
 $ram_exit != 0 && !$ram_sig or die "mutable-playfield smoke unexpectedly linked\n";
 without_cartridge_usage($ram_out) eq '' or die "mutable-playfield smoke wrote stdout:\n$ram_out";
 $ram_err =~ /does not fit|overflow|out of memory|RAM/i
    or die "mutable-playfield failure did not report RIOT RAM exhaustion:\n$ram_err";
 
 my $rom_map=build_smoke(
-   $driver,$vcs,$cfg,[$rom_src,$renderer],
+   $driver,$vcs,$cfg,[$profile_c26,$rom_src,$renderer],
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.map'));
 
@@ -191,14 +210,90 @@ $rom_pf >= 0xf000
    or die sprintf("ROM playfield linked outside cartridge ROM at \$%04X\n",$rom_pf);
 timing_safe_playfield($rom_pf,'ROM');
 
-my $bad_cfg=File::Spec->catfile($tmp,'bad_callstack_extra.cfg');
-(my $bad_text=$cfg_text) =~ s/callstack\s*=\s*callgraph/callstack = no/;
+require_re($rom_map,qr/RENDERER_CODE\s+load=\$[0-9A-F]{4}.*component-region=\@startup.*component-align=\$0100.*component-private=yes/,
+   'map does not report object-owned renderer code constraints');
+require_re($rom_map,qr/RENDERER_RODATA\s+load=\$[0-9A-F]{4}.*component-region=\@startup.*component-align=\$0100.*component-private=yes/,
+   'map does not report object-owned renderer RODATA constraints');
+my $renderer_code=symbol_addr($rom_map,'vcs_standard_renderer_drawscreen');
+($renderer_code & 0xff) < 0x100
+   or die "renderer draw entry is outside the aligned renderer layout
+";
+
+# Reconstruct the pre-item-27 cfg and strip the new object metadata.  The old
+# cfg-owned build must remain byte-identical to the new component-owned build.
+my $legacy_cfg=File::Spec->catfile($tmp,'legacy_standard_renderer.cfg');
+my $legacy_cfg_text=$compat_cfg_text;
+$legacy_cfg_text =~ s/callstack\s*=\s*callgraph/callstack = callgraph, callstack_extra = \$0004/;
+$legacy_cfg_text =~ s/(\s+RODATA:.*?;
+)/$1 . "    RENDERER_CODE:   load = ROM, type = ro, define = yes, align = \$0100;\n" .
+   "    RENDERER_RODATA: load = ROM, type = ro, define = yes, align = \$0100;\n"/e;
+write_file($legacy_cfg,$legacy_cfg_text);
+my $legacy_renderer=File::Spec->catfile($tmp,'standard_renderer_legacy_constraints.s26');
+(my $legacy_renderer_text=$renderer_text) =~ s/^\.(?:segmentregion|segmentalign|segmentprivate|callstackextra)[^
+]*
+//mg;
+my $legacy_macros=File::Spec->catfile($profile,'standard_4k_ntsc_macros.inc');
+$legacy_renderer_text =~ s/^\.include\s+"standard_4k_ntsc_macros\.inc"/.include "$legacy_macros"/m;
+write_file($legacy_renderer,$legacy_renderer_text);
+my $legacy_bin=File::Spec->catfile($tmp,'standard_renderer_legacy_constraints.bin');
+my $legacy_map_path=File::Spec->catfile($tmp,'standard_renderer_legacy_constraints.map');
+my $legacy_map=build_smoke($driver,$vcs,$legacy_cfg,[$rom_src,$legacy_renderer],
+   $legacy_bin,$legacy_map_path);
+read_file($legacy_bin) eq read_file(File::Spec->catfile($tmp,'standard_renderer_contract_rom.bin'))
+   or die "component-owned renderer image differs from the legacy cfg-owned image
+";
+require_re($legacy_map,qr/region=ram\s+depth=3\s+bytes=\$000A.*extra=\$0004/,
+   'legacy differential build did not preserve stack accounting');
+
+# A compatibility cfg may duplicate the component contract only when it agrees.
+my $duplicate_bin=File::Spec->catfile($tmp,'standard_renderer_duplicate_contract.bin');
+my $duplicate_map=File::Spec->catfile($tmp,'standard_renderer_duplicate_contract.map');
+build_smoke($driver,$vcs,$legacy_cfg,[$rom_src,$renderer],$duplicate_bin,$duplicate_map);
+read_file($duplicate_bin) eq read_file($legacy_bin)
+   or die "matching cfg/object constraints changed the renderer image
+";
+
+# Conflicting retained cfg constraints must fail deterministically.
+my $bad_align_cfg=File::Spec->catfile($tmp,'bad_renderer_alignment.cfg');
+(my $bad_align_text=$legacy_cfg_text) =~ s/RENDERER_CODE:(.*)align\s*=\s*\$0100/RENDERER_CODE:$1align = \$0080/;
+write_file($bad_align_cfg,$bad_align_text);
+my ($align_exit,$align_sig,$align_out,$align_err)=run_capture(
+   $driver,'-I',$vcs,'-T',$bad_align_cfg,$rom_src,$renderer,
+   '-o',File::Spec->catfile($tmp,'bad_renderer_alignment.bin'));
+$align_exit != 0 && !$align_sig or die "conflicting renderer alignment unexpectedly linked
+";
+without_cartridge_usage($align_out) eq '' or die "bad alignment wrote stdout:
+$align_out";
+$align_err =~ /requires alignment \$0100 but cfg requires \$0080/
+   or die "alignment conflict diagnostic is missing:
+$align_err";
+
+my $bad_stack_cfg=File::Spec->catfile($tmp,'bad_renderer_stack.cfg');
+(my $bad_stack_text=$legacy_cfg_text) =~ s/callstack_extra\s*=\s*\$0004/callstack_extra = \$0002/;
+write_file($bad_stack_cfg,$bad_stack_text);
+my ($stack_exit,$stack_sig,$stack_out,$stack_err)=run_capture(
+   $driver,'-I',$vcs,'-T',$bad_stack_cfg,$rom_src,$renderer,
+   '-o',File::Spec->catfile($tmp,'bad_renderer_stack.bin'));
+$stack_exit != 0 && !$stack_sig or die "conflicting hidden-stack requirement unexpectedly linked
+";
+without_cartridge_usage($stack_out) eq '' or die "bad stack cfg wrote stdout:
+$stack_out";
+$stack_err =~ /hidden-stack requirement \$0004 conflicts with cfg callstack_extra \$0002/
+   or die "hidden-stack conflict diagnostic is missing:
+$stack_err";
+
+my $bad_cfg=File::Spec->catfile($tmp,'bad_callstack_policy.cfg');
+(my $bad_text=$compat_cfg_text) =~ s/callstack\s*=\s*callgraph/callstack = no/;
 write_file($bad_cfg,$bad_text);
 my ($bad_exit,$bad_sig,$bad_out,$bad_err)=run_capture(
-   $driver,'-I',$vcs,'-T',$bad_cfg,$ram_src,$renderer,'-o',File::Spec->catfile($tmp,'bad.bin'));
-$bad_exit != 0 && !$bad_sig or die "callstack_extra without callgraph unexpectedly linked\n";
-without_cartridge_usage($bad_out) eq '' or die "bad profile wrote unexpected stdout:\n$bad_out";
-$bad_err =~ /sets callstack_extra but does not request callstack=callgraph/
-   or die "bad profile did not report the callstack_extra contract error:\n$bad_err";
+   $driver,'-I',$vcs,'-T',$bad_cfg,$rom_src,$renderer,
+   '-o',File::Spec->catfile($tmp,'bad_callstack_policy.bin'));
+$bad_exit != 0 && !$bad_sig or die "hidden-stack component without callgraph policy unexpectedly linked
+";
+without_cartridge_usage($bad_out) eq '' or die "bad profile wrote unexpected stdout:
+$bad_out";
+$bad_err =~ /hidden-stack metadata requires a MEMORY region with callstack=callgraph/
+   or die "missing-callgraph diagnostic is absent:
+$bad_err";
 
 print "vcs_standard_renderer_contract ok\n";

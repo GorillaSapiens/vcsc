@@ -306,14 +306,20 @@ wraparound, compound forms, and function-call evaluation counts. Companion
 rejection tests retain unsupported general constants such as multiplication by
 `3`, division by `20`, and remainder by `25`.
 
+`assembler_component_constraints.pl` exercises generic assembly-component
+metadata: startup or named-region placement, final power-of-two alignment,
+object-private routes, hidden hardware-stack bytes, map reporting, and assembly
+or link rejection of malformed/conflicting records.
+
 `vcs_standard_renderer_contract.pl` enforces the source contract for
 the first minimal unbanked 4K NTSC standard-renderer module. It checks the
-80-byte mandatory state span, the required ROM playfield, the documented
-frame/clobber/page contract, the weak end-of-frame overscan hook, its exported
-call-graph edge, the four-byte supplementary assembly-stack reserve, the linker
-map and generated symbols, rejection of `callstack_extra` without call-graph
-sizing, clean mutable-playfield RAM exhaustion, and the 4096-byte ROM smoke
-cartridge.
+80-byte mandatory state span, required ROM playfield, documented
+frame/clobber/page contract, weak end-of-frame overscan hook and exported call
+edge, object-owned region/alignment/private-route metadata, the four-byte
+`.callstackextra` reserve, map symbols, conflict diagnostics, and clean mutable-
+playfield RAM exhaustion. It also proves byte identity between the new generic
+4K component-owned build, the deprecated compatibility cfg, and a reconstructed
+pre-item-27 cfg with metadata stripped from the renderer object.
 
 `vcs_standard_renderer_normalization.pl` enforces deterministic renderer-source
 normalization. It regenerates the selected source beside the checked-in outputs
@@ -347,9 +353,13 @@ cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
 matrix: four 181-line gameplay families, four production score layouts plus the
 poison diagnostic, and both legal orders. It generates static and moving-game
 fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
-gameplay physical-pixel models on each one. It also builds all 32 real public production cartridges and locks the
-player-color and all-five diagonal playfield bytes and write cycles, so final-link
-page placement cannot reintroduce scanline tearing.
+gameplay physical-pixel models on each one. It also builds all 32 real public
+production cartridges and locks the player-color and all-five diagonal
+playfield bytes and write cycles, so
+final-link page placement cannot reintroduce scanline tearing. The public
+matrix reserves the full object-reported hidden hardware stack; its scratch-free
+console Reset path keeps the worst cartridge at 119 object bytes plus eight
+hardware-stack bytes, leaving one RIOT RAM byte free.
 The score oracle locks centered,
 left-, right-, two-plus-two, and poison positioning/ownership schedules at raw
 line 40 or 221; the gameplay oracles lock every object pixel and exact 262-line
@@ -427,7 +437,9 @@ covering the same extreme-right row-tearing failure for all five objects. The
 the independent endpoint oracle: all five VBLANK RESP/HMxx/HMOVE transactions
 must match the requested X coordinates, every object must reach X=0 and X=159,
 and the clipped player, four-clock missile, and four-clock Ball spans must be
-correct at both edges.
+correct at both edges. They also require the C26 component to carry its
+four-byte hidden helper-JSR allowance as `.callstackextra` object metadata
+rather than inheriting it from a renderer cfg.
 
 `vcs_all_five_composition.pl` builds static and asynchronous score-above and
 score-below cartridges around the 181-line component. It requires explicit

@@ -106,10 +106,22 @@ require_re($active,qr/\b(?:lda|ldy)\.(?:a|ax|ay)\b/i,
    'selected source is missing explicit forced-wide addressing');
 my $aligns=()=$active =~ /^\s*\.align\s+256\b/mg;
 $aligns == 5 or die "selected source has $aligns page alignments, expected five\n";
-require_re($config_text,qr/^\s*RENDERER_CODE:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
-   'renderer code segment is not page-aligned by the linker profile');
-require_re($config_text,qr/^\s*RENDERER_RODATA:\s+load\s*=\s*ROM.*?align\s*=\s*\$0100/m,
-   'renderer score-table segment is not page-aligned by the linker profile');
+require_re($active,qr/^\s*\.segmentregion\s+"RENDERER_CODE",\s*startup$/m,
+   'renderer code segment does not carry its startup-region contract');
+require_re($active,qr/^\s*\.segmentalign\s+"RENDERER_CODE",\s*256$/m,
+   'renderer code segment does not carry its 256-byte alignment contract');
+require_re($active,qr/^\s*\.segmentprivate\s+"RENDERER_CODE"$/m,
+   'renderer code segment does not carry its private-route contract');
+require_re($active,qr/^\s*\.segmentregion\s+"RENDERER_RODATA",\s*startup$/m,
+   'renderer score-table segment does not carry its startup-region contract');
+require_re($active,qr/^\s*\.segmentalign\s+"RENDERER_RODATA",\s*256$/m,
+   'renderer score-table segment does not carry its 256-byte alignment contract');
+require_re($active,qr/^\s*\.segmentprivate\s+"RENDERER_RODATA"$/m,
+   'renderer score-table segment does not carry its private-route contract');
+require_re($active,qr/^\s*\.callstackextra\s+4$/m,
+   'renderer object does not carry its hidden-stack contract');
+$config_text !~ /RENDERER_CODE|RENDERER_RODATA|callstack_extra/
+   or die "compatibility cfg regained component-owned constraints\n";
 require_re($active,qr/^\s*lda\s+#37\+128\s*$/m,
    'selected renderer no longer uses the Stella-verified 262-line vblank timer');
 require_re($active,qr/\.align 256\s+\@kerloop:/s,
