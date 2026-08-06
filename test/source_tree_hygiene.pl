@@ -383,10 +383,10 @@ index($component_guide,'Retirement of these working profiles is not a completion
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
-index($context,'Bankswitching implementation is complete through item 29.')>=0 &&
+index($context,'Main-roadmap items 29 (general F8/F6/F4 bankswitching) and 30 (Superchip')>=0 &&
 index($context,'The next unfinished main-roadmap item is 23:')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its active roadmap pointer, bankswitching completion, or size ceiling\n";
+   or die "compact context lost its active roadmap pointer, bank/Superchip completion, or size ceiling\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
 $roadmap =~ /^Current next action: 23\b/m
@@ -399,6 +399,9 @@ $roadmap =~ /^\s*\[x\] 22i4c1\./m
    or die "public composition-matrix roadmap leaf is not complete\n";
 $roadmap =~ /^\[x\] 24\. Add a widely spaced six-glyph score-display variant\./m
    or die "widely spaced score roadmap item is not complete\n";
+$roadmap =~ /^\[x\] 29\. Add general 8K-and-larger Atari cartridge bankswitching/m &&
+$roadmap =~ /^\[x\] 30\. Add Superchip cartridge RAM support/m
+   or die "main roadmap lost completed banking or Superchip status\n";
 $roadmap =~ /^\s*\[x\] 22i4\./m
    or die "visible-component roadmap gate is not complete\n";
 $roadmap =~ /^\[x\] 34\./m

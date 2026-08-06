@@ -156,3 +156,35 @@ Verification: 438/438 compile-only passed; 250/251 e2e tests completed and
 passed, with only the unrelated long-running vcs_score_composition_raster.pl
 not completing within the harness window; all affected font/score/logo,
 branding, hygiene, and install-data checks passed.
+
+2026-08-06 14:01:18 PDT, reconcile completed banking work with the main roadmap
+
+* Audit every unchecked main-roadmap entry against maintained source, public
+  examples, installed profiles, and executable regressions rather than relying
+  on stale checkbox state.
+* Mark main-roadmap item 29 complete: F8/F6/F4 topology, bank-aware relocation,
+  vectors/reset bridges, cross-bank calls/jumps, deterministic placement,
+  diagnostics, simulator/Stella coverage, and the banked standard renderer are
+  all maintained and tested.
+* Mark main-roadmap item 30 complete: F8SC/F6SC/F4SC profiles, the split-address
+  Superchip window, automatic globals/statics/locals/parameters/returns,
+  initialization/reset lifecycle, and a banked renderer composition are all
+  maintained and tested. Correct the obsolete `.top_secret/bankswitching.txt`
+  references to `.../bankswitching.txt`.
+* Keep item 23 as the next unfinished task. The existing all-five renderer uses
+  solid P0/P1 colors and therefore does not satisfy the per-row-color contract.
+  Items 25-28, 31-33, and 35-43 likewise still lack at least one defining
+  deliverable and remain open.
+* Verification: source-tree hygiene and branding pass; focused F8/F6/F4,
+  placement-mode, banked-renderer, and Superchip allocation/static/local/
+  parameter/return regressions pass.
+
+2026-08-06 14:11:26 PDT, canonicalize developer-record paths
+
+* Correct `.../instruction.txt` to name the actual `.../README.md`,
+  `.../context.txt`, and `.../context-history/` paths rather than the retired
+  predecessor directory name.
+* Require exactly one repository-wide `bankswitching.txt`, canonically located
+  at `.../bankswitching.txt`; keep the obsolete predecessor directory absent.
+* Update the compact context and test documentation to record the canonical-path
+  invariant.

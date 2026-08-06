@@ -1219,6 +1219,11 @@ than ship a fragile schedule if the hardware budget does not close.
 # UNBLOCKED 2026-07-31: the 22i4b correctness gate and 22i4c public example
 # matrix are complete. Task 23 is the next unfinished roadmap item.
 
+# STATUS AUDIT 2026-08-06: compare unchecked entries against maintained
+# source, public examples, installed profiles, and executable regressions. Main
+# items 29 and 30 were complete but stale here and are corrected below. Items
+# 23, 25-28, 31-33, and 35-43 still lack at least one defining deliverable.
+
 [ ] 23. If possible, add another standard-renderer variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
         color tables. Treat this as a fresh cycle-scheduled profile rather than
@@ -1293,24 +1298,58 @@ than ship a fragile schedule if the hardware budget does not close.
         timing, RAM ownership, hidden stack depth, exact frame length, visible
         raster behavior, and measured ROM cost before adding cartridge variants.
 
-[ ] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
+[x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in
-        `.top_secret/bankswitching.txt`: use descending mirrored logical banks
-        with BANK0 at $F000, emit physical banks from lowest logical address to
-        highest so BANK0 is last in the file, add per-bank vectors/reset bridges
-        early, keep `main` in BANK0, reject cross-bank ROM data access, use one
-        byte-identical replicated trampoline table with JSR-to-indirect-JMP calls,
-        use existing named `mem` region modifiers for programmer function/object
-        pins, and combine those pins with deterministic automatic placement
-        before using banking for any renderer profile.
+        `.../bankswitching.txt`: use descending mirrored logical banks with BANK0
+        at $F000, emit physical banks from lowest logical address to highest so
+        BANK0 is last in the file, add per-bank vectors/reset bridges early, keep
+        `main` in BANK0, reject cross-bank ROM data access, use one byte-identical
+        replicated trampoline table with JSR-to-indirect-JMP calls, use existing
+        named `mem` region modifiers for programmer function/object pins, and
+        combine those pins with deterministic automatic placement before using
+        banking for any renderer profile.
 
-[ ] 30. Add Superchip cartridge RAM support after ordinary F8/F6/F4 banking is
-        stable, following `.top_secret/bankswitching.txt`. Keep code out of the
-        RAM-port prefix by beginning ordinary ROM allocation at $x100, use the
-        existing split read/write absolute-reference semantics for the first
-        explicit profiles, and include Automatic allocation of variables into
-        Superchip RAM as a required later roadmap slice before corresponding
-        Superchip or banked multisprite profiles.
+        Completed 2026-08-06:
+
+        * Add authoritative C26 cartridge profiles for 8K F8, 16K F6, and 32K
+          F4, with descending mirrored logical banks, BANK0 as the startup bank,
+          deterministic physical output order, per-bank vectors and reset bridges,
+          and exact archive/listing/map/simulator image accounting.
+        * Add bank-aware relocation validation, reject unsupported cross-bank ROM
+          data references, generate one replicated common trampoline corridor,
+          and support cross-bank JMP plus JSR-to-indirect-JMP calls and returns.
+        * Support explicit function/object bank pins, immutable replication,
+          deterministic automatic placement, stable `simple` and default
+          `optimized` modes, a stack-depth guard, and explainable placement costs.
+        * Certify public diagnostic cartridges and a composable banked maintained
+          standard renderer across F8, F6, and F4, including exact 262-line and
+          Stella raster behavior, installed-toolchain builds, and source hygiene.
+
+[x] 30. Add Superchip cartridge RAM support after ordinary F8/F6/F4 banking is
+        stable, following `.../bankswitching.txt`. Keep code out of the RAM-port
+        prefix by beginning ordinary ROM allocation at $x100, use the existing
+        split read/write absolute-reference semantics for the first explicit
+        profiles, and include automatic allocation of variables into Superchip
+        RAM as a required later roadmap slice before corresponding Superchip or
+        banked multisprite profiles.
+
+        Completed 2026-08-05:
+
+        * Add authoritative F8SC, F6SC, and F4SC profiles with the shared 128-byte
+          split read/write window and ordinary ROM allocation beginning at $x100;
+          Superchip accesses do not select a bank.
+        * Support explicit split-address bindings and automatic Superchip
+          allocation for globals, static locals, automatic locals, value
+          parameters, and function return storage, including return-object
+          coalescing where legal.
+        * Define and test initialization and reset lifecycle behavior for
+          automatically initialized Superchip objects, with hostile-memory
+          simulator fills, console-Reset Stella coverage, maps, diagnostics, and
+          staged installed-toolchain verification.
+        * Exercise a banked maintained standard-renderer F8SC composition that
+          keeps beam-critical workspace in RIOT RAM while placing non-critical
+          game state in Superchip RAM. Multisprite remains separately gated by
+          items 27 and 28 rather than being implied by Superchip completion.
 
 [ ] 31. Add fixed-point whole-program inlining for reachable internal functions
         with exactly one direct call site when the resulting linked code is

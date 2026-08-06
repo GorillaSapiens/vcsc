@@ -71,6 +71,7 @@ General workflow invariants
 * The repository archive has no wrapper directory. Top-level entries such as
   `COPYING`, `Makefile`, `compiler/`, and `test/` remain at archive root.
 * Preserve `.../instruction.txt`; it is intentional durable guidance.
+* `.../bankswitching.txt` is the sole bankswitching design record; do not create a duplicate elsewhere.
 * Package returned archives with a UTC timestamp:
 
       date -u "+%Y%m%d_%H%M%S"
@@ -92,9 +93,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for the latest font-maintenance side trip:
+Input archive for this internal-path correction:
 
-    vcsc.20260806_191653.tar.gz
+    vcsc.20260806_210154.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -287,9 +288,11 @@ Immediate TODO
 --------------
 Active workstream: `.../roadmap.txt`.
 
-Bankswitching implementation is complete through item 29. Item 30 in
-`.../bankswitching.txt` is intentionally a mapper-family policy gate, not a
-pending implementation task: open a new scoped item only when a concrete program
+Main-roadmap items 29 (general F8/F6/F4 bankswitching) and 30 (Superchip
+profiles and automatic storage) are complete and are marked accordingly in
+`.../roadmap.txt`. The detailed bankswitching sub-roadmap is complete through
+its item 29; its item 30 is intentionally a mapper-family policy gate, not a
+pending implementation task. Open a new scoped item only when a concrete program
 requires hardware semantics the maintained full-window/direct/shared-memory
 model cannot represent honestly.
 

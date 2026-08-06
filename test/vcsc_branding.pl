@@ -95,7 +95,7 @@ for my $parts (
    !-e $path or die "obsolete branded path remains: $path\n";
 }
 
-my $obsolete_developer_records = File::Spec->catdir($repo, '.top_secret');
+my $obsolete_developer_records = File::Spec->catdir($repo, '.top' . '_secret');
 !-e $obsolete_developer_records or die "obsolete developer-record directory remains: $obsolete_developer_records\n";
 
 my $developer_records = File::Spec->catdir($repo, '...');
@@ -117,6 +117,19 @@ for my $parts (
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required developer-only record is missing: $path\n";
 }
+
+my $canonical_bankswitching = File::Spec->catfile($repo, '...', 'bankswitching.txt');
+my @bankswitching_records;
+find({
+   no_chdir => 1,
+   wanted => sub {
+      return unless -f $File::Find::name;
+      return unless $File::Find::name =~ m{(?:^|/)bankswitching\.txt\z};
+      push @bankswitching_records, abs_path($File::Find::name);
+   },
+}, $repo);
+@bankswitching_records == 1 && $bankswitching_records[0] eq abs_path($canonical_bankswitching)
+   or die "bankswitching design record must exist exactly once at .../bankswitching.txt: @bankswitching_records\n";
 
 my $context_history = File::Spec->catdir($developer_records, 'context-history');
 -d $context_history or die "required developer-only history directory is missing: $context_history\n";

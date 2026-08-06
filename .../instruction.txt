@@ -1,4 +1,3 @@
-We’re working on this VCSC tarball. Unpack it and first read `.top_secret/README.md`, then read all of `.top_secret/context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.top_secret/context-history/` unless you need to investigate an older decision or regression.
+We’re working on this VCSC tarball. Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.
 
 [Describe the task here.]
-
