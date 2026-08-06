@@ -1,4 +1,4 @@
-# This file is covered under CC0-1.0. See examples/LICENSE.txt.
+# This example is covered under CC BY-NC-SA 4.0. See LICENSE.txt.
 
 ROOT ?= ../../..
 VCSC ?= $(ROOT)/driver/vcsc

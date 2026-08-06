@@ -1389,9 +1389,10 @@ than ship a fragile schedule if the hardware budget does not close.
         Completed 2026-08-01 out of roadmap order while task 23 remains next:
 
         * Add `examples/03_player_color_192/02_animated_sprites/`, using the
-          official-opcode 192-line player-color renderer and 30 original
-          four-frame 8x8 animation sets created for VCSC and covered under
-          CC0-1.0 with the rest of the examples tree.
+          official-opcode 192-line player-color renderer and all 30 attributed
+          four-frame sets derived from Quick's PICO-8 Free 8x8 Sprites
+          cartridge. This subexample is the sole examples-tree license exception
+          and carries its own CC BY-NC-SA 4.0 `LICENSE.txt`.
         * Display two sets simultaneously on separate vertical lanes, starting
           both at X=0 and moving them right one pixel per NTSC frame. Hold each
           animation frame for eight NTSC frames; after the X=159 frame, restart at

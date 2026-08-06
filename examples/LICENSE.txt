@@ -1,3 +1,10 @@
+Scope of this license
+=====================
+
+This CC0-1.0 dedication covers everything under `examples/` except
+`examples/03_player_color_192/02_animated_sprites/`. That directory is
+covered by its own `LICENSE.txt` under CC BY-NC-SA 4.0.
+
 CC0 1.0 Universal License
 
 Statement of Purpose

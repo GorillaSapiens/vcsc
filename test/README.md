@@ -439,7 +439,8 @@ that solid glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
 checks all 30 attributed four-frame source sets, pins the exact 960-byte one-bit
-occupancy of the 30 original CC0 four-frame animation sets, and verifies four aligned
+occupancy extracted from PICO-8 sprites 1 through 120, verifies the local
+CC BY-NC-SA 4.0 license and attribution, and checks four aligned
 256-byte graphics pages including the final zero padding. Its emulator oracle
 drives all 15 complete 160-frame left-to-right traversals plus Select and pause
 controls. The oracle locks X=0 entry, one-pixel-per-frame motion, X=159 clipping,

@@ -97,6 +97,10 @@ Input archive for the recursive CC0 licensing pass:
 
     vcsc.20260806_211356.tar.gz
 
+Input archive for the animated-artwork restoration:
+
+    vcsc.20260806_220322.tar.gz
+
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
 relocatable objects use `.o26`, and archives use `.l26`.
@@ -170,16 +174,18 @@ Renderer and example state
   `standard_4k_ntsc_playercolors`.
 * The legacy BASIC renderer source tree is intentional reference material and
   must not be pruned merely because it is not part of the current build.
-* Everything recursively under `libraries/` and `examples/` is dedicated to
-  CC0-1.0. The authoritative legal texts are `libraries/LICENSE.txt` and
-  `examples/LICENSE.txt`; no subordinate or contradictory license file belongs
-  in either tree. Every other source/text file in those trees carries an
-  explicit notice naming its tree-local license. The compiler, linker, tests,
-  and build/tooling code outside those trees remain under the top-level GPL.
-* The animated-sprite example uses thirty original four-frame CC0 sprite sets.
-  Do not restore the former third-party noncommercial artwork or its attribution
-  file; the four hard pages, 960-byte art occupancy, controls, palette behavior,
-  192-line renderer, and 262-line frame contract remain unchanged.
+* Everything recursively under `libraries/` and, by default, `examples/` is
+  dedicated to CC0-1.0. The authoritative default legal texts are
+  `libraries/LICENSE.txt` and `examples/LICENSE.txt`; every source/text file
+  names its governing license. The sole exception is
+  `examples/03_player_color_192/02_animated_sprites/`, whose local `LICENSE.txt`
+  covers the complete subexample under CC BY-NC-SA 4.0 and preserves Quick's
+  attribution. The compiler, linker, tests, and build/tooling code outside those
+  trees remain under the top-level GPL.
+* The animated-sprite example uses the original 30 attributed four-frame sets
+  derived from Quick's PICO-8 Free 8x8 Sprites cartridge. Preserve its local
+  license and attribution, four hard pages, 960-byte art occupancy, controls,
+  palette behavior, 192-line renderer, and 262-line frame contract.
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
   Each of the eight families has decimal, hexadecimal, and printable-ASCII
@@ -268,9 +274,14 @@ The current e2e inventory is 251. The recursive CC0 licensing pass completed
 all 438 compile-only tests and 250 of 251 e2e tests successfully. The one
 uncompleted test was the unrelated long-running
 `vcs_score_composition_raster.pl`, which exceeded a ten-minute execution ceiling
-without reporting a failure. All affected licensing, retained-source hashes,
-fonts, animated sprites, examples, branding, hygiene, normalization, and staged
-license-installation checks passed.
+without reporting a failure.
+
+The animated-artwork restoration again completed all 438 compile-only tests. A
+monolithic e2e run reached 102 passing tests before the command time ceiling;
+the affected animation emulator/original-pixel hash, recursive example build,
+branding, and source-tree licensing/hygiene checks all pass. The local
+CC BY-NC-SA exception is therefore tested without claiming a new full 251-test
+baseline.
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
 7.0 raster certification, recursive public-example discovery, source-hygiene, and

@@ -1,4 +1,4 @@
-// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// This example is covered under CC BY-NC-SA 4.0. See LICENSE.txt.
 
 include "vcs.c26"
 include "frame_ntsc.c26"
@@ -22,7 +22,7 @@ page const uint8_t game_playfield[48] := {
 
 // Graphics and colors use the renderer's highest-index-to-zero row order.
 // The immutable palettes are rotated into the renderer's RAM color tables so
-// the bands follow sprites that bob vertically inside their 8x8 glyph cells.
+// the bands follow sprites that bob vertically inside their 8x8 source cells.
 const uint8_t player0_palette[8] := {
    VCS_NTSC_GOLDENROD, VCS_NTSC_LIGHT_CORAL, VCS_NTSC_SANDY_BROWN,
    VCS_NTSC_GOLDENROD, VCS_NTSC_SANDY_BROWN, VCS_NTSC_LIGHT_CORAL,
@@ -41,1248 +41,1251 @@ uint8_t game_player1_colors[8];
 alias VCS_PLAYER_COLOR_192_MUTABLE_COLORS 1
 template "renderers/player_color_192/player_color_192.c26" as game
 
-// Thirty original four-frame CC0 animation sets created for VCSC.
-// Each 32-byte set begins on a 32-byte boundary inside one of four hard pages.
+// Exact one-bit silhouettes extracted from source PICO-8 sprites 1 through 120.
+// Source color 0 is transparent; every other source color becomes a set Atari bit.
+// The source program presents these as 30 consecutive four-frame sets. Each
+// 32-byte set begins on a 32-byte boundary inside one of four hard pages.
 page const uint8_t sprite_frames_0[256] := {
-   // animation_set_00
+   // source_set_00_sprites_001_004
    game_SPRITE_GLYPH(
-      0b........,
-      0b...XX...,
-      0b...XX...,
-      0b..XXX...,
-      0b...XXX..,
-      0b...X....,
-      0b..X.X...,
-      0b.X...X..
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXXX,
+      0bXXXXXXX.,
+      0b.....XX.,
+      0bXX......
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b...XX...,
-      0b...XX...,
-      0b...XXX..,
-      0b..XXX...,
-      0b...X....,
-      0b...XX...,
-      0b..X.X...
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXXX,
+      0bXXXXXXX.,
+      0b.XX.....,
+      0b.....XX.
    ),
    game_SPRITE_GLYPH(
-      0b........,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bXXXXXXX.,
+      0b.XXXXXXX,
       0b...XX...,
-      0b...XX...,
-      0b..XXX...,
-      0b...XXX..,
-      0b...X....,
-      0b...XX...,
-      0b..X.X...
+      0b...XX...
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b...XX...,
-      0b...XX...,
-      0b...XXX..,
-      0b..XXX...,
-      0b...X....,
-      0b..X.X...,
-      0b.X...X..
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bXXXXXXX.,
+      0b.XXXXXXX,
+      0b.....XX.,
+      0b.XX.....
    ),
-   // animation_set_01
+   // source_set_01_sprites_005_008
    game_SPRITE_GLYPH(
-      0b........,
-      0b....XX..,
-      0b....XX..,
       0b...XXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..X.....,
+      0b..XXX...,
+      0b...XXX..,
+      0b..XXXX..,
+      0b.XXX..XX
+   ),
+   game_SPRITE_GLYPH(
+      0b...XXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..X.....,
+      0b..XXX...,
+      0b...XXX..,
+      0b..XXXX..,
+      0bXXX..XX.
+   ),
+   game_SPRITE_GLYPH(
       0b....XXX.,
-      0b....X...,
-      0b...X.X..,
+      0b...XXXX.,
+      0b..X.XXX.,
+      0b..X.....,
+      0b..XXX...,
+      0b...XXX..,
+      0b..XXXX..,
+      0b.XXX.XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b....XXX.,
+      0b...XXXX.,
+      0b..X.XXX.,
+      0b..X.....,
+      0b..XXX...,
+      0b...XXX..,
+      0b..XXXX..,
+      0b.XXX.XX.
+   ),
+   // source_set_02_sprites_009_012
+   game_SPRITE_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b...XX...,
+      0bXX......,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b..XX.XX.,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b...XX.XX
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0bXX.XX...
+   ),
+   // source_set_03_sprites_013_016
+   game_SPRITE_GLYPH(
+      0b..X.XX..,
+      0b.XXXXX..,
+      0b.XXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXX.,
+      0b.XXXXXXX,
+      0b..XXXX.X,
+      0bXX..XX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..XX.X..,
+      0b..XXXXX.,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0b.XXXXXXX,
+      0b.XXXXXX.,
+      0bX.XXXX.X,
+      0bX.XX..X.
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b..XXXX..,
+      0b.XX..XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // source_set_04_sprites_017_020
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bX..X...X,
+      0b...X...X
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b..X...X.,
       0b..X...X.
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b....XX..,
-      0b....XX..,
-      0b....XXX.,
-      0b...XXX..,
-      0b....X...,
-      0b....XX..,
-      0b...X.X..
-   ),
-   game_SPRITE_GLYPH(
       0b........,
-      0b....XX..,
-      0b....XX..,
-      0b...XXX..,
-      0b....XXX.,
-      0b....X...,
-      0b....XX..,
-      0b...X.X..
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b....XX..,
-      0b....XX..,
-      0b....XXX.,
-      0b...XXX..,
-      0b....X...,
-      0b...X.X..,
-      0b..X...X.
-   ),
-   // animation_set_02
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XXX...,
-      0b...X..X.,
+      0b.XXXXXX.,
       0bXXXXXXXX,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b..XXX.X.,
-      0b.XXXXXXX,
-      0bX.......,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b......X.,
       0bXXXXXXXX,
-      0b..XXX...,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b......X.,
-      0b.XXXXXXX,
-      0bX..X....,
-      0b..XXX...,
-      0b........
-   ),
-   // animation_set_03
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b...XXX..,
-      0b.X..X...,
       0bXXXXXXXX,
+      0b.X...X..,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
       0b........,
       0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bX...X..X,
+      0bX...X...
+   ),
+   // source_set_05_sprites_021_024
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b..XXXX..,
+      0bXXXXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b..XXXX..,
+      0b.XXXX...,
+      0bXXXXXXX.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b...XXXX.,
+      0b..XXX...,
+      0b.XXX....,
+      0bXXXXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b...XXXXX,
+      0b..XXXXX.,
+      0b.XXXXX..
+   ),
+   // source_set_06_sprites_025_028
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bX.X..X.X,
+      0bX......X
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bX.X..X.X,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bX......X,
+      0bX......X,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b..X..X..,
       0b........
    ),
    game_SPRITE_GLYPH(
       0b........,
       0b........,
       0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bX.X..X.X,
+      0b........
+   ),
+   // source_set_07_sprites_029_032
+   game_SPRITE_GLYPH(
+      0b..XXXXX.,
+      0b.XXXXXX.,
+      0b...XX...,
+      0b..X.X...,
+      0b.X.X....,
       0b.X.XXX..,
-      0bXXXXXXX.,
-      0b.......X,
-      0b........,
-      0b........
+      0b..X...X.,
+      0b...XX...
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b.X......,
-      0bXXXXXXXX,
-      0b...XXX..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b.X......,
-      0bXXXXXXX.,
-      0b....X..X,
-      0b...XXX..,
-      0b........
-   ),
-   // animation_set_04
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.X......,
-      0bX.XXXX..,
-      0bXXXXXXXX,
-      0b..XXXX..,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0bXXXXXXXX,
-      0bX.XXXX..,
-      0b.X......,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.X......,
-      0bX.XXXX..,
-      0bXXXXXXXX,
-      0b..XXXX..,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0bXXXXXXXX,
-      0bX.XXXX..,
-      0b.X......,
-      0b........,
-      0b........
-   ),
-   // animation_set_05
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.X......,
-      0bX.XXXX..,
-      0bXXXXXXXX,
-      0b..XXXX..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0bXXXXXXXX,
-      0bX.XXXX..,
-      0b.X......,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.X......,
-      0bX.XXXX..,
-      0bXXXXXXXX,
-      0b..XXXX..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0bXXXXXXXX,
-      0bX.XXXX..,
-      0b.X......,
-      0b........
-   ),
-   // animation_set_06
-   game_SPRITE_GLYPH(
-      0b...X....,
-      0b...X....,
-      0b...X....,
+      0b..XXXXX.,
+      0b.XXXXXX.,
       0b...XX...,
-      0b...XX...,
-      0b...X....,
-      0b...X....,
-      0b........
+      0b..X.X...,
+      0b.X..X...,
+      0bX....X..,
+      0bX....X..,
+      0b.XX...XX
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b.XXXXXXX,
-      0b...XX...,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b...X....,
-      0b...X....,
-      0b...XX...,
-      0b...XX...,
-      0b...X....,
-      0b...X....,
-      0b...X....
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0bXXXXXXX.,
-      0b...XX...,
-      0b........,
-      0b........,
-      0b........
-   ),
-   // animation_set_07
-   game_SPRITE_GLYPH(
-      0b....X...,
-      0b....X...,
-      0b....X...,
-      0b....XX..,
-      0b....XX..,
-      0b....X...,
-      0b....X...,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
+      0b...XXXXX,
       0b..XXXXXX,
-      0b....XX..,
-      0b........,
-      0b........,
-      0b........
+      0b...XX...,
+      0b..X.X...,
+      0b.X.X....,
+      0b.X.XXX..,
+      0b..X...X.,
+      0b...XX...
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b....X...,
-      0b....X...,
-      0b....XX..,
-      0b....XX..,
-      0b....X...,
-      0b....X...,
-      0b....X...
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b.XXXXXXX,
-      0b....XX..,
-      0b........,
-      0b........,
-      0b........
+      0b...XXXXX,
+      0b..XXXXXX,
+      0b...XX...,
+      0b..X.X...,
+      0b.X..X...,
+      0bX....X..,
+      0bX....X..,
+      0b.XX...XX
    ),
 };
 
 page const uint8_t sprite_frames_1[256] := {
-   // animation_set_08
+   // source_set_08_sprites_033_036
    game_SPRITE_GLYPH(
       0b........,
       0b........,
-      0b........,
-      0b...X....,
       0b..XXX...,
       0b...X....,
-      0b........,
-      0b........
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b........,
-      0b...X....,
-      0b..XXX...,
-      0b.XX.XX..,
-      0b..XXX...,
-      0b...X....,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b...X....,
-      0b..XXX...,
       0b.XXXXX..,
-      0bXXX.XXX.,
+      0b...X....,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bXXXXXXX.,
+      0b...X....,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
       0b.XXXXX..,
-      0b..XXX...,
-      0b...X....
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
       0b...X....,
-      0b..XXX...,
-      0b.XX.XX..,
-      0b..XXX...,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..
+   ),
+   // source_set_09_sprites_037_040
+   game_SPRITE_GLYPH(
+      0b....XX..,
+      0b....XX..,
+      0b..XX....,
+      0b.X.XX...,
       0b...X....,
-      0b........
-   ),
-   // animation_set_09
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b....X...,
-      0b...XXX..,
-      0b....X...,
-      0b........,
+      0b..X.XX..,
+      0b.X...X..,
       0b........
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b........,
+      0b.....XX.,
+      0b.....XX.,
+      0b...XX...,
+      0b...XXXX.,
       0b....X...,
-      0b...XXX..,
-      0b..XX.XX.,
-      0b...XXX..,
-      0b....X...,
-      0b........
+      0b....XX..,
+      0b...XX.X.,
+      0b......X.
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b....X...,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b.XXX.XXX,
-      0b..XXXXX.,
-      0b...XXX..,
+      0b....XX..,
+      0b....XX..,
+      0b...X....,
+      0b..XX....,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
       0b....X...
    ),
    game_SPRITE_GLYPH(
+      0b...XX...,
+      0b...XX...,
+      0b.XX.....,
+      0bX.XX....,
+      0b..X.....,
+      0b..XX....,
+      0b.X.X....,
+      0b.X......
+   ),
+   // source_set_10_sprites_041_044
+   game_SPRITE_GLYPH(
       0b........,
       0b........,
-      0b....X...,
-      0b...XXX..,
+      0b.....X..,
+      0b.X...XX.,
+      0b..XXX...,
+      0b.X...X..,
+      0b..X..X..,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.X...X..,
       0b..XX.XX.,
-      0b...XXX..,
-      0b....X...,
-      0b........
-   ),
-   // animation_set_10
-   game_SPRITE_GLYPH(
-      0b...X....,
-      0b..XXX...,
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b........
+      0b.XX.X...,
+      0b........,
+      0b....XX..
    ),
    game_SPRITE_GLYPH(
-      0b...X....,
+      0b........,
+      0b........,
+      0b........,
+      0b.....X..,
+      0b.X...XX.,
       0b..XXX...,
+      0b.X..X...,
+      0b..X.X...
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.....X..,
+      0b.....XX.,
+      0b.X.XX...,
+      0b..X.XX..,
+      0b..X.....,
+      0b.X......
+   ),
+   // source_set_11_sprites_045_048
+   game_SPRITE_GLYPH(
+      0b.X......,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b.XXX....,
       0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXXX..,
-      0b..XXX...,
+      0b.XXX....,
       0b..XXX...
    ),
    game_SPRITE_GLYPH(
-      0b...X....,
+      0bX.......,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b.XXX....,
+      0bXXX.....,
+      0b.XXX....,
+      0bXXX.....
+   ),
+   game_SPRITE_GLYPH(
+      0bX.......,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b.XXX....,
+      0bXXX.....,
+      0b.XXX....,
+      0bXXX.....
+   ),
+   game_SPRITE_GLYPH(
+      0b.X......,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b.XXX....,
       0b..XXX...,
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b........
+      0b.XXX....,
+      0b..XXX...
    ),
-   game_SPRITE_GLYPH(
-      0b...X....,
-      0b..XXX...,
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXXX..,
-      0b..X.X...,
-      0b........
-   ),
-   // animation_set_11
-   game_SPRITE_GLYPH(
-      0b....X...,
-      0b...XXX..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b....X...,
-      0b...XXX..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b...XXX..
-   ),
-   game_SPRITE_GLYPH(
-      0b....X...,
-      0b...XXX..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b....X...,
-      0b...XXX..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXXX.,
-      0b...X.X..,
-      0b........
-   ),
-   // animation_set_12
-   game_SPRITE_GLYPH(
-      0b..X.X...,
-      0b..XXXXX.,
-      0bXXX.X...,
-      0b..XXXXX.,
-      0bXXX.X...,
-      0b..XXXXX.,
-      0bXXXXX...,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b..X.X...,
-      0b.XXXX.X.,
-      0bX.X.XX..,
-      0b.XXXX.X.,
-      0bX.X.XX..,
-      0b.XXXX.X.,
-      0bX.XXXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b..X.X...,
-      0b..XXXXX.,
-      0bXXX.X...,
-      0b..XXXXX.,
-      0bXXX.X...,
-      0b..XXXXX.,
-      0bXXXXX...,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b..X.X...,
-      0b.XXXX.X.,
-      0bX.X.XX..,
-      0b.XXXX.X.,
-      0bX.X.XX..,
-      0b.XXXX.X.,
-      0bX.XXXX..,
-      0b........
-   ),
-   // animation_set_13
-   game_SPRITE_GLYPH(
-      0b...X.X..,
-      0b...XXXXX,
-      0b.XXX.X..,
-      0b...XXXXX,
-      0b.XXX.X..,
-      0b...XXXXX,
-      0b.XXXXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b...X.X..,
-      0b..XXXX.X,
-      0b.X.X.XX.,
-      0b..XXXX.X,
-      0b.X.X.XX.,
-      0b..XXXX.X,
-      0b.X.XXXX.,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b...X.X..,
-      0b...XXXXX,
-      0b.XXX.X..,
-      0b...XXXXX,
-      0b.XXX.X..,
-      0b...XXXXX,
-      0b.XXXXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b...X.X..,
-      0b..XXXX.X,
-      0b.X.X.XX.,
-      0b..XXXX.X,
-      0b.X.X.XX.,
-      0b..XXXX.X,
-      0b.X.XXXX.,
-      0b........
-   ),
-   // animation_set_14
+   // source_set_12_sprites_049_052
    game_SPRITE_GLYPH(
       0b........,
-      0b...XX...,
+      0b........,
+      0b......XX,
+      0b.XX...XX,
+      0bX..XXX..,
+      0b.X.....X,
+      0b..X....X,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0bXX......,
+      0b..X...XX,
+      0b...XX.XX,
+      0b..XX.X..,
+      0b........,
+      0b.....XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b......XX,
+      0bXXX...XX,
+      0b...XXX..,
+      0b...X.X..,
+      0b....XX..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b......XX,
+      0b......XX,
+      0b....XX..,
+      0b.XXX..XX,
+      0bX..X....,
+      0b..X.....
+   ),
+   // source_set_13_sprites_053_056
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..XXXXXX,
       0b..XXXX..,
       0b.XXXXXX.,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b......X.,
-      0b.....XX.,
-      0bXXXXXXXX,
-      0bXXXXXXXX,
-      0b.....XX.,
-      0b......X.,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
       0b.XXXXXX.,
-      0b..XXXX..,
-      0b...XX...,
-      0b........
+      0b.XXXXXXX,
+      0b.XXXXXX.
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b.X......,
-      0b.XX.....,
-      0bXXXXXXXX,
-      0bXXXXXXXX,
-      0b.XX.....,
-      0b.X......,
-      0b........
-   ),
-   // animation_set_15
-   game_SPRITE_GLYPH(
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b.XXXXXX.,
-      0b..XXXX..,
-      0b...XX...,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
       0b........,
-      0b.X......,
-      0b.XX.....,
-      0bXXXXXXXX,
-      0bXXXXXXXX,
-      0b.XX.....,
-      0b.X......,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b...XX...,
+      0b..XXXXXX,
       0b..XXXX..,
       0b.XXXXXX.,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0b.XXXXXX.
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b......X.,
-      0b.....XX.,
+      0b........,
+      0b..XXXXXX,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
       0bXXXXXXXX,
+      0b.XXX.X..
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..XXXXXX,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
       0bXXXXXXXX,
-      0b.....XX.,
-      0b......X.,
-      0b........
+      0b..X.XXX.
+   ),
+   // source_set_14_sprites_057_060
+   game_SPRITE_GLYPH(
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXXXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX
+   ),
+   game_SPRITE_GLYPH(
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX,
+      0b..XXXXXX
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.
+   ),
+   // source_set_15_sprites_061_064
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXXX,
+      0b.XXXXXXX
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0bXXX.....,
+      0bXXXXXXX.,
+      0b...XXXX.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b..XXX...,
+      0b.XXXXXX.,
+      0b.X...XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b.....XXX,
+      0b.XXXXXXX,
+      0b.XXXX...
    ),
 };
 
 page const uint8_t sprite_frames_2[256] := {
-   // animation_set_16
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.XX.XXX.,
-      0b.X....X.,
-      0b.X.X..X.,
-      0b.X..X.X.,
-      0b.X....X.,
-      0b.XXXXXX.,
-      0b........
-   ),
+   // source_set_16_sprites_065_068
    game_SPRITE_GLYPH(
       0b........,
       0b........,
+      0b........,
+      0b........,
+      0bXXXXXX..,
       0b..XXXX..,
-      0b..XX.X..,
-      0b..X.XX..,
-      0b..XXXX..,
-      0b........,
-      0b........
+      0b..XXX...,
+      0b.XX.X...
    ),
    game_SPRITE_GLYPH(
       0b........,
       0b........,
-      0b..XXXX..,
-      0b..XX.X..,
-      0b..X.XX..,
-      0b..XXXX..,
       0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.XXXXXX.,
-      0b.X....X.,
-      0b.X.X..X.,
-      0b....X.X.,
-      0b.X....X.,
-      0b.XXXXXX.,
-      0b........
-   ),
-   // animation_set_17
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.XX.XXX.,
-      0b.X....X.,
-      0b.X..X.X.,
-      0b.X.X..X.,
-      0b.X....X.,
-      0b.XXXXXX.,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0b..X.XX..,
-      0b..XX.X..,
-      0b..XXXX..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XXXX..,
-      0b..X.XX..,
-      0b..XX.X..,
-      0b..XXXX..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.XXXXXX.,
-      0b.X....X.,
-      0b.X..X.X.,
-      0b...X..X.,
-      0b.X....X.,
-      0b.XXXXXX.,
-      0b........
-   ),
-   // animation_set_18
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..X...XX,
-      0b.XXX.X.X,
-      0bX...XX..,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.X...X..,
-      0bX.X.XXXX,
-      0b..XX...X,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0bX...X..X,
-      0b.X.X.X.X,
-      0b..X..XX.,
-      0b..X.....,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b...X...X,
-      0bX.X.X.XX,
-      0b.XX..X..,
-      0b.....X..,
-      0b........,
-      0b........
-   ),
-   // animation_set_19
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.X...X.X,
-      0bX.X.XXX.,
-      0b..XX...X,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
+      0b.XXXXX..,
+      0bX.XXXX..,
+      0b..XXX...,
       0bX...X...,
-      0b.X.X.X.X,
-      0b..X..XX.,
+      0bX.......
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b..XXXXXX,
+      0b....XXXX,
+      0b....XXX.,
+      0b.X......,
+      0bX......X,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
       0b..X.....,
+      0b...XXXXX,
+      0b....XXXX,
+      0b....XXX.,
+      0b...XX...,
+      0b.......X
+   ),
+   // source_set_17_sprites_069_072
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b...XXXX.,
+      0b...XXX..,
+      0b..XXX...,
       0b........,
       0b........
    ),
    game_SPRITE_GLYPH(
       0b........,
       0b........,
-      0b...X...X,
-      0bX.X.X.X.,
-      0b.XX..X..,
+      0b.XXXXXX.,
+      0b..XXXXX.,
+      0bXXXXX...,
+      0b........,
+      0b........,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,
+      0b....XX..,
+      0b....XXX.,
+      0b.XXXXXX.,
+      0b......X.,
+      0b........,
+      0b........,
+      0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b...XXXX.,
+      0b..XXX...,
+      0b........,
+      0b........
+   ),
+   // source_set_18_sprites_073_076
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0bXX...XXX
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b....XXX.
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b...XXX..,
+      0b...XX...
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b....XXX.,
+      0b.XX.....
+   ),
+   // source_set_19_sprites_077_080
+   game_SPRITE_GLYPH(
+      0b........,
+      0bXXX.....,
+      0bXXXX....,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b..XXX...,
+      0bXXX....X,
+      0b..X.XX.X
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.XXX....,
+      0b.XXXX...,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b...XXX..,
+      0b.XXXX...,
+      0b.X..X.XX
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b.XXX....,
+      0b.XXXX...,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b...XXX..,
+      0b...XXXX.,
+      0bXX.X..X.
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0bXXX.....,
+      0bXXXX....,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b..XXX...,
+      0bX....XXX,
+      0bX.XX.X..
+   ),
+   // source_set_20_sprites_081_084
+   game_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b..XX....,
+      0b..XX....,
+      0b..XXX...,
+      0b..XXX...,
+      0b.....XX.,
+      0b..X..X..,
+      0b.XX.....
+   ),
+   game_SPRITE_GLYPH(
+      0b...XXXX.,
+      0b...XX...,
+      0b...XX...,
+      0b...XXX..,
+      0b...XXX..,
+      0b......XX,
+      0bX......X,
+      0bXX......
+   ),
+   game_SPRITE_GLYPH(
+      0b...XXXX.,
+      0b...XX...,
+      0b...XX...,
+      0b...XXX..,
+      0b...XXX..,
+      0bXX......,
+      0bX......X,
+      0b......XX
+   ),
+   game_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b..XX....,
+      0b..XX....,
+      0b..XXX...,
+      0b..XXX...,
+      0b.XX.....,
+      0b..X.X...,
+      0b....XX..
+   ),
+   // source_set_21_sprites_085_088
+   game_SPRITE_GLYPH(
+      0b........,
       0b.....X..,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..X...X.,
-      0b.XXX.X.X,
-      0bX...XX..,
-      0b........,
-      0b........,
-      0b........
-   ),
-   // animation_set_20
-   game_SPRITE_GLYPH(
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b..XXXX..,
-      0b.XX.X...,
-      0b..XXX...,
-      0b..X.X...,
-      0b..X..X..
-   ),
-   game_SPRITE_GLYPH(
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXX...,
-      0b..X.XX..,
-      0b..XXX...,
-      0b..X.X...,
-      0b.X..X...
-   ),
-   game_SPRITE_GLYPH(
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b..XXXX..,
-      0b.XX.X...,
-      0b..XXX...,
-      0b..X.X...,
-      0b..X..X..
-   ),
-   game_SPRITE_GLYPH(
-      0b..XXX...,
-      0b..X.X...,
-      0b..XXX...,
-      0b.XXXX...,
-      0b..X.XX..,
-      0b..XXX...,
-      0b..X.X...,
-      0b.X..X...
-   ),
-   // animation_set_21
-   game_SPRITE_GLYPH(
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b...XXXX.,
-      0b..XX.X..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...X..X.
-   ),
-   game_SPRITE_GLYPH(
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXX..,
-      0b...X.XX.,
-      0b...XXX..,
-      0b...X.X..,
-      0b..X..X..
-   ),
-   game_SPRITE_GLYPH(
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b...XXXX.,
-      0b..XX.X..,
-      0b...XXX..,
-      0b...X.X..,
-      0b...X..X.
-   ),
-   game_SPRITE_GLYPH(
-      0b...XXX..,
-      0b...X.X..,
-      0b...XXX..,
-      0b..XXXX..,
-      0b...X.XX.,
-      0b...XXX..,
-      0b...X.X..,
-      0b..X..X..
-   ),
-   // animation_set_22
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.....XXX,
-      0b..XXXXX.,
       0b...X....,
-      0b........,
-      0b........,
-      0b........
+      0b.....XX.,
+      0bXXXXXX..,
+      0b...X..X.,
+      0b.....X..,
+      0b...X....
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b........,
-      0b....XXX.,
-      0b.XXXXX..,
-      0b.X.X....,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b.....XXX,
-      0b..XXXXX.,
+      0b...X.X..,
+      0b.....X..,
+      0b...X.XX.,
+      0bXXXXXX..,
+      0b...X.XX.,
       0b...X....,
-      0b........,
-      0b........
+      0b...X.X..
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b........,
-      0b........,
-      0b....XXX.,
-      0b.XXXXX..,
-      0b.X.X....,
-      0b........,
-      0b........
-   ),
-   // animation_set_23
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b.....XXX,
-      0b.XXXXXX.,
-      0b.X.X....,
-      0b........,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b....XXX.,
+      0b...X.X..,
+      0b...X....,
+      0b...X.XX.,
       0bXXXXXX..,
-      0b.X.X....,
-      0b........,
-      0b........,
-      0b........
+      0b...X.XX.,
+      0b.....X..,
+      0b...X.X..
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b........,
-      0b........,
-      0b.....XXX,
-      0b.XXXXXX.,
-      0b.X.X....,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b........,
-      0b....XXX.,
+      0b...X....,
+      0b.....X..,
+      0b...X..X.,
       0bXXXXXX..,
-      0b.X.X....,
+      0b.....XX.,
+      0b...X....,
+      0b.....X..
+   ),
+   // source_set_22_sprites_089_092
+   game_SPRITE_GLYPH(
       0b........,
+      0b........,
+      0b........,
+      0b.....XX.,
+      0b........,
+      0b..XXX...,
+      0b...XX...,
+      0bXX......
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.......X,
+      0b.......X,
+      0b.X.XXX..,
+      0b.X..XX..,
       0b........
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b.XX.....,
+      0b........,
+      0b...XXX..,
+      0b....XX.X,
+      0b.......X
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b...XX...,
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b....XX..,
+      0b...XX...
+   ),
+   // source_set_23_sprites_093_096
+   game_SPRITE_GLYPH(
+      0bXX......,
+      0bX.....XX,
+      0bXX....XX,
+      0bX.XXXX.X,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bX..XX..X,
+      0b....X..X
+   ),
+   game_SPRITE_GLYPH(
+      0bXX......,
+      0bX.....XX,
+      0bXX....XX,
+      0bX.XXXX.X,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b..X...X.
+   ),
+   game_SPRITE_GLYPH(
+      0b......XX,
+      0bXX.....X,
+      0bXX....XX,
+      0bX.XXXX.X,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b.X...X..
+   ),
+   game_SPRITE_GLYPH(
+      0b......XX,
+      0bXX.....X,
+      0bXX....XX,
+      0bX.XXXX.X,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bX.X..X.X,
+      0bX....X..
    ),
 };
 
 page const uint8_t sprite_frames_3[256] := {
-   // animation_set_24
+   // source_set_24_sprites_097_100
    game_SPRITE_GLYPH(
-      0b........,
-      0b.XX.XX..,
-      0bXXXXXXX.,
-      0bXXXXXXX.,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b...X....,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b.XX.XX..,
-      0bXXXXXXX.,
+      0b.XXXXXX.,
       0bXXXXXXXX,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b...X....,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b.XX.XX..,
-      0bXXXXXXX.,
       0bXXXXXXXX,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b...X....,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b.XX.XX..,
-      0bXXXXXXX.,
-      0bXXXXXXX.,
-      0b.XXXXX..,
-      0b..XXX...,
-      0b...X....,
-      0b........
-   ),
-   // animation_set_25
-   game_SPRITE_GLYPH(
-      0b........,
-      0b..XX.XX.,
-      0b.XXXXXXX,
-      0b.XXXXXXX,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b....X...,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b..XX.XX.,
-      0b.XXXXXXX,
       0bXXXXXXXX,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b....X...,
-      0b........,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b..XX.XX.,
-      0b.XXXXXXX,
       0bXXXXXXXX,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b....X...,
-      0b........,
-      0b........
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b..XX.XX.,
-      0b.XXXXXXX,
-      0b.XXXXXXX,
-      0b..XXXXX.,
-      0b...XXX..,
-      0b....X...,
-      0b........
-   ),
-   // animation_set_26
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b...X....,
-      0b..XXX...,
-      0b...XXX..,
-      0b....X...,
-      0b........,
-      0b........
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b...X....,
-      0b...X....,
-      0b.XXXX...,
-      0b...XXXX.,
-      0b....X...,
-      0b....X...,
-      0b........
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX
    ),
    game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b..XX.X..,
-      0b..XXX...,
-      0b...XXX..,
-      0b..X.XX..,
-      0b........,
-      0b........
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX
    ),
+   // source_set_25_sprites_101_104
    game_SPRITE_GLYPH(
       0b........,
-      0b...X....,
-      0b..XX.X..,
-      0b.XXXX...,
-      0b...XXXX.,
-      0b..X.XX..,
-      0b....X...,
-      0b........
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0bXX....XX,
+      0bX......X,
+      0bX......X
    ),
-   // animation_set_27
+   game_SPRITE_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0bXX....X.,
+      0bX......X,
+      0bX......X,
+      0b.......X
+   ),
+   game_SPRITE_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b....X...
+   ),
+   game_SPRITE_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b..X..XX.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X......
+   ),
+   // source_set_26_sprites_105_108
    game_SPRITE_GLYPH(
       0b........,
-      0b........,
-      0b....X...,
-      0b...XXX..,
       0b....XXX.,
-      0b.....X..,
-      0b........,
-      0b........
+      0b.XXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXX..X,
+      0bXXXXX..X,
+      0b.XXXX..X
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b....X...,
-      0b....X...,
-      0b..XXXX..,
-      0b....XXXX,
-      0b.....X..,
-      0b.....X..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0b........,
-      0b........,
-      0b...XX.X.,
-      0b...XXX..,
       0b....XXX.,
-      0b...X.XX.,
-      0b........,
-      0b........
+      0b.XXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXX..X,
+      0bXXXXXX.X,
+      0b.XX....X
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0b....X...,
-      0b...XX.X.,
-      0b..XXXX..,
-      0b....XXXX,
-      0b...X.XX.,
-      0b.....X..,
-      0b........
-   ),
-   // animation_set_28
-   game_SPRITE_GLYPH(
-      0b.X....X.,
-      0b..X..X..,
-      0b..XXXX..,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b..XXXX..,
-      0b........
-   ),
-   game_SPRITE_GLYPH(
-      0bX......X,
-      0b.X....X.,
-      0b..XXXX..,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b..XXXX..,
-      0b........
+      0b....XXX.,
+      0b.XXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXX..X,
+      0bXXXXX.XX,
+      0bXX..XX..
    ),
    game_SPRITE_GLYPH(
       0b........,
-      0bX......X,
-      0b..XXXX..,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b..XXXX..,
-      0b........
+      0b....XXX.,
+      0b.XXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXXXX..X,
+      0bXXXXX.XX,
+      0bXX.XX...
    ),
+   // source_set_27_sprites_109_112
    game_SPRITE_GLYPH(
-      0bX......X,
-      0b.X....X.,
-      0b..XXXX..,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b..XXXX..,
-      0b........
-   ),
-   // animation_set_29
-   game_SPRITE_GLYPH(
-      0b..X....X,
+      0b....XXX.,
       0b...X..X.,
-      0b...XXXX.,
-      0b....XX..,
-      0b....XX..,
-      0b....XX..,
-      0b...XXXX.,
+      0b....X...,
+      0b.XXXX...,
+      0b..XX....,
+      0b..XXXX..,
+      0b.X....X.,
+      0b.X......
+   ),
+   game_SPRITE_GLYPH(
+      0b.....XXX,
+      0b....X..X,
+      0b....X...,
+      0b.XXXX...,
+      0b..XX....,
+      0b.X.X....,
+      0b.X..X...,
+      0bX....X..
+   ),
+   game_SPRITE_GLYPH(
+      0b.....XXX,
+      0b....X..X,
+      0b....X...,
+      0b.XXXX...,
+      0b..XX....,
+      0bXXXX....,
+      0b.XX.....,
+      0b...X....
+   ),
+   game_SPRITE_GLYPH(
+      0b....XXX.,
+      0b...X..X.,
+      0b....X...,
+      0b.XXXX...,
+      0b..XX....,
+      0b.XXXX...,
+      0b...X.X..,
+      0b...X....
+   ),
+   // source_set_28_sprites_113_116
+   game_SPRITE_GLYPH(
+      0b........,
+      0b........,
+      0b....XXX.,
+      0b....XXX.,
+      0bXXXXXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b..X.....
+   ),
+   game_SPRITE_GLYPH(
+      0b........,
+      0b....XXX.,
+      0b....XXX.,
+      0bXXXXXX..,
+      0b...XXX..,
+      0b..X..XX.,
+      0b.X......,
       0b........
    ),
    game_SPRITE_GLYPH(
-      0b.X......,
-      0b..X....X,
-      0b...XXXX.,
-      0b....XX..,
-      0b....XX..,
-      0b....XX..,
-      0b...XXXX.,
+      0b........,
+      0b.....XXX,
+      0b.....XXX,
+      0bXXXXXX..,
+      0b...XXX..,
+      0b..XX.X..,
+      0b......X.,
       0b........
    ),
    game_SPRITE_GLYPH(
-      0bX.......,
-      0b.X......,
-      0b...XXXX.,
-      0b....XX..,
-      0b....XX..,
-      0b....XX..,
-      0b...XXXX.,
-      0b........
+      0b........,
+      0b........,
+      0b.....XXX,
+      0b.....XXX,
+      0bXXXXXX..,
+      0b...XXX..,
+      0b...XX...,
+      0b....X...
+   ),
+   // source_set_29_sprites_117_120
+   game_SPRITE_GLYPH(
+      0b..X.....,
+      0b..X.....,
+      0b..X.....,
+      0b..X.....,
+      0b.XX.....,
+      0bXXXX....,
+      0bXXXX....,
+      0bXXXX....
    ),
    game_SPRITE_GLYPH(
-      0b.X......,
-      0b..X....X,
-      0b...XXXX.,
-      0b....XX..,
-      0b....XX..,
-      0b....XX..,
-      0b...XXXX.,
-      0b........
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b......X.,
+      0b.....XX.,
+      0b....XXXX,
+      0b...XXXXX,
+      0b...XXXX.
    ),
+   game_SPRITE_GLYPH(
+      0b...X....,
+      0b...X....,
+      0b...X....,
+      0b....X...,
+      0b...XX...,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b...X....,
+      0b...X....,
+      0b...X....,
+      0b...X....,
+      0b..XX....,
+      0b.XXXX...,
+      0b.XXXX...,
+      0b.XXXX...
+   ),
+   // Pad the final hard page after source sprite 120.
    0,
    0,
    0,
@@ -1431,8 +1434,8 @@ void install_frames(void) {
    asm @p1_page_done:;
    asm sta.z game_player1_graphics + 1;
 
-   // Count transparent rows above each glyph, then rotate that player's
-   // palette by the same amount. The graphics remain immutable;
+   // Count transparent source rows above each glyph, then rotate that player's
+   // palette by the same amount. The graphics stay byte-for-byte source-exact;
    // only the row-color mapping follows vertical motion inside the 8x8 cell.
    asm ldy #7;
    asm @p0_find_top:;

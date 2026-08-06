@@ -19,32 +19,53 @@ my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
 
-# Everything under libraries/ and examples/ is deliberately obligation-free
-# cartridge-facing material. Each tree has one root CC0 text; every other text
-# file carries an explicit notice, and no subordinate or contradictory license
-# may silently reappear.
+# Everything under libraries/ and examples/ is cartridge-facing material.
+# Libraries and ordinary examples use one root CC0 text and explicit per-file
+# notices. The animated-sprite example is the one deliberate exception: its
+# complete directory uses a local CC BY-NC-SA 4.0 license because its restored
+# artwork is derived from Quick's PICO-8 Free 8x8 Sprites cartridge.
+my $animated_rel=File::Spec->catdir(qw(examples 03_player_color_192 02_animated_sprites));
+my $animated_root=File::Spec->catdir($repo,split('/', $animated_rel));
+my $animated_license=File::Spec->catfile($animated_root,'LICENSE.txt');
+my %animated_exception_docs=map { $_=>1 } (
+   'examples/README.md',
+   'examples/03_player_color_192/README.md',
+);
+
 for my $tree (qw(libraries examples)) {
    my $tree_root=File::Spec->catdir($repo,$tree);
    my $license=File::Spec->catfile($tree_root,'LICENSE.txt');
    -f $license or die "$tree/LICENSE.txt is missing\n";
    my $license_body=slurp($license);
-   $license_body =~ /\ACC0 1\.0 Universal License\s*\n/ &&
+   $license_body =~ /CC0 1\.0 Universal License\s*\n/ &&
    $license_body =~ /4\. Limitations and Disclaimers\./ &&
    $license_body =~ /use of the Work\.\s*\z/
       or die "$tree/LICENSE.txt is not the complete CC0-1.0 text\n";
+   if ($tree eq 'examples') {
+      $license_body =~ /03_player_color_192\/02_animated_sprites/ &&
+      $license_body =~ /covered by its own `LICENSE\.txt` under CC BY-NC-SA 4\.0/
+         or die "examples/LICENSE.txt does not scope the animated-sprite exception\n";
+   }
 
    my @files;
    find({no_chdir=>1,wanted=>sub { push @files,$File::Find::name if -f $_ }},$tree_root);
    for my $path (sort @files) {
       next if $path eq $license;
+      next if $tree eq 'examples' &&
+         ($path eq $animated_license || index($path,$animated_root . '/')==0);
       my $rel=File::Spec->abs2rel($path,$repo);
       next if $rel =~ /(?:^|\/)(?:wrk)(?:\/|$)/;
       next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
       basename($path) !~ /(?:license|copying|copyright)/i
          or die "subordinate license file remains under $tree: $rel\n";
       my $body=slurp($path);
-      $body !~ /(?:BSD(?:-|\s)|GNU GENERAL PUBLIC LICENSE|\bGPL\b|CC BY(?:-|\b)|Attribution-NonCommercial|ShareAlike)/
-         or die "contradictory license reference remains in $rel\n";
+      if ($body =~ /(?:BSD(?:-|\s)|GNU GENERAL PUBLIC LICENSE|\bGPL\b|CC BY(?:-|\b)|Attribution-NonCommercial|ShareAlike)/) {
+         $tree eq 'examples' && $animated_exception_docs{$rel} &&
+         ($body =~ /03_player_color_192\/02_animated_sprites/ ||
+          ($rel eq 'examples/03_player_color_192/README.md' && $body =~ /02_animated_sprites/)) &&
+         $body =~ /CC BY-NC-SA 4\.0/
+            or die "contradictory license reference remains in $rel\n";
+      }
       my $notice="This file is covered under CC0-1.0. See $tree/LICENSE.txt.";
       if ($rel =~ m{^libraries/vcs/fonts/[^/]+\.c26\z}) {
          $notice="This font is covered under CC0-1.0. See libraries/LICENSE.txt.";
@@ -52,6 +73,31 @@ for my $tree (qw(libraries examples)) {
       index(substr($body,0,600),$notice)>=0
          or die "$rel lacks its explicit CC0 notice\n";
    }
+}
+
+-f $animated_license
+   or die "$animated_rel/LICENSE.txt is missing\n";
+my $animated_license_body=slurp($animated_license);
+$animated_license_body =~ /explicit exception to `examples\/LICENSE\.txt`/ &&
+$animated_license_body =~ /Creative Commons\s+Attribution-NonCommercial-ShareAlike 4\.0 International/ &&
+$animated_license_body =~ /Free 8x8 Sprites/ &&
+$animated_license_body =~ /Creator: Quick/ &&
+$animated_license_body =~ m{https://www\.lexaloffle\.com/bbs/\?pid=42374}
+   or die "animated-sprite local license or attribution is incomplete\n";
+my @animated_files;
+find({no_chdir=>1,wanted=>sub { push @animated_files,$File::Find::name if -f $_ }},$animated_root);
+for my $path (sort @animated_files) {
+   next if $path eq $animated_license;
+   my $rel=File::Spec->abs2rel($path,$repo);
+   next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
+   basename($path) !~ /(?:license|copying|copyright)/i
+      or die "unexpected second license file remains in animated example: $rel\n";
+   my $body=slurp($path);
+   my $notice='This example is covered under CC BY-NC-SA 4.0. See LICENSE.txt.';
+   index(substr($body,0,600),$notice)>=0
+      or die "$rel lacks its explicit local-license notice\n";
+   $body !~ /(?:BSD(?:-|\s)|GNU GENERAL PUBLIC LICENSE|\bGPL\b)/
+      or die "unrelated software license reference remains in $rel\n";
 }
 
 # Core README placement and relative-link sanity.  These checks catch accidental

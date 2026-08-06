@@ -211,3 +211,18 @@ branding, hygiene, and install-data checks passed.
   execution ceiling without reporting a failure. Recursive examples, animation
   runtime, fonts, renderer normalization/inventory, branding, hygiene, and
   staged license installation pass.
+
+2026-08-06 16:35:49 PDT, restore original animated-sprite artwork with local license exception
+
+Restored the original 120 one-bit silhouettes derived from Quick's PICO-8 Free
+8x8 Sprites cartridge in examples/03_player_color_192/02_animated_sprites.
+The examples tree remains CC0 by default, but examples/LICENSE.txt now excludes
+that one directory and the directory's local LICENSE.txt covers the complete
+example under CC BY-NC-SA 4.0 with attribution, noncommercial, and share-alike
+terms. Updated the example, project/test documentation, roadmap completion note,
+compact context, animation oracle, and source-tree hygiene guard. The guard now
+allows exactly this one subordinate license and requires its attribution and
+per-file local-license notices. Verification: 438/438 compile-only passed; the
+full e2e run reached 102 passes before timeout; the 2,400-frame animation oracle,
+exact restored 960-byte hash, recursive example build, branding, and hygiene
+checks passed.
