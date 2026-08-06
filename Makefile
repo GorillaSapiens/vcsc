@@ -12,6 +12,7 @@ DOXYGEN ?= doxygen
 STELLA ?= stella
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
+STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 
 all: test
 
@@ -51,7 +52,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -87,6 +88,7 @@ install-data:
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	install -m 0644 libraries/vcs/six_glyph_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
+	install -m 0644 libraries/vcs/six_glyph_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
 	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	install -m 0644 libraries/vcs/six_glyph_color_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
@@ -193,6 +195,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
@@ -365,6 +368,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/03_score/score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/score.bin"` -eq 2048; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/05_wide_score" \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  "$(CURDIR)/examples/01_basic/05_wide_score/wide_score.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/wide_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/wide_score.bin"` -eq 2048; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/04_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
@@ -372,6 +380,7 @@ installcheck: tools
 	test -f "$$stage_vcs/color_ntsc.c26"; \
 	test -f "$$stage_vcs/frame_ntsc.c26"; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
+	test -f "$$stage_vcs/six_glyph_wide_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_color_component.c26"; \
@@ -382,6 +391,10 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/vcs_examples/05_wide_score/golden.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/six_glyph_wide_component.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_wide_component.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances_reversed.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"; \
@@ -557,4 +570,10 @@ stella-renderer-bank-test: tools
 	  "$(CURDIR)" "$(STELLA_RENDERER_BANK_TEST_TMP)"
 	rm -rf $(STELLA_RENDERER_BANK_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test docs
+stella-wide-score-test: tools
+	rm -rf $(STELLA_WIDE_SCORE_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_six_glyph_wide_stella.pl \
+	  "$(CURDIR)" "$(STELLA_WIDE_SCORE_TEST_TMP)"
+	rm -rf $(STELLA_WIDE_SCORE_TEST_TMP)
+
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test docs

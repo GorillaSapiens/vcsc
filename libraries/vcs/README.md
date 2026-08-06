@@ -27,6 +27,7 @@ Files:
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
+- `six_glyph_wide_component.c26` ... separate fixed-color six-glyph profile with origins at X=36,52,68,84,100,116, an 88-pixel span, and no player vertical-delay dependency
 - `six_glyph_left_component.c26` ... eleven-line fixed-color variant justified at X=0..47
 - `six_glyph_right_component.c26` ... eleven-line fixed-color variant justified at X=112..159
 - `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics, with the same hostile-state-safe reflection reset

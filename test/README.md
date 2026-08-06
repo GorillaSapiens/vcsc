@@ -353,6 +353,14 @@ scanlines, including the alternate ball phase at each playfield-row transition.
 It also checks the five exact final-row bytes precomputed during VBLANK, covering
 all former `DCP` families even when the static scene exits before the P0/M0 half.
 
+`vcs_six_glyph_wide.pl` builds the separate widely spaced score profile, locks
+its X=36,52,68,84,100,116 origin contract, exact cycle 0/8/31/36/42/48 GRP
+schedule, packed-BCD row bytes, 262-line frame, 31-byte component-owned RAM
+layout, public 2K example accounting, and reviewed Stella 7.0 RGB oracle. The
+optional `vcs_six_glyph_wide_stella.pl` regenerates the emulator snapshot and
+compares decoded RGB pixels with that checked-in oracle. It also hashes the
+centered component so the wide profile cannot silently alter its predecessor.
+
 `vcs_six_glyph_component.pl` builds independent centered-score instances with
 distinct values in both draw orders, a widely spaced score-only pair at raw
 scanlines 70 and 180, and a centered score immediately after the hostile poison

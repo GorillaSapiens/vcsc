@@ -61,7 +61,7 @@ for my $entry (@examples) {
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my @extra;
-   if ($file eq 'score.c26') {
+   if ($file eq 'score.c26' || $file eq 'wide_score.c26') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
@@ -93,7 +93,7 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : $file eq 'score.c26' ? 2048 : 4096;
+      : ($file eq 'score.c26' || $file eq 'wide_score.c26') ? 2048 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my $vector_offset = $expected_size - 6;

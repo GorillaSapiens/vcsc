@@ -39,6 +39,7 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my @components=(
    ['six_glyph_component.c26',                                      11,1,1,'centered six-glyph'],
+   ['six_glyph_wide_component.c26',                                 11,1,1,'wide six-glyph'],
    ['six_glyph_color_component.c26',                                11,1,1,'mutable-color six-glyph'],
    ['six_glyph_left_component.c26',                                 11,1,1,'left six-glyph'],
    ['six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
@@ -76,7 +77,11 @@ for my $spec (@components) {
       or die "$label draw writes scheduler or audio state\n";
    $body !~ /\bsta(?:\.[A-Za-z]+)?\s+(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b/
       or die "$label draw writes scheduler or audio state in assembly\n";
-   if ($label =~ /six-glyph/) {
+   if ($label eq 'wide six-glyph') {
+      $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+sta\s+VDELP0;\s*asm\s+sta\s+VDELP1;/s
+         or die "$label does not clear hostile reflection and vertical delay before drawing\n";
+   }
+   elsif ($label =~ /six-glyph/) {
       $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
          or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
    }
@@ -104,6 +109,7 @@ for my $required (
    'TEMPLATE_DRAW_HMOVE_COUNT',
    'TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE',
    'Production six-glyph displays',
+   'Widely spaced six-glyph display',
    'Left/right two-plus-two score',
    'Poison debug score',
    '181-line player-color gameplay',

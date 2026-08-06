@@ -19,7 +19,7 @@ the shared timing, resource, opcode, and composition contracts.
 
 | Group | Renderer or architecture | Public diagnostic |
 |---|---|---|
-| [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, score, and silicon fingerprint |
+| [`01_basic`](01_basic/) | Small standalone cartridges and reusable lifecycle components | Blank screen, audio, centered/wide scores, and silicon fingerprint |
 | [`02_faithful_legacy_playercolors`](02_faithful_legacy_playercolors/) | Faithful retained legacy player-color renderer, including its historical unofficial opcodes | Interactive P0/P1/Ball motion and integrated score editing |
 | [`03_player_color_192`](03_player_color_192/) | Official-opcode, scoreless 192-line P0/P1/Ball renderer | Interactive full-range motion and all 30 four-frame source animations traversing the screen in 15 pairs |
 | [`04_player_color_181`](04_player_color_181/) | Official-opcode 181-line P0/P1/Ball renderer plus an 11-line score profile | Ten-layout matrix: four production scores plus poison, each above/below |
@@ -31,8 +31,8 @@ the shared timing, resource, opcode, and composition contracts.
 
 The four 181-line groups contribute a **40-cartridge composition matrix**:
 four gameplay families x four production score layouts x two orders, plus eight
-poison stress compositions. Together with the eight basic, legacy, and 192-line cartridges plus the
-bank-switching diagnostic wrapper, the public tree contains **49 editable
+poison stress compositions. Together with the nine basic, legacy, and 192-line cartridges plus the
+bank-switching diagnostic wrapper, the public tree contains **50 editable
 cartridges**.
 
 The unofficial groups are separate source-level examples rather than a build

@@ -108,6 +108,7 @@ not inferred from a count of source statements. The common contract is:
 | Component family | Complete lines | Entry / return | Partial entry / exit | Terminal WSYNC | HMOVE in `draw()` | Successor on return line |
 | --- | ---: | --- | --- | --- | ---: | --- |
 | centered, mutable-color, left, and right six-glyph displays | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| widely spaced six-glyph display | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | left/right two-plus-two score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official/unofficial `player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
@@ -131,6 +132,15 @@ been flushed by the final GRP0/GRP1/GRP0 sequence, and
 remains clobbered. `PF0/1/2`,
 `CTRLPF`, `COLUPF`, `COLUBK`, M0/M1, Ball, collision latches, and audio state are
 guaranteed untouched.
+
+**Widely spaced six-glyph display.** This is a separate profile with glyph
+origins at X=36,52,68,84,100,116. It uses three medium-spaced copies of each
+player and rewrites GRP0/GRP1 at cycles 0,8,31,36,42,48 on each glyph row.
+Unlike the close-copy profiles it keeps `VDELP0=VDELP1=0`; the 16-pixel origin
+pitch provides enough time to update each player between copies. It owns 31
+RIOT-RAM bytes per instance: three score bytes, twelve pointer bytes, and two
+eight-row caches used for the cycle-42/cycle-48 writes. Its TIA ownership and
+exit guarantees otherwise match the production six-glyph family.
 
 **Left/right two-plus-two score.** This establishes and clobbers
 `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the

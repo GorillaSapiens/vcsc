@@ -16,8 +16,9 @@ and the lifecycle-component model in small, independently understandable steps.
 | 02 | [`ode_to_joy`](02_ode_to_joy/) | Inline frame scheduler plus TIA audio updates during overscan |
 | 03 | [`score`](03_score/) | `frame_ntsc.c26` composed with the 11-line `six_glyph_component.c26` |
 | 04 | [`fingerprint`](04_fingerprint/) | Centered Whimsey fingerprint with fixed `012345` VCSC logos at upper right and lower left |
+| 05 | [`wide_score`](05_wide_score/) | `frame_ntsc.c26` composed with the 88-pixel-wide `six_glyph_wide_component.c26` |
 
-The score and fingerprint examples demonstrate component composition rather than
+The score, wide-score, and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call
 each six-glyph component at its calibrated entry phase. The fingerprint example
 combines centered, left-justified, and right-justified eleven-line variants and

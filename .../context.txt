@@ -96,9 +96,9 @@ Initial archive recorded by the project:
 
     vcsc.20260716_140727.tar.gz
 
-Input archive for the latest bankswitching placement work:
+Input archive for the latest wide-score work:
 
-    vcsc.20260806_152600.tar.gz
+    vcsc.20260806_160105.tar.gz
 
 Current public tools are `vcsc`, `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, `vcsc-ar`,
 and `vcsc-sim`. Source uses `.c26`, maintained assembler source uses `.s26`,
@@ -175,6 +175,11 @@ Renderer and example state
   must not be pruned merely because it is not part of the current build.
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
+* The centered and widely spaced six-glyph score displays are separate lifecycle
+  components. The wide component places 8-pixel glyphs at X=36,52,68,84,100,116
+  using three medium-spaced copies per player and exact GRP0/GRP1 row writes at
+  cycles 0,8,31,36,42,48. It consumes eleven visible scanlines, owns 31 RIOT-RAM
+  bytes, and has its own public 2K example and reviewed Stella raster oracle.
 * Beam-critical tables and renderer code may carry object-owned placement,
   alignment, page-containment, privacy, and hidden-stack metadata. Do not move
   them based on generic packing convenience when their component contract pins
@@ -231,16 +236,17 @@ When removing or changing a feature:
 4. record every intentional deletion/rename in `.../remove.txt`;
 5. update documentation and source-tree hygiene checks in the same slice.
 
-The latest verified full baseline, after bankswitching item 29, is:
+The latest verified full baseline, after main-roadmap item 24, is:
 
     compile-only:             438 passed
-    end-to-end/generic:       248 passed
+    end-to-end/generic:       249 passed
     staged installed tools:   passed, including all final cartridge builds
 
-Item 29 additionally passes focused deterministic placement, local-optimization,
-stack-depth-guard, explanation-trace, simple/optimized-mode, and source-hygiene
-coverage. Item 28's exact runtime frame/raster, map/trampoline, installed-profile,
-and Stella 4K/F8/F8SC snapshot certification remains intact.
+Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
+7.0 raster certification, recursive public-example discovery, source-hygiene, and
+installed component/fixture/public-example builds. Bankswitching item 29's focused
+placement coverage and item 28's runtime, map, installed-profile, and Stella
+4K/F8/F8SC certification remain intact.
 
 Important active constraints and open questions
 -----------------------------------------------
@@ -265,6 +271,11 @@ Bankswitching implementation is complete through item 29. Item 30 in
 pending implementation task: open a new scoped item only when a concrete program
 requires hardware semantics the maintained full-window/direct/shared-memory
 model cannot represent honestly.
+
+Main-roadmap item 24 is complete out of numerical order: the widely spaced
+six-glyph score component, public example, exact raster schedule, reviewed Stella
+oracle, accounting, and installation coverage are integrated while the centered
+component remains byte-identical.
 
 The next unfinished main-roadmap item is 23: investigate an all-five-object
 standard renderer with per-row P0/P1 colors, measure the real RAM/ROM/timing

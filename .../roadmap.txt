@@ -1229,12 +1229,32 @@ than ship a fragile schedule if the hardware budget does not close.
         proves unreasonable; record the evidence instead of shipping a fragile
         compromise.
 
-[ ] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
+[x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across
         a substantially wider horizontal span than the centered display. Give it
         an explicit glyph-origin contract, cycle/TIA-write schedule, example,
         visible raster oracle, ROM/RAM accounting, and installation coverage.
         Preserve the existing centered six-glyph display unchanged.
+
+        Completed 2026-08-06:
+
+        * Add `six_glyph_wide_component.c26` as a separate lifecycle component;
+          retain the existing centered component byte-for-byte.
+        * Interleave three medium-spaced copies of P0 and P1 at glyph origins
+          X=36,52,68,84,100,116. Eight-pixel glyphs at 16-pixel pitch span
+          X=36..123, or 88 visible pixels.
+        * Disable player vertical delay and use exact per-row GRP0/GRP1 writes
+          at CPU cycles 0,8,31,36,42,48. The component consumes eleven visible
+          scanlines and composes into an exact 262-line NTSC frame.
+        * Keep glyphs one through four pointer-driven and prepare only glyphs
+          five and six as two eight-byte row caches. Component-owned RIOT RAM is
+          31 bytes: three score bytes, twelve pointer bytes, and sixteen cache
+          bytes.
+        * Add a dynamic public 2K example, exact event-trace regression, reviewed
+          Stella 7.0 raster oracle, documentation, source-hygiene coverage, and
+          staged installed-toolchain builds. The fixed fixture measures 1,218 ROM
+          bytes and 53 total RAM bytes; the public example measures 1,366 ROM
+          bytes and 57 total RAM bytes.
 
 [ ] 25. Add a left/right dual-score variant of the six-glyph display. Divide the
         six visible glyph slots into independent three-glyph left and right score

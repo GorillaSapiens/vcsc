@@ -88,8 +88,11 @@ index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
 index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&
 index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0 &&
 index($top_make,'stella-renderer-bank-test: tools')>=0 &&
-index($top_make,'standard_renderer_banked_f8.map')>=0
-   or die "top-level installed simulator/Stella bank diagnostics are incomplete\n";
+index($top_make,'standard_renderer_banked_f8.map')>=0 &&
+index($top_make,'stella-wide-score-test: tools')>=0 &&
+index($top_make,'install -m 0644 libraries/vcs/six_glyph_wide_component.c26')>=0 &&
+index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0
+   or die "top-level installed simulator/Stella and wide-score coverage is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
 index($sim_readme,'mapper=F8')>=0 &&
@@ -254,6 +257,20 @@ index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
 index($score_make,'-eq 2048')>=0
    or die "score example is not locked to the 2K C26 profile
 ";
+my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','wide_score.c26'));
+my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','Makefile'));
+index($wide_source,'include "vcs_2k.c26"')>=0 &&
+index($wide_source,'template "six_glyph_wide_component.c26" as score')>=0 &&
+index($wide_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
+index($wide_make,'-eq 2048')>=0 &&
+-f File::Spec->catfile($test,'vcs_six_glyph_wide.pl') &&
+-f File::Spec->catfile($test,'vcs_six_glyph_wide_raster.cpp') &&
+-f File::Spec->catfile($test,'vcs_six_glyph_wide_stella.pl') &&
+index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
+   q{$file eq 'score.c26' || $file eq 'wide_score.c26'})>=0 &&
+-f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
+   or die "widely spaced score example, tests, or oracle are incomplete
+";
 my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
@@ -377,6 +394,8 @@ $roadmap =~ /^\s*\[x\] 22i4b6\./m
    or die "composition-matrix roadmap leaf is not complete\n";
 $roadmap =~ /^\s*\[x\] 22i4c1\./m
    or die "public composition-matrix roadmap leaf is not complete\n";
+$roadmap =~ /^\[x\] 24\. Add a widely spaced six-glyph score-display variant\./m
+   or die "widely spaced score roadmap item is not complete\n";
 $roadmap =~ /^\s*\[x\] 22i4\./m
    or die "visible-component roadmap gate is not complete\n";
 $roadmap =~ /^\[x\] 34\./m

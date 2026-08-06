@@ -63,3 +63,25 @@ roadmap item 30 as a mapper-family policy gate rather than unfinished work.
 Verification: compile-only 438/438, end-to-end 248/248, focused placement and
 source-hygiene regressions pass, and staged installed-toolchain/installcheck
 passes including final banked cartridge and renderer builds.
+
+2026-08-06 09:58:36 PDT, completed main-roadmap item 24 wide six-glyph score display
+--------------------------------------------------
+* Add `libraries/vcs/six_glyph_wide_component.c26` as a separate lifecycle
+  component while preserving `six_glyph_component.c26` byte-for-byte. The six
+  8-pixel glyph origins are X=36,52,68,84,100,116, giving 16-pixel pitch and an
+  88-pixel visible span through X=123.
+* Use three medium-spaced copies of each player without vertical delay. Every
+  visible glyph row writes GRP0/GRP1 at exact CPU cycles 0,8,31,36,42,48; the
+  component consumes eleven visible lines and returns into an exact 262-line
+  NTSC frame. Cache only glyphs five and six, for 31 component-owned RIOT bytes.
+* Add the dynamic `examples/01_basic/05_wide_score` 2K cartridge, a fixed
+  fixture, exact 6502/TIA event-trace harness, reviewed Stella 7.0 raster oracle,
+  public documentation, recursive example discovery, source-hygiene coverage,
+  installation/uninstallation, and staged installed-toolchain builds.
+* Lock accounting at 1,218 ROM bytes and 53 total RAM bytes for the fixed 4K
+  fixture, and 1,366 ROM bytes and 57 total RAM bytes for the public 2K example.
+* Verification: compile-only 438/438; end-to-end 249/249 after correcting the
+  recursive example builder to select the 2K profile for `wide_score.c26`;
+  focused exact-raster, visible-handoff, source-hygiene, and Stella snapshot
+  tests pass; staged `make installcheck` passes including the installed public
+  example. Main-roadmap item 23 remains the next action.
