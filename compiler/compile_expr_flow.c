@@ -683,21 +683,26 @@ done:
    return true;
 }
 
-//! @brief Return whether a directly allocated source object has a hard page-aligned base.
+//! @brief Return whether a directly allocated source object has a guaranteed low-byte-zero base.
 static bool direct_lvalue_is_page_base(const LValueRef *lv) {
    const ASTNode *g;
    const ASTNode *modifiers;
+   const ASTNode *declarator;
+   unsigned int alignment = 0;
+   int size;
 
    if (!lv || !lv->name || !lv->is_global || lv->is_ref || lv->is_absolute_ref ||
        lv->indirect || lv->needs_runtime_address || lv->base_offset != 0) {
       return false;
    }
    g = global_decl_lookup(lv->name);
-   if (!g || g->count < 3) {
-      return false;
-   }
-   modifiers = g->children[0];
-   return modifiers && has_modifier((ASTNode *)modifiers, "page");
+   if (!g || g->count < 3 || !(modifiers = g->children[0])) return false;
+   if (declaration_alignment(modifiers, &alignment) && alignment >= 256) return true;
+   if (!has_modifier((ASTNode *)modifiers, "page")) return false;
+   declarator = decl_node_declarator(g);
+   if (!declarator) return false;
+   size = declarator_storage_size(g->children[1], declarator);
+   return size == 256;
 }
 
 //! @brief Evaluate one supported unsigned-byte expression directly into A.

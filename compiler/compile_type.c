@@ -1287,6 +1287,36 @@ bool has_modifier(ASTNode *node, const char *modifier) {
    return false;
 }
 
+//! @brief Return one source-level object alignment after validating its constant power-of-two argument.
+bool declaration_alignment(const ASTNode *modifiers, unsigned int *alignment_out) {
+   const ASTNode *found = NULL;
+   long long value = 0;
+
+   if (alignment_out) *alignment_out = 0;
+   if (!modifiers || is_empty(modifiers)) return false;
+   for (int i = 0; i < modifiers->count; i++) {
+      const ASTNode *item = modifiers->children[i];
+      if (!item || !item->strval || strcmp(item->strval, "align")) continue;
+      if (found) {
+         error_user("[%s:%d.%d] duplicate align() modifier",
+                    item->file, item->line, item->column);
+      }
+      found = item;
+   }
+   if (!found) return false;
+   if (found->count != 1 ||
+       !expr_is_integer_constant_expr(found->children[0], &value)) {
+      error_user("[%s:%d.%d] align() requires a compile-time integer constant",
+                 found->file, found->line, found->column);
+   }
+   if (value <= 0 || value > 32768 || ((unsigned long long)value & ((unsigned long long)value - 1ULL)) != 0) {
+      error_user("[%s:%d.%d] align() requires a positive power of two from 1 through 32768",
+                 found->file, found->line, found->column);
+   }
+   if (alignment_out) *alignment_out = (unsigned int)value;
+   return true;
+}
+
 //! @brief Return the strongest file-scope use contract attached to a declaration.
 DeclarationUseContract declaration_use_contract(const ASTNode *modifiers) {
    if (has_modifier((ASTNode *)modifiers, "require")) {

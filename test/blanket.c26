@@ -79,6 +79,7 @@ union int16_t { // should cause an error
 int16_t ia;
 static int16_t ib;
 page int16_t page_object;
+align(16) int16_t aligned_object;
 require int16_t required_contract_coverage;
 recommend int16_t recommended_contract_coverage;
 require recommend int16_t required_dominates_coverage;

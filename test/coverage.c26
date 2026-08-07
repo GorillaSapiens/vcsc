@@ -57,6 +57,7 @@ int16_t five := 5;
 const int16_t six := 6;
 static const int16_t seven := 7;
 page const int16_t page_eight := 8;
+align(16) int16_t aligned_coverage_object;
 require int16_t required_contract_coverage;
 recommend int16_t recommended_contract_coverage;
 require recommend int16_t required_dominates_coverage;

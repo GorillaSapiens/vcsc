@@ -622,6 +622,15 @@ The map's `OBJECTS` entries report `component-region`, `component-align`, and
 `.pagecontain` and `.indexrange` metadata continues to report whole-layout and
 effective-index-window page requirements independently.
 
+Source-language `align(N)` on a file-scope data-object definition is carried into
+its private layout as the same power-of-two alignment contract used by
+`.segmentalign`. `N` is restricted by the compiler to a compile-time positive
+power of two from 1 through 32768. The linker applies that alignment to the
+object's ROM/load start and, for writable DATA/BSS/zero-page objects, to the
+runtime start as well. This is independent of `.pagecontain`: `align(256)` means
+"start at `$xx00`" and may span pages, while `page` means "the complete object
+must fit in one page" and does not by itself require a zero low byte.
+
 Cartridge topology and authoritative memory declarations therefore describe
 hardware and allocatable bytes only. Renderer and assembly-component constraints
 travel with the object which needs them; no renderer x mapper cfg product is

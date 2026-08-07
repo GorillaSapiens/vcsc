@@ -1159,10 +1159,13 @@ by ordinary application code. Assigning an array to a compatible pointer writes 
 array address straight to the destination pointer; adding a simple unsigned-byte
 offset updates that pointer directly; one-byte array and pointer subscripts can stay
 in A/Y; constant masks and shifts are emitted in place; and direct byte-array stores
-avoid constructing a general run-time lvalue. Hard `page` arrays carry stronger facts:
-a page-selection chain can install only the selected high byte, a proven bounded low-
-byte offset can omit impossible carry propagation, and identical selector suffixes are
-shared. When a later page-pointer setup is proven to use exactly twice the earlier
+avoid constructing a general run-time lvalue. A low-byte-zero array base is used only
+when the declaration actually proves it: `align(256)` (or a stronger alignment), or
+the special case of an exactly 256-byte `page` object whose containment necessarily
+forces a page boundary. `page` by itself does **not** imply a zero low byte for smaller
+objects. With a proven page base, a page-selection chain can install only the selected
+high byte, a proven bounded low-byte offset can omit impossible carry propagation, and
+identical selector suffixes are shared. When a later page-pointer setup is proven to use exactly twice the earlier
 masked/shifted byte offsets and the intervening counted loop cannot mutate the pointer
 or source values, the compiler reuses the existing low byte with `ASL` instead of
 reconstructing the offset. The proof is byte-exact modulo 256 and does not allocate a
@@ -1275,10 +1278,31 @@ so the linker can reuse same-page holes without changing source order or adding
 padding. The ordinary placement is a soft preference only.
 
 At file scope, `page` requests hard 256-byte page containment, for example
-`page const uint8_t table[80] := { ... };`. The same private segment is marked
-with `.pagecontain`, and for objects of at most 256 bytes the compiler also
-emits `.indexrange 0, size-1` as explicit full-declaration access metadata. The
-linker must find a legal address or reject the link. A non-inline function definition is likewise emitted as its own `CODE` layout,
+`page const uint8_t table[80] := { ... };`. The complete object must fit within
+one hardware page, but its first byte need not be `$xx00`; a small `page` object
+may share a page with other objects. The private segment is marked with
+`.pagecontain`, and for objects of at most 256 bytes the compiler also emits
+`.indexrange 0, size-1` as explicit full-declaration access metadata. The linker
+must find a legal address or reject the link.
+
+`align(N)` is the independent start-address alignment contract for file-scope
+data-object definitions:
+
+```vcsc
+align(256) const uint8_t ascii_font[760] := { ... };
+page align(256) const uint8_t frame_page[192] := { ... };
+```
+
+`N` must be a compile-time positive power of two from 1 through 32768. Other
+values are rejected. `align(256)` means the first byte is `$xx00`; unlike
+`page`, the object may span as many pages as its size requires. Combining the
+two requests both a page-aligned start and whole-object page containment.
+`align()` does not apply to functions, locals, extern data declarations, or
+absolute external bindings. The compiler emits the contract through the
+assembler/linker `.segmentalign` metadata rather than inserting literal padding
+into application data.
+
+A non-inline function definition is likewise emitted as its own `CODE` layout,
 so the linker knows its exact boundary and size. Ordinary functions receive the
 same soft containment preference. `page` on a function definition upgrades that
 function to hard containment; declarations without a body reject `page` because

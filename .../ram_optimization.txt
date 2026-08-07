@@ -560,7 +560,7 @@ Ordered roadmap
       fingerprint, renderer, banked-renderer, animation, bankswitching, and
       split-memory oracles remain passing.
 
-[ ] 5a. Separate hard page containment from explicit power-of-two alignment,
+[x] 5a. Separate hard page containment from explicit power-of-two alignment,
         remove gratuitous ROM padding, and audit page-based optimizer proofs.
 
     * Add `align(N)` for objects, with `N` required to be a compile-time positive
@@ -606,17 +606,65 @@ Ordered roadmap
 
     Acceptance criteria:
 
-    * [ ] `align(N)` accepts only positive powers of two and rejects other
+    * [x] `align(N)` accepts only positive powers of two and rejects other
       compile-time values with focused diagnostics.
-    * [ ] Existing valid `page` declarations retain their current placement and
+    * [x] Existing valid `page` declarations retain their current placement and
       containment contract; no mass 256-byte spacing regression is introduced.
-    * [ ] Large ASCII fonts are contiguous `align(256)` objects, link
+    * [x] Large ASCII fonts are contiguous `align(256)` objects, link
       successfully, and every glyph is proved not to cross a 256-byte page.
-    * [ ] The page-aware optimizer audit has positive/negative regressions that
+    * [x] The page-aware optimizer audit has positive/negative regressions that
       distinguish containment from base alignment.
-    * [ ] Gratuitous explicit ROM padding identified by the audit is removed and
+    * [x] Gratuitous explicit ROM padding identified by the audit is removed and
       the linked ROM savings are measured without changing raster, timing, or
       source-data behavior.
+
+    Completed result:
+
+    * Added source-language `align(N)` for file-scope data-object definitions.
+      `N` must be a compile-time positive power of two from 1 through 32768;
+      zero, nonconstant, non-power-of-two, and local misuse has focused
+      regression coverage, while the file-scope data-object-only restriction is
+      enforced by declaration lowering. The compiler
+      lowers the contract to the existing private-layout `.segmentalign`
+      machinery rather than inserting application-data padding.
+    * Kept `page` semantics unchanged. `page` means the complete object must fit
+      within one hardware page; it does not imply a zero low byte. `align(256)`
+      means the object starts at `$xx00` and may span pages. Combining them asks
+      for both properties.
+    * The optimizer audit found two real conflations in page-pointer lowering:
+      compact page selection and direct page-base range lowering had treated any
+      `page` object as low-byte-zero. They now require `align(256)` or stronger,
+      or the special exactly-256-byte `page` case where containment itself forces
+      a page boundary. A 224-byte `page` table is a negative code-generation
+      regression; `page align(256)` is the corresponding positive regression.
+    * Runtime placement now honors object alignment for DATA, BSS, and zero-page
+      storage as well as ROM. `test/align_language_placement.pl` proves that a
+      small `page` object may legally start at `$F010`, a 300-byte `align(256)`
+      object starts on a page boundary while spanning pages, and `align(16)` BSS
+      receives a 16-byte-aligned runtime address.
+    * Converted all 760-byte conventional `*_ascii.c26` tables and the 1520-byte
+      `big_ascii.c26` table to contiguous `align(256)` objects. Linked regressions
+      prove every 8-byte and 16-byte glyph remains wholly within one hardware
+      page. Small decimal/hex fonts remain legitimately `page` contained.
+    * Removed the animated gallery's 64 literal zero padding bytes after sprite
+      120. The final bitmap object is now the 192 bytes of real data rather than
+      a padded 256-byte object; all four bitmap objects and both packed row-color
+      objects explicitly use `page align(256)` where low-byte-zero pointer
+      construction is required.
+    * The follow-up source audit found no other example application-data padding
+      used merely to manufacture alignment. Remaining padding references are
+      timing/layout instructions inside maintained renderers or component layout
+      contracts, not literal example data to be deleted by this optimization.
+    * The gallery ROM falls from **3624/4090 to 3560/4090 bytes**, recovering the
+      full **64 bytes** and leaving **530 bytes free**. RIOT RAM remains
+      **109/128 bytes** with **19 free**, and `install_frames()` remains
+      **232 linked bytes**. Exact animation assets, frame timing, raster output,
+      bankswitching, score, renderer, and component contracts remain unchanged.
+    * Final verification is **455/455 compile-only** and **260/260 end-to-end**
+      tests in bounded batches. User-facing compiler documentation now describes
+      `align(N)` and its distinction from `page`; assembler/linker documentation
+      records that the source contract is carried by `.segmentalign` and applies
+      to both load and writable runtime placement.
 
 [ ] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
 

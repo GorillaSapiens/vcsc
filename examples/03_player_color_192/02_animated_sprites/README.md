@@ -28,8 +28,10 @@ edge clipping. After X=140, both players return to X=16 with the next pair. The
 
 Each PICO-8 frame is converted to a one-bit occupancy mask. Source color 0 is
 transparent; every nonzero source color becomes a set Atari player bit. The 120
-source slots occupy 960 bytes in four hard 256-byte pages, with 64 zero padding
-bytes after source sprite 120. Sprite 16 remains blank and is never selected.
+source slots occupy 960 real bitmap bytes: three 256-byte objects plus one
+192-byte final object. All four are `page align(256)`, so the final object keeps
+its low-byte-zero base without storing 64 literal padding bytes after source
+sprite 120. Sprite 16 remains blank and is never selected.
 Bitmap data is never copied into RAM; frame changes only replace the two graphics
 pointers.
 

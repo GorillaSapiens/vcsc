@@ -57,3 +57,13 @@ cases in bounded batches. Clean source-tree hygiene passes.
 * Added `libraries/vcs/fonts/big_ascii.c26` as a usable 95-glyph 8x16 printable-ASCII table, repaired its 16-row reversal alias, removed impossible page containment, documented it, and added a linked-ROM/distinct-glyph regression.
 * Reworked the bankswitching diagnostic display to render complete centered white PASS or FAIL words with exact letters copied from `default_ascii.c26` through the six-glyph-wide component while retaining the complete mapper-transition simulator matrix and exact frame scheduler.
 * Final verification on the completed tree: 447/447 compile-only tests and 258/258 end-to-end tests pass in bounded batches, including exact scheduler/score/renderer/banked-renderer/animation regressions and source-tree hygiene.
+
+2026-08-07 13:34:04 PDT, Added explicit object alignment and removed animated-gallery ROM padding
+
+- Added user-facing `align(N)` for file-scope data-object definitions, restricted to compile-time positive powers of two from 1 through 32768, while retaining `page` as the independent whole-object 256-byte containment contract.
+- Reused the existing assembler/linker `.segmentalign` metadata path and fixed writable DATA/BSS/zero-page runtime placement to honor object alignment as well as ROM/load placement.
+- Audited page-aware compiler proofs and fixed two real low-byte-zero conflations: a small `page` object no longer enables page-base pointer lowering unless `align(256)` or stronger proves the base, while an exactly 256-byte page-contained object remains sufficient by construction.
+- Converted all 760-byte conventional ASCII fonts and the 1520-byte big ASCII font to contiguous `align(256)` objects with linked tests proving no 8-byte or 16-byte glyph crosses a hardware page; small decimal/hex fonts remain `page` contained.
+- Removed the animated gallery's 64 literal zero padding bytes after sprite 120. The final bitmap object is 192 real bytes, gallery ROM falls from 3624 to 3560 bytes with 530 free, RAM remains 109/128 with 19 free, and `install_frames()` remains 232 bytes.
+- Audited example/library padding references after the cleanup: no other example application-data padding remains; remaining renderer padding references are cycle/layout contracts rather than filler data.
+- Verified 455/455 compile-only tests and all 260/260 end-to-end cases in bounded batches, including exact renderer, score, animation, bankswitching, and alignment-placement regressions.

@@ -70,6 +70,10 @@ for my $family (@families) {
    my $decimal_path=File::Spec->catfile($fonts,"${base}_decimal.c26");
    my $hex_path=File::Spec->catfile($fonts,"${base}_hex.c26");
    my($ascii_text,$ascii)=glyphs($ascii_path,95);
+   $ascii_text =~ /align\s*\(\s*256\s*\)\s+const\s+uint8_t\s+score_font\s*\[\s*760\s*\]\s*:=/
+      or die "$ascii_path is not one contiguous 256-aligned 760-byte table\n";
+   $ascii_text !~ /page\s+(?:align\s*\([^)]*\)\s+)?const\s+uint8_t\s+score_font/
+      or die "$ascii_path still requests impossible whole-table page containment\n";
    my($decimal_text,$decimal)=glyphs($decimal_path,10);
    my($hex_text,$hex)=glyphs($hex_path,16);
 

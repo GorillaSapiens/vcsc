@@ -1,0 +1,7 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: align() requires a compile-time integer constant
+include "machine_6502.c26"
+
+uint8_t alignment_value := 16;
+align(alignment_value) const uint8_t bad_table[8] := { 0 };

@@ -6964,7 +6964,10 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
             case O26_SEG_DATA: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "DATA")) ? suffix : data_run_name;
-               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+               const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, data);
+               uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
+                  : (run_rule && run_rule->align ? run_rule->align : 1);
+               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                   lay, lay->name, obj->origin);
                add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
@@ -7022,7 +7025,10 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   lay->run_addr = group->run_addr;
                }
                else {
-                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                  const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, bss);
+                  uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
+                     : (run_rule && run_rule->align ? run_rule->align : 1);
+                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
                }
                if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
@@ -7081,7 +7087,10 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   lay->run_addr = group->run_addr;
                }
                else {
-                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                  const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, zp);
+                  uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
+                     : (run_rule && run_rule->align ? run_rule->align : 1);
+                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
                }
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)

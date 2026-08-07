@@ -65,10 +65,14 @@ for my $set (0..29) {
 }
 my $glyph_count=()=$source_text =~ /\bgame_SPRITE_GLYPH\s*\(/g;
 $glyph_count==120 or die "animated gallery has $glyph_count frames; expected 120\n";
-for my $page (0..3) {
-   $source_text =~ /page\s+const\s+uint8_t\s+sprite_frames_\Q$page\E\[256\]/
-      or die "animation frame hard page $page is missing\n";
+for my $page (0..2) {
+   $source_text =~ /page\s+align\s*\(\s*256\s*\)\s+const\s+uint8_t\s+sprite_frames_\Q$page\E\[256\]/
+      or die "animation frame aligned hard page $page is missing\n";
 }
+$source_text =~ /page\s+align\s*\(\s*256\s*\)\s+const\s+uint8_t\s+sprite_frames_3\[192\]/
+   or die "animation final 192-byte aligned hard page is missing\n";
+$source_text !~ /Pad the final hard page|sprite_frames_3\[256\]/
+   or die "animation source reintroduced literal final-page padding\n";
 $source_text =~ /alias\s+SPRITE_COUNT\s+30/
    or die "animation set count changed\n";
 $source_text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n";
@@ -113,9 +117,12 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin == 4096 or die "animated gallery ROM is not 4096 bytes\n";
 my $map=read_file($mapfile);
 my @frame_names=map { "sprite_frames_$_" } 0..3;
-for my $name (@frame_names) {
-   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}.*size=\$0100.*page=hard/
-      or die "$name lost its 256-byte hard-page placement\n";
+my @frame_sizes=(0x100,0x100,0x100,0x0c0);
+for my $i (0..$#frame_names) {
+   my $name=$frame_names[$i];
+   my $size=sprintf('%04x',$frame_sizes[$i]);
+   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}.*size=\$$size.*page=hard.*component-align=\$0100/i
+      or die "$name lost its aligned hard-page placement\n";
    (map_value($map,$name)&0xff)==0
       or die "$name no longer starts at low byte zero\n";
 }
@@ -132,8 +139,8 @@ my @color_sizes=(0x100,0x0e0);
 for my $i (0..$#color_names) {
    my $name=$color_names[$i];
    my $size=sprintf('%04x',$color_sizes[$i]);
-   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}\s+size=\$$size\s+page=hard/i
-      or die "$name lost its hard-page source-color placement\n";
+   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}\s+size=\$$size\s+page=hard.*component-align=\$0100/i
+      or die "$name lost its aligned hard-page source-color placement\n";
    (map_value($map,$name)&0xff)==0
       or die "$name no longer starts at low byte zero\n";
 }
@@ -142,12 +149,14 @@ for my $i (0..$#color_names) {
 # Sprite 16 remains blank in storage but the modulo-3 counter must never select it.
 my $rom=read_file($bin);
 my $asset_bytes='';
-for my $name (@frame_names) {
+for my $i (0..$#frame_names) {
+   my $name=$frame_names[$i];
    my $base=map_value($map,$name);
    $base>=0xf000 && $base<=0xff00 or die "$name is outside the cartridge ROM\n";
-   $asset_bytes .= substr($rom,$base-0xf000,256);
+   $asset_bytes .= substr($rom,$base-0xf000,$frame_sizes[$i]);
 }
-sha256_hex(substr($asset_bytes,0,960)) eq
+length($asset_bytes)==960 or die "animated source-sprite object bytes changed from 960\n";
+sha256_hex($asset_bytes) eq
    '7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb'
    or die "animated source-sprite occupancy changed\n";
 for my $frame (0..119) {
@@ -159,9 +168,6 @@ for my $frame (0..119) {
       !$blank or die "unexpected blank source sprite " . ($frame+1) . "\n";
    }
 }
-substr($asset_bytes,960,64) eq ("\0" x 64)
-   or die "final sprite hard-page padding is not zero\n";
-
 my $row_color_bytes='';
 for my $i (0..$#color_names) {
    my $base=map_value($map,$color_names[$i]);

@@ -56,7 +56,7 @@ template "renderers/player_color_192/player_color_192.c26" as game
 // Source sprite 16 remains blank in the table; set 03 uses its own modulo-3
 // playback counter and therefore selects only sprites 13, 14, and 15. Each
 // 32-byte source set begins on a 32-byte boundary inside one of four hard pages.
-page const uint8_t sprite_frames_0[256] := {
+page align(256) const uint8_t sprite_frames_0[256] := {
    // source_set_00_sprites_001_004
    game_SPRITE_GLYPH(
       0b..XXXX..,
@@ -387,7 +387,7 @@ page const uint8_t sprite_frames_0[256] := {
    ),
 };
 
-page const uint8_t sprite_frames_1[256] := {
+page align(256) const uint8_t sprite_frames_1[256] := {
    // source_set_08_sprites_033_036
    game_SPRITE_GLYPH(
       0b........,
@@ -718,7 +718,7 @@ page const uint8_t sprite_frames_1[256] := {
    ),
 };
 
-page const uint8_t sprite_frames_2[256] := {
+page align(256) const uint8_t sprite_frames_2[256] := {
    // source_set_16_sprites_065_068
    game_SPRITE_GLYPH(
       0b........,
@@ -1049,7 +1049,7 @@ page const uint8_t sprite_frames_2[256] := {
    ),
 };
 
-page const uint8_t sprite_frames_3[256] := {
+page align(256) const uint8_t sprite_frames_3[192] := {
    // source_set_24_sprites_097_100
    game_SPRITE_GLYPH(
       0b.XXXXXX.,
@@ -1296,78 +1296,13 @@ page const uint8_t sprite_frames_3[256] := {
       0b.XXXX...,
       0b.XXXX...
    ),
-   // Pad the final hard page after source sprite 120.
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
 };
 // Four packed bytes accompany each source frame. Nibbles are PICO-8 palette
 // indices in the renderer's bottom-row-to-top-row memory order. The runtime
 // expands the selected frame through pico8_tia_palette into the two RAM color
 // tables, so colored body bands move with the original animation instead of
 // being guessed from transparent top-row offsets.
-page const uint8_t sprite_row_colors_0[256] := {
+page align(256) const uint8_t sprite_row_colors_0[256] := {
    // source_set_00_sprites_001_004
    0x88, 0x88, 0xcc, 0x88, // source sprite 001
    0x88, 0x88, 0xcc, 0x88, // source sprite 002
@@ -1450,7 +1385,7 @@ page const uint8_t sprite_row_colors_0[256] := {
    0xee, 0x0e, 0x00, 0x00, // source sprite 064
 };
 
-page const uint8_t sprite_row_colors_1[224] := {
+page align(256) const uint8_t sprite_row_colors_1[224] := {
    // source_set_16_sprites_065_068
    0xcc, 0xcc, 0x00, 0x00, // source sprite 065
    0xcc, 0xcc, 0x0c, 0x00, // source sprite 066

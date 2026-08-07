@@ -833,8 +833,11 @@ runtime contents in `vcsc-sim`.
 
 `vcs_big_ascii_font.pl` validates the separate `fonts/big_ascii.c26` 8x16 table:
 95 distinct printable-ASCII glyphs, sixteen-row reversal including descenders,
-1520 linked bytes, no impossible `page` containment, and byte-for-byte agreement
-between the source rows and final ROM.
+one contiguous 1520-byte `align(256)` object, no impossible `page` containment,
+no 16-byte glyph crossing a hardware page, and byte-for-byte agreement between
+the source rows and final ROM. `vcs_ascii_font_alignment.pl` performs the linked
+256-byte alignment and no-crossing proof for all eight conventional 760-byte
+8x8 ASCII font families.
 
 `compiler_address_mode_policy.pl` audits the compiler implementation and rejects
 forced ordinary 6502 addressing-mode suffixes in compiler-generated mnemonic

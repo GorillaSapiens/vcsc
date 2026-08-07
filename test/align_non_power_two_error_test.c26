@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: align() requires a positive power of two from 1 through 32768
+include "machine_6502.c26"
+
+align(24) const uint8_t bad_table[8] := { 0 };

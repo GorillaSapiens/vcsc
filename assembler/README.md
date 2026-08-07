@@ -792,6 +792,13 @@ specified power-of-two alignment from 1 through 32768. This differs from
 `.align`: `.align` pads inside the assembler segment, whereas `.segmentalign`
 constrains the segment's final linker base. Components commonly use both.
 
+For compiler-generated C26 objects, source `align(N)` is the user-facing spelling
+for this layout-start constraint. The compiler accepts only compile-time positive
+powers of two from 1 through 32768. It is intentionally separate from `page` /
+`.pagecontain`: alignment constrains the first byte; page containment constrains
+the complete object to one 256-byte page.
+
+
 `.segmentprivate "SEGMENT"` records that the route belongs only to this object
 component rather than defining a global cfg `SEGMENTS` rule for every object
 using the same segment spelling. The linker reports private routes in the map.

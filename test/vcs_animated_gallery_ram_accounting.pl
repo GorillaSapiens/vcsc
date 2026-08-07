@@ -75,8 +75,8 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
    or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
 index($asm,'__phaseworkspace$V1$game_object_masks')>=0
    or die "renderer object-mask workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3624 bytes .*free=466 bytes/
-   or die "3624-byte optimized high-level frame-installation ROM result changed\n";
+$map =~ /rom\s+used=3560 bytes .*free=530 bytes/
+   or die "3560-byte aligned/no-padding animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=109 bytes .*free=19 bytes .*objects=101 bytes hardware-stack=8 bytes/
    or die "109-byte phase-overlay RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -238,7 +238,7 @@ my $report={
    schema=>6,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3624, rom_free_bytes=>466,
+      rom_bytes=>3560, rom_free_bytes=>530,
       ram_bytes=>109, free_ram_bytes=>19, object_bytes=>101, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -284,6 +284,12 @@ my $report={
          phases=>['VBLANK','visible'],
       },
       proof=>'disjoint conservative phase intervals plus explicit workspace eligibility; compiler scratch is written before use and needs no startup zeroing',
+   },
+   alignment_padding_cleanup=>{
+      previous_rom_bytes=>3624, rom_bytes=>3560, rom_saved_bytes=>64,
+      previous_sprite_frames_3_bytes=>256, sprite_frames_3_bytes=>192,
+      removed_literal_zero_padding_bytes=>64, alignment=>256,
+      proof=>'sprite_frames_3 contains exactly six four-frame eight-byte sets; explicit align(256) preserves the page-base contract without storing alignment bytes as application data',
    },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},

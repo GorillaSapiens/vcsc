@@ -286,7 +286,23 @@ static bool stmt_lvalue_has_direct_subscript(ASTNode *expr) {
       is_empty(suffix->children[0]);
 }
 
-//! @brief Return whether one direct assignment selects a hard page-aligned array base.
+//! @brief Return whether one global array declaration guarantees a low-byte-zero base.
+static bool global_array_guarantees_page_base(const ASTNode *g) {
+   const ASTNode *modifiers;
+   const ASTNode *declarator;
+   unsigned int alignment = 0;
+   int size;
+
+   if (!g || g->count < 3 || !(modifiers = g->children[0])) return false;
+   if (declaration_alignment(modifiers, &alignment) && alignment >= 256) return true;
+   if (!has_modifier((ASTNode *)modifiers, "page")) return false;
+   declarator = decl_node_declarator(g);
+   if (!declarator) return false;
+   size = declarator_storage_size(g->children[1], declarator);
+   return size == 256;
+}
+
+//! @brief Return whether one direct assignment selects a guaranteed page-aligned array base.
 static bool classify_page_pointer_base_assignment(ASTNode *stmt, Context *ctx,
                                                   const char **target_name_out) {
    const char *op;
@@ -313,7 +329,7 @@ static bool classify_page_pointer_base_assignment(ASTNode *stmt, Context *ctx,
    }
    g = global_decl_lookup(src.name);
    if (!g || g->count < 3 || !(modifiers = g->children[0]) ||
-       !has_modifier((ASTNode *)modifiers, "page")) {
+       !global_array_guarantees_page_base(g)) {
       return false;
    }
    if (target_name_out) *target_name_out = dst.name;
@@ -1439,7 +1455,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
 
    if (addrspec != NULL) {
       if (has_modifier(modifiers, "static") || has_modifier(modifiers, "extern") ||
-          has_modifier(modifiers, "page") || modifiers_imply_mem_storage(modifiers) ||
+          has_modifier(modifiers, "page") || has_modifier(modifiers, "align") || modifiers_imply_mem_storage(modifiers) ||
           declaration_has_use_contract(modifiers)) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use allocation, linkage, or use-contract modifiers",
                node->file, node->line, node->column, name);
@@ -1578,6 +1594,10 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
    }
    if (has_modifier(modifiers, "page")) {
       error_user("[%s:%d.%d] 'page' currently applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
+   if (has_modifier(modifiers, "align")) {
+      error_user("[%s:%d.%d] align() applies only to file-scope data-object definitions",
                  node->file, node->line, node->column);
    }
    int size            = declarator_storage_size(type, declarator);

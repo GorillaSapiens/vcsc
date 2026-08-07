@@ -2174,6 +2174,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
                           }
 <ALIAS_RHS>[^\n]+          { alias_append_rhs(yytext); }
 
+"align"         return ALIGN;
 "as"            return AS;
 "bank"          return BANK;
 "break"         return BREAK;

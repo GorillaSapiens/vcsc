@@ -325,12 +325,20 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization work through phase-aware writable-storage overlay is complete.
+RAM-optimization work through explicit alignment/padding cleanup is complete.
 Compiler-owned expression scratch is lifetime-colored across the complete runtime
 activation owner, ordinary directly addressable unsigned-byte state uses compact
 lowering, and the high-level animated-frame installer plus its page/pointer optimizer
 work remain complete. Compiler-generated ordinary memory references stay addressing-
 mode agnostic; explicit source `asm` suffixes remain the timing/encoding escape hatch.
+
+Source-language `align(N)` is now the independent object-start alignment contract for
+file-scope data definitions. `N` must be a compile-time positive power of two from 1
+through 32768. `page` retains its separate whole-object containment meaning: a small
+`page` object need not begin at `$xx00`, while `align(256)` requires that start address
+and may span pages. Page-aware compiler proofs may assume low byte zero only from
+`align(256)` or stronger, or from the special exactly-256-byte `page` case where
+containment itself forces a page boundary.
 
 Frame-phase storage uses internal VSYNC/VBLANK/visible/overscan metadata. Access phase
 alone is not enough to reuse a file-scope value: a reusable frame-temporary workspace
@@ -346,7 +354,8 @@ scratch aliases the first byte of the 48-byte VBLANK+visible `game_object_masks`
 workspace. Total RIOT RAM is **109/128 bytes**—101 object bytes plus the eight-byte
 hardware-stack reservation—leaving **19 bytes free**. The final ordinary high-level
 `install_frames()` remains 232 linked bytes, four bytes smaller than its 236-byte
-handwritten predecessor. Gallery ROM remains **3624/4090 bytes** with 466 free.
+handwritten predecessor. Removing the animated gallery's 64 literal alignment-padding
+bytes reduces ROM from 3624 to **3560/4090 bytes**, leaving **530 bytes free**.
 
 `test/phase_overlay.pl` is the generic lifetime proof: it verifies positive sharing
 independent of declaration order and refuses overlapping, unscoped, misleadingly
@@ -356,8 +365,9 @@ order. The detailed implementation and acceptance record lives in
 `.../ram_optimization.txt`.
 
 The separate 8x16 `libraries/vcs/fonts/big_ascii.c26` module contains all 95 printable
-ASCII glyphs in a 1520-byte non-page-contained table; its test verifies distinct glyphs,
-row reversal, descenders, and linked ROM bytes. The bankswitching diagnostic now renders
+ASCII glyphs in a contiguous 1520-byte `align(256)` table; all large 8x8 ASCII fonts are
+likewise contiguous `align(256)` objects. Linked tests prove that no 8-byte or 16-byte
+glyph crosses a hardware page. The bankswitching diagnostic now renders
 complete centered white **PASS** or **FAIL** words with the six-glyph-wide component;
 its mapper transition simulator matrix and recursive example builds pass.
 
@@ -367,10 +377,13 @@ score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
 The next RAM-optimization work is persistent gallery bookkeeping reduction: derive or
 pack redundant sprite/control state without changing the independent modulo-3 source-set
-phase, controls, renderer behavior, or frame timing.
+phase, controls, renderer behavior, or frame timing. The completed alignment step is
+recorded in `.../ram_optimization.txt`; final verification is 455/455 compile-only and
+260/260 end-to-end tests.
 
-Verification after phase overlay is **447/447 compile-only tests and 258/258 end-to-end
-cases** in bounded batches. Clean source-tree hygiene remains the packaging gate.
+Verification after explicit alignment/padding cleanup is **455/455 compile-only tests
+and 260/260 end-to-end cases** in bounded batches. Clean source-tree hygiene remains
+the packaging gate.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

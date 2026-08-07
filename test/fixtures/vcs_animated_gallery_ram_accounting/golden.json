@@ -56,6 +56,16 @@
       "size" : 1,
       "start" : 228
    },
+   "alignment_padding_cleanup" : {
+      "alignment" : 256,
+      "previous_rom_bytes" : 3624,
+      "previous_sprite_frames_3_bytes" : 256,
+      "proof" : "sprite_frames_3 contains exactly six four-frame eight-byte sets; explicit align(256) preserves the page-base contract without storing alignment bytes as application data",
+      "removed_literal_zero_padding_bytes" : 64,
+      "rom_bytes" : 3560,
+      "rom_saved_bytes" : 64,
+      "sprite_frames_3_bytes" : 192
+   },
    "hardware_stack" : {
       "bank_extra_slots" : 0,
       "deepest" : {
@@ -375,8 +385,8 @@
       "hardware_stack_bytes" : 8,
       "object_bytes" : 101,
       "ram_bytes" : 109,
-      "rom_bytes" : 3624,
-      "rom_free_bytes" : 466,
+      "rom_bytes" : 3560,
+      "rom_free_bytes" : 530,
       "subcategory_bytes" : {
          "argument" : 2,
          "gallery_control" : 7,

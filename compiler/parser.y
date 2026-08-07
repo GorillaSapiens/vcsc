@@ -101,6 +101,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token OR
 %token OR_ASSIGN
 %token PAGE
+%token ALIGN
 %token READ_ADDRESS
 %token RECOMMEND
 %token REF
@@ -400,6 +401,7 @@ modifier:
   | EXTERN                                   { COVER; $$ = make_identifier_leaf("extern"); }
   | INLINE                                   { COVER; $$ = make_identifier_leaf("inline"); }
   | PAGE                                     { COVER; $$ = make_identifier_leaf("page"); }
+  | ALIGN '(' expr ')'                       { COVER; $$ = MAKE_NAMED_NODE("align_modifier", $3); $$->strval = strdup("align"); }
   | RECOMMEND                                { COVER; $$ = make_identifier_leaf("recommend"); }
   | REF                                      { COVER; $$ = make_identifier_leaf("ref"); }
   | REQUIRE                                  { COVER; $$ = make_identifier_leaf("require"); }

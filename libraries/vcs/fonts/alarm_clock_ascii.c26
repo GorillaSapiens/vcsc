@@ -4,7 +4,7 @@
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-page const uint8_t score_font[760] := {
+align(256) const uint8_t score_font[760] := {
    // 0x20 SPACE
    VCS_FONT_GLYPH(
       0b........,

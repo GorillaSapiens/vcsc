@@ -324,6 +324,10 @@ void compile_function_decl(ASTNode *node) {
       error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to function '%s'",
                  node->file, node->line, node->column, name ? name : "?");
    }
+   if (has_modifier(modifiers, "align")) {
+      error_user("[%s:%d.%d] align() applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
    validate_function_return_type(node);
    remember_function(node, name);
    code_region_name = function_primary_code_region_name(node);
@@ -1124,8 +1128,12 @@ static void validate_global_object_region_modifiers(const ASTNode *node,
 
 //! @brief Select a unique compiler-owned segment for one file-scope data object.
 static void emit_data_object_segment(EmitSink *sink, const char *base_segment,
-                                     const char *symname, bool hard_page, int size) {
+                                     const char *symname, bool hard_page,
+                                     unsigned int alignment, int size) {
    emit(sink, ".segment \"%s.__vcsc_object$%s\"\n", base_segment, symname);
+   if (alignment > 1)
+      emit(sink, ".segmentalign \"%s.__vcsc_object$%s\", %u\n",
+           base_segment, symname, alignment);
    if (hard_page) {
       emit(sink, ".pagecontain\n");
       if (size > 0 && size <= 256)
@@ -1271,6 +1279,8 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_split_mem = global_object_single_region_is_split(modifiers);
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
+   unsigned int object_alignment = 0;
+   bool is_aligned = declaration_alignment(modifiers, &object_alignment);
    bool is_absolute_binding = addrspec != NULL;
    int size = declarator_storage_size(type, declarator);
    char symname[256];
@@ -1289,6 +1299,10 @@ void compile_global_decl_item(ASTNode *node) {
       error_user("[%s:%d.%d] 'page' requires a file-scope data-object definition",
                  node->file, node->line, node->column);
    }
+   if (is_aligned && (is_extern || is_absolute_binding)) {
+      error_user("[%s:%d.%d] align() requires a file-scope data-object definition",
+                 node->file, node->line, node->column);
+   }
 
    if (is_ref) {
       diagnose_ref_object_modifier(node, name);
@@ -1305,7 +1319,7 @@ void compile_global_decl_item(ASTNode *node) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use none for both read and write address",
                node->file, node->line, node->column, name);
       }
-      if (is_extern || is_static || is_page || region_count > 0) {
+      if (is_extern || is_static || is_page || is_aligned || region_count > 0) {
          error_user("[%s:%d.%d] absolute external binding '%s' cannot use allocation or linkage modifiers",
                node->file, node->line, node->column, name);
       }
@@ -1369,7 +1383,7 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
-         emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
+         emit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
          restore_object_segment(&es_zp, segbuf);
@@ -1377,7 +1391,7 @@ void compile_global_decl_item(ASTNode *node) {
       else {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
-         emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
+         emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
@@ -1407,7 +1421,7 @@ void compile_global_decl_item(ASTNode *node) {
          if (is_zeropage) {
             char segbuf[256];
             build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
-            emit_data_object_segment(&es_zpdata, segbuf, symname, is_page, size);
+            emit_data_object_segment(&es_zpdata, segbuf, symname, is_page, object_alignment, size);
             emit(&es_zpdata, "%s:\n", symname);
             emit_sink_append(&es_zpdata, &init_es);
             restore_object_segment(&es_zpdata, segbuf);
@@ -1415,7 +1429,7 @@ void compile_global_decl_item(ASTNode *node) {
          else if (region_count > 0 && is_const && is_readonly_mem) {
             char segbuf[256];
             build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "RODATA");
-            emit_data_object_segment(&es_rodata, segbuf, symname, is_page, size);
+            emit_data_object_segment(&es_rodata, segbuf, symname, is_page, object_alignment, size);
             emit(&es_rodata, "%s:\n", symname);
             emit_sink_append(&es_rodata, &init_es);
             restore_object_segment(&es_rodata, segbuf);
@@ -1423,7 +1437,7 @@ void compile_global_decl_item(ASTNode *node) {
          else if (region_count > 0) {
             char segbuf[256];
             build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "DATA");
-            emit_data_object_segment(&es_data, segbuf, symname, is_page, size);
+            emit_data_object_segment(&es_data, segbuf, symname, is_page, object_alignment, size);
             emit(&es_data, "%s:\n", symname);
             emit_sink_append(&es_data, &init_es);
             restore_object_segment(&es_data, segbuf);
@@ -1431,7 +1445,7 @@ void compile_global_decl_item(ASTNode *node) {
          else {
             EmitSink *es = is_const ? &es_rodata : &es_data;
             const char *base = is_const ? "RODATA" : "DATA";
-            emit_data_object_segment(es, base, symname, is_page, size);
+            emit_data_object_segment(es, base, symname, is_page, object_alignment, size);
             emit(es, "%s:\n", symname);
             emit_sink_append(es, &init_es);
             restore_object_segment(es, base);
@@ -1447,7 +1461,7 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
-         emit_data_object_segment(&es_zp, segbuf, symname, is_page, size);
+         emit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
          restore_object_segment(&es_zp, segbuf);
@@ -1455,7 +1469,7 @@ void compile_global_decl_item(ASTNode *node) {
       else {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
-         emit_data_object_segment(&es_bss, segbuf, symname, is_page, size);
+         emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_big_ascii_font ok: 95 distinct 8x16 ASCII glyphs link as one 1520-byte non-page-contained ROM table
+# expectstdout: vcs_big_ascii_font ok: 95 distinct 8x16 ASCII glyphs link as one 256-aligned 1520-byte ROM table
 # expectexit: 0
 
 use strict;
@@ -36,9 +36,9 @@ $text =~ m{\A// Big\n// Characters: printable ASCII from space \(0x20\) through 
    or die "big_ascii.c26 has the wrong header\n";
 $text =~ /alias\s+VCS_FONT_GLYPH\s*\(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p\)\s+p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a/
    or die "big_ascii.c26 does not reverse all sixteen rows correctly\n";
-$text =~ /const\s+uint8_t\s+score_font\s*\[\s*1520\s*\]\s*:=/ &&
-$text !~ /page\s+const\s+uint8_t\s+score_font/
-   or die "big_ascii.c26 must be a 1520-byte non-page-contained table\n";
+$text =~ /align\s*\(\s*256\s*\)\s+const\s+uint8_t\s+score_font\s*\[\s*1520\s*\]\s*:=/ &&
+$text !~ /page\s+(?:align\s*\([^)]*\)\s+)?const\s+uint8_t\s+score_font/
+   or die "big_ascii.c26 must be one 256-aligned 1520-byte non-page-contained table\n";
 my @rows=($text =~ /0b([.Xx]{8})/g);
 @rows==95*16 or die "big_ascii.c26 has ".scalar(@rows)." visual rows, expected 1520\n";
 my(%seen,@bytes);
@@ -78,12 +78,17 @@ $rc==0 && !$sig or die "big ASCII probe build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "big ASCII probe wrote output\n$out$err";
 -s $bin==4096 or die "big ASCII probe is not a 4K cartridge\n";
 my $map_text=read_file($map);
-$map_text =~ /^\s+RODATA\.__vcsc_object\$score_font\s+load=\$([0-9A-Fa-f]{4})\s+size=\$05F0\s+page=(?!hard)(\S+)/m
-   or die "big ASCII table is not a 1520-byte ordinary ROM object\n";
+$map_text =~ /^\s+RODATA\.__vcsc_object\$score_font\s+load=\$([0-9A-Fa-f]{4})\s+size=\$05F0\s+page=(?!hard)(\S+).*component-align=\$0100/m
+   or die "big ASCII table is not one 256-aligned 1520-byte ROM object\n";
 my $addr=hex($1);
+($addr & 0xff)==0 or die sprintf("big ASCII table is not page aligned: %04X\n",$addr);
+for my $glyph (0..94) {
+   my $start=$addr+$glyph*16;
+   (($start & 0xff)+15)<256 or die sprintf("big ASCII glyph 0x%02X crosses a page\n",0x20+$glyph);
+}
 my $rom=read_file($bin);
 $addr>=0xF000 && $addr+1520<=0x10000 or die "big ASCII table is outside the 4K image\n";
 my @linked=unpack('C1520',substr($rom,$addr-0xF000,1520));
 join(',',@linked) eq join(',',@bytes)
    or die "linked big ASCII bytes do not match the sixteen-row source reversal\n";
-print "vcs_big_ascii_font ok: 95 distinct 8x16 ASCII glyphs link as one 1520-byte non-page-contained ROM table\n";
+print "vcs_big_ascii_font ok: 95 distinct 8x16 ASCII glyphs link as one 256-aligned 1520-byte ROM table\n";

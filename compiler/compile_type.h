@@ -92,6 +92,7 @@ bool has_flag(const char *type, const char *flag);
 bool has_flag_prefix(const char *type, const char *prefix);
 const char *enum_backing_type_name(const char *type);
 bool has_modifier(ASTNode *node, const char *modifier);
+bool declaration_alignment(const ASTNode *modifiers, unsigned int *alignment_out);
 typedef enum DeclarationUseContract {
    DECL_USE_CONTRACT_NONE = 0,
    DECL_USE_CONTRACT_RECOMMEND = 1,

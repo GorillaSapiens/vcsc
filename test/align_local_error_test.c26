@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: align() applies only to file-scope data-object definitions
+include "machine_6502.c26"
+
+void main(void) {
+   align(16) uint8_t local;
+   local := 0;
+}

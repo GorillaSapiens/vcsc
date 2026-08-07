@@ -27,9 +27,12 @@ Include exactly one conventional family module in a translation unit. Every
 family module defines the common table symbol `score_font`, which is the
 interface expected by display components. The special
 `logo_font.c26` table uses its own `logo_font` symbol and may coexist with one
-conventional family. Each table uses the VCSC `page` declaration modifier, so the linker
-places the complete table anywhere it fits within one 256-byte page. This is a timing requirement: `(score_font + digit * 8),Y`
-gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
+conventional family. Decimal (80-byte) and hexadecimal (128-byte) tables use
+the VCSC `page` modifier because the complete table fits in one 256-byte page.
+The 760-byte ASCII tables instead use `align(256)`: the table begins at `$xx00`
+but remains one contiguous multi-page object. Because every ASCII glyph is
+exactly eight bytes and 256 is divisible by eight, no glyph can cross a hardware
+page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 
 | Family | Decimal module | Hexadecimal module | Notes |
 |---|---|---|---|
@@ -52,10 +55,11 @@ of the conventional 8x8 score-font families and is **not** compatible with the
 existing eight-row six-glyph score components without a 16-row display
 component.
 
-Because the table is 1520 bytes, it deliberately does not use the `page`
-modifier: hard page containment is impossible for an object larger than 256
-bytes. Like the conventional families it uses the common `score_font` symbol,
-so include it alone in a translation unit.
+Because the table is 1520 bytes, hard `page` containment is impossible. It uses
+`align(256)` instead, keeping the font contiguous while starting it at `$xx00`.
+Each glyph is exactly sixteen bytes, so every glyph remains wholly within one
+hardware page. Like the conventional families it uses the common `score_font`
+symbol, so include it alone in a translation unit.
 
 ## VCSC logo slices
 
