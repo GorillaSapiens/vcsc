@@ -86,14 +86,14 @@ passes including final banked cartridge and renderer builds.
   tests pass; staged `make installcheck` passes including the installed public
   example. Main-roadmap item 23 remains the next action.
 
-2026-08-06 10:29:15 PDT
+2026-08-06 10:29:15 PDT, Add official 181-line wide-score compositions
 - Corrected main-roadmap item 24 after review showed that the standalone wide-score example did not prove composition with the official 181-line renderer.
 - Added focused dynamic public cartridges for the wide six-glyph score above and below `player_color_181`, with explicit component handoffs and packed-BCD score updates every 20 frames.
 - A full interactive-control composition is not viable in current RIOT RAM: the renderer and score own 95 bytes before scheduler/application state. The focused cartridges link at 2,631 ROM bytes and 124/128 total RAM bytes, leaving four bytes free.
 - Added `vcs_six_glyph_wide_181.pl`, which verifies the exact score schedule at visible entry lines 40 and 221, the complete P0/P1/Ball/playfield/per-row-color gameplay raster in both draw orders, exact 262-line frames, accounting, public inventory, and dynamic updates.
 - Verified 438/438 compile-only tests, all 250/250 end-to-end tests, recursive public-example builds, source hygiene, and staged installed-toolchain checks.
 
-2026-08-06 10:53:47 PDT
+2026-08-06 10:53:47 PDT, Reduce wide-score RAM with the delayed-player pipeline
 -----------------------
 - Correct the wide-score RAM design after review showed the original two
   eight-row caches made the 181-line compositions practically useless. Reuse
@@ -353,7 +353,7 @@ phase tests remain stable. Verification completed all 438 compile-only tests and
 all 253 end-to-end tests, including the full score-composition raster matrix.
 RAM-roadmap item 3 is next.
 
-2026-08-06 21:38:32 PDT
+2026-08-06 21:38:32 PDT, Add compact lowering for simple byte state updates
 -----------------------
 Completed RAM-optimization roadmap item 3: compact lowering for simple byte
 state updates.
@@ -388,7 +388,7 @@ Documentation:
 * Marked RAM roadmap item 3 complete and made item 4 the active next step.
 * Updated compiler/README.md, test/README.md, and .../context.txt.
 
-2026-08-06 21:39:36 PDT
+2026-08-06 21:39:36 PDT, Advance source-tree hygiene after compact byte-state lowering
 -----------------------
 Advanced test/source_tree_hygiene.pl to require RAM items 0-3 complete and item
 4 active. The clean-tree hygiene gate passes after the documentation update.

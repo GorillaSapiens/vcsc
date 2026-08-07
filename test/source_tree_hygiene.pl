@@ -467,18 +467,20 @@ my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
 index($context,'RAM-optimization work through the high-level animated-frame installer is complete.')>=0 &&
-index($context,'The next RAM-optimization task is to overlay scratch across VSYNC, VBLANK, visible')>=0 &&
+index($context,'Before phase-lifetime overlay, the next RAM-workstream task is the measured')>=0 &&
+index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its active RAM-roadmap pointer, completion status, next phase-overlay work, main-roadmap pause, or size ceiling\n";
+   or die "compact context lost its active RAM-roadmap pointer, optimizer follow-up, history-title policy, main-roadmap pause, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
 $ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
 $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
 $ram_roadmap =~ /^\[x\] 3\. Improve compact lowering for simple byte state updates\./m &&
 $ram_roadmap =~ /^\[x\] 4\. Make `install_frames\(\)` ordinary VCSC and establish a minimal-assembly/m &&
+$ram_roadmap =~ /^\[ \] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
 $ram_roadmap =~ /^\[ \] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
-   or die "RAM-optimization roadmap or authoritative accounting fixture is stale\n";
+   or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
 $roadmap =~ /^Current next action: 23\b/m
@@ -512,6 +514,8 @@ for my $history_path (@context_history) {
       or die "invalid context-history filename $name\n";
    my $date=$1;
    my $body=slurp($history_path);
+   $body !~ /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3,4}\s*$/m
+      or die "$name contains a timestamp-only history header; add a short standalone description on the same line\n";
    my @timestamps=($body =~ /^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}, /mg);
    @timestamps
       or die "$name contains no timestamped history entries\n";

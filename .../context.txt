@@ -60,6 +60,10 @@ first and begin with a complete America/Vancouver local timestamp exactly as:
 
     YYYY-MM-DD HH:MM:SS TZ, entry title
 
+The text after the comma is mandatory. Keep it short, standalone, and descriptive;
+do not leave a timestamp-only header and do not use roadmap-item/task numbers as the
+entry title shorthand.
+
 Generate it with:
 
     TZ=America/Vancouver date "+%Y-%m-%d %H:%M:%S %Z"
@@ -339,7 +343,13 @@ allocate zero expression scratch. Total RIOT RAM remains 110/128 bytes—102 obj
 bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The now
 high-level `install_frames()` raises ordinary ROM from 3662 to 3969/4090 bytes, leaving
 121 bytes free, while preserving all source bitmap/color hashes, animation/control
-behavior, pointer installation, and exact 262-line frames.
+behavior, pointer installation, and exact 262-line frames. Its final linked span is
+540 bytes versus the 236-byte hand-written predecessor. Measurement shows the current
+peephole pass removes zero bytes from this function; existing assembler zero-page
+relaxation can recover 78 bytes once compiler-forced absolute modes stop blocking it,
+ordinary branch/JMP scaffolding accounts for another 30 bytes, and page-aware pointer
+lowering mechanically reduces the measured analysis form to 326 bytes. The remaining
+90-byte difference is individually attributed in `.../ram_optimization.txt`.
 
 Public-example assembly is now audited by `test/example_assembly_allowlist.pl`: every
 remaining source/statement set is hash-pinned and classified as beam-critical, a
@@ -347,10 +357,11 @@ direct hardware idiom, a documented compiler/language limitation, or a combinati
 The remaining ordinary-logic debt has a named future roadmap entry; new assembly
 cannot silently enter examples without changing the audited inventory.
 
-The next RAM-optimization task is to overlay scratch across VSYNC, VBLANK, visible
-draw, and overscan phases only where explicit contracts prove the lifetimes cannot
-overlap. Preserve persistent next-frame inputs and add negative tests for genuinely
-overlapping phase objects.
+Before phase-lifetime overlay, the next RAM-workstream task is the measured
+`install_frames()` code-size follow-up in `.../ram_optimization.txt`: extend the
+existing optimizer pipeline, restore assembler relaxation opportunities, and remove
+the named pointer/control-flow waste while preserving zero activation RAM and exact
+renderer timing. Phase-lifetime overlay follows after that code-size work.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

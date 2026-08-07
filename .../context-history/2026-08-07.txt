@@ -7,3 +7,12 @@
 - Final gallery accounting is 110/128 RAM bytes and 3969/4090 ordinary ROM bytes, leaving 18 RAM bytes and 121 ordinary ROM bytes free; the high-level frame installer uses zero activation bytes.
 - Rejected a shorter ordinary comparison branch after exact renderer tests exposed a one-scanline VBLANK shift; page-aligned standard-renderer placement remains timing-correct even when its absolute linked page moves.
 - Verified 442 compile-only tests and 255 end-to-end tests.
+
+2026-08-07 07:36:43 PDT, Measured animated frame-installer code-size pipeline and queued optimizer cleanup
+
+- Verified the hand-written frame installer linked at 236 bytes and the high-level replacement links at 540 bytes.
+- Measured `-fpeephole` versus `-fno-peephole`: the installer assembly and 540-byte symbol span are identical, while the existing peephole pass saves eight bytes elsewhere in the gallery.
+- Demonstrated with analysis-only assembly copies that restoring existing zero-page relaxation opportunities reduces the installer to 462 bytes, ordinary branch/JMP inversion reduces it to 432 bytes, and page-aware pointer lowering reduces it to 326 bytes.
+- Accounted for the remaining net 90-byte gap: 94 bytes of named control/data-flow waste are offset by four bytes the relaxed high-level color loops already save versus the hand-written `.ax` stores, projecting 232 bytes if all named patterns are removed.
+- Added the measured optimizer follow-up to the RAM optimization roadmap ahead of phase-lifetime overlay and updated the compact handoff with the concrete measurements.
+- Repaired four timestamp-only August 6 history headers, documented the standalone-description rule in the compact handoff, and made source-tree hygiene reject future timestamp-only headers.
