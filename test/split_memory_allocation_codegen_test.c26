@@ -9,8 +9,6 @@
 // expectasm: sta  {buffer - 128} + 3
 // expectasm: lda #<{{buffer - 128} + 0}
 // expectasm: lda #<{buffer + 0}
-// forbidasm: sta.z {foo - 128}
-// forbidasm: lda.z foo
 
 include "machine_6502.c26"
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };

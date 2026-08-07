@@ -401,11 +401,12 @@ Ordered roadmap
       source frames, the modulo-3 special set, controls, palette expansion, installed
       pointer pairs, and exact 262-line frames.
     * Activation RAM is unchanged at 110/128 bytes with 18 bytes free and zero
-      `install_frames()` activation bytes. Ordinary ROM is 3969/4090 bytes with 121
-      bytes free: 307 bytes more than the 3662-byte hand-written-assembly baseline.
-      `install_frames()` itself is 540 final linked bytes versus 236 hand-written bytes.
-      A measured optimizer follow-up immediately below separates compiler output,
-      peephole behavior, assembler relaxation, and final linked size.
+      `install_frames()` activation bytes. After the compiler/assembler addressing-mode
+      handoff below, ordinary ROM is 3854/4090 bytes with 236 bytes free: 192 bytes
+      more than the 3662-byte hand-written-assembly baseline. `install_frames()` is
+      now 462 final linked bytes versus 236 hand-written bytes. A measured optimizer
+      follow-up immediately below separates compiler output, peephole behavior,
+      assembler relaxation, and the remaining code-size work.
     * `test/example_assembly_allowlist.pl` pins all remaining public-example assembly
       by source, normalized-statement hash, policy category, and focused regression.
       Ordinary application assembly that still reflects compiler/language limitations
@@ -418,25 +419,58 @@ Ordered roadmap
       whole pages. Its documented absolute pages are observations rather than ABI; the
       static regression now enforces page alignment, relative code/RODATA placement,
       and exact phase/raster behavior rather than stale `$F300/$F600` addresses.
-    * Final verification: 442 compile-only tests and 255 end-to-end tests pass.
+    * Verification before the addressing-mode follow-up: 442 compile-only tests and
+      255 end-to-end tests passed. The follow-up below carries its own expanded gates.
 
 [ ] 4a. Recover high-level frame-installation ROM through the existing optimizer
-         pipeline before accepting the 540-byte routine as normal compiler cost.
+         pipeline instead of accepting the pre-audit 540-byte routine as normal compiler cost.
 
     Measured baseline and attribution:
 
     * The pre-high-level implementation links `install_frames()` at `$00EC` = 236
-      bytes. The current high-level implementation links at `$021C` = 540 bytes.
-    * `-fpeephole` and `-fno-peephole` produce byte-for-byte identical
-      `install_frames()` assembly and the same 540-byte linked function. The
+      bytes. Before the addressing-mode audit, the high-level implementation linked
+      at `$021C` = 540 bytes; it now links at `$01CE` = 462 bytes.
+    * Before and after the addressing-mode handoff, `-fpeephole` and
+      `-fno-peephole` produce byte-for-byte identical `install_frames()` bodies.
+      The old linked span was 540 bytes and the current span is 462 bytes. The
       existing peephole pass saves eight bytes elsewhere in the complete gallery
-      (3969 versus 3977 ROM bytes), but currently saves zero bytes in this routine.
+      (currently 3854 versus 3862 ROM bytes), but still saves zero bytes in this routine.
     * The assembler already performs zero-page-family relaxation, but the compiler
       forces `.a`/`.ax` on 78 otherwise relaxable RAM accesses in this function. In
       an analysis-only assembly copy, removing only those forced absolute-family
       suffixes lets the existing assembler reduce the function from 540 to 462
       bytes: exactly 78 bytes saved. Fix the compiler/assembler handoff rather than
       adding a second addressing-mode optimizer.
+
+    Completed compiler/assembler addressing-mode handoff:
+
+    * Audited all compiler mnemonic emitters, not just the frame installer. The
+      pre-change compiler source contained 87 ordinary addressing-mode suffix
+      occurrences (75 in `compile_expr_flow.c`, 12 in `compile_lvalue.c`); it now
+      contains zero. Compiler-lowered direct/indexed/indirect RAM references are
+      unsuffixed and the assembler owns mode selection/relaxation. Explicit source
+      `asm` suffixes remain untouched for programmers who need exact encoding/timing.
+    * Split-address and non-zero-page regions remain safe through the existing
+      `.segmentaddrsize ..., absolute` contract; the split-memory execution suite
+      passes without per-instruction forced absolute modes. A compiler-policy test
+      now rejects reintroduction of ordinary forced mode suffixes, and a codegen test
+      proves that explicit handwritten `.a` requests survive unchanged.
+    * This broad handoff realizes the analysis exactly inside `install_frames()`:
+      `$021C` = 540 bytes becomes `$01CE` = 462 bytes, with zero RAM change. The full
+      animated gallery falls from 3969 to 3854 ROM bytes (115 bytes recovered) while
+      remaining 110/128 RAM bytes with 18 free. With `-fno-peephole` it is 3862 bytes,
+      and `install_frames()` remains 462 bytes, so the existing peephole still saves
+      eight bytes elsewhere and zero bytes in this routine.
+    * Shorter compiler-owned zero-page accesses exposed several old beam-phase
+      dependencies. They were not "fixed" by putting forced modes back in codegen.
+      Cycle intent now lives where it belongs: calibrated frame helpers carry explicit
+      delay instructions, the cycle-counted six-glyph row initialization is handwritten
+      `sta.a`, and synthetic fixtures that deliberately use the uncalibrated generic
+      wait add an explicit phase-normalizing NOP. Exact scheduler/raster oracles pass.
+    * Verification after the handoff: 444 compile-only tests pass; all 255 end-to-end
+      cases pass in bounded batches, including split-memory execution, exact scheduler
+      phases, score/component rasters, official/unofficial renderer equivalence, banked
+      renderer raster identity, and clean source-tree hygiene.
     * Ten generated conditional-branch-plus-`JMP` pairs are locally reducible to
       inverted bare branches. Applying only that rewrite after addressing-mode
       relaxation reduces 462 to 432 bytes, exactly 30 more bytes. This rewrite must
@@ -507,11 +541,15 @@ Ordered roadmap
 
     Acceptance criteria:
 
-    * Replace the hard-coded "540-byte high-level cost" assumption with measurement
-      from the final linked map and record peephole-on/off and relaxation deltas.
-    * Recover the mechanically proven 78-byte addressing-mode and 30-byte ordinary
-      branch-scaffolding losses, then implement the page-aware pointer reductions
-      without introducing RAM or weakening page/timing contracts.
+    * [x] Replace the hard-coded "540-byte high-level cost" assumption with
+      measurement from the final linked map and record peephole-on/off and
+      addressing-relaxation deltas.
+    * [x] Recover the mechanically proven 78-byte `install_frames()` addressing-mode
+      loss by removing unnecessary forced modes throughout compiler lowering without
+      weakening split-memory or timing contracts.
+    * [ ] Recover the measured 30-byte ordinary branch-scaffolding loss, then
+      implement the page-aware pointer reductions without introducing RAM or weakening
+      page/timing contracts.
     * Continue toward or below the measured 236-byte hand-written reference by
       eliminating the remaining named patterns; the current accounting projects 232
       bytes if the safe zero-page indexed color-store advantage is retained. Any

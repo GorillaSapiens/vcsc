@@ -513,6 +513,17 @@ at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
 keeps absolute-family addressing. Named zero-page regions continue to use their
 own ZEROPAGE layouts.
 
+Compiler-lowered ordinary 6502 memory operations deliberately do **not** carry
+`.z`, `.a`, `.zx`, `.ax`, `.zy`, `.ay`, `.ix`, or `.iy` addressing-mode
+suffixes. The compiler supplies semantic symbol references plus the address-size
+contracts above; `vcsc-as` chooses and relaxes the shortest legal encoding from
+those contracts and final placement. Split-address/non-zero-page regions retain
+absolute-family encoding through their `.segmentaddrsize ..., absolute` metadata,
+not through per-instruction suffixes. Addressing-mode suffixes remain available in
+explicit `asm` for source code that intentionally requires a particular encoding
+or cycle count. Compiler optimizations must not silently turn that source-level
+assembly intent into a different mode.
+
 A file-scope object may combine one named read-only `mem` region with the hard
 `page` qualifier.  The compiler emits a private region-specific RODATA segment,
 `.pagecontain`, and the ordinary index-range metadata, so constructs such as

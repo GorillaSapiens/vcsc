@@ -814,8 +814,18 @@ allocate zero expression scratch, and checks the linker's source-call edges,
 deepest path, and `.callstackextra` contribution. Schema 4 retains the compact-byte
 lowering history and also pins the assembly-to-high-level `install_frames()` change:
 110 RAM bytes and an unchanged two-byte `main` activation, zero `install_frames()`
-activation bytes, 3969 ordinary ROM bytes, and 121 ordinary ROM bytes free. The
-separate animation emulator test remains the behavioral/frame oracle.
+activation bytes, 3854 ordinary ROM bytes, and 236 ordinary ROM bytes free. The
+linked high-level `install_frames()` span is 462 bytes after delegating ordinary
+RAM addressing-mode selection to the assembler. The separate animation emulator
+test remains the behavioral/frame oracle.
+
+`compiler_address_mode_policy.pl` audits the compiler implementation and rejects
+forced ordinary 6502 addressing-mode suffixes in compiler-generated mnemonic
+emitters. `compiler_address_mode_codegen_test.c26` is the source-level companion:
+ordinary VCSC RAM accesses must be emitted unsuffixed while explicit handwritten
+`asm lda.a` / `sta.a` requests remain unchanged. Split-memory execution tests
+independently prove that `.segmentaddrsize ..., absolute` still prevents incorrect
+zero-page relaxation.
 
 `direct_u8_state_update_codegen_test.c26` locks exact direct assembly for ordinary
 unsigned-byte constant updates, unit increment/decrement, copy-plus/minus-

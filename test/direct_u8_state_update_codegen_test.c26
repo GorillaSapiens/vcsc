@@ -1,35 +1,35 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda.a state
+// expectasmordered: lda state
 // expectasmordered: clc
 // expectasmordered: adc #$02
-// expectasmordered: sta.a state
-// expectasmordered: lda.a state
+// expectasmordered: sta state
+// expectasmordered: lda state
 // expectasmordered: sec
 // expectasmordered: sbc #$03
-// expectasmordered: sta.a state
-// expectasmordered: lda.a state
+// expectasmordered: sta state
+// expectasmordered: lda state
 // expectasmordered: and #$0f
-// expectasmordered: sta.a state
-// expectasmordered: lda.a state
+// expectasmordered: sta state
+// expectasmordered: lda state
 // expectasmordered: ora #$80
-// expectasmordered: sta.a state
-// expectasmordered: lda.a state
+// expectasmordered: sta state
+// expectasmordered: lda state
 // expectasmordered: eor #$55
-// expectasmordered: sta.a state
-// expectasmordered: inc.a state
-// expectasmordered: dec.a state
-// expectasmordered: lda.a state
+// expectasmordered: sta state
+// expectasmordered: inc state
+// expectasmordered: dec state
+// expectasmordered: lda state
 // expectasmordered: clc
 // expectasmordered: adc #$01
-// expectasmordered: sta.a copy
-// expectasmordered: lda.a state
+// expectasmordered: sta copy
+// expectasmordered: lda state
 // expectasmordered: and #$20
 // expectasmordered: beq @if_false_
-// expectasmordered: lda.a state
+// expectasmordered: lda state
 // expectasmordered: cmp #$1e
-// expectasmordered: lda.a flag
+// expectasmordered: lda flag
 // expectasmordered: beq @u8_not_zero_
-// expectasmordered: sta.a flag
+// expectasmordered: sta flag
 // forbidasm: __vcsc_scratch_
 // forbidasm: ldy
 

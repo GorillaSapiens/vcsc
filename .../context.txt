@@ -341,15 +341,17 @@ The animated gallery's authoritative schema-4 report records a two-byte `main`
 activation and zero `install_frames()` activation bytes. Both `next_pair()` expansions
 allocate zero expression scratch. Total RIOT RAM remains 110/128 bytes—102 object
 bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The now
-high-level `install_frames()` raises ordinary ROM from 3662 to 3969/4090 bytes, leaving
-121 bytes free, while preserving all source bitmap/color hashes, animation/control
-behavior, pointer installation, and exact 262-line frames. Its final linked span is
-540 bytes versus the 236-byte hand-written predecessor. Measurement shows the current
-peephole pass removes zero bytes from this function; existing assembler zero-page
-relaxation can recover 78 bytes once compiler-forced absolute modes stop blocking it,
-ordinary branch/JMP scaffolding accounts for another 30 bytes, and page-aware pointer
-lowering mechanically reduces the measured analysis form to 326 bytes. The remaining
-90-byte difference is individually attributed in `.../ram_optimization.txt`.
+high-level `install_frames()` originally raised ordinary ROM from 3662 to 3969 bytes.
+The compiler-wide addressing-mode audit removed all 87 ordinary forced mode-suffix
+occurrences from compiler mnemonic emitters and now lets `vcsc-as` select/relax modes
+from `.segmentaddrsize` and final placement. Explicit source `asm` suffixes remain the
+mechanism for deliberate encoding/timing. The gallery is now 3854/4090 ROM bytes with
+236 free and still 110/128 RAM bytes with 18 free; `install_frames()` is 462 linked
+bytes versus the 236-byte hand-written predecessor. `-fno-peephole` gives 3862 gallery
+bytes with the same 462-byte installer, so the existing peephole still saves eight
+bytes elsewhere and zero inside `install_frames()`. Branch/JMP scaffolding still
+accounts for 30 measured bytes, page-aware pointer lowering reaches the 326-byte
+analysis form, and the remaining difference is attributed in `.../ram_optimization.txt`.
 
 Public-example assembly is now audited by `test/example_assembly_allowlist.pl`: every
 remaining source/statement set is hash-pinned and classified as beam-critical, a
@@ -357,11 +359,15 @@ direct hardware idiom, a documented compiler/language limitation, or a combinati
 The remaining ordinary-logic debt has a named future roadmap entry; new assembly
 cannot silently enter examples without changing the audited inventory.
 
-Before phase-lifetime overlay, the next RAM-workstream task is the measured
-`install_frames()` code-size follow-up in `.../ram_optimization.txt`: extend the
-existing optimizer pipeline, restore assembler relaxation opportunities, and remove
-the named pointer/control-flow waste while preserving zero activation RAM and exact
-renderer timing. Phase-lifetime overlay follows after that code-size work.
+Before phase-lifetime overlay, continue the measured `install_frames()` code-size
+follow-up in `.../ram_optimization.txt`. The compiler/assembler addressing-mode
+handoff is complete; next are the measured timing-safe branch/JMP peepholes and
+page-aware pointer reductions, followed by the remaining named value-lifetime/tail
+patterns. Preserve zero activation RAM and exact renderer timing. Phase-lifetime
+overlay follows after that code-size work.
+
+Verification after the addressing-mode handoff is 444/444 compile-only tests and
+255/255 end-to-end cases in bounded batches. Clean source-tree hygiene passes.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

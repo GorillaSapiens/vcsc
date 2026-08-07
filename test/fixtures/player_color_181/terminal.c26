@@ -56,6 +56,9 @@ void main(void) {
       vcs_ntsc_end_vblank();
       game_draw();
       vcs_ntsc_wait_scanlines(11);
+      // The generic wait has no return-cycle contract. Preserve this fixture's
+      // historical overscan-entry phase explicitly.
+      asm nop;
       vcs_ntsc_begin_overscan();
       game_overscan();
       vcs_ntsc_end_overscan();

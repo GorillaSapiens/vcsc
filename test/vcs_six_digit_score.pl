@@ -153,7 +153,7 @@ require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
 my $generated=read_file($asm);
 $generated !~ /\bjsr\s+score_(?:init|vblank|draw|overscan)\b/
    or die "score lifecycle unexpectedly emitted callable boundaries\n";
-require_re($generated,qr/ldy #11\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+nop\s+nop\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
+require_re($generated,qr/ldy #11\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+nop\s+nop\s+nop\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
            'component per-draw horizontal positioning sequence changed');

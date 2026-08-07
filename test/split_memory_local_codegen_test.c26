@@ -1,4 +1,6 @@
 // vcsc-cc1 -I .
+// expectasm: .segmentaddrsize "BSS.superchip", absolute
+// expectasm: .segmentaddrsize "DATA.superchip", absolute
 // expectasm: .segment "BSS.superchip.__vcsc_activation$touch"
 // expectasm: touch$local:
 // expectasm: touch$buffer:
@@ -10,7 +12,6 @@
 // expectasm: lda #<{touch$buffer + 0}
 // expectasm: adc #$80
 // expectasm: sta (ptr2),y
-// forbidasm: sta.z {touch$local - 128}
 
 include "machine_6502.c26"
 mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };

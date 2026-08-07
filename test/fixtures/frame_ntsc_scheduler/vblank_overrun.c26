@@ -11,6 +11,10 @@ void main(void) {
       vcs_ntsc_end_vblank();
 
       vcs_ntsc_wait_scanlines(VCS_NTSC_VISIBLE_SCANLINES`uint8_t);
+      // The generic wait promises only WSYNC count, not return phase. Pin this
+      // synthetic all-blank visible fixture to the scheduler's historical
+      // overscan-entry phase explicitly.
+      asm nop;
 
       vcs_ntsc_begin_overscan();
       vcs_ntsc_wait_scanlines(28);

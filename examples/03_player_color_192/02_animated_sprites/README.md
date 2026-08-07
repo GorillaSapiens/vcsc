@@ -69,9 +69,9 @@ bitmap pointers without handwritten assembly or activation scratch.
 
 Each frame is held for eight NTSC frames. One pair traversal takes 125 frames;
 the complete fifteen-pair gallery takes 1,875 frames. The cartridge preserves
-192 visible scanlines and exact 262-line NTSC frames. It uses 3,969 bytes of the
+192 visible scanlines and exact 262-line NTSC frames. It uses 3,854 bytes of the
 ordinary ROM region plus the six-byte vector segment and 110 RIOT RAM bytes, leaving
-121 ordinary ROM bytes and 18 RAM bytes free.
+236 ordinary ROM bytes and 18 RAM bytes free.
 
 ## Controls
 

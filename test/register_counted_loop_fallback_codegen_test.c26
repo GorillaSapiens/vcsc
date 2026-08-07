@@ -1,6 +1,6 @@
 // vcsc-cc1 -I .
 // expectasmordered: main$i:
-// expectasmordered: lda.a main$i
+// expectasmordered: lda main$i
 // expectasmordered: cmp #$08
 // expectasmordered: lda main$i,y
 // expectasmordered: sta ptr0

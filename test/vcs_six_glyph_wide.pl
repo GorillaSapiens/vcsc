@@ -59,7 +59,7 @@ $source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    or die "wide component lost mutable color support\n";
 $source =~ /VDELP0 := 1;.*VDELP1 := 1;/s
    or die "wide component lost the delayed-player pipeline\n";
-sha256_hex(read_file($centered)) eq 'd1015cc53696db710cce325da9e017bc8eb2fe6e565fb1e0c46e5c40474320a1'
+sha256_hex(read_file($centered)) eq 'c45ef4fd327655f97270622dc5830898228269c80cd05e150636e58420371046'
    or die "centered six-glyph component changed while adding the wide profile\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$fixture,'-o',$bin);
@@ -67,7 +67,7 @@ $rc==0 && !$sig or die "wide fixture build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "wide fixture build wrote output\n$out$err";
 -s $bin==4096 or die "wide fixture is not 4096 bytes\n";
 my $map_text=read_file($map);
-$map_text =~ /rom\s+used=927 bytes/ or die "wide fixture ROM accounting changed\n";
+$map_text =~ /rom\s+used=922 bytes/ or die "wide fixture ROM accounting changed\n";
 $map_text =~ /ram\s+used=36 bytes.*objects=32 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
 $map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/ or die "wide pointer allocation changed\n";
 $map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide row allocation changed\n";
@@ -80,7 +80,7 @@ $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1069 bytes/ or die "public wide example ROM accounting changed\n";
+$public_map_text =~ /rom\s+used=1061 bytes/ or die "public wide example ROM accounting changed\n";
 $public_map_text =~ /ram\s+used=40 bytes.*objects=36 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';

@@ -71,12 +71,12 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin==4096 or die "animated gallery is not a 4K cartridge\n";
 my $map=read_file($mapfile);
 my $asm=read_file($assembly);
-$map =~ /rom\s+used=3969 bytes .*free=121 bytes/
-   or die "3969-byte high-level frame-installation ROM result changed\n";
+$map =~ /rom\s+used=3854 bytes .*free=236 bytes/
+   or die "3854-byte relaxed high-level frame-installation ROM result changed\n";
 $map =~ /ram\s+used=110 bytes .*free=18 bytes .*objects=102 bytes hardware-stack=8 bytes/
    or die "110-byte compact-lowering RAM result changed\n";
-$map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$021C/m
-   or die "high-level install_frames code size changed from 540 bytes\n";
+$map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$01CE/m
+   or die "high-level install_frames code size changed from 462 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
    or die "high-level install_frames unexpectedly gained activation RAM\n";
 
@@ -215,7 +215,7 @@ my $report={
    schema=>4,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3969, rom_free_bytes=>121,
+      rom_bytes=>3854, rom_free_bytes=>236,
       ram_bytes=>110, free_ram_bytes=>18, object_bytes=>102, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -238,11 +238,11 @@ my $report={
          previous_rom_bytes=>3993, rom_bytes=>3662, rom_saved_bytes=>331,
       },
       high_level_install_frames=>{
-         handwritten_assembly_bytes=>236, high_level_code_bytes=>540,
-         previous_rom_bytes=>3662, rom_bytes=>3969, rom_added_bytes=>307,
+         handwritten_assembly_bytes=>236, high_level_code_bytes=>462,
+         previous_rom_bytes=>3662, rom_bytes=>3854, rom_added_bytes=>192,
          previous_ram_bytes=>110, ram_bytes=>110, ram_added_bytes=>0,
          previous_free_ram_bytes=>18, free_ram_bytes=>18,
-         activation_bytes=>0, rom_free_bytes=>121,
+         activation_bytes=>0, rom_free_bytes=>236,
       },
    },
    hardware_stack=>{

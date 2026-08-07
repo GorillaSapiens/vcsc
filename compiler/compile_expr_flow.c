@@ -275,7 +275,7 @@ typedef struct DirectByteOperand {
    bool direct_memory;
    bool local_scratch;
    bool register_x;
-   int symbol_mode; /* 0 expression, 1 zero page, 2 absolute */
+   bool symbol_backed;
    char expr[256];
    int offset;
 } DirectByteOperand;
@@ -332,7 +332,7 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
        !out.lv.indirect && !out.lv.needs_runtime_address) {
       snprintf(out.expr, sizeof(out.expr), "%s", out.lv.read_expr);
       out.direct_memory = true;
-      out.symbol_mode = 0;
+      out.symbol_backed = false;
       return out;
    }
 
@@ -347,7 +347,7 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
          return out;
       }
       out.direct_memory = true;
-      out.symbol_mode = out.lv.is_zeropage ? 1 : 2;
+      out.symbol_backed = true;
       return out;
    }
 
@@ -379,13 +379,13 @@ static bool emit_load_direct_byte_operand_impl(Context *ctx,
       return true;
    }
    if (op->direct_memory) {
-      if (op->symbol_mode != 0) {
+      if (op->symbol_backed) {
          char expr_buf[256];
          const char *formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
          if (op->offset == 0)
-            emit(&es_code, op->symbol_mode == 1 ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
+            emit(&es_code, "    lda %s\n", formatted);
          else
-            emit(&es_code, op->symbol_mode == 1 ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", formatted, op->offset);
+            emit(&es_code, "    lda %s + %d\n", formatted, op->offset);
       }
       else {
          emit_load_a_from_expr_address(op->expr, op->offset);
@@ -423,12 +423,12 @@ static bool emit_store_a_to_direct_byte_operand(const DirectByteOperand *op) {
       return true;
    }
    if (op->direct_memory) {
-      if (op->symbol_mode != 0) {
+      if (op->symbol_backed) {
          formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
          if (op->offset == 0)
-            emit(&es_code, op->symbol_mode == 1 ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+            emit(&es_code, "    sta %s\n", formatted);
          else
-            emit(&es_code, op->symbol_mode == 1 ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, op->offset);
+            emit(&es_code, "    sta %s + %d\n", formatted, op->offset);
       }
       else {
          if (!op->lv.write_expr || !*op->lv.write_expr) {
@@ -458,16 +458,12 @@ static bool emit_modify_direct_byte_operand(const DirectByteOperand *op, bool in
       emit(&es_code, increment ? "    inx\n" : "    dex\n");
       return true;
    }
-   if (op->direct_memory && op->symbol_mode != 0) {
+   if (op->direct_memory && op->symbol_backed) {
       formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
       if (op->offset == 0)
-         emit(&es_code, op->symbol_mode == 1 ?
-              (increment ? "    inc.z %s\n" : "    dec.z %s\n") :
-              (increment ? "    inc.a %s\n" : "    dec.a %s\n"), formatted);
+         emit(&es_code, increment ? "    inc %s\n" : "    dec %s\n", formatted);
       else
-         emit(&es_code, op->symbol_mode == 1 ?
-              (increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n") :
-              (increment ? "    inc.a %s + %d\n" : "    dec.a %s + %d\n"),
+         emit(&es_code, increment ? "    inc %s + %d\n" : "    dec %s + %d\n",
               formatted, op->offset);
       return true;
    }
@@ -475,9 +471,9 @@ static bool emit_modify_direct_byte_operand(const DirectByteOperand *op, bool in
       formatted = assembler_address_expr(compiler_scratch_active_symbol(), expr_buf,
                                          sizeof(expr_buf));
       if (op->offset == 0)
-         emit(&es_code, increment ? "    inc.z %s\n" : "    dec.z %s\n", formatted);
+         emit(&es_code, increment ? "    inc %s\n" : "    dec %s\n", formatted);
       else
-         emit(&es_code, increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n",
+         emit(&es_code, increment ? "    inc %s + %d\n" : "    dec %s + %d\n",
               formatted, op->offset);
       return true;
    }
@@ -644,7 +640,7 @@ static bool emit_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
             }
             emit(&es_code, "    tay\n");
          }
-         emit(&es_code, "    lda.iy (%s),y\n", formatted);
+         emit(&es_code, "    lda (%s),y\n", formatted);
          return true;
       }
       if (declarator_array_count(lv.base_declarator) > 0 && !lv.is_ref) {
@@ -653,9 +649,9 @@ static bool emit_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
          }
          emit(&es_code, "    tay\n");
          if (lv.base_offset == 0)
-            emit(&es_code, "    lda.ay %s,y\n", formatted);
+            emit(&es_code, "    lda %s,y\n", formatted);
          else
-            emit(&es_code, "    lda.ay %s + %d,y\n", formatted, lv.base_offset);
+            emit(&es_code, "    lda %s + %d,y\n", formatted, lv.base_offset);
          return true;
       }
    }
@@ -755,9 +751,9 @@ static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
       emit_lvalue_semantic_use(ctx, &dst, "write");
       if (x_delta == 1) emit(&es_code, "    inx\n");
       if (dst.base_offset == 0)
-         emit(&es_code, "    sta.ax %s,x\n", formatted);
+         emit(&es_code, "    sta %s,x\n", formatted);
       else
-         emit(&es_code, "    sta.ax %s + %d,x\n", formatted, dst.base_offset);
+         emit(&es_code, "    sta %s + %d,x\n", formatted, dst.base_offset);
       if (x_delta == 1) emit(&es_code, "    dex\n");
       return true;
    }
@@ -776,9 +772,9 @@ static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
    emit(&es_code, "    lda arg0\n");
    emit_lvalue_semantic_use(ctx, &dst, "write");
    if (dst.base_offset == 0)
-      emit(&es_code, "    sta.ay %s,y\n", formatted);
+      emit(&es_code, "    sta %s,y\n", formatted);
    else
-      emit(&es_code, "    sta.ay %s + %d,y\n", formatted, dst.base_offset);
+      emit(&es_code, "    sta %s + %d,y\n", formatted, dst.base_offset);
    return true;
 }
 
@@ -831,11 +827,9 @@ static bool compile_direct_pointer_array_assignment(Context *ctx, ASTNode *targe
    src_fmt = assembler_address_expr(src_symbol, src_buf, sizeof(src_buf));
    emit_lvalue_semantic_use(ctx, &src, "read");
    emit(&es_code, "    lda #<{%s + %d}\n", src_fmt, src.base_offset);
-   emit(&es_code, dst.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-        dst_fmt, dst.offset);
+   emit(&es_code, "    sta %s + %d\n", dst_fmt, dst.offset);
    emit(&es_code, "    lda #>{%s + %d}\n", src_fmt, src.base_offset);
-   emit(&es_code, dst.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-        dst_fmt, dst.offset + 1);
+   emit(&es_code, "    sta %s + %d\n", dst_fmt, dst.offset + 1);
    return true;
 }
 
@@ -872,28 +866,22 @@ static bool compile_direct_pointer_u8_update(Context *ctx, ASTNode *target,
    formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
    if (!strcmp(op, "+=")) {
       emit(&es_code, "    clc\n");
-      emit(&es_code, dst.is_zeropage ? "    adc.z %s + %d\n" : "    adc.a %s + %d\n",
-           formatted, dst.offset);
-      emit(&es_code, dst.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-           formatted, dst.offset);
+      emit(&es_code, "    adc %s + %d\n", formatted, dst.offset);
+      emit(&es_code, "    sta %s + %d\n", formatted, dst.offset);
       done = next_label("ptr_u8_add_done");
       if (!done) return false;
       emit(&es_code, "    bcc %s\n", done);
-      emit(&es_code, dst.is_zeropage ? "    inc.z %s + %d\n" : "    inc.a %s + %d\n",
-           formatted, dst.offset + 1);
+      emit(&es_code, "    inc %s + %d\n", formatted, dst.offset + 1);
    }
    else {
       emit(&es_code, "    sta arg0\n");
-      emit(&es_code, dst.is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n",
-           formatted, dst.offset);
+      emit(&es_code, "    lda %s + %d\n", formatted, dst.offset);
       emit(&es_code, "    sec\n    sbc arg0\n");
-      emit(&es_code, dst.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-           formatted, dst.offset);
+      emit(&es_code, "    sta %s + %d\n", formatted, dst.offset);
       done = next_label("ptr_u8_sub_done");
       if (!done) return false;
       emit(&es_code, "    bcs %s\n", done);
-      emit(&es_code, dst.is_zeropage ? "    dec.z %s + %d\n" : "    dec.a %s + %d\n",
-           formatted, dst.offset + 1);
+      emit(&es_code, "    dec %s + %d\n", formatted, dst.offset + 1);
    }
    emit(&es_code, "%s:\n", done);
    free((void *) done);
@@ -960,14 +948,10 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
    if (op->direct_memory) {
       formatted = assembler_address_expr(op->expr, asm_expr, sizeof(asm_expr));
       if (op->offset == 0) {
-         if (op->symbol_mode == 1) emit(&es_code, "    cmp.z %s\n", formatted);
-         else if (op->symbol_mode == 2) emit(&es_code, "    cmp.a %s\n", formatted);
-         else emit(&es_code, "    cmp %s\n", formatted);
+         emit(&es_code, "    cmp %s\n", formatted);
       }
       else {
-         if (op->symbol_mode == 1) emit(&es_code, "    cmp.z %s + %d\n", formatted, op->offset);
-         else if (op->symbol_mode == 2) emit(&es_code, "    cmp.a %s + %d\n", formatted, op->offset);
-         else emit(&es_code, "    cmp %s + %d\n", formatted, op->offset);
+         emit(&es_code, "    cmp %s + %d\n", formatted, op->offset);
       }
       return true;
    }
@@ -1328,9 +1312,9 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
          const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
          emit(&es_code, "    lda #$%02x\n", byte_value);
          if (dst->offset == 0)
-            emit(&es_code, dst->is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+            emit(&es_code, "    sta %s\n", formatted);
          else
-            emit(&es_code, dst->is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, dst->offset);
+            emit(&es_code, "    sta %s + %d\n", formatted, dst->offset);
       }
       return true;
    }
@@ -1611,27 +1595,23 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
          const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
          if (!bcd) {
             if (lv.offset == 0)
-               emit(&es_code, lv.is_zeropage ?
-                    (increment ? "    inc.z %s\n" : "    dec.z %s\n") :
-                    (increment ? "    inc.a %s\n" : "    dec.a %s\n"), formatted);
+               emit(&es_code, increment ? "    inc %s\n" : "    dec %s\n", formatted);
             else
-               emit(&es_code, lv.is_zeropage ?
-                    (increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n") :
-                    (increment ? "    inc.a %s + %d\n" : "    dec.a %s + %d\n"),
+               emit(&es_code, increment ? "    inc %s + %d\n" : "    dec %s + %d\n",
                     formatted, lv.offset);
             return true;
          }
          if (lv.offset == 0)
-            emit(&es_code, lv.is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
+            emit(&es_code, "    lda %s\n", formatted);
          else
-            emit(&es_code, lv.is_zeropage ? "    lda.z %s + %d\n" : "    lda.a %s + %d\n", formatted, lv.offset);
+            emit(&es_code, "    lda %s + %d\n", formatted, lv.offset);
          if (bcd) emit(&es_code, "    sed\n");
          emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
          if (bcd) emit(&es_code, "    cld\n");
          if (lv.offset == 0)
-            emit(&es_code, lv.is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+            emit(&es_code, "    sta %s\n", formatted);
          else
-            emit(&es_code, lv.is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, lv.offset);
+            emit(&es_code, "    sta %s + %d\n", formatted, lv.offset);
       }
       return true;
    }
@@ -1643,9 +1623,9 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
          const char *formatted = assembler_address_expr(compiler_scratch_active_symbol(),
                                                         expr_buf, sizeof(expr_buf));
          if (lv.offset == 0)
-            emit(&es_code, increment ? "    inc.z %s\n" : "    dec.z %s\n", formatted);
+            emit(&es_code, increment ? "    inc %s\n" : "    dec %s\n", formatted);
          else
-            emit(&es_code, increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n",
+            emit(&es_code, increment ? "    inc %s + %d\n" : "    dec %s + %d\n",
                  formatted, lv.offset);
          return true;
       }
@@ -1934,11 +1914,10 @@ static bool emit_discard_store_lvalue(Context *ctx, const LValueRef *lv) {
       }
       formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
       if (lv->offset == 0) {
-         emit(&es_code, lv->is_zeropage ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+         emit(&es_code, "    sta %s\n", formatted);
       }
       else {
-         emit(&es_code, lv->is_zeropage ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n",
-              formatted, lv->offset);
+         emit(&es_code, "    sta %s + %d\n", formatted, lv->offset);
       }
       return true;
    }

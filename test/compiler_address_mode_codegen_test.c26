@@ -1,0 +1,24 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda relaxed_source
+// expectasmordered: sta relaxed_dest
+// expectasmordered: lda.a timing_source
+// expectasmordered: sta.a timing_dest
+// forbidasm: lda.a relaxed_source
+// forbidasm: sta.a relaxed_dest
+// forbidasm: lda.z relaxed_source
+// forbidasm: sta.z relaxed_dest
+include "machine_6502.c26"
+
+uint8_t relaxed_source := 1;
+uint8_t relaxed_dest;
+uint8_t timing_source := 2;
+uint8_t timing_dest;
+
+void main(void) {
+   relaxed_dest := relaxed_source;
+
+   // Addressing-mode suffixes remain an explicit source-assembly control for
+   // programmers who need a particular encoding or cycle count.
+   asm lda.a timing_source;
+   asm sta.a timing_dest;
+}

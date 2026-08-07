@@ -46,6 +46,9 @@ inline void vcs_ntsc_wait_visible_tail_scanlines(uint8_t scanlines) {
    asm @return_delay:;
    asm dey;
    asm bne.same @return_delay;
+   // Keep this return phase independent of whether compiler-owned byte locals
+   // use zero-page or absolute addressing.
+   asm nop;
    asm bit.z CXM0P;
 }
 
@@ -63,14 +66,18 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
    // Compact uint8_t lowering leaves the final WSYNC loop 19 cycles earlier
    // than the historical generic lowering used when this helper was first
    // calibrated.  Make that phase compensation explicit here: the 56-cycle
-   // delay loop, two NOPs, and harmless three-cycle collision-register read
-   // complete a 63-cycle tail and preserve the documented cycle-3 component
-   // entry independent of generic expression scratch.
+   // delay loop, three NOPs, and harmless three-cycle collision-register read
+   // complete a 65-cycle tail. The third NOP compensates for allowing the
+   // assembler to relax compiler-owned byte locals into zero page, preserving
+   // the documented cycle-3 component entry.
    asm ldy #11;
    asm @delay:;
    asm dey;
    asm bne.same @delay;
    asm nop;
+   asm nop;
+   // Keep this return phase independent of whether compiler-owned byte locals
+   // use zero-page or absolute addressing.
    asm nop;
    asm bit.z CXM0P;
 }
@@ -89,6 +96,10 @@ inline void vcs_ntsc_component_handoff(void) {
 inline void vcs_ntsc_vsync(void) {
    VSYNC := 2;
    vcs_ntsc_wait_scanlines(VCS_NTSC_VSYNC_SCANLINES`uint8_t);
+   // The generic wait intentionally has no return-cycle contract. Normalize
+   // the VSYNC-clear phase explicitly so compiler addressing-mode relaxation
+   // cannot move the following VBLANK schedule.
+   asm nop;
    VSYNC := 0;
 }
 

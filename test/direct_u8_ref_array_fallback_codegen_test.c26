@@ -4,7 +4,7 @@
 // expectasmordered: lda fill$values + 0,y
 // expectasmordered: sta ptr0+1
 // expectasmordered: sta (ptr0),y
-// forbidasm: sta.ay fill$values,y
+// forbidasm: sta fill$values,y
 
 include "machine_6502.c26"
 

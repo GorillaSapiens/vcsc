@@ -152,7 +152,11 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    VDELP0 := 1;
    VDELP1 := 1;
-   TEMPLATE_row := 7;
+   // This store sits inside the cycle-counted visible setup. Keep its
+   // historical four-cycle absolute timing explicit in handwritten assembly;
+   // compiler-lowered ordinary RAM references intentionally remain relaxable.
+   asm lda #7;
+   asm sta.a TEMPLATE_row;
 
    asm @TEMPLATE_draw_loop:;
    asm ldy TEMPLATE_row;

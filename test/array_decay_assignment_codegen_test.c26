@@ -1,12 +1,12 @@
 // vcsc-cc1 -I .
 // expectasmordered: lda #<{bytes + 0}
-// expectasmordered: sta.a bytep + 0
+// expectasmordered: sta bytep + 0
 // expectasmordered: lda #>{bytes + 0}
-// expectasmordered: sta.a bytep + 1
+// expectasmordered: sta bytep + 1
 // expectasmordered: lda #<{words + 0}
-// expectasmordered: sta.a wordp + 0
+// expectasmordered: sta wordp + 0
 // expectasmordered: lda #>{words + 0}
-// expectasmordered: sta.a wordp + 1
+// expectasmordered: sta wordp + 1
 // forbidasm: __vcsc_scratch_
 // forbidasm: sta ptr0
 // forbidasm: lda (ptr0),y

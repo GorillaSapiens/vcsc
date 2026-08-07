@@ -1,5 +1,5 @@
 // vcsc-cc1 -I .
-// expectasm: lda.a music_index
+// expectasm: lda music_index
 // expectasm: asl arg0
 // expectasm: rol arg1
 // expectasm: cmp (ptr0),y

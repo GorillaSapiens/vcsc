@@ -4,15 +4,15 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 18,
          "handwritten_assembly_bytes" : 236,
-         "high_level_code_bytes" : 540,
+         "high_level_code_bytes" : 462,
          "previous_free_ram_bytes" : 18,
          "previous_ram_bytes" : 110,
          "previous_rom_bytes" : 3662,
          "ram_added_bytes" : 0,
          "ram_bytes" : 110,
-         "rom_added_bytes" : 307,
-         "rom_bytes" : 3969,
-         "rom_free_bytes" : 121
+         "rom_added_bytes" : 192,
+         "rom_bytes" : 3854,
+         "rom_free_bytes" : 236
       },
       "item3_delta" : {
          "activation_bytes" : 2,
@@ -357,8 +357,8 @@
       "hardware_stack_bytes" : 8,
       "object_bytes" : 102,
       "ram_bytes" : 110,
-      "rom_bytes" : 3969,
-      "rom_free_bytes" : 121,
+      "rom_bytes" : 3854,
+      "rom_free_bytes" : 236,
       "subcategory_bytes" : {
          "argument" : 2,
          "expression_scratch" : 1,

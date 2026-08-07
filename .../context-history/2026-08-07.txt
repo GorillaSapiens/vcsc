@@ -16,3 +16,27 @@
 - Accounted for the remaining net 90-byte gap: 94 bytes of named control/data-flow waste are offset by four bytes the relaxed high-level color loops already save versus the hand-written `.ax` stores, projecting 232 bytes if all named patterns are removed.
 - Added the measured optimizer follow-up to the RAM optimization roadmap ahead of phase-lifetime overlay and updated the compact handoff with the concrete measurements.
 - Repaired four timestamp-only August 6 history headers, documented the standalone-description rule in the compact handoff, and made source-tree hygiene reject future timestamp-only headers.
+
+2026-08-07 08:24:59 PDT, Delegated compiler addressing modes to assembler relaxation
+
+Audited compiler-lowered ordinary 6502 memory operations and removed all forced
+addressing-mode suffixes from compiler mnemonic emitters. The compiler now emits
+semantic operands and lets vcsc-as select/relax modes from address-size contracts;
+explicit source asm suffixes remain available for deliberate encoding and timing.
+The audit removed 87 compiler-source suffix occurrences. Split-memory execution
+continues to stay absolute through segment metadata.
+
+The animated gallery now uses 3854 ordinary ROM bytes and 110 RIOT RAM bytes,
+leaving 236 ROM bytes and 18 RAM bytes free. install_frames links at 462 bytes,
+down from 540, exactly realizing the previously measured 78-byte relaxation loss.
+Peephole-disabled gallery output is 3862 bytes and install_frames remains 462 bytes,
+confirming the existing peephole still saves eight bytes elsewhere and none there.
+
+Shorter compiler-owned accesses exposed timing dependencies in calibrated VCS code.
+Those were kept out of compiler lowering: frame helper phases use explicit delay
+instructions, cycle-counted six-glyph row setup uses handwritten absolute stores,
+and synthetic generic-wait fixtures explicitly normalize their phase. Exact
+scheduler, score, renderer, split-memory, and banked raster/runtime regressions pass.
+
+Final verification for this change is 444 compile-only tests and all 255 end-to-end
+cases in bounded batches. Clean source-tree hygiene passes.
