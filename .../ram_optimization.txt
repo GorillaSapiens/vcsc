@@ -560,6 +560,64 @@ Ordered roadmap
       fingerprint, renderer, banked-renderer, animation, bankswitching, and
       split-memory oracles remain passing.
 
+[ ] 5a. Separate hard page containment from explicit power-of-two alignment,
+        remove gratuitous ROM padding, and audit page-based optimizer proofs.
+
+    * Add `align(N)` for objects, with `N` required to be a compile-time positive
+      power of two. Reject non-power-of-two arguments rather than growing a
+      general arbitrary-alignment test surface. `align(256)` is the canonical
+      spelling for an object whose first byte must begin on a 6502 page boundary.
+    * Keep existing `page` semantics unchanged: the complete object must fit
+      within one 256-byte page. Do not redefine `page` to mean page-start
+      alignment, because small page-contained objects must remain packable
+      together instead of each consuming a separate 256-byte address range.
+    * Define and test the interaction of `page` and `align(N)` explicitly. A
+      declaration must not gain stronger low-byte-zero assumptions merely from
+      `page`; containment and base alignment are separate facts except where
+      object size itself makes alignment unavoidable.
+    * Audit every compiler optimization and range proof that consumes page
+      metadata, especially the hard-page pointer-selection/range lowering added
+      for `install_frames()`. Prove that no optimization currently conflates
+      "fits inside one page" with "starts at offset zero in a page." Add
+      positive and negative code-generation regressions for contained objects
+      placed at nonzero page offsets, exactly-256-byte page objects, and
+      `align(256)` objects spanning multiple pages.
+    * Remove impossible `page` qualifiers from the large ASCII font tables. The
+      8x8 `*_ascii.c26` tables are 760 bytes and `big_ascii.c26` is 1520 bytes;
+      they cannot satisfy whole-object page containment. Use `align(256)` while
+      keeping each font one contiguous table.
+    * Add linked font-layout regressions proving that an aligned 8x8 font never
+      lets an eight-byte glyph cross a hardware page and an aligned 8x16 font
+      never lets a sixteen-byte glyph cross a hardware page. Keep the existing
+      small decimal/hex fonts `page`-contained where their sizes legitimately
+      fit.
+    * Audit examples and libraries for explicit ROM padding whose only purpose is
+      alignment or making an object exactly 256 bytes. Remove such padding when
+      the new alignment/containment contracts make it unnecessary. In
+      particular, shrink the animated gallery's final bitmap page from its
+      padded 256 bytes to the 192 bytes of real sprite data if no independent
+      semantic use of the trailing 64 zero bytes exists.
+    * Add regression coverage for ROM-size recovery so examples cannot quietly
+      reintroduce literal alignment padding. Alignment should be a linker/layout
+      contract, not application data.
+    * Update the compiler, assembler/linker, font, and example documentation to
+      state the distinction clearly: `page` means whole-object containment;
+      `align(256)` means page-aligned start and may span pages.
+
+    Acceptance criteria:
+
+    * [ ] `align(N)` accepts only positive powers of two and rejects other
+      compile-time values with focused diagnostics.
+    * [ ] Existing valid `page` declarations retain their current placement and
+      containment contract; no mass 256-byte spacing regression is introduced.
+    * [ ] Large ASCII fonts are contiguous `align(256)` objects, link
+      successfully, and every glyph is proved not to cross a 256-byte page.
+    * [ ] The page-aware optimizer audit has positive/negative regressions that
+      distinguish containment from base alignment.
+    * [ ] Gratuitous explicit ROM padding identified by the audit is removed and
+      the linked ROM savings are measured without changing raster, timing, or
+      source-data behavior.
+
 [ ] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
 
     * Derive `sprite1` from `sprite0` unless storing both is measurably smaller in
