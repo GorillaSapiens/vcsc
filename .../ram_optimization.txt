@@ -204,7 +204,7 @@ Ordered roadmap
       control, sequence, and exact-frame oracle. No allocation or cartridge bytes
       changed in this item.
 
-[ ] 1. Add lifetime overlay between separate expressions inside one function.
+[x] 1. Add lifetime overlay between separate expressions inside one function.
 
     This is the highest-priority compiler optimization and is expected to yield
     broad savings well beyond the gallery.
@@ -235,7 +235,36 @@ Ordered roadmap
     * The gallery's VSYNC, control, and animation expressions no longer reserve
       disjoint bytes merely because they appear in one non-returning `main`.
 
-[ ] 2. Stop duplicating scratch groups for repeated expansions of one inline
+    Completed implementation:
+
+    * Scratch pools are now keyed by runtime activation owner rather than by each
+      textual compiler context. Inline expansions inherit the caller's owner, so
+      separate statements, branches, loops, and frame phases reuse the same
+      active-lease depth slots.
+    * Compiler-owned scratch cannot be named, addressed, declared volatile, or
+      referenced by inline assembly. Its structured lease remains active through
+      final copy-out/side effect, so no scratch value can survive a statement
+      join or loop back-edge; nested live leases still consume deeper slots.
+    * `-X scratch` now reports each scope's shared lifetime group, symbol, size,
+      and acquisition count. The linker map supplies the final overlaid address.
+    * `scratch_lifetime_overlay.pl` executes sequential, branch, loop, three-call
+      inline, and nested-inline cases in `vcsc-sim`. The complete compile-only
+      suite retains the existing LIFO/nesting regressions.
+    * The gallery activation fell from 20 bytes to 7: one inline parameter plus
+      two three-byte lifetime groups. Total RAM fell from 128/128 to 115/128,
+      leaving 13 bytes free, with the renderer, persistent state, and eight-byte
+      hardware-stack reservation unchanged.
+    * The compiler does not need a general named-object CFG dataflow pass for
+      this class of storage: compiler-owned scratch is non-addressable and its
+      structured lease encloses final copy-out/side effects. Activation-wide
+      depth coloring is therefore the liveness result for these temporaries;
+      ordinary locals and ABI-visible objects remain outside this optimization.
+    * All 438 compile-only tests and all 253 end-to-end tests pass. The slow
+      40-cartridge composition oracle also exposed and fixed a test-harness bug:
+      SWCHA/SWCHB now default to released inputs, so line timing is independent
+      of reset-startup BSS clearing cost.
+
+[x] 2. Stop duplicating scratch groups for repeated expansions of one inline
         function.
 
     * Model each inline expansion's compiler-owned temporaries by lifetime and
@@ -260,6 +289,17 @@ Ordered roadmap
       storage.
     * Generated code and emulator behavior remain unchanged except for addresses
       and reduced RAM ownership.
+
+    Completed as a direct consequence of item 1's activation-owner lifetime
+    coloring:
+
+    * Both gallery `next_pair()` expansions use `main:0` and `main:1`, one
+      six-byte physical footprint instead of twelve bytes.
+    * The dedicated regression adds a third sequential inline expansion without
+      growing BSS and retains four deeper slots for a deliberately nested inline
+      expression whose leases overlap.
+    * Persistent inline parameters, locals, and return objects remain distinct;
+      only compiler-owned scratch participates in lifetime coloring.
 
 [ ] 3. Improve compact lowering for simple byte state updates.
 

@@ -466,13 +466,15 @@ my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
-index($context,'RAM-optimization item 0 is complete.')>=0 &&
-index($context,'The next RAM-optimization item is 1:')>=0 &&
+index($context,'RAM-optimization items 0-2 are complete.')>=0 &&
+index($context,'The next RAM-optimization item is 3:')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
    or die "compact context lost its active RAM-roadmap pointer, item status, main-roadmap pause, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
-$ram_roadmap =~ /^\[ \] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
+$ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
+$ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
+$ram_roadmap =~ /^\[ \] 3\. Improve compact lowering for simple byte state updates\./m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m

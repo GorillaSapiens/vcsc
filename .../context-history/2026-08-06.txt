@@ -325,3 +325,30 @@ deepest weighted path, hidden `.callstackextra` contributions, and reconciled
 source/hidden/total stack bytes. Updated compiler, linker, test, roadmap, compact
 context, hygiene, and branding guards. This item deliberately changes no
 cartridge allocation or bytes; RAM-roadmap item 1 is now next.
+
+
+2026-08-06 20:14:34 PDT, complete RAM-roadmap items 1 and 2
+-----------------------------------------------------------
+Changed compiler-owned scratch allocation from one permanent pool per textual
+compiler/inline context to lifetime-colored depth slots per runtime activation
+owner. Sequential statements, mutually exclusive branches, loop phases, and
+separate inline expansions now reuse the same physical scratch. Structured
+leases remain active through final copy-out/side effects, and nested live leases
+still consume deeper disjoint slots. `-X scratch` now reports scope, activation
+owner, shared group, symbol, size, and acquisition count.
+
+Added `scratch_lifetime_overlay.pl`, including three sequential expansions of the
+same inline function and a nested-inline runtime case. The animated gallery's
+`main` activation fell from 20 bytes to 7 and total RAM from 128/128 to 115/128,
+leaving 13 bytes free without changing renderer state, persistent controls,
+source-derived colors, animation, or the eight-byte hardware stack. The wide
+score fixture/public example each save four bytes, and both interactive 181-line
+wide-score compositions save six.
+
+The complete 40-cartridge score-composition oracle exposed a bad test assumption,
+not a renderer regression: `vcs_playfield_phase.cpp` left SWCHA/SWCHB zero, which
+held console Reset and tied line numbering to startup BSS-clear duration. The
+harness now starts with joystick and console inputs released, and all component
+phase tests remain stable. Verification completed all 438 compile-only tests and
+all 253 end-to-end tests, including the full score-composition raster matrix.
+RAM-roadmap item 3 is next.

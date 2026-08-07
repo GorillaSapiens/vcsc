@@ -157,16 +157,15 @@ for my $family (@families) {
 
          my($first_row,$profile);
          if ($family->{class} eq 'player') {
-            $first_row=$order eq 'above' ? 56 : 45;
+            $first_row=$order eq 'above' ? 55 : 44;
             $profile='diagonal';
          }
          else {
-            # The centered component's first complete gameplay row is one line
-            # earlier than the edge/two-plus-two components in these public
-            # schedules; both layouts still consume the documented visible
-            # component budget and return at the required handoff phase.
-            my $offset=$score->{kind} eq 'center' ? 0 : 1;
-            $first_row=($order eq 'above' ? 55 : 44)+$offset;
+            # With console inputs released, every public all-five score
+            # composition reaches the first complete gameplay row at the same
+            # frame-relative line.  Do not calibrate this against a held Reset;
+            # startup/BSS clearing cost is unrelated to visible scheduling.
+            $first_row=$order eq 'above' ? 55 : 44;
             $profile='all-five-diagonal';
          }
          ($rc,$sig,$out,$err)=capture($executables{phase},$bin,'11','11',$first_row,$profile);

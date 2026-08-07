@@ -14,6 +14,7 @@
 typedef struct CompilerScratchLease {
    int scope_index;
    int slot_index;
+   int use_index;
    int saved_locals;
    int saved_high_water;
    int reserved;

@@ -140,15 +140,23 @@ For split storage the callee wrote the corresponding write alias. No register
 preservation and no return-only scratch lease are required. Ignored return
 values require no copy.
 
-Scratch remains pooled by function and lexical emission depth for arguments and
-other expression temporaries. Sequential uses in one function reuse a slot and
-nested uses get deeper slots. Parameters, automatic locals, scratch, and the
-return object are emitted as pieces of one logical function activation. At link
+Scratch is lifetime-colored within its runtime activation owner. Every
+compiler-owned temporary receives a compile-time lease that remains live through
+its final copy-out or side effect. Sequential statements, mutually exclusive
+branches, loop iterations, and separate inline expansions therefore reuse the
+same depth slot; nested leases that are live together receive deeper disjoint
+slots. Inline expansions inherit the caller's activation owner, so textual
+expansion names do not create permanent scratch groups. Parameters, automatic
+locals, scratch, and the return object are emitted as pieces of one logical
+function activation. At link
 time, a weighted whole-program call graph keeps every caller/callee pair
 disjoint while overlaying siblings and other mutually exclusive activations.
-Each scratch slot is emitted at the maximum size observed for that depth.
-Scratch leases are compile-time LIFO records, and compilation fails if any
-lease remains live at the end of code generation.
+Each scratch slot is emitted at the maximum size observed for that lifetime
+depth. Scratch leases are compile-time LIFO records, and compilation fails if
+any lease remains live at the end of code generation. Compiler scratch cannot
+be named, addressed, made volatile, or referenced by inline assembly, so no
+scratch value can escape its lease or remain live across a statement join or
+loop back-edge.
 
 Function entry has no software-stack prologue. Named automatic locals and the
 return object already have fixed symbols. Expression temporaries are addressed

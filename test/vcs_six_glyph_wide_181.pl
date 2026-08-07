@@ -97,7 +97,7 @@ for my $case (
 
    my $map=read_file($mapfile);
    $map =~ /rom\s+used=3306 bytes/ or die "$tag ROM accounting changed\n";
-   $map =~ /ram\s+used=118 bytes.*objects=110 bytes hardware-stack=8 bytes/
+   $map =~ /ram\s+used=112 bytes.*objects=104 bytes hardware-stack=8 bytes/
       or die "$tag RAM accounting changed\n";
 
    ($rc,$sig,$out,$err)=capture($wide_exe,$bin,$entry,'123456');

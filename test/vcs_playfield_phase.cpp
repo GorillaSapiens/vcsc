@@ -19,6 +19,8 @@ constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kPf1 = 0x000E;
 constexpr uint16_t kPf2 = 0x000F;
+constexpr uint16_t kSwcha = 0x0280;
+constexpr uint16_t kSwchb = 0x0282;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
@@ -143,6 +145,11 @@ int main(int argc, char **argv) {
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
       fail("source row count must equal checked rows or be 12 when checking 11");
    std::memset(memory_image, 0, sizeof(memory_image));
+   // No joystick direction or console switch is pressed by default.  Leaving
+   // these RIOT input registers at zero holds Reset and makes visible timing
+   // depend on startup/BSS clearing cost instead of the frame scheduler.
+   memory_image[kSwcha] = 0xff;
+   memory_image[kSwchb] = 0xff;
    std::ifstream rom(argv[1], std::ios::binary);
    if (!rom) fail("could not open ROM");
    rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);

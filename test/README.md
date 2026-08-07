@@ -355,7 +355,7 @@ all former `DCP` families even when the static scene exits before the P0/M0 half
 
 `vcs_six_glyph_wide.pl` builds the separate widely spaced score profile, locks
 its X=36,52,68,84,100,116 origin contract, exact cycle 0/8/31/36/42/48 GRP
-schedule, packed-BCD row bytes, 262-line frame, 31-byte component-owned RAM
+schedule, packed-BCD row bytes, 262-line frame, 18-byte mutable-color component-owned RAM
 layout, public 2K example accounting, and reviewed Stella 7.0 RGB oracle. The
 optional `vcs_six_glyph_wide_stella.pl` regenerates the emulator snapshot and
 compares decoded RGB pixels with that checked-in oracle. It also hashes the
@@ -375,8 +375,11 @@ fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
 gameplay physical-pixel models on each one. It also builds all 32 real public
 production cartridges and locks the player-color and all-five diagonal
 playfield bytes and write cycles, so
-final-link page placement cannot reintroduce scanline tearing. The public
-matrix reserves the full object-reported hidden hardware stack; its scratch-free
+final-link page placement cannot reintroduce scanline tearing. The shared
+phase harness initializes SWCHA and SWCHB to released inputs; holding Reset in an
+oracle would make frame-relative line numbering depend on startup/BSS clearing
+cost rather than the visible scheduler. The public matrix reserves the full
+object-reported hidden hardware stack; its scratch-free
 console Reset path keeps the worst cartridge at 119 object bytes plus eight
 hardware-stack bytes, leaving one RIOT RAM byte free.
 The score oracle locks centered,
@@ -794,14 +797,21 @@ three-deep call graph. It requires terminal and map-file RAM accounting to
 report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
-`vcs_animated_gallery_ram_accounting.pl` is the authoritative item-0 RAM
-baseline for the source-colored animated gallery. It regenerates
+`vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
+RAM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
-every physical RIOT address `$80-$FF`, pins the 20-byte `main` activation member
-layout, records all `-X scratch` scope diagnostics, proves the two sequential
-`next_pair()` expansions currently consume separate six-byte groups, and checks
-the linker's source-call edges, deepest path, and `.callstackextra` contribution.
-The separate animation emulator test remains the behavioral/frame oracle.
+every physical RIOT address `$80-$FF`, pins the lifetime-overlaid seven-byte
+`main` activation and thirteen-byte free gap, records all `-X scratch`
+scope/lifetime-group diagnostics, proves the two sequential `next_pair()`
+expansions share one six-byte physical footprint, and checks the linker's
+source-call edges, deepest path, and `.callstackextra` contribution. The separate
+animation emulator test remains the behavioral/frame oracle.
+
+`scratch_lifetime_overlay.pl` executes a generic 6502 fixture covering sequential
+expressions, mutually exclusive branches, a loop, three repeated inline
+expansions, and a nested inline expression. It requires all sequential inline
+uses to share activation-owner lifetime groups, requires the nested expression
+to retain deeper disjoint slots, and validates the result in `vcsc-sim`.
 
 `vcs_poison_debug_score.pl` builds the installed adversarial score-profile
 component, checks zero instance RAM, all intended hostile TIA writes, exactly

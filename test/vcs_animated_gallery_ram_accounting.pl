@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 20 main-activation bytes, scratch scopes, and hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 7 main-activation bytes, 13 free bytes, lifetime groups, and hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -56,11 +56,11 @@ $out eq '' or die "scratch-diagnostic compile wrote stdout\n$out";
 my @scratch;
 for my $line (split /\n/,$err) {
    next unless $line =~ /^SCRATCH\s+/;
-   $line =~ /^SCRATCH scope=(\S+) owner=(\S+) slot=(\d+) symbol=(\S+) size=(\d+) allocation=(\S+) reason=(\S+)$/
+   $line =~ /^SCRATCH scope=(\S+) owner=(\S+) slot=(\d+) symbol=(\S+) size=(\d+) group=(\S+) allocation=(\S+) reason=(\S+) acquisitions=(\d+)$/
       or die "malformed scratch diagnostic: $line\n";
    push @scratch, {
       scope=>$1, owner=>$2, slot=>0+$3, symbol=>$4, size=>0+$5,
-      allocation=>$6, reason=>$7,
+      group=>$6, allocation=>$7, reason=>$8, acquisitions=>0+$9,
    };
 }
 @scratch==9 or die "scratch diagnostic reported ".scalar(@scratch)." slots; expected 9\n";
@@ -71,8 +71,8 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin==4096 or die "animated gallery is not a 4K cartridge\n";
 my $map=read_file($mapfile);
 my $asm=read_file($assembly);
-$map =~ /ram\s+used=128 bytes .*objects=120 bytes hardware-stack=8 bytes/
-   or die "128-byte RAM baseline changed\n";
+$map =~ /ram\s+used=115 bytes .*free=13 bytes .*objects=107 bytes hardware-stack=8 bytes/
+   or die "115-byte RAM lifetime-overlay result changed\n";
 
 my %layouts;
 while ($map =~ /^\s+(?:BSS|DATA)\.__vcsc_object\$(\S+)\s+[^\n]*?run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/mg) {
@@ -81,7 +81,7 @@ while ($map =~ /^\s+(?:BSS|DATA)\.__vcsc_object\$(\S+)\s+[^\n]*?run=\$([0-9A-Fa-
 $map =~ /^\s+BSS\.__vcsc_activation\$main\s+run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/m
    or die "map missing main activation\n";
 my($activation_start,$activation_size)=(hexnum($1),hexnum($2));
-$activation_size==20 or die "main activation changed from 20 bytes\n";
+$activation_size==7 or die "main activation changed from 7 bytes\n";
 $map =~ /^\s+region=ram depth=(\d+) bytes=\$([0-9A-Fa-f]{4}) physical=\$([0-9A-Fa-f]{4})-\$([0-9A-Fa-f]{4}) extra=\$([0-9A-Fa-f]{4}) weighted-depth=(\d+) bank-extra-slots=(\d+)/m
    or die "map missing hardware-stack summary\n";
 my %stack=(depth=>0+$1,size=>hexnum($2),start=>hexnum($3),end=>hexnum($4),
@@ -161,6 +161,10 @@ for my $name (qw(sprite0 sprite1 animation_frame animation_clock select_ready pa
 for my $member (@activation_members) {
    add_object($member->{name},$member->{start},$member->{size},$member->{class},$member->{subclass});
 }
+my $free_start=$activation_start+$activation_size;
+my $free_size=$stack{start}-$free_start;
+$free_size==13 or die "free RAM gap is $free_size bytes, expected 13\n";
+add_object('free_ram',$free_start,$free_size,'free_ram','unallocated');
 add_object('hardware_stack',$stack{start},$stack{size},'hardware_stack','return_addresses');
 @objects=sort { $a->{start}<=>$b->{start} || $a->{name} cmp $b->{name} } @objects;
 
@@ -187,30 +191,37 @@ $sum==128 or die "classified RAM total is $sum, expected 128\n";
 $category_totals{runtime_scratch}==8 or die "runtime scratch baseline changed\n";
 $category_totals{renderer_state}==85 or die "renderer-state baseline changed\n";
 $category_totals{persistent_state}==7 or die "persistent-state baseline changed\n";
-$category_totals{activation_scratch}==20 or die "activation baseline changed\n";
+$category_totals{activation_scratch}==7 or die "activation lifetime-overlay result changed\n";
 $category_totals{hardware_stack}==8 or die "hardware-stack baseline changed\n";
+$category_totals{free_ram}==13 or die "free-RAM result changed\n";
 $subcategory_totals{public_state}==13 or die "renderer public-state baseline changed\n";
 $subcategory_totals{private_workspace}==56 or die "renderer private-workspace baseline changed\n";
 $subcategory_totals{mutable_row_colors}==16 or die "mutable color baseline changed\n";
 
-my @next_pair=sort { $a->{scope} cmp $b->{scope} }
+my @next_pair=sort { $a->{scope} cmp $b->{scope} || $a->{slot}<=>$b->{slot} }
    grep { $_->{scope}=~/^__inline\$\d+\$next_pair$/ } @scratch;
-@next_pair==4 or die "expected four next_pair scratch slots, found ".scalar(@next_pair)."\n";
+@next_pair==4 or die "expected four next_pair lifetime-use rows, found ".scalar(@next_pair)."\n";
 my %np_scope;
 push @{$np_scope{$_->{scope}}},$_ for @next_pair;
 keys(%np_scope)==2 or die "expected two next_pair expansions\n";
 for my $scope (keys %np_scope) {
    my $bytes=0; $bytes+=$_->{size} for @{$np_scope{$scope}};
    $bytes==6 or die "$scope scratch footprint is $bytes, expected 6\n";
+   my @groups=sort map { $_->{group} } @{$np_scope{$scope}};
+   join(',',@groups) eq 'main:0,main:1'
+      or die "$scope does not reuse the common lifetime groups\n";
 }
+my %np_symbols=map { $_->{symbol}=>1 } @next_pair;
+join(',',sort keys %np_symbols) eq '__vcsc_scratch_0,__vcsc_scratch_1'
+   or die "next_pair expansions do not share one physical scratch footprint\n";
 $asm =~ /; begin inline expansion next_pair #(\d+).*?; end inline expansion next_pair #\1.*?; begin inline expansion next_pair #(\d+).*?; end inline expansion next_pair #\2/s
    or die "next_pair expansions are not sequential in generated assembly\n";
 
 my $report={
-   schema=>1,
+   schema=>2,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      ram_bytes=>128, object_bytes=>120, hardware_stack_bytes=>8,
+      ram_bytes=>115, free_ram_bytes=>13, object_bytes=>107, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
    objects=>\@objects,
@@ -220,8 +231,9 @@ my $report={
       scratch_diagnostics=>\@scratch,
       repeated_inline=>{
          function=>'next_pair', expansions=>[sort keys %np_scope],
-         bytes_each=>6, current_total_bytes=>12,
-         current_reason=>'no-intra-function-lifetime-overlay',
+         bytes_each=>6, physical_bytes=>6, saved_bytes=>6,
+         lifetime_groups=>['main:0','main:1'],
+         current_reason=>'shared-by-activation-lifetime-overlay',
          generated_execution=>'sequential',
       },
    },
@@ -242,4 +254,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 20 main-activation bytes, scratch scopes, and hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 7 main-activation bytes, 13 free bytes, lifetime groups, and hardware-stack causes match the authoritative JSON baseline\n";

@@ -280,11 +280,12 @@ The latest completely verified baseline before the font side trip was:
     end-to-end/generic:       250 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The current e2e inventory is 252 after adding the authoritative animated-gallery RAM-accounting fixture. The recursive CC0 licensing pass completed
-all 438 compile-only tests and 250 of the then-251 e2e tests successfully. The one
-uncompleted test was the unrelated long-running
-`vcs_score_composition_raster.pl`, which exceeded a ten-minute execution ceiling
-without reporting a failure.
+The current e2e inventory is 253 after adding the authoritative animated-gallery RAM-accounting fixture and lifetime-overlay runtime regression. RAM-roadmap
+items 1 and 2 now pass all 438 compile-only tests and all 253 end-to-end tests,
+including the complete long-running `vcs_score_composition_raster.pl` matrix.
+That oracle now initializes SWCHA/SWCHB to released inputs; its previous zeroed
+inputs held Reset and made frame-relative line expectations depend on startup
+BSS-clearing cost, exactly the wrong dependency for a RAM-allocation roadmap.
 
 The animated-artwork restoration again completed all 438 compile-only tests. A
 monolithic e2e run reached 102 passing tests before the command time ceiling.
@@ -326,20 +327,31 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization item 0 is complete. The animated gallery now has a canonical
-machine-readable 128-byte report at
-`test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`; the fixture
-classifies every physical RIOT byte, pins the 20-byte `main` activation and both
-six-byte sequential `next_pair()` scratch groups, consumes compiler `-X scratch`
-diagnostics, and verifies the linker's explicit source-call, deepest-path, and
-hidden `.callstackextra` explanations. This item adds observability only and does
-not change generated cartridge bytes or RAM placement.
+RAM-optimization items 0-2 are complete. Compiler-owned expression scratch is
+now lifetime-colored across the complete runtime activation owner rather than
+allocated separately for each textual inline expansion. Structured LIFO leases
+remain live through final copy-out/side effect; sequential statements,
+mutually-exclusive branches, loops, and separate inline expansions reuse depth
+slots, while genuinely nested live expressions remain disjoint.
 
-The next RAM-optimization item is 1: add lifetime overlay between separate
-expressions inside one function. Preserve the item-0 JSON baseline and animation
-emulator oracle so each recovered byte has an attributable cause and behavior
-remains exact. Item 2, shared scratch for repeated inline expansions, follows and
-must not be conflated with ordinary persistent inline locals.
+The animated gallery's authoritative JSON report now records a seven-byte
+`main` activation—one inline parameter plus two three-byte scratch lifetime
+groups—and thirteen free RIOT bytes. Total RAM is 115/128 instead of 128/128;
+renderer state, persistent gallery state, and the eight-byte hardware-stack
+reservation are unchanged. Both `next_pair()` expansions share the same
+six-byte physical footprint. `scratch_lifetime_overlay.pl` also proves a third
+sequential inline call does not grow BSS and executes branch, loop, and nested
+inline cases in `vcsc-sim`.
+
+The completed compiler change passes all 438 compile-only tests and all 253
+end-to-end tests. The standalone wide-score fixture also fell from 40 to 36 RAM
+bytes, its public example from 44 to 40, and each interactive 181-line wide-score
+composition from 118 to 112, with all raster/control contracts unchanged.
+
+The next RAM-optimization item is 3: improve compact lowering for simple byte
+state updates. Preserve the updated accounting JSON and the complete animation,
+source-color, control, and exact-frame oracle while measuring each additional
+scratch and ROM reduction.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

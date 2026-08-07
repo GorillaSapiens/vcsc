@@ -35,12 +35,25 @@
 #define COMPILER_SCRATCH_MAX_SCOPES 256
 #define COMPILER_SCRATCH_MAX_SLOTS 64
 
+typedef struct CompilerScratchUse {
+   char *scope_name;
+   int max_size;
+   int acquisitions;
+} CompilerScratchUse;
+
 typedef struct CompilerScratchSlot {
    int symbol_id;
    int max_size;
+   int use_count;
+   int use_capacity;
+   CompilerScratchUse *uses;
 } CompilerScratchSlot;
 
 typedef struct CompilerScratchScope {
+   /* One allocation arena per runtime activation. Inline expansions inherit
+      their caller's activation owner, so their compiler-owned temporaries can
+      share lifetime-colored slots while simultaneously live nested leases still
+      consume deeper slots. Translation-unit work retains its context name. */
    char *name;
    char *activation_owner;
    int depth;
@@ -82,8 +95,19 @@ void diagnose_runtime_power_of_two_divisor(const ASTNode *origin,
    }
 }
 
+static const char *compiler_scratch_arena_name(const Context *ctx) {
+   if (ctx && ctx->activation_owner && *ctx->activation_owner) {
+      return ctx->activation_owner;
+   }
+   return (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
+}
+
+static const char *compiler_scratch_use_name(const Context *ctx) {
+   return (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
+}
+
 static int compiler_scratch_scope_for_context(const Context *ctx) {
-   const char *name = (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
+   const char *name = compiler_scratch_arena_name(ctx);
    for (int i = 0; i < compiler_scratch_scope_count; i++) {
       if (!strcmp(compiler_scratch_scopes[i].name, name)) {
          return i;
@@ -108,6 +132,13 @@ static int compiler_scratch_scope_for_context(const Context *ctx) {
 
 void compiler_scratch_reset(void) {
    for (int i = 0; i < compiler_scratch_scope_count; i++) {
+      for (int j = 0; j < compiler_scratch_scopes[i].slot_count; j++) {
+         CompilerScratchSlot *slot = &compiler_scratch_scopes[i].slots[j];
+         for (int k = 0; k < slot->use_count; k++) {
+            free(slot->uses[k].scope_name);
+         }
+         free(slot->uses);
+      }
       free(compiler_scratch_scopes[i].name);
       free(compiler_scratch_scopes[i].activation_owner);
    }
@@ -128,8 +159,11 @@ const char *compiler_scratch_active_symbol(void) {
 void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *lease) {
    CompilerScratchScope *scope;
    CompilerScratchSlot *slot;
+   CompilerScratchUse *use;
+   const char *use_name;
    int scope_index;
    int slot_index;
+   int use_index;
 
    if (!lease) {
       error_unreachable("NULL compiler scratch lease");
@@ -149,8 +183,39 @@ void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *
       slot = &scope->slots[slot_index];
    }
 
+   use_name = compiler_scratch_use_name(ctx);
+   use_index = -1;
+   for (int i = 0; i < slot->use_count; i++) {
+      if (!strcmp(slot->uses[i].scope_name, use_name)) {
+         use_index = i;
+         break;
+      }
+   }
+   if (use_index < 0) {
+      if (slot->use_count >= slot->use_capacity) {
+         int new_capacity = slot->use_capacity ? slot->use_capacity * 2 : 8;
+         CompilerScratchUse *new_uses = realloc(slot->uses,
+            (size_t)new_capacity * sizeof(*new_uses));
+         if (!new_uses) {
+            error_unreachable("out of memory growing compiler scratch lifetime uses");
+         }
+         slot->uses = new_uses;
+         slot->use_capacity = new_capacity;
+      }
+      use_index = slot->use_count++;
+      use = &slot->uses[use_index];
+      memset(use, 0, sizeof(*use));
+      use->scope_name = strdup(use_name);
+      if (!use->scope_name) {
+         error_unreachable("out of memory recording compiler scratch lifetime use");
+      }
+   }
+   use = &slot->uses[use_index];
+   use->acquisitions++;
+
    lease->scope_index = scope_index;
    lease->slot_index = slot_index;
+   lease->use_index = use_index;
    lease->saved_locals = ctx ? ctx->locals : 0;
    lease->saved_high_water = ctx ? ctx->locals_high_water : 0;
    lease->reserved = reserved > 0 ? reserved : 1;
@@ -178,6 +243,12 @@ void compiler_scratch_note_used(CompilerScratchLease *lease, int used) {
    slot = &scope->slots[lease->slot_index];
    if (lease->used > slot->max_size) {
       slot->max_size = lease->used;
+   }
+   if (lease->use_index < 0 || lease->use_index >= slot->use_count) {
+      error_unreachable("invalid compiler scratch lifetime use");
+   }
+   if (lease->used > slot->uses[lease->use_index].max_size) {
+      slot->uses[lease->use_index].max_size = lease->used;
    }
 }
 
@@ -226,6 +297,7 @@ void compiler_scratch_release(CompilerScratchLease *lease) {
    scope->depth--;
    lease->scope_index = -1;
    lease->slot_index = -1;
+   lease->use_index = -1;
 }
 
 void compiler_scratch_emit_bss(void) {
@@ -254,13 +326,18 @@ void compiler_scratch_emit_bss(void) {
          emit(&es_bss, "__vcsc_scratch_%d:\n", slot->symbol_id);
          emit(&es_bss, "\t.res %d\n", slot->max_size);
          if (get_xray(XRAY_SCRATCH)) {
-            fprintf(stderr,
-                    "SCRATCH scope=%s owner=%s slot=%d symbol=__vcsc_scratch_%d "
-                    "size=%d allocation=fixed-static "
-                    "reason=no-intra-function-lifetime-overlay\n",
-                    scope->name ? scope->name : "<translation-unit>",
-                    scope->activation_owner ? scope->activation_owner : "<none>",
-                    j, slot->symbol_id, slot->max_size);
+            for (int k = 0; k < slot->use_count; k++) {
+               CompilerScratchUse *use = &slot->uses[k];
+               fprintf(stderr,
+                       "SCRATCH scope=%s owner=%s slot=%d symbol=__vcsc_scratch_%d "
+                       "size=%d group=%s:%d allocation=lifetime-overlay "
+                       "reason=nonoverlapping-compiler-temporary-lifetimes acquisitions=%d\n",
+                       use->scope_name ? use->scope_name : "<translation-unit>",
+                       scope->activation_owner ? scope->activation_owner : "<none>",
+                       j, slot->symbol_id, use->max_size,
+                       scope->name ? scope->name : "<translation-unit>", j,
+                       use->acquisitions);
+            }
          }
       }
    }

@@ -1089,13 +1089,19 @@ stay at the eight-byte runtime baseline and own no private BSS. Objects wider
 than four bytes may use the aggregate byte-copy/fill helpers.
 
 Compiler expression scratch is part of the owning function activation. It is
-pooled by nesting depth during compilation, then overlaid with mutually
-exclusive function activations by the whole-program linker call graph. The
-diagnostic option `-X scratch` emits one machine-readable line per fixed scratch
-slot with its compiler scope, activation owner, slot number, symbol, maximum
-size, allocation policy, and the current reason it remains disjoint. The current
-reason is `no-intra-function-lifetime-overlay`; this deliberately exposes the
-baseline for the RAM-optimization roadmap without changing allocation.
+lifetime-colored by active lease depth across the complete activation owner,
+then overlaid with mutually exclusive function activations by the whole-program
+linker call graph. Sequential statements, mutually exclusive branches, loop
+iterations, and separate inline expansions reuse the same physical slot;
+genuinely nested live leases use deeper slots. A lease remains active through
+its final copy-out or side effect, and compiler scratch cannot be named or have
+its address taken, so it cannot escape across a join or loop back-edge.
+
+The diagnostic option `-X scratch` emits one machine-readable line per
+scope/lifetime-group use. It reports the activation owner, depth slot, shared
+symbol, maximum size used by that scope, lifetime-group name, allocation policy,
+reason, and acquisition count. The linked map supplies the final address of the
+shared symbol, making overlaid offsets auditable.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
