@@ -521,8 +521,12 @@ init-table cursor while it calls an initializer.
 
 The map preserves the ordinary source-level `depth`, reports `weighted-depth`
 and `bank-extra-slots`, and exports `__call_stack_weighted_depth` and
-`__call_stack_bank_extra_slots`. Hand-written or separately assembled calls
-which are absent from compiler call metadata still require an explicit
+`__call_stack_bank_extra_slots`. Its `CALL GRAPH` section lists every compiled
+direct-call edge, the number of simultaneously active stack slots contributed by
+that edge (including a cross-bank bridge slot when applicable), one deterministic
+deepest weighted path, every object-level `.callstackextra` contribution, and a
+source/hidden/total byte reconciliation. Hand-written or separately assembled
+calls which are absent from compiler call metadata still require an explicit
 `callstack_extra` allowance.
 
 `callstack_extra = N` adds an explicit byte count to that reserve. It is for

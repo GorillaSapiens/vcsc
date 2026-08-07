@@ -253,6 +253,15 @@ void compiler_scratch_emit_bss(void) {
          }
          emit(&es_bss, "__vcsc_scratch_%d:\n", slot->symbol_id);
          emit(&es_bss, "\t.res %d\n", slot->max_size);
+         if (get_xray(XRAY_SCRATCH)) {
+            fprintf(stderr,
+                    "SCRATCH scope=%s owner=%s slot=%d symbol=__vcsc_scratch_%d "
+                    "size=%d allocation=fixed-static "
+                    "reason=no-intra-function-lifetime-overlay\n",
+                    scope->name ? scope->name : "<translation-unit>",
+                    scope->activation_owner ? scope->activation_owner : "<none>",
+                    j, slot->symbol_id, slot->max_size);
+         }
       }
    }
 }

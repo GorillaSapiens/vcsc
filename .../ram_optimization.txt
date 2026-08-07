@@ -172,7 +172,7 @@ an associated roadmap item and regression.
 Ordered roadmap
 ---------------
 
-[ ] 0. Add authoritative RAM-accounting fixtures before optimizing.
+[x] 0. Add authoritative RAM-accounting fixtures before optimizing.
 
     * Build the animated gallery and retain a machine-readable symbol/segment
       accounting report that classifies every byte as persistent state,
@@ -183,6 +183,26 @@ Ordered roadmap
       overlap and why each hardware-stack depth edge exists.
     * Keep exact 262-line frame, sprite, source-derived row-color, control, and
       animation-sequence emulator oracles active throughout this roadmap.
+
+    Completed baseline:
+
+    * `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json` is the
+      canonical machine-readable 128-byte report. It classifies every physical
+      address from `$80` through `$FF`, including the renderer's 13 public bytes,
+      56 private bytes, sixteen mutable row-color bytes, seven gallery-state
+      bytes, twenty activation bytes, eight runtime bytes, and eight stack bytes.
+    * Compiler `-X scratch` reports each fixed scratch slot's expansion scope,
+      activation owner, size, and the current
+      `no-intra-function-lifetime-overlay` reason. The fixture pins both
+      sequential `next_pair()` expansions as separate six-byte groups.
+    * Linker maps now list compiled call-graph edges, their source/bridge stack
+      slots, one deterministic deepest weighted path, each object-level
+      `.callstackextra` contribution, and the reconciled source/hidden/total
+      hardware-stack bytes.
+    * `test/vcs_animated_gallery_ram_accounting.pl` regenerates and compares the
+      report while the independent animation emulator remains the pixel, color,
+      control, sequence, and exact-frame oracle. No allocation or cartridge bytes
+      changed in this item.
 
 [ ] 1. Add lifetime overlay between separate expressions inside one function.
 

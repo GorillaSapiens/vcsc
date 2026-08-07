@@ -464,11 +464,17 @@ index($component_guide,'Retirement of these working profiles is not a completion
    or die "component guide restored retirement as a roadmap gate\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
-index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
-index($context,'Main-roadmap items 29 (general F8/F6/F4 bankswitching) and 30 (Superchip')>=0 &&
-index($context,'The next unfinished main-roadmap item is 23:')>=0 &&
+my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
+index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
+index($context,'RAM-optimization item 0 is complete.')>=0 &&
+index($context,'The next RAM-optimization item is 1:')>=0 &&
+index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its active roadmap pointer, bank/Superchip completion, or size ceiling\n";
+   or die "compact context lost its active RAM-roadmap pointer, item status, main-roadmap pause, or size ceiling\n";
+$ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
+$ram_roadmap =~ /^\[ \] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
+-f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
+   or die "RAM-optimization roadmap or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
 $roadmap =~ /^Current next action: 23\b/m

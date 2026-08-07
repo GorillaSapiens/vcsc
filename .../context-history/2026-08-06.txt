@@ -305,3 +305,23 @@ the active main-roadmap item.
   startup/overscan data work, not beam-critical code. Add a roadmap item to make
   it high-level VCSC, improve the required pointer/index/nibble/loop lowering,
   and enforce a minimal-assembly policy for public examples.
+
+2026-08-06 19:36:47 PDT, complete RAM-optimization roadmap item 0
+-----------------------------------------------------------------
+Added an authoritative animated-gallery RIOT-RAM accounting fixture before
+changing allocation behavior. `test/vcs_animated_gallery_ram_accounting.pl`
+rebuilds the cartridge and classifies every physical byte from `$80` through
+`$FF` into runtime scratch, renderer state, mutable row colors, persistent
+gallery state, `main` activation scratch, or hardware return stack. Its
+machine-readable golden report pins the 128-byte total and the exact twenty-byte
+`main` activation breakdown.
+
+Added compiler `-X scratch` diagnostics that identify every fixed scratch slot,
+its activation owner and inline-expansion scope, and the current
+`no-intra-function-lifetime-overlay` reason. The fixture explicitly records the
+two sequential `next_pair()` expansions as separate six-byte scratch groups.
+Linker maps now include source call-graph edges, stack slots, a deterministic
+deepest weighted path, hidden `.callstackextra` contributions, and reconciled
+source/hidden/total stack bytes. Updated compiler, linker, test, roadmap, compact
+context, hygiene, and branding guards. This item deliberately changes no
+cartridge allocation or bytes; RAM-roadmap item 1 is now next.

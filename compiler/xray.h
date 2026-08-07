@@ -16,6 +16,7 @@
 #define XRAY_EXPROPT     6 // dump expropt statistics
 #define XRAY_EXPROPTONLY 7 // exit after expropt
 #define XRAY_PEEPHOLE    8 // dump peephole optimizer statistics
+#define XRAY_SCRATCH     9 // dump static compiler scratch allocation diagnostics
 
 // return the xray number for a human readable string
 int lookup_xray(const char *);

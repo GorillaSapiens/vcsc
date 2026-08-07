@@ -280,8 +280,8 @@ The latest completely verified baseline before the font side trip was:
     end-to-end/generic:       250 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The current e2e inventory is 251. The recursive CC0 licensing pass completed
-all 438 compile-only tests and 250 of 251 e2e tests successfully. The one
+The current e2e inventory is 252 after adding the authoritative animated-gallery RAM-accounting fixture. The recursive CC0 licensing pass completed
+all 438 compile-only tests and 250 of the then-251 e2e tests successfully. The one
 uncompleted test was the unrelated long-running
 `vcs_score_composition_raster.pl`, which exceeded a ten-minute execution ceiling
 without reporting a failure.
@@ -296,7 +296,7 @@ mutable TIA color tables. The mutable renderer path now delays steady-state P0
 colors with VDELP0 graphics. The gallery uses P0 Y=55 and X=16..140 so every
 sampled player pixel receives its selected source-row color. The affected
 1,875-frame animation emulator, exact art/color hashes, player-color renderer,
-and recursive example checks pass; this does not claim a new full 251-test
+and recursive example checks pass; this does not claim a new full 252-test
 baseline.
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella
@@ -324,32 +324,23 @@ Important active constraints and open questions
 
 Immediate TODO
 --------------
-Active workstream: `.../roadmap.txt`.
+Active workstream: `.../ram_optimization.txt`.
 
-Main-roadmap items 29 (general F8/F6/F4 bankswitching) and 30 (Superchip
-profiles and automatic storage) are complete and are marked accordingly in
-`.../roadmap.txt`. The detailed bankswitching sub-roadmap is complete through
-its item 29; its item 30 is intentionally a mapper-family policy gate, not a
-pending implementation task. Open a new scoped item only when a concrete program
-requires hardware semantics the maintained full-window/direct/shared-memory
-model cannot represent honestly.
+RAM-optimization item 0 is complete. The animated gallery now has a canonical
+machine-readable 128-byte report at
+`test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`; the fixture
+classifies every physical RIOT byte, pins the 20-byte `main` activation and both
+six-byte sequential `next_pair()` scratch groups, consumes compiler `-X scratch`
+diagnostics, and verifies the linker's explicit source-call, deepest-path, and
+hidden `.callstackextra` explanations. This item adds observability only and does
+not change generated cartridge bytes or RAM placement.
 
-Main-roadmap item 24 is complete out of numerical order: the widely spaced
-six-glyph score component, standalone example, explicit official 181-line
-score-above/score-below examples, exact raster schedules, reviewed Stella oracle,
-accounting, and installation coverage are integrated while the centered component
-remains byte-identical.
+The next RAM-optimization item is 1: add lifetime overlay between separate
+expressions inside one function. Preserve the item-0 JSON baseline and animation
+emulator oracle so each recovered byte has an attributable cause and behavior
+remains exact. Item 2, shared scratch for repeated inline expansions, follows and
+must not be conflated with ordinary persistent inline locals.
 
-The next unfinished main-roadmap item is 23: investigate an all-five-object
-standard renderer with per-row P0/P1 colors, measure the real RAM/ROM/timing
-cost, preserve existing profiles, and abandon the variant rather than shipping
-a fragile schedule. Full criteria and later work are in `.../roadmap.txt`.
-
-A focused RAM side-roadmap now lives at `.../ram_optimization.txt`. It makes
-intra-function lifetime overlay between separate expressions and elimination of
-duplicated scratch groups from repeated inline expansions the first priorities.
-It also requires converting ordinary example logic such as the animated gallery's
-`install_frames()` back to high-level VCSC, and investigating an official-opcode
-direct-countdown P0/P1/Ball renderer derived from the faithful legacy schedule
-before considering optional 192-line and 181-line two-sprite-only profiles. It is
-not the active workstream unless selected explicitly.
+The next unfinished main-roadmap item remains 23, but it is paused while the RAM
+workstream is explicitly active. Main-roadmap items 29 and 30 and the completed
+bankswitching sub-roadmap remain closed.

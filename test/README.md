@@ -794,6 +794,15 @@ three-deep call graph. It requires terminal and map-file RAM accounting to
 report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
+`vcs_animated_gallery_ram_accounting.pl` is the authoritative item-0 RAM
+baseline for the source-colored animated gallery. It regenerates
+`test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
+every physical RIOT address `$80-$FF`, pins the 20-byte `main` activation member
+layout, records all `-X scratch` scope diagnostics, proves the two sequential
+`next_pair()` expansions currently consume separate six-byte groups, and checks
+the linker's source-call edges, deepest path, and `.callstackextra` contribution.
+The separate animation emulator test remains the behavioral/frame oracle.
+
 `vcs_poison_debug_score.pl` builds the installed adversarial score-profile
 component, checks zero instance RAM, all intended hostile TIA writes, exactly
 11 WSYNC stores, the red-background sentinel, prohibited frame/timer ownership,

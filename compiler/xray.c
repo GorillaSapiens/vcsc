@@ -28,6 +28,7 @@ static struct {
    { XRAY_EXPROPT,     "dumpexpr",    "dump expropt stats" },
    { XRAY_EXPROPTONLY, "exproptonly", "exit after expropt" },
    { XRAY_PEEPHOLE,    "peephole",    "dump peephole optimizer stats" },
+   { XRAY_SCRATCH,     "scratch",     "dump static compiler scratch allocation diagnostics" },
 };
 
 //! @brief Handle xray exit logic for xray.

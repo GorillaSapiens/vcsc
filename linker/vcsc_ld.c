@@ -7924,6 +7924,144 @@ static void write_return_coalescing(FILE *fp, const linker_config_t *cfg,
    }
 }
 
+
+//! @brief Emit the source call-graph edges and hidden assembly contribution behind the hardware-stack reserve.
+static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
+                                         const input_set_t *in,
+                                         const layout_t *layout)
+{
+   call_graph_node_t *nodes = NULL;
+   call_graph_edge_t *edges = NULL;
+   const cartridge_bank_t **banks = NULL;
+   int *memo = NULL;
+   size_t node_count = 0;
+   size_t edge_count = 0;
+   size_t i;
+   int root = -1;
+   int best = 0;
+   uint32_t hidden_total = 0;
+
+   if (!fp || !cfg || !in || !layout || !layout->call_stack_enabled)
+      return;
+
+   for (i = 0; i < in->object_count; ++i)
+      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count,
+                                     &edges, &edge_count);
+
+   fprintf(fp, "\nCALL GRAPH\n");
+   for (i = 0; i < edge_count; ++i) {
+      const object_file_t *caller_obj = NULL;
+      const cartridge_bank_t *from_bank = NULL;
+      const cartridge_bank_t *to_bank = NULL;
+      int bridge = 0;
+
+      (void)call_graph_find_function_layout(in, nodes[edges[i].from].name,
+                                            &caller_obj);
+      from_bank = call_graph_function_bank(cfg, in, nodes[edges[i].from].name);
+      to_bank = call_graph_function_bank(cfg, in, nodes[edges[i].to].name);
+      bridge = from_bank && to_bank && from_bank != to_bank;
+      {
+         char from_display[512];
+         char to_display[512];
+         const char *display;
+
+         display = display_function_symbol(nodes[edges[i].from].name);
+         snprintf(from_display, sizeof(from_display), "%s", display);
+         display = display_function_symbol(nodes[edges[i].to].name);
+         snprintf(to_display, sizeof(to_display), "%s", display);
+         fprintf(fp,
+                 "  EDGE %s -> %s slots=%u reason=compiled-direct-call object=%s%s\n",
+                 from_display, to_display, bridge ? 2u : 1u,
+                 caller_obj ? caller_obj->origin : "<metadata>",
+                 bridge ? " bank-bridge=yes" : "");
+      }
+   }
+
+   if (node_count) {
+      banks = (const cartridge_bank_t **)xcalloc(node_count, sizeof(*banks));
+      memo = (int *)xcalloc(node_count, sizeof(*memo));
+      for (i = 0; i < node_count; ++i)
+         banks[i] = call_graph_function_bank(cfg, in, nodes[i].name);
+      for (i = 0; i < node_count; ++i) {
+         int depth = call_graph_longest_weighted_depth_visit((int)i, edges,
+            edge_count, banks, memo);
+         if (depth > best ||
+             (depth == best && root >= 0 &&
+              strcmp(nodes[i].name, nodes[root].name) < 0)) {
+            best = depth;
+            root = (int)i;
+         }
+      }
+      if (root >= 0) {
+         int current = root;
+         fprintf(fp, "  DEEPEST weighted-depth=%d path=%s", best,
+                 display_function_symbol(nodes[current].name));
+         while (memo[current] > 1) {
+            int chosen = -1;
+            size_t j;
+            for (j = 0; j < edge_count; ++j) {
+               int bridge;
+               int candidate;
+               if (edges[j].from != current)
+                  continue;
+               bridge = banks[current] && banks[edges[j].to] &&
+                        banks[current] != banks[edges[j].to];
+               candidate = 1 + bridge + memo[edges[j].to];
+               if (candidate != memo[current])
+                  continue;
+               if (chosen < 0 ||
+                   strcmp(nodes[edges[j].to].name, nodes[chosen].name) < 0)
+                  chosen = edges[j].to;
+            }
+            if (chosen < 0)
+               break;
+            fprintf(fp, " -> %s", display_function_symbol(nodes[chosen].name));
+            current = chosen;
+         }
+         fputc('\n', fp);
+      }
+   }
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->export_count; ++j) {
+         const char *name = obj->exports[j].name;
+         const char *p;
+         char *end = NULL;
+         unsigned long value;
+         if (!component_constraint_metadata_has_prefix(name))
+            continue;
+         p = name + sizeof(COMPONENT_CONSTRAINT_META_PREFIX) - 1u;
+         if (p[0] != 'S' || p[1] != '$')
+            continue;
+         value = strtoul(p + 2, &end, 10);
+         if (!end || *end || value > 0xffffu)
+            continue;
+         hidden_total += (uint32_t)value;
+         fprintf(fp,
+                 "  HIDDEN bytes=$%04lX reason=.callstackextra object=%s\n",
+                 value, obj->origin);
+      }
+   }
+   if (hidden_total < layout->call_stack_extra) {
+      fprintf(fp,
+              "  HIDDEN bytes=$%04X reason=linker-configured-callstack-extra object=<linker-script>\n",
+              (unsigned)(layout->call_stack_extra - hidden_total));
+   }
+   fprintf(fp,
+           "  TOTAL source-bytes=$%04X hidden-bytes=$%04X total-bytes=$%04X\n",
+           (unsigned)(layout->call_stack_weighted_depth * 2u),
+           layout->call_stack_extra, layout->call_stack_size);
+
+   for (i = 0; i < node_count; ++i)
+      free(nodes[i].name);
+   free(nodes);
+   free(edges);
+   free(banks);
+   free(memo);
+}
+
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in,
                            const layout_t *layout, const uint8_t *used)
@@ -8312,6 +8450,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
               layout->call_stack_extra,
               (unsigned)layout->call_stack_weighted_depth,
               (unsigned)layout->call_stack_bank_extra_slots);
+      write_call_stack_diagnostics(fp, cfg, in, layout);
    }
 
    fprintf(fp, "\nSYMBOLS\n");

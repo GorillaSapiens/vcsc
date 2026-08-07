@@ -1090,7 +1090,12 @@ than four bytes may use the aggregate byte-copy/fill helpers.
 
 Compiler expression scratch is part of the owning function activation. It is
 pooled by nesting depth during compilation, then overlaid with mutually
-exclusive function activations by the whole-program linker call graph.
+exclusive function activations by the whole-program linker call graph. The
+diagnostic option `-X scratch` emits one machine-readable line per fixed scratch
+slot with its compiler scope, activation owner, slot number, symbol, maximum
+size, allocation policy, and the current reason it remains disjoint. The current
+reason is `no-intra-function-lifetime-overlay`; this deliberately exposes the
+baseline for the RAM-optimization roadmap without changing allocation.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
