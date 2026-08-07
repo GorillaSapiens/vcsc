@@ -38,8 +38,7 @@ constexpr uint16_t kTim64t=0x0296;
 constexpr uint16_t kT1024t=0x0297;
 
 struct Addresses {
-   uint8_t sprite0, sprite1, animation_frame, animation_clock;
-   uint8_t pause_animation, select_ready, fire_ready, object_x;
+   uint8_t sprite0, sprite1, animation_state, control_flags, object_x;
    uint8_t p0_pointer, p1_pointer;
    std::array<uint16_t,4> frame_pages{};
    std::array<uint16_t,2> color_pages{};
@@ -102,9 +101,10 @@ void begin_capture() {
    Capture c;
    c.sprite0=memory_image[address.sprite0];
    c.sprite1=memory_image[address.sprite1];
-   c.animation_frame=memory_image[address.animation_frame];
-   c.animation_clock=memory_image[address.animation_clock];
-   c.pause=memory_image[address.pause_animation];
+   const uint8_t animation_state=memory_image[address.animation_state];
+   c.animation_frame=static_cast<uint8_t>(animation_state&0x0f);
+   c.animation_clock=static_cast<uint8_t>(animation_state>>4);
+   c.pause=static_cast<uint8_t>((memory_image[address.control_flags]&0x02)!=0);
    c.player0_x=memory_image[address.object_x];
    c.player1_x=memory_image[static_cast<uint8_t>(address.object_x+1)];
    c.p0_pointer=word_at(address.p0_pointer);
@@ -278,22 +278,21 @@ void verify_state(const Capture &c,size_t f) {
 } // namespace
 
 int main(int argc,char **argv) {
-   if (argc!=21) {
-      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 packed_frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames0 frames1 frames2 frames3 colors0 colors1 p0colors p1colors pico8palette\n",argv[0]);
+   if (argc!=18) {
+      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 animation_state control_flags object_x p0ptr p1ptr frames0 frames1 frames2 frames3 colors0 colors1 p0colors p1colors pico8palette\n",argv[0]);
       return 2;
    }
    address.sprite0=parse_number(argv[2],255); address.sprite1=parse_number(argv[3],255);
-   address.animation_frame=parse_number(argv[4],255); address.animation_clock=parse_number(argv[5],255);
-   address.pause_animation=parse_number(argv[6],255); address.select_ready=parse_number(argv[7],255);
-   address.fire_ready=parse_number(argv[8],255); address.object_x=parse_number(argv[9],254);
-   address.p0_pointer=parse_number(argv[10],254); address.p1_pointer=parse_number(argv[11],254);
+   address.animation_state=parse_number(argv[4],255); address.control_flags=parse_number(argv[5],255);
+   address.object_x=parse_number(argv[6],254);
+   address.p0_pointer=parse_number(argv[7],254); address.p1_pointer=parse_number(argv[8],254);
    for (size_t i=0;i<address.frame_pages.size();++i)
-      address.frame_pages[i]=parse_number(argv[12+i],65535);
+      address.frame_pages[i]=parse_number(argv[9+i],65535);
    for (size_t i=0;i<address.color_pages.size();++i)
-      address.color_pages[i]=parse_number(argv[16+i],65535);
-   address.p0_colors=parse_number(argv[18],65535);
-   address.p1_colors=parse_number(argv[19],65535);
-   address.pico8_palette=parse_number(argv[20],65535);
+      address.color_pages[i]=parse_number(argv[13+i],65535);
+   address.p0_colors=parse_number(argv[15],65535);
+   address.p1_colors=parse_number(argv[16],65535);
+   address.pico8_palette=parse_number(argv[17],65535);
 
    std::memset(memory_image,0,sizeof(memory_image));
    memory_image[0x0280]=0xff;

@@ -325,7 +325,7 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization work through explicit alignment/padding cleanup is complete.
+RAM-optimization work through persistent gallery-state packing is complete.
 Compiler-owned expression scratch is lifetime-colored across the complete runtime
 activation owner, ordinary directly addressable unsigned-byte state uses compact
 lowering, and the high-level animated-frame installer plus its page/pointer optimizer
@@ -348,14 +348,19 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-6 report now records a one-byte `main`
+The animated gallery's authoritative schema-7 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
-scratch aliases the first byte of the 48-byte VBLANK+visible `game_object_masks`
-workspace. Total RIOT RAM is **109/128 bytes**—101 object bytes plus the eight-byte
-hardware-stack reservation—leaving **19 bytes free**. The final ordinary high-level
-`install_frames()` remains 232 linked bytes, four bytes smaller than its 236-byte
-handwritten predecessor. Removing the animated gallery's 64 literal alignment-padding
-bytes reduces ROM from 3624 to **3560/4090 bytes**, leaving **530 bytes free**.
+scratch still aliases the first byte of the 48-byte VBLANK+visible
+`game_object_masks` workspace. Persistent gallery bookkeeping is now four bytes:
+`animation_state` combines the normal modulo-4 phase, the independent source-set-03
+modulo-3 phase, and the eight-frame hold clock, while `control_flags` combines
+Select-ready, Fire-ready, and pause state. `sprite0` and `sprite1` remain separate:
+a measured derivation trial saved one RAM byte but cost 50 ROM bytes and grew
+`install_frames()` from 232 to 303 bytes, so the roadmap's smaller-ROM exception
+applies. Total RIOT RAM is now **106/128 bytes**—98 object bytes plus the eight-byte
+hardware-stack reservation—leaving **22 bytes free**. `install_frames()` remains 232
+linked bytes. After the earlier 64-byte padding removal, packed-state lowering further
+reduces ordinary ROM from 3560 to **3545/4090 bytes**, leaving **545 bytes free**.
 
 `test/phase_overlay.pl` is the generic lifetime proof: it verifies positive sharing
 independent of declaration order and refuses overlapping, unscoped, misleadingly
@@ -375,13 +380,13 @@ Public-example assembly remains audited by `test/example_assembly_allowlist.pl`.
 beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
 score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-The next RAM-optimization work is persistent gallery bookkeeping reduction: derive or
-pack redundant sprite/control state without changing the independent modulo-3 source-set
-phase, controls, renderer behavior, or frame timing. The completed alignment step is
-recorded in `.../ram_optimization.txt`; final verification is 455/455 compile-only and
-260/260 end-to-end tests.
+The next RAM-optimization work is hardware-stack reduction by measurement, not blanket
+inlining. Keep source-call depth and hidden assembly JSR depth separately visible, and
+only flatten or tail-jump helpers when final linked ROM, VBLANK timing, and the exact
+stack reservation improve. The completed persistent-state packing step is recorded in
+`.../ram_optimization.txt`.
 
-Verification after explicit alignment/padding cleanup is **455/455 compile-only tests
+Verification after persistent gallery-state packing is **455/455 compile-only tests
 and 260/260 end-to-end cases** in bounded batches. Clean source-tree hygiene remains
 the packaging gate.
 

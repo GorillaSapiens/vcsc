@@ -62,18 +62,26 @@ sixteen doubled scanlines remain within a normal renderer row; P1 uses Y=44.
 Together with the X=16..140 motion range, the emulator oracle can require every
 visible player pixel to use the selected source row's converted color.
 
-The normal and three-frame phases share one packed RAM byte. A sixteen-entry ROM
-transition table advances the low two bits modulo 4 and bits 2..3 modulo 3, so
-the three-frame exception costs no additional RAM. `install_frames()` is ordinary
-VCSC: it selects the hard ROM pages, computes frame offsets, expands packed color
-nibbles through the palette, fills the mutable row-color arrays, and installs the
-bitmap pointers without handwritten assembly or activation scratch.
+Animation phase and frame-hold timing share one persistent RAM byte. The low
+nibble contains the normal modulo-4 phase in bits 0..1 and the independent
+source-set-03 modulo-3 phase in bits 2..3; the high nibble counts the eight NTSC
+frames for which each animation frame is held. A sixteen-entry ROM transition
+table advances both phase fields and clears the hold clock in one assignment.
+
+Select-ready, fire-ready, and paused state share one additional flags byte. The
+two adjacent animation-set selectors remain separate bytes: deriving `sprite1`
+from `sprite0` saved one RAM byte in a measured trial but increased the linked
+cartridge by 50 ROM bytes and grew `install_frames()` from 232 to 303 bytes, so
+the smaller-ROM representation is retained. `install_frames()` itself remains
+ordinary VCSC: it selects the hard ROM pages, computes frame offsets, expands
+packed color nibbles through the palette, fills the mutable row-color arrays, and
+installs the bitmap pointers without handwritten assembly or activation scratch.
 
 Each frame is held for eight NTSC frames. One pair traversal takes 125 frames;
 the complete fifteen-pair gallery takes 1,875 frames. The cartridge preserves
-192 visible scanlines and exact 262-line NTSC frames. It uses 3,854 bytes of the
-ordinary ROM region plus the six-byte vector segment and 110 RIOT RAM bytes, leaving
-236 ordinary ROM bytes and 18 RAM bytes free.
+192 visible scanlines and exact 262-line NTSC frames. It uses 3,545 bytes of the
+ordinary ROM region plus the six-byte vector segment and 106 RIOT RAM bytes, leaving
+545 ordinary ROM bytes and 22 RAM bytes free.
 
 ## Controls
 
@@ -84,6 +92,7 @@ ordinary ROM region plus the six-byte vector segment and 110 RIOT RAM bytes, lea
 | Game Reset | Restart through the cartridge reset vector |
 
 Select and fire are edge-triggered, so holding either control does not repeat.
+Their two edge latches and the pause bit occupy one packed control byte.
 
 ## Artwork attribution
 

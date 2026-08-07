@@ -1466,11 +1466,15 @@ alias RIGHT_EDGE 140
 
 uint8_t sprite0 := 0;
 uint8_t sprite1 := 1;
-uint8_t animation_frame := 0;
-uint8_t animation_clock := 0;
-uint8_t select_ready := 1;
-uint8_t pause_animation := 0;
-uint8_t fire_ready := 1;
+// The low nibble carries the normal modulo-4 phase in bits 0..1 and the
+// source-set-03 modulo-3 phase in bits 2..3. The high nibble is the eight-frame
+// hold clock, so animation playback needs one persistent byte rather than two.
+uint8_t animation_state := 0;
+
+alias CONTROL_SELECT_READY 0x01
+alias CONTROL_PAUSED 0x02
+alias CONTROL_FIRE_READY 0x04
+uint8_t control_flags := CONTROL_SELECT_READY | CONTROL_FIRE_READY;
 
 // Packed phase transition: low bits advance modulo 4 while bits 2..3
 // independently advance modulo 3 for source set 03.
@@ -1490,7 +1494,7 @@ void install_frames(void) {
       game_player0_graphics := sprite_row_colors_1;
    }
    game_player0_graphics += (sprite0 & 0x0f) << 4;
-   game_player0_graphics += (animation_frame & 0x03) << 2;
+   game_player0_graphics += (animation_state & 0x03) << 2;
 
    // Four packed bytes expand to the renderer's eight per-row TIA colors.
    for (uint8_t color_row0 := 0; color_row0 < 8; color_row0 += 2) {
@@ -1518,7 +1522,7 @@ void install_frames(void) {
       }
    }
    game_player0_graphics += (sprite0 & 0x07) << 5;
-   game_player0_graphics += (animation_frame & 0x03) << 3;
+   game_player0_graphics += (animation_state & 0x03) << 3;
 
    if (sprite1 < 16) {
       game_player1_graphics := sprite_row_colors_0;
@@ -1529,10 +1533,10 @@ void install_frames(void) {
    game_player1_graphics += (sprite1 & 0x0f) << 4;
    if (sprite1 == THREE_FRAME_SET) {
       // Bits 2..3 are this set's independent modulo-3 phase field.
-      game_player1_graphics += animation_frame & 0x0c;
+      game_player1_graphics += animation_state & 0x0c;
    }
    else {
-      game_player1_graphics += (animation_frame & 0x03) << 2;
+      game_player1_graphics += (animation_state & 0x03) << 2;
    }
 
    for (uint8_t color_row1 := 0; color_row1 < 8; color_row1 += 2) {
@@ -1560,10 +1564,10 @@ void install_frames(void) {
    }
    game_player1_graphics += (sprite1 & 0x07) << 5;
    if (sprite1 == THREE_FRAME_SET) {
-      game_player1_graphics += (animation_frame & 0x0c) << 1;
+      game_player1_graphics += (animation_state & 0x0c) << 1;
    }
    else {
-      game_player1_graphics += (animation_frame & 0x03) << 3;
+      game_player1_graphics += (animation_state & 0x03) << 3;
    }
 }
 
@@ -1573,24 +1577,23 @@ inline void next_pair(void) {
    sprite1 := sprite0 + 1;
    game_PLAYER0_X := LEFT_EDGE;
    game_PLAYER1_X := LEFT_EDGE;
-   animation_frame := 0;
-   animation_clock := 0;
+   animation_state := 0;
    install_frames();
 }
 
 inline void update_animation(void) {
-   if (!pause_animation) {
+   if (!(control_flags & CONTROL_PAUSED)) {
       if (game_PLAYER0_X >= RIGHT_EDGE) {
          next_pair();
       }
       else {
          game_PLAYER0_X++;
          game_PLAYER1_X++;
-         animation_clock++;
-         if (animation_clock >= FRAME_HOLD) {
-            animation_clock := 0;
-            // Advance the packed modulo-4/modulo-3 phases together.
-            animation_frame := animation_phase_next[animation_frame];
+         animation_state += 0x10;
+         if (animation_state >= (FRAME_HOLD << 4)) {
+            // The ROM transition advances both phase fields and clears the
+            // high-nibble frame-hold clock in the same assignment.
+            animation_state := animation_phase_next[animation_state & 0x0f];
             install_frames();
          }
       }
@@ -1607,22 +1610,22 @@ inline void update_controls(void) {
    asm @reset_not_pressed:;
 
    if (SWCHB & 0x02) {
-      select_ready := 1;
+      control_flags |= CONTROL_SELECT_READY;
    }
    else {
-      if (select_ready) {
+      if (control_flags & CONTROL_SELECT_READY) {
          next_pair();
-         select_ready := 0;
+         control_flags &= 0xfe;
       }
    }
 
    if (INPT4 & 0x80) {
-      fire_ready := 1;
+      control_flags |= CONTROL_FIRE_READY;
    }
    else {
-      if (fire_ready) {
-         pause_animation := !pause_animation;
-         fire_ready := 0;
+      if (control_flags & CONTROL_FIRE_READY) {
+         control_flags ^= CONTROL_PAUSED;
+         control_flags &= 0xfb;
       }
    }
 }

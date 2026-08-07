@@ -82,8 +82,20 @@ $source_text =~ /alias\s+RIGHT_EDGE\s+140/ or die "animation color-safe right en
 $source_text =~ /animation_phase_next\[16\]/ &&
 $source_text =~ /low bits advance modulo 4 while bits 2\.\.3/ &&
 $source_text =~ /sprite1\s*==\s*THREE_FRAME_SET/ &&
-$source_text =~ /animation_frame\s*&\s*0x0c/
+$source_text =~ /animation_state\s*&\s*0x0c/
    or die "set 03 no longer has a packed modulo-3 frame counter\n";
+$source_text =~ /uint8_t\s+animation_state\s*:=\s*0/ &&
+$source_text =~ /animation_state\s*\+=\s*0x10/ &&
+$source_text =~ /animation_state\s*>=\s*\(FRAME_HOLD\s*<<\s*4\)/ &&
+$source_text =~ /animation_phase_next\[animation_state\s*&\s*0x0f\]/ &&
+$source_text !~ /uint8_t\s+animation_(?:frame|clock)/
+   or die "animation phase and frame-hold clock are no longer packed into one byte\n";
+$source_text =~ /alias\s+CONTROL_SELECT_READY\s+0x01/ &&
+$source_text =~ /alias\s+CONTROL_PAUSED\s+0x02/ &&
+$source_text =~ /alias\s+CONTROL_FIRE_READY\s+0x04/ &&
+$source_text =~ /uint8_t\s+control_flags\s*:=\s*CONTROL_SELECT_READY\s*\|\s*CONTROL_FIRE_READY/ &&
+$source_text !~ /uint8_t\s+(?:select_ready|pause_animation|fire_ready)/
+   or die "Select/fire edge state and pause state are no longer packed into one byte\n";
 $source_text =~ /void\s+install_frames\s*\(void\)\s*\{(.*?)\n\}/s
    or die "cannot locate install_frames source body\n";
 my $install_frames_body=$1;
@@ -191,7 +203,7 @@ $rc==0 && !$sig or die "animation harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "animation harness build wrote output\n$out$err";
 
 my @zp_args=map { zp_arg($map,$_) }
-   qw(sprite0 sprite1 animation_frame animation_clock pause_animation select_ready fire_ready game_object_x game_player0_graphics game_player1_graphics);
+   qw(sprite0 sprite1 animation_state control_flags game_object_x game_player0_graphics game_player1_graphics);
 my @symbol_args=map { symbol_arg($map,$_) }
    (@frame_names,@color_names,qw(game_player0_colors game_player1_colors pico8_tia_palette));
 my @args=(@zp_args,@symbol_args);

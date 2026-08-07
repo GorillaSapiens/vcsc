@@ -471,8 +471,8 @@ my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
-index($context,'RAM-optimization work through explicit alignment/padding cleanup is complete.')>=0 &&
-index($context,'The next RAM-optimization work is persistent gallery bookkeeping reduction')>=0 &&
+index($context,'RAM-optimization work through persistent gallery-state packing is complete.')>=0 &&
+index($context,'The next RAM-optimization work is hardware-stack reduction by measurement')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
@@ -485,7 +485,7 @@ $ram_roadmap =~ /^\[x\] 4\. Make `install_frames\(\)` ordinary VCSC and establis
 $ram_roadmap =~ /^\[x\] 5a\. Separate hard page containment from explicit power-of-two alignment,/m &&
 $ram_roadmap =~ /^\[x\] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
 $ram_roadmap =~ /^\[x\] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
-$ram_roadmap =~ /^\[ \] 6\. Reduce the gallery's persistent bookkeeping without changing behavior\./m &&
+$ram_roadmap =~ /^\[x\] 6\. Reduce the gallery's persistent bookkeeping without changing behavior\./m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 19 free bytes, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 22 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -75,10 +75,10 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
    or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
 index($asm,'__phaseworkspace$V1$game_object_masks')>=0
    or die "renderer object-mask workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3560 bytes .*free=530 bytes/
-   or die "3560-byte aligned/no-padding animated-gallery ROM result changed\n";
-$map =~ /ram\s+used=109 bytes .*free=19 bytes .*objects=101 bytes hardware-stack=8 bytes/
-   or die "109-byte phase-overlay RAM result changed\n";
+$map =~ /rom\s+used=3545 bytes .*free=545 bytes/
+   or die "3545-byte packed-state animated-gallery ROM result changed\n";
+$map =~ /ram\s+used=106 bytes .*free=22 bytes .*objects=98 bytes hardware-stack=8 bytes/
+   or die "106-byte packed-state RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
    or die "optimized high-level install_frames code size changed from 232 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
@@ -175,7 +175,7 @@ for my $name (qw(game_player0_y game_player1_y game_ball_y game_player0_graphics
 for my $name (qw(game_workspace game_playfield_position game_object_masks)) {
    add_object($name,$layouts{$name}{start},$layouts{$name}{size},'renderer_state','private_workspace');
 }
-for my $name (qw(sprite0 sprite1 animation_frame animation_clock select_ready pause_animation fire_ready)) {
+for my $name (qw(sprite0 sprite1 animation_state control_flags)) {
    add_object($name,$layouts{$name}{start},$layouts{$name}{size},'persistent_state','gallery_control');
 }
 for my $member (@activation_members) {
@@ -183,7 +183,7 @@ for my $member (@activation_members) {
 }
 my $free_start=$activation_start+$activation_size;
 my $free_size=$stack{start}-$free_start;
-$free_size==19 or die "free RAM gap is $free_size bytes, expected 19\n";
+$free_size==22 or die "free RAM gap is $free_size bytes, expected 22\n";
 add_object('free_ram',$free_start,$free_size,'free_ram','unallocated');
 add_object('hardware_stack',$stack{start},$stack{size},'hardware_stack','return_addresses');
 @objects=sort { $a->{start}<=>$b->{start} || $a->{name} cmp $b->{name} } @objects;
@@ -210,10 +210,10 @@ my $sum=0; $sum+=$_ for values %category_totals;
 $sum==128 or die "classified RAM total is $sum, expected 128\n";
 $category_totals{runtime_scratch}==8 or die "runtime scratch baseline changed\n";
 $category_totals{renderer_state}==85 or die "renderer-state baseline changed\n";
-$category_totals{persistent_state}==7 or die "persistent-state baseline changed\n";
+$category_totals{persistent_state}==4 or die "persistent-state packing result changed\n";
 $category_totals{activation_scratch}==1 or die "phase overlay did not remove VSYNC scratch from main activation\n";
 $category_totals{hardware_stack}==8 or die "hardware-stack baseline changed\n";
-$category_totals{free_ram}==19 or die "free-RAM phase-overlay result changed\n";
+$category_totals{free_ram}==22 or die "free-RAM persistent-packing result changed\n";
 $subcategory_totals{public_state}==13 or die "renderer public-state baseline changed\n";
 $subcategory_totals{private_workspace}==56 or die "renderer private-workspace baseline changed\n";
 $subcategory_totals{mutable_row_colors}==16 or die "mutable color baseline changed\n";
@@ -235,11 +235,11 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>6,
+   schema=>7,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3560, rom_free_bytes=>530,
-      ram_bytes=>109, free_ram_bytes=>19, object_bytes=>101, hardware_stack_bytes=>8,
+      rom_bytes=>3545, rom_free_bytes=>545,
+      ram_bytes=>106, free_ram_bytes=>22, object_bytes=>98, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
    objects=>\@objects,
@@ -291,6 +291,18 @@ my $report={
       removed_literal_zero_padding_bytes=>64, alignment=>256,
       proof=>'sprite_frames_3 contains exactly six four-frame eight-byte sets; explicit align(256) preserves the page-base contract without storing alignment bytes as application data',
    },
+   persistent_bookkeeping=>{
+      baseline_persistent_bytes=>7, persistent_bytes=>4, ram_saved_bytes=>3,
+      baseline_ram_bytes=>109, ram_bytes=>106, baseline_free_ram_bytes=>19, free_ram_bytes=>22,
+      baseline_rom_bytes=>3560, rom_bytes=>3545, rom_saved_bytes=>15,
+      control_flags=>{bytes=>1, select_ready_mask=>1, paused_mask=>2, fire_ready_mask=>4},
+      animation_state=>{bytes=>1, phase_mask=>15, clock_shift=>4, frame_hold=>8},
+      sprite_pair=>{stored_bytes=>2, relation=>'sprite1=sprite0+1'},
+      sprite1_derivation_trial=>{rom_bytes=>3595, ram_bytes=>105, install_frames_bytes=>303,
+         rom_delta_vs_stored=>50, ram_delta_vs_stored=>-1,
+         decision=>'keep sprite1 because the roadmap permits storage when it is measurably smaller in ROM'},
+      proof=>'phase and hold clock share one byte; Select/fire edge latches and pause share one flags byte; source-set-03 keeps independent modulo-3 bits',
+   },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
       hidden=>\@hidden, totals=>\%stack_totals,
@@ -308,4 +320,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 19 free bytes, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 22 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";

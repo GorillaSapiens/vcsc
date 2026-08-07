@@ -33,7 +33,7 @@
             "class" : "activation_scratch",
             "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
             "size" : 1,
-            "start" : 228,
+            "start" : 225,
             "subclass" : "inline_parameter"
          }
       ],
@@ -54,7 +54,7 @@
          "total_saved_from_unshared_baseline" : 12
       },
       "size" : 1,
-      "start" : 228
+      "start" : 225
    },
    "alignment_padding_cleanup" : {
       "alignment" : 256,
@@ -271,51 +271,30 @@
       },
       {
          "class" : "persistent_state",
-         "name" : "animation_frame",
+         "name" : "animation_state",
          "size" : 1,
          "start" : 223,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
-         "name" : "animation_clock",
+         "name" : "control_flags",
          "size" : 1,
          "start" : 224,
-         "subclass" : "gallery_control"
-      },
-      {
-         "class" : "persistent_state",
-         "name" : "select_ready",
-         "size" : 1,
-         "start" : 225,
-         "subclass" : "gallery_control"
-      },
-      {
-         "class" : "persistent_state",
-         "name" : "pause_animation",
-         "size" : 1,
-         "start" : 226,
-         "subclass" : "gallery_control"
-      },
-      {
-         "class" : "persistent_state",
-         "name" : "fire_ready",
-         "size" : 1,
-         "start" : 227,
          "subclass" : "gallery_control"
       },
       {
          "class" : "activation_scratch",
          "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
          "size" : 1,
-         "start" : 228,
+         "start" : 225,
          "subclass" : "inline_parameter"
       },
       {
          "class" : "free_ram",
          "name" : "free_ram",
-         "size" : 19,
-         "start" : 229,
+         "size" : 22,
+         "start" : 226,
          "subclass" : "unallocated"
       },
       {
@@ -326,6 +305,43 @@
          "subclass" : "return_addresses"
       }
    ],
+   "persistent_bookkeeping" : {
+      "animation_state" : {
+         "bytes" : 1,
+         "clock_shift" : 4,
+         "frame_hold" : 8,
+         "phase_mask" : 15
+      },
+      "baseline_free_ram_bytes" : 19,
+      "baseline_persistent_bytes" : 7,
+      "baseline_ram_bytes" : 109,
+      "baseline_rom_bytes" : 3560,
+      "control_flags" : {
+         "bytes" : 1,
+         "fire_ready_mask" : 4,
+         "paused_mask" : 2,
+         "select_ready_mask" : 1
+      },
+      "free_ram_bytes" : 22,
+      "persistent_bytes" : 4,
+      "proof" : "phase and hold clock share one byte; Select/fire edge latches and pause share one flags byte; source-set-03 keeps independent modulo-3 bits",
+      "ram_bytes" : 106,
+      "ram_saved_bytes" : 3,
+      "rom_bytes" : 3545,
+      "rom_saved_bytes" : 15,
+      "sprite1_derivation_trial" : {
+         "decision" : "keep sprite1 because the roadmap permits storage when it is measurably smaller in ROM",
+         "install_frames_bytes" : 303,
+         "ram_bytes" : 105,
+         "ram_delta_vs_stored" : -1,
+         "rom_bytes" : 3595,
+         "rom_delta_vs_stored" : 50
+      },
+      "sprite_pair" : {
+         "relation" : "sprite1=sprite0+1",
+         "stored_bytes" : 2
+      }
+   },
    "phase_overlay" : {
       "baseline_free_ram_bytes" : 18,
       "baseline_ram_bytes" : 110,
@@ -371,32 +387,32 @@
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp"
    ],
-   "schema" : 6,
+   "schema" : 7,
    "totals" : {
       "category_bytes" : {
          "activation_scratch" : 1,
-         "free_ram" : 19,
+         "free_ram" : 22,
          "hardware_stack" : 8,
-         "persistent_state" : 7,
+         "persistent_state" : 4,
          "renderer_state" : 85,
          "runtime_scratch" : 8
       },
-      "free_ram_bytes" : 19,
+      "free_ram_bytes" : 22,
       "hardware_stack_bytes" : 8,
-      "object_bytes" : 101,
-      "ram_bytes" : 109,
-      "rom_bytes" : 3560,
-      "rom_free_bytes" : 530,
+      "object_bytes" : 98,
+      "ram_bytes" : 106,
+      "rom_bytes" : 3545,
+      "rom_free_bytes" : 545,
       "subcategory_bytes" : {
          "argument" : 2,
-         "gallery_control" : 7,
+         "gallery_control" : 4,
          "inline_parameter" : 1,
          "mutable_row_colors" : 16,
          "pointer" : 6,
          "private_workspace" : 56,
          "public_state" : 13,
          "return_addresses" : 8,
-         "unallocated" : 19
+         "unallocated" : 22
       }
    }
 }

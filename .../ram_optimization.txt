@@ -468,7 +468,7 @@ Ordered roadmap
       path so the optimizer never emits a reference to a nonexistent materialized loop
       local.
     * The three-frame animation phase expressions now state their packed-bit meaning
-      directly with `animation_frame & 0x0c` (and the doubled bitmap form) rather than
+      directly with `animation_state & 0x0c` (and the doubled bitmap form) rather than
       obscuring the same value through shift pairs. The full animation oracle still
       proves the independent modulo-3 sequence and all 120 source frames.
 
@@ -666,7 +666,7 @@ Ordered roadmap
       records that the source contract is carried by `.segmentalign` and applies
       to both load and writable runtime placement.
 
-[ ] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
+[x] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
 
     * Derive `sprite1` from `sprite0` unless storing both is measurably smaller in
       ROM or faster within the frame budget.
@@ -676,6 +676,40 @@ Ordered roadmap
     * Keep the source set-03 modulo-3 phase independent from the normal modulo-4
       phase and preserve all controls.
     * Do not move persistent state into undocumented renderer scratch.
+
+    Completed result:
+
+    * Packed Select-ready, Fire-ready, and paused state into one `control_flags`
+      byte. The three one-byte globals therefore become one byte without changing
+      the edge-triggered console controls.
+    * Packed the animation phase and frame-hold clock into one `animation_state`
+      byte. Bits 0..1 remain the normal modulo-4 phase, bits 2..3 remain the
+      independent source-set-03 modulo-3 phase, and the high nibble counts the
+      eight-frame hold interval. The existing sixteen-entry transition table
+      advances both phase fields and clears the hold clock in one assignment.
+    * Measured the `sprite1` derivation trade instead of assuming one RAM byte was
+      automatically worth taking. With the other packing already applied, the
+      stored-selector build is **3545 ROM / 106 RAM** with a 232-byte
+      `install_frames()`. Rebuilding P1 from P0's adjacent-set relation gives
+      **3595 ROM / 105 RAM** and grows `install_frames()` to 303 bytes. The
+      roadmap explicitly permits keeping `sprite1` when storage is measurably
+      smaller in ROM, so the one-byte selector remains persistent.
+    * Persistent gallery bookkeeping falls from seven bytes (`sprite0`, `sprite1`,
+      phase, clock, two edge latches, pause) to four bytes (`sprite0`, `sprite1`,
+      `animation_state`, `control_flags`). No persistent state is moved into
+      renderer scratch or an undocumented phase workspace.
+    * Total gallery RAM falls from **109/128 to 106/128 bytes**, object bytes from
+      101 to 98, and free RAM rises from **19 to 22 bytes**. The hardware-stack
+      reservation remains eight bytes and `main` activation remains one byte.
+      Compact packed-state lowering also reduces ordinary ROM from **3560/4090
+      to 3545/4090 bytes**, leaving **545 bytes free**.
+    * `test/vcs_player_color_192_animation.cpp` now decodes the packed state and
+      still proves all 1,875 automatic gallery frames, exact source pixels/colors,
+      the independent modulo-3 animation, pair wrapping, Select edge behavior,
+      fire pause/resume, and exact 262-line frames. The authoritative RAM fixture
+      is schema 7 and records the measured `sprite1` trade.
+    * Final verification is **455/455 compile-only** and **260/260 end-to-end**
+      tests in bounded batches with no timing/raster oracle changes.
 
 [ ] 7. Reduce hardware-stack reservation by measurement, not by blanket inlining.
 
