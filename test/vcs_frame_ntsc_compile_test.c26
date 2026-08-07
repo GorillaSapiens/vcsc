@@ -4,6 +4,7 @@
 // expectasm: lda #$02
 // expectasm: lda #$03
 // forbidasm: jsr vcs_ntsc_wait_scanlines
+// forbidasm: jsr vcs_ntsc_wait_visible_tail_scanlines
 // forbidasm: jsr vcs_ntsc_vsync
 include "vcs.c26"
 include "frame_ntsc.c26"
@@ -18,5 +19,6 @@ void main(void) {
       + VCS_NTSC_OVERSCAN_SCANLINES
       + VCS_NTSC_FRAME_SCANLINES;
    vcs_ntsc_wait_scanlines(1);
+   vcs_ntsc_wait_visible_tail_scanlines(1);
    vcs_ntsc_vsync();
 }

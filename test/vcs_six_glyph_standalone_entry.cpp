@@ -199,20 +199,6 @@ void require_address_event(const std::vector<Event> &events, uint64_t line,
 } // namespace
 
 void require_component_entry(const std::vector<Event> &events, uint64_t line) {
-   require_event(events, line - 1, 57, kNusiz0, 0x03, "NUSIZ0");
-   require_event(events, line - 1, 60, kNusiz1, 0x03, "NUSIZ1");
-   require_event(events, line - 1, 65, kColup0, 0x0E, "COLUP0");
-   require_event(events, line - 1, 68, kColup1, 0x0E, "COLUP1");
-   require_event(events, line - 1, 71, kHmclr, 0x0E, "HMCLR");
-   require_event(events, line, 0, kHmp0, 0x80, "HMP0");
-   require_event(events, line, 5, kHmp1, 0x90, "HMP1");
-   require_event(events, line, 10, kResp0, 0x90, "RESP0");
-   require_event(events, line, 13, kResp1, 0x90, "RESP1");
-   require_event(events, line, 71, kHmove, 0x90, "HMOVE");
-}
-
-void require_component_entry_at_cycle_zero(const std::vector<Event> &events,
-                                           uint64_t line) {
    require_event(events, line, 0, kNusiz0, 0x03, "NUSIZ0");
    require_event(events, line, 3, kNusiz1, 0x03, "NUSIZ1");
    require_event(events, line, 8, kColup0, 0x0E, "COLUP0");
@@ -223,36 +209,6 @@ void require_component_entry_at_cycle_zero(const std::vector<Event> &events,
    require_event(events, line, 29, kResp0, 0x90, "RESP0");
    require_event(events, line, 32, kResp1, 0x90, "RESP1");
    require_event(events, line, 71, kHmove, 0x90, "HMOVE");
-}
-
-void require_fingerprint_center_component_entry(const std::vector<Event> &events) {
-   require_event(events, 130, 57, kNusiz0, 0x03, "center NUSIZ0");
-   require_event(events, 130, 60, kNusiz1, 0x03, "center NUSIZ1");
-   require_event(events, 130, 65, kColup0, 0x0E, "center COLUP0");
-   require_event(events, 130, 68, kColup1, 0x0E, "center COLUP1");
-   require_event(events, 130, 71, kHmclr, 0x0E, "center HMCLR");
-   require_event(events, 131, 0, kHmp0, 0x80, "center HMP0");
-   require_event(events, 131, 5, kHmp1, 0x90, "center HMP1");
-   require_event(events, 131, 10, kResp0, 0x90, "center RESP0");
-   require_event(events, 131, 13, kResp1, 0x90, "center RESP1");
-   require_event(events, 131, 71, kHmove, 0x90, "center HMOVE");
-}
-
-void require_fingerprint_left_component_entry(const std::vector<Event> &events) {
-   require_event(events, 220, 57, kNusiz0, 0x03, "left NUSIZ0");
-   require_event(events, 220, 60, kNusiz1, 0x03, "left NUSIZ1");
-   require_event(events, 220, 67, kResp0, 0x03, "left RESP0");
-   require_event(events, 220, 70, kResp1, 0x03, "left RESP1");
-   require_event(events, 221, 0, kColup0, 0x0E, "left COLUP0");
-   require_event(events, 221, 3, kColup1, 0x0E, "left COLUP1");
-   require_event(events, 221, 6, kHmclr, 0x0E, "left HMCLR");
-   require_event(events, 221, 11, kHmp0, 0x30, "left HMP0");
-   require_event(events, 221, 16, kHmp1, 0xB0, "left HMP1");
-   require_event(events, 221, 71, kHmove, 0xB0, "left HMOVE");
-   require_address_event(events, 223, 18, 0x001C, "left glyph 4");
-   require_address_event(events, 223, 21, 0x001B, "left glyph 5");
-   require_address_event(events, 223, 24, 0x001C, "left glyph 6");
-   require_address_event(events, 223, 27, 0x001B, "left delayed flush");
 }
 
 void require_right_component_entry(const std::vector<Event> &events, uint64_t line) {
@@ -272,6 +228,22 @@ void require_right_component_entry(const std::vector<Event> &events, uint64_t li
    require_address_event(events, line + 2, 64, 0x001B, "right delayed flush");
 }
 
+void require_left_component_entry(const std::vector<Event> &events, uint64_t line) {
+   require_event(events, line, 0, kNusiz0, 0x03, "left NUSIZ0");
+   require_event(events, line, 3, kNusiz1, 0x03, "left NUSIZ1");
+   require_event(events, line, 10, kResp0, 0x03, "left RESP0");
+   require_event(events, line, 13, kResp1, 0x03, "left RESP1");
+   require_event(events, line, 19, kColup0, 0x0E, "left COLUP0");
+   require_event(events, line, 22, kColup1, 0x0E, "left COLUP1");
+   require_event(events, line, 25, kHmclr, 0x0E, "left HMCLR");
+   require_event(events, line, 30, kHmp0, 0x30, "left HMP0");
+   require_event(events, line, 35, kHmp1, 0xB0, "left HMP1");
+   require_event(events, line, 71, kHmove, 0xB0, "left HMOVE");
+   require_address_event(events, line + 2, 18, 0x001C, "left glyph 4");
+   require_address_event(events, line + 2, 21, 0x001B, "left glyph 5");
+   require_address_event(events, line + 2, 24, 0x001C, "left glyph 6");
+   require_address_event(events, line + 2, 27, 0x001B, "left delayed flush");
+}
 
 int main(int argc, char **argv) {
    if (argc != 2 && argc != 3 && argc != 4) {
@@ -283,9 +255,9 @@ int main(int argc, char **argv) {
    const std::vector<Event> &events = machine.events();
    if (argc == 3 && std::strcmp(argv[2], "fingerprint") == 0) {
       require_right_component_entry(events, 40);
-      require_fingerprint_center_component_entry(events);
-      require_fingerprint_left_component_entry(events);
-      std::printf("vcs_six_glyph_standalone_entry ok: right 40:00, centered 130:57, left 220:57 entries and 262-line frames\n");
+      require_component_entry(events, 131);
+      require_left_component_entry(events, 221);
+      std::printf("vcs_six_glyph_standalone_entry ok: right 40, centered 131, left 221 entries and 262-line frames\n");
       return 0;
    }
 
@@ -316,7 +288,7 @@ int main(int argc, char **argv) {
 
    require_component_entry(events, first);
    if (second) {
-      require_component_entry_at_cycle_zero(events, second);
+      require_component_entry(events, second);
       std::printf("vcs_six_glyph_standalone_entry ok: calibrated lines %lu and %lu entries and 262-line frames\n", first, second);
    }
    else {

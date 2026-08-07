@@ -133,7 +133,7 @@ require_re($source,qr/frame_counter\s*==\s*SCORE_PERIOD.*?score_score\+\+/s,
            'score fixture no longer increments packed BCD every 20 frames');
 require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?score_vblank\(\).*?vcs_ntsc_end_vblank\(\)/s,
            'score vblank lifecycle is not inside the scheduler-owned budget');
-require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?score_draw\(\).*?vcs_ntsc_wait_scanlines\(90\)/s,
+require_re($source,qr/vcs_ntsc_wait_component_scanlines\(91\).*?score_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(90\)/s,
            'score fixture lost legacy absolute visible-line placement');
 require_re($source,qr/vcs_ntsc_begin_overscan\(\).*?score_overscan\(\).*?vcs_ntsc_end_overscan\(\)/s,
            'score overscan lifecycle is not inside the scheduler-owned budget');
@@ -153,7 +153,7 @@ require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
 my $generated=read_file($asm);
 $generated !~ /\bjsr\s+score_(?:init|vblank|draw|overscan)\b/
    or die "score lifecycle unexpectedly emitted callable boundaries\n";
-require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
+require_re($generated,qr/ldy #11\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+nop\s+nop\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
            'component per-draw horizontal positioning sequence changed');

@@ -17,7 +17,9 @@ All renderer code, the playfield, sprite graphics, score table, and other
 beam-critical ROM remain in startup `bank0`. The strong
 `vcs_standard_overscan_hook()` and real game logic live in `bank1`. The renderer
 calls that hook only after asserting `VBLANK`; the generated cross-bank JSR
-restores bank0 before the next frame begins.
+restores bank0 before the next frame begins. On its first call the hook changes
+the score from `123456` to `654321` and records that it ran, so the visible score
+then remains at `654321` by design.
 
 The test suite privately compiles this exact source against F6 and F4, compares
 all three banked rasters with an unbanked 4K reference, and builds an F8SC variant

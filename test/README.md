@@ -412,6 +412,13 @@ each family's blank row/column cell contract, the compact three-line CC0
 headers, the complete tree-wide `libraries/LICENSE.txt`, and byte-identical logo glyph
 pixels.
 
+`vcs_six_glyph_wide_stella.pl` is the independent Stella 7.0 guard for the
+standalone wide-score visible tail. It compares raw RGB pixels against the
+reviewed reference image, specifically catching an overscan VBLANK assertion
+that moves into the last visible scanline. The six-glyph phase harnesses retain
+the historical cycle-3 component-entry contract; optimizer-induced phase shifts
+must be fixed in the timing helper rather than blessed by changing the oracle.
+
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,

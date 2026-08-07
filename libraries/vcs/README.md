@@ -125,7 +125,10 @@ void main(void) {
    /* The first component enters at the canonical measured phase. Between
       adjacent visible components call vcs_ntsc_component_handoff(). For a
       blank gap immediately before a component, use
-      vcs_ntsc_wait_component_scanlines() instead of the generic WSYNC loop. */
+      vcs_ntsc_wait_component_scanlines() instead of the generic WSYNC loop.
+      If the visible composition ends with blank scanlines, use
+      vcs_ntsc_wait_visible_tail_scanlines() for that final gap before
+      vcs_ntsc_begin_overscan(). */
    /* Draw exactly VCS_NTSC_VISIBLE_SCANLINES here. */
 
    vcs_ntsc_begin_overscan();
@@ -134,6 +137,14 @@ void main(void) {
 }
 ```
 
+
+`vcs_ntsc_wait_scanlines()` promises only a count of WSYNC boundaries; its
+post-WSYNC return cycle is deliberately not part of the API.
+`vcs_ntsc_wait_component_scanlines()` has a calibrated cycle-3 entry contract
+for a following visible component. `vcs_ntsc_wait_visible_tail_scanlines()` has
+a separate calibrated return contract for the final blank visible tail before
+asserting overscan VBLANK. Keeping those contracts explicit prevents ordinary
+compiler lowering improvements from silently moving beam-sensitive work.
 
 `vcs_ntsc_begin_vblank()` and `vcs_ntsc_begin_overscan()` assert VBLANK and
 start scheduler-owned TIM64T deadlines. Their matching end operations wait only

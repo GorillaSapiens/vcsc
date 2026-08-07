@@ -38,7 +38,7 @@ void main(void) {
       // component consumes eleven scanlines, leaving 91 above and 90 below.
       vcs_ntsc_wait_component_scanlines(91);
       score_draw();
-      vcs_ntsc_wait_scanlines(90);
+      vcs_ntsc_wait_visible_tail_scanlines(90);
 
       vcs_ntsc_begin_overscan();
       frame_counter++;

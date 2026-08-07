@@ -262,7 +262,10 @@ F8SC profiles. The renderer and beam-critical data stay in startup bank0; a real
 overscan/game hook runs in bank1 only while VBLANK is asserted and returns to
 bank0 before the next frame-critical phase. The last certified implementation
 uses one 37-cycle cross-bank round trip per frame, produces an exact 20140-cycle
-frame, and preserves visible raster identity across profiles. Detailed measured
+frame, and preserves visible raster identity across profiles. Its bank1 overscan
+hook intentionally changes the initial score from `123456` to `654321` on the
+first frame and then leaves it there; the resulting static reversed-looking
+score is a diagnostic behavior, not a renderer regression. Detailed measured
 bytes and acceptance tests are in `.../bankswitching.txt`, item 28.
 
 Testing policy and last verified baseline
@@ -286,11 +289,14 @@ because the container imposes a hard wall-clock limit on one monolithic command;
 every listed case ran and passed. Exact raster, event-trace, frame-length,
 bankswitching, installed-profile, and source-hygiene coverage remain active.
 
-The compact unsigned-byte lowering shortens ordinary scheduler wait bookkeeping
-by nineteen cycles in several fixtures. Their phase contracts now pin the
-measured previous-line cycle-57 setup where applicable, while independent
-terminal-WSYNC, HMOVE, exact score/player-pixel, and 262-line frame checks remain
-unchanged. This is a code-size/timing consequence, not a relaxed visual oracle.
+Compact unsigned-byte lowering shortened the compiler-generated tail after a
+final WSYNC by nineteen cycles. Generic `vcs_ntsc_wait_scanlines()` intentionally
+keeps that compact, uncalibrated return phase. Beam-sensitive helpers do not rely
+on it: `vcs_ntsc_wait_component_scanlines()` explicitly preserves the established
+cycle-3 component entry, and `vcs_ntsc_wait_visible_tail_scanlines()` preserves
+the established final-visible-tail phase before overscan. Exact historical phase
+and Stella raster oracles remain authoritative; do not recalibrate them merely
+because compiler lowering gets shorter.
 
 Important active constraints and open questions
 -----------------------------------------------
@@ -326,9 +332,11 @@ leaving 18 bytes free. ROM is 3662/4090 bytes, leaving 428 bytes free. Relative
 to the item-2 baseline, item 3 saves five RAM bytes and 331 ROM bytes.
 
 The completed compiler change passes all 439 compile-only tests and all 254
-end-to-end tests. Timing-sensitive fixtures explicitly retain exact pixel,
-terminal-WSYNC, HMOVE, and frame-length oracles despite the nineteen-cycle
-non-visible setup shift produced by shorter ordinary wait code.
+end-to-end tests. A post-item-3 regression repair restored the public basic
+score/fingerprint/wide-score timing after the shorter byte loop exposed their
+implicit nineteen-cycle dependency. Timing-sensitive fixtures retain the
+historical component-entry phases, exact Stella pixels, terminal-WSYNC, HMOVE,
+and frame-length oracles.
 
 The next RAM-optimization item is 4: rewrite `install_frames()` as ordinary VCSC
 while establishing the project-wide minimal-assembly example policy. Add only

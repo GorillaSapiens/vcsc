@@ -226,7 +226,7 @@ $arr_count==4 or die "generated assembly has $arr_count named ARR probes, expect
 $generated !~ /\bjsr\s+(?:display|upper_logo|lower_logo)_(?:init|vblank|draw|overscan)\b/
    or die "display lifecycle unexpectedly emitted callable boundaries
 ";
-require_re($generated,qr/ldy #8\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
+require_re($generated,qr/ldy #11\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+nop\s+nop\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
 require_re($generated,qr/begin inline expansion upper_logo_draw.*?lda #\$c0\s+sta \$20\s+lda #\$d0\s+sta \$21(?:\s+nop){11}\s+sta \$10\s+sta \$11/s,
            'right-justified component positioning sequence changed');
@@ -279,7 +279,7 @@ die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $er
 ($exit,$sig,$out,$err)=run_capture($entry_exe,$bin,'fingerprint');
 die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
 require_re($out,
-   qr/^vcs_six_glyph_standalone_entry ok: right 40:00, centered 130:57, left 220:57 entries and 262-line frames\n$/,
+   qr/^vcs_six_glyph_standalone_entry ok: right 40, centered 131, left 221 entries and 262-line frames\n$/,
    'fingerprint and both logos did not enter at their calibrated phases');
 $err eq '' or die "standalone-entry harness stderr: $err";
 

@@ -30,6 +30,25 @@ inline void vcs_ntsc_wait_scanlines(uint8_t scanlines) {
    }
 }
 
+// Draw a blank visible tail and return at the established phase used before
+// entering overscan.  Unlike vcs_ntsc_wait_scanlines(), this helper has a
+// phase contract: compact uint8_t lowering removed nineteen cycles of generic
+// loop-exit bookkeeping, so the calibrated tail makes those cycles explicit.
+// Use this only for the final visible blank gap immediately before
+// vcs_ntsc_begin_overscan().
+inline void vcs_ntsc_wait_visible_tail_scanlines(uint8_t scanlines) {
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+
+   asm ldy #3;
+   asm @return_delay:;
+   asm dey;
+   asm bne.same @return_delay;
+   asm bit.z CXM0P;
+}
+
 // Draw a blank visible gap and enter the following component at the same
 // measured phase as the first component after vcs_ntsc_end_vblank(). The
 // count must be at least two. The controlled tail completes the final blank
@@ -41,13 +60,18 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
       scanlines--;
    }
 
-   // The 41-cycle loop plus a harmless documented three-cycle collision
-   // register read completes the calibrated tail. The following component
-   // may assume ordinary condition flags are unspecified at entry.
-   asm ldy #8;
+   // Compact uint8_t lowering leaves the final WSYNC loop 19 cycles earlier
+   // than the historical generic lowering used when this helper was first
+   // calibrated.  Make that phase compensation explicit here: the 56-cycle
+   // delay loop, two NOPs, and harmless three-cycle collision-register read
+   // complete a 63-cycle tail and preserve the documented cycle-3 component
+   // entry independent of generic expression scratch.
+   asm ldy #11;
    asm @delay:;
    asm dey;
    asm bne.same @delay;
+   asm nop;
+   asm nop;
    asm bit.z CXM0P;
 }
 

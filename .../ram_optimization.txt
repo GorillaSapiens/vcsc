@@ -340,11 +340,20 @@ Ordered roadmap
       RAM fell from 115 to 110 bytes, free RAM rose from 13 to 18 bytes, and ROM
       fell from 3993 to 3662 bytes. The authoritative accounting fixture is now
       schema 3 and records the five-byte RAM and 331-byte ROM item-3 deltas.
-    * Shorter ordinary scheduler wait code moved some non-visible component setup
-      writes nineteen cycles earlier. Exact phase fixtures were recalibrated to
-      the measured previous-line cycle-57 entry where applicable; terminal
-      WSYNC, HMOVE, exact score/player pixels, and 262-line frame contracts remain
-      independently checked.
+    * Compact lowering exposed an accidental timing dependency in the shared
+      frame helpers: the old generic byte loop happened to spend nineteen extra
+      cycles after its final WSYNC. The first item-3 pass incorrectly changed
+      phase fixtures to bless that shift, and the public basic score, fingerprint,
+      and wide-score cartridges regressed on real Stella output. The correction
+      restores the established cycle-3 visible-component entry with an explicit
+      calibrated tail in `vcs_ntsc_wait_component_scanlines()` and adds
+      `vcs_ntsc_wait_visible_tail_scanlines()` for a final blank visible gap before
+      overscan. Generic `vcs_ntsc_wait_scanlines()` keeps the compact lowering and
+      deliberately has no return-cycle contract.
+    * The original exact phase and reviewed Stella raster oracles are retained;
+      optimizer-induced beam shifts are fixed in the helper rather than accepted
+      by moving the oracle. Gallery accounting remains 110/128 RAM and 3662/4090
+      ROM because the gallery does not use these score-gap helpers.
     * Final verification: 439 compile-only tests and 254 end-to-end tests pass.
 
 [ ] 4. Make `install_frames()` ordinary VCSC and establish a minimal-assembly

@@ -392,3 +392,33 @@ Documentation:
 -----------------------
 Advanced test/source_tree_hygiene.pl to require RAM items 0-3 complete and item
 4 active. The clean-tree hygiene gate passes after the documentation update.
+
+2026-08-06 22:28:24 PDT, repair item-3 frame-timing regressions
+------------------------------------------------------------
+User-side Stella testing exposed that the first item-3 timing adjustment had
+mistakenly changed timing oracles instead of preserving the established beam
+contract. Compact uint8_t lowering removed nineteen cycles that the old generic
+loop happened to spend after its final WSYNC. That shifted centered/left score
+component setup and made the basic score/wide-score visible tail enter overscan
+at the wrong phase.
+
+Restored the historical cycle-3 six-glyph component entry with an explicit
+nineteen-cycle compensation in vcs_ntsc_wait_component_scanlines(). Kept the
+generic vcs_ntsc_wait_scanlines() compact and explicitly uncalibrated so VSYNC
+and otherwise-correct renderer scheduling do not inherit a bogus global delay.
+Added vcs_ntsc_wait_visible_tail_scanlines() for the final blank visible gap
+before overscan; the basic centered and wide-score examples use it. Restored the
+old phase oracles instead of accepting previous-line cycle-57 setup, and the
+wide-score Stella 7.0 RGB image again matches the reviewed reference exactly.
+The fingerprint and full score-composition oracles also pass.
+
+The standard banked-renderer example was checked against the pre-item-3 source
+and is unchanged: its first bank1 overscan hook intentionally changes score
+123456 to 654321 once and then leaves it static. Documented that diagnostic
+behavior in the example README and compact context.
+
+The animated-gallery item-3 accounting remains 110/128 RIOT RAM with 18 bytes
+free and 3662/4090 ROM with 428 bytes free. Full verification retains 439
+compile-only and 254 end-to-end cases; the e2e inventory is executed in bounded
+ordered batches because the monolithic runner exceeds the container wall-clock
+limit.
