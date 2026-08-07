@@ -19,7 +19,10 @@ graphics. Color tables are immutable by default. An application that defines the
 object-like alias `VCS_PLAYER_COLOR_192_MUTABLE_COLORS` before instantiation may
 instead supply mutable `INSTANCE_player0_colors[8]` and
 `INSTANCE_player1_colors[8]` RAM objects. It must initialize or update them
-outside `draw()` and leave them unchanged throughout the visible region.
+outside `draw()` and leave them unchanged throughout the visible region. In
+that mutable-color mode, the steady two-line path holds each pending P0 color in
+workspace until GRP1 transfers the matching VDELP0 bitmap. This prevents a
+newly installed row color from leading its delayed graphics by one scanline.
 
 The component owns exactly 192 visible lines:
 twelve playfield rows of sixteen scanlines each. It cannot be combined with an

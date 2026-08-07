@@ -42,8 +42,9 @@ struct Addresses {
    uint8_t pause_animation, select_ready, fire_ready, object_x;
    uint8_t p0_pointer, p1_pointer;
    std::array<uint16_t,4> frame_pages{};
+   std::array<uint16_t,2> color_pages{};
    uint16_t p0_colors=0, p1_colors=0;
-   uint16_t p0_palette=0, p1_palette=0;
+   uint16_t pico8_palette=0;
 };
 struct Write { uint16_t address; uint8_t value; };
 struct TimedWrite { uint64_t line, cycle, beam_cycle; uint16_t address; uint8_t value; };
@@ -182,10 +183,6 @@ bool player_pixel(uint8_t graphics,uint8_t nusiz,uint8_t refp,unsigned origin,un
 uint8_t source_row(uint16_t pointer,int row) {
    return memory_image[static_cast<uint16_t>(pointer+7-row)];
 }
-bool color_in_table(const std::array<uint8_t,8> &table,uint8_t value) {
-   for (uint8_t color:table) if (color==value) return true;
-   return false;
-}
 void verify_pixels(const Capture &c,size_t index) {
    const uint64_t phase=c.writes.empty()?0:
       (c.writes.front().beam_cycle+kCyclesPerLine-c.writes.front().cycle)%kCyclesPerLine;
@@ -206,7 +203,7 @@ void verify_pixels(const Capture &c,size_t index) {
          const uint64_t color_clock=68+x;
          while (event<events.size() && events[event].beam_cycle*3<=color_clock) apply(state,events[event++]);
          if (line<39) continue;
-         const int row0=(line>=146 && line<162)?(line-146)/2:-1;
+         const int row0=(line>=136 && line<152)?(line-136)/2:-1;
          const int row1=(line>=116 && line<132)?(line-116)/2:-1;
          const uint8_t want0=row0>=0?source_row(c.p0_pointer,row0):0;
          const uint8_t want1=row1>=0?source_row(c.p1_pointer,row1):0;
@@ -219,10 +216,10 @@ void verify_pixels(const Capture &c,size_t index) {
                          index,line,x,actual0,expected0,actual1,expected1);
             std::exit(1);
          }
-         if (expected0 && !color_in_table(c.p0_colors,state.colup0))
-            fail("P0 used a color outside its rotated row-color table");
-         if (expected1 && !color_in_table(c.p1_colors,state.colup1))
-            fail("P1 used a color outside its rotated row-color table");
+         if (expected0 && state.colup0!=c.p0_colors[static_cast<size_t>(7-row0)])
+            fail("P0 scanline color does not match its source-derived row color");
+         if (expected1 && state.colup1!=c.p1_colors[static_cast<size_t>(7-row1)])
+            fail("P1 scanline color does not match its source-derived row color");
          checked+=2;
       }
       while (event<events.size()) apply(state,events[event++]);
@@ -234,39 +231,55 @@ uint16_t frame_pointer(uint8_t sprite,uint8_t animation_frame) {
    const uint16_t page=address.frame_pages[sprite/8];
    return static_cast<uint16_t>(page+(sprite&7)*32+animation_frame*8);
 }
-unsigned transparent_top_rows(uint16_t pointer) {
-   unsigned rows=0;
-   while (rows<8 && source_row(pointer,static_cast<int>(rows))==0) ++rows;
-   return rows;
+uint16_t row_color_pointer(uint8_t sprite,uint8_t frame) {
+   if (sprite>=30 || frame>=4) fail("invalid row-color selector");
+   const uint16_t page=address.color_pages[sprite/16];
+   return static_cast<uint16_t>(page+(sprite&15)*16+frame*4);
 }
-void verify_color_rotation(const Capture &c) {
-   const unsigned shift0=transparent_top_rows(c.p0_pointer)&7;
-   const unsigned shift1=transparent_top_rows(c.p1_pointer)&7;
-   for (unsigned i=0;i<8;++i) {
-      const uint8_t want0=memory_image[static_cast<uint16_t>(address.p0_palette+((i+shift0)&7))];
-      const uint8_t want1=memory_image[static_cast<uint16_t>(address.p1_palette+((i+shift1)&7))];
-      if (c.p0_colors[i]!=want0) fail("P0 color table did not rotate with transparent top rows");
-      if (c.p1_colors[i]!=want1) fail("P1 color table did not rotate with transparent top rows");
+void verify_source_row_colors(const Capture &c) {
+   const uint8_t frame0=static_cast<uint8_t>(c.animation_frame&3);
+   const uint8_t frame1=c.sprite1==3
+      ? static_cast<uint8_t>((c.animation_frame>>2)&3)
+      : static_cast<uint8_t>(c.animation_frame&3);
+   const std::array<uint16_t,2> pointers{{
+      row_color_pointer(c.sprite0,frame0),
+      row_color_pointer(c.sprite1,frame1)
+   }};
+   const std::array<std::array<uint8_t,8>,2> actual{{c.p0_colors,c.p1_colors}};
+   for (size_t player=0;player<2;++player) {
+      std::array<uint8_t,8> expected{};
+      for (size_t pair=0;pair<4;++pair) {
+         const uint8_t packed=memory_image[static_cast<uint16_t>(pointers[player]+pair)];
+         expected[pair*2]=memory_image[static_cast<uint16_t>(address.pico8_palette+(packed&15))];
+         expected[pair*2+1]=memory_image[static_cast<uint16_t>(address.pico8_palette+(packed>>4))];
+      }
+      if (actual[player]!=expected)
+         fail(std::string(player==0?"P0":"P1")+" color table does not match the selected source frame");
    }
 }
 void verify_state(const Capture &c,size_t f) {
-   const uint8_t position=static_cast<uint8_t>(f%160);
-   const uint8_t pair=static_cast<uint8_t>(((f/160)*2)%30);
-   const uint8_t anim=static_cast<uint8_t>((position/8)%4);
-   if (c.sprite0!=pair || c.sprite1!=pair+1 || c.animation_frame!=anim ||
-       c.animation_clock!=position%8 || c.player0_x!=position || c.player1_x!=position)
+   const uint8_t step=static_cast<uint8_t>(f%125);
+   const uint8_t position=static_cast<uint8_t>(16+step);
+   const uint8_t pair=static_cast<uint8_t>(((f/125)*2)%30);
+   const uint8_t anim=static_cast<uint8_t>((step/8)%4);
+   const uint8_t anim3=static_cast<uint8_t>((step/8)%3);
+   const uint8_t packed=static_cast<uint8_t>(anim | (anim3<<2));
+   if (c.sprite0!=pair || c.sprite1!=pair+1 || c.animation_frame!=packed ||
+       c.animation_clock!=position%8 ||
+       c.player0_x!=position || c.player1_x!=position)
       fail("automatic moving-animation sequence mismatch at frame "+std::to_string(f));
-   const uint16_t want0=frame_pointer(c.sprite0,c.animation_frame);
-   const uint16_t want1=frame_pointer(c.sprite1,c.animation_frame);
+   const uint16_t want0=frame_pointer(c.sprite0,c.animation_frame&3);
+   const uint8_t p1_frame=c.sprite1==3?static_cast<uint8_t>((c.animation_frame>>2)&3):static_cast<uint8_t>(c.animation_frame&3);
+   const uint16_t want1=frame_pointer(c.sprite1,p1_frame);
    if (c.p0_pointer!=want0 || c.p1_pointer!=want1) fail("graphics pointer sequence mismatch");
-   verify_color_rotation(c);
+   verify_source_row_colors(c);
    if (c.pause) fail("gallery unexpectedly paused");
 }
 } // namespace
 
 int main(int argc,char **argv) {
-   if (argc!=20) {
-      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames0 frames1 frames2 frames3 p0colors p1colors p0palette p1palette\n",argv[0]);
+   if (argc!=21) {
+      std::fprintf(stderr,"usage: %s ROM sprite0 sprite1 packed_frame clock pause select_ready fire_ready object_x p0ptr p1ptr frames0 frames1 frames2 frames3 colors0 colors1 p0colors p1colors pico8palette\n",argv[0]);
       return 2;
    }
    address.sprite0=parse_number(argv[2],255); address.sprite1=parse_number(argv[3],255);
@@ -276,10 +289,11 @@ int main(int argc,char **argv) {
    address.p0_pointer=parse_number(argv[10],254); address.p1_pointer=parse_number(argv[11],254);
    for (size_t i=0;i<address.frame_pages.size();++i)
       address.frame_pages[i]=parse_number(argv[12+i],65535);
-   address.p0_colors=parse_number(argv[16],65535);
-   address.p1_colors=parse_number(argv[17],65535);
-   address.p0_palette=parse_number(argv[18],65535);
-   address.p1_palette=parse_number(argv[19],65535);
+   for (size_t i=0;i<address.color_pages.size();++i)
+      address.color_pages[i]=parse_number(argv[16+i],65535);
+   address.p0_colors=parse_number(argv[18],65535);
+   address.p1_colors=parse_number(argv[19],65535);
+   address.pico8_palette=parse_number(argv[20],65535);
 
    std::memset(memory_image,0,sizeof(memory_image));
    memory_image[0x0280]=0xff;
@@ -291,15 +305,15 @@ int main(int argc,char **argv) {
    mos6502 cpu(read_bus,write_bus,clock_cycle);
    cpu.Reset();
 
-   constexpr size_t kAutomaticFrames=15*160;
+   constexpr size_t kAutomaticFrames=15*125;
    run_until_frames(cpu,kAutomaticFrames+1);
    for (size_t f=0;f<kAutomaticFrames;++f) {
       if (f>=2 && frames[f].period!=262*kCyclesPerLine) fail("frame is not exactly 262 lines");
       verify_state(frames[f],f);
-      if (f>=8 && ((f%8)==0 || (f%160)==159)) verify_pixels(frames[f],f);
+      if (f>=8 && ((f%8)==0 || (f%125)==124)) verify_pixels(frames[f],f);
    }
    if (frames[kAutomaticFrames].sprite0!=0 || frames[kAutomaticFrames].sprite1!=1 ||
-       frames[kAutomaticFrames].player0_x!=0 || frames[kAutomaticFrames].player1_x!=0)
+       frames[kAutomaticFrames].player0_x!=16 || frames[kAutomaticFrames].player1_x!=16)
       fail("automatic gallery did not wrap all fifteen pairs back to the first pair");
 
    size_t next=kAutomaticFrames+1;
@@ -308,12 +322,12 @@ int main(int argc,char **argv) {
    swchb=0xfd;
    run_until_frames(cpu,next+1);
    if (frames[next].sprite0!=2 || frames[next].sprite1!=3 || frames[next].animation_frame!=0 ||
-       frames[next].player0_x!=0 || frames[next].player1_x!=0)
+       frames[next].player0_x!=16 || frames[next].player1_x!=16)
       fail("Game Select did not advance one pair at the left edge");
    ++next;
    run_until_frames(cpu,next+1);
    if (frames[next].sprite0!=2 || frames[next].sprite1!=3 ||
-       frames[next].player0_x!=1 || frames[next].player1_x!=1)
+       frames[next].player0_x!=17 || frames[next].player1_x!=17)
       fail("held Game Select autorepeated or stopped motion");
    ++next;
    swchb=0xff;
@@ -322,7 +336,7 @@ int main(int argc,char **argv) {
    swchb=0xfd;
    run_until_frames(cpu,next+1);
    if (frames[next].sprite0!=4 || frames[next].sprite1!=5 ||
-       frames[next].player0_x!=0 || frames[next].player1_x!=0)
+       frames[next].player0_x!=16 || frames[next].player1_x!=16)
       fail("second Game Select press did not advance at the left edge");
    ++next;
    swchb=0xff;
@@ -338,7 +352,8 @@ int main(int argc,char **argv) {
    run_until_frames(cpu,next+8);
    for (size_t f=next;f<next+8;++f)
       if (!frames[f].pause || frames[f].animation_frame!=paused_frame ||
-          frames[f].animation_clock!=paused_clock || frames[f].player0_x!=paused_x ||
+          frames[f].animation_clock!=paused_clock ||
+          frames[f].player0_x!=paused_x ||
           frames[f].player1_x!=paused_x)
          fail("paused animation moved or held fire retriggered");
    next+=8;
@@ -349,6 +364,6 @@ int main(int argc,char **argv) {
    run_until_frames(cpu,next+1);
    if (frames[next].pause) fail("second left-fire press did not resume animation");
 
-   std::puts("vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, preserve exact source pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls");
+   std::puts("vcs_player_color_192_animation ok: 29 four-frame animations use modulo-4 playback while source set 03 independently uses modulo-3 playback, preserve exact source pixels without displaying blank sprite 16, use source-derived row colors that move with each original frame, wrap at X=16, keep 262-line frames, and retain pair selection and pause controls");
    return 0;
 }

@@ -182,10 +182,19 @@ Renderer and example state
   covers the complete subexample under CC BY-NC-SA 4.0 and preserves Quick's
   attribution. The compiler, linker, tests, and build/tooling code outside those
   trees remain under the top-level GPL.
-* The animated-sprite example uses the original 30 attributed four-frame sets
-  derived from Quick's PICO-8 Free 8x8 Sprites cartridge. Preserve its local
-  license and attribution, four hard pages, 960-byte art occupancy, controls,
-  palette behavior, 192-line renderer, and 262-line frame contract.
+* The animated-sprite example uses 29 attributed four-frame sets and the
+  source's sole three-frame set from Quick's PICO-8 Free 8x8 Sprites cartridge.
+  Blank source sprite 16 remains pixel-exact in the table. Set 03 uses a dedicated
+  modulo-3 phase packed beside the normal modulo-4 phase in the existing frame
+  byte, and plays 13,14,15 without selecting the blank slot. Preserve its local
+  license and attribution, four hard pages, exact 960-byte art occupancy, and
+  480-byte packed source-row color table. Each source row chooses its dominant
+  nontransparent PICO-8 color with deterministic center/lower-index tie breaks,
+  then maps it to the nearest NTSC TIA color. The selected frame expands into
+  mutable eight-byte player color tables so colors bob with the source artwork.
+  The gallery uses the renderer's mutable P0 delayed-color path, P0 Y=55, and the
+  color-safe X=16..140 interval; it completes all 15 pairs in 1,875 frames while
+  retaining controls, the 192-line renderer, and exact 262-line frames.
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
   Each of the eight families has decimal, hexadecimal, and printable-ASCII
@@ -277,10 +286,16 @@ uncompleted test was the unrelated long-running
 without reporting a failure.
 
 The animated-artwork restoration again completed all 438 compile-only tests. A
-monolithic e2e run reached 102 passing tests before the command time ceiling;
-the affected animation emulator/original-pixel hash, recursive example build,
-branding, and source-tree licensing/hygiene checks all pass. The local
-CC BY-NC-SA exception is therefore tested without claiming a new full 251-test
+monolithic e2e run reached 102 passing tests before the command time ceiling.
+The subsequent set-03 correction restored blank source sprite 16 and packed an
+independent modulo-3 phase beside the ordinary modulo-4 phase with no extra RAM.
+The later color restoration retains one original PICO-8 palette index per source
+row, packs those 960 nibbles into 480 ROM bytes, and expands the selected rows to
+mutable TIA color tables. The mutable renderer path now delays steady-state P0
+colors with VDELP0 graphics. The gallery uses P0 Y=55 and X=16..140 so every
+sampled player pixel receives its selected source-row color. The affected
+1,875-frame animation emulator, exact art/color hashes, player-color renderer,
+and recursive example checks pass; this does not claim a new full 251-test
 baseline.
 
 Item 24 additionally passes exact 262-line/event-trace coverage, reviewed Stella

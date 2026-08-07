@@ -1389,32 +1389,44 @@ than ship a fragile schedule if the hardware budget does not close.
         Completed 2026-08-01 out of roadmap order while task 23 remains next:
 
         * Add `examples/03_player_color_192/02_animated_sprites/`, using the
-          official-opcode 192-line player-color renderer and all 30 attributed
-          four-frame sets derived from Quick's PICO-8 Free 8x8 Sprites
-          cartridge. This subexample is the sole examples-tree license exception
-          and carries its own CC BY-NC-SA 4.0 `LICENSE.txt`.
-        * Display two sets simultaneously on separate vertical lanes, starting
-          both at X=0 and moving them right one pixel per NTSC frame. Hold each
-          animation frame for eight NTSC frames; after the X=159 frame, restart at
-          X=0 with the next of 15 pairs. Game Select advances a pair and restarts
-          at X=0; left fire pauses/resumes motion and animation with edge-triggered
-          controls.
-        * Store the 960 frame bytes in four aligned 256-byte hard pages, padding
-          the final page with 64 zero bytes. Select frames by changing player
-          graphics pointers; keep the graphics immutable. For frames that bob
-          vertically inside their 8x8 cells, count leading transparent rows
-          and rotate an immutable eight-color palette into each renderer-owned
-          mutable RAM color table so the color bands follow the silhouette.
-          Preserve exact 262-line frames, the 192-line visible renderer, and four
-          free RIOT RAM bytes. Document highest-index-to-zero source-row storage.
-        * Add an emulator oracle covering all 15 complete 160-frame traversals,
-          exact P0/P1 pixels at every animation step and right-edge endpoint,
-          pointer selection across all four hard pages, exact per-frame palette
-          rotation from transparent top-row displacement, visible use of the
-          rotated row-color tables, controls, and frame period. Pin the exact
-          original 960-byte occupancy with SHA-256, verify the final-page padding,
-          build with the staged installed toolchain, and inspect the animated
-          output under Stella 7.0.
+          official-opcode 192-line player-color renderer and all 29 attributed
+          four-frame sets plus the source's sole three-frame set derived from
+          Quick's PICO-8 Free 8x8 Sprites cartridge. Drive sprites 13,14,15 with
+          a dedicated modulo-3 phase while retaining but never displaying the
+          source's blank sprite 16. This subexample is the sole examples-tree
+          license exception and carries its own CC BY-NC-SA 4.0 `LICENSE.txt`.
+        * Display two sets simultaneously on separate vertical lanes. Move both
+          players one pixel per NTSC frame through the renderer's fully color-safe
+          X=16..140 interval, then restart at X=16 with the next of 15 pairs.
+          Hold each animation frame for eight NTSC frames. Game Select advances a
+          pair and restarts at X=16; left fire pauses/resumes motion and animation
+          with edge-triggered controls.
+        * Preserve the exact 960 one-bit source-frame bytes in four aligned
+          256-byte hard pages, with 64 zero padding bytes after sprite 120. Retain
+          one representative original PICO-8 palette index for every frame row:
+          choose the most frequent nontransparent row color, resolve ties by
+          proximity to the row center and then lower palette index, and map that
+          RGB color to the nearest NTSC TIA color. Pack the 960 nibbles into 480
+          ROM bytes and expand only the selected frames into the two mutable
+          eight-byte RAM color tables. This keeps colors attached to the source
+          body parts as frames bob instead of rotating a generic fixed palette.
+        * Correct the mutable-color P0 steady path so VDELP0 transfers each delayed
+          bitmap with its matching delayed color. Place P0 at a renderer-row-safe
+          Y coordinate and keep both players inside the color-safe horizontal
+          interval, allowing the emulator oracle to require the converted source
+          color on every visible player pixel. Preserve exact 262-line frames and
+          the 192-line visible renderer.
+        * Pack the modulo-4 and modulo-3 phases into one RAM byte and advance them
+          through a sixteen-entry immutable transition table, so the special set
+          consumes no additional RAM.
+        * Add an emulator oracle covering all 15 complete 125-frame traversals,
+          exact P0/P1 pixels and converted source-row colors at every sampled
+          animation step and both motion endpoints, pointer selection across all
+          four hard pages, controls, and frame period. Pin the exact original
+          960-byte occupancy and the 480-byte row-color conversion with SHA-256,
+          require source sprite 16 to remain blank while rejecting any runtime
+          selection of it, verify final-page padding, build with the staged
+          installed toolchain, and inspect the animated output under Stella 7.0.
 
 [ ] 35. Add first-class support for two paddle controllers on one controller port.
         Define a stable VCSC API for the two analog paddle positions and both paddle

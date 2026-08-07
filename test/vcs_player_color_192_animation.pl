@@ -72,12 +72,21 @@ for my $page (0..3) {
 $source_text =~ /alias\s+SPRITE_COUNT\s+30/
    or die "animation set count changed\n";
 $source_text =~ /alias\s+FRAME_HOLD\s+8/ or die "animation frame hold changed\n";
-$source_text =~ /alias\s+RIGHT_EDGE\s+159/ or die "animation right-edge endpoint changed\n";
+$source_text =~ /alias\s+THREE_FRAME_SET\s+3/ or die "three-frame set identity changed\n";
+$source_text =~ /alias\s+LEFT_EDGE\s+16/ or die "animation left-edge color-safe endpoint changed\n";
+$source_text =~ /alias\s+RIGHT_EDGE\s+140/ or die "animation color-safe right endpoint changed\n";
+$source_text =~ /animation_phase_next\[16\]/ &&
+$source_text =~ /low bits advance modulo 4 while bits 2\.\.3/ &&
+$source_text =~ /Bits 2\.\.3 are set 03's independent modulo-3 counter/
+   or die "set 03 no longer has a packed modulo-3 frame counter\n";
 $source_text =~ /alias\s+VCS_PLAYER_COLOR_192_MUTABLE_COLORS\s+1/
    or die "animated gallery no longer requests mutable renderer color tables\n";
-$source_text =~ /transparent source rows above each glyph/
-   or die "animated gallery color-following logic is missing\n";
-$source_text =~ /game_PLAYER0_X\s*:=\s*0/ && $source_text =~ /game_PLAYER1_X\s*:=\s*0/
+$source_text =~ /most frequent nontransparent color wins/ &&
+$source_text =~ /source-derived color per sprite row/ &&
+$source_text =~ /sprite_row_colors_0\[256\]/ &&
+$source_text =~ /sprite_row_colors_1\[224\]/
+   or die "animated gallery source-derived row-color conversion is missing\n";
+$source_text =~ /game_PLAYER0_X\s*:=\s*LEFT_EDGE/ && $source_text =~ /game_PLAYER1_X\s*:=\s*LEFT_EDGE/
    or die "animated sprites no longer start at the left edge\n";
 $source_text =~ /if\s*\(game_PLAYER0_X\s*>=\s*RIGHT_EDGE\)/
    or die "right-edge wrap control missing\n";
@@ -105,12 +114,21 @@ for my $name (qw(game_player0_colors game_player1_colors)) {
    $map =~ /BSS\.__vcsc_object\$\Q$name\E\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0008/
       or die "$name is not an eight-byte mutable BSS object\n";
 }
-for my $name (qw(player0_palette player1_palette)) {
-   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0008/
-      or die "$name is not an eight-byte immutable palette\n";
+$map =~ /RODATA\.__vcsc_object\$pico8_tia_palette\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0010/
+   or die "PICO-8-to-TIA palette is not a sixteen-byte immutable object\n";
+my @color_names=qw(sprite_row_colors_0 sprite_row_colors_1);
+my @color_sizes=(0x100,0x0e0);
+for my $i (0..$#color_names) {
+   my $name=$color_names[$i];
+   my $size=sprintf('%04x',$color_sizes[$i]);
+   $map =~ /RODATA\.__vcsc_object\$\Q$name\E\s+load=\$[0-9A-Fa-f]{4}\s+size=\$$size\s+page=hard/i
+      or die "$name lost its hard-page source-color placement\n";
+   (map_value($map,$name)&0xff)==0
+      or die "$name no longer starts at low byte zero\n";
 }
 
-# Pin the exact one-bit occupancy extracted from PICO-8 source sprites 1..120.
+# Pin the exact original one-bit occupancy extracted from source sprites 1..120.
+# Sprite 16 remains blank in storage but the modulo-3 counter must never select it.
 my $rom=read_file($bin);
 my $asset_bytes='';
 for my $name (@frame_names) {
@@ -121,8 +139,28 @@ for my $name (@frame_names) {
 sha256_hex(substr($asset_bytes,0,960)) eq
    '7ff024d9b8c75da665d9c8c836650e95c4576f76827e06c07250be0a1d16cacb'
    or die "animated source-sprite occupancy changed\n";
+for my $frame (0..119) {
+   my $blank=substr($asset_bytes,$frame*8,8) eq ("\0" x 8);
+   if ($frame==15) {
+      $blank or die "source sprite 16 is no longer blank\n";
+   }
+   else {
+      !$blank or die "unexpected blank source sprite " . ($frame+1) . "\n";
+   }
+}
 substr($asset_bytes,960,64) eq ("\0" x 64)
    or die "final sprite hard-page padding is not zero\n";
+
+my $row_color_bytes='';
+for my $i (0..$#color_names) {
+   my $base=map_value($map,$color_names[$i]);
+   $base>=0xf000 && $base<=0xff00 or die "$color_names[$i] is outside cartridge ROM\n";
+   $row_color_bytes .= substr($rom,$base-0xf000,$color_sizes[$i]);
+}
+length($row_color_bytes)==480 or die "packed source row-color table is not 480 bytes\n";
+sha256_hex($row_color_bytes) eq
+   '378b365834c7c211067a1f80194288a46215570d8a6a5e7715fc5f44f892d10a'
+   or die "packed source-derived row colors changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -138,11 +176,11 @@ $out eq '' && $err eq '' or die "animation harness build wrote output\n$out$err"
 my @zp_args=map { zp_arg($map,$_) }
    qw(sprite0 sprite1 animation_frame animation_clock pause_animation select_ready fire_ready game_object_x game_player0_graphics game_player1_graphics);
 my @symbol_args=map { symbol_arg($map,$_) }
-   (@frame_names,qw(game_player0_colors game_player1_colors player0_palette player1_palette));
+   (@frame_names,@color_names,qw(game_player0_colors game_player1_colors pico8_tia_palette));
 my @args=(@zp_args,@symbol_args);
 ($rc,$sig,$out,$err)=capture($harness,$bin,@args);
 $rc==0 && !$sig or die "animated gallery emulator proof failed\n$out$err";
-$out eq "vcs_player_color_192_animation ok: all thirty four-frame source animations traverse left-to-right in fifteen pairs, preserve exact source pixels, rotate row colors with vertical sprite motion, wrap at X=0, keep 262-line frames, and retain pair selection and pause controls\n"
+$out eq "vcs_player_color_192_animation ok: 29 four-frame animations use modulo-4 playback while source set 03 independently uses modulo-3 playback, preserve exact source pixels without displaying blank sprite 16, use source-derived row colors that move with each original frame, wrap at X=16, keep 262-line frames, and retain pair selection and pause controls\n"
    or die "unexpected animation harness output: $out";
 $err eq '' or die "animation harness stderr: $err";
 

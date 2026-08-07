@@ -438,16 +438,19 @@ $AA/$55 checkerboard players at X=159; that pattern exposes the one-bit row swap
 that solid glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
-checks all 30 attributed four-frame source sets, pins the exact 960-byte one-bit
-occupancy extracted from PICO-8 sprites 1 through 120, verifies the local
-CC BY-NC-SA 4.0 license and attribution, and checks four aligned
-256-byte graphics pages including the final zero padding. Its emulator oracle
-drives all 15 complete 160-frame left-to-right traversals plus Select and pause
-controls. The oracle locks X=0 entry, one-pixel-per-frame motion, X=159 clipping,
-wrap through every pair back to the first pair, exact player pixels, graphics-
-pointer selection across all four hard pages, mutable eight-byte RAM color
-tables, exact palette rotation by each frame's transparent top-row count,
-permitted visible color values, and 262-line frame periods.
+checks 29 attributed four-frame source sets plus the source's sole three-frame
+set driven by an independent packed modulo-3 counter, pins the exact original
+960-byte one-bit occupancy, requires source sprite 16 to remain blank while
+rejecting any runtime selection of it, verifies the local CC BY-NC-SA 4.0
+license and attribution, and checks four aligned 256-byte graphics pages plus
+final zero padding. It also pins the 480-byte packed source-row color conversion:
+each source row retains its dominant nontransparent PICO-8 palette index with
+deterministic tie breaks and maps through a sixteen-entry nearest-NTSC-TIA
+palette. Its emulator oracle drives all 15 complete 125-frame traversals plus
+Select and pause controls. The oracle locks X=16 entry, one-pixel-per-frame
+motion through X=140, wrap through every pair, exact player pixels, exact
+converted source-row colors, graphics-pointer selection across all four hard
+pages, mutable eight-byte RAM color tables, and 262-line frame periods.
 
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte

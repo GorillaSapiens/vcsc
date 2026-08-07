@@ -436,8 +436,16 @@ require inline void TEMPLATE_draw(void) {
    // The matching two-cycle pad lives after the preceding right-playfield
    // writes, preserving both their phases and the exact 152-cycle pair.
    asm sta GRP0;
+#ifdef VCS_PLAYER_COLOR_192_MUTABLE_COLORS
+   // VDELP0 delays the graphics until the following GRP1 write. Mutable-color
+   // users may change every row between frames, so hold the matching color for
+   // that same transfer instead of exposing the next row one scanline early.
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta.z TEMPLATE_workspace + 4;
+#else
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
+#endif
    asm @continuerenderer2:;
    asm lda #1;
    asm ldy.ax TEMPLATE_playfield,x;
@@ -457,6 +465,29 @@ require inline void TEMPLATE_draw(void) {
    asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
+#ifdef VCS_PLAYER_COLOR_192_MUTABLE_COLORS
+   // Keep the original 26-cycle tail, but install the delayed P0 color just
+   // before GRP1 transfers the pending P0 graphics. Reloading P1 graphics after
+   // its color lookup frees workspace+4 for that delayed P0 color.
+   asm bcs @skipP1;
+   asm lda.z TEMPLATE_workspace + 4;
+   asm sta COLUP0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm sta GRP1;
+   asm jmp @continueP1;
+   asm @skipP1:;
+   asm ldy #0;
+   asm lda.z TEMPLATE_workspace + 4;
+   asm sta COLUP0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda #0;
+   asm sta GRP1;
+   asm bit.z TEMPLATE_object_masks + 19;
+   asm @continueP1:;
+#else
    asm bcs @skipP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @continueP1;
@@ -474,6 +505,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    asm lda.z TEMPLATE_workspace + 4;
    asm sta GRP1;
+#endif
 
    asm @p0renderer:;
    // P0 half.  Move eleven cycles of P0 bookkeeping ahead of the playfield
@@ -505,7 +537,7 @@ require inline void TEMPLATE_draw(void) {
    // Carry the selected P0 graphics byte in A and its color-table index in Y
    // across the pair boundary; DEC/branch do not disturb either register.
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm bne.same @continuerenderer;
    // The row-ending fallthrough uses the same ten-cycle commit.  Its matching
    // pad already ran after the right-playfield writes, so GRP0 reaches the next
    // horizontal blank without changing the row-transition phase.

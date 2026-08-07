@@ -9,49 +9,72 @@
 
 # Animated 8x8 sprite gallery
 
-This cartridge demonstrates runtime bitmap animation and horizontal motion with
-the official-opcode 192-line player-color renderer. It includes every animated
-frame used by Quick's PICO-8 **Free 8x8 Sprites** cartridge: source sprites 1
-through 120, interpreted exactly as the source program does as 30 consecutive
-four-frame sets.
+This cartridge demonstrates runtime bitmap animation, source-derived row colors,
+and horizontal motion with the official-opcode 192-line player-color renderer.
+It includes every source slot used by Quick's PICO-8 **Free 8x8 Sprites**
+cartridge. The source contains 29 four-frame animations and one three-frame
+animation: sprites 13, 14, and 15, followed by blank sprite 16. The blank slot
+remains intact. That set uses its own modulo-3 phase, so it plays
+13, 14, 15, 13 while its paired four-frame animation continues modulo 4.
 
-P0 and P1 display two sets simultaneously on separate vertical lanes. Both begin
-at visible X=0 and move one pixel to the right on every NTSC frame. Their
-eight-pixel graphics progressively clip as they leave the right edge. After the
-X=159 frame, both players respawn at X=0 with the next pair. The 15 pairs advance
-in source order: sprites 1-4 with 5-8, then 9-12 with 13-16, continuing through
-sprites 113-116 with 117-120 before wrapping to the first pair.
+P0 and P1 display two sets simultaneously on separate vertical lanes. Both move
+one pixel to the right per NTSC frame through the renderer's color-safe range,
+X=16 through X=140. The fixed margin keeps every COLUP/GRP update outside the
+players' eight visible pixels; this example is testing animation colors, not
+edge clipping. After X=140, both players return to X=16 with the next pair. The
+15 pairs advance in source order and then wrap to the first pair.
 
-Each PICO-8 frame is converted to an exact one-bit occupancy mask: source color 0
-is transparent and every nonzero source color becomes a set Atari player bit.
-The source program includes a blank frame at sprite 16; this example preserves
-it rather than silently "fixing" the artwork. Glyph rows are written top row
-first through `game_SPRITE_GLYPH(...)`, which stores them in the renderer's
-required highest-index-to-zero display order.
+## Bitmap conversion
 
-The 120 frames occupy 960 bytes in four page-aligned 256-byte objects. The final
-hard page has 64 zero padding bytes after source sprite 120. Each set occupies 32
-bytes and each frame occupies eight bytes. Runtime selection changes only the
-player graphics-pointer bytes; bitmap data is never copied into RAM.
+Each PICO-8 frame is converted to a one-bit occupancy mask. Source color 0 is
+transparent; every nonzero source color becomes a set Atari player bit. The 120
+source slots occupy 960 bytes in four hard 256-byte pages, with 64 zero padding
+bytes after source sprite 120. Sprite 16 remains blank and is never selected.
+Bitmap data is never copied into RAM; frame changes only replace the two graphics
+pointers.
 
-Each animation frame is held for eight NTSC frames while the sprites continue
-moving. Some source animations bob vertically within their 8x8 cells. To keep
-the multicolor bands attached to those sprites, the cartridge counts transparent
-rows above each selected frame and rotates that player's eight-row palette by
-the same amount into a mutable RAM color table. The 960 graphics bytes remain
-byte-for-byte source-exact; only the row-color mapping changes. A completely
-blank frame uses the unrotated palette because no color is visible.
+Glyph rows are written top row first through `game_SPRITE_GLYPH(...)`, which
+stores them in the renderer's highest-index-to-zero display order.
 
-A complete left-to-right traversal takes 160 frames, and the complete 15-pair
-gallery takes 2,400 frames. The cartridge preserves 192 visible scanlines. It
-uses 3,484 ROM bytes and 124 RIOT RAM bytes including the four-byte hardware
-stack reserve, leaving 606 ROM bytes and 4 RAM bytes free.
+## Color conversion
+
+The conversion retains the original PICO-8 color information instead of assigning
+a generic palette to each character. For every row of every source frame:
+
+1. Ignore transparent pixels.
+2. Choose the most frequent remaining PICO-8 color.
+3. On a tie, choose the tied color whose pixels are nearest the row center.
+4. If still tied, choose the lower PICO-8 palette index.
+5. Map that source RGB color to the nearest NTSC TIA color.
+
+A TIA player can use only one color per scanline, so a multicolor source row must
+be reduced to one representative color. The resulting 960 row-color nibbles are
+packed into 480 ROM bytes. When a frame is installed, its eight palette indices
+are expanded into the renderer's mutable eight-byte RAM color table. Colors
+therefore move vertically with the same source pixels as an animation bobs,
+rather than remaining attached to fixed screen rows.
+
+P0 uses the renderer's mutable-color timing path, which holds its next color until
+VDELP0 transfers the matching delayed bitmap. P0 is placed at Y=55 so its
+sixteen doubled scanlines remain within a normal renderer row; P1 uses Y=44.
+Together with the X=16..140 motion range, the emulator oracle can require every
+visible player pixel to use the selected source row's converted color.
+
+The normal and three-frame phases share one packed RAM byte. A sixteen-entry ROM
+transition table advances the low two bits modulo 4 and bits 2..3 modulo 3, so
+the three-frame exception costs no additional RAM.
+
+Each frame is held for eight NTSC frames. One pair traversal takes 125 frames;
+the complete fifteen-pair gallery takes 1,875 frames. The cartridge preserves
+192 visible scanlines and exact 262-line NTSC frames. It uses 3,989 ordinary ROM
+bytes plus the six-byte vector segment, and all 128 RIOT RAM bytes. The ordinary
+ROM region has 101 bytes free.
 
 ## Controls
 
 | Control | Action |
 |---|---|
-| Game Select | Advance immediately to the next pair and restart it at X=0 |
+| Game Select | Advance immediately to the next pair and restart it at X=16 |
 | Left fire | Pause or resume both movement and animation |
 | Game Reset | Restart through the cartridge reset vector |
 
@@ -59,7 +82,7 @@ Select and fire are edge-triggered, so holding either control does not repeat.
 
 ## Artwork attribution
 
-The sprite artwork comes from Quick's PICO-8 cartridge **Free 8x8 Sprites**. It
-is not public-domain artwork. This directory is the one exception to the examples tree's default CC0
-license. See [`LICENSE.txt`](LICENSE.txt) for the attribution and CC BY-NC-SA
-4.0 terms covering this example.
+The sprite artwork and retained source palette information come from Quick's
+PICO-8 cartridge **Free 8x8 Sprites**. They are not public-domain assets. This
+directory is the sole exception to the examples tree's default CC0 license. See
+[`LICENSE.txt`](LICENSE.txt) for attribution and the CC BY-NC-SA 4.0 terms.

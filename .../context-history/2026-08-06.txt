@@ -226,3 +226,55 @@ per-file local-license notices. Verification: 438/438 compile-only passed; the
 full e2e run reached 102 passes before timeout; the 2,400-frame animation oracle,
 exact restored 960-byte hash, recursive example build, branding, and hygiene
 checks passed.
+
+2026-08-06 17:14:40 PDT, Repair the missing fourth playback frame in animated set 03
+
+The attributed PICO-8 source cartridge contains 29 four-frame animations and one
+three-frame animation at sprites 13, 14, and 15; source sprite 16 is blank. The
+VCSC gallery had treated that blank cell as a normal fourth playback frame, so
+one character disappeared every fourth animation step. Expand only that set to
+the nonblank ping-pong sequence 13,14,15,14. Preserve every nonblank source
+silhouette exactly, retain the 120-slot/four-hard-page layout, document the
+adaptation under the example's CC BY-NC-SA license, and update the animation
+oracle to pin the new 960-byte hash, require all 120 playback slots to be
+nonblank, and require slot 16 to equal source sprite 14. The full 2,400-frame
+animation emulator proof and the public example build pass.
+
+2026-08-06 17:36:38 PDT, restore true three-frame playback for animated set 03
+
+Restored source sprite 16 to its original blank eight-byte glyph and removed the
+13,14,15,14 duplicated-frame workaround. The animated gallery now keeps two
+independent frame phases packed into the existing `animation_frame` byte: bits
+0..1 advance modulo 4 for ordinary sets, while bits 2..3 advance modulo 3 for
+source set 03. Because set 03 is the odd member of its fixed pair, its P1 pointer
+uses the modulo-3 phase while its P0 partner continues through all four frames.
+This adds no RIOT-RAM byte. Updated the local license/adaptation description,
+example and test documentation, roadmap completion note, compact context, and
+emulator oracle. The oracle now pins the original 960-byte art hash, requires
+sprite 16 to remain blank, verifies that runtime never selects it, and proves
+all 2,400 automatic frames plus Select/pause behavior. Focused animation,
+recursive example-build, source-hygiene, and branding tests pass. The build also
+completed all 438 compile-only tests before the monolithic e2e command reached
+102 passing tests and hit the execution window.
+
+2026-08-06 18:20:02 PDT, restore source-derived animated sprite row colors
+
+Decoded the original PICO-8 palette information instead of assigning generic
+fixed palettes to the one-bit silhouettes. For every row of every source frame,
+select the most frequent nontransparent source color; resolve ties by nearest
+horizontal-center pixel and then lower palette index; map the retained RGB color
+to the nearest NTSC TIA color. Pack the resulting 960 palette nibbles into 480
+ROM bytes and expand only the two selected frames into the renderer's mutable
+RAM color tables. The exact color-table hash is now pinned alongside the original
+960-byte occupancy hash.
+
+The mutable player_color_192 steady path now holds P0's pending color until the
+same GRP1 transfer that commits its VDELP0 bitmap; immutable instances retain the
+previous byte-for-byte path. The gallery places P0 at Y=55 and moves both players
+through the fully color-safe X=16..140 interval, avoiding the renderer's fixed
+left/right color-write windows and row-transition path. A sixteen-entry ROM
+transition table replaces the longer packed modulo-4/modulo-3 update sequence,
+keeping RAM at 128/128 while leaving 101 ordinary ROM bytes free. One pair now
+takes 125 frames and all 15 pairs take 1,875 frames. Focused animation and
+player_color_192 tests pass with exact pixels, source-derived row colors, and
+262-line frames.

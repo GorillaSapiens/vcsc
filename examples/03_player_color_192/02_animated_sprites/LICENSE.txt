@@ -20,8 +20,13 @@ The 8x8 animation artwork is derived from:
 - Original license: CC BY-NC-SA 4.0
 
 `player_color_192_animated_sprites.c26` contains one-bit silhouettes extracted
-from source sprites 1 through 120. Source color 0 is treated as transparent and
-every nonzero source color as opaque; no PICO-8 palette data is retained.
+from source sprites 1 through 120 and one representative original PICO-8 palette
+index for every source sprite row. Source color 0 is transparent; nonzero colors
+form the occupancy mask. Rows containing more than one nontransparent color are
+reduced to one color because an Atari player has only one color per scanline,
+and each retained source color is mapped to the nearest NTSC TIA color. The
+source's blank sprite 16 is retained exactly. The example uses a dedicated
+modulo-3 phase for that set so only sprites 13, 14, and 15 are shown.
 
 Attribution must be preserved. Commercial use is not granted. Redistributed
 adaptations must remain under CC BY-NC-SA 4.0 and identify that changes were

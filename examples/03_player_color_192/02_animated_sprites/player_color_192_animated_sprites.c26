@@ -20,19 +20,27 @@ page const uint8_t game_playfield[48] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXX_XXXXXXXX_XXXXXXXX_XXXXXXXX)
 };
 
-// Graphics and colors use the renderer's highest-index-to-zero row order.
-// The immutable palettes are rotated into the renderer's RAM color tables so
-// the bands follow sprites that bob vertically inside their 8x8 source cells.
-const uint8_t player0_palette[8] := {
-   VCS_NTSC_GOLDENROD, VCS_NTSC_LIGHT_CORAL, VCS_NTSC_SANDY_BROWN,
-   VCS_NTSC_GOLDENROD, VCS_NTSC_SANDY_BROWN, VCS_NTSC_LIGHT_CORAL,
-   VCS_NTSC_GOLDENROD, VCS_NTSC_MEDIUM_PURPLE
-};
-
-const uint8_t player1_palette[8] := {
-   VCS_NTSC_SKY_BLUE, VCS_NTSC_AQUAMARINE, VCS_NTSC_PALE_GREEN,
-   VCS_NTSC_SKY_BLUE_2, VCS_NTSC_PALE_GREEN, VCS_NTSC_AQUAMARINE,
-   VCS_NTSC_SKY_BLUE, VCS_NTSC_ROYAL_BLUE
+// Each displayed scanline gets one source-derived PICO-8 color. A source row's
+// most frequent nontransparent color wins; ties choose the tied color whose
+// pixels lie nearest the horizontal center, then the lower PICO-8 palette index.
+// The chosen source color is mapped at compile time to the nearest NTSC TIA color.
+const uint8_t pico8_tia_palette[16] := {
+   __builtin_ntsc_rgb(0x00, 0x00, 0x00), //  0 black / transparent
+   __builtin_ntsc_rgb(0x1d, 0x2b, 0x53), //  1 dark blue
+   __builtin_ntsc_rgb(0x7e, 0x25, 0x53), //  2 dark purple
+   __builtin_ntsc_rgb(0x00, 0x87, 0x51), //  3 dark green
+   __builtin_ntsc_rgb(0xab, 0x52, 0x36), //  4 brown
+   __builtin_ntsc_rgb(0x5f, 0x57, 0x4f), //  5 dark gray
+   __builtin_ntsc_rgb(0xc2, 0xc3, 0xc7), //  6 light gray
+   __builtin_ntsc_rgb(0xff, 0xf1, 0xe8), //  7 white
+   __builtin_ntsc_rgb(0xff, 0x00, 0x4d), //  8 red
+   __builtin_ntsc_rgb(0xff, 0xa3, 0x00), //  9 orange
+   __builtin_ntsc_rgb(0xff, 0xec, 0x27), // 10 yellow
+   __builtin_ntsc_rgb(0x00, 0xe4, 0x36), // 11 green
+   __builtin_ntsc_rgb(0x29, 0xad, 0xff), // 12 blue
+   __builtin_ntsc_rgb(0x83, 0x76, 0x9c), // 13 lavender
+   __builtin_ntsc_rgb(0xff, 0x77, 0xa8), // 14 pink
+   __builtin_ntsc_rgb(0xff, 0xcc, 0xaa)  // 15 peach
 };
 
 uint8_t game_player0_colors[8];
@@ -43,8 +51,11 @@ template "renderers/player_color_192/player_color_192.c26" as game
 
 // Exact one-bit silhouettes extracted from source PICO-8 sprites 1 through 120.
 // Source color 0 is transparent; every other source color becomes a set Atari bit.
-// The source program presents these as 30 consecutive four-frame sets. Each
-// 32-byte set begins on a 32-byte boundary inside one of four hard pages.
+// A parallel packed table below retains one source-derived color per sprite row.
+// The source contains 29 four-frame animations and one three-frame animation.
+// Source sprite 16 remains blank in the table; set 03 uses its own modulo-3
+// playback counter and therefore selects only sprites 13, 14, and 15. Each
+// 32-byte source set begins on a 32-byte boundary inside one of four hard pages.
 page const uint8_t sprite_frames_0[256] := {
    // source_set_00_sprites_001_004
    game_SPRITE_GLYPH(
@@ -1351,9 +1362,172 @@ page const uint8_t sprite_frames_3[256] := {
    0,
    0,
 };
+// Four packed bytes accompany each source frame. Nibbles are PICO-8 palette
+// indices in the renderer's bottom-row-to-top-row memory order. The runtime
+// expands the selected frame through pico8_tia_palette into the two RAM color
+// tables, so colored body bands move with the original animation instead of
+// being guessed from transparent top-row offsets.
+page const uint8_t sprite_row_colors_0[256] := {
+   // source_set_00_sprites_001_004
+   0x88, 0x88, 0xcc, 0x88, // source sprite 001
+   0x88, 0x88, 0xcc, 0x88, // source sprite 002
+   0x88, 0x88, 0xcc, 0x88, // source sprite 003
+   0x88, 0x88, 0xcc, 0x88, // source sprite 004
+   // source_set_01_sprites_005_008
+   0xbb, 0xbb, 0x8b, 0x8a, // source sprite 005
+   0xbb, 0xbb, 0x8b, 0x8a, // source sprite 006
+   0xbb, 0xbb, 0x8b, 0x8a, // source sprite 007
+   0xbb, 0xbb, 0x8b, 0x8a, // source sprite 008
+   // source_set_02_sprites_009_012
+   0x90, 0x09, 0x99, 0x99, // source sprite 009
+   0x90, 0x90, 0x99, 0x09, // source sprite 010
+   0x99, 0x99, 0x09, 0x00, // source sprite 011
+   0x09, 0x90, 0x99, 0x09, // source sprite 012
+   // source_set_03_sprites_013_016
+   0xae, 0xaa, 0xaa, 0xea, // source sprite 013
+   0xae, 0xaa, 0xaa, 0xea, // source sprite 014
+   0xae, 0xaa, 0xaa, 0xea, // source sprite 015
+   0x00, 0x00, 0x00, 0x00, // source sprite 016
+   // source_set_04_sprites_017_020
+   0x55, 0x55, 0x55, 0x00, // source sprite 017
+   0x55, 0x55, 0x55, 0x00, // source sprite 018
+   0x55, 0x55, 0x55, 0x00, // source sprite 019
+   0x55, 0x55, 0x55, 0x00, // source sprite 020
+   // source_set_05_sprites_021_024
+   0xaa, 0x00, 0x00, 0x00, // source sprite 021
+   0xaa, 0x0a, 0x00, 0x00, // source sprite 022
+   0xaa, 0xaa, 0x00, 0x00, // source sprite 023
+   0xaa, 0x0a, 0x00, 0x00, // source sprite 024
+   // source_set_06_sprites_025_028
+   0xdd, 0xdd, 0x0d, 0x00, // source sprite 025
+   0xd0, 0xdd, 0x0d, 0x00, // source sprite 026
+   0xd0, 0xdd, 0xdd, 0x0d, // source sprite 027
+   0xd0, 0xdd, 0x0d, 0x00, // source sprite 028
+   // source_set_07_sprites_029_032
+   0x99, 0x44, 0x44, 0x99, // source sprite 029
+   0x49, 0x44, 0x44, 0x99, // source sprite 030
+   0x44, 0x99, 0x49, 0x99, // source sprite 031
+   0x94, 0x99, 0x49, 0x99, // source sprite 032
+   // source_set_08_sprites_033_036
+   0xcc, 0xcc, 0x66, 0x00, // source sprite 033
+   0xc0, 0xcc, 0x6c, 0x06, // source sprite 034
+   0xc0, 0xcc, 0x6c, 0x06, // source sprite 035
+   0xcc, 0xcc, 0x66, 0x00, // source sprite 036
+   // source_set_09_sprites_037_040
+   0x70, 0x77, 0x77, 0x77, // source sprite 037
+   0x77, 0x77, 0x77, 0x77, // source sprite 038
+   0x77, 0x77, 0x77, 0x77, // source sprite 039
+   0x77, 0x77, 0x77, 0x77, // source sprite 040
+   // source_set_10_sprites_041_044
+   0x70, 0x77, 0x77, 0x00, // source sprite 041
+   0x07, 0x77, 0x07, 0x00, // source sprite 042
+   0x77, 0x77, 0x07, 0x00, // source sprite 043
+   0x77, 0x77, 0x77, 0x00, // source sprite 044
+   // source_set_11_sprites_045_048
+   0x55, 0x55, 0x55, 0x55, // source sprite 045
+   0x55, 0x55, 0x55, 0x55, // source sprite 046
+   0x55, 0x55, 0x55, 0x55, // source sprite 047
+   0x55, 0x55, 0x55, 0x55, // source sprite 048
+   // source_set_12_sprites_049_052
+   0x90, 0x99, 0x99, 0x00, // source sprite 049
+   0x09, 0x99, 0x99, 0x00, // source sprite 050
+   0x99, 0x99, 0x09, 0x00, // source sprite 051
+   0x99, 0x99, 0x99, 0x00, // source sprite 052
+   // source_set_13_sprites_053_056
+   0x26, 0x26, 0x22, 0x00, // source sprite 053
+   0x26, 0x26, 0x22, 0x00, // source sprite 054
+   0x26, 0x26, 0x22, 0x00, // source sprite 055
+   0x26, 0x26, 0x22, 0x00, // source sprite 056
+   // source_set_14_sprites_057_060
+   0x11, 0x11, 0x11, 0x11, // source sprite 057
+   0x11, 0x11, 0x11, 0x11, // source sprite 058
+   0x11, 0x11, 0x11, 0x11, // source sprite 059
+   0x11, 0x11, 0x11, 0x11, // source sprite 060
+   // source_set_15_sprites_061_064
+   0xee, 0x00, 0x00, 0x00, // source sprite 061
+   0xee, 0x0e, 0x00, 0x00, // source sprite 062
+   0xee, 0x0e, 0x00, 0x00, // source sprite 063
+   0xee, 0x0e, 0x00, 0x00, // source sprite 064
+};
+
+page const uint8_t sprite_row_colors_1[224] := {
+   // source_set_16_sprites_065_068
+   0xcc, 0xcc, 0x00, 0x00, // source sprite 065
+   0xcc, 0xcc, 0x0c, 0x00, // source sprite 066
+   0xc0, 0xcc, 0xcc, 0x00, // source sprite 067
+   0xcc, 0xcc, 0xcc, 0x00, // source sprite 068
+   // source_set_17_sprites_069_072
+   0x00, 0x77, 0x77, 0x00, // source sprite 069
+   0x00, 0x70, 0x77, 0x00, // source sprite 070
+   0x00, 0xa0, 0x77, 0x77, // source sprite 071
+   0x00, 0x77, 0x07, 0x00, // source sprite 072
+   // source_set_18_sprites_073_076
+   0x04, 0x33, 0x33, 0x33, // source sprite 073
+   0x44, 0x33, 0x33, 0x33, // source sprite 074
+   0x44, 0x33, 0x33, 0x33, // source sprite 075
+   0x44, 0x33, 0x33, 0x33, // source sprite 076
+   // source_set_19_sprites_077_080
+   0x99, 0x99, 0x99, 0x09, // source sprite 077
+   0x99, 0x99, 0x99, 0x09, // source sprite 078
+   0x99, 0x99, 0x99, 0x09, // source sprite 079
+   0x99, 0x99, 0x99, 0x09, // source sprite 080
+   // source_set_20_sprites_081_084
+   0x44, 0x44, 0x44, 0x44, // source sprite 081
+   0x44, 0x44, 0x44, 0x44, // source sprite 082
+   0x44, 0x44, 0x44, 0x44, // source sprite 083
+   0x44, 0x44, 0x44, 0x44, // source sprite 084
+   // source_set_21_sprites_085_088
+   0x77, 0xb7, 0x77, 0x07, // source sprite 085
+   0x77, 0xb7, 0x77, 0x07, // source sprite 086
+   0x77, 0xb7, 0x77, 0x07, // source sprite 087
+   0x77, 0xb7, 0x77, 0x07, // source sprite 088
+   // source_set_22_sprites_089_092
+   0xaa, 0x0a, 0x0a, 0x00, // source sprite 089
+   0xa0, 0xaa, 0x0a, 0x00, // source sprite 090
+   0xaa, 0x0a, 0x0a, 0x00, // source sprite 091
+   0xaa, 0x0a, 0xa0, 0x00, // source sprite 092
+   // source_set_23_sprites_093_096
+   0x88, 0x88, 0x88, 0x88, // source sprite 093
+   0x88, 0x88, 0x88, 0x88, // source sprite 094
+   0x88, 0x88, 0x88, 0x88, // source sprite 095
+   0x88, 0x88, 0x88, 0x88, // source sprite 096
+   // source_set_24_sprites_097_100
+   0x77, 0x77, 0x77, 0x77, // source sprite 097
+   0x77, 0x77, 0x77, 0x07, // source sprite 098
+   0x77, 0x77, 0x77, 0x07, // source sprite 099
+   0x77, 0x77, 0x77, 0x77, // source sprite 100
+   // source_set_25_sprites_101_104
+   0xaa, 0xaa, 0xaa, 0x0a, // source sprite 101
+   0xaa, 0xaa, 0xaa, 0xaa, // source sprite 102
+   0xaa, 0xaa, 0xaa, 0xaa, // source sprite 103
+   0xaa, 0xaa, 0xaa, 0xaa, // source sprite 104
+   // source_set_26_sprites_105_108
+   0xdd, 0xdd, 0xdd, 0x0d, // source sprite 105
+   0xdd, 0xdd, 0xdd, 0x0d, // source sprite 106
+   0xdd, 0xdd, 0xdd, 0x0d, // source sprite 107
+   0xdd, 0xdd, 0xdd, 0x0d, // source sprite 108
+   // source_set_27_sprites_109_112
+   0xee, 0x6e, 0xee, 0xee, // source sprite 109
+   0xee, 0x6e, 0xee, 0xee, // source sprite 110
+   0xee, 0x6e, 0xee, 0xee, // source sprite 111
+   0xee, 0x6e, 0xee, 0xee, // source sprite 112
+   // source_set_28_sprites_113_116
+   0xbb, 0xbb, 0xbb, 0x00, // source sprite 113
+   0xb0, 0xbb, 0xbb, 0x0b, // source sprite 114
+   0xb0, 0xbb, 0xbb, 0x0b, // source sprite 115
+   0xbb, 0xbb, 0xbb, 0x00, // source sprite 116
+   // source_set_29_sprites_117_120
+   0x22, 0x22, 0x6d, 0x67, // source sprite 117
+   0x22, 0x22, 0x66, 0x00, // source sprite 118
+   0x22, 0x22, 0x67, 0x6d, // source sprite 119
+   0x22, 0x22, 0x76, 0xd6, // source sprite 120
+};
+
 alias SPRITE_COUNT 30
 alias FRAME_HOLD 8
-alias RIGHT_EDGE 159
+alias THREE_FRAME_SET 3
+alias LEFT_EDGE 16
+alias RIGHT_EDGE 140
 
 uint8_t sprite0 := 0;
 uint8_t sprite1 := 1;
@@ -1363,22 +1537,73 @@ uint8_t select_ready := 1;
 uint8_t pause_animation := 0;
 uint8_t fire_ready := 1;
 
+// Packed phase transition: low bits advance modulo 4 while bits 2..3
+// independently advance modulo 3 for source set 03.
+const uint8_t animation_phase_next[16] := {
+   0x05, 0x06, 0x07, 0x04,
+   0x09, 0x0a, 0x0b, 0x08,
+   0x01, 0x02, 0x03, 0x00,
+   0x05, 0x06, 0x07, 0x04
+};
+
 void install_frames(void) {
-   // Each hard page starts at low byte zero. Bits 0..2 select a set inside
-   // that page; bits 3..4 select one of the four hard-page high bytes.
+   // The packed row-color tables use sixteen bytes per animation set: four
+   // bytes per frame, with two source palette indices in each byte. Reuse the
+   // renderer graphics pointers as temporary color-data pointers so this keeps
+   // the existing zero-RAM-overhead selection contract.
+
    asm lda.z sprite0;
-   asm and #$07;
-   asm asl;
+   asm and #$0f;
    asm asl;
    asm asl;
    asm asl;
    asm asl;
    asm sta.z game_player0_graphics;
    asm lda.z animation_frame;
-   asm asl;
+   asm and #$03;
    asm asl;
    asm asl;
    asm ora.z game_player0_graphics;
+   asm sta.z game_player0_graphics;
+   asm lda.z sprite0;
+   asm cmp #16;
+   asm bcc @p0_color_page0;
+   asm lda #>sprite_row_colors_1;
+   asm jmp @p0_color_page_done;
+   asm @p0_color_page0:;
+   asm lda #>sprite_row_colors_0;
+   asm @p0_color_page_done:;
+   asm sta.z game_player0_graphics + 1;
+
+   asm ldx #0;
+   asm @p0_expand_colors:;
+   asm txa;
+   asm lsr;
+   asm tay;
+   asm lda.iy (game_player0_graphics),y;
+   asm and #$0f;
+   asm tay;
+   asm lda.ay pico8_tia_palette,y;
+   asm sta.ax game_player0_colors,x;
+   asm inx;
+   asm txa;
+   asm lsr;
+   asm tay;
+   asm lda.iy (game_player0_graphics),y;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay pico8_tia_palette,y;
+   asm sta.ax game_player0_colors,x;
+   asm inx;
+   asm cpx #8;
+   asm bne @p0_expand_colors;
+
+   // The graphics low byte is exactly twice the packed-color low byte.
+   asm lda.z game_player0_graphics;
+   asm asl;
    asm sta.z game_player0_graphics;
    asm lda.z sprite0;
    asm cmp #8;
@@ -1401,18 +1626,66 @@ void install_frames(void) {
    asm sta.z game_player0_graphics + 1;
 
    asm lda.z sprite1;
-   asm and #$07;
-   asm asl;
+   asm and #$0f;
    asm asl;
    asm asl;
    asm asl;
    asm asl;
    asm sta.z game_player1_graphics;
+   asm lda.z sprite1;
+   asm cmp #3;
+   asm bne @p1_color_four_frame;
+   // Bits 2..3 are set 03's independent modulo-3 counter.
    asm lda.z animation_frame;
-   asm asl;
+   asm lsr;
+   asm lsr;
+   asm jmp @p1_color_frame_ready;
+   asm @p1_color_four_frame:;
+   asm lda.z animation_frame;
+   asm and #$03;
+   asm @p1_color_frame_ready:;
    asm asl;
    asm asl;
    asm ora.z game_player1_graphics;
+   asm sta.z game_player1_graphics;
+   asm lda.z sprite1;
+   asm cmp #16;
+   asm bcc @p1_color_page0;
+   asm lda #>sprite_row_colors_1;
+   asm jmp @p1_color_page_done;
+   asm @p1_color_page0:;
+   asm lda #>sprite_row_colors_0;
+   asm @p1_color_page_done:;
+   asm sta.z game_player1_graphics + 1;
+
+   asm ldx #0;
+   asm @p1_expand_colors:;
+   asm txa;
+   asm lsr;
+   asm tay;
+   asm lda.iy (game_player1_graphics),y;
+   asm and #$0f;
+   asm tay;
+   asm lda.ay pico8_tia_palette,y;
+   asm sta.ax game_player1_colors,x;
+   asm inx;
+   asm txa;
+   asm lsr;
+   asm tay;
+   asm lda.iy (game_player1_graphics),y;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay pico8_tia_palette,y;
+   asm sta.ax game_player1_colors,x;
+   asm inx;
+   asm cpx #8;
+   asm bne @p1_expand_colors;
+
+   asm lda.z game_player1_graphics;
+   asm asl;
    asm sta.z game_player1_graphics;
    asm lda.z sprite1;
    asm cmp #8;
@@ -1433,63 +1706,14 @@ void install_frames(void) {
    asm lda #>sprite_frames_2;
    asm @p1_page_done:;
    asm sta.z game_player1_graphics + 1;
-
-   // Count transparent source rows above each glyph, then rotate that player's
-   // palette by the same amount. The graphics stay byte-for-byte source-exact;
-   // only the row-color mapping follows vertical motion inside the 8x8 cell.
-   asm ldy #7;
-   asm @p0_find_top:;
-   asm lda.iy (game_player0_graphics),y;
-   asm bne @p0_top_found;
-   asm dey;
-   asm bpl @p0_find_top;
-   asm ldy #7;
-   asm @p0_top_found:;
-   asm tya;
-   asm eor #7;
-   asm tay;
-   asm ldx #0;
-   asm @p0_copy_colors:;
-   asm lda.ay player0_palette,y;
-   asm sta.ax game_player0_colors,x;
-   asm iny;
-   asm tya;
-   asm and #7;
-   asm tay;
-   asm inx;
-   asm cpx #8;
-   asm bne @p0_copy_colors;
-
-   asm ldy #7;
-   asm @p1_find_top:;
-   asm lda.iy (game_player1_graphics),y;
-   asm bne @p1_top_found;
-   asm dey;
-   asm bpl @p1_find_top;
-   asm ldy #7;
-   asm @p1_top_found:;
-   asm tya;
-   asm eor #7;
-   asm tay;
-   asm ldx #0;
-   asm @p1_copy_colors:;
-   asm lda.ay player1_palette,y;
-   asm sta.ax game_player1_colors,x;
-   asm iny;
-   asm tya;
-   asm and #7;
-   asm tay;
-   asm inx;
-   asm cpx #8;
-   asm bne @p1_copy_colors;
 }
 
 inline void next_pair(void) {
    sprite0 += 2;
    if (sprite0 >= SPRITE_COUNT) { sprite0 := 0; }
    sprite1 := sprite0 + 1;
-   game_PLAYER0_X := 0;
-   game_PLAYER1_X := 0;
+   game_PLAYER0_X := LEFT_EDGE;
+   game_PLAYER1_X := LEFT_EDGE;
    animation_frame := 0;
    animation_clock := 0;
    install_frames();
@@ -1506,10 +1730,10 @@ inline void update_animation(void) {
          animation_clock++;
          if (animation_clock >= FRAME_HOLD) {
             animation_clock := 0;
-            animation_frame++;
-            if (animation_frame >= 4) {
-               animation_frame := 0;
-            }
+            // Advance the packed modulo-4/modulo-3 phases together.
+            asm ldx.z animation_frame;
+            asm lda.ax animation_phase_next,x;
+            asm sta.z animation_frame;
             install_frames();
          }
       }
@@ -1554,13 +1778,13 @@ void main(void) {
    COLUPF := VCS_NTSC_MEDIUM_PURPLE;
    CTRLPF := 0x21;
 
-   game_PLAYER0_X := 0;
-   game_PLAYER1_X := 0;
+   game_PLAYER0_X := LEFT_EDGE;
+   game_PLAYER1_X := LEFT_EDGE;
    game_PLAYER0_NUSIZ := 0x20;
    game_PLAYER1_NUSIZ := 0x20;
    game_BALL_X := 80;
 
-   game_player0_y := 60;
+   game_player0_y := 55;
    game_player1_y := 44;
    game_ball_y := 94;
    game_player0_height := 7;
