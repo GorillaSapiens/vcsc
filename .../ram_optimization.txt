@@ -1,0 +1,319 @@
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+
+VCSC RIOT RAM OPTIMIZATION ROADMAP
+=================================
+
+Purpose
+-------
+This document records the RAM problems exposed by the animated-sprite gallery
+and turns them into an ordered compiler/runtime/renderer roadmap. The gallery is
+a useful stress case, but the goal is not to special-case one example. The first
+priority is to stop the compiler and linker from reserving static scratch whose
+lifetimes do not overlap. Renderer capability must not be removed merely to hide
+compiler waste.
+
+This is a focused roadmap. `.../roadmap.txt` remains the main project roadmap.
+The items below should be selected explicitly when RAM optimization becomes the
+active workstream.
+
+Guiding rules
+-------------
+* Measure every change from linker maps and emulator-backed frame tests.
+* Distinguish persistent application state, renderer-owned state, expression
+  scratch, activation storage, and hardware-return-stack reservation.
+* Prefer whole-program lifetime reuse over hand-written assembly in examples.
+* Do not remove Ball support from the existing player-color renderers merely to
+  make this gallery fit. First complete the compiler scratch work and remeasure.
+* Keep the 181-line and 192-line public renderer contracts stable unless a new
+  renderer profile is deliberately introduced.
+* Never trade a RAM reduction for unstable visible timing or an unprovable
+  activation/stack overlap.
+
+Measured animated-gallery baseline
+----------------------------------
+The source-derived-color animated gallery currently fills all 128 bytes of RIOT
+RAM. The measured ownership is:
+
+    VCSC runtime pointer/argument scratch                 8 bytes
+    player_color_192 renderer                            69 bytes
+      public renderer state                              13 bytes
+      private workspace and object schedule              56 bytes
+    mutable P0/P1 row-color tables                       16 bytes
+    persistent animation/control state                    7 bytes
+    main activation/expression scratch                   20 bytes
+    hardware return-stack reservation                     8 bytes
+                                                        --------
+                                                         128 bytes
+
+The 480-byte packed source-color table is ROM, not RAM. Only the selected P0 and
+P1 eight-row color tables occupy RAM.
+
+What `game_object_masks` is
+---------------------------
+`game_object_masks` is not the playfield. The gallery's 48-byte playfield is
+already immutable ROM data.
+
+The renderer's `game_object_masks[48]` is a writable, frame-rebuilt vertical
+object schedule and preparation workspace. Its layout is sparse and driven by
+visible-loop timing:
+
+* The twelve bytes at offsets 0, 4, 8, ... 44 hold Ball enable bits for the
+  renderer's twelve four-byte playfield rows / ninety-six two-scanline pairs.
+* The remaining addresses are reused during VBLANK for P0/P1 height thresholds,
+  range endpoints, loop limits, and mask-generation temporaries.
+* During visible drawing, instructions such as
+
+      lsr.zx game_object_masks,x
+
+  destructively consume the Ball schedule while X simultaneously follows the
+  four-byte playfield-row stride. The 48-byte shape is therefore partly a
+  cycle-scheduling choice, not forty-eight independent pieces of game state.
+
+The current array cannot simply be made `const` or moved to ROM: the renderer
+writes it during VBLANK and shifts it in place during drawing. A different
+representation or renderer schedule could reduce it, but that is a renderer
+redesign and must be proven against the beam.
+
+Why `main` owns twenty scratch bytes
+------------------------------------
+The animated gallery's current `main` activation record includes approximately:
+
+    vcs_ntsc_wait_scanlines parameter                     1 byte
+    VSYNC expression scratch                              2 bytes
+    pause-condition scratch                               1 byte
+    first inlined next_pair expansion                     6 bytes
+    control-expression scratch                            4 bytes
+    second inlined next_pair expansion                    6 bytes
+                                                        --------
+                                                          20 bytes
+
+None of those values is useful during the visible renderer. Most are dead after
+one expression or one VSYNC/overscan path, but VCSC currently gives `main` one
+static, non-returning activation record and does not overlay scratch whose
+lifetimes occur at different points inside the function.
+
+The worst symptom is that the two expansions of the same inline `next_pair()`
+helper receive separate six-byte scratch groups even though those expansions
+cannot execute simultaneously. Duplicating scratch groups for duplicated inline
+functions has got to stop.
+
+Why eight bytes are reserved for the hardware stack
+----------------------------------------------------
+The 6507 hardware return stack shares the physical RIOT $80-$FF RAM. The linker
+therefore reserves real RAM for the deepest possible JSR chain.
+
+The current player-color VBLANK path declares hidden assembly stack use and may
+execute a chain equivalent to:
+
+    runtime startup -> main -> prepare_object_masks -> prepare_one -> set_range
+
+Four simultaneous return addresses require eight bytes. Most source helpers are
+already inline; the remaining depth comes largely from handwritten renderer
+assembly and the deliberately out-of-line `install_frames()` routine.
+
+Inlining everything is not automatically correct. `install_frames()` is large
+and called repeatedly; blindly duplicating it would waste ROM and may overflow
+4K. Stack reduction must use measured whole-program inlining, helper flattening,
+or renderer redesign only when the linked result improves.
+
+Ordered roadmap
+---------------
+
+[ ] 0. Add authoritative RAM-accounting fixtures before optimizing.
+
+    * Build the animated gallery and retain a machine-readable symbol/segment
+      accounting report that classifies every byte as persistent state,
+      renderer state, activation scratch, runtime scratch, or hardware stack.
+    * Pin the current 128-byte baseline and the twenty-byte `main` activation
+      breakdown so later reductions are measurable rather than anecdotal.
+    * Add diagnostics capable of explaining why two scratch objects cannot
+      overlap and why each hardware-stack depth edge exists.
+    * Keep exact 262-line frame, sprite, source-derived row-color, control, and
+      animation-sequence emulator oracles active throughout this roadmap.
+
+[ ] 1. Add lifetime overlay between separate expressions inside one function.
+
+    This is the highest-priority compiler optimization and is expected to yield
+    broad savings well beyond the gallery.
+
+    * Compute scratch liveness across the function control-flow graph instead of
+      assigning every expression a permanent disjoint region in the function's
+      static activation.
+    * Allow non-overlapping expression temporaries to occupy the same bytes even
+      when they occur in different statements, branches, loop phases, or frame
+      phases.
+    * Retain a scratch lease until the expression's final copy-out or side effect
+      is complete; never reuse storage merely because code generation for one
+      subtree has returned.
+    * Handle joins conservatively: objects live on either predecessor remain live
+      at the join until proven dead. Loops require fixed-point liveness rather
+      than source-order assumptions.
+    * Preserve address-taken, inline-assembly-referenced, volatile hardware, and
+      ABI-visible objects. Only compiler-owned temporary storage is eligible.
+    * Emit map/debug information showing lifetime groups and overlaid offsets.
+
+    Acceptance criteria:
+
+    * Sequential expressions of equal or different sizes reuse the same maximal
+      scratch region when their lifetimes do not overlap.
+    * Mutually exclusive branches reuse scratch safely.
+    * Nested expressions and loop-carried values do not alias prematurely.
+    * Existing task-15e nesting-depth/LIFO guarantees remain intact.
+    * The gallery's VSYNC, control, and animation expressions no longer reserve
+      disjoint bytes merely because they appear in one non-returning `main`.
+
+[ ] 2. Stop duplicating scratch groups for repeated expansions of one inline
+        function.
+
+    * Model each inline expansion's compiler-owned temporaries by lifetime and
+      call-site reachability, not by assigning a permanent new group per textual
+      expansion.
+    * Reuse one scratch footprint for repeated inline calls when the expansions
+      cannot be active simultaneously.
+    * Support repeated expansions in separate branches, before/after loops, and
+      from different callers whose activations already overlay.
+    * Do not merge persistent inline-local objects whose source semantics require
+      distinct storage. This item concerns expression/call scratch, not ordinary
+      static locals.
+    * Detect nested inline expansion correctly. A caller expansion and a callee
+      expansion that are simultaneously live still require distinct storage.
+
+    Acceptance criteria:
+
+    * The two current `next_pair()` expansions share one scratch group instead of
+      consuming six bytes each.
+    * Adding a third sequential `next_pair()` call does not grow BSS scratch.
+    * A deliberately nested inline case still receives enough non-overlapping
+      storage.
+    * Generated code and emulator behavior remain unchanged except for addresses
+      and reduced RAM ownership.
+
+[ ] 3. Improve compact lowering for simple byte state updates.
+
+    The gallery currently routes operations such as `sprite0 += 2`,
+    `sprite1 := sprite0 + 1`, increments, masks, and constant comparisons through
+    generic multi-byte expression machinery in places where direct byte
+    instructions are sufficient.
+
+    * Extend the direct uint8_t assignment/update paths for constant add/subtract,
+      increment/decrement, mask/test, compare, and copy-plus-constant forms.
+    * Avoid generic pointer-width or three-byte temporary sequences for byte
+      lvalues whose width and address are known.
+    * Fold simple post-update comparisons where doing so is smaller and preserves
+      source evaluation semantics.
+    * Add exact assembly and zero/additional-scratch regressions.
+
+[ ] 4. Overlay scratch across frame phases when contracts prove the lifetimes do
+        not overlap.
+
+    * Describe VSYNC, VBLANK, visible draw, and overscan ownership for reusable
+      renderer/application workspaces.
+    * Allow application/compiler scratch used only after `game_draw()` to overlay
+      renderer preparation storage that is provably dead after visible drawing,
+      and vice versa.
+    * Do not overlay persistent renderer inputs needed by the next frame or state
+      restored during `game_overscan()`.
+    * Prefer compiler/linker metadata over example-specific absolute aliases.
+    * Add negative tests for phase objects whose lifetimes really do overlap.
+
+[ ] 5. Reduce the gallery's persistent bookkeeping without changing behavior.
+
+    * Derive `sprite1` from `sprite0` unless storing both is measurably smaller in
+      ROM or faster within the frame budget.
+    * Pack pause, Select-edge, and Fire-edge state into one flags byte.
+    * Reassess whether animation clock and phase fields can share bits or use an
+      immutable transition table more efficiently.
+    * Keep the source set-03 modulo-3 phase independent from the normal modulo-4
+      phase and preserve all controls.
+    * Do not move persistent state into undocumented renderer scratch.
+
+[ ] 6. Reduce hardware-stack reservation by measurement, not by blanket inlining.
+
+    * Report source calls and hidden assembly JSR depth separately in the map.
+    * Evaluate flattening `prepare_one`/`set_range`, tail-jumping, or converting
+      single-use helpers to local straight-line assembly when ROM and VBLANK
+      timing improve.
+    * Coordinate with main-roadmap item 31, whole-program one-call-site inlining.
+      That item must still compare final linked size and stack depth; it is not a
+      command to inline a large repeated routine such as `install_frames()`.
+    * Consider a no-return startup path only as a separate measured optimization;
+      do not rely on an ABI accident.
+    * Keep the linker hardware-stack calculation conservative and exact.
+
+[ ] 7. Remeasure the animated gallery on the existing P0/P1/Ball renderer after
+        compiler and application-state optimization.
+
+    * Retain Ball capability in `player_color_192` even though this particular
+      gallery sets Ball height to zero.
+    * Determine whether items 1-6 recover enough RAM for useful game state while
+      preserving the current general renderer.
+    * Record ROM, RAM, activation, and stack deltas item by item.
+    * Do not create a gallery-only renderer merely because it is easy.
+
+[ ] 8. Investigate a more compact Ball/object schedule without removing Ball.
+
+    * Separate the twelve meaningful Ball-mask bytes from VBLANK-only range
+      generation temporaries and P0/P1 threshold values.
+    * Explore compact schedules, ROM-assisted start/end masks, on-the-fly row
+      generation, alternate X/index choreography, or a small unpacked visible
+      cache.
+    * Measure every candidate against the exact visible-loop cycle schedule. The
+      current four-byte stride exists for a reason; a smaller table that misses a
+      beam deadline is not an optimization.
+    * Preserve arbitrary P0/P1/Ball Y positions and heights if this remains a
+      general player-color renderer optimization.
+
+[ ] 9. Only if a generally useful capability split is still justified, create a
+        192-line two-sprite-only renderer.
+
+    * This is a new maintained renderer profile, not a silent weakening of
+      `player_color_192`.
+    * Support P0 and P1 with the same bitmap, arbitrary-position, per-row color,
+      playfield, handoff, and exact-frame contracts as the parent renderer.
+    * Omit Ball state, Ball positioning, Ball mask generation, and Ball visible
+      work deliberately and document the RAM/ROM/timing savings.
+    * Provide interactive examples and independent raster/timing/install tests.
+
+[ ] 10. Only if a generally useful capability split is still justified, create an
+         181-line two-sprite-only renderer.
+
+    * This is the score-composable counterpart to item 9.
+    * Preserve the 181-line renderer's score-above/score-below handoff contracts,
+      arbitrary P0/P1 positioning, per-row colors, playfield timing, and exact
+      262-line frame behavior.
+    * Provide centered-score and wide-score interactive examples above and below
+      gameplay, plus independent raster/timing/install tests.
+    * Do not fork shared timing logic unnecessarily; derive it from the proven
+      maintained 181-line renderer schedule.
+
+[ ] 11. Establish completion gates and choose the retained architecture.
+
+    * The optimized gallery must have meaningful free RAM for application/game
+      state; merely reaching 128/128 again is failure.
+    * Publish before/after maps and identify savings from expression lifetime
+      overlay, inline scratch sharing, compact lowering, persistent-state packing,
+      stack depth, and any renderer change separately.
+    * Keep existing public renderer binaries/raster behavior stable unless a
+      change is explicitly accepted as a renderer fix.
+    * Run the complete compile-only and end-to-end suites, staged installation,
+      recursive examples, and focused Stella/simulator oracles.
+    * Update `.../context.txt`, `.../roadmap.txt` where cross-references are
+      appropriate, renderer READMEs, compiler ABI/developer documentation, and
+      the daily history.
+
+Expected direction
+------------------
+The twenty-byte `main` activation is mostly static-lifetime waste, not a visible
+renderer requirement. Lifetime overlay between separate expressions and shared
+scratch for repeated inline expansions should be completed before deciding that
+Ball support must be removed. Those compiler changes are likely to benefit many
+VCSC programs, especially non-returning frame loops, and may make the existing
+three-object renderer entirely practical for this gallery.
+
+A two-sprite-only renderer can still be valuable as an intentional low-RAM
+profile, but it should be justified as a reusable capability choice after the
+compiler stops wasting scratch—not used as camouflage for the compiler's current
+allocation behavior.

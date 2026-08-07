@@ -22,6 +22,7 @@ When asked to read `.../context.txt` and continue:
 
        .../roadmap.txt                 detailed main-project roadmap
        .../bankswitching.txt           bankswitching design and sub-roadmap
+       .../ram_optimization.txt         focused RIOT-RAM optimization roadmap
        .../instruction.txt             bounded-work and packaging procedure
        .../context-history/YYYY-MM-DD.txt
                                        historical daily development log
@@ -343,3 +344,10 @@ The next unfinished main-roadmap item is 23: investigate an all-five-object
 standard renderer with per-row P0/P1 colors, measure the real RAM/ROM/timing
 cost, preserve existing profiles, and abandon the variant rather than shipping
 a fragile schedule. Full criteria and later work are in `.../roadmap.txt`.
+
+A focused RAM side-roadmap now lives at `.../ram_optimization.txt`. It makes
+intra-function lifetime overlay between separate expressions and elimination of
+duplicated scratch groups from repeated inline expansions the first priorities.
+It requires remeasuring the existing P0/P1/Ball renderer before considering the
+optional 192-line and 181-line two-sprite-only renderer profiles. It is not the
+active workstream unless selected explicitly.

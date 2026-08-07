@@ -27,6 +27,10 @@ One chronological development-log file per local work date, named `YYYY-MM-DD.tx
 
 The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The compact `context.txt` handoff selects the active workstream; `roadmap.txt` owns the detailed main-project checklist.
 
+### `ram_optimization.txt`
+
+The focused RIOT-RAM optimization roadmap. It records the animated-gallery RAM baseline, explains renderer object-mask and hardware-stack ownership, and orders compiler lifetime overlay, repeated-inline scratch sharing, compact lowering, phase overlay, stack reduction, and optional two-sprite-only renderer work.
+
 ### `instruction.txt`
 
 The intentionally retained default workflow for bounded roadmap work: finish only complete steps, reserve time for testing and cleanup, package a clean tree, and place the download link first. It is durable project guidance, not accidental conversational residue.

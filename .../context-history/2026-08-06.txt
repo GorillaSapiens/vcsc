@@ -278,3 +278,18 @@ keeping RAM at 128/128 while leaving 101 ordinary ROM bytes free. One pair now
 takes 125 frames and all 15 pairs take 1,875 frames. Focused animation and
 player_color_192 tests pass with exact pixels, source-derived row colors, and
 262-line frames.
+
+2026-08-06 18:56:47 PDT, add focused RIOT-RAM optimization roadmap
+
+Created `.../ram_optimization.txt` from the animated-gallery RAM audit. The
+roadmap records the 128-byte baseline, explains that `game_object_masks` is a
+sparse writable object schedule rather than the ROM playfield, breaks down the
+twenty-byte `main` activation and eight-byte hardware-stack reservation, and
+orders compiler-level savings before renderer specialization. Intra-function
+lifetime overlay between separate expressions and elimination of duplicated
+scratch groups from repeated inline expansions are the first priorities. The
+optional renderer fallback is split into explicit maintained 192-line and
+181-line two-sprite-only profiles; the existing P0/P1/Ball renderer must be
+remeasured after compiler optimization before either is justified. Added the
+focused-roadmap pointers to `.../README.md` and compact context without changing
+the active main-roadmap item.
