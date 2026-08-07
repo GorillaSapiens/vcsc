@@ -71,12 +71,12 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin==4096 or die "animated gallery is not a 4K cartridge\n";
 my $map=read_file($mapfile);
 my $asm=read_file($assembly);
-$map =~ /rom\s+used=3854 bytes .*free=236 bytes/
-   or die "3854-byte relaxed high-level frame-installation ROM result changed\n";
+$map =~ /rom\s+used=3624 bytes .*free=466 bytes/
+   or die "3624-byte optimized high-level frame-installation ROM result changed\n";
 $map =~ /ram\s+used=110 bytes .*free=18 bytes .*objects=102 bytes hardware-stack=8 bytes/
    or die "110-byte compact-lowering RAM result changed\n";
-$map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$01CE/m
-   or die "high-level install_frames code size changed from 462 bytes\n";
+$map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
+   or die "optimized high-level install_frames code size changed from 232 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
    or die "high-level install_frames unexpectedly gained activation RAM\n";
 
@@ -212,10 +212,10 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>4,
+   schema=>5,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3854, rom_free_bytes=>236,
+      rom_bytes=>3624, rom_free_bytes=>466,
       ram_bytes=>110, free_ram_bytes=>18, object_bytes=>102, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -238,11 +238,15 @@ my $report={
          previous_rom_bytes=>3993, rom_bytes=>3662, rom_saved_bytes=>331,
       },
       high_level_install_frames=>{
-         handwritten_assembly_bytes=>236, high_level_code_bytes=>462,
-         previous_rom_bytes=>3662, rom_bytes=>3854, rom_added_bytes=>192,
+         handwritten_assembly_bytes=>236,
+         pre_optimizer_high_level_code_bytes=>462, high_level_code_bytes=>232,
+         code_bytes_saved_by_optimizer_followup=>230, code_bytes_vs_handwritten=>-4,
+         handwritten_gallery_rom_bytes=>3662, pre_optimizer_gallery_rom_bytes=>3854,
+         rom_bytes=>3624, rom_saved_by_optimizer_followup=>230,
+         gallery_rom_bytes_vs_handwritten=>-38,
          previous_ram_bytes=>110, ram_bytes=>110, ram_added_bytes=>0,
          previous_free_ram_bytes=>18, free_ram_bytes=>18,
-         activation_bytes=>0, rom_free_bytes=>236,
+         activation_bytes=>0, rom_free_bytes=>466,
       },
    },
    hardware_stack=>{

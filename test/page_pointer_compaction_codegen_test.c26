@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda sprite
+// expectasmordered: cmp #$10
+// expectasmordered: lda #>{rows1 + 0}
+// expectasmordered: lda #>{rows0 + 0}
+// expectasmordered: sta p + 1
+// expectasmordered: lda sprite
+// expectasmordered: and #$0f
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: sta p + 0
+// forbidasm: lda #<{rows0 + 0}
+// forbidasm: lda #<{rows1 + 0}
+// forbidasm: adc p + 0
+// forbidasm: inc p + 1
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+page const uint8_t rows0[256] := {0};
+page const uint8_t rows1[256] := {0};
+uint8_t *p;
+uint8_t sprite;
+
+void main(void) {
+   if (sprite < 16) { p := rows0; }
+   else { p := rows1; }
+   p += (sprite & 0x0f) << 4;
+}

@@ -1,8 +1,7 @@
 // vcsc-cc1 -I .
 // expectasmordered: lda sprite
 // expectasmordered: cmp #$10
-// expectasmordered: bcc @u8_lt_true_
-// expectasmordered: jmp @if_false_
+// expectasmordered: bcs @if_false_
 // expectasmordered: lda #<{rows0 + 0}
 // expectasmordered: sta p + 0
 // expectasmordered: lda #>{rows0 + 0}
@@ -27,8 +26,6 @@
 // expectasmordered: sta sprite
 // expectasmordered: ldx #$00
 // expectasmordered: @for_start_
-// expectasmordered: cpx #$08
-// expectasmordered: bcs @for_end_
 // expectasmordered: txa
 // expectasmordered: lsr
 // expectasmordered: tay
@@ -53,7 +50,8 @@
 // expectasmordered: @for_step_
 // expectasmordered: inx
 // expectasmordered: inx
-// expectasmordered: jmp @for_start_
+// expectasmordered: cpx #$08
+// expectasmordered: bcc @for_start_
 // forbidasm: __vcsc_scratch_
 // forbidasm: main$i
 // forbidasm: sta ptr0

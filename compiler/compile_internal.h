@@ -72,6 +72,15 @@ typedef struct Context {
    const char *continue_label;
    const char *return_label;
    const char *inline_label_prefix;
+   /* Narrow straight-line pointer-low fact used by page-aware pointer setup.
+      This is code-generation state only: compile_statement_list establishes it
+      when a page-aligned base assignment is immediately followed by compatible
+      byte-pointer updates, and clears it at control-flow/side-effect boundaries. */
+   const char *suppress_page_pointer_low_name;
+   const char *pointer_low_range_name;
+   int pointer_low_range_min;
+   int pointer_low_range_max;
+   bool pointer_low_range_known;
    /* Optional item-22 plan: one automatic source local aliases the hidden
       return object. The declaration pointer identifies the exact local whose
       separate storage emission must be suppressed. */

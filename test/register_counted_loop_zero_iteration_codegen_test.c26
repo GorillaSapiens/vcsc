@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$08
+// expectasmordered: @for_start_
+// expectasmordered: cpx #$08
+// expectasmordered: bcs @for_end_
+// expectasmordered: @for_step_
+// expectasmordered: inx
+// expectasmordered: jmp @for_start_
+
+include "machine_6502.c26"
+
+uint8_t out[16];
+
+void main(void) {
+   // A register-backed loop that is empty on entry must retain its pre-test.
+   for (uint8_t i := 8; i < 8; i += 1) {
+      out[i] := 1;
+   }
+}

@@ -55,6 +55,7 @@ my @patterns = (
    [ 'dup_ldy', qr/lda __vcsc_scratch_0,y\n    ldy #0\n    sta get_pair\$__return,y/ ],
    [ 'jump_next', qr/jmp \@fini\n\@fini:/ ],
    [ 'branch_next', qr/beq (\@if_false_\d+)\n\1:/ ],
+   [ 'branch_jmp_invert', qr/bcc (\@u8_lt_true_\d+)\n    jmp (\@if_false_\d+)\n\1:/ ],
 );
 
 for my $item (@patterns) {
@@ -67,7 +68,7 @@ my $cmd = join(' ', map { quotemeta($_) } ($cc1, '-quiet', '-I', $test, '-X', 'd
 my $status = system("$cmd 2> " . quotemeta($debug));
 $status == 0 or die "debug compile failed\n";
 my $debug_text = slurp($debug);
-for my $kind (qw(dup_lda dup_ldy jump_next branch_next)) {
+for my $kind (qw(dup_lda dup_ldy jump_next branch_next branch_jmp_invert)) {
    $debug_text =~ /peephole:\Q$kind\E\b/ or die "optimized source fixture did not exercise $kind\n--- debug ---\n$debug_text";
 }
 

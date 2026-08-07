@@ -1129,19 +1129,31 @@ by ordinary application code. Assigning an array to a compatible pointer writes 
 array address straight to the destination pointer; adding a simple unsigned-byte
 offset updates that pointer directly; one-byte array and pointer subscripts can stay
 in A/Y; constant masks and shifts are emitted in place; and direct byte-array stores
-avoid constructing a general run-time lvalue. These shortcuts are deliberately narrow:
-absolute hardware bindings, signed or packed-BCD values, wider objects, and expressions
-that need general aliasing semantics still use the normal lowering machinery.
-Ref-array formals are deliberately excluded from direct absolute-array stores: their declarator retains array shape, but their runtime representation is pointer-backed.
+avoid constructing a general run-time lvalue. Hard `page` arrays carry stronger facts:
+a page-selection chain can install only the selected high byte, a proven bounded low-
+byte offset can omit impossible carry propagation, and identical selector suffixes are
+shared. When a later page-pointer setup is proven to use exactly twice the earlier
+masked/shifted byte offsets and the intervening counted loop cannot mutate the pointer
+or source values, the compiler reuses the existing low byte with `ASL` instead of
+reconstructing the offset. The proof is byte-exact modulo 256 and does not allocate a
+hidden temporary. These shortcuts are deliberately narrow: absolute hardware bindings,
+signed or packed-BCD values, wider objects, calls/assembly across a reuse lifetime, and
+expressions that need general aliasing semantics still use the normal lowering machinery.
+Ref-array formals are deliberately excluded from direct absolute-array stores: their
+declarator retains array shape, but their runtime representation is pointer-backed.
 
 A small counted loop of the form `for (uint8_t i := C; i < N; i += S)` may keep its
 loop-local index in X when the complete body is proven to contain only supported
 straight-line byte assignments and expressions. Calls, inline assembly, nested control
 flow, address-taking, signed/BCD arithmetic, and other X-clobbering constructs reject
 the shortcut. Such a proven loop emits no activation object for its lexical index; X
-is restored around the supported `i + constant` array-store form. This optimization is
-what makes compact high-level table expansion practical without turning an example's
-loop counter into permanent RIOT RAM.
+is restored around the supported `i + constant` array-store form. When `C < N` proves
+the loop nonempty, lowering uses a post-tested `CPX`/`BCC` loop and avoids a redundant
+entry test/back jump. A loop that can be empty retains the pre-test, so zero-iteration
+semantics are unchanged. Constant stores through an X-backed array subscript are routed
+through the same direct array path rather than referring to a nonexistent materialized
+loop-local object. This optimization is what makes compact high-level table expansion
+practical without turning an example's loop counter into permanent RIOT RAM.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
@@ -1163,8 +1175,12 @@ Every recognized rewrite kind has a pattern-level optimizer regression. A
 separate source-level regression compiles ordinary VCSC twice, first with
 `-fno-peephole` to prove the compiler actually emits the candidate pattern and
 then with the default enabled to prove the rewrite occurs. The currently emitted
-source patterns cover duplicate `LDA`/`LDY` loads and branches or jumps to their
-immediately following labels.
+source patterns cover duplicate `LDA`/`LDY` loads, branches or jumps to their
+immediately following labels, and a generated conditional branch followed by a
+`JMP` to the alternate arm. The latter is inverted to a single branch only inside
+pure compiler-generated procedures; the presence of inline assembly disables that
+size-changing control-flow rewrite for the whole procedure so handwritten timing
+intent is not silently rescheduled.
 
 Inline assembly is opaque. The pass neither rewrites instructions inside an
 `asm` block nor carries register, flag, or scratch-value facts across it. The

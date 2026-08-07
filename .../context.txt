@@ -307,8 +307,10 @@ Important active constraints and open questions
 -----------------------------------------------
 * Inline/included assembly stack use is not inferred. Components must declare
   known hidden use explicitly; automatic analysis may be considered later.
-* Computed-address reuse is deliberately local to provably identical operands
-  inside one expression; cross-statement reuse remains deferred.
+* General cross-statement computed-address reuse remains conservative. One narrow
+  proven frame-table case now survives across a counted loop: when later page-pointer
+  offsets are byte-exact doubles of earlier masked/shifted offsets and the loop cannot
+  modify the pointer or source values, the compiler reuses the low byte with `ASL`.
 * Runtime binary/BCD representation conversion and general BCD multiply/divide
   helpers remain deferred.
 * Segmented/value-controlled/historical mapper families are not generic variants
@@ -321,53 +323,52 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization work through the high-level animated-frame installer is complete.
-Compiler-owned expression scratch is lifetime-colored across the complete runtime
-activation owner, ordinary directly addressable unsigned-byte state uses compact
-lowering, and the compiler now has narrow reusable table/pointer lowering for array
-decay, pointer-plus-byte offsets, indexed one-byte loads/stores, constant masks and
-shifts, and proven small unsigned-byte counted loops. Unsafe counted-loop bodies fall
-back to materialized locals rather than reserving X. Ordinary unsigned-byte comparisons
-deliberately retain their established control-flow shape: a shorter branch form was
-rejected after it moved scheduler-owned VBLANK work by one scanline.
+RAM-optimization work through the high-level animated-frame installer and its
+measured ROM-recovery follow-up is complete. Compiler-owned expression scratch is
+lifetime-colored across the complete runtime activation owner, ordinary directly
+addressable unsigned-byte state uses compact lowering, and the compiler has reusable
+table/pointer lowering for array decay, hard-page selection, bounded page-low updates,
+indexed one-byte loads/stores, constant masks/shifts, and proven small unsigned-byte
+counted loops. Unsafe counted-loop bodies fall back to materialized locals rather than
+reserving X. Proven nonempty register-backed loops are post-tested; potentially empty
+loops retain an entry test.
 
-The standard 4K renderer component remains page-aligned and internally unchanged, but
-its absolute linked page may move when surrounding application code shrinks. The static
-timing baseline records the current `$F200/$F500` placement as an observation, not an
-ABI guarantee, and tests enforce page alignment, relative component layout, and exact
-raster/phase behavior instead of those absolute pages.
+Compiler-generated ordinary memory references remain addressing-mode agnostic and let
+`vcsc-as` select/relax modes from `.segmentaddrsize` and final placement. Explicit
+source `asm` suffixes remain the mechanism for deliberate encoding/timing. Generated
+branch/`JMP` inversion is likewise scoped to pure compiler-generated procedures; any
+inline assembly disables that size-changing control-flow rewrite for the procedure.
 
-The animated gallery's authoritative schema-4 report records a two-byte `main`
+The animated gallery's authoritative schema-5 report records a two-byte `main`
 activation and zero `install_frames()` activation bytes. Both `next_pair()` expansions
 allocate zero expression scratch. Total RIOT RAM remains 110/128 bytes—102 object
-bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The now
-high-level `install_frames()` originally raised ordinary ROM from 3662 to 3969 bytes.
-The compiler-wide addressing-mode audit removed all 87 ordinary forced mode-suffix
-occurrences from compiler mnemonic emitters and now lets `vcsc-as` select/relax modes
-from `.segmentaddrsize` and final placement. Explicit source `asm` suffixes remain the
-mechanism for deliberate encoding/timing. The gallery is now 3854/4090 ROM bytes with
-236 free and still 110/128 RAM bytes with 18 free; `install_frames()` is 462 linked
-bytes versus the 236-byte hand-written predecessor. `-fno-peephole` gives 3862 gallery
-bytes with the same 462-byte installer, so the existing peephole still saves eight
-bytes elsewhere and zero inside `install_frames()`. Branch/JMP scaffolding still
-accounts for 30 measured bytes, page-aware pointer lowering reaches the 326-byte
-analysis form, and the remaining difference is attributed in `.../ram_optimization.txt`.
+bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The final
+ordinary high-level `install_frames()` links at 232 bytes, four bytes smaller than the
+236-byte hand-written predecessor and down from the 462-byte relaxed high-level
+baseline. The complete gallery is 3624/4090 ROM bytes with 466 free. With
+`-fno-peephole`, the gallery is 3635 bytes and `install_frames()` is 235 bytes.
 
-Public-example assembly is now audited by `test/example_assembly_allowlist.pl`: every
+The ROM recovery comes from timing-scoped branch inversion, compact hard-page selector
+lowering, impossible-carry elimination from byte-range proofs, common conditional
+pointer-low suffixes, proven reuse of doubled packed-color offsets for bitmap pointers,
+and post-tested nonempty counted loops. The detailed measured path and acceptance
+criteria live in `.../ram_optimization.txt`. The full animation oracle still verifies
+all 120 frames, the independent modulo-3 set, controls, and exact 262-line frames.
+
+Public-example assembly remains audited by `test/example_assembly_allowlist.pl`: every
 remaining source/statement set is hash-pinned and classified as beam-critical, a
 direct hardware idiom, a documented compiler/language limitation, or a combination.
-The remaining ordinary-logic debt has a named future roadmap entry; new assembly
-cannot silently enter examples without changing the audited inventory.
+New assembly cannot silently enter examples without changing the audited inventory.
 
-Before phase-lifetime overlay, continue the measured `install_frames()` code-size
-follow-up in `.../ram_optimization.txt`. The compiler/assembler addressing-mode
-handoff is complete; next are the measured timing-safe branch/JMP peepholes and
-page-aware pointer reductions, followed by the remaining named value-lifetime/tail
-patterns. Preserve zero activation RAM and exact renderer timing. Phase-lifetime
-overlay follows after that code-size work.
+The next RAM-optimization work is phase-aware scratch overlay across VSYNC, VBLANK,
+visible drawing, and overscan. Preserve persistent renderer inputs and next-frame state;
+prefer compiler/linker lifetime metadata over example-specific aliases, and add negative
+coverage for genuinely overlapping phase lifetimes.
 
-Verification after the addressing-mode handoff is 444/444 compile-only tests and
-255/255 end-to-end cases in bounded batches. Clean source-tree hygiene passes.
+Verification after the optimizer follow-up is 447/447 compile-only tests and 256/256
+end-to-end cases in bounded batches. Exact scheduler, score, fingerprint, renderer,
+banked-renderer, split-memory, and animation oracles pass. Clean source-tree hygiene
+must remain the packaging gate.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

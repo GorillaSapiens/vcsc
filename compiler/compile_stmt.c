@@ -14,6 +14,7 @@
 #include "abi_meta.h"
 #include "compile.h"
 #include "compile_init.h"
+#include "compile_expr_flow.h"
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_internal.h"
@@ -273,13 +274,608 @@ static const char *lookup_named_continue_label(const char *name) {
    return NULL;
 }
 
+//! @brief Return whether an lvalue carries one direct subscript suffix.
+static bool stmt_lvalue_has_direct_subscript(ASTNode *expr) {
+   ASTNode *suffix;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || strcmp(expr->name, "lvalue") || expr->count < 2) return false;
+   suffix = expr->children[1];
+   return suffix && !strcmp(suffix->name, "[") && suffix->count >= 2 &&
+      is_empty(suffix->children[0]);
+}
+
+//! @brief Return whether one direct assignment selects a hard page-aligned array base.
+static bool classify_page_pointer_base_assignment(ASTNode *stmt, Context *ctx,
+                                                  const char **target_name_out) {
+   const char *op;
+   LValueRef dst;
+   LValueRef src;
+   ASTNode *rhs;
+   const ASTNode *g;
+   const ASTNode *modifiers;
+
+   if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+       !(op = stmt->children[0] ? stmt->children[0]->strval : NULL) || strcmp(op, ":=") ||
+       !resolve_lvalue(ctx, stmt->children[1], &dst) || dst.is_bitfield || dst.indirect ||
+       dst.needs_runtime_address || dst.is_absolute_ref || dst.size != 2 ||
+       declarator_pointer_depth(dst.declarator) != 1) {
+      return false;
+   }
+   rhs = (ASTNode *)unwrap_expr_node(stmt->children[2]);
+   if (!rhs || strcmp(rhs->name, "lvalue") || stmt_lvalue_has_direct_subscript(rhs) ||
+       !resolve_ref_argument_lvalue(ctx, rhs, &src) || !src.name || !src.is_global ||
+       src.is_ref || src.is_absolute_ref || src.indirect || src.needs_runtime_address ||
+       src.base_offset != 0 || declarator_pointer_depth(src.declarator) != 0 ||
+       declarator_array_count(src.declarator) <= 0) {
+      return false;
+   }
+   g = global_decl_lookup(src.name);
+   if (!g || g->count < 3 || !(modifiers = g->children[0]) ||
+       !has_modifier((ASTNode *)modifiers, "page")) {
+      return false;
+   }
+   if (target_name_out) *target_name_out = dst.name;
+   return dst.name != NULL;
+}
+
+enum { MAX_COMPACT_PAGE_SELECTOR_ARMS = 8 };
+
+typedef struct {
+   LValueRef selector;
+   bool selector_set;
+   LValueRef target;
+   bool target_set;
+   unsigned char limits[MAX_COMPACT_PAGE_SELECTOR_ARMS];
+   const char *pages[MAX_COMPACT_PAGE_SELECTOR_ARMS + 1];
+   int arm_count;
+   const char *target_name;
+} CompactPageSelector;
+
+//! @brief Return one page-array source name from a selector leaf assignment.
+static bool classify_page_pointer_leaf(ASTNode *stmt, Context *ctx,
+                                       const char **target_name_out,
+                                       const char **page_name_out,
+                                       LValueRef *target_out) {
+   LValueRef dst;
+   LValueRef src;
+   ASTNode *rhs;
+
+   while (stmt && !strcmp(stmt->name, "statement_list") && stmt->count == 1)
+      stmt = stmt->children[0];
+   if (!classify_page_pointer_base_assignment(stmt, ctx, target_name_out)) return false;
+   if (!resolve_lvalue(ctx, stmt->children[1], &dst)) return false;
+   rhs = (ASTNode *)unwrap_expr_node(stmt->children[2]);
+   if (!rhs || !resolve_ref_argument_lvalue(ctx, rhs, &src) || !src.name ||
+       src.base_offset != 0) {
+      return false;
+   }
+   if (page_name_out) *page_name_out = src.name;
+   if (target_out) *target_out = dst;
+   return true;
+}
+
+//! @brief Recognize an unsigned-byte "same selector < constant" page-choice condition.
+static bool classify_compact_page_condition(ASTNode *expr, Context *ctx,
+                                            CompactPageSelector *sel,
+                                            unsigned char *limit_out) {
+   LValueRef lv;
+   InitConstValue value = {0};
+   unsigned char encoded = 0;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 || strcmp(expr->name, "<") ||
+       !resolve_lvalue(ctx, expr->children[0], &lv) || lv.is_bitfield || lv.indirect ||
+       lv.needs_runtime_address || lv.is_absolute_ref || lv.size != 1 ||
+       type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type) ||
+       !eval_constant_initializer_expr(expr->children[1], &value) ||
+       value.kind != INIT_CONST_INT ||
+       !integer_value_fits_type(value.i, lv.type) ||
+       !encode_integer_initializer_value(value.i, &encoded, 1, lv.type)) {
+      return false;
+   }
+
+   if (!sel->selector_set) {
+      sel->selector = lv;
+      sel->selector_set = true;
+   }
+   else if (!sel->selector.name || !lv.name || strcmp(sel->selector.name, lv.name) ||
+            sel->selector.offset != lv.offset || sel->selector.base_offset != lv.base_offset ||
+            sel->selector.is_global != lv.is_global || sel->selector.is_static != lv.is_static ||
+            sel->selector.is_zeropage != lv.is_zeropage) {
+      return false;
+   }
+   if (limit_out) *limit_out = encoded;
+   return true;
+}
+
+//! @brief Flatten a nested if/else page selector into ordered threshold/page arms.
+static bool collect_compact_page_selector(ASTNode *stmt, Context *ctx,
+                                          CompactPageSelector *sel) {
+   const char *target = NULL;
+   const char *page = NULL;
+
+   if (!stmt || !sel) return false;
+   if (!strcmp(stmt->name, "statement_list")) {
+      if (stmt->count != 1) return false;
+      return collect_compact_page_selector(stmt->children[0], ctx, sel);
+   }
+   if (!strcmp(stmt->name, "assign_expr")) {
+      LValueRef dst;
+      if (!classify_page_pointer_leaf(stmt, ctx, &target, &page, &dst) || !target || !page) {
+         return false;
+      }
+      if (sel->target_name && strcmp(sel->target_name, target)) return false;
+      sel->target_name = target;
+      if (!sel->target_set) {
+         sel->target = dst;
+         sel->target_set = true;
+      }
+      sel->pages[sel->arm_count] = page;
+      return true;
+   }
+   if (strcmp(stmt->name, "if_stmt") || stmt->count < 3 ||
+       !stmt->children[1] || !stmt->children[2] || is_empty(stmt->children[2]) ||
+       sel->arm_count >= MAX_COMPACT_PAGE_SELECTOR_ARMS) {
+      return false;
+   }
+   if (!classify_compact_page_condition(stmt->children[0], ctx, sel,
+                                        &sel->limits[sel->arm_count]) ||
+       !classify_page_pointer_leaf(stmt->children[1], ctx, &target, &page, NULL) ||
+       !target || !page || (sel->target_name && strcmp(sel->target_name, target))) {
+      return false;
+   }
+   sel->target_name = target;
+   sel->pages[sel->arm_count] = page;
+   sel->arm_count++;
+   return collect_compact_page_selector(stmt->children[2], ctx, sel);
+}
+
+//! @brief Emit one compact hard-page selector while preserving the page-low zero fact.
+static bool compile_compact_page_pointer_selector(ASTNode *stmt, Context *ctx,
+                                                  const char *expected_target) {
+   CompactPageSelector sel = {0};
+   ContextEntry dst_entry;
+   char selector_symbol[256];
+   char selector_buf[256];
+   char dst_symbol[256];
+   char dst_buf[256];
+   const char *selector_fmt;
+   const char *dst_fmt;
+   const char *store_label;
+   const char *leaf_labels[MAX_COMPACT_PAGE_SELECTOR_ARMS] = {0};
+
+   if (!collect_compact_page_selector(stmt, ctx, &sel) || !sel.selector_set || !sel.target_set ||
+       sel.arm_count <= 0 || !sel.target_name ||
+       (expected_target && strcmp(expected_target, sel.target_name))) {
+      return false;
+   }
+   {
+      ContextEntry selector_entry = {
+         .name = sel.selector.name, .type = sel.selector.type,
+         .declarator = sel.selector.declarator, .is_static = sel.selector.is_static,
+         .is_zeropage = sel.selector.is_zeropage, .is_global = sel.selector.is_global,
+         .offset = sel.selector.offset, .size = sel.selector.size
+      };
+      if (!entry_symbol_name(ctx, &selector_entry, selector_symbol, sizeof(selector_symbol))) {
+         return false;
+      }
+   }
+   dst_entry = (ContextEntry){
+      .name = sel.target.name, .type = sel.target.type, .declarator = sel.target.declarator,
+      .is_static = sel.target.is_static, .is_zeropage = sel.target.is_zeropage,
+      .is_global = sel.target.is_global, .offset = sel.target.offset, .size = sel.target.size
+   };
+   if (!entry_symbol_name(ctx, &dst_entry, dst_symbol, sizeof(dst_symbol))) return false;
+   selector_fmt = assembler_address_expr(selector_symbol, selector_buf, sizeof(selector_buf));
+   dst_fmt = assembler_address_expr(dst_symbol, dst_buf, sizeof(dst_buf));
+   store_label = next_label("page_select_store");
+   if (!store_label) return false;
+   for (int i = 0; i < sel.arm_count; i++) {
+      leaf_labels[i] = next_label("page_select_leaf");
+      if (!leaf_labels[i]) {
+         for (int j = 0; j < i; j++) free((void *)leaf_labels[j]);
+         free((void *)store_label);
+         return false;
+      }
+   }
+
+   emit_lvalue_semantic_use(ctx, &sel.selector, "read");
+   if (sel.selector.offset == 0) emit(&es_code, "    lda %s\n", selector_fmt);
+   else emit(&es_code, "    lda %s + %d\n", selector_fmt, sel.selector.offset);
+   for (int i = 0; i < sel.arm_count; i++) {
+      emit(&es_code, "    cmp #$%02x\n", (unsigned int)sel.limits[i]);
+      emit(&es_code, "    bcc %s\n", leaf_labels[i]);
+   }
+   emit(&es_code, "    lda #>{%s + 0}\n", sel.pages[sel.arm_count]);
+   emit(&es_code, "    jmp %s\n", store_label);
+   for (int i = 0; i < sel.arm_count; i++) {
+      emit(&es_code, "%s:\n", leaf_labels[i]);
+      emit(&es_code, "    lda #>{%s + 0}\n", sel.pages[i]);
+      if (i + 1 < sel.arm_count) emit(&es_code, "    jmp %s\n", store_label);
+   }
+   emit(&es_code, "%s:\n", store_label);
+   emit_lvalue_semantic_use(ctx, &sel.target, "write");
+   emit(&es_code, "    sta %s + 1\n", dst_fmt);
+
+   for (int i = 0; i < sel.arm_count; i++) free((void *)leaf_labels[i]);
+   free((void *)store_label);
+   return true;
+}
+
+//! @brief Prove every path through a structured selector assigns the same pointer from a page base.
+static bool classify_page_pointer_selector(ASTNode *stmt, Context *ctx,
+                                           const char **target_name_out) {
+   const char *then_name = NULL;
+   const char *else_name = NULL;
+
+   if (!stmt) return false;
+   if (!strcmp(stmt->name, "statement_list")) {
+      if (stmt->count != 1) return false;
+      return classify_page_pointer_selector(stmt->children[0], ctx, target_name_out);
+   }
+   if (!strcmp(stmt->name, "assign_expr")) {
+      return classify_page_pointer_base_assignment(stmt, ctx, target_name_out);
+   }
+   if (strcmp(stmt->name, "if_stmt") || stmt->count < 3 ||
+       !stmt->children[1] || !stmt->children[2] || is_empty(stmt->children[2])) {
+      return false;
+   }
+   if (!classify_page_pointer_selector(stmt->children[1], ctx, &then_name) ||
+       !classify_page_pointer_selector(stmt->children[2], ctx, &else_name) ||
+       !then_name || !else_name || strcmp(then_name, else_name)) {
+      return false;
+   }
+   if (target_name_out) *target_name_out = then_name;
+   return true;
+}
+
+//! @brief Return whether a statement is a compatible byte-pointer update for one tracked pointer.
+static bool classify_tracked_pointer_u8_update(ASTNode *stmt, Context *ctx,
+                                               const char *target_name) {
+   const char *op;
+   LValueRef dst;
+   int rhs_min = 0;
+   int rhs_max = 255;
+
+   if (!stmt || !target_name || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+       !(op = stmt->children[0] ? stmt->children[0]->strval : NULL) || strcmp(op, "+=") ||
+       !resolve_lvalue(ctx, stmt->children[1], &dst) || !dst.name || strcmp(dst.name, target_name) ||
+       dst.is_bitfield || dst.indirect || dst.needs_runtime_address || dst.is_absolute_ref ||
+       dst.size != 2 || declarator_pointer_depth(dst.declarator) != 1 ||
+       declarator_first_element_size(dst.type, dst.declarator) != 1 ||
+       !direct_u8_expr_range(ctx, stmt->children[2], &rhs_min, &rhs_max)) {
+      return false;
+   }
+   return rhs_min >= 0 && rhs_max <= 255;
+}
+
+//! @brief Return the sole executable statement in a simple branch block.
+static ASTNode *single_branch_statement(ASTNode *block) {
+   while (block && !strcmp(block->name, "statement_list")) {
+      if (block->count != 1) return NULL;
+      block = block->children[0];
+   }
+   return block;
+}
+
+//! @brief Prove both arms of an if are byte updates of the same tracked pointer.
+static bool classify_tracked_pointer_u8_conditional_update(ASTNode *stmt, Context *ctx,
+                                                           const char *target_name) {
+   ASTNode *then_stmt;
+   ASTNode *else_stmt;
+
+   if (!stmt || !target_name || strcmp(stmt->name, "if_stmt") || stmt->count < 3 ||
+       !stmt->children[2] || is_empty(stmt->children[2])) return false;
+   then_stmt = single_branch_statement(stmt->children[1]);
+   else_stmt = single_branch_statement(stmt->children[2]);
+   return then_stmt && else_stmt &&
+      classify_tracked_pointer_u8_update(then_stmt, ctx, target_name) &&
+      classify_tracked_pointer_u8_update(else_stmt, ctx, target_name);
+}
+
+static void clear_pointer_low_range_fact(Context *ctx);
+
+//! @brief Lower a no-carry conditional byte-pointer update with one shared add/store suffix.
+static bool compile_compact_pointer_u8_conditional_update(ASTNode *node, Context *ctx) {
+   ASTNode *then_stmt;
+   ASTNode *else_stmt;
+   LValueRef dst;
+   ContextEntry entry;
+   char symbol[256];
+   char addr_buf[256];
+   const char *formatted;
+   const char *false_label;
+   const char *join_label;
+   int then_min = 0, then_max = 255;
+   int else_min = 0, else_max = 255;
+   int base_min;
+   int base_max;
+
+   if (!ctx || !ctx->pointer_low_range_known || !ctx->pointer_low_range_name ||
+       !classify_tracked_pointer_u8_conditional_update(node, ctx,
+                                                      ctx->pointer_low_range_name)) {
+      return false;
+   }
+   then_stmt = single_branch_statement(node->children[1]);
+   else_stmt = single_branch_statement(node->children[2]);
+   if (!then_stmt || !else_stmt ||
+       !direct_u8_expr_range(ctx, then_stmt->children[2], &then_min, &then_max) ||
+       !direct_u8_expr_range(ctx, else_stmt->children[2], &else_min, &else_max)) {
+      return false;
+   }
+   base_min = ctx->pointer_low_range_min;
+   base_max = ctx->pointer_low_range_max;
+   if (base_max + then_max > 255 || base_max + else_max > 255 ||
+       !resolve_lvalue(ctx, then_stmt->children[1], &dst) || dst.is_bitfield ||
+       dst.indirect || dst.needs_runtime_address || dst.is_absolute_ref) {
+      return false;
+   }
+   entry = (ContextEntry){ .name = dst.name, .type = dst.type,
+      .declarator = dst.declarator, .is_static = dst.is_static,
+      .is_zeropage = dst.is_zeropage, .is_global = dst.is_global,
+      .offset = dst.offset, .size = dst.size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, addr_buf, sizeof(addr_buf));
+   false_label = next_label("ptr_cond_false");
+   join_label = next_label("ptr_cond_value");
+   if (!false_label || !join_label) {
+      free((void *)false_label);
+      free((void *)join_label);
+      return false;
+   }
+
+   if (!compile_condition_branch_false(node->children[0], ctx, false_label) ||
+       !compile_direct_u8_expr_to_a(ctx, then_stmt->children[2])) {
+      free((void *)false_label);
+      free((void *)join_label);
+      return false;
+   }
+   emit(&es_code, "    jmp %s\n", join_label);
+   emit(&es_code, "%s:\n", false_label);
+   if (!compile_direct_u8_expr_to_a(ctx, else_stmt->children[2])) {
+      free((void *)false_label);
+      free((void *)join_label);
+      return false;
+   }
+   emit(&es_code, "%s:\n", join_label);
+   emit_lvalue_semantic_use(ctx, &dst, "read");
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+   emit(&es_code, "    clc\n");
+   emit(&es_code, "    adc %s + %d\n", formatted, dst.offset);
+   emit(&es_code, "    sta %s + %d\n", formatted, dst.offset);
+   ctx->pointer_low_range_min = base_min + (then_min < else_min ? then_min : else_min);
+   ctx->pointer_low_range_max = base_max + (then_max > else_max ? then_max : else_max);
+   ctx->pointer_low_range_known = true;
+   free((void *)false_label);
+   free((void *)join_label);
+   return true;
+}
+
+typedef struct {
+   const char *name;
+   int mask;
+   int shift;
+} U8MaskedShift;
+
+//! @brief Recognize one byte expression as a masked value shifted left by a constant.
+static bool classify_u8_masked_shift(ASTNode *expr, Context *ctx, U8MaskedShift *out) {
+   long long shift = 0;
+   long long mask = 0xff;
+   ASTNode *value;
+   ASTNode *mask_expr;
+   const char *name;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || !out || !direct_u8_expr_range(ctx, expr, NULL, NULL)) return false;
+   if (expr->count == 2 && !strcmp(expr->name, "<<")) {
+      if (!expr_is_integer_constant_expr(expr->children[1], &shift) || shift < 0 || shift > 7)
+         return false;
+      expr = (ASTNode *)unwrap_expr_node(expr->children[0]);
+   }
+   if (expr && expr->count == 2 && !strcmp(expr->name, "&")) {
+      value = expr->children[0];
+      mask_expr = expr->children[1];
+      if (!expr_is_integer_constant_expr(mask_expr, &mask)) {
+         value = expr->children[1];
+         mask_expr = expr->children[0];
+         if (!expr_is_integer_constant_expr(mask_expr, &mask)) return false;
+      }
+      if (mask < 0 || mask > 255) return false;
+   }
+   else {
+      value = expr;
+   }
+   name = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(value));
+   if (!name) return false;
+   out->name = name;
+   out->mask = (int)mask;
+   out->shift = (int)shift;
+   return true;
+}
+
+//! @brief Prove rhs_new is exactly twice rhs_old modulo one byte for every input value.
+static bool u8_expr_is_double_mod256(ASTNode *old_expr, ASTNode *new_expr,
+                                     Context *ctx, const char **name_out) {
+   U8MaskedShift oldv;
+   U8MaskedShift newv;
+
+   if (!classify_u8_masked_shift(old_expr, ctx, &oldv) ||
+       !classify_u8_masked_shift(new_expr, ctx, &newv) ||
+       strcmp(oldv.name, newv.name)) return false;
+   for (int x = 0; x < 256; x++) {
+      unsigned int a = ((unsigned int)(x & oldv.mask) << oldv.shift) & 0xffu;
+      unsigned int b = ((unsigned int)(x & newv.mask) << newv.shift) & 0xffu;
+      if (b != ((a << 1) & 0xffu)) return false;
+   }
+   if (name_out) *name_out = oldv.name;
+   return true;
+}
+
+//! @brief Compare simple expression trees used as duplicated selector conditions.
+static bool simple_expr_same(ASTNode *a, ASTNode *b) {
+   long long av, bv;
+   const char *an;
+   const char *bn;
+
+   a = (ASTNode *)unwrap_expr_node(a);
+   b = (ASTNode *)unwrap_expr_node(b);
+   if (!a || !b) return a == b;
+   an = expr_bare_identifier_name(a);
+   bn = expr_bare_identifier_name(b);
+   if (an || bn) return an && bn && !strcmp(an, bn);
+   if (expr_is_integer_constant_expr(a, &av) && expr_is_integer_constant_expr(b, &bv))
+      return av == bv;
+   if (strcmp(a->name, b->name) || a->count != b->count) return false;
+   for (int i = 0; i < a->count; i++) {
+      if (!simple_expr_same(a->children[i], b->children[i])) return false;
+   }
+   return true;
+}
+
+//! @brief Prove two pointer-update statements compute byte offsets related by x2 modulo 256.
+static bool pointer_update_is_double(ASTNode *old_stmt, ASTNode *new_stmt, Context *ctx,
+                                     const char *target_name, const char **value_name_out) {
+   old_stmt = single_branch_statement(old_stmt);
+   new_stmt = single_branch_statement(new_stmt);
+   if (!old_stmt || !new_stmt ||
+       !classify_tracked_pointer_u8_update(old_stmt, ctx, target_name) ||
+       !classify_tracked_pointer_u8_update(new_stmt, ctx, target_name)) return false;
+   return u8_expr_is_double_mod256(old_stmt->children[2], new_stmt->children[2],
+                                  ctx, value_name_out);
+}
+
+//! @brief Prove duplicated conditional pointer updates also double every selected offset.
+static bool pointer_conditional_update_is_double(ASTNode *old_stmt, ASTNode *new_stmt,
+                                                 Context *ctx, const char *target_name,
+                                                 const char **value_name_out) {
+   ASTNode *old_then;
+   ASTNode *old_else;
+   ASTNode *new_then;
+   ASTNode *new_else;
+   const char *then_name = NULL;
+   const char *else_name = NULL;
+
+   if (!old_stmt || !new_stmt || strcmp(old_stmt->name, "if_stmt") ||
+       strcmp(new_stmt->name, "if_stmt") || old_stmt->count < 3 || new_stmt->count < 3 ||
+       !simple_expr_same(old_stmt->children[0], new_stmt->children[0])) return false;
+   old_then = single_branch_statement(old_stmt->children[1]);
+   old_else = single_branch_statement(old_stmt->children[2]);
+   new_then = single_branch_statement(new_stmt->children[1]);
+   new_else = single_branch_statement(new_stmt->children[2]);
+   if (!pointer_update_is_double(old_then, new_then, ctx, target_name, &then_name) ||
+       !pointer_update_is_double(old_else, new_else, ctx, target_name, &else_name) ||
+       !then_name || !else_name || strcmp(then_name, else_name)) return false;
+   if (value_name_out) *value_name_out = then_name;
+   return true;
+}
+
+//! @brief Conservatively reject loops that can alter values reused after the loop.
+static bool ast_may_modify_reused_pointer_inputs(ASTNode *node, Context *ctx,
+                                                 const char *pointer_name,
+                                                 const char *value0,
+                                                 const char *value1) {
+   if (!node) return false;
+   if (!strcmp(node->name, "asm_stmt") || !strcmp(node->name, "()")) return true;
+   if (!strcmp(node->name, "assign_expr") && node->count >= 2) {
+      LValueRef lv;
+      if (resolve_lvalue(ctx, node->children[1], &lv) && lv.name &&
+          (!strcmp(lv.name, pointer_name) || (value0 && !strcmp(lv.name, value0)) ||
+           (value1 && !strcmp(lv.name, value1)))) return true;
+   }
+   if ((node->count == 1) && (!strcmp(node->name, "++") || !strcmp(node->name, "--"))) {
+      LValueRef lv;
+      if (resolve_lvalue(ctx, node->children[0], &lv) && lv.name &&
+          (!strcmp(lv.name, pointer_name) || (value0 && !strcmp(lv.name, value0)) ||
+           (value1 && !strcmp(lv.name, value1)))) return true;
+   }
+   for (int i = 0; i < node->count; i++) {
+      if (ast_may_modify_reused_pointer_inputs(node->children[i], ctx, pointer_name,
+                                               value0, value1)) return true;
+   }
+   return false;
+}
+
+//! @brief Reuse a packed page-pointer low byte when the next offsets are its proven double.
+static bool compile_doubled_page_pointer_reuse(ASTNode *list, int index, Context *ctx,
+                                               int *skip_out) {
+   const char *old_target = NULL;
+   const char *new_target = NULL;
+   const char *value0 = NULL;
+   const char *value1 = NULL;
+   ASTNode *loop;
+   LValueRef dst;
+   ContextEntry entry;
+   char symbol[256];
+   char addr_buf[256];
+   const char *formatted;
+
+   if (!list || !ctx || index < 4 || index + 2 >= list->count ||
+       !classify_page_pointer_selector(list->children[index - 4], ctx, &old_target) ||
+       !classify_page_pointer_selector(list->children[index], ctx, &new_target) ||
+       !old_target || !new_target || strcmp(old_target, new_target) ||
+       !pointer_update_is_double(list->children[index - 3], list->children[index + 1],
+                                 ctx, new_target, &value0)) return false;
+   if (!pointer_update_is_double(list->children[index - 2], list->children[index + 2],
+                                 ctx, new_target, &value1) &&
+       !pointer_conditional_update_is_double(list->children[index - 2],
+                                             list->children[index + 2], ctx,
+                                             new_target, &value1)) return false;
+   loop = list->children[index - 1];
+   if (!loop || strcmp(loop->name, "for_stmt") ||
+       ast_may_modify_reused_pointer_inputs(loop, ctx, new_target, value0, value1)) return false;
+
+   {
+      ASTNode *update = single_branch_statement(list->children[index + 1]);
+      if (!update || !resolve_lvalue(ctx, update->children[1], &dst)) return false;
+   }
+   entry = (ContextEntry){ .name = dst.name, .type = dst.type,
+      .declarator = dst.declarator, .is_static = dst.is_static,
+      .is_zeropage = dst.is_zeropage, .is_global = dst.is_global,
+      .offset = dst.offset, .size = dst.size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, addr_buf, sizeof(addr_buf));
+   emit_lvalue_semantic_use(ctx, &dst, "read");
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+   emit(&es_code, "    asl %s + %d\n", formatted, dst.offset);
+   if (!compile_compact_page_pointer_selector(list->children[index], ctx, new_target)) return false;
+   clear_pointer_low_range_fact(ctx);
+   if (skip_out) *skip_out = 2;
+   return true;
+}
+
+//! @brief Drop the narrow page-pointer low-byte fact at a non-straight-line boundary.
+static void clear_pointer_low_range_fact(Context *ctx) {
+   if (!ctx) return;
+   ctx->pointer_low_range_name = NULL;
+   ctx->pointer_low_range_min = 0;
+   ctx->pointer_low_range_max = 0;
+   ctx->pointer_low_range_known = false;
+}
+
 //! @brief Lower if stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_if_stmt(ASTNode *node, Context *ctx) {
+   if (compile_compact_pointer_u8_conditional_update(node, ctx)) return;
+
    const char *false_label = next_label("if_false");
    const char *end_label = next_label("if_end");
    ASTNode *cond = node->children[0];
    ASTNode *then_block = node->children[1];
    ASTNode *else_block = (node->count > 2) ? node->children[2] : NULL;
+   const char *tracked_pointer = NULL;
+   int base_min = 0;
+   int base_max = 0;
+   bool merge_pointer_range = false;
+
+   if (ctx && ctx->pointer_low_range_known && ctx->pointer_low_range_name &&
+       else_block && !is_empty(else_block) &&
+       classify_tracked_pointer_u8_conditional_update(node, ctx,
+                                                      ctx->pointer_low_range_name)) {
+      tracked_pointer = ctx->pointer_low_range_name;
+      base_min = ctx->pointer_low_range_min;
+      base_max = ctx->pointer_low_range_max;
+      merge_pointer_range = true;
+   }
 
    if (!compile_condition_branch_false(cond, ctx, false_label)) {
       error_user("[%s:%d.%d] invalid if condition", node->file, node->line, node->column);
@@ -289,12 +885,38 @@ static void compile_if_stmt(ASTNode *node, Context *ctx) {
    }
 
    compile_statement_list(then_block, ctx);
+   int then_min = 0;
+   int then_max = 0;
+   if (merge_pointer_range && ctx->pointer_low_range_known && ctx->pointer_low_range_name &&
+       !strcmp(ctx->pointer_low_range_name, tracked_pointer)) {
+      then_min = ctx->pointer_low_range_min;
+      then_max = ctx->pointer_low_range_max;
+   }
+   else {
+      merge_pointer_range = false;
+   }
    if (else_block && !is_empty(else_block)) {
       emit(&es_code, "    jmp %s\n", end_label);
    }
    emit(&es_code, "%s:\n", false_label);
    if (else_block && !is_empty(else_block)) {
+      if (merge_pointer_range) {
+         ctx->pointer_low_range_name = tracked_pointer;
+         ctx->pointer_low_range_min = base_min;
+         ctx->pointer_low_range_max = base_max;
+         ctx->pointer_low_range_known = true;
+      }
       compile_statement_list(else_block, ctx);
+      if (merge_pointer_range && ctx->pointer_low_range_known && ctx->pointer_low_range_name &&
+          !strcmp(ctx->pointer_low_range_name, tracked_pointer)) {
+         int else_min = ctx->pointer_low_range_min;
+         int else_max = ctx->pointer_low_range_max;
+         ctx->pointer_low_range_min = then_min < else_min ? then_min : else_min;
+         ctx->pointer_low_range_max = then_max > else_max ? then_max : else_max;
+      }
+      else if (merge_pointer_range) {
+         clear_pointer_low_range_fact(ctx);
+      }
       emit(&es_code, "%s:\n", end_label);
    }
    free((void *) false_label);
@@ -557,12 +1179,20 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
          if (named_loop) push_named_loop_labels(named_loop, end_label, step_label);
          emit(&es_code, "    ldx #$%02x\n", (unsigned int)initial);
          emit(&es_code, "%s:\n", start_label);
-         emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
-         emit(&es_code, "    bcs %s\n", end_label);
+         if (initial >= limit) {
+            emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
+            emit(&es_code, "    bcs %s\n", end_label);
+         }
          compile_statement_list(body, ctx);
          emit(&es_code, "%s:\n", step_label);
          for (int i = 0; i < increment; ++i) emit(&es_code, "    inx\n");
-         emit(&es_code, "    jmp %s\n", start_label);
+         if (initial < limit) {
+            emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
+            emit(&es_code, "    bcc %s\n", start_label);
+         }
+         else {
+            emit(&es_code, "    jmp %s\n", start_label);
+         }
          emit(&es_code, "%s:\n", end_label);
          pop_loop_labels();
          if (named_loop) pop_named_loop_labels();
@@ -1914,7 +2544,37 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
 
    for (int i = 0; i < node->count; i++) {
       ASTNode *stmt = node->children[i];
-      if (!strcmp(stmt->name, "return_stmt")) {
+      const char *page_selector_target = NULL;
+      bool page_selector_sequence = false;
+      int reused_pointer_skip = 0;
+
+      if (compile_doubled_page_pointer_reuse(node, i, ctx, &reused_pointer_skip)) {
+         i += reused_pointer_skip;
+         continue;
+      }
+
+      if (ctx && i + 1 < node->count &&
+          classify_page_pointer_selector(stmt, ctx, &page_selector_target) &&
+          page_selector_target &&
+          classify_tracked_pointer_u8_update(node->children[i + 1], ctx,
+                                             page_selector_target)) {
+         clear_pointer_low_range_fact(ctx);
+         ctx->suppress_page_pointer_low_name = page_selector_target;
+         page_selector_sequence = true;
+      }
+      else if (ctx && ctx->pointer_low_range_known && ctx->pointer_low_range_name &&
+               !classify_tracked_pointer_u8_update(stmt, ctx,
+                                                   ctx->pointer_low_range_name) &&
+               !classify_tracked_pointer_u8_conditional_update(stmt, ctx,
+                                                               ctx->pointer_low_range_name)) {
+         clear_pointer_low_range_fact(ctx);
+      }
+
+      if (page_selector_sequence &&
+          compile_compact_page_pointer_selector(stmt, ctx, page_selector_target)) {
+         /* The compact selector installs only the proven page high byte. */
+      }
+      else if (!strcmp(stmt->name, "return_stmt")) {
          compile_return_stmt(stmt, ctx);
       }
       else if (!strcmp(stmt->name, "expr") || !strcmp(stmt->name, "assign_expr")) {
@@ -1961,6 +2621,14 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
       }
       else {
          compile_expr(stmt, ctx);
+      }
+
+      if (page_selector_sequence && ctx) {
+         ctx->suppress_page_pointer_low_name = NULL;
+         ctx->pointer_low_range_name = page_selector_target;
+         ctx->pointer_low_range_min = 0;
+         ctx->pointer_low_range_max = 0;
+         ctx->pointer_low_range_known = true;
       }
    }
 }

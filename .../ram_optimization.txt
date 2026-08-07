@@ -422,140 +422,89 @@ Ordered roadmap
     * Verification before the addressing-mode follow-up: 442 compile-only tests and
       255 end-to-end tests passed. The follow-up below carries its own expanded gates.
 
-[ ] 4a. Recover high-level frame-installation ROM through the existing optimizer
+[x] 4a. Recover high-level frame-installation ROM through the existing optimizer
          pipeline instead of accepting the pre-audit 540-byte routine as normal compiler cost.
 
-    Measured baseline and attribution:
+    Final measured result:
 
-    * The pre-high-level implementation links `install_frames()` at `$00EC` = 236
-      bytes. Before the addressing-mode audit, the high-level implementation linked
-      at `$021C` = 540 bytes; it now links at `$01CE` = 462 bytes.
-    * Before and after the addressing-mode handoff, `-fpeephole` and
-      `-fno-peephole` produce byte-for-byte identical `install_frames()` bodies.
-      The old linked span was 540 bytes and the current span is 462 bytes. The
-      existing peephole pass saves eight bytes elsewhere in the complete gallery
-      (currently 3854 versus 3862 ROM bytes), but still saves zero bytes in this routine.
-    * The assembler already performs zero-page-family relaxation, but the compiler
-      forces `.a`/`.ax` on 78 otherwise relaxable RAM accesses in this function. In
-      an analysis-only assembly copy, removing only those forced absolute-family
-      suffixes lets the existing assembler reduce the function from 540 to 462
-      bytes: exactly 78 bytes saved. Fix the compiler/assembler handoff rather than
-      adding a second addressing-mode optimizer.
+    * The old hand-written `install_frames()` links at 236 bytes. The first ordinary
+      high-level replacement linked at 540 bytes; the compiler-wide addressing-mode
+      handoff completed immediately before this work reduced that to 462 bytes.
+    * This optimizer pass reduces the final linked high-level routine from 462 to
+      232 bytes with no activation RAM. The ordinary high-level implementation is
+      therefore four bytes smaller than the hand-written predecessor.
+    * Animated-gallery ordinary ROM is now 3624/4090 bytes with 466 free, down from
+      3854 before this optimizer pass. RIOT RAM remains 110/128 bytes with 18 free.
+    * With the final compiler but `-fno-peephole`, the gallery is 3635 bytes and
+      `install_frames()` is 235 bytes. Thus the current peephole pass saves eleven
+      bytes across the gallery and three bytes inside `install_frames()`. Most of the
+      original ten branch/`JMP` opportunities disappeared structurally once page
+      selectors and common suffixes were lowered more compactly upstream.
 
-    Completed compiler/assembler addressing-mode handoff:
+    Implemented compiler/optimizer changes:
 
-    * Audited all compiler mnemonic emitters, not just the frame installer. The
-      pre-change compiler source contained 87 ordinary addressing-mode suffix
-      occurrences (75 in `compile_expr_flow.c`, 12 in `compile_lvalue.c`); it now
-      contains zero. Compiler-lowered direct/indexed/indirect RAM references are
-      unsuffixed and the assembler owns mode selection/relaxation. Explicit source
-      `asm` suffixes remain untouched for programmers who need exact encoding/timing.
-    * Split-address and non-zero-page regions remain safe through the existing
-      `.segmentaddrsize ..., absolute` contract; the split-memory execution suite
-      passes without per-instruction forced absolute modes. A compiler-policy test
-      now rejects reintroduction of ordinary forced mode suffixes, and a codegen test
-      proves that explicit handwritten `.a` requests survive unchanged.
-    * This broad handoff realizes the analysis exactly inside `install_frames()`:
-      `$021C` = 540 bytes becomes `$01CE` = 462 bytes, with zero RAM change. The full
-      animated gallery falls from 3969 to 3854 ROM bytes (115 bytes recovered) while
-      remaining 110/128 RAM bytes with 18 free. With `-fno-peephole` it is 3862 bytes,
-      and `install_frames()` remains 462 bytes, so the existing peephole still saves
-      eight bytes elsewhere and zero bytes in this routine.
-    * Shorter compiler-owned zero-page accesses exposed several old beam-phase
-      dependencies. They were not "fixed" by putting forced modes back in codegen.
-      Cycle intent now lives where it belongs: calibrated frame helpers carry explicit
-      delay instructions, the cycle-counted six-glyph row initialization is handwritten
-      `sta.a`, and synthetic fixtures that deliberately use the uncalibrated generic
-      wait add an explicit phase-normalizing NOP. Exact scheduler/raster oracles pass.
-    * Verification after the handoff: 444 compile-only tests pass; all 255 end-to-end
-      cases pass in bounded batches, including split-memory execution, exact scheduler
-      phases, score/component rasters, official/unofficial renderer equivalence, banked
-      renderer raster identity, and clean source-tree hygiene.
-    * Ten generated conditional-branch-plus-`JMP` pairs are locally reducible to
-      inverted bare branches. Applying only that rewrite after addressing-mode
-      relaxation reduces 462 to 432 bytes, exactly 30 more bytes. This rewrite must
-      be restricted to code whose cycle shape is not contractual; previous global
-      comparison shortening moved VBLANK work by a scanline.
-    * All six frame/color source arrays are hard page-contained and link on `$xx00`
-      boundaries. Twelve generated page-base assignments unnecessarily materialize
-      a zero low byte, and ten generic byte-pointer additions carry machinery even
-      though the masked/shifted offsets provably stay within the selected page. An
-      analysis-only page-aware rewrite reduces 432 to 326 bytes, exactly 106 more
-      bytes, without relying on final accidental addresses.
+    * Added a peephole rewrite for compiler-generated `conditional branch; JMP;
+      true-label` scaffolding. It inverts the branch and removes the `JMP` only in
+      pure compiler-generated procedures. Any inline assembly in the procedure
+      disables the rewrite so size optimization cannot silently reschedule code whose
+      cycle shape may be intentional. Pattern-level and source-level on/off regressions
+      cover both the positive case and the inline-assembly refusal.
+    * Propagated hard `page` alignment and unsigned-byte range facts into pointer
+      lowering. Page-selection chains now load the selector once, compare through the
+      candidate pages, tail-merge the pointer-high store, omit the known-zero page low
+      byte, and omit carry propagation when the bounded low-byte additions provably
+      cannot cross a page.
+    * Merged conditional pointer-low updates when both branches target the same tracked
+      page pointer and both ranges prove safe. The selected byte offset is computed in A
+      and one common `CLC/ADC/STA` suffix performs the update.
+    * Added a narrow cross-loop value-lifetime proof for the frame installer pattern.
+      When the later bitmap offsets are exactly twice the earlier packed-color offsets
+      modulo one byte, and the intervening counted loop cannot mutate the pointer or
+      either source value, the compiler reuses the existing pointer low byte with
+      `ASL` instead of rebuilding both offsets. No temporary RAM is introduced.
+    * Proven nonempty register-backed counted loops are post-tested with `CPX/BCC` at
+      the bottom. Potentially empty loops retain the entry test and back jump. Constant
+      array stores through an X-backed loop index are routed through the direct indexed
+      path so the optimizer never emits a reference to a nonexistent materialized loop
+      local.
+    * The three-frame animation phase expressions now state their packed-bit meaning
+      directly with `animation_frame & 0x0c` (and the doubled bitmap form) rather than
+      obscuring the same value through shift pairs. The full animation oracle still
+      proves the independent modulo-3 sequence and all 120 source frames.
 
-    Exact final-linked section comparison:
+    Measured development path from the 462-byte relaxed baseline:
 
-        section                         high-level   after measured local rewrites   hand-written
-        P0 packed-color setup               73                 37                       35
-        P0 color expansion loop             43                 41                       38
-        P0 bitmap setup                    121                 65                       38
-        P1 packed-color setup              105                 56                       48
-        P1 color expansion loop             43                 41                       38
-        P1 bitmap setup                    154                 85                       38
-        RTS                                  1                  1                        1
-        total                              540                326                      236
+        linked install_frames stage                                  bytes
+        relaxed high-level baseline                                   462
+        branch inversion + compact hard-page selection/ranges          324
+        conditional page-low range/common-suffix lowering              294
+        doubled packed-color -> bitmap offset reuse                     238
+        post-tested proven-nonempty counted loops                       232
 
-    The remaining net 90-byte difference is also accounted for by concrete
-    emitted patterns rather than an unexplained compiler tax:
+    The stage values above are actual linked map spans from this implementation, not
+    projections. The final peephole-disabled span is 235 bytes because the upstream
+    structural lowering removes most branch/JMP candidates before the peephole sees
+    them; enabling the peephole removes the remaining three-byte candidate.
 
-    * Tail-merge identical pointer-high stores after page selection: 16 bytes.
-    * Tail-merge the common shifted-frame/low-byte update after the P1 three-frame
-      packed-color conditional: 6 bytes.
-    * Preserve the already-loaded sprite value through the two additional compares
-      in each four-page selection chain instead of reloading it: 8 bytes.
-    * Reuse the packed-color pointer low byte for bitmap selection by doubling it,
-      as the proven hand-written routine does, instead of reconstructing the bitmap
-      offset after the color-expansion loop: 17 bytes for P0 and 37 bytes for P1,
-      54 bytes total. The larger P1 saving comes from avoiding a second copy of the
-      three-frame phase conditional.
-    * The two statically nonempty `0,2,4,6` color loops each contain five bytes of
-      control-flow overhead relative to the hand-written post-tested loop shape: 10
-      removable bytes total. The analysis form is already two bytes smaller per loop
-      because its color stores can relax to zero-page indexed while the hand-written
-      reference explicitly forced `.ax`; that four-byte advantage makes the loop
-      sections only three bytes larger each in the table above.
+    Collateral measured effect:
 
-    Thus the named remaining waste is 94 bytes, offset by four bytes that the relaxed
-    high-level form already does better than the 236-byte hand-written reference. If
-    all named patterns are removed while retaining those safe zero-page indexed color
-    stores, the measured path projects to 232 bytes rather than merely matching 236.
-
-    Implementation direction:
-
-    * Extend the existing peephole pass for generated branch/`JMP` inversion,
-      duplicate load/store elimination across safe local control-flow joins, common
-      suffix/tail merging, and other register-value round trips that the current
-      emitted patterns expose. Add pattern-level and source-level on/off regressions
-      for every new rewrite kind.
-    * Do not use peephole text matching to rediscover semantic facts the compiler
-      already owns. Emit relaxable direct RAM operands when the default writable
-      segment carries a zero-page address-size contract; propagate hard `page`
-      alignment and masked-offset range facts to pointer lowering so page-low and
-      impossible-carry work disappears before assembly.
-    * Treat reuse of the packed-color offset across the expansion loop as an IR/source
-      value-lifetime problem, not a two-line peephole. Preserve zero activation RAM;
-      do not materialize a byte merely to make common-subexpression reuse easy.
-    * Preserve cycle-sensitive renderer/scheduler behavior. Size-changing control-flow
-      rewrites need an explicit timing-safe scope or equivalent proof; passing the
-      exact renderer phase/raster oracles is mandatory.
+    * The banked standard-renderer diagnostic keeps identical raster/timing and bank0
+      size, but two ordinary game-logic branch/JMP scaffolds are now inverted. F8/F6/F4
+      bank1 usage falls from 82 to 76 bytes; F8SC bank1 falls from 121 to 115 bytes.
+      Bank bridges, RAM accounting, and renderer placement contracts are unchanged.
 
     Acceptance criteria:
 
-    * [x] Replace the hard-coded "540-byte high-level cost" assumption with
-      measurement from the final linked map and record peephole-on/off and
-      addressing-relaxation deltas.
-    * [x] Recover the mechanically proven 78-byte `install_frames()` addressing-mode
-      loss by removing unnecessary forced modes throughout compiler lowering without
-      weakening split-memory or timing contracts.
-    * [ ] Recover the measured 30-byte ordinary branch-scaffolding loss, then
-      implement the page-aware pointer reductions without introducing RAM or weakening
-      page/timing contracts.
-    * Continue toward or below the measured 236-byte hand-written reference by
-      eliminating the remaining named patterns; the current accounting projects 232
-      bytes if the safe zero-page indexed color-store advantage is retained. Any
-      residual difference must be individually explained in bytes.
-    * Keep the gallery at or below 110 RAM bytes and preserve all animation, exact
-      262-line, raster, and complete compile/e2e regressions.
+    * [x] Measure final linked code rather than using the old hard-coded 540-byte cost.
+    * [x] Preserve the completed compiler/assembler addressing-mode handoff and all
+      split-memory/address-size contracts.
+    * [x] Recover the measured branch/page-pointer losses without introducing RAM or
+      weakening timing contracts.
+    * [x] Reach or beat the 236-byte hand-written routine and explain the final linked
+      difference in concrete compiler transformations. Final result: 232 bytes.
+    * [x] Keep the gallery at or below 110 RAM bytes and preserve the full animation,
+      exact 262-line, raster, banked-renderer, and complete compile/e2e regressions.
+      Final verification: 447 compile-only tests and 256 end-to-end tests pass.
 
 [ ] 5. Overlay scratch across frame phases when contracts prove the lifetimes do
         not overlap.

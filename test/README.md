@@ -30,8 +30,11 @@ requires disabled mode to preserve the candidate patterns, and requires every
 canonical rewrite kind to fire in at least one positive regression.
 `peephole_source_toggle.pl` compiles a private ordinary `.c26` fixture twice:
 `-fno-peephole` must expose every pattern the current compiler emits, while the
-default pass must remove those patterns and report their rewrite names. It also
-checks that the driver and direct compiler produce identical disabled output.
+default pass must remove those patterns and report their rewrite names. It includes
+the timing-scoped conditional-branch/`JMP` inversion added for pure generated
+procedures and checks that the driver and direct compiler produce identical disabled
+output. `peephole_unit.pl` separately proves that the same inversion is refused when
+inline assembly makes procedure timing opaque.
 `peephole_inline_asm_codegen.pl` places optimization-shaped instruction
 sequences inside source `asm` statements and requires the exact sequence to
 survive unchanged with the pass both enabled and disabled.
@@ -805,19 +808,19 @@ report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
-RAM report. It regenerates
+RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
 every physical RIOT address `$80-$FF`, pins the lifetime-overlaid two-byte
 `main` activation and eighteen-byte free gap, records all `-X scratch`
 scope/lifetime-group diagnostics, proves both sequential `next_pair()` expansions
 allocate zero expression scratch, and checks the linker's source-call edges,
-deepest path, and `.callstackextra` contribution. Schema 4 retains the compact-byte
-lowering history and also pins the assembly-to-high-level `install_frames()` change:
-110 RAM bytes and an unchanged two-byte `main` activation, zero `install_frames()`
-activation bytes, 3854 ordinary ROM bytes, and 236 ordinary ROM bytes free. The
-linked high-level `install_frames()` span is 462 bytes after delegating ordinary
-RAM addressing-mode selection to the assembler. The separate animation emulator
-test remains the behavioral/frame oracle.
+deepest path, and `.callstackextra` contribution. Schema 5 records the complete
+high-level frame-installer optimization history: 110 RAM bytes with 18 free,
+zero `install_frames()` activation bytes, 3624 ordinary ROM bytes with 466 free,
+and a final linked `install_frames()` span of 232 bytes. The previous relaxed
+high-level span was 462 bytes and the old handwritten implementation was 236 bytes,
+so the optimized high-level routine is now four bytes smaller without using RAM.
+The separate animation emulator remains the behavioral/frame oracle.
 
 `compiler_address_mode_policy.pl` audits the compiler implementation and rejects
 forced ordinary 6502 addressing-mode suffixes in compiler-generated mnemonic
@@ -839,13 +842,22 @@ animated gallery's high-level frame installer: conditional ROM-page selection, d
 array-to-pointer assignment, pointer-plus-byte-offset arithmetic, indexed const-table
 loads, nibble masks/shifts, a register-backed two-at-a-time byte loop, and indexed
 byte-array stores. It forbids expression scratch and a materialized loop-local object.
+`page_pointer_compaction_codegen_test.c26` adds the hard-`page` contract: selection
+installs only the page high byte and a proven bounded low-byte offset emits without
+base-low materialization or impossible carry handling. `page_pointer_offset_reuse_codegen_test.c26`
+pins the cross-loop proof that doubled bitmap offsets reuse the already-computed
+packed-color pointer low byte with `ASL` and do not reload/recompute the source offsets.
 The independent animated-gallery emulator exercises the same operations with the full
 source assets.
 
 `register_counted_loop_fallback_codegen_test.c26` is the safety counterpart: a
 counted loop whose body performs a general indirect pointer store must materialize
 its loop local instead of reserving X, preventing the compact path from silently
-claiming a register the body can clobber.
+claiming a register the body can clobber. `register_counted_loop_zero_iteration_codegen_test.c26`
+requires potentially empty X-backed loops to retain their entry `CPX`/`BCS` test, while
+`e2e_register_counted_loop_verify.c26` executes both zero-iteration and proven-nonempty
+post-tested loops and catches any accidental reference to a nonexistent materialized
+counter.
 
 `direct_u8_ref_array_fallback_codegen_test.c26` prevents a ref-array formal from
 being mistaken for directly allocated array storage. Its source declarator retains

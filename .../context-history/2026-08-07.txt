@@ -40,3 +40,12 @@ scheduler, score, renderer, split-memory, and banked raster/runtime regressions 
 
 Final verification for this change is 444 compile-only tests and all 255 end-to-end
 cases in bounded batches. Clean source-tree hygiene passes.
+
+2026-08-07 09:24:15 PDT, Optimized high-level frame installation below the handwritten ROM size
+
+- Added timing-scoped generated branch/JMP inversion, compact hard-page selector and bounded pointer-low lowering, conditional pointer-update suffix merging, proven cross-loop doubled-offset reuse, and post-tested nonempty register-counted loops.
+- Reduced linked `install_frames()` from the 462-byte relaxed high-level baseline to 232 bytes, four bytes smaller than the old 236-byte handwritten implementation, with zero activation RAM.
+- Reduced the animated gallery from 3854 to 3624 ordinary ROM bytes while holding RIOT RAM at 110/128 bytes with 18 free; peephole-disabled final output is 3635 gallery bytes and a 235-byte installer.
+- Added focused peephole on/off, hard-page pointer, doubled-offset reuse, and zero-iteration counted-loop regressions; fixed constant X-indexed array stores so they cannot reference an unmaterialized loop local.
+- Preserved exact animation, scheduler, score, fingerprint, renderer, and banked raster contracts. Banked game-logic branch inversion legitimately reduces F8/F6/F4 bank1 from 82 to 76 bytes and F8SC bank1 from 121 to 115 bytes.
+- Verified 447 compile-only tests and all 256 end-to-end cases in bounded batches.

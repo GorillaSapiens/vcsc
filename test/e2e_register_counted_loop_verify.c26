@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t out[16];
+
+void main(void) {
+   out[8] := 0x55;
+   for (uint8_t i := 8; i < 8; i += 1) {
+      out[i] := 0xaa;
+   }
+   if (out[8] != 0x55) { fail(1); }
+
+   for (uint8_t i := 0; i < 8; i += 2) {
+      out[i] := i + 1;
+   }
+   if (out[0] != 1) { fail(2); }
+   if (out[2] != 3) { fail(3); }
+   if (out[4] != 5) { fail(4); }
+   if (out[6] != 7) { fail(5); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

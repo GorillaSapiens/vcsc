@@ -122,6 +122,14 @@ int main(void) {
    out = run_pass("    bne @second\n@first:\n@second:\n    lda #$01\n");
    require_true(!contains(out, "bne @second"), "branch-to-next-label cleanup must see through adjacent labels", out);
 
+   out = run_pass(".proc pure\n    bcc @true\n    jmp @false\n@true:\n    lda #$01\n@false:\n    rts\n.endproc\n");
+   require_true(contains(out, "bcs @false") && !contains(out, "jmp @false"),
+                "pure generated procedures should invert a branch over an unconditional jump", out);
+
+   out = run_pass(".proc timed\n    bcc @true\n    jmp @false\n@true:\n" EMIT_INLINE_ASM_BEGIN_MARKER "\n    nop\n" EMIT_INLINE_ASM_END_MARKER "\n@false:\n    rts\n.endproc\n");
+   require_true(contains(out, "bcc @true") && contains(out, "jmp @false") && !contains(out, "bcs @false"),
+                "procedures containing inline assembly must retain branch/jump timing shape", out);
+
    out = run_pass("    lda #$05\n    sta arg0\n    lda arg0\n");
    require_true(count_of(out, "lda") == 1, "lda #imm; sta arg0; lda arg0 should remove the final load", out);
 

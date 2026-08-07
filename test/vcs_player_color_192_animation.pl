@@ -78,7 +78,7 @@ $source_text =~ /alias\s+RIGHT_EDGE\s+140/ or die "animation color-safe right en
 $source_text =~ /animation_phase_next\[16\]/ &&
 $source_text =~ /low bits advance modulo 4 while bits 2\.\.3/ &&
 $source_text =~ /sprite1\s*==\s*THREE_FRAME_SET/ &&
-$source_text =~ /animation_frame\s*>>\s*2/
+$source_text =~ /animation_frame\s*&\s*0x0c/
    or die "set 03 no longer has a packed modulo-3 frame counter\n";
 $source_text =~ /void\s+install_frames\s*\(void\)\s*\{(.*?)\n\}/s
    or die "cannot locate install_frames source body\n";

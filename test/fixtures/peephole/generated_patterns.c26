@@ -11,3 +11,15 @@ void empty_if(int16_t value) {
    if (value) {
    }
 }
+
+uint8_t branch_value;
+uint8_t branch_out;
+
+void compact_branch(void) {
+   if (branch_value < 16) {
+      branch_out := 1;
+   }
+   else {
+      branch_out := 2;
+   }
+}

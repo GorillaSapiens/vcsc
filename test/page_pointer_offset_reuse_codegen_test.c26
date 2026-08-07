@@ -1,0 +1,46 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta p + 0
+// expectasmordered: lda frame
+// expectasmordered: and #$03
+// expectasmordered: adc p + 0
+// expectasmordered: sta p + 0
+// expectasmordered: ldx #$00
+// expectasmordered: @for_start_
+// expectasmordered: cpx #$02
+// expectasmordered: bcc @for_start_
+// expectasmordered: @for_end_
+// expectasmordered: asl p + 0
+// expectasmordered: lda sprite
+// expectasmordered: cmp #$10
+// expectasmordered: lda #>{bitmap1 + 0}
+// expectasmordered: lda #>{bitmap0 + 0}
+// expectasmordered: sta p + 1
+// forbidcountasm: lda sprite|2
+// forbidcountasm: lda frame|1
+// forbidasm: __vcsc_scratch_
+// forbidasm: main$i
+
+include "machine_6502.c26"
+
+page const uint8_t colors0[256] := {0};
+page const uint8_t colors1[256] := {0};
+page const uint8_t bitmap0[256] := {0};
+page const uint8_t bitmap1[256] := {0};
+uint8_t *p;
+uint8_t sprite;
+uint8_t frame;
+uint8_t out[2];
+
+void main(void) {
+   if (sprite < 16) { p := colors0; }
+   else { p := colors1; }
+   p += (sprite & 0x0f) << 2;
+   p += frame & 0x03;
+   for (uint8_t i := 0; i < 2; i += 1) {
+      out[i] := p[i];
+   }
+   if (sprite < 16) { p := bitmap0; }
+   else { p := bitmap1; }
+   p += (sprite & 0x0f) << 3;
+   p += (frame & 0x03) << 1;
+}

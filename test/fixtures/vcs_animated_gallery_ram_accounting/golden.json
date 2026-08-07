@@ -2,17 +2,22 @@
    "activation" : {
       "high_level_install_frames" : {
          "activation_bytes" : 0,
+         "code_bytes_saved_by_optimizer_followup" : 230,
+         "code_bytes_vs_handwritten" : -4,
          "free_ram_bytes" : 18,
+         "gallery_rom_bytes_vs_handwritten" : -38,
          "handwritten_assembly_bytes" : 236,
-         "high_level_code_bytes" : 462,
+         "handwritten_gallery_rom_bytes" : 3662,
+         "high_level_code_bytes" : 232,
+         "pre_optimizer_gallery_rom_bytes" : 3854,
+         "pre_optimizer_high_level_code_bytes" : 462,
          "previous_free_ram_bytes" : 18,
          "previous_ram_bytes" : 110,
-         "previous_rom_bytes" : 3662,
          "ram_added_bytes" : 0,
          "ram_bytes" : 110,
-         "rom_added_bytes" : 192,
-         "rom_bytes" : 3854,
-         "rom_free_bytes" : 236
+         "rom_bytes" : 3624,
+         "rom_free_bytes" : 466,
+         "rom_saved_by_optimizer_followup" : 230
       },
       "item3_delta" : {
          "activation_bytes" : 2,
@@ -343,7 +348,7 @@
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp"
    ],
-   "schema" : 4,
+   "schema" : 5,
    "totals" : {
       "category_bytes" : {
          "activation_scratch" : 2,
@@ -357,8 +362,8 @@
       "hardware_stack_bytes" : 8,
       "object_bytes" : 102,
       "ram_bytes" : 110,
-      "rom_bytes" : 3854,
-      "rom_free_bytes" : 236,
+      "rom_bytes" : 3624,
+      "rom_free_bytes" : 466,
       "subcategory_bytes" : {
          "argument" : 2,
          "expression_scratch" : 1,

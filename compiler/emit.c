@@ -26,13 +26,14 @@ typedef struct {
    bool is_blank_or_comment;
    bool is_inline_asm;
    bool is_inline_asm_marker;
+   bool size_relax_safe;
    bool keep;
    int size;
 } PeepholeLine;
 
 //! Canonical catalog of every peephole rewrite kind. Pattern-level tests must exercise every entry.
 static const char *const peephole_rewrite_kind_names[] = {
-   "branch_next", "const_alu", "dead_load", "dup_lda", "dup_ldx", "dup_ldy",
+   "branch_jmp_invert", "branch_next", "const_alu", "dead_load", "dup_lda", "dup_ldx", "dup_ldy",
    "dup_sta", "dup_status", "dup_stx", "dup_sty", "dup_tax", "dup_tay",
    "dup_txa", "dup_tya", "jump_next", "never_branch", NULL
 };
@@ -52,6 +53,7 @@ typedef struct {
    int pass_never_branch;
    int pass_jump_next;
    int pass_branch_next;
+   int pass_branch_jmp_invert;
 } PeepholeStats;
 
 //! @brief Return xstrndup local data used by compiler assembly emitter; returned pointers alias existing storage unless explicitly allocated by the function name.
@@ -126,6 +128,8 @@ static bool operand_is_accumulator(const char *operand) {
 }
 
 static char *trim_in_place(char *s);
+static bool target_is_immediately_following_label(PeepholeLine *lines, int count, int index, const char *target);
+static void log_rewrite(const char *kind, int index, const PeepholeLine *line, int saved);
 
 //! @brief Return whether operand is a compiler-owned zero-page operand with a simple X/Y suffix.
 static bool operand_is_compiler_zp_indexed(const char *operand) {
@@ -273,6 +277,7 @@ static void parse_line(PeepholeLine *line) {
    line->is_blank_or_comment = false;
    line->is_inline_asm = false;
    line->is_inline_asm_marker = false;
+   line->size_relax_safe = false;
    line->keep = true;
    line->size = 0;
 
@@ -358,6 +363,103 @@ static void annotate_inline_asm_lines(PeepholeLine *lines, int count) {
       if (in_inline_asm)
          lines[i].is_inline_asm = true;
    }
+}
+
+//! @brief Mark pure compiler-generated procedures as safe for cycle-changing size relaxations.
+static void annotate_size_relax_safe_procedures(PeepholeLine *lines, int count) {
+   int proc_start = -1;
+   bool has_inline_asm = false;
+
+   for (int i = 0; i < count; i++) {
+      if (lines[i].is_directive && !strncmp(lines[i].trim, ".proc", 5) &&
+          (lines[i].trim[5] == '\0' || isspace((unsigned char)lines[i].trim[5]))) {
+         proc_start = i;
+         has_inline_asm = false;
+         continue;
+      }
+      if (proc_start >= 0 && lines[i].is_inline_asm) {
+         has_inline_asm = true;
+      }
+      if (proc_start >= 0 && lines[i].is_directive && !strcmp(lines[i].trim, ".endproc")) {
+         if (!has_inline_asm) {
+            for (int j = proc_start + 1; j < i; j++) {
+               if (lines[j].is_generated && !lines[j].is_inline_asm)
+                  lines[j].size_relax_safe = true;
+            }
+         }
+         proc_start = -1;
+         has_inline_asm = false;
+      }
+   }
+}
+
+//! @brief Return the next kept non-comment line index after one line.
+static int next_kept_effective_index(PeepholeLine *lines, int count, int index) {
+   for (int i = index + 1; i < count; i++) {
+      if (!lines[i].keep || lines[i].is_blank_or_comment)
+         continue;
+      return i;
+   }
+   return -1;
+}
+
+//! @brief Return the logical inverse of a 6502 relative branch mnemonic.
+static const char *inverse_branch_mnemonic(const char *mnemonic) {
+   if (!mnemonic) return NULL;
+   if (!strcmp(mnemonic, "bcc")) return "bcs";
+   if (!strcmp(mnemonic, "bcs")) return "bcc";
+   if (!strcmp(mnemonic, "beq")) return "bne";
+   if (!strcmp(mnemonic, "bne")) return "beq";
+   if (!strcmp(mnemonic, "bmi")) return "bpl";
+   if (!strcmp(mnemonic, "bpl")) return "bmi";
+   if (!strcmp(mnemonic, "bvc")) return "bvs";
+   if (!strcmp(mnemonic, "bvs")) return "bvc";
+   return NULL;
+}
+
+//! @brief Rewrite `Bcc true; JMP false; true:` as the inverse branch to false.
+static bool invert_branch_over_jump(PeepholeLine *lines, int count, int index,
+                                    PeepholeStats *stats, int *changed) {
+   PeepholeLine *branch = &lines[index];
+   const char *inverse;
+   int jump_index;
+   PeepholeLine *jump;
+   char buf[1024];
+
+   if (!branch->keep || !branch->is_generated || branch->is_inline_asm ||
+       !branch->size_relax_safe || !is_branch_mnemonic(branch->mnemonic) ||
+       !(inverse = inverse_branch_mnemonic(branch->mnemonic)) ||
+       !branch->operand || !*branch->operand) {
+      return false;
+   }
+   jump_index = next_kept_effective_index(lines, count, index);
+   if (jump_index < 0) return false;
+   jump = &lines[jump_index];
+   if (!jump->is_generated || jump->is_inline_asm || !jump->size_relax_safe ||
+       !jump->is_instruction || strcmp(jump->mnemonic, "jmp") ||
+       !jump->operand || !*jump->operand ||
+       !target_is_immediately_following_label(lines, count, jump_index, branch->operand)) {
+      return false;
+   }
+
+   snprintf(buf, sizeof(buf), "    %s %s", inverse, jump->operand);
+   free(branch->text);
+   branch->text = strdup(buf);
+   branch->trim = trim_in_place(branch->text);
+   free(branch->mnemonic);
+   branch->mnemonic = strdup(inverse);
+   free(branch->operand);
+   branch->operand = strdup(jump->operand);
+   branch->size = instruction_size_for(branch->mnemonic, branch->operand);
+
+   jump->keep = false;
+   stats->pass_removed++;
+   stats->pass_saved += jump->size;
+   stats->total_saved += jump->size;
+   stats->pass_branch_jmp_invert++;
+   log_rewrite("branch_jmp_invert", index, branch, jump->size);
+   *changed = 1;
+   return true;
 }
 
 //! @brief Return whether a jump/branch target is in the immediate following run of labels.
@@ -831,6 +933,7 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
    stats->pass_never_branch = 0;
    stats->pass_jump_next = 0;
    stats->pass_branch_next = 0;
+   stats->pass_branch_jmp_invert = 0;
 
    for (int i = 0; i < count; i++) {
       PeepholeLine *line = &lines[i];
@@ -861,6 +964,15 @@ static int run_peephole_pass(PeepholeLine *lines, int count, PeepholeStats *stat
 
       if (!line->is_instruction)
          continue;
+
+      if (invert_branch_over_jump(lines, count, i, stats, &changed)) {
+         reset_peephole_state(&reg_a, &reg_x, &reg_y, &flags_value, mem_values);
+         clear_state(&carry_state);
+         clear_state(&decimal_state);
+         clear_state(&interrupt_state);
+         clear_state(&overflow_state);
+         continue;
+      }
 
       if ((!strcmp(line->mnemonic, "jmp") || is_branch_mnemonic(line->mnemonic)) && target_is_immediately_following_label(lines, count, i, line->operand)) {
          line->keep = false;
@@ -1168,7 +1280,7 @@ static void print_peephole_stats(int pass_index, const char *phase, PeepholeLine
    if (!get_xray(XRAY_PEEPHOLE))
       return;
 
-   message("%03d %-10s bytes=%d insns=%d removed=%d saved=%d total_saved=%d dup_load=%d dup_store=%d dup_transfer=%d dup_status=%d const_alu=%d dead_load=%d never_branch=%d jump_next=%d branch_next=%d",
+   message("%03d %-10s bytes=%d insns=%d removed=%d saved=%d total_saved=%d dup_load=%d dup_store=%d dup_transfer=%d dup_status=%d const_alu=%d dead_load=%d never_branch=%d jump_next=%d branch_next=%d branch_jmp_invert=%d",
          pass_index,
          phase,
          count_instruction_bytes(lines, count),
@@ -1184,7 +1296,8 @@ static void print_peephole_stats(int pass_index, const char *phase, PeepholeLine
          stats->pass_dead_load,
          stats->pass_never_branch,
          stats->pass_jump_next,
-         stats->pass_branch_next);
+         stats->pass_branch_next,
+         stats->pass_branch_jmp_invert);
 }
 
 //! @brief Emit peephole optimize for compiler assembly emitter diagnostics or output files.
@@ -1212,6 +1325,7 @@ void emit_peephole_optimize(EmitSink *es, bool enabled) {
       parse_line(&lines[i]);
    }
    annotate_inline_asm_lines(lines, count);
+   annotate_size_relax_safe_procedures(lines, count);
    free(raw_lines);
    free(joined);
 

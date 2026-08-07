@@ -466,8 +466,8 @@ my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
-index($context,'RAM-optimization work through the high-level animated-frame installer is complete.')>=0 &&
-index($context,'Before phase-lifetime overlay, continue the measured')>=0 &&
+index($context,'RAM-optimization work through the high-level animated-frame installer and its')>=0 &&
+index($context,'The next RAM-optimization work is phase-aware scratch overlay')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
@@ -477,7 +477,7 @@ $ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions in
 $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
 $ram_roadmap =~ /^\[x\] 3\. Improve compact lowering for simple byte state updates\./m &&
 $ram_roadmap =~ /^\[x\] 4\. Make `install_frames\(\)` ordinary VCSC and establish a minimal-assembly/m &&
-$ram_roadmap =~ /^\[ \] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
+$ram_roadmap =~ /^\[x\] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
 $ram_roadmap =~ /^\[ \] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";

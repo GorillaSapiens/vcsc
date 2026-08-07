@@ -1593,7 +1593,8 @@ void install_frames(void) {
    }
    game_player1_graphics += (sprite1 & 0x0f) << 4;
    if (sprite1 == THREE_FRAME_SET) {
-      game_player1_graphics += (animation_frame >> 2) << 2;
+      // Bits 2..3 are this set's independent modulo-3 phase field.
+      game_player1_graphics += animation_frame & 0x0c;
    }
    else {
       game_player1_graphics += (animation_frame & 0x03) << 2;
@@ -1624,7 +1625,7 @@ void install_frames(void) {
    }
    game_player1_graphics += (sprite1 & 0x07) << 5;
    if (sprite1 == THREE_FRAME_SET) {
-      game_player1_graphics += (animation_frame >> 2) << 3;
+      game_player1_graphics += (animation_frame & 0x0c) << 1;
    }
    else {
       game_player1_graphics += (animation_frame & 0x03) << 3;
