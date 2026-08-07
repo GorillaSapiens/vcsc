@@ -810,17 +810,31 @@ combined used bytes, and physical free bytes exactly.
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
-every physical RIOT address `$80-$FF`, pins the lifetime-overlaid two-byte
-`main` activation and eighteen-byte free gap, records all `-X scratch`
-scope/lifetime-group diagnostics, proves both sequential `next_pair()` expansions
-allocate zero expression scratch, and checks the linker's source-call edges,
-deepest path, and `.callstackextra` contribution. Schema 5 records the complete
-high-level frame-installer optimization history: 110 RAM bytes with 18 free,
-zero `install_frames()` activation bytes, 3624 ordinary ROM bytes with 466 free,
-and a final linked `install_frames()` span of 232 bytes. The previous relaxed
-high-level span was 462 bytes and the old handwritten implementation was 236 bytes,
-so the optimized high-level routine is now four bytes smaller without using RAM.
+every physical RIOT address `$80-$FF`, pins the one-byte `main` activation and
+nineteen-byte free gap, records the compiler scratch diagnostics, proves both
+sequential `next_pair()` expansions allocate zero expression scratch, and checks
+the linker's source-call edges, deepest path, and `.callstackextra` contribution.
+Schema 6 records the phase overlay explicitly: the one-byte VSYNC
+`__vcsc_scratch_0` shares the first byte of the 48-byte VBLANK+visible
+`game_object_masks` workspace, reducing the cartridge to 109 RAM bytes with 19
+free while leaving ROM at 3624 bytes with 466 free. It also retains the complete
+high-level frame-installer history and the 232-byte final `install_frames()` span.
 The separate animation emulator remains the behavioral/frame oracle.
+
+`phase_overlay.pl` is the generic positive/negative lifetime proof. Explicit
+`__phaseworkspace$V1$...` contracts mark a smaller overscan-only object and a
+larger VBLANK+draw workspace; the smaller object is deliberately declared first
+and must still share the larger slot. A marked draw+overscan object, a `main`-
+lifetime object, storage used by an ordinary non-template function merely named
+`unrelated_draw`, and an overscan-only file-scope object with phase-use metadata
+but **no** workspace-eligibility contract must remain separate. The fixture
+exercises both high-level and inline-assembly object references and verifies
+runtime contents in `vcsc-sim`.
+
+`vcs_big_ascii_font.pl` validates the separate `fonts/big_ascii.c26` 8x16 table:
+95 distinct printable-ASCII glyphs, sixteen-row reversal including descenders,
+1520 linked bytes, no impossible `page` containment, and byte-for-byte agreement
+between the source rows and final ROM.
 
 `compiler_address_mode_policy.pl` audits the compiler implementation and rejects
 forced ordinary 6502 addressing-mode suffixes in compiler-generated mnemonic

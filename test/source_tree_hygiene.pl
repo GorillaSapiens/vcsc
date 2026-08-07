@@ -133,9 +133,9 @@ index($bankswitching,'[x] 10. Make archive selection, listings, map output, simu
 index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
 $bankswitching =~ /every possible ordered source-bank\s+to destination-bank transition/ &&
 $bankswitching =~ /one cartridge\s+per mapper rather than one cartridge per transition/ &&
-$bankswitching =~ /stable final green-background\/white-P or dark-red-\s*background\/white-F frame/ &&
-$bankswitching =~ /exact default ASCII\s+glyphs/ &&
-$bankswitching =~ /ordinary indexed syntax which must remain\s+absolute for relocatable ROM/ &&
+$bankswitching =~ /stable final green-background\/white-PASS or dark-red-\s*background\/white-FAIL frame/ &&
+$bankswitching =~ /exact letters copied\s+from the default ASCII font/ &&
+$bankswitching =~ /six-glyph-wide score\s+component/ &&
 $bankswitching =~ /deliberately poisoned F8SC image/ &&
 $bankswitching =~ /exactly 262 scanlines/ &&
 $bankswitching =~ /proving read-window\/write-window\s+direction/
@@ -143,6 +143,9 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
+-f File::Spec->catfile($test,'phase_overlay.pl') &&
+-f File::Spec->catfile($test,'vcs_big_ascii_font.pl') &&
+-f File::Spec->catfile($repo,'libraries','vcs','fonts','big_ascii.c26') &&
 -f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
 -f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
 -f File::Spec->catfile($test,'vcs_interactive_sprite_orientation.pl') &&
@@ -466,8 +469,8 @@ my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
-index($context,'RAM-optimization work through the high-level animated-frame installer and its')>=0 &&
-index($context,'The next RAM-optimization work is phase-aware scratch overlay')>=0 &&
+index($context,'RAM-optimization work through phase-aware writable-storage overlay is complete.')>=0 &&
+index($context,'The next RAM-optimization work is persistent gallery bookkeeping reduction')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
@@ -478,7 +481,8 @@ $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansi
 $ram_roadmap =~ /^\[x\] 3\. Improve compact lowering for simple byte state updates\./m &&
 $ram_roadmap =~ /^\[x\] 4\. Make `install_frames\(\)` ordinary VCSC and establish a minimal-assembly/m &&
 $ram_roadmap =~ /^\[x\] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
-$ram_roadmap =~ /^\[ \] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
+$ram_roadmap =~ /^\[x\] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
+$ram_roadmap =~ /^\[ \] 6\. Reduce the gallery's persistent bookkeeping without changing behavior\./m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m

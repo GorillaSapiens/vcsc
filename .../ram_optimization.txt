@@ -506,7 +506,7 @@ Ordered roadmap
       exact 262-line, raster, banked-renderer, and complete compile/e2e regressions.
       Final verification: 447 compile-only tests and 256 end-to-end tests pass.
 
-[ ] 5. Overlay scratch across frame phases when contracts prove the lifetimes do
+[x] 5. Overlay scratch across frame phases when contracts prove the lifetimes do
         not overlap.
 
     * Describe VSYNC, VBLANK, visible draw, and overscan ownership for reusable
@@ -518,6 +518,47 @@ Ordered roadmap
       restored during `game_overscan()`.
     * Prefer compiler/linker metadata over example-specific absolute aliases.
     * Add negative tests for phase objects whose lifetimes really do overlap.
+
+    Completed result:
+
+    * The compiler records VSYNC, VBLANK, visible-draw, and overscan uses as
+      reserved `__phaseuse$V1$Mxx$symbol` metadata. Template lifecycle suffixes
+      count only on template-owned `require` hooks; fixed `vcs_ntsc_*` scheduler
+      helpers are classified directly, and an unscoped use emits `M00` and
+      permanently forbids phase sharing for that object.
+    * Phase accesses alone are deliberately not an ownership proof for a
+      file-scope value. Reusable frame-temporary workspaces must also carry the
+      explicit internal `__phaseworkspace$V1$symbol` eligibility contract.
+      Compiler-owned scratch emits that contract automatically when every
+      acquisition is phase-scoped. The maintained 192-line player-color
+      renderer explicitly marks only its 48-byte `object_masks` schedule after
+      documenting that VBLANK reconstructs it before visible drawing.
+    * The linker expands multiple phase accesses to their conservative
+      contiguous frame interval, overlays only explicitly eligible uninitialized
+      writable objects with disjoint intervals in the same physical MEMORY
+      region, and leaves DATA, activation storage, unmarked objects, overlapping
+      intervals, and any object with an `M00` use distinct.
+    * Sharing groups are planned independently of member size/declaration order,
+      but only groups with two or more members alter placement. A solitary
+      phase-tagged object retains ordinary allocation order. This preserves
+      stable component addresses such as the six-glyph pointer table while a
+      smaller earlier object may still share a larger later disjoint workspace.
+    * The animated gallery now overlays the one-byte VSYNC compiler scratch with
+      the first byte of `game_object_masks` (VBLANK+visible). Physical RIOT RAM
+      falls from 110/128 to **109/128 bytes**, leaving **19 bytes free**. Object
+      bytes fall from 102 to 101; the hardware-stack reservation remains eight
+      bytes, `main` activation falls from two bytes to one, and ROM remains
+      **3624/4090 bytes** with 466 free.
+    * `test/phase_overlay.pl` proves declaration-order-independent positive
+      sharing and rejects overlapping draw+overscan storage, `main`-lifetime
+      storage, an ordinary function merely named `_draw`, and a phase-confined
+      file-scope object that lacks the explicit workspace-eligibility contract.
+      The animated-gallery accounting fixture independently proves compiler
+      scratch sharing with the renderer workspace.
+    * Final verification after the placement-order safety fix is **447/447
+      compile-only** and **258/258 end-to-end** tests. Exact scheduler, score,
+      fingerprint, renderer, banked-renderer, animation, bankswitching, and
+      split-memory oracles remain passing.
 
 [ ] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
 

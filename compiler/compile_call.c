@@ -104,6 +104,9 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
       error_unreachable("out of memory naming inline expansion");
    }
    inline_ctx.vars = new_set();
+   inline_ctx.phase_mask = function_phase_mask_for_function(fn, callee_sym);
+   if (inline_ctx.phase_mask == 0 && caller_ctx)
+      inline_ctx.phase_mask = caller_ctx->phase_mask;
    inline_ctx.return_label = strdup(return_label);
    inline_ctx.inline_label_prefix = strdup(label_prefix);
    if (!inline_ctx.return_label || !inline_ctx.inline_label_prefix) {

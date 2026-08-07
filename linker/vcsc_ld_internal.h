@@ -48,6 +48,8 @@
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
+#define PHASE_USE_META_PREFIX "__phaseuse$V1$"
+#define PHASE_WORKSPACE_META_PREFIX "__phaseworkspace$V1$"
 #define REPLICA_META_PREFIX "__replicameta$V1$"
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
@@ -206,6 +208,10 @@ typedef struct {
    uint16_t placement_component;
    uint8_t placement_mode;
    uint8_t placement_component_pinned;
+   uint8_t phase_mask;
+   uint8_t phase_use_seen;
+   uint8_t phase_unscoped_use;
+   uint8_t phase_overlay_eligible;
    uint32_t placement_component_bytes;
    uint32_t placement_cut_weight;
 } object_layout_t;

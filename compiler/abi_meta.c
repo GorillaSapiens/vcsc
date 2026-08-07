@@ -1161,3 +1161,44 @@ void emit_semantic_use_metadata(const char *kind, const char *symbol,
    free(invoke);
    free(name.buf);
 }
+
+//! @brief Emit one deduplicated writable-object frame-phase use record.
+void emit_phase_use_metadata(const char *symbol, uint8_t phase_mask) {
+   StrBuf name;
+
+   if (!symbol || !*symbol)
+      return;
+
+   sb_init(&name);
+   sb_append(&name, PHASE_USE_META_PREFIX);
+   sb_appendf(&name, "M%02X$", (unsigned)(phase_mask & 0x0Fu));
+   sb_append(&name, symbol);
+
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+      emit(&es_export, "%s = 0\n", name.buf);
+   }
+   free(name.buf);
+}
+
+//! @brief Mark one writable object as explicitly disposable outside its inferred frame-phase lifetime.
+void emit_phase_workspace_metadata(const char *symbol) {
+   StrBuf name;
+
+   if (!symbol || !*symbol)
+      return;
+   sb_init(&name);
+   sb_append(&name, PHASE_WORKSPACE_META_PREFIX);
+   sb_append(&name, symbol);
+   if (!abi_metadata_symbols)
+      abi_metadata_symbols = new_set();
+   if (!set_get(abi_metadata_symbols, name.buf)) {
+      set_add(abi_metadata_symbols, strdup(name.buf), (void *)1);
+      emit(&es_export, ".export %s\n", name.buf);
+      emit(&es_export, "%s = 0\n", name.buf);
+   }
+   free(name.buf);
+}

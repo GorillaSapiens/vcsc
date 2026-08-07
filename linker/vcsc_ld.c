@@ -210,6 +210,62 @@ static int semantic_use_metadata_has_prefix(const char *name)
    return name && strncmp(name, SEMANTIC_USE_META_PREFIX, sizeof(SEMANTIC_USE_META_PREFIX) - 1) == 0;
 }
 
+//! @brief Return whether frame-phase object-use metadata has its reserved prefix.
+static int phase_use_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, PHASE_USE_META_PREFIX,
+      sizeof(PHASE_USE_META_PREFIX) - 1) == 0;
+}
+
+//! @brief Return whether explicit frame-phase workspace metadata has its reserved prefix.
+static int phase_workspace_metadata_has_prefix(const char *name)
+{
+   return name && strncmp(name, PHASE_WORKSPACE_META_PREFIX,
+      sizeof(PHASE_WORKSPACE_META_PREFIX) - 1) == 0;
+}
+
+//! @brief Parse one explicit frame-phase workspace eligibility symbol.
+static int phase_workspace_metadata_parse(const char *name, const char **symbol_out)
+{
+   const char *p;
+   if (!phase_workspace_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(PHASE_WORKSPACE_META_PREFIX) - 1;
+   if (!*p)
+      return 0;
+   if (symbol_out)
+      *symbol_out = p;
+   return 1;
+}
+
+//! @brief Parse one frame-phase object-use metadata symbol.
+static int phase_use_metadata_parse(const char *name, uint8_t *mask_out,
+                                    const char **symbol_out)
+{
+   const char *p;
+   char hexbuf[3];
+   char *end = NULL;
+   unsigned long mask;
+
+   if (!phase_use_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(PHASE_USE_META_PREFIX) - 1;
+   if (p[0] != 'M' || !isxdigit((unsigned char)p[1]) ||
+       !isxdigit((unsigned char)p[2]) || p[3] != '$' || !p[4])
+      return 0;
+   hexbuf[0] = p[1];
+   hexbuf[1] = p[2];
+   hexbuf[2] = '\0';
+   mask = strtoul(hexbuf, &end, 16);
+   if (!end || *end || mask > 0x0Fu)
+      return 0;
+   if (mask_out)
+      *mask_out = (uint8_t)mask;
+   if (symbol_out)
+      *symbol_out = p + 4;
+   return 1;
+}
+
 //! @brief Return whether component-placement metadata has its reserved prefix.
 static int component_constraint_metadata_has_prefix(const char *name)
 {
@@ -226,6 +282,8 @@ static int reserved_metadata_has_prefix(const char *name)
           replica_metadata_has_prefix(name) ||
           return_coalesce_metadata_has_prefix(name) ||
           component_constraint_metadata_has_prefix(name) ||
+          phase_use_metadata_has_prefix(name) ||
+          phase_workspace_metadata_has_prefix(name) ||
           contract_metadata_has_prefix(name) || semantic_use_metadata_has_prefix(name);
 }
 
@@ -3458,6 +3516,131 @@ static const char *segment_name_suffix(const char *name, char *buf, size_t bufsz
    return buf;
 }
 
+//! @brief Return whether one compiler-owned layout belongs to a named object symbol.
+static int phase_layout_matches_symbol(const object_layout_t *lay, const char *symbol)
+{
+   const char *marker;
+
+   if (!lay || !lay->name || !symbol || !*symbol)
+      return 0;
+   marker = strstr(lay->name, ".__vcsc_object$");
+   if (!marker)
+      return 0;
+   marker += sizeof(".__vcsc_object$") - 1;
+   return strcmp(marker, symbol) == 0;
+}
+
+//! @brief Find a phase-use target layout, preferring the metadata-owning object.
+static object_layout_t *find_phase_use_layout(input_set_t *in,
+                                              object_file_t *source,
+                                              const char *symbol)
+{
+   size_t i, j;
+
+   if (!in || !symbol || !*symbol)
+      return NULL;
+   if (source) {
+      for (j = 0; j < source->layout_count; ++j) {
+         if (phase_layout_matches_symbol(&source->layouts[j], symbol))
+            return &source->layouts[j];
+      }
+   }
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      if (obj == source)
+         continue;
+      for (j = 0; j < obj->layout_count; ++j) {
+         if (phase_layout_matches_symbol(&obj->layouts[j], symbol))
+            return &obj->layouts[j];
+      }
+   }
+   return NULL;
+}
+
+//! @brief Apply explicit eligibility for writable storage that may be reused outside its inferred phase lifetime.
+static void apply_phase_workspace_metadata(input_set_t *in)
+{
+   size_t i, j;
+
+   if (!in)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->export_count; ++j) {
+         const char *symbol;
+         object_layout_t *lay;
+
+         if (!phase_workspace_metadata_parse(obj->exports[j].name, &symbol))
+            continue;
+         lay = find_phase_use_layout(in, obj, symbol);
+         if (lay)
+            lay->phase_overlay_eligible = 1;
+      }
+   }
+}
+
+//! @brief Expand phase accesses to the conservative contiguous lifetime interval they span.
+static uint8_t phase_mask_interval_closure(uint8_t mask)
+{
+   int lo = -1;
+   int hi = -1;
+   int bit;
+
+   mask &= 0x0Fu;
+   for (bit = 0; bit < 4; ++bit) {
+      if (mask & (1u << bit)) {
+         if (lo < 0)
+            lo = bit;
+         hi = bit;
+      }
+   }
+   if (lo < 0)
+      return 0;
+   mask = 0;
+   for (bit = lo; bit <= hi; ++bit)
+      mask |= (uint8_t)(1u << bit);
+   return mask;
+}
+
+//! @brief Accumulate compiler-emitted frame-phase uses onto writable object layouts.
+static void apply_phase_use_metadata(input_set_t *in)
+{
+   size_t i, j;
+
+   if (!in)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->export_count; ++j) {
+         uint8_t mask;
+         const char *symbol;
+         object_layout_t *lay;
+
+         if (!phase_use_metadata_parse(obj->exports[j].name, &mask, &symbol))
+            continue;
+         lay = find_phase_use_layout(in, obj, symbol);
+         if (!lay)
+            continue;
+         lay->phase_use_seen = 1;
+         if (mask == 0) {
+            lay->phase_unscoped_use = 1;
+            lay->phase_mask = 0;
+         }
+         else if (!lay->phase_unscoped_use) {
+            lay->phase_mask |= mask;
+         }
+      }
+   }
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         if (lay->phase_use_seen && !lay->phase_unscoped_use)
+            lay->phase_mask = phase_mask_interval_closure(lay->phase_mask);
+      }
+   }
+}
+
 //! @brief Return rule run region name data used by linker layout and image writer; returned pointers alias existing storage unless explicitly allocated by the function name.
 static const char *rule_run_region_name(const segment_rule_t *rule)
 {
@@ -6536,6 +6719,30 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    const char *data_run_name = rule_run_region_name(data);
    const char *bss_run_name = rule_run_region_name(bss);
    const char *zp_run_name = rule_run_region_name(zp);
+   typedef struct phase_overlay_candidate_t {
+      object_file_t *obj;
+      object_layout_t *lay;
+      char run_name[MAX_NAME];
+      size_t group_index;
+   } phase_overlay_candidate_t;
+   typedef struct phase_overlay_group_t {
+      char run_name[MAX_NAME];
+      uint16_t size;
+      uint16_t alignment;
+      uint8_t mask;
+      uint8_t has_zp_member;
+      uint8_t needs_whole_page;
+      size_t leader_candidate;
+      size_t member_count;
+      uint16_t run_addr;
+      int allocated;
+   } phase_overlay_group_t;
+   phase_overlay_candidate_t *phase_candidates = NULL;
+   phase_overlay_group_t *phase_groups = NULL;
+   size_t phase_candidate_count = 0;
+   size_t phase_candidate_capacity = 0;
+   size_t phase_group_count = 0;
+   size_t phase_group_capacity = 0;
    size_t i, j;
 
    if (!code_load_name || !data_load_name || !data_run_name || !bss_run_name || !zp_run_name) {
@@ -6558,15 +6765,143 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
    (void)ensure_cursor(layout, cfg, bss_run_name);
    (void)ensure_cursor(layout, cfg, zp_run_name);
 
+   /* Clear placement state before planning phase overlays. */
    for (i = 0; i < in->object_count; ++i) {
       object_file_t *obj = &in->objects[i];
-
       obj->place_text_load = 0;
       obj->place_data_load = 0;
       for (j = 0; j < obj->layout_count; ++j) {
          obj->layouts[j].load_addr = 0;
          obj->layouts[j].run_addr = 0;
       }
+   }
+
+   /* Gather phase-confined writable objects in their ordinary allocation
+      order. Merely having phase metadata does not move an object: only a
+      group with two or more mutually disjoint phase-use sets gets a shared
+      physical slot. This preserves historical addresses for solitary
+      phase-scoped objects while still making grouping independent of member
+      size and declaration order. */
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         object_layout_t *lay = &obj->layouts[j];
+         char suffix_storage[MAX_NAME];
+         const char *suffix;
+         const char *run_name;
+
+         if ((lay->segid != O26_SEG_BSS && lay->segid != O26_SEG_ZP) ||
+             !lay->phase_overlay_eligible || !lay->phase_use_seen ||
+             lay->phase_unscoped_use || lay->phase_mask == 0 ||
+             lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
+            continue;
+         if (activation_segment_parse(lay->name, suffix_storage,
+                                      sizeof(suffix_storage), NULL))
+            continue;
+         suffix = segment_name_suffix(lay->name, suffix_storage, sizeof(suffix_storage));
+         if (lay->segid == O26_SEG_BSS)
+            run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS"))
+               ? suffix : bss_run_name;
+         else
+            run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") ||
+                                   segment_name_matches_prefix(lay->name, "ZP") ||
+                                   segment_name_matches_prefix(lay->name, "ZERO")))
+               ? suffix : zp_run_name;
+         if (phase_candidate_count == phase_candidate_capacity) {
+            size_t new_capacity = phase_candidate_capacity ? phase_candidate_capacity * 2 : 16;
+            phase_overlay_candidate_t *grown = realloc(phase_candidates,
+               new_capacity * sizeof(*grown));
+            if (!grown) {
+               fprintf(stderr, "vcsc-ld: out of memory collecting phase overlay candidates\n");
+               exit(1);
+            }
+            phase_candidates = grown;
+            phase_candidate_capacity = new_capacity;
+         }
+         phase_candidates[phase_candidate_count].obj = obj;
+         phase_candidates[phase_candidate_count].lay = lay;
+         snprintf(phase_candidates[phase_candidate_count].run_name,
+                  sizeof(phase_candidates[phase_candidate_count].run_name), "%s", run_name);
+         phase_candidates[phase_candidate_count].group_index = SIZE_MAX;
+         phase_candidate_count++;
+      }
+   }
+
+   /* Build sharing groups largest-first so a small object declared first can
+      still share with a larger later object. The group's leader is always the
+      earliest member in ordinary allocation order; the group is allocated
+      only when that leader is reached below. */
+   if (phase_candidate_count != 0) {
+      size_t *order = xmalloc(phase_candidate_count * sizeof(*order));
+      for (i = 0; i < phase_candidate_count; ++i)
+         order[i] = i;
+      for (i = 0; i < phase_candidate_count; ++i) {
+         size_t best = i;
+         for (j = i + 1; j < phase_candidate_count; ++j) {
+            if (phase_candidates[order[j]].lay->size >
+                phase_candidates[order[best]].lay->size)
+               best = j;
+         }
+         if (best != i) {
+            size_t tmp = order[i];
+            order[i] = order[best];
+            order[best] = tmp;
+         }
+      }
+      for (i = 0; i < phase_candidate_count; ++i) {
+         size_t ci = order[i];
+         phase_overlay_candidate_t *candidate = &phase_candidates[ci];
+         object_layout_t *lay = candidate->lay;
+         size_t chosen = SIZE_MAX;
+
+         for (j = 0; j < phase_group_count; ++j) {
+            phase_overlay_group_t *group = &phase_groups[j];
+            if (strcmp(group->run_name, candidate->run_name) != 0 ||
+                (group->mask & lay->phase_mask) != 0)
+               continue;
+            chosen = j;
+            break;
+         }
+         if (chosen == SIZE_MAX) {
+            if (phase_group_count == phase_group_capacity) {
+               size_t new_capacity = phase_group_capacity ? phase_group_capacity * 2 : 8;
+               phase_overlay_group_t *grown = realloc(phase_groups,
+                  new_capacity * sizeof(*grown));
+               if (!grown) {
+                  fprintf(stderr, "vcsc-ld: out of memory creating phase overlay groups\n");
+                  exit(1);
+               }
+               phase_groups = grown;
+               phase_group_capacity = new_capacity;
+            }
+            chosen = phase_group_count++;
+            memset(&phase_groups[chosen], 0, sizeof(phase_groups[chosen]));
+            snprintf(phase_groups[chosen].run_name,
+                     sizeof(phase_groups[chosen].run_name), "%s", candidate->run_name);
+            phase_groups[chosen].leader_candidate = ci;
+         }
+         {
+            phase_overlay_group_t *group = &phase_groups[chosen];
+            candidate->group_index = chosen;
+            group->mask |= lay->phase_mask;
+            if (lay->size > group->size)
+               group->size = lay->size;
+            if (lay->component_alignment > group->alignment)
+               group->alignment = lay->component_alignment;
+            if (lay->segid == O26_SEG_ZP)
+               group->has_zp_member = 1;
+            if (lay->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE))
+               group->needs_whole_page = 1;
+            if (ci < group->leader_candidate)
+               group->leader_candidate = ci;
+            group->member_count++;
+         }
+      }
+      free(order);
+   }
+
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
 
       /* Place each ROM-resident text layout independently. Compiler data
          objects therefore remain individually movable instead of inheriting
@@ -6639,23 +6974,122 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
             case O26_SEG_BSS: {
                const char *run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS")) ? suffix : bss_run_name;
-               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
-                  lay, lay->name, obj->origin);
-               add_zero_record(layout, lay->name, lay->run_addr,
-                               memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
-                               lay->size);
+               size_t candidate_index = SIZE_MAX;
+               size_t group_index = SIZE_MAX;
+               for (size_t k = 0; k < phase_candidate_count; ++k) {
+                  if (phase_candidates[k].lay == lay) {
+                     candidate_index = k;
+                     group_index = phase_candidates[k].group_index;
+                     break;
+                  }
+               }
+               if (group_index != SIZE_MAX && phase_groups[group_index].member_count > 1) {
+                  phase_overlay_group_t *group = &phase_groups[group_index];
+                  if (!group->allocated) {
+                     object_layout_t constraints = *lay;
+                     if (candidate_index != group->leader_candidate) {
+                        fprintf(stderr,
+                                "vcsc-ld: internal phase-overlay leader ordering failure for %s from %s\n",
+                                lay->name, obj->origin);
+                        exit(1);
+                     }
+                     constraints.size = group->size;
+                     constraints.component_alignment = group->alignment;
+                     if (group->has_zp_member)
+                        constraints.segid = O26_SEG_ZP;
+                     if (group->needs_whole_page) {
+                        constraints.flags |= O26_LAYOUT_PAGE_CONTAINED;
+                        constraints.flags &= (uint8_t)~O26_LAYOUT_INDEX_RANGE;
+                     }
+                     group->run_addr = alloc_from_region_policy(layout, cfg, run_name,
+                        group->size, group->alignment ? group->alignment : 1,
+                        &constraints, lay->name, obj->origin);
+                     for (size_t k = 0; k < phase_candidate_count; ++k) {
+                        phase_overlay_candidate_t *member = &phase_candidates[k];
+                        if (member->group_index != group_index)
+                           continue;
+                        if (!object_page_constraints_hold(member->lay, group->run_addr) ||
+                            (member->lay->component_alignment > 1 &&
+                             (group->run_addr % member->lay->component_alignment) != 0)) {
+                           fprintf(stderr,
+                                   "vcsc-ld: cannot satisfy phase-overlay placement constraints for %s and %s\n",
+                                   lay->name, member->lay->name);
+                           exit(1);
+                        }
+                     }
+                     group->allocated = 1;
+                  }
+                  lay->run_addr = group->run_addr;
+               }
+               else {
+                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                     lay, lay->name, obj->origin);
+               }
+               if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+                  add_zero_record(layout, lay->name, lay->run_addr,
+                                  memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                                  lay->size);
                break;
             }
 
             case O26_SEG_ZP: {
                const char *run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") || segment_name_matches_prefix(lay->name, "ZP") || segment_name_matches_prefix(lay->name, "ZERO"))) ? suffix : zp_run_name;
-               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
-                  lay, lay->name, obj->origin);
+               size_t candidate_index = SIZE_MAX;
+               size_t group_index = SIZE_MAX;
+               for (size_t k = 0; k < phase_candidate_count; ++k) {
+                  if (phase_candidates[k].lay == lay) {
+                     candidate_index = k;
+                     group_index = phase_candidates[k].group_index;
+                     break;
+                  }
+               }
+               if (group_index != SIZE_MAX && phase_groups[group_index].member_count > 1) {
+                  phase_overlay_group_t *group = &phase_groups[group_index];
+                  if (!group->allocated) {
+                     object_layout_t constraints = *lay;
+                     if (candidate_index != group->leader_candidate) {
+                        fprintf(stderr,
+                                "vcsc-ld: internal phase-overlay leader ordering failure for %s from %s\n",
+                                lay->name, obj->origin);
+                        exit(1);
+                     }
+                     constraints.size = group->size;
+                     constraints.component_alignment = group->alignment;
+                     constraints.segid = O26_SEG_ZP;
+                     if (group->needs_whole_page) {
+                        constraints.flags |= O26_LAYOUT_PAGE_CONTAINED;
+                        constraints.flags &= (uint8_t)~O26_LAYOUT_INDEX_RANGE;
+                     }
+                     group->run_addr = alloc_from_region_policy(layout, cfg, run_name,
+                        group->size, group->alignment ? group->alignment : 1,
+                        &constraints, lay->name, obj->origin);
+                     for (size_t k = 0; k < phase_candidate_count; ++k) {
+                        phase_overlay_candidate_t *member = &phase_candidates[k];
+                        if (member->group_index != group_index)
+                           continue;
+                        if (!object_page_constraints_hold(member->lay, group->run_addr) ||
+                            (member->lay->component_alignment > 1 &&
+                             (group->run_addr % member->lay->component_alignment) != 0)) {
+                           fprintf(stderr,
+                                   "vcsc-ld: cannot satisfy phase-overlay placement constraints for %s and %s\n",
+                                   lay->name, member->lay->name);
+                           exit(1);
+                        }
+                     }
+                     group->allocated = 1;
+                  }
+                  lay->run_addr = group->run_addr;
+               }
+               else {
+                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, 1,
+                     lay, lay->name, obj->origin);
+               }
                if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
-               else if (strstr(lay->name, ".__vcsc_object$") != NULL)
+               else if (strstr(lay->name, ".__vcsc_object$") != NULL &&
+                        strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
                   add_zero_record(layout, lay->name, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
@@ -6664,6 +7098,11 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          }
       }
    }
+
+   free(phase_candidates);
+   free(phase_groups);
+   phase_candidates = NULL;
+   phase_groups = NULL;
 
    layout_activation_segments(cfg, in, layout, bss_run_name, zp_run_name);
 
@@ -8329,6 +8768,12 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
+            if (lay->phase_use_seen) {
+               if (lay->phase_unscoped_use)
+                  fprintf(fp, " phase=unscoped");
+               else
+                  fprintf(fp, " phase=$%02X", (unsigned)lay->phase_mask);
+            }
             fputc('\n', fp);
          }
          else if (lay->segid == O26_SEG_DATA) {
@@ -8350,6 +8795,12 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
+            if (lay->phase_use_seen) {
+               if (lay->phase_unscoped_use)
+                  fprintf(fp, " phase=unscoped");
+               else
+                  fprintf(fp, " phase=$%02X", (unsigned)lay->phase_mask);
+            }
             fputc('\n', fp);
          }
          else {
@@ -8369,6 +8820,12 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
+            if (lay->phase_use_seen) {
+               if (lay->phase_unscoped_use)
+                  fprintf(fp, " phase=unscoped");
+               else
+                  fprintf(fp, " phase=$%02X", (unsigned)lay->phase_mask);
+            }
             fputc('\n', fp);
          }
       }
@@ -9040,6 +9497,8 @@ int main(int argc, char **argv)
                                          weighted_call_depth, init_count);
    }
    warn_unused_cmdline_objects(&inputs);
+   apply_phase_workspace_metadata(&inputs);
+   apply_phase_use_metadata(&inputs);
    layout_objects(&cfg, &inputs, &layout);
    enforce_branch_bank_contracts(&cfg, &inputs);
    enforce_branch_page_contracts(&inputs);

@@ -6,12 +6,15 @@
 #define _INCLUDE_ABI_META_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "ast.h"
 
 //! Prefix used for linker-visible ABI metadata symbols.
 #define ABI_META_PREFIX "__abimeta$V1$"
 #define CONTRACT_META_PREFIX "__contractmeta$V1$"
 #define SEMANTIC_USE_META_PREFIX "__usemeta$V1$"
+#define PHASE_USE_META_PREFIX "__phaseuse$V1$"
+#define PHASE_WORKSPACE_META_PREFIX "__phaseworkspace$V1$"
 #define REPLICA_META_PREFIX "__replicameta$V1$"
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 
@@ -32,5 +35,7 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname, boo
 void emit_semantic_use_metadata(const char *kind, const char *symbol,
                                 const char *containing_function,
                                 const ASTNode *use_site);
+void emit_phase_use_metadata(const char *symbol, uint8_t phase_mask);
+void emit_phase_workspace_metadata(const char *symbol);
 
 #endif

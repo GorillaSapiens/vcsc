@@ -133,7 +133,7 @@ for my $y (0..$height-1) {
       push @white,[$x,$y] if $min>150 && $max-$min<45;
    }
 }
-@white>=100 or die "white status glyph missing or too small: pixels=".scalar(@white)."\n";
+@white>=250 or die "white status word missing or too small: pixels=".scalar(@white)."\n";
 
 my($min_x,$max_x,$min_y,$max_y)=($width,0,$height,0);
 for my $point (@white) {
@@ -141,43 +141,50 @@ for my $point (@white) {
    $min_x=$x if $x<$min_x; $max_x=$x if $x>$max_x;
    $min_y=$y if $y<$min_y; $max_y=$y if $y>$max_y;
 }
-$max_x-$min_x+1==24
-   or die "status glyph has wrong width: ".($max_x-$min_x+1)." pixels\n";
-$max_y-$min_y+1>=14 && $max_y-$min_y+1<=16
-   or die "status glyph has wrong height: ".($max_y-$min_y+1)." pixels\n";
+my $bbox_width=$max_x-$min_x+1;
+my $bbox_height=$max_y-$min_y+1;
+$bbox_width%54==0 or die "status word has unexpected width $bbox_width; expected 54 scaled source pixels\n";
+$bbox_height%8==0 or die "status word has unexpected height $bbox_height; expected eight scaled source rows\n";
+my $xscale=int($bbox_width/54);
+my $yscale=int($bbox_height/8);
+$xscale>=1 && $xscale<=4 or die "status word horizontal scale $xscale is unsupported\n";
+$yscale>=1 && $yscale<=4 or die "status word vertical scale $yscale is unsupported\n";
+my $center_x=($min_x+$max_x)/2;
+my $center_y=($min_y+$max_y)/2;
+abs($center_x-($width-1)/2) <= $xscale
+   or die "status word is not horizontally centered: bbox=$min_x-$max_x image_width=$width\n";
+abs($center_y-($height-1)/2) <= 2*$yscale
+   or die "status word is not vertically centered: bbox=$min_y-$max_y image_height=$height\n";
 
-my @rows;
-for my $y ($min_y..$max_y) {
-   my $bits='';
-   for my $column (0..5) {
-      my $count=0;
-      for my $dx (0..3) {
-         my($red,$green,$blue)=$rgb_at->($min_x+$column*4+$dx,$y);
-         my $max=$red>$green ? ($red>$blue?$red:$blue) : ($green>$blue?$green:$blue);
-         my $min=$red<$green ? ($red<$blue?$red:$blue) : ($green<$blue?$green:$blue);
-         $count++ if $min>150 && $max-$min<45;
+my %glyph_rows=(
+   P=>[qw(111110 110011 110011 111110 110000 110000 110000 110000)],
+   A=>[qw(011110 110011 110011 110011 111111 110011 110011 110011)],
+   S=>[qw(011110 110011 110000 011110 000011 000011 110011 011110)],
+   F=>[qw(111111 110000 110000 111110 110000 110000 110000 110000)],
+   I=>[qw(111111 001100 001100 001100 001100 001100 001100 111111)],
+   L=>[qw(110000 110000 110000 110000 110000 110000 110000 111111)],
+);
+my @letters=split //, uc($expect);
+for my $g (0..3) {
+   my $want=$glyph_rows{$letters[$g]} or die "missing expected glyph $letters[$g]\n";
+   for my $row (0..7) {
+      for my $col (0..5) {
+         my $expected=substr($want->[$row],$col,1) eq '1';
+         for my $dy (0..$yscale-1) {
+            for my $dx (0..$xscale-1) {
+               my $x=$min_x+($g*16+$col)*$xscale+$dx;
+               my $y=$min_y+$row*$yscale+$dy;
+               my($red,$green,$blue)=$rgb_at->($x,$y);
+               my $max=$red>$green ? ($red>$blue?$red:$blue) : ($green>$blue?$green:$blue);
+               my $min=$red<$green ? ($red<$blue?$red:$blue) : ($green<$blue?$green:$blue);
+               my $white=$min>150 && $max-$min<45;
+               $white==$expected
+                  or die "$letters[$g] glyph mismatch at row=$row col=$col pixel=$x,$y\n";
+            }
+         }
       }
-      $count==0 || $count==4
-         or die "status glyph has a torn source pixel at y=$y column=$column\n";
-      $bits .= $count ? '1' : '0';
    }
-   push @rows,$bits;
 }
-my(@shape,@runs);
-for my $row (@rows) {
-   if (!@shape || $shape[-1] ne $row) { push @shape,$row; push @runs,1; }
-   else { $runs[-1]++; }
-}
-my $glyph=$expect eq 'pass' ? 'P' : 'F';
-my $want=$expect eq 'pass'
-   ? '111110,110011,111110,110000'
-   : '111111,110000,111110,110000';
-join(',',@shape) eq $want
-   or die "$glyph glyph does not match default ASCII: rows=".join(',',@shape)."\n";
-@runs==4 &&
-$runs[0]>=1 && $runs[0]<=3 && $runs[1]>=3 && $runs[1]<=5 &&
-$runs[2]>=1 && $runs[2]<=3 && $runs[3]>=6 && $runs[3]<=9
-   or die "$glyph glyph has unexpected row scaling: runs=".join(',',@runs)."\n";
 
 print "${width}x${height} center=(@center) white_pixels=".scalar(@white).
-      " glyph=$glyph bbox=$min_x,$min_y-$max_x,$max_y\n";
+      " word=".uc($expect)." bbox=$min_x,$min_y-$max_x,$max_y scale=${xscale}x${yscale}\n";

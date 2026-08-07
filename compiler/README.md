@@ -867,6 +867,36 @@ A function therefore cannot be active twice.
 This restriction applies even to parameterless functions and functions whose
 bodies happen not to declare locals.
 
+### VCS frame-phase lifetime metadata
+
+For the fixed NTSC scheduler and reusable template component lifecycle, the
+compiler also records when writable storage is live within a frame. The internal
+phase mask uses VSYNC, VBLANK, visible draw, and overscan bits. Template suffixes
+such as `_vblank`, `_draw`, and `_overscan` are recognized only on template-owned
+`require` lifecycle functions; an ordinary function merely ending in `_draw`
+does not become a phase contract. The fixed `vcs_ntsc_*` scheduler helpers are
+classified directly.
+
+High-level reads/writes and recognized inline-assembly object references emit
+reserved `__phaseuse$V1$...` records. A use from `main`, initialization, or any
+other unclassified context emits an unscoped record, which conservatively
+forbids phase overlay for that object. The linker treats multiple scoped accesses
+as one contiguous live interval from the earliest to the latest observed phase,
+not merely as independent phase bits.
+
+Access timing alone does not authorize a file-scope value to lose its prior-frame
+contents. An overlay candidate must also carry the internal
+`__phaseworkspace$V1$symbol` ownership contract. Compiler scratch whose every
+acquisition belongs to known phases receives this marker automatically and may
+leave the ordinary activation segment; one unscoped acquisition keeps it there.
+Renderer/application workspaces opt in only when their owner can guarantee that
+contents outside the inferred interval are disposable.
+
+This metadata is an internal storage optimization, not a source-language promise
+that arbitrary similarly named functions have frame semantics. `vcsc-ld` reuses
+physical bytes only for explicitly eligible, uninitialized writable objects with
+provably disjoint conservative intervals.
+
 ### Returns and `$$`
 
 A value-returning function owns an exact-sized hidden return object. It uses

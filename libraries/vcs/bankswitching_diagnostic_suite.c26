@@ -7,7 +7,7 @@
 // BANK0 also makes a nested cross-bank call, before every source directly
 // jumps to every destination bank.  RIOT-RAM signatures, transition counts, and
 // hardware-stack balance are checked before the cartridge settles on a stable
-// green P (PASS) or dark-red F (FAIL) frame for emulator certification.
+// green PASS or dark-red FAIL frame for emulator certification.
 
 #ifndef MAPPER_BANKS
 MAPPER_BANKS_must_be_2_4_or_8
@@ -33,6 +33,12 @@ include "vcs_32k_f4.c26"
 #else
 MAPPER_BANKS_must_be_2_4_or_8
 #endif
+#endif
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+template "six_glyph_wide_component.c26" as status_word
 #endif
 
 #ifdef SUPERCHIP_TEST
@@ -62,25 +68,41 @@ uint8_t stack_after;
 uint8_t diagnostic_superchip_index;
 #endif
 
-// Exact 0x50 P and 0x46 F designs copied from fonts/default_ascii.c26.
-// The local alias stores them bottom-to-top because the display loop counts
-// its row index down from seven to zero.
+#ifndef SIMULATOR_TEST
+// Exact space/A/F/I/L/P/S designs copied from fonts/default_ascii.c26.
+// The local alias stores them bottom-to-top because six_glyph_wide_component
+// counts its row index down from seven to zero.  PASS and FAIL occupy the
+// middle four of the component's six wide glyph cells, so their 56-pixel word
+// boxes are centered at X=79.5 on the 160-pixel visible raster.
 alias BANK_DIAGNOSTIC_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-bank0 const uint8_t pass_glyph[8] := {
+bank0 const uint8_t status_blank_glyph[8] := {
    BANK_DIAGNOSTIC_GLYPH(
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........
    )
 };
 
-bank0 const uint8_t fail_glyph[8] := {
+bank0 const uint8_t status_a_glyph[8] := {
+   BANK_DIAGNOSTIC_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.
+   )
+};
+
+bank0 const uint8_t status_f_glyph[8] := {
    BANK_DIAGNOSTIC_GLYPH(
       0b.XXXXXX.,
       0b.XX.....,
@@ -93,120 +115,167 @@ bank0 const uint8_t fail_glyph[8] := {
    )
 };
 
-bank0 void draw_status_frame(void) {
-   // This is a non-returning display loop.  Keeping the frame-to-frame branch
-   // here avoids an invisible JSR/RTS/C-loop scanline between nominal frames.
-   asm @status_frame_loop:;
+bank0 const uint8_t status_i_glyph[8] := {
+   BANK_DIAGNOSTIC_GLYPH(
+      0b.XXXXXX.,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b...XX...,
+      0b.XXXXXX.
+   )
+};
 
-   // Begin VSYNC immediately on re-entry.  All per-frame TIA setup is split
-   // across two budgeted VBLANK scanlines below, so it cannot silently add
-   // uncounted lines between frames.
-   asm lda #2;
-   asm sta VSYNC;
-   asm ldx #3;
-   asm @vsync_loop:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @vsync_loop;
+bank0 const uint8_t status_l_glyph[8] := {
+   BANK_DIAGNOSTIC_GLYPH(
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXXX.
+   )
+};
 
-   asm lda #0;
-   asm sta VSYNC;
-   asm lda #2;
-   asm sta VBLANK;
+bank0 const uint8_t status_p_glyph[8] := {
+   BANK_DIAGNOSTIC_GLYPH(
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....
+   )
+};
 
-   // VBLANK setup line 1 of 37.  The status glyph is always white; only the
-   // background distinguishes PASS from FAIL.
-   asm lda #$0E;
-   asm sta COLUP0;
-   asm lda failure;
-   asm beq @pass_colors;
-   asm lda #$20;
-   asm jmp @colors_done;
-   asm @pass_colors:;
-   asm lda status_color;
-   asm @colors_done:;
-   asm sta COLUBK;
-   asm lda #0;
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta WSYNC;
+bank0 const uint8_t status_s_glyph[8] := {
+   BANK_DIAGNOSTIC_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX.....,
+      0b..XXXX..,
+      0b.....XX.,
+      0b.....XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};
 
-   // VBLANK setup line 2 of 37.
-   asm sta ENAM0;
-   asm sta ENAM1;
-   asm sta ENABL;
-   asm sta REFP0;
-   asm sta VDELP0;
-   asm sta RESMP0;
-   asm sta HMP0;
-   asm sta CTRLPF;
-   asm sta HMCLR;
-   asm lda #5;
-   asm sta NUSIZ0;
-   asm sta WSYNC;
-
-   asm ldx #35;
-   asm @vblank_loop:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @vblank_loop;
-
-   asm lda #0;
-   asm sta VBLANK;
-   asm ldx #76;
-   asm @visible_top:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @visible_top;
-
-   asm sta WSYNC;
-   asm ldx #20;
-   asm @position_delay:;
-   asm dex;
-   asm bne @position_delay;
-   asm sta RESP0;
-
-   asm ldx #7;
-   asm @glyph_loop:;
-   asm lda failure;
-   asm beq @pass_row;
-   asm lda fail_glyph,x;
-   asm jmp @row_ready;
-   asm @pass_row:;
-   asm lda pass_glyph,x;
-   asm @row_ready:;
-   // Wait for the next scanline before changing GRP0.  Updating GRP0 before
-   // WSYNC tears each row in half because the row-selection branches consume
-   // part of the visible scanline.
-   asm sta WSYNC;
-   asm sta GRP0;
-   asm sta WSYNC;
-   asm dex;
-   asm bpl @glyph_loop;
-
-   asm lda #0;
-   asm sta GRP0;
-   asm ldx #99;
-   asm @visible_bottom:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @visible_bottom;
-
-   asm lda #2;
-   asm sta VBLANK;
-   asm lda #0;
-   // Twenty-nine WSYNCs plus the branch/restart interval after the final
-   // WSYNC occupy thirty overscan scanlines as Stella counts them.
-   asm ldx #29;
-   asm @overscan_loop:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @overscan_loop;
-   asm jmp @status_frame_loop;
+inline void load_status_pass(void) {
+   asm lda #<status_blank_glyph;
+   asm sta status_word_pointers;
+   asm lda #>status_blank_glyph;
+   asm sta status_word_pointers+1;
+   asm lda #<status_p_glyph;
+   asm sta status_word_pointers+2;
+   asm lda #>status_p_glyph;
+   asm sta status_word_pointers+3;
+   asm lda #<status_a_glyph;
+   asm sta status_word_pointers+4;
+   asm lda #>status_a_glyph;
+   asm sta status_word_pointers+5;
+   asm lda #<status_s_glyph;
+   asm sta status_word_pointers+6;
+   asm lda #>status_s_glyph;
+   asm sta status_word_pointers+7;
+   asm lda #<status_s_glyph;
+   asm sta status_word_pointers+8;
+   asm lda #>status_s_glyph;
+   asm sta status_word_pointers+9;
+   asm lda #<status_blank_glyph;
+   asm sta status_word_pointers+10;
+   asm lda #>status_blank_glyph;
+   asm sta status_word_pointers+11;
+   status_word_color := 0x0e;
 }
+
+inline void load_status_fail(void) {
+   asm lda #<status_blank_glyph;
+   asm sta status_word_pointers;
+   asm lda #>status_blank_glyph;
+   asm sta status_word_pointers+1;
+   asm lda #<status_f_glyph;
+   asm sta status_word_pointers+2;
+   asm lda #>status_f_glyph;
+   asm sta status_word_pointers+3;
+   asm lda #<status_a_glyph;
+   asm sta status_word_pointers+4;
+   asm lda #>status_a_glyph;
+   asm sta status_word_pointers+5;
+   asm lda #<status_i_glyph;
+   asm sta status_word_pointers+6;
+   asm lda #>status_i_glyph;
+   asm sta status_word_pointers+7;
+   asm lda #<status_l_glyph;
+   asm sta status_word_pointers+8;
+   asm lda #>status_l_glyph;
+   asm sta status_word_pointers+9;
+   asm lda #<status_blank_glyph;
+   asm sta status_word_pointers+10;
+   asm lda #>status_blank_glyph;
+   asm sta status_word_pointers+11;
+   status_word_color := 0x0e;
+}
+
+bank0 void draw_status_frame(void) {
+   // Exercise the component lifecycle normally.  Its stock decimal pointer
+   // preparation is immediately replaced with the exact ASCII PASS/FAIL
+   // pointers during VBLANK, before the component becomes visible.
+   status_word_score := 0;
+   status_word_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_word_vblank();
+      if (failure) {
+         load_status_fail();
+      }
+      else {
+         load_status_pass();
+      }
+
+      COLUP0 := 0x0e;
+      COLUP1 := 0x0e;
+      if (failure) {
+         COLUBK := 0x20;
+      }
+      else {
+         COLUBK := status_color;
+      }
+      PF0 := 0;
+      PF1 := 0;
+      PF2 := 0;
+      GRP0 := 0;
+      GRP1 := 0;
+      ENAM0 := 0;
+      ENAM1 := 0;
+      ENABL := 0;
+      CTRLPF := 0;
+
+      vcs_ntsc_end_vblank();
+
+      // 90 blank lines + the component's exact 11 lines + 91 blank lines =
+      // 192 visible scanlines.  The one-line asymmetry is the unavoidable
+      // half-scanline centering of an odd-height component in an even-height
+      // visible field.
+      vcs_ntsc_wait_component_scanlines(90);
+      status_word_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(91);
+
+      vcs_ntsc_begin_overscan();
+      status_word_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+
+#endif
 
 #ifdef SIMULATOR_TEST
 bank0 void simulator_done(void) {
@@ -528,7 +597,7 @@ bank0 void finish_all(void) {
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;
 #else
-   asm jmp draw_status_frame;
+   draw_status_frame();
 #endif
 }
 
@@ -1020,6 +1089,15 @@ void main(void) {
    // It therefore certifies both first-start initialization and reinitialization
    // after an external RESET which preserves physical cartridge RAM.
    validate_superchip_startup();
+#endif
+#ifndef SIMULATOR_TEST
+   // A genuine startup-contract failure has no reason to exercise bank
+   // transitions. Enter the stable result display immediately. This real error
+   // path also makes the component lifecycle reachable from main for its
+   // require contracts without changing the deliberately poisoned matrix run.
+   if (failure) {
+      draw_status_frame();
+   }
 #endif
 #ifdef POISONED_RESULT
    failure := 1;

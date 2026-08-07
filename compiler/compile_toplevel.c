@@ -366,6 +366,7 @@ void compile_function_decl(ASTNode *node) {
    ctx.continue_label = NULL;
    ctx.return_label = "@fini";
    ctx.inline_label_prefix = NULL;
+   ctx.phase_mask = function_phase_mask_for_function(node, sym);
    build_function_context(node, &ctx);
    plan_function_return_coalescing(node, body, &ctx);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");

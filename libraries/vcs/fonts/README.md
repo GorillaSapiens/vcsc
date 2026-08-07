@@ -9,9 +9,10 @@
 
 # VCS score fonts
 
-This directory contains eight 8x8 score-font families converted to readable
-VCSC source, plus one special six-slice VCSC logo table. Every pixel row is written on its own line using visual binary
-notation: `.` is a clear pixel and `X` is a set pixel.
+This directory contains eight conventional 8x8 score-font families, one
+separate 8x16 printable-ASCII font, and one special six-slice VCSC logo table.
+Every pixel row is written on its own line using visual binary notation: `.` is
+a clear pixel and `X` is a set pixel.
 
 Each family has three modules:
 
@@ -41,6 +42,20 @@ gains a cycle on page crossing and visibly corrupts the six-glyph pipeline.
 | Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 
+
+## Big 8x16 ASCII font
+
+`big_ascii.c26` is a separate 8x16 font containing all 95 printable ASCII
+characters. It defines `score_font[1520]` (95 glyphs × 16 rows), with every
+glyph stored bottom-to-top by the 16-row `VCS_FONT_GLYPH` alias. It is not one
+of the conventional 8x8 score-font families and is **not** compatible with the
+existing eight-row six-glyph score components without a 16-row display
+component.
+
+Because the table is 1520 bytes, it deliberately does not use the `page`
+modifier: hard page containment is impossible for an object larger than 256
+bytes. Like the conventional families it uses the common `score_font` symbol,
+so include it alone in a translation unit.
 
 ## VCSC logo slices
 

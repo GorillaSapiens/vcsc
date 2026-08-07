@@ -563,6 +563,39 @@ units do not merge. Calls hidden inside assembly remain outside this analysis
 and must obey the integration contract's non-reentry rules.
 
 It is not trying to be a full `ld65` config parser.
+
+## Frame-phase object overlay
+
+After activation planning metadata is collected but before writable-memory
+placement, the linker consumes compiler `__phaseuse$V1$Mxx$symbol` records plus
+explicit `__phaseworkspace$V1$symbol` eligibility records. VSYNC, VBLANK,
+visible draw, and overscan are the ordered frame phases. Scoped uses are unioned
+and expanded to the conservative contiguous interval from the first to the last
+observed phase; any `M00` unscoped use makes the object ineligible.
+
+A file-scope object is not reusable merely because its accesses happen to be
+phase-confined. It must also carry the workspace-eligibility contract, which
+means prior-frame contents are disposable outside the inferred interval.
+Compiler-owned scratch emits that contract automatically when every acquisition
+is phase-scoped. Only explicitly eligible, uninitialized writable BSS/zero-page
+objects are candidates; DATA/ROM-backed initializers, activation blocks,
+unmarked objects, unknown/unscoped use, and intersecting intervals remain
+distinct.
+
+The linker forms compatible sharing groups independently of declaration order
+and member size, but a group with only one member is left in ordinary allocation
+order. A real multi-member group allocates one slot at its earliest ordinary
+member, sized/aligned for the largest/strictest member, and every other member
+reuses that address. This recovers phase RAM without gratuitously moving stable
+component state. Page and alignment constraints still apply. The map annotates
+observed object phases as `phase=$xx` or `phase=unscoped`.
+
+Compiler scratch has no language-level initial value and is written before every
+use, so its standalone phase object does not receive a startup zero-table record.
+Ordinary source BSS workspaces keep their normal startup clearing even when
+phase-disjoint layouts share physical bytes. RAM accounting counts shared bytes
+once.
+
 ## Component-owned placement and hidden-stack contracts
 
 Assembler objects may export reserved component metadata for one named layout's

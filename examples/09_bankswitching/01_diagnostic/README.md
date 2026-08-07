@@ -33,14 +33,15 @@ they poison the entire contract boundary; simulator and Stella certification
 reset the CPU without externally clearing RAM and require a second PASS, proving
 that startup reinitializes allocated objects on every reset.
 
-A green background with a widened white **P** sprite is PASS. A dark-red
-background with a widened white **F** sprite is FAIL. Both glyphs are copied
-from `libraries/vcs/fonts/default_ascii.c26`, with row storage reversed to match
-the down-counting display loop. The source uses ordinary `lda glyph,x` syntax;
-the assembler must preserve absolute-X because the glyph is relocatable ROM.
-`GRP0` changes only immediately after `WSYNC`, so no row is torn midway across
-a scanline. TIA setup is budgeted inside VBLANK and every result frame is
-exactly 262 scanlines.
+A green background with the complete white word **PASS** is success. A dark-red
+background with the complete white word **FAIL** is failure. The letters are
+copied exactly from `libraries/vcs/fonts/default_ascii.c26` and installed into
+the reusable six-glyph-wide score component as `blank/P/A/S/S/blank` or
+`blank/F/A/I/L/blank`. The blank outer cells center the four-letter word at
+X=79.5 on the 160-pixel visible raster. Ninety blank visible scanlines precede
+the component's exact 11-line draw and 91 follow it, centering the odd-height
+component to the unavoidable half-scanline in the 192-line visible field. Every
+result frame remains exactly 262 scanlines.
 
 `make` emits exactly seven cartridges:
 
@@ -51,7 +52,7 @@ f8sc.bin  f6sc.bin  f4sc.bin
 
 The first six are the complete mapper diagnostics. `poisoned.bin` is an F8SC
 build with `POISONED_RESULT` defined; it still runs the matrix and Superchip
-lifecycle but deliberately settles on the FAIL frame so the expected white F on
+lifecycle but deliberately settles on the FAIL frame so the expected white FAIL word on
 dark red can be inspected. Folding this check into the existing reference keeps
 the public diagnostic set at seven cartridges.
 `make ordinary`, `make superchip`, and `make poisoned` build the three subsets.

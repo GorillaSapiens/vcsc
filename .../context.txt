@@ -203,7 +203,9 @@ Renderer and example state
 * Shared score fonts live under `libraries/vcs/fonts/`; each family exports the
   common `score_font` symbol. Do not duplicate font tables inside examples.
   Each of the eight families has decimal, hexadecimal, and printable-ASCII
-  modules. ASCII covers space (`0x20`) through tilde (`0x7E`), keeps every
+  modules. The separate 8x16 `big_ascii.c26` module covers printable ASCII in
+  one 1520-byte non-page-contained table and is not an 8-row score-component
+  drop-in. ASCII covers space (`0x20`) through tilde (`0x7E`), keeps every
   glyph bitmap distinct within its family, exactly reuses the family decimal
   digits and hexadecimal `A`-`F`, and preserves the source family
   blank-row/blank-column cell margins. Font modules use compact three-line
@@ -323,52 +325,52 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization work through the high-level animated-frame installer and its
-measured ROM-recovery follow-up is complete. Compiler-owned expression scratch is
-lifetime-colored across the complete runtime activation owner, ordinary directly
-addressable unsigned-byte state uses compact lowering, and the compiler has reusable
-table/pointer lowering for array decay, hard-page selection, bounded page-low updates,
-indexed one-byte loads/stores, constant masks/shifts, and proven small unsigned-byte
-counted loops. Unsafe counted-loop bodies fall back to materialized locals rather than
-reserving X. Proven nonempty register-backed loops are post-tested; potentially empty
-loops retain an entry test.
+RAM-optimization work through phase-aware writable-storage overlay is complete.
+Compiler-owned expression scratch is lifetime-colored across the complete runtime
+activation owner, ordinary directly addressable unsigned-byte state uses compact
+lowering, and the high-level animated-frame installer plus its page/pointer optimizer
+work remain complete. Compiler-generated ordinary memory references stay addressing-
+mode agnostic; explicit source `asm` suffixes remain the timing/encoding escape hatch.
 
-Compiler-generated ordinary memory references remain addressing-mode agnostic and let
-`vcsc-as` select/relax modes from `.segmentaddrsize` and final placement. Explicit
-source `asm` suffixes remain the mechanism for deliberate encoding/timing. Generated
-branch/`JMP` inversion is likewise scoped to pure compiler-generated procedures; any
-inline assembly disables that size-changing control-flow rewrite for the procedure.
+Frame-phase storage uses internal VSYNC/VBLANK/visible/overscan metadata. Access phase
+alone is not enough to reuse a file-scope value: a reusable frame-temporary workspace
+must also carry the explicit internal `__phaseworkspace$V1$symbol` ownership contract,
+while fully phase-scoped compiler scratch receives that eligibility automatically. An
+unscoped use forbids overlay, and the linker conservatively fills the interval between
+the first and last observed phase. Only actual multi-object sharing groups alter normal
+RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-5 report records a two-byte `main`
-activation and zero `install_frames()` activation bytes. Both `next_pair()` expansions
-allocate zero expression scratch. Total RIOT RAM remains 110/128 bytes—102 object
-bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The final
-ordinary high-level `install_frames()` links at 232 bytes, four bytes smaller than the
-236-byte hand-written predecessor and down from the 462-byte relaxed high-level
-baseline. The complete gallery is 3624/4090 ROM bytes with 466 free. With
-`-fno-peephole`, the gallery is 3635 bytes and `install_frames()` is 235 bytes.
+The animated gallery's authoritative schema-6 report now records a one-byte `main`
+activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
+scratch aliases the first byte of the 48-byte VBLANK+visible `game_object_masks`
+workspace. Total RIOT RAM is **109/128 bytes**—101 object bytes plus the eight-byte
+hardware-stack reservation—leaving **19 bytes free**. The final ordinary high-level
+`install_frames()` remains 232 linked bytes, four bytes smaller than its 236-byte
+handwritten predecessor. Gallery ROM remains **3624/4090 bytes** with 466 free.
 
-The ROM recovery comes from timing-scoped branch inversion, compact hard-page selector
-lowering, impossible-carry elimination from byte-range proofs, common conditional
-pointer-low suffixes, proven reuse of doubled packed-color offsets for bitmap pointers,
-and post-tested nonempty counted loops. The detailed measured path and acceptance
-criteria live in `.../ram_optimization.txt`. The full animation oracle still verifies
-all 120 frames, the independent modulo-3 set, controls, and exact 262-line frames.
+`test/phase_overlay.pl` is the generic lifetime proof: it verifies positive sharing
+independent of declaration order and refuses overlapping, unscoped, misleadingly
+named, or phase-confined-but-unmarked storage. The six-digit score regression proves
+that solitary phase-tagged component objects retain their historical ordinary address
+order. The detailed implementation and acceptance record lives in
+`.../ram_optimization.txt`.
 
-Public-example assembly remains audited by `test/example_assembly_allowlist.pl`: every
-remaining source/statement set is hash-pinned and classified as beam-critical, a
-direct hardware idiom, a documented compiler/language limitation, or a combination.
-New assembly cannot silently enter examples without changing the audited inventory.
+The separate 8x16 `libraries/vcs/fonts/big_ascii.c26` module contains all 95 printable
+ASCII glyphs in a 1520-byte non-page-contained table; its test verifies distinct glyphs,
+row reversal, descenders, and linked ROM bytes. The bankswitching diagnostic now renders
+complete centered white **PASS** or **FAIL** words with the six-glyph-wide component;
+its mapper transition simulator matrix and recursive example builds pass.
 
-The next RAM-optimization work is phase-aware scratch overlay across VSYNC, VBLANK,
-visible drawing, and overscan. Preserve persistent renderer inputs and next-frame state;
-prefer compiler/linker lifetime metadata over example-specific aliases, and add negative
-coverage for genuinely overlapping phase lifetimes.
+Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Exact
+beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
+score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-Verification after the optimizer follow-up is 447/447 compile-only tests and 256/256
-end-to-end cases in bounded batches. Exact scheduler, score, fingerprint, renderer,
-banked-renderer, split-memory, and animation oracles pass. Clean source-tree hygiene
-must remain the packaging gate.
+The next RAM-optimization work is persistent gallery bookkeeping reduction: derive or
+pack redundant sprite/control state without changing the independent modulo-3 source-set
+phase, controls, renderer behavior, or frame timing.
+
+Verification after phase overlay is **447/447 compile-only tests and 258/258 end-to-end
+cases** in bounded batches. Clean source-tree hygiene remains the packaging gate.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

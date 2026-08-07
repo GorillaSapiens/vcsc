@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 19 free bytes, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -71,23 +71,35 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin==4096 or die "animated gallery is not a 4K cartridge\n";
 my $map=read_file($mapfile);
 my $asm=read_file($assembly);
+index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
+   or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
+index($asm,'__phaseworkspace$V1$game_object_masks')>=0
+   or die "renderer object-mask workspace lacks explicit phase-workspace ownership metadata\n";
 $map =~ /rom\s+used=3624 bytes .*free=466 bytes/
    or die "3624-byte optimized high-level frame-installation ROM result changed\n";
-$map =~ /ram\s+used=110 bytes .*free=18 bytes .*objects=102 bytes hardware-stack=8 bytes/
-   or die "110-byte compact-lowering RAM result changed\n";
+$map =~ /ram\s+used=109 bytes .*free=19 bytes .*objects=101 bytes hardware-stack=8 bytes/
+   or die "109-byte phase-overlay RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
    or die "optimized high-level install_frames code size changed from 232 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
    or die "high-level install_frames unexpectedly gained activation RAM\n";
 
 my %layouts;
-while ($map =~ /^\s+(?:BSS|DATA)\.__vcsc_object\$(\S+)\s+[^\n]*?run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/mg) {
-   $layouts{$1}={start=>hexnum($2),size=>hexnum($3)};
+while ($map =~ /^\s+(?:BSS|DATA|ZEROPAGE)\.__vcsc_object\$(\S+)\s+[^\n]*?run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})([^\n]*)/mg) {
+   my($name,$start,$size,$tail)=($1,hexnum($2),hexnum($3),$4);
+   my $phase;
+   if ($tail =~ /\bphase=\$([0-9A-Fa-f]{2})/) { $phase=hexnum($1); }
+   elsif ($tail =~ /\bphase=unscoped/) { $phase='unscoped'; }
+   $layouts{$name}={start=>$start,size=>$size,phase=>$phase};
+}
+my %globals;
+while ($map =~ /^\s+\$([0-9A-Fa-f]{4})\s+(\S+)\s+/mg) {
+   $globals{$2}=hexnum($1) unless exists $globals{$2};
 }
 $map =~ /^\s+BSS\.__vcsc_activation\$main\s+run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/m
    or die "map missing main activation\n";
 my($activation_start,$activation_size)=(hexnum($1),hexnum($2));
-$activation_size==2 or die "main activation changed from 2 bytes\n";
+$activation_size==1 or die "main activation changed from 1 byte\n";
 $map =~ /^\s+region=ram depth=(\d+) bytes=\$([0-9A-Fa-f]{4}) physical=\$([0-9A-Fa-f]{4})-\$([0-9A-Fa-f]{4}) extra=\$([0-9A-Fa-f]{4}) weighted-depth=(\d+) bank-extra-slots=(\d+)/m
    or die "map missing hardware-stack summary\n";
 my %stack=(depth=>0+$1,size=>hexnum($2),start=>hexnum($3),end=>hexnum($4),
@@ -144,11 +156,13 @@ sub add_object {
    my($name,$start,$size,$class,$subclass)=@_;
    push @objects,{name=>$name,start=>$start,size=>$size,class=>$class,subclass=>$subclass};
 }
-add_object('_vcsc_ptr0',0x80,2,'runtime_scratch','pointer');
-add_object('_vcsc_ptr1',0x82,2,'runtime_scratch','pointer');
-add_object('_vcsc_ptr2',0x84,2,'runtime_scratch','pointer');
-add_object('_vcsc_arg0',0x86,1,'runtime_scratch','argument');
-add_object('_vcsc_arg1',0x87,1,'runtime_scratch','argument');
+for my $spec (
+   ['_vcsc_ptr0',2,'pointer'],['_vcsc_ptr1',2,'pointer'],['_vcsc_ptr2',2,'pointer'],
+   ['_vcsc_arg0',1,'argument'],['_vcsc_arg1',1,'argument'],
+) {
+   exists $globals{$spec->[0]} or die "map missing runtime scratch symbol $spec->[0]\n";
+   add_object($spec->[0],$globals{$spec->[0]},$spec->[1],'runtime_scratch',$spec->[2]);
+}
 for my $name (qw(game_player0_colors game_player1_colors)) {
    add_object($name,$layouts{$name}{start},$layouts{$name}{size},'renderer_state','mutable_row_colors');
 }
@@ -169,7 +183,7 @@ for my $member (@activation_members) {
 }
 my $free_start=$activation_start+$activation_size;
 my $free_size=$stack{start}-$free_start;
-$free_size==18 or die "free RAM gap is $free_size bytes, expected 18\n";
+$free_size==19 or die "free RAM gap is $free_size bytes, expected 19\n";
 add_object('free_ram',$free_start,$free_size,'free_ram','unallocated');
 add_object('hardware_stack',$stack{start},$stack{size},'hardware_stack','return_addresses');
 @objects=sort { $a->{start}<=>$b->{start} || $a->{name} cmp $b->{name} } @objects;
@@ -197,12 +211,21 @@ $sum==128 or die "classified RAM total is $sum, expected 128\n";
 $category_totals{runtime_scratch}==8 or die "runtime scratch baseline changed\n";
 $category_totals{renderer_state}==85 or die "renderer-state baseline changed\n";
 $category_totals{persistent_state}==7 or die "persistent-state baseline changed\n";
-$category_totals{activation_scratch}==2 or die "activation compact-lowering result changed\n";
+$category_totals{activation_scratch}==1 or die "phase overlay did not remove VSYNC scratch from main activation\n";
 $category_totals{hardware_stack}==8 or die "hardware-stack baseline changed\n";
-$category_totals{free_ram}==18 or die "free-RAM result changed\n";
+$category_totals{free_ram}==19 or die "free-RAM phase-overlay result changed\n";
 $subcategory_totals{public_state}==13 or die "renderer public-state baseline changed\n";
 $subcategory_totals{private_workspace}==56 or die "renderer private-workspace baseline changed\n";
 $subcategory_totals{mutable_row_colors}==16 or die "mutable color baseline changed\n";
+
+exists $layouts{'__vcsc_scratch_0'} or die "map missing standalone phase-scoped compiler scratch\n";
+$layouts{'__vcsc_scratch_0'}{size}==1 or die "phase-scoped compiler scratch changed size\n";
+$layouts{'__vcsc_scratch_0'}{start}==$layouts{game_object_masks}{start}
+   or die "VSYNC scratch no longer overlays game_object_masks\n";
+defined($layouts{'__vcsc_scratch_0'}{phase}) && $layouts{'__vcsc_scratch_0'}{phase}==0x01
+   or die "compiler scratch is not classified as VSYNC-only\n";
+defined($layouts{game_object_masks}{phase}) && $layouts{game_object_masks}{phase}==0x06
+   or die "game_object_masks is not classified as VBLANK+visible\n";
 
 my @next_pair_expansions=($asm =~ /; begin inline expansion next_pair #(\d+)/g);
 @next_pair_expansions==2 or die "expected two next_pair expansions, found ".scalar(@next_pair_expansions)."\n";
@@ -212,18 +235,17 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>5,
+   schema=>6,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
       rom_bytes=>3624, rom_free_bytes=>466,
-      ram_bytes=>110, free_ram_bytes=>18, object_bytes=>102, hardware_stack_bytes=>8,
+      ram_bytes=>109, free_ram_bytes=>19, object_bytes=>101, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
    objects=>\@objects,
    activation=>{
       owner=>'main', start=>$activation_start, size=>$activation_size,
       members=>\@activation_members,
-      scratch_diagnostics=>\@scratch,
       repeated_inline=>{
          function=>'next_pair', expansions=>[map { "__inline\$$_\$next_pair" } @next_pair_expansions],
          bytes_each=>0, physical_bytes=>0, previous_physical_bytes=>6,
@@ -249,6 +271,20 @@ my $report={
          activation_bytes=>0, rom_free_bytes=>466,
       },
    },
+   phase_overlay=>{
+      baseline_ram_bytes=>110, ram_bytes=>109, ram_saved_bytes=>1,
+      baseline_free_ram_bytes=>18, free_ram_bytes=>19,
+      scratch=>{
+         symbol=>'__vcsc_scratch_0', start=>$layouts{'__vcsc_scratch_0'}{start}, size=>1,
+         phase_mask=>1, phases=>['VSYNC'], diagnostics=>\@scratch,
+      },
+      host=>{
+         symbol=>'game_object_masks', start=>$layouts{game_object_masks}{start},
+         size=>$layouts{game_object_masks}{size}, phase_mask=>6,
+         phases=>['VBLANK','visible'],
+      },
+      proof=>'disjoint conservative phase intervals plus explicit workspace eligibility; compiler scratch is written before use and needs no startup zeroing',
+   },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
       hidden=>\@hidden, totals=>\%stack_totals,
@@ -266,4 +302,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 19 free bytes, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";

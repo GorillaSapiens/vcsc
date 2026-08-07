@@ -17,6 +17,7 @@
 #include "compile_expr_flow.h"
 #include "compile_expr_info.h"
 #include "compile_function.h"
+#include "compile_function_registry.h"
 #include "compile_internal.h"
 #include "compile_support.h"
 #include "compile_lvalue.h"
@@ -2228,6 +2229,23 @@ static InlineAsmRefAccess inline_asm_opcode_access(const char *mnemonic) {
 }
 
 //! @brief Resolve a source identifier to an absolute external binding visible at an inline-assembly statement.
+//! @brief Record a writable file-scope object use found inside inline assembly.
+static void inline_asm_note_phase_use(Context *ctx, const char *name) {
+   const ASTNode *global;
+   ContextEntry entry;
+   char symbol[256];
+
+   if (!name || !*name)
+      return;
+   global = global_decl_lookup(name);
+   if (!global || !init_context_entry_from_global_decl(&entry, name, global) ||
+       entry.is_absolute_ref)
+      return;
+   if (!format_user_asm_symbol(name, symbol, sizeof(symbol)))
+      return;
+   emit_phase_use_metadata(symbol, ctx ? ctx->phase_mask : 0);
+}
+
 static bool inline_asm_lookup_absolute_ref(Context *ctx, const char *name, ContextEntry *out) {
    ContextEntry *local;
    const ASTNode *global;
@@ -2428,6 +2446,8 @@ static char *rewrite_inline_asm_refs(const ASTNode *node, Context *ctx, const ch
             inline_asm_append(&out, &out_len, &out_cap, start, name_len);
             continue;
          }
+
+         inline_asm_note_phase_use(ctx, name);
 
          if (!inline_asm_lookup_absolute_ref(ctx, name, &entry)) {
             inline_asm_append(&out, &out_len, &out_cap, start, name_len);

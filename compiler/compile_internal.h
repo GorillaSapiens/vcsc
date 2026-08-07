@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include "ast.h"
 #include "pair.h"
 #include "set.h"
@@ -86,6 +87,9 @@ typedef struct Context {
       separate storage emission must be suppressed. */
    const char *coalesced_return_local;
    const ASTNode *coalesced_return_decl;
+   /* Frame-phase lifetime known from VCS lifecycle callback context.
+      Bit 0=VSYNC, 1=VBLANK, 2=visible draw, 3=overscan. Zero is unscoped. */
+   uint8_t phase_mask;
 } Context;
 
 typedef struct LValueRef {
@@ -169,6 +173,7 @@ void build_activation_storage_segment(char *buf, size_t bufsize,
                                       const Context *ctx,
                                       const ASTNode *modifiers,
                                       const char *base_segment);
+uint8_t function_phase_mask_for_function(const ASTNode *fn, const char *name);
 const char *next_label(const char *prefix);
 void emit_copy_scratch_to_scratch(int dst_offset, int src_offset, int size);
 void emit_bcd_power_of_ten_scratch(const char *op, int dst_offset, int src_offset,

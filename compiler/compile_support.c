@@ -12,6 +12,7 @@
 #include <limits.h>
 
 #include "ast.h"
+#include "abi_meta.h"
 #include "compile.h"
 #include "compile_internal.h"
 #include "compile_lvalue.h"
@@ -44,6 +45,8 @@ typedef struct CompilerScratchUse {
 typedef struct CompilerScratchSlot {
    int symbol_id;
    int max_size;
+   uint8_t phase_mask;
+   bool phase_overlay_eligible;
    int use_count;
    int use_capacity;
    CompilerScratchUse *uses;
@@ -104,6 +107,60 @@ static const char *compiler_scratch_arena_name(const Context *ctx) {
 
 static const char *compiler_scratch_use_name(const Context *ctx) {
    return (ctx && ctx->name && *ctx->name) ? ctx->name : "<translation-unit>";
+}
+
+#define VCSC_PHASE_VSYNC    0x01u
+#define VCSC_PHASE_VBLANK   0x02u
+#define VCSC_PHASE_VISIBLE  0x04u
+#define VCSC_PHASE_OVERSCAN 0x08u
+
+//! @brief Return whether one function originated from a template expansion.
+static bool function_has_template_context(const ASTNode *node) {
+   if (!node)
+      return false;
+   if (node->template_instance && *node->template_instance)
+      return true;
+   for (int i = 0; i < node->count; ++i) {
+      if (function_has_template_context(node->children[i]))
+         return true;
+   }
+   return false;
+}
+
+//! @brief Classify one proven VCS lifecycle function into a frame-phase mask.
+uint8_t function_phase_mask_for_function(const ASTNode *fn, const char *name) {
+   const char *base;
+   size_t len;
+
+   if (!name || !*name)
+      return 0;
+   base = strrchr(name, '$');
+   base = base ? base + 1 : name;
+
+   /* These helpers are part of the fixed NTSC scheduler contract. */
+   if (!strcmp(base, "vcs_ntsc_vsync"))
+      return VCSC_PHASE_VSYNC;
+   if (!strcmp(base, "vcs_ntsc_begin_vblank") ||
+       !strcmp(base, "vcs_ntsc_end_vblank"))
+      return VCSC_PHASE_VBLANK;
+   if (!strcmp(base, "vcs_ntsc_begin_overscan") ||
+       !strcmp(base, "vcs_ntsc_end_overscan"))
+      return VCSC_PHASE_OVERSCAN;
+
+   /* Suffixes alone are not a lifetime proof. Reusable VCS component hooks are
+      template-owned require declarations; only those receive phase semantics. */
+   if (!fn || !function_has_template_context(fn) ||
+       declaration_use_contract(function_modifiers_node(fn)) != DECL_USE_CONTRACT_REQUIRE)
+      return 0;
+
+   len = strlen(base);
+   if (len >= 7 && !strcmp(base + len - 7, "_vblank"))
+      return VCSC_PHASE_VBLANK;
+   if (len >= 5 && !strcmp(base + len - 5, "_draw"))
+      return VCSC_PHASE_VISIBLE;
+   if (len >= 9 && !strcmp(base + len - 9, "_overscan"))
+      return VCSC_PHASE_OVERSCAN;
+   return 0;
 }
 
 static int compiler_scratch_scope_for_context(const Context *ctx) {
@@ -178,9 +235,16 @@ void compiler_scratch_acquire(Context *ctx, int reserved, CompilerScratchLease *
    if (slot_index >= scope->slot_count) {
       slot = &scope->slots[scope->slot_count++];
       slot->symbol_id = compiler_scratch_symbol_count++;
+      slot->phase_overlay_eligible = true;
    }
    else {
       slot = &scope->slots[slot_index];
+   }
+   if (!ctx || ctx->phase_mask == 0) {
+      slot->phase_overlay_eligible = false;
+   }
+   else if (slot->phase_overlay_eligible) {
+      slot->phase_mask |= ctx->phase_mask;
    }
 
    use_name = compiler_scratch_use_name(ctx);
@@ -314,7 +378,11 @@ void compiler_scratch_emit_bss(void) {
          if (slot->max_size <= 0) {
             continue;
          }
-         {
+         if (slot->phase_overlay_eligible && slot->phase_mask != 0) {
+            emit(&es_bss, ".segment \"BSS.__vcsc_object$__vcsc_scratch_%d\"\n",
+                 slot->symbol_id);
+         }
+         else {
             char segbuf[512];
             Context owner_ctx;
             memset(&owner_ctx, 0, sizeof(owner_ctx));
@@ -325,6 +393,13 @@ void compiler_scratch_emit_bss(void) {
          }
          emit(&es_bss, "__vcsc_scratch_%d:\n", slot->symbol_id);
          emit(&es_bss, "\t.res %d\n", slot->max_size);
+         if (slot->phase_overlay_eligible && slot->phase_mask != 0) {
+            char scratch_symbol[64];
+            snprintf(scratch_symbol, sizeof(scratch_symbol), "__vcsc_scratch_%d", slot->symbol_id);
+            emit(&es_bss, ".segment \"BSS\"\n");
+            emit_phase_workspace_metadata(scratch_symbol);
+            emit_phase_use_metadata(scratch_symbol, slot->phase_mask);
+         }
          if (get_xray(XRAY_SCRATCH)) {
             for (int k = 0; k < slot->use_count; k++) {
                CompilerScratchUse *use = &slot->uses[k];

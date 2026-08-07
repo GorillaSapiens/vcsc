@@ -2,9 +2,9 @@
 // Characters: printable ASCII from space (0x20) through tilde (0x7E)
 // This font is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,0,n,m,l,k,j,i,h,g,f,e,d,c,b,a
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
 
-page const uint8_t score_font[1520] := {
+const uint8_t score_font[1520] := {
 
    // 0x20 space
    VCS_FONT_GLYPH(

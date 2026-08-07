@@ -328,18 +328,29 @@ $source_text !~ /diagnostic_superchip_ram/
 $source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
 $source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
    or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
-$source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
-   or die "diagnostic PASS glyph is not the default-font P\n";
-$source_text =~ /BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s
-   or die "diagnostic FAIL glyph is not the default-font F\n";
-$source_text =~ /lda\s+fail_glyph,x.*lda\s+pass_glyph,x.*sta\s+WSYNC.*sta\s+GRP0/s
-   or die "diagnostic glyph loads must use ordinary indexed syntax and remain scanline-aligned\n";
-$source_text !~ /lda\.ax\s+(?:fail|pass)_glyph,x/
-   or die "diagnostic still papers over assembler relaxation with explicit .ax\n";
-$source_text =~ /lda\s+#\$0E\s*;\s*asm\s+sta\s+COLUP0/s
-   or die "diagnostic status glyph is not white\n";
-$source_text =~ /\@status_frame_loop:.*ldx\s+#3.*ldx\s+#35.*ldx\s+#76.*ldx\s+#7.*ldx\s+#99.*ldx\s+#29.*jmp\s+\@status_frame_loop/s
-   or die "diagnostic frame schedule does not produce Stella's exact 262-line NTSC frame\n";
+$source_text =~ /template\s+"six_glyph_wide_component\.c26"\s+as\s+status_word/
+   or die "diagnostic does not use the six-glyph wide score component\n";
+for my $glyph (
+   [A => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXXX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.\s*\)/s],
+   [F => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s],
+   [I => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.XXXXXX\.\s*\)/s],
+   [L => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXXX\.\s*\)/s],
+   [P => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s],
+   [S => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.\.XXXX\.\.,\s*0b\.\.\.\.\.XX\.,\s*0b\.\.\.\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.\.XXXX\.\.\s*\)/s],
+) {
+   $source_text =~ $glyph->[1]
+      or die "diagnostic $glyph->[0] glyph is not copied exactly from default_ascii.c26\n";
+}
+$source_text =~ /load_status_pass.*status_blank_glyph.*status_p_glyph.*status_a_glyph.*status_s_glyph.*status_s_glyph.*status_blank_glyph/s
+   or die "diagnostic PASS pointer order is not blank/P/A/S/S/blank\n";
+$source_text =~ /load_status_fail.*status_blank_glyph.*status_f_glyph.*status_a_glyph.*status_i_glyph.*status_l_glyph.*status_blank_glyph/s
+   or die "diagnostic FAIL pointer order is not blank/F/A/I/L/blank\n";
+$source_text =~ /status_word_color\s*:=\s*0x0e/ &&
+$source_text =~ /COLUP0\s*:=\s*0x0e/ &&
+$source_text =~ /COLUP1\s*:=\s*0x0e/
+   or die "diagnostic status word is not white\n";
+$source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*90\s*\).*status_word_draw\s*\(\s*\).*vcs_ntsc_wait_visible_tail_scanlines\s*\(\s*91\s*\)/s
+   or die "diagnostic full-word display is not vertically centered in the 192-line visible field\n";
 $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
    or die "diagnostic poisoned-result build hook is missing\n";
 if ($stella_mode) { run_stella_certification($repo,$tmp,$source); }

@@ -424,6 +424,31 @@ Variadic functions and callable types are not part of the VCSC language.
 The lexer rejects `...` with a direct diagnostic. There is no variadic call
 frame, hidden metadata, `va_list`, `va_start`, `va_arg`, or `va_end` ABI.
 
+Frame-phase storage metadata
+----------------------------
+The compiler emits reserved absolute exports beginning with
+`__phaseuse$V1$M` for writable-object references seen while lowering proven VCS
+lifecycle code. The two hexadecimal mask digits encode VSYNC=`01`, VBLANK=`02`,
+visible draw=`04`, and overscan=`08`; `M00` means an unscoped use and permanently
+disqualifies that object from phase sharing. Multiple scoped records for one
+symbol are unioned, then conservatively expanded by the linker to the contiguous
+frame interval between the first and last observed phase.
+
+A phase-use set is not by itself permission to destroy a file-scope value between
+frames. Storage is reusable only when it also carries the reserved
+`__phaseworkspace$V1$symbol` eligibility record, which promises that prior-frame
+contents are disposable outside the inferred interval. Fully phase-scoped
+compiler scratch gets this record automatically because compiler temporaries are
+written before use. Reusable renderer/application workspaces may emit the same
+internal contract explicitly; ordinary source objects do not become eligible
+merely because all observed accesses happen in one phase.
+
+Lifecycle suffixes are accepted only for template-owned `require` hooks; plain
+functions do not gain lifetime semantics from names alone. Recognized inline
+assembly contributes the same object-use metadata as high-level access. These
+records affect storage placement only and are reserved implementation metadata,
+not program globals.
+
 Declaration-use contract metadata
 ---------------------------------
 Contracted file-scope objects and functions emit reserved absolute-export

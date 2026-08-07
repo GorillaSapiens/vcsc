@@ -941,8 +941,15 @@ void emit_lvalue_semantic_use(Context *ctx, const LValueRef *lv, const char *kin
    const char *effective_kind = kind;
 
    if (!lv || !lv->is_global || !lv->name || !*lv->name || !lv->use_site ||
-       !kind || !*kind ||
-       declaration_symbol_use_contract(DECL_CONTRACT_OBJECT, lv->name, NULL) ==
+       !kind || !*kind) {
+      return;
+   }
+
+   if (!lv->is_absolute_ref && format_user_asm_symbol(lv->name, symbol, sizeof(symbol))) {
+      emit_phase_use_metadata(symbol, ctx ? ctx->phase_mask : 0);
+   }
+
+   if (declaration_symbol_use_contract(DECL_CONTRACT_OBJECT, lv->name, NULL) ==
           DECL_USE_CONTRACT_NONE) {
       return;
    }

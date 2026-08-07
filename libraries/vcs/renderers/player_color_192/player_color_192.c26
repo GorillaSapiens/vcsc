@@ -88,6 +88,14 @@ uint8_t TEMPLATE_playfield_position;
 uint8_t TEMPLATE_object_masks[48];
 
 require inline void TEMPLATE_init(void) {
+   // This is frame-temporary renderer workspace: VBLANK reconstructs it fully
+   // before visible drawing consumes it, so prior-frame contents are dead.
+   // Phase-use metadata still determines the actual live interval; this marker
+   // merely authorizes the linker to reuse the bytes outside that interval.
+   asm .ifndef __phaseworkspace$V1$TEMPLATE_object_masks;
+   asm __phaseworkspace$V1$TEMPLATE_object_masks = 0;
+   asm .export __phaseworkspace$V1$TEMPLATE_object_masks;
+   asm .endif;
 }
 
 require inline void TEMPLATE_vblank(void) {
