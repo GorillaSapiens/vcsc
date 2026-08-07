@@ -2,8 +2,8 @@
 // expectasm: __vcsc_scratch_
 // expectasm: __vcsc_scratch_
 // expectasm: __vcsc_scratch_
-// expectasm: adc #1
-// expectasm: sbc #1
+// expectasm: inc.a counter
+// expectasm: dec.a counter
 // forbidasm: __vcsc_incdectmp_
 // forbidasm: jsr _pushN
 // forbidasm: jsr _popN

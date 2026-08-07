@@ -800,12 +800,21 @@ combined used bytes, and physical free bytes exactly.
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
-every physical RIOT address `$80-$FF`, pins the lifetime-overlaid seven-byte
-`main` activation and thirteen-byte free gap, records all `-X scratch`
-scope/lifetime-group diagnostics, proves the two sequential `next_pair()`
-expansions share one six-byte physical footprint, and checks the linker's
-source-call edges, deepest path, and `.callstackextra` contribution. The separate
-animation emulator test remains the behavioral/frame oracle.
+every physical RIOT address `$80-$FF`, pins the lifetime-overlaid two-byte
+`main` activation and eighteen-byte free gap, records all `-X scratch`
+scope/lifetime-group diagnostics, proves both sequential `next_pair()` expansions
+allocate zero expression scratch, and checks the linker's source-call edges,
+deepest path, and `.callstackextra` contribution. Schema 3 also records item 3's
+seven-to-two-byte activation reduction, five-byte total RAM saving, and
+3993-to-3662-byte ROM reduction. The separate animation emulator test remains
+the behavioral/frame oracle.
+
+`direct_u8_state_update_codegen_test.c26` locks exact direct assembly for ordinary
+unsigned-byte constant updates, unit increment/decrement, copy-plus/minus-
+constant assignment, logical-not assignment, truth/mask tests, and constant
+comparisons. It forbids generic expression-scratch symbols and Y setup.
+`e2e_direct_u8_state_update_verify.c26` executes the corresponding wraparound,
+mask, comparison, truth, and logical-not behavior in `vcsc-sim`.
 
 `scratch_lifetime_overlay.pl` executes a generic 6502 fixture covering sequential
 expressions, mutually exclusive branches, a loop, three repeated inline

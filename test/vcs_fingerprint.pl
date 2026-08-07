@@ -279,7 +279,7 @@ die "standalone-entry harness build wrote output\n$out$err" if $out ne '' || $er
 ($exit,$sig,$out,$err)=run_capture($entry_exe,$bin,'fingerprint');
 die "standalone-entry runtime contract failed\n$out$err" if $exit || $sig;
 require_re($out,
-   qr/^vcs_six_glyph_standalone_entry ok: right 40, centered 131, left 221 entries and 262-line frames\n$/,
+   qr/^vcs_six_glyph_standalone_entry ok: right 40:00, centered 130:57, left 220:57 entries and 262-line frames\n$/,
    'fingerprint and both logos did not enter at their calibrated phases');
 $err eq '' or die "standalone-entry harness stderr: $err";
 

@@ -352,3 +352,43 @@ harness now starts with joystick and console inputs released, and all component
 phase tests remain stable. Verification completed all 438 compile-only tests and
 all 253 end-to-end tests, including the full score-composition raster matrix.
 RAM-roadmap item 3 is next.
+
+2026-08-06 21:38:32 PDT
+-----------------------
+Completed RAM-optimization roadmap item 3: compact lowering for simple byte
+state updates.
+
+Compiler changes:
+* Ordinary directly addressable uint8_t constant +=, -=, &=, |=, and ^= updates
+  now emit direct byte operations; unit updates use INC/DEC.
+* Copy-plus/minus-constant, commuted constant-plus-source, logical-not assignment,
+  truth/mask tests, and constant comparisons avoid generic expression scratch.
+* Absolute external bindings retain required read/write side effects. Packed-BCD,
+  signed, indirect, and bitfield cases retain their existing safe paths.
+* Comparisons following updates compile as direct reload/CMP branches without
+  assuming register or flag state across source statements.
+
+Accounting:
+* Animated-gallery main activation: 7 -> 2 bytes.
+* Both next_pair() inline expansions: 3-byte scratch group -> zero scratch.
+* Total RIOT RAM: 115 -> 110 bytes; free RAM: 13 -> 18 bytes.
+* ROM: 3993 -> 3662 bytes; free ROM: 97 -> 428 bytes.
+* Updated the authoritative accounting fixture to schema 3.
+
+Coverage and timing:
+* Added exact direct-u8 code-generation coverage and a simulator behavior test.
+* Shorter ordinary wait bookkeeping moved some non-visible setup by 19 cycles;
+  exact phase fixtures now pin the measured previous-line cycle-57 setup while
+  retaining independent terminal-WSYNC, HMOVE, pixel, and 262-line checks.
+* Verified 439/439 compile-only tests and 254/254 end-to-end tests. The e2e
+  inventory was run in ordered capped batches because one monolithic invocation
+  exceeds the container's hard wall-clock limit.
+
+Documentation:
+* Marked RAM roadmap item 3 complete and made item 4 the active next step.
+* Updated compiler/README.md, test/README.md, and .../context.txt.
+
+2026-08-06 21:39:36 PDT
+-----------------------
+Advanced test/source_tree_hygiene.pl to require RAM items 0-3 complete and item
+4 active. The clean-tree hygiene gate passes after the documentation update.

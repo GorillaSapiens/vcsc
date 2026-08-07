@@ -248,28 +248,57 @@ void require_value(const std::vector<Event> &events, uint64_t line,
 }
 
 void require_entry(const std::vector<Event> &events, uint64_t line) {
-   require_value(events,line,0,kNusiz0,0x03,"NUSIZ0");
-   require_value(events,line,3,kNusiz1,0x03,"NUSIZ1");
-   bool fixed_color = false;
+   bool shifted = false;
    for (const Event &event : events) {
-      if (event.line == line && event.cycle == 8 && event.address == kColup0) {
+      if (event.line == line - 1 && event.cycle == 57 &&
+          event.address == kNusiz0 && event.value == 0x03) {
+         shifted = true;
+         break;
+      }
+   }
+
+   const uint64_t first_line = shifted ? line - 1 : line;
+   const uint64_t first_cycle = shifted ? 57 : 0;
+   require_value(events,first_line,first_cycle,kNusiz0,0x03,"NUSIZ0");
+   require_value(events,first_line,first_cycle+3,kNusiz1,0x03,"NUSIZ1");
+
+   bool fixed_color = false;
+   const uint64_t fixed_line = shifted ? line - 1 : line;
+   const uint64_t fixed_cycle = shifted ? 65 : 8;
+   for (const Event &event : events) {
+      if (event.line == fixed_line && event.cycle == fixed_cycle &&
+          event.address == kColup0) {
          fixed_color = true;
          break;
       }
    }
    if (fixed_color) {
-      require_value(events,line,8,kColup0,0x0e,"COLUP0");
-      require_value(events,line,11,kColup1,0x0e,"COLUP1");
+      require_value(events,fixed_line,fixed_cycle,kColup0,0x0e,"COLUP0");
+      require_value(events,fixed_line,fixed_cycle+3,kColup1,0x0e,"COLUP1");
+   }
+   else if (shifted) {
+      require_value(events,line,19,kColup0,0x0e,"mutable COLUP0");
+      require_value(events,line,22,kColup1,0x0e,"mutable COLUP1");
    }
    else {
       require_value(events,line,38,kColup0,0x0e,"mutable COLUP0");
       require_value(events,line,41,kColup1,0x0e,"mutable COLUP1");
    }
-   (void)find_event(events,line,14,kHmclr,"HMCLR");
-   require_value(events,line,19,kHmp0,0x80,"HMP0");
-   require_value(events,line,24,kHmp1,0x90,"HMP1");
-   require_value(events,line,29,kResp0,0x90,"RESP0");
-   require_value(events,line,32,kResp1,0x90,"RESP1");
+
+   if (shifted) {
+      (void)find_event(events,line-1,71,kHmclr,"HMCLR");
+      require_value(events,line,0,kHmp0,0x80,"HMP0");
+      require_value(events,line,5,kHmp1,0x90,"HMP1");
+      require_value(events,line,10,kResp0,0x90,"RESP0");
+      require_value(events,line,13,kResp1,0x90,"RESP1");
+   }
+   else {
+      (void)find_event(events,line,14,kHmclr,"HMCLR");
+      require_value(events,line,19,kHmp0,0x80,"HMP0");
+      require_value(events,line,24,kHmp1,0x90,"HMP1");
+      require_value(events,line,29,kResp0,0x90,"RESP0");
+      require_value(events,line,32,kResp1,0x90,"RESP1");
+   }
    (void)find_event(events,line,71,kHmove,"HMOVE");
    require_value(events,line+1,9,kRefp0,0,"REFP0 reset");
    require_value(events,line+1,12,kRefp1,0,"REFP1 reset");

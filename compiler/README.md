@@ -1103,6 +1103,16 @@ symbol, maximum size used by that scope, lifetime-group name, allocation policy,
 reason, and acquisition count. The linked map supplies the final address of the
 shared symbol, making overlaid offsets auditable.
 
+Ordinary directly addressable unsigned-byte state uses a compact lowering path.
+Constant `+=`, `-=`, `&=`, `|=`, and `^=` updates, unit increment/decrement,
+copy-plus/minus-constant assignment, logical-not assignment, truth and constant-
+mask tests, and constant comparisons emit direct byte operations without generic
+expression scratch. Packed-BCD, signed, indirect, and bitfield cases continue
+through the general expression machinery. Absolute external bindings preserve
+required read/write side effects even for apparent no-op updates. The compiler
+does not assume A or flags survive across source statements; a comparison after
+an update may reload the byte, but still avoids generic scratch.
+
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
 region marked `callstack = callgraph` reserves two hardware-stack bytes per

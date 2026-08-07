@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "mos6502.h"
@@ -128,38 +129,72 @@ struct CopyLatch{unsigned origin=0,scale=1;uint8_t graphics=0,refp=0,color=0;boo
 bool latched_pixel(const CopyLatch&c,unsigned pixel){return c.latched&&glyph_pixel(c.graphics,c.refp,c.origin,c.scale,pixel);}
 
 void verify_six_schedule(const FrameTrace&f,uint64_t e,const std::string&kind){
-   require_write(f,e,0,kNusiz0,3,"NUSIZ0");require_write(f,e,3,kNusiz1,3,"NUSIZ1");
+   bool shifted=false;
+   for(const auto&w:f.writes) {
+      if(w.raw_line==e-1&&w.raw_cycle==57&&w.address==kNusiz0&&w.value==3) {
+         shifted=true;
+         break;
+      }
+   }
+   const auto phase=[&](uint64_t old_cycle){
+      return shifted&&old_cycle<19
+         ? std::pair<uint64_t,uint64_t>{e-1,old_cycle+57}
+         : std::pair<uint64_t,uint64_t>{e,shifted?old_cycle-19:old_cycle};
+   };
+   const auto setup=[&](uint64_t old_cycle,uint16_t address,uint8_t value,const char*name){
+      const auto where=phase(old_cycle);
+      require_write(f,where.first,where.second,address,value,name);
+   };
+
+   setup(0,kNusiz0,3,"NUSIZ0");setup(3,kNusiz1,3,"NUSIZ1");
    if(kind=="center"){
-      require_write(f,e,14,kHmclr,0x0e,"HMCLR");require_write(f,e,19,kHmp0,0x80,"HMP0");require_write(f,e,24,kHmp1,0x90,"HMP1");
-      require_write(f,e,29,kResp0,0x90,"RESP0");require_write(f,e,32,kResp1,0x90,"RESP1");
+      setup(14,kHmclr,0x0e,"HMCLR");setup(19,kHmp0,0x80,"HMP0");setup(24,kHmp1,0x90,"HMP1");
+      setup(29,kResp0,0x90,"RESP0");setup(32,kResp1,0x90,"RESP1");
       bool fixed_color=false;
+      const auto fixed=phase(8);
       for(const auto&w:f.writes) {
-         if(w.raw_line==e&&w.raw_cycle==8&&w.address==kColup0) {
+         if(w.raw_line==fixed.first&&w.raw_cycle==fixed.second&&w.address==kColup0) {
             fixed_color=true;
             break;
          }
       }
       if(fixed_color) {
-         require_write(f,e,8,kColup0,0x0e,"COLUP0");require_write(f,e,11,kColup1,0x0e,"COLUP1");
+         setup(8,kColup0,0x0e,"COLUP0");setup(11,kColup1,0x0e,"COLUP1");
       } else {
-         require_write(f,e,38,kColup0,0x0e,"COLUP0");require_write(f,e,41,kColup1,0x0e,"COLUP1");
+         setup(38,kColup0,0x0e,"COLUP0");setup(41,kColup1,0x0e,"COLUP1");
       }
    }else if(kind=="left"){
-      require_write(f,e,10,kResp0,3,"RESP0");require_write(f,e,13,kResp1,3,"RESP1");require_write(f,e,19,kColup0,0x0e,"COLUP0");require_write(f,e,22,kColup1,0x0e,"COLUP1");
-      require_write(f,e,25,kHmclr,0x0e,"HMCLR");require_write(f,e,30,kHmp0,0x30,"HMP0");require_write(f,e,35,kHmp1,0xb0,"HMP1");
+      setup(10,kResp0,3,"RESP0");setup(13,kResp1,3,"RESP1");setup(19,kColup0,0x0e,"COLUP0");setup(22,kColup1,0x0e,"COLUP1");
+      setup(25,kHmclr,0x0e,"HMCLR");setup(30,kHmp0,0x30,"HMP0");setup(35,kHmp1,0xb0,"HMP1");
    }else{
-      require_write(f,e,6,kHmclr,3,"HMCLR");require_write(f,e,19,kHmp0,0xc0,"HMP0");require_write(f,e,24,kHmp1,0xd0,"HMP1");
-      require_write(f,e,49,kResp0,0xd0,"RESP0");require_write(f,e,52,kResp1,0xd0,"RESP1");require_write(f,e,58,kColup0,0x0e,"COLUP0");require_write(f,e,61,kColup1,0x0e,"COLUP1");
+      setup(6,kHmclr,3,"HMCLR");setup(19,kHmp0,0xc0,"HMP0");setup(24,kHmp1,0xd0,"HMP1");
+      setup(49,kResp0,0xd0,"RESP0");setup(52,kResp1,0xd0,"RESP1");setup(58,kColup0,0x0e,"COLUP0");setup(61,kColup1,0x0e,"COLUP1");
    }
    require_write(f,e,71,kHmove,kind=="left"?0xb0:kind=="right"?0x0e:0x90,"HMOVE");
    require_write(f,e+1,9,kRefp0,0,"REFP0");require_write(f,e+1,12,kRefp1,0,"REFP1");require_write(f,e+1,19,kVdelp0,1,"VDELP0");require_write(f,e+1,22,kVdelp1,1,"VDELP1");
 }
 
 void verify_two_schedule(const FrameTrace&f,uint64_t e){
-   require_write(f,e,0,kGrp0,0,"setup GRP0");require_write(f,e,3,kGrp1,0,"setup GRP1");require_write(f,e,6,kGrp0,0,"setup GRP0 delayed");
-   require_write(f,e,9,kVdelp0,0,"VDELP0");require_write(f,e,12,kVdelp1,0,"VDELP1");require_write(f,e,15,kRefp0,0,"REFP0");require_write(f,e,18,kRefp1,0,"REFP1");
-   require_write(f,e,21,kHmm0,0,"HMM0");require_write(f,e,24,kHmm1,0,"HMM1");require_write(f,e,27,kHmbl,0,"HMBL");
-   require_write(f,e,32,kNusiz0,5,"NUSIZ0");require_write(f,e,35,kNusiz1,5,"NUSIZ1");require_write(f,e,41,kColup0,0x0e,"left color");require_write(f,e,47,kColup1,0x2e,"right color");
+   bool shifted=false;
+   for(const auto&w:f.writes) {
+      if(w.raw_line==e-1&&w.raw_cycle==57&&w.address==kGrp0&&w.value==0) {
+         shifted=true;
+         break;
+      }
+   }
+   const auto phase=[&](uint64_t old_cycle){
+      return shifted&&old_cycle<19
+         ? std::pair<uint64_t,uint64_t>{e-1,old_cycle+57}
+         : std::pair<uint64_t,uint64_t>{e,shifted?old_cycle-19:old_cycle};
+   };
+   const auto setup=[&](uint64_t old_cycle,uint16_t address,uint8_t value,const char*name){
+      const auto where=phase(old_cycle);
+      require_write(f,where.first,where.second,address,value,name);
+   };
+   setup(0,kGrp0,0,"setup GRP0");setup(3,kGrp1,0,"setup GRP1");setup(6,kGrp0,0,"setup GRP0 delayed");
+   setup(9,kVdelp0,0,"VDELP0");setup(12,kVdelp1,0,"VDELP1");setup(15,kRefp0,0,"REFP0");setup(18,kRefp1,0,"REFP1");
+   setup(21,kHmm0,0,"HMM0");setup(24,kHmm1,0,"HMM1");setup(27,kHmbl,0,"HMBL");
+   setup(32,kNusiz0,5,"NUSIZ0");setup(35,kNusiz1,5,"NUSIZ1");setup(41,kColup0,0x0e,"left color");setup(47,kColup1,0x2e,"right color");
    const uint8_t lx=16,rx=104;require_write(f,e,74,kHmp0,packed_position(lx),"left packed HMP");require_write(f,e+1,resp_cycle(lx),kResp0,packed_position(lx)&15,"left RESP0");
    require_write(f,e+1,74,kHmp1,packed_position(rx),"right packed HMP");require_write(f,e+2,resp_cycle(rx),kResp1,packed_position(rx)&15,"right RESP1");require_write(f,e+2,71,kHmove,packed_position(rx)&15,"HMOVE");
 }

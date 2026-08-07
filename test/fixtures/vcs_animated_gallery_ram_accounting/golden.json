@@ -1,5 +1,14 @@
 {
    "activation" : {
+      "item3_delta" : {
+         "activation_bytes" : 2,
+         "free_ram_gained_bytes" : 5,
+         "previous_activation_bytes" : 7,
+         "previous_rom_bytes" : 3993,
+         "ram_saved_bytes" : 5,
+         "rom_bytes" : 3662,
+         "rom_saved_bytes" : 331
+      },
       "members" : [
          {
             "class" : "activation_scratch",
@@ -11,34 +20,26 @@
          {
             "class" : "activation_scratch",
             "name" : "__vcsc_scratch_0",
-            "size" : 3,
+            "size" : 1,
             "start" : 229,
-            "subclass" : "expression_scratch"
-         },
-         {
-            "class" : "activation_scratch",
-            "name" : "__vcsc_scratch_1",
-            "size" : 3,
-            "start" : 232,
             "subclass" : "expression_scratch"
          }
       ],
       "owner" : "main",
       "repeated_inline" : {
-         "bytes_each" : 6,
-         "current_reason" : "shared-by-activation-lifetime-overlay",
+         "bytes_each" : 0,
+         "current_reason" : "direct-byte-lowering-needs-no-expression-scratch",
          "expansions" : [
             "__inline$10$next_pair",
             "__inline$12$next_pair"
          ],
          "function" : "next_pair",
          "generated_execution" : "sequential",
-         "lifetime_groups" : [
-            "main:0",
-            "main:1"
-         ],
-         "physical_bytes" : 6,
-         "saved_bytes" : 6
+         "lifetime_groups" : [],
+         "physical_bytes" : 0,
+         "previous_physical_bytes" : 6,
+         "saved_bytes_this_item" : 6,
+         "total_saved_from_unshared_baseline" : 12
       },
       "scratch_diagnostics" : [
          {
@@ -51,97 +52,9 @@
             "size" : 1,
             "slot" : 0,
             "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 1,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:0",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$2$vcs_ntsc_wait_scanlines",
-            "size" : 1,
-            "slot" : 0,
-            "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 1,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:0",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$9$update_animation",
-            "size" : 1,
-            "slot" : 0,
-            "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 2,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:0",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$10$next_pair",
-            "size" : 3,
-            "slot" : 0,
-            "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 5,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:0",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$11$update_controls",
-            "size" : 1,
-            "slot" : 0,
-            "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 2,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:0",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$12$next_pair",
-            "size" : 3,
-            "slot" : 0,
-            "symbol" : "__vcsc_scratch_0"
-         },
-         {
-            "acquisitions" : 1,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:1",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$10$next_pair",
-            "size" : 3,
-            "slot" : 1,
-            "symbol" : "__vcsc_scratch_1"
-         },
-         {
-            "acquisitions" : 3,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:1",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$11$update_controls",
-            "size" : 3,
-            "slot" : 1,
-            "symbol" : "__vcsc_scratch_1"
-         },
-         {
-            "acquisitions" : 1,
-            "allocation" : "lifetime-overlay",
-            "group" : "main:1",
-            "owner" : "main",
-            "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-            "scope" : "__inline$12$next_pair",
-            "size" : 3,
-            "slot" : 1,
-            "symbol" : "__vcsc_scratch_1"
          }
       ],
-      "size" : 7,
+      "size" : 2,
       "start" : 228
    },
    "hardware_stack" : {
@@ -392,22 +305,15 @@
       {
          "class" : "activation_scratch",
          "name" : "__vcsc_scratch_0",
-         "size" : 3,
+         "size" : 1,
          "start" : 229,
-         "subclass" : "expression_scratch"
-      },
-      {
-         "class" : "activation_scratch",
-         "name" : "__vcsc_scratch_1",
-         "size" : 3,
-         "start" : 232,
          "subclass" : "expression_scratch"
       },
       {
          "class" : "free_ram",
          "name" : "free_ram",
-         "size" : 13,
-         "start" : 235,
+         "size" : 18,
+         "start" : 230,
          "subclass" : "unallocated"
       },
       {
@@ -423,23 +329,25 @@
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp"
    ],
-   "schema" : 2,
+   "schema" : 3,
    "totals" : {
       "category_bytes" : {
-         "activation_scratch" : 7,
-         "free_ram" : 13,
+         "activation_scratch" : 2,
+         "free_ram" : 18,
          "hardware_stack" : 8,
          "persistent_state" : 7,
          "renderer_state" : 85,
          "runtime_scratch" : 8
       },
-      "free_ram_bytes" : 13,
+      "free_ram_bytes" : 18,
       "hardware_stack_bytes" : 8,
-      "object_bytes" : 107,
-      "ram_bytes" : 115,
+      "object_bytes" : 102,
+      "ram_bytes" : 110,
+      "rom_bytes" : 3662,
+      "rom_free_bytes" : 428,
       "subcategory_bytes" : {
          "argument" : 2,
-         "expression_scratch" : 6,
+         "expression_scratch" : 1,
          "gallery_control" : 7,
          "inline_parameter" : 1,
          "mutable_row_colors" : 16,
@@ -447,7 +355,7 @@
          "private_workspace" : 56,
          "public_state" : 13,
          "return_addresses" : 8,
-         "unallocated" : 13
+         "unallocated" : 18
       }
    }
 }

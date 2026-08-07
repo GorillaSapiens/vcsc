@@ -190,17 +190,19 @@ uint8_t expected_resp_value(uint8_t x) {
    do remainder-=15; while (remainder>=0);
    return static_cast<uint8_t>(remainder);
 }
-void verify_positioning() {
+void verify_positioning(const std::string &mode) {
    const std::array<uint8_t,3> x{{44,108,78}};
    const std::array<uint16_t,3> resp{{kResp0,kResp1,kResbl}};
    const std::array<uint16_t,3> hmp{{kHmp0,kHmp1,kHmbl}};
-   const std::array<uint64_t,3> line{{14,13,12}};
+   const std::array<uint64_t,3> line = mode == "terminal"
+      ? std::array<uint64_t,3>{{14,13,12}}
+      : std::array<uint64_t,3>{{13,12,11}};
    for (size_t i=0;i<x.size();++i) {
       const int rc=expected_resp_cycle(x[i]);
       expect_write(resp[i],line[i],static_cast<uint64_t>(rc),expected_resp_value(x[i]),"VBLANK RESP");
       expect_write(hmp[i],line[i],static_cast<uint64_t>(rc+11),expected_hmp(x[i]),"VBLANK HMP");
    }
-   expect_write(kHmove,14,71,0,"VBLANK HMOVE");
+   expect_write(kHmove,mode == "terminal" ? 14 : 13,71,0,"VBLANK HMOVE");
    for (const TimedWrite &event:frame_writes) {
       const bool position=(event.address>=kResp0 && event.address<=kResbl) ||
                           (event.address>=kHmp0 && event.address<=kHmbl) ||
@@ -414,7 +416,7 @@ int main(int argc,char **argv) {
       if (frame_periods[i]!=262*kCyclesPerLine) fail("frame is not exactly 262 raw lines");
 
    verify_boundaries();
-   verify_positioning();
+   verify_positioning(mode);
    verify_object_pixel_raster(mode);
    verify_player_handoffs();
    for (const TimedWrite &event:frame_writes)

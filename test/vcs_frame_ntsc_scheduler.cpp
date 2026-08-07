@@ -169,7 +169,7 @@ void check_mode(const std::string &mode, uint16_t flag_address) {
       const auto &begin_overscan = find_vblank(start, end, 2, 1);
       const uint64_t base_line = start / kCyclesPerLine;
       if (begin_vblank.cycle / kCyclesPerLine != base_line + 3 ||
-          begin_vblank.cycle % kCyclesPerLine != 45) {
+          begin_vblank.cycle % kCyclesPerLine != 26) {
          fail("VBLANK begin schedule changed");
       }
       if (end_vblank.cycle / kCyclesPerLine != base_line + clear_offset ||
@@ -177,7 +177,7 @@ void check_mode(const std::string &mode, uint16_t flag_address) {
          fail("VBLANK end schedule changed");
       }
       if (begin_overscan.cycle / kCyclesPerLine != base_line + overscan_offset ||
-          begin_overscan.cycle % kCyclesPerLine != 40) {
+          begin_overscan.cycle % kCyclesPerLine != 21) {
          fail("overscan begin schedule changed");
       }
 

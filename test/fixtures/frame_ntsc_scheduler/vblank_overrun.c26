@@ -7,7 +7,7 @@ void main(void) {
       vcs_ntsc_vsync();
 
       vcs_ntsc_begin_vblank();
-      vcs_ntsc_wait_scanlines(36);
+      vcs_ntsc_wait_scanlines(37);
       vcs_ntsc_end_vblank();
 
       vcs_ntsc_wait_scanlines(VCS_NTSC_VISIBLE_SCANLINES`uint8_t);

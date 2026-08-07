@@ -278,6 +278,26 @@ typedef struct DirectByteOperand {
    int offset;
 } DirectByteOperand;
 
+//! @brief Return whether a classified operand is an ordinary unsigned byte.
+static bool direct_byte_operand_is_plain_uint8(const DirectByteOperand *op) {
+   return op && op->valid && op->lv.size == 1 &&
+          declarator_pointer_depth(op->lv.declarator) == 0 &&
+          !type_is_signed_integer(op->lv.type) &&
+          !type_is_bcd_integer(op->lv.type);
+}
+
+//! @brief Evaluate one compile-time byte constant using the destination representation.
+static bool eval_direct_byte_constant(ASTNode *expr, const ASTNode *type,
+                                      unsigned char *encoded) {
+   InitConstValue value = {0};
+
+   if (!expr || !encoded || !eval_constant_initializer_expr(expr, &value) ||
+       value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, type)) {
+      return false;
+   }
+   return encode_integer_initializer_value(value.i, encoded, 1, type);
+}
+
 //! @brief Classify an unsigned one-byte lvalue without emitting code.
 static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *expr,
                                                        bool allow_runtime_pointer) {
@@ -335,11 +355,15 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
 }
 
 //! @brief Load a classified direct byte operand into A.
-static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand *op) {
+static bool emit_load_direct_byte_operand_impl(Context *ctx,
+                                               const DirectByteOperand *op,
+                                               bool record_semantic_use) {
    if (!op || !op->valid) {
       return false;
    }
-   emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   if (record_semantic_use) {
+      emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   }
    if (op->direct_memory) {
       if (op->symbol_mode != 0) {
          char expr_buf[256];
@@ -364,6 +388,125 @@ static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand 
    }
    emit(&es_code, "    ldy #0\n");
    emit(&es_code, "    lda (ptr0),y\n");
+   return true;
+}
+
+//! @brief Load a classified direct byte operand and record its source read.
+static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand *op) {
+   return emit_load_direct_byte_operand_impl(ctx, op, true);
+}
+
+//! @brief Store A into a classified directly addressable byte operand.
+static bool emit_store_a_to_direct_byte_operand(const DirectByteOperand *op) {
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!op || !op->valid) {
+      return false;
+   }
+   if (op->direct_memory) {
+      if (op->symbol_mode != 0) {
+         formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+         if (op->offset == 0)
+            emit(&es_code, op->symbol_mode == 1 ? "    sta.z %s\n" : "    sta.a %s\n", formatted);
+         else
+            emit(&es_code, op->symbol_mode == 1 ? "    sta.z %s + %d\n" : "    sta.a %s + %d\n", formatted, op->offset);
+      }
+      else {
+         if (!op->lv.write_expr || !*op->lv.write_expr) {
+            return false;
+         }
+         emit_store_a_to_expr_address(op->lv.write_expr, op->offset);
+      }
+      return true;
+   }
+   if (op->local_scratch) {
+      emit(&es_code, "    ldy #%d\n", op->offset);
+      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      return true;
+   }
+   return false;
+}
+
+//! @brief Increment or decrement one ordinary directly addressable byte in place.
+static bool emit_modify_direct_byte_operand(const DirectByteOperand *op, bool increment) {
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!direct_byte_operand_is_plain_uint8(op) || op->lv.is_absolute_ref) {
+      return false;
+   }
+   if (op->direct_memory && op->symbol_mode != 0) {
+      formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+      if (op->offset == 0)
+         emit(&es_code, op->symbol_mode == 1 ?
+              (increment ? "    inc.z %s\n" : "    dec.z %s\n") :
+              (increment ? "    inc.a %s\n" : "    dec.a %s\n"), formatted);
+      else
+         emit(&es_code, op->symbol_mode == 1 ?
+              (increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n") :
+              (increment ? "    inc.a %s + %d\n" : "    dec.a %s + %d\n"),
+              formatted, op->offset);
+      return true;
+   }
+   if (op->local_scratch) {
+      formatted = assembler_address_expr(compiler_scratch_active_symbol(), expr_buf,
+                                         sizeof(expr_buf));
+      if (op->offset == 0)
+         emit(&es_code, increment ? "    inc.z %s\n" : "    dec.z %s\n", formatted);
+      else
+         emit(&es_code, increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n",
+              formatted, op->offset);
+      return true;
+   }
+   return false;
+}
+
+//! @brief Lower a direct byte truth or constant-mask test without expression scratch.
+static bool compile_direct_u8_test_branch_false(ASTNode *expr, Context *ctx,
+                                                const char *false_label,
+                                                bool invert) {
+   DirectByteOperand operand;
+   ASTNode *constant_expr = NULL;
+   unsigned char mask = 0xff;
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!expr) {
+      return false;
+   }
+   if (expr->count == 2 && !strcmp(expr->name, "&")) {
+      DirectByteOperand left = classify_direct_byte_operand(ctx, expr->children[0], false);
+      DirectByteOperand right = classify_direct_byte_operand(ctx, expr->children[1], false);
+
+      if (direct_byte_operand_is_plain_uint8(&left)) {
+         operand = left;
+         constant_expr = expr->children[1];
+      }
+      else if (direct_byte_operand_is_plain_uint8(&right)) {
+         operand = right;
+         constant_expr = expr->children[0];
+      }
+      else {
+         return false;
+      }
+      if (!eval_direct_byte_constant(constant_expr, operand.lv.type, &mask)) {
+         return false;
+      }
+   }
+   else {
+      operand = classify_direct_byte_operand(ctx, expr, false);
+      if (!direct_byte_operand_is_plain_uint8(&operand)) {
+         return false;
+      }
+   }
+
+   if (!emit_load_direct_byte_operand(ctx, &operand)) {
+      return false;
+   }
+   if (mask != 0xff) {
+      emit(&es_code, "    and #$%02x\n", (unsigned int) mask);
+   }
+   emit(&es_code, invert ? "    bne %s\n" : "    beq %s\n", false_label);
    return true;
 }
 
@@ -409,7 +552,8 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    ASTNode *rhs_expr;
    const char *op;
    bool rhs_immediate = false;
-   long rhs_value = 0;
+   InitConstValue rhs_constant = {0};
+   unsigned char rhs_encoded = 0;
 
    if (!expr || expr->count != 2) {
       return false;
@@ -426,27 +570,18 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    }
 
    rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
-   if (rhs_expr && rhs_expr->kind == AST_INTEGER) {
-      char *end = NULL;
-      rhs_value = strtol(rhs_expr->strval, &end, 0);
-      rhs_immediate = end && *end == '\0' && rhs_value >= 0 &&
-                      integer_value_fits_type(rhs_value, lhs.lv.type);
+   if (rhs_expr && eval_constant_initializer_expr(rhs_expr, &rhs_constant) &&
+       rhs_constant.kind == INIT_CONST_INT) {
+      rhs_immediate = integer_value_fits_type(rhs_constant.i, lhs.lv.type) &&
+                      encode_integer_initializer_value(rhs_constant.i, &rhs_encoded,
+                                                       1, lhs.lv.type);
       if (!rhs_immediate) {
          return false;
       }
       if (!emit_load_direct_byte_operand(ctx, &lhs)) {
          return false;
       }
-      if (type_is_bcd_integer(lhs.lv.type)) {
-         unsigned char packed = 0;
-         if (!encode_integer_initializer_value(rhs_value, &packed, 1, lhs.lv.type)) {
-            return false;
-         }
-         emit(&es_code, "    cmp #$%02x\n", (unsigned int) packed);
-      }
-      else {
-         emit(&es_code, "    cmp #$%02lx\n", rhs_value & 0xff);
-      }
+      emit(&es_code, "    cmp #$%02x\n", (unsigned int) rhs_encoded);
    }
    else {
       rhs = classify_direct_byte_operand(ctx, expr->children[1], true);
@@ -560,6 +695,10 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 
    if (expr->count == 1 && !strcmp(expr->name, "!")) {
+      if (compile_direct_u8_test_branch_false(expr->children[0], ctx, false_label,
+                                              true)) {
+         return true;
+      }
       const char *end_label = next_label("not_cond_end");
       if (!end_label) {
          return false;
@@ -617,6 +756,10 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    require_no_mixed_signed_integer_binary_expr(expr, ctx);
 
    if (compile_direct_u8_compare_branch_false(expr, ctx, false_label)) {
+      return true;
+   }
+
+   if (compile_direct_u8_test_branch_false(expr, ctx, false_label, false)) {
       return true;
    }
 
@@ -767,6 +910,171 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    return true;
 }
 
+//! @brief Lower one ordinary unsigned-byte compound update by a constant.
+static bool compile_direct_u8_constant_update(Context *ctx, ASTNode *target,
+                                              const char *op, ASTNode *rhs) {
+   DirectByteOperand dst;
+   unsigned char value;
+
+   if (!op || (strcmp(op, "+=") && strcmp(op, "-=") && strcmp(op, "&=") &&
+               strcmp(op, "|=") && strcmp(op, "^="))) {
+      return false;
+   }
+   dst = classify_direct_byte_operand(ctx, target, false);
+   if (!direct_byte_operand_is_plain_uint8(&dst) ||
+       !eval_direct_byte_constant(rhs, dst.lv.type, &value)) {
+      return false;
+   }
+
+   if ((!strcmp(op, "+=") || !strcmp(op, "-=")) && value == 1 &&
+       emit_modify_direct_byte_operand(&dst, !strcmp(op, "+="))) {
+      return true;
+   }
+
+   if (!strcmp(op, "+=") || !strcmp(op, "-=")) {
+      if (value == 0 && !dst.lv.is_absolute_ref) {
+         return true;
+      }
+      if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+         return false;
+      }
+      emit(&es_code, !strcmp(op, "+=") ? "    clc\n    adc #$%02x\n" :
+                                         "    sec\n    sbc #$%02x\n",
+           (unsigned int) value);
+   }
+   else if (!strcmp(op, "&=")) {
+      if (value == 0xff && !dst.lv.is_absolute_ref) {
+         return true;
+      }
+      if (value == 0) {
+         if (dst.lv.is_absolute_ref &&
+             !emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+            return false;
+         }
+         emit(&es_code, "    lda #0\n");
+      }
+      else {
+         if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+            return false;
+         }
+         emit(&es_code, "    and #$%02x\n", (unsigned int) value);
+      }
+   }
+   else if (!strcmp(op, "|=")) {
+      if (value == 0 && !dst.lv.is_absolute_ref) {
+         return true;
+      }
+      if (value == 0xff) {
+         if (dst.lv.is_absolute_ref &&
+             !emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+            return false;
+         }
+         emit(&es_code, "    lda #$ff\n");
+      }
+      else {
+         if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+            return false;
+         }
+         emit(&es_code, "    ora #$%02x\n", (unsigned int) value);
+      }
+   }
+   else {
+      if (value == 0 && !dst.lv.is_absolute_ref) {
+         return true;
+      }
+      if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+         return false;
+      }
+      emit(&es_code, "    eor #$%02x\n", (unsigned int) value);
+   }
+
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
+//! @brief Lower dst := byte-lvalue (+|-) constant without generic expression scratch.
+static bool compile_direct_u8_copy_constant_assignment(Context *ctx,
+                                                       ASTNode *target,
+                                                       ASTNode *rhs) {
+   DirectByteOperand dst;
+   DirectByteOperand src;
+   ASTNode *constant_expr = NULL;
+   const char *op;
+   unsigned char value;
+
+   rhs = (ASTNode *) unwrap_expr_node(rhs);
+   if (!rhs || rhs->count != 2 || (strcmp(rhs->name, "+") && strcmp(rhs->name, "-"))) {
+      return false;
+   }
+   op = rhs->name;
+   dst = classify_direct_byte_operand(ctx, target, false);
+   if (!direct_byte_operand_is_plain_uint8(&dst)) {
+      return false;
+   }
+
+   src = classify_direct_byte_operand(ctx, rhs->children[0], false);
+   if (direct_byte_operand_is_plain_uint8(&src)) {
+      constant_expr = rhs->children[1];
+   }
+   else if (!strcmp(op, "+")) {
+      src = classify_direct_byte_operand(ctx, rhs->children[1], false);
+      if (!direct_byte_operand_is_plain_uint8(&src)) {
+         return false;
+      }
+      constant_expr = rhs->children[0];
+   }
+   else {
+      return false;
+   }
+   if (!eval_direct_byte_constant(constant_expr, src.lv.type, &value) ||
+       !emit_load_direct_byte_operand(ctx, &src)) {
+      return false;
+   }
+   if (value != 0) {
+      emit(&es_code, !strcmp(op, "+") ? "    clc\n    adc #$%02x\n" :
+                                        "    sec\n    sbc #$%02x\n",
+           (unsigned int) value);
+   }
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
+//! @brief Lower dst := !byte-lvalue without generic expression scratch.
+static bool compile_direct_u8_not_assignment(Context *ctx, ASTNode *target,
+                                             ASTNode *rhs) {
+   DirectByteOperand dst;
+   DirectByteOperand src;
+   const char *zero_label;
+   const char *end_label;
+
+   rhs = (ASTNode *) unwrap_expr_node(rhs);
+   if (!rhs || rhs->count != 1 || strcmp(rhs->name, "!")) {
+      return false;
+   }
+   dst = classify_direct_byte_operand(ctx, target, false);
+   src = classify_direct_byte_operand(ctx, rhs->children[0], false);
+   if (!direct_byte_operand_is_plain_uint8(&dst) ||
+       !direct_byte_operand_is_plain_uint8(&src) ||
+       !emit_load_direct_byte_operand(ctx, &src)) {
+      return false;
+   }
+
+   zero_label = next_label("u8_not_zero");
+   end_label = next_label("u8_not_end");
+   if (!zero_label || !end_label) {
+      free((void *) zero_label);
+      free((void *) end_label);
+      return false;
+   }
+   emit(&es_code, "    beq %s\n", zero_label);
+   emit(&es_code, "    lda #0\n");
+   emit(&es_code, "    jmp %s\n", end_label);
+   emit(&es_code, "%s:\n", zero_label);
+   emit(&es_code, "    lda #1\n");
+   emit(&es_code, "%s:\n", end_label);
+   free((void *) zero_label);
+   free((void *) end_label);
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
 //! @brief Copy one byte directly from an lvalue into a write-only/read-write absolute external binding.
 //!
 //! This avoids allocating a one-byte BSS object merely to bridge an indexed
@@ -858,6 +1166,18 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
       {
          char expr_buf[256];
          const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+         if (!bcd) {
+            if (lv.offset == 0)
+               emit(&es_code, lv.is_zeropage ?
+                    (increment ? "    inc.z %s\n" : "    dec.z %s\n") :
+                    (increment ? "    inc.a %s\n" : "    dec.a %s\n"), formatted);
+            else
+               emit(&es_code, lv.is_zeropage ?
+                    (increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n") :
+                    (increment ? "    inc.a %s + %d\n" : "    dec.a %s + %d\n"),
+                    formatted, lv.offset);
+            return true;
+         }
          if (lv.offset == 0)
             emit(&es_code, lv.is_zeropage ? "    lda.z %s\n" : "    lda.a %s\n", formatted);
          else
@@ -875,6 +1195,17 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
 
    if (!lv.indirect && !lv.needs_runtime_address && !lv.is_static &&
        !lv.is_zeropage && !lv.is_global && lv.offset >= 0 && lv.offset <= 255) {
+      if (!bcd) {
+         char expr_buf[256];
+         const char *formatted = assembler_address_expr(compiler_scratch_active_symbol(),
+                                                        expr_buf, sizeof(expr_buf));
+         if (lv.offset == 0)
+            emit(&es_code, increment ? "    inc.z %s\n" : "    dec.z %s\n", formatted);
+         else
+            emit(&es_code, increment ? "    inc.z %s + %d\n" : "    dec.z %s + %d\n",
+                 formatted, lv.offset);
+         return true;
+      }
       emit(&es_code, "    ldy #%d\n", lv.offset);
       emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
       if (bcd) emit(&es_code, "    sed\n");
@@ -1455,6 +1786,12 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (compile_direct_byte_constant_assignment(ctx, &lv, rhs)) {
          return;
       }
+      if (compile_direct_u8_copy_constant_assignment(ctx, node->children[1], rhs)) {
+         return;
+      }
+      if (compile_direct_u8_not_assignment(ctx, node->children[1], rhs)) {
+         return;
+      }
       if (compile_direct_byte_lvalue_to_absolute_ref(ctx, &lv, rhs)) {
          return;
       }
@@ -1518,6 +1855,10 @@ void compile_expr(ASTNode *node, Context *ctx) {
    rhs = (ASTNode *) unwrap_expr_node(rhs);
    if (!rhs) {
       error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
+      return;
+   }
+
+   if (compile_direct_u8_constant_update(ctx, node->children[1], op, rhs)) {
       return;
    }
 

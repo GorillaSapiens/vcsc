@@ -258,20 +258,38 @@ uint8_t packed_row(uint8_t score,unsigned row) {
 
 void verify_schedule(const FrameTrace &frame,uint64_t entry,const InstanceConfig &cfg,
                      const char *label) {
-   require_write(frame,entry,0,kGrp0,0,"setup GRP0 clear 1");
-   require_write(frame,entry,3,kGrp1,0,"setup GRP1 clear");
-   require_write(frame,entry,6,kGrp0,0,"setup GRP0 clear 2");
-   require_write(frame,entry,9,kVdelp0,0,"setup VDELP0");
-   require_write(frame,entry,12,kVdelp1,0,"setup VDELP1");
-   require_write(frame,entry,15,kRefp0,0,"setup REFP0");
-   require_write(frame,entry,18,kRefp1,0,"setup REFP1");
-   require_write(frame,entry,21,kHmm0,0,"setup HMM0");
-   require_write(frame,entry,24,kHmm1,0,"setup HMM1");
-   require_write(frame,entry,27,kHmbl,0,"setup HMBL");
-   require_write(frame,entry,32,kNusiz0,5,"setup NUSIZ0");
-   require_write(frame,entry,35,kNusiz1,5,"setup NUSIZ1");
-   require_write(frame,entry,41,kColup0,cfg.left_color,"setup left color");
-   require_write(frame,entry,47,kColup1,cfg.right_color,"setup right color");
+   bool shifted=false;
+   for (const TimedWrite &write : frame.writes) {
+      if (write.raw_line==entry-1 && write.raw_cycle==57 &&
+          write.address==kGrp0 && write.value==0) {
+         shifted=true;
+         break;
+      }
+   }
+   const auto phase=[&](uint64_t old_cycle) {
+      return shifted && old_cycle<19
+         ? std::pair<uint64_t,uint64_t>{entry-1,old_cycle+57}
+         : std::pair<uint64_t,uint64_t>{entry,shifted?old_cycle-19:old_cycle};
+   };
+   const auto setup=[&](uint64_t old_cycle,uint16_t address,uint8_t value,const char *name) {
+      const auto where=phase(old_cycle);
+      require_write(frame,where.first,where.second,address,value,name);
+   };
+
+   setup(0,kGrp0,0,"setup GRP0 clear 1");
+   setup(3,kGrp1,0,"setup GRP1 clear");
+   setup(6,kGrp0,0,"setup GRP0 clear 2");
+   setup(9,kVdelp0,0,"setup VDELP0");
+   setup(12,kVdelp1,0,"setup VDELP1");
+   setup(15,kRefp0,0,"setup REFP0");
+   setup(18,kRefp1,0,"setup REFP1");
+   setup(21,kHmm0,0,"setup HMM0");
+   setup(24,kHmm1,0,"setup HMM1");
+   setup(27,kHmbl,0,"setup HMBL");
+   setup(32,kNusiz0,5,"setup NUSIZ0");
+   setup(35,kNusiz1,5,"setup NUSIZ1");
+   setup(41,kColup0,cfg.left_color,"setup left color");
+   setup(47,kColup1,cfg.right_color,"setup right color");
 
    require_write(frame,entry,74,kHmp0,packed_position(cfg.left_x),"left packed HMP/control");
    require_write(frame,entry+1,static_cast<uint64_t>(resp_cycle(cfg.left_x)),

@@ -301,7 +301,7 @@ Ordered roadmap
     * Persistent inline parameters, locals, and return objects remain distinct;
       only compiler-owned scratch participates in lifetime coloring.
 
-[ ] 3. Improve compact lowering for simple byte state updates.
+[x] 3. Improve compact lowering for simple byte state updates.
 
     The gallery currently routes operations such as `sprite0 += 2`,
     `sprite1 := sprite0 + 1`, increments, masks, and constant comparisons through
@@ -315,6 +315,37 @@ Ordered roadmap
     * Fold simple post-update comparisons where doing so is smaller and preserves
       source evaluation semantics.
     * Add exact assembly and zero/additional-scratch regressions.
+
+    Completed:
+
+    * Ordinary directly addressable `uint8_t` lvalues now lower constant `+=`,
+      `-=`, `&=`, `|=`, and `^=` updates directly. Unit increments/decrements use
+      `INC`/`DEC`; other add/subtract forms use one load, carry setup, immediate
+      arithmetic, and one store. Absolute external bindings retain required
+      read/write side effects rather than being treated as ordinary RAM.
+    * `dst := src + constant`, `dst := src - constant`, commuted constant-plus-
+      source, byte logical-not assignment, truth tests, constant-mask tests, and
+      constant comparisons use direct byte loads/branches without generic
+      pointer-width or three-byte expression groups. Comparisons immediately
+      following updates therefore compile as direct reload/compare branches; no
+      speculative cross-statement register state is assumed.
+    * `direct_u8_state_update_codegen_test.c26` locks the exact documented-opcode
+      sequences and forbids both expression-scratch symbols and Y setup.
+      `e2e_direct_u8_state_update_verify.c26` executes wraparound arithmetic,
+      masks, copy-plus-constant, truth, comparison, and logical-not behavior in
+      `vcsc-sim`. Existing absolute-ref and packed-BCD regressions remain active.
+    * The animated gallery's `main` activation fell from seven bytes to two: one
+      scheduler inline parameter plus one one-byte VSYNC scratch slot. Both
+      `next_pair()` expansions now allocate zero expression scratch. Total RIOT
+      RAM fell from 115 to 110 bytes, free RAM rose from 13 to 18 bytes, and ROM
+      fell from 3993 to 3662 bytes. The authoritative accounting fixture is now
+      schema 3 and records the five-byte RAM and 331-byte ROM item-3 deltas.
+    * Shorter ordinary scheduler wait code moved some non-visible component setup
+      writes nineteen cycles earlier. Exact phase fixtures were recalibrated to
+      the measured previous-line cycle-57 entry where applicable; terminal
+      WSYNC, HMOVE, exact score/player pixels, and 262-line frame contracts remain
+      independently checked.
+    * Final verification: 439 compile-only tests and 254 end-to-end tests pass.
 
 [ ] 4. Make `install_frames()` ordinary VCSC and establish a minimal-assembly
         example policy.

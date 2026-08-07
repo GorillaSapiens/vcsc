@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <utility>
 #include <vector>
 
 #include "mos6502.h"
@@ -273,15 +274,32 @@ int main(int argc, char **argv) {
    TraceMachine machine(argv[1]);
    const std::vector<Event> events=machine.run(262,"wide-score ROM");
 
-   require_value(events,entry,0,kNusiz0,0x06,"NUSIZ0");
-   require_value(events,entry,3,kNusiz1,0x06,"NUSIZ1");
-   require_value(events,entry,26,kResp0,0x06,"RESP0");
-   require_value(events,entry,29,kResp1,0x06,"RESP1");
-   require_value(events,entry,35,kColup0,0x0e,"COLUP0");
-   require_value(events,entry,38,kColup1,0x0e,"COLUP1");
-   require_value(events,entry,41,kHmclr,0x0e,"HMCLR");
-   require_value(events,entry,46,kHmp0,0x30,"HMP0");
-   require_value(events,entry,51,kHmp1,0xc0,"HMP1");
+   bool shifted=false;
+   for (const Event &event : events) {
+      if (event.line==entry-1 && event.cycle==57 &&
+          event.address==kNusiz0 && event.value==0x06) {
+         shifted=true;
+         break;
+      }
+   }
+   const auto phase=[&](uint64_t old_cycle) {
+      return shifted && old_cycle<19
+         ? std::pair<uint64_t,uint64_t>{entry-1,old_cycle+57}
+         : std::pair<uint64_t,uint64_t>{entry,shifted?old_cycle-19:old_cycle};
+   };
+   const auto setup=[&](uint64_t old_cycle,uint16_t address,uint8_t value,const char *name) {
+      const auto where=phase(old_cycle);
+      require_value(events,where.first,where.second,address,value,name);
+   };
+   setup(0,kNusiz0,0x06,"NUSIZ0");
+   setup(3,kNusiz1,0x06,"NUSIZ1");
+   setup(26,kResp0,0x06,"RESP0");
+   setup(29,kResp1,0x06,"RESP1");
+   setup(35,kColup0,0x0e,"COLUP0");
+   setup(38,kColup1,0x0e,"COLUP1");
+   setup(41,kHmclr,0x0e,"HMCLR");
+   setup(46,kHmp0,0x30,"HMP0");
+   setup(51,kHmp1,0xc0,"HMP1");
    (void)find_event(events,entry,71,kHmove,"HMOVE");
 
    require_value(events,entry+1,9,kRefp0,0,"REFP0 reset");

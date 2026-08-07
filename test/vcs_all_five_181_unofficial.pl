@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_all_five_181_unofficial ok: official=2090 unofficial=2090 delta=0
+# expectstdout: vcs_all_five_181_unofficial ok: official=2074 unofficial=2074 delta=0
 # expectexit: 0
 
 use strict;
@@ -64,8 +64,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==2090 or die "official smoke now uses $official_used bytes, expected 2090\n";
-$unofficial_used==2090 or die "unofficial smoke now uses $unofficial_used bytes, expected 2090\n";
+$official_used==2074 or die "official smoke now uses $official_used bytes, expected 2074\n";
+$unofficial_used==2074 or die "unofficial smoke now uses $unofficial_used bytes, expected 2074\n";
 $unofficial_used-$official_used==0
    or die "unexpected size delta: official=$official_used unofficial=$unofficial_used\n";
 

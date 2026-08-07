@@ -1,0 +1,54 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda.a state
+// expectasmordered: clc
+// expectasmordered: adc #$02
+// expectasmordered: sta.a state
+// expectasmordered: lda.a state
+// expectasmordered: sec
+// expectasmordered: sbc #$03
+// expectasmordered: sta.a state
+// expectasmordered: lda.a state
+// expectasmordered: and #$0f
+// expectasmordered: sta.a state
+// expectasmordered: lda.a state
+// expectasmordered: ora #$80
+// expectasmordered: sta.a state
+// expectasmordered: lda.a state
+// expectasmordered: eor #$55
+// expectasmordered: sta.a state
+// expectasmordered: inc.a state
+// expectasmordered: dec.a state
+// expectasmordered: lda.a state
+// expectasmordered: clc
+// expectasmordered: adc #$01
+// expectasmordered: sta.a copy
+// expectasmordered: lda.a state
+// expectasmordered: and #$20
+// expectasmordered: beq @if_false_
+// expectasmordered: lda.a state
+// expectasmordered: cmp #$1e
+// expectasmordered: lda.a flag
+// expectasmordered: beq @u8_not_zero_
+// expectasmordered: sta.a flag
+// forbidasm: __vcsc_scratch_
+// forbidasm: ldy
+
+include "machine_6502.c26"
+
+uint8_t state;
+uint8_t copy;
+uint8_t flag;
+
+void main(void) {
+   state += 2;
+   state -= 3;
+   state &= 0x0f;
+   state |= 0x80;
+   state ^= 0x55;
+   state++;
+   --state;
+   copy := state + 1;
+   if (state & 0x20) { copy := 7; }
+   if (state >= 30) { copy := state - 2; }
+   flag := !flag;
+}

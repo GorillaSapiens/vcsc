@@ -1,0 +1,55 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm ldy #0;
+   asm jsr $ffff;
+}
+
+uint8_t state;
+uint8_t copy;
+uint8_t flag;
+
+void main(void) {
+   state := 250;
+   state += 10;
+   if (state != 4) { fail(1); }
+
+   state -= 5;
+   if (state != 255) { fail(2); }
+
+   state &= 0x3f;
+   state |= 0x80;
+   state ^= 0x15;
+   if (state != 0xaa) { fail(3); }
+
+   state++;
+   --state;
+   if (state != 0xaa) { fail(4); }
+
+   copy := state + 7;
+   if (copy != 0xb1) { fail(5); }
+   copy := state - 0x20;
+   if (copy != 0x8a) { fail(6); }
+
+   flag := 0;
+   if (state & 0x80) { flag := 1; }
+   if (!flag) { fail(7); }
+   if (state < 0xaa || state > 0xaa || state != 0xaa) { fail(8); }
+   if (state <= 0xa9 || state >= 0xab || state == 0xab) { fail(9); }
+
+   flag := !flag;
+   if (flag != 0) { fail(10); }
+   flag := !flag;
+   if (flag != 1) { fail(11); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}
