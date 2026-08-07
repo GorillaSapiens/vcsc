@@ -62,13 +62,16 @@ visible player pixel to use the selected source row's converted color.
 
 The normal and three-frame phases share one packed RAM byte. A sixteen-entry ROM
 transition table advances the low two bits modulo 4 and bits 2..3 modulo 3, so
-the three-frame exception costs no additional RAM.
+the three-frame exception costs no additional RAM. `install_frames()` is ordinary
+VCSC: it selects the hard ROM pages, computes frame offsets, expands packed color
+nibbles through the palette, fills the mutable row-color arrays, and installs the
+bitmap pointers without handwritten assembly or activation scratch.
 
 Each frame is held for eight NTSC frames. One pair traversal takes 125 frames;
 the complete fifteen-pair gallery takes 1,875 frames. The cartridge preserves
-192 visible scanlines and exact 262-line NTSC frames. It uses 3,989 ordinary ROM
-bytes plus the six-byte vector segment, and all 128 RIOT RAM bytes. The ordinary
-ROM region has 101 bytes free.
+192 visible scanlines and exact 262-line NTSC frames. It uses 3,969 bytes of the
+ordinary ROM region plus the six-byte vector segment and 110 RIOT RAM bytes, leaving
+121 ordinary ROM bytes and 18 RAM bytes free.
 
 ## Controls
 

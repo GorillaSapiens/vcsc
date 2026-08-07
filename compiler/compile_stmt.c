@@ -344,6 +344,188 @@ static void compile_while_stmt(ASTNode *node, Context *ctx) {
    free((void *) end_label);
 }
 
+//! @brief Read one unsigned-byte compile-time integer for counted-loop recognition.
+static bool counted_loop_u8_constant(ASTNode *expr, int *out) {
+   InitConstValue value = {0};
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || !eval_constant_initializer_expr(expr, &value) ||
+       value.kind != INIT_CONST_INT || value.i < 0 || value.i > 255) {
+      return false;
+   }
+   if (out) *out = (int)value.i;
+   return true;
+}
+
+//! @brief Return whether one expression shape stays in the compact A/Y byte path.
+static bool counted_loop_x_safe_byte_expr(ASTNode *expr, Context *ctx) {
+   const ASTNode *type;
+   const ASTNode *decl;
+   int constant;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr) return false;
+   if (counted_loop_u8_constant(expr, &constant)) return true;
+   type = expr_value_type(expr, ctx);
+   decl = expr_value_declarator(expr, ctx);
+   if (!type || type_size_from_node(type) != 1 || type_is_signed_integer(type) ||
+       type_is_bcd_integer(type) || (decl && declarator_pointer_depth(decl) > 0)) {
+      return false;
+   }
+   if (!strcmp(expr->name, "lvalue")) {
+      /* Scalar byte loads and one-dimensional byte array/pointer subscripts are
+         exactly the direct forms used by the register-backed loop. */
+      if (expr->count < 2 || is_empty(expr->children[1])) return true;
+      if (strcmp(expr->children[1]->name, "[") || expr->children[1]->count < 2)
+         return false;
+      return counted_loop_x_safe_byte_expr(expr->children[1]->children[1], ctx);
+   }
+   if (expr->count == 2 && (!strcmp(expr->name, "&") || !strcmp(expr->name, "|") ||
+                            !strcmp(expr->name, "^") || !strcmp(expr->name, "+") ||
+                            !strcmp(expr->name, "-"))) {
+      int left_constant;
+      int right_constant;
+      bool lc = counted_loop_u8_constant(expr->children[0], &left_constant);
+      bool rc = counted_loop_u8_constant(expr->children[1], &right_constant);
+      if (!strcmp(expr->name, "-") && !rc) return false;
+      if (rc) return counted_loop_x_safe_byte_expr(expr->children[0], ctx);
+      if (lc && strcmp(expr->name, "-"))
+         return counted_loop_x_safe_byte_expr(expr->children[1], ctx);
+      return false;
+   }
+   if (expr->count == 2 && (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) &&
+       counted_loop_u8_constant(expr->children[1], &constant) && constant < 8) {
+      return counted_loop_x_safe_byte_expr(expr->children[0], ctx);
+   }
+   return false;
+}
+
+//! @brief Verify one assignment target preserves an X-backed counted-loop index.
+static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char *counter) {
+   ASTNode *u = (ASTNode *)unwrap_expr_node(target);
+   ASTNode *suffix;
+   ASTNode *index;
+   LValueRef lv;
+   const char *name;
+   int delta = 0;
+
+   name = expr_bare_identifier_name(u);
+   if (name) {
+      if (counter && !strcmp(name, counter)) return false;
+      return resolve_ref_argument_lvalue(ctx, u, &lv) && lv.size == 1 &&
+             !lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect &&
+             !lv.needs_runtime_address &&
+             !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
+   }
+
+   if (!u || strcmp(u->name, "lvalue") || u->count < 2) return false;
+   suffix = u->children[1];
+   if (!suffix || strcmp(suffix->name, "[") || suffix->count < 2 ||
+       !is_empty(suffix->children[0])) return false;
+   index = (ASTNode *)unwrap_expr_node(suffix->children[1]);
+   name = expr_bare_identifier_name(index);
+   if (!name || strcmp(name, counter)) {
+      int value;
+      if (!index || strcmp(index->name, "+") || index->count != 2 ||
+          !(name = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(index->children[0]))) ||
+          strcmp(name, counter) || !counted_loop_u8_constant(index->children[1], &value) ||
+          value < 0 || value > 1) return false;
+      delta = value;
+   }
+   (void)delta;
+   return resolve_ref_argument_lvalue(ctx, u, &lv) && lv.size == 1 &&
+          !lv.is_bitfield && !lv.is_absolute_ref &&
+          declarator_array_count(lv.base_declarator) > 0 &&
+          declarator_first_element_size(lv.base_type, lv.base_declarator) == 1 &&
+          !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
+}
+
+//! @brief Verify a small counted-loop body cannot clobber its X-backed counter.
+static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *counter) {
+   if (!body || strcmp(body->name, "statement_list")) return false;
+   for (int i = 0; i < body->count; ++i) {
+      ASTNode *stmt = body->children[i];
+      ASTNode *target;
+      ASTNode *rhs;
+      if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+          !stmt->children[0] || strcmp(stmt->children[0]->strval, ":=")) {
+         return false;
+      }
+      target = stmt->children[1];
+      rhs = stmt->children[2];
+      if (!counted_loop_x_safe_target(target, ctx, counter) ||
+          !counted_loop_x_safe_byte_expr(rhs, ctx)) {
+         return false;
+      }
+   }
+   return true;
+}
+
+//! @brief Recognize a register-backed `for (uint8_t i := C; i < N; i += S)` loop.
+static bool classify_register_counted_for(ASTNode *node, Context *ctx,
+                                          ContextEntry **entry_out,
+                                          int *initial_out, int *limit_out,
+                                          int *step_out) {
+   ASTNode *init;
+   ASTNode *cond;
+   ASTNode *step;
+   ASTNode *body;
+   ASTNode *list;
+   ASTNode *item;
+   ASTNode *type;
+   ASTNode *declarator;
+   ASTNode *initializer;
+   ASTNode *ucond;
+   ASTNode *ustep;
+   const char *name;
+   const char *cond_name;
+   const char *step_name;
+   ContextEntry *entry;
+   int initial, limit, step_value;
+
+   if (!node || node->count < 4) return false;
+   init = node->children[0];
+   cond = node->children[1];
+   step = node->children[2];
+   body = node->children[3];
+   if (!init || strcmp(init->name, "defdecl_stmt") || init->count < 1) return false;
+   list = init->children[0];
+   if (!list || list->count != 1) return false;
+   item = list->children[0];
+   if (!item || item->count < 4 || !is_empty(item->children[0])) return false;
+   type = item->children[1];
+   declarator = (ASTNode *)stmt_decl_node_declarator(item);
+   initializer = item->children[item->count - 1];
+   name = declarator_name(declarator);
+   if (!name || type_size_from_node(type) != 1 || type_is_signed_integer(type) ||
+       type_is_bcd_integer(type) || declarator_pointer_depth(declarator) != 0 ||
+       !counted_loop_u8_constant(initializer, &initial)) {
+      return false;
+   }
+   ucond = (ASTNode *)unwrap_expr_node(cond);
+   if (!ucond || ucond->count != 2 || strcmp(ucond->name, "<") ||
+       !(cond_name = expr_bare_identifier_name(ucond->children[0])) ||
+       strcmp(cond_name, name) || !counted_loop_u8_constant(ucond->children[1], &limit)) {
+      return false;
+   }
+   ustep = (ASTNode *)unwrap_expr_node(step);
+   if (!ustep || ustep->count != 3 || !ustep->children[0] ||
+       strcmp(ustep->children[0]->strval, "+=") ||
+       !(step_name = expr_bare_identifier_name(ustep->children[1])) ||
+       strcmp(step_name, name) || !counted_loop_u8_constant(ustep->children[2], &step_value) ||
+       step_value <= 0) {
+      return false;
+   }
+   entry = ctx_lookup(ctx, name);
+   if (!entry || entry->size != 1 || !counted_loop_x_safe_body(body, ctx, name)) {
+      return false;
+   }
+   if (entry_out) *entry_out = entry;
+   if (initial_out) *initial_out = initial;
+   if (limit_out) *limit_out = limit;
+   if (step_out) *step_out = step_value;
+   return true;
+}
+
 //! @brief Lower for stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_for_stmt(ASTNode *node, Context *ctx) {
    const char *start_label = next_label("for_start");
@@ -363,6 +545,32 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
       free((void *) end_label);
       warning("[%s:%d.%d] for label generation failed", node->file, node->line, node->column);
       return;
+   }
+
+   {
+      ContextEntry *register_entry = NULL;
+      int initial = 0, limit = 0, increment = 0;
+      if (classify_register_counted_for(node, ctx, &register_entry,
+                                        &initial, &limit, &increment)) {
+         register_entry->is_register_x = true;
+         push_loop_labels(end_label, step_label);
+         if (named_loop) push_named_loop_labels(named_loop, end_label, step_label);
+         emit(&es_code, "    ldx #$%02x\n", (unsigned int)initial);
+         emit(&es_code, "%s:\n", start_label);
+         emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
+         emit(&es_code, "    bcs %s\n", end_label);
+         compile_statement_list(body, ctx);
+         emit(&es_code, "%s:\n", step_label);
+         for (int i = 0; i < increment; ++i) emit(&es_code, "    inx\n");
+         emit(&es_code, "    jmp %s\n", start_label);
+         emit(&es_code, "%s:\n", end_label);
+         pop_loop_labels();
+         if (named_loop) pop_named_loop_labels();
+         free((void *) start_label);
+         free((void *) step_label);
+         free((void *) end_label);
+         return;
+      }
    }
 
    push_loop_labels(end_label, step_label);
@@ -626,6 +834,7 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->is_zeropage = false;
       entry->is_global = false;
       entry->is_ref = false;
+      entry->is_register_x = false;
       entry->is_absolute_ref = true;
       entry->read_expr = address_spec_read_expr(addrspec);
       entry->write_expr = address_spec_write_expr(addrspec);

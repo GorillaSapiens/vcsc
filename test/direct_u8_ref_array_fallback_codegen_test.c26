@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda fill$values + 0,y
+// expectasmordered: sta ptr0
+// expectasmordered: lda fill$values + 0,y
+// expectasmordered: sta ptr0+1
+// expectasmordered: sta (ptr0),y
+// forbidasm: sta.ay fill$values,y
+
+include "machine_6502.c26"
+
+void fill(ref writeonly uint8_t values[3], uint8_t base) {
+   // A ref-array formal keeps array source shape, but its runtime object is a
+   // pointer.  The direct absolute-array store optimization must not claim it.
+   values[0] := base;
+}

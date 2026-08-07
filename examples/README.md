@@ -41,6 +41,20 @@ The unofficial groups are separate source-level examples rather than a build
 switch hidden inside the official examples. Their template names and
 `-Wa,--illegals` build option make the opcode policy visible.
 
+## Assembly policy
+
+Public examples should use VCSC for ordinary application logic. Inline `asm` is kept
+only for cycle-exact beam work, direct hardware idioms, or a documented language or
+compiler limitation with a focused regression and an explicit removal follow-up. The
+source test `test/example_assembly_allowlist.pl` inventories every remaining example
+assembly block by normalized-statement hash, so new assembly cannot quietly enter the
+examples without review.
+
+The animated sprite gallery is intentionally a high-level stress case: its frame-page
+selection, pointer arithmetic, packed-color expansion, palette lookup, and frame
+installation are all ordinary VCSC. Its only remaining assembly is the small console
+Reset-vector hardware idiom.
+
 ## License
 
 Everything under `examples/` is covered under CC0-1.0 by default. The sole

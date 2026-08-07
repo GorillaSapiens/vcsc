@@ -1113,6 +1113,25 @@ required read/write side effects even for apparent no-op updates. The compiler
 does not assume A or flags survive across source statements; a comparison after
 an update may reload the byte, but still avoids generic scratch.
 
+The same direct-byte path also recognizes compact ROM-table and pointer idioms used
+by ordinary application code. Assigning an array to a compatible pointer writes the
+array address straight to the destination pointer; adding a simple unsigned-byte
+offset updates that pointer directly; one-byte array and pointer subscripts can stay
+in A/Y; constant masks and shifts are emitted in place; and direct byte-array stores
+avoid constructing a general run-time lvalue. These shortcuts are deliberately narrow:
+absolute hardware bindings, signed or packed-BCD values, wider objects, and expressions
+that need general aliasing semantics still use the normal lowering machinery.
+Ref-array formals are deliberately excluded from direct absolute-array stores: their declarator retains array shape, but their runtime representation is pointer-backed.
+
+A small counted loop of the form `for (uint8_t i := C; i < N; i += S)` may keep its
+loop-local index in X when the complete body is proven to contain only supported
+straight-line byte assignments and expressions. Calls, inline assembly, nested control
+flow, address-taking, signed/BCD arithmetic, and other X-clobbering constructs reject
+the shortcut. Such a proven loop emits no activation object for its lexical index; X
+is restored around the supported `i + constant` array-store form. This optimization is
+what makes compact high-level table expansion practical without turning an example's
+loop counter into permanent RIOT RAM.
+
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory
 region marked `callstack = callgraph` reserves two hardware-stack bytes per

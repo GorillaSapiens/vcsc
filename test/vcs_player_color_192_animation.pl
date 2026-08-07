@@ -77,8 +77,19 @@ $source_text =~ /alias\s+LEFT_EDGE\s+16/ or die "animation left-edge color-safe 
 $source_text =~ /alias\s+RIGHT_EDGE\s+140/ or die "animation color-safe right endpoint changed\n";
 $source_text =~ /animation_phase_next\[16\]/ &&
 $source_text =~ /low bits advance modulo 4 while bits 2\.\.3/ &&
-$source_text =~ /Bits 2\.\.3 are set 03's independent modulo-3 counter/
+$source_text =~ /sprite1\s*==\s*THREE_FRAME_SET/ &&
+$source_text =~ /animation_frame\s*>>\s*2/
    or die "set 03 no longer has a packed modulo-3 frame counter\n";
+$source_text =~ /void\s+install_frames\s*\(void\)\s*\{(.*?)\n\}/s
+   or die "cannot locate install_frames source body\n";
+my $install_frames_body=$1;
+$install_frames_body !~ /\basm\b/
+   or die "install_frames regressed to handwritten assembly\n";
+$install_frames_body =~ /game_player0_graphics\s*:=\s*sprite_row_colors_0/ &&
+$install_frames_body =~ /game_player0_graphics\s*\+=\s*\(sprite0\s*&\s*0x0f\)\s*<<\s*4/ &&
+$install_frames_body =~ /pico8_tia_palette\[game_player0_graphics\[color_row0\s*>>\s*1\]\s*&\s*0x0f\]/ &&
+$install_frames_body =~ /game_player1_graphics\s*:=\s*sprite_frames_3/
+   or die "install_frames no longer uses readable VCSC table/pointer selection\n";
 $source_text =~ /alias\s+VCS_PLAYER_COLOR_192_MUTABLE_COLORS\s+1/
    or die "animated gallery no longer requests mutable renderer color tables\n";
 $source_text =~ /most frequent nontransparent color wins/ &&

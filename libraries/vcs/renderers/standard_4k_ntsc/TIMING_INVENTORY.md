@@ -20,10 +20,10 @@ Current linked layout
 ---------------------
 
 The retained static fixture baseline map places `RENDERER_CODE` at
-`$F300..$F5FF` (size `$0300`), `RENDERER_RODATA` at `$F600..$F657` (size `$0058`),
+`$F200..$F4FF` (size `$0300`), `RENDERER_RODATA` at `$F500..$F557` (size `$0058`),
 and the immutable 48-byte playfield at `$F100..$F12F`.  The source presently has
 page anchors before the main visible loop, last-line renderer, score loop, and
-score table.  These addresses are observations, not new ABI guarantees.
+score table.  These addresses are observations, not new ABI guarantees; the static regression locks the page-alignment and relative component layout rather than these absolute pages.
 
 Inventory summary
 -----------------

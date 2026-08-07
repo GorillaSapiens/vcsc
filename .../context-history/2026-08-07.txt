@@ -1,0 +1,9 @@
+
+2026-08-07 00:56:36 PDT, High-level animated-frame installation and example assembly policy
+
+- Replaced the animated gallery frame installer and adjacent animation transition lookup with ordinary VCSC while preserving all frame hashes, controls, pointer installation, and exact 262-line behavior.
+- Added reusable compact compiler lowering for direct table/pointer operations and proven small counted loops, with explicit fallbacks for unsafe indirect stores and ref-array formals.
+- Audited and hash-pinned remaining example assembly by beam-critical, hardware-idiom, and documented compiler/language-limitation categories.
+- Final gallery accounting is 110/128 RAM bytes and 3969/4090 ordinary ROM bytes, leaving 18 RAM bytes and 121 ordinary ROM bytes free; the high-level frame installer uses zero activation bytes.
+- Rejected a shorter ordinary comparison branch after exact renderer tests exposed a one-scanline VBLANK shift; page-aligned standard-renderer placement remains timing-correct even when its absolute linked page moves.
+- Verified 442 compile-only tests and 255 end-to-end tests.

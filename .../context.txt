@@ -279,15 +279,16 @@ When removing or changing a feature:
 
 The current completely verified baseline is:
 
-    compile-only:             439 passed
-    end-to-end/generic:       254 passed
+    compile-only:             442 passed
+    end-to-end/generic:       255 passed
     staged installed tools:   previously passed, including all final cartridge builds
 
-RAM-roadmap item 3 was verified against all 439 compile-only tests and all 254
-end-to-end tests. The end-to-end inventory was executed in ordered capped batches
-because the container imposes a hard wall-clock limit on one monolithic command;
-every listed case ran and passed. Exact raster, event-trace, frame-length,
-bankswitching, installed-profile, and source-hygiene coverage remain active.
+The active RAM work has been verified against all 442 compile-only tests and all
+255 end-to-end tests. The end-to-end inventory is executed in ordered capped
+batches because the container imposes a hard wall-clock limit on one monolithic
+command; every listed case must run and pass. Exact raster, event-trace, frame-
+length, bankswitching, installed-profile, assembly-policy, and source-hygiene
+coverage remain active.
 
 Compact unsigned-byte lowering shortened the compiler-generated tail after a
 final WSYNC by nineteen cycles. Generic `vcs_ntsc_wait_scanlines()` intentionally
@@ -316,33 +317,40 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization items 0-3 are complete. Compiler-owned expression scratch is
-lifetime-colored across the complete runtime activation owner, and ordinary
-directly addressable unsigned-byte state now uses compact lowering for constant
-updates, unit increment/decrement, copy-plus/minus-constant assignment, logical-
-not assignment, truth/mask tests, and constant comparisons. Packed-BCD, signed,
-indirect, bitfield, and absolute-external side-effect cases retain their required
-general or hardware-safe paths.
+RAM-optimization work through the high-level animated-frame installer is complete.
+Compiler-owned expression scratch is lifetime-colored across the complete runtime
+activation owner, ordinary directly addressable unsigned-byte state uses compact
+lowering, and the compiler now has narrow reusable table/pointer lowering for array
+decay, pointer-plus-byte offsets, indexed one-byte loads/stores, constant masks and
+shifts, and proven small unsigned-byte counted loops. Unsafe counted-loop bodies fall
+back to materialized locals rather than reserving X. Ordinary unsigned-byte comparisons
+deliberately retain their established control-flow shape: a shorter branch form was
+rejected after it moved scheduler-owned VBLANK work by one scanline.
 
-The animated gallery's authoritative schema-3 report records a two-byte `main`
-activation: one scheduler inline parameter plus one one-byte VSYNC scratch slot.
-Both `next_pair()` expansions allocate zero expression scratch. Total RIOT RAM is
-110/128 bytes—102 object bytes plus the eight-byte hardware-stack reservation—
-leaving 18 bytes free. ROM is 3662/4090 bytes, leaving 428 bytes free. Relative
-to the item-2 baseline, item 3 saves five RAM bytes and 331 ROM bytes.
+The standard 4K renderer component remains page-aligned and internally unchanged, but
+its absolute linked page may move when surrounding application code shrinks. The static
+timing baseline records the current `$F200/$F500` placement as an observation, not an
+ABI guarantee, and tests enforce page alignment, relative component layout, and exact
+raster/phase behavior instead of those absolute pages.
 
-The completed compiler change passes all 439 compile-only tests and all 254
-end-to-end tests. A post-item-3 regression repair restored the public basic
-score/fingerprint/wide-score timing after the shorter byte loop exposed their
-implicit nineteen-cycle dependency. Timing-sensitive fixtures retain the
-historical component-entry phases, exact Stella pixels, terminal-WSYNC, HMOVE,
-and frame-length oracles.
+The animated gallery's authoritative schema-4 report records a two-byte `main`
+activation and zero `install_frames()` activation bytes. Both `next_pair()` expansions
+allocate zero expression scratch. Total RIOT RAM remains 110/128 bytes—102 object
+bytes plus the eight-byte hardware-stack reservation—leaving 18 bytes free. The now
+high-level `install_frames()` raises ordinary ROM from 3662 to 3969/4090 bytes, leaving
+121 bytes free, while preserving all source bitmap/color hashes, animation/control
+behavior, pointer installation, and exact 262-line frames.
 
-The next RAM-optimization item is 4: rewrite `install_frames()` as ordinary VCSC
-while establishing the project-wide minimal-assembly example policy. Add only
-the compiler lowering genuinely needed by that high-level implementation, keep
-beam-critical assembly where it is actually justified, and preserve the current
-RAM/accounting and complete animation/color/control/frame oracles.
+Public-example assembly is now audited by `test/example_assembly_allowlist.pl`: every
+remaining source/statement set is hash-pinned and classified as beam-critical, a
+direct hardware idiom, a documented compiler/language limitation, or a combination.
+The remaining ordinary-logic debt has a named future roadmap entry; new assembly
+cannot silently enter examples without changing the audited inventory.
+
+The next RAM-optimization task is to overlay scratch across VSYNC, VBLANK, visible
+draw, and overscan phases only where explicit contracts prove the lifetimes cannot
+overlap. Preserve persistent next-frame inputs and add negative tests for genuinely
+overlapping phase objects.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

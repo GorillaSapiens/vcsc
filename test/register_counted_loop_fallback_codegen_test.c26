@@ -1,0 +1,19 @@
+// vcsc-cc1 -I .
+// expectasmordered: main$i:
+// expectasmordered: lda.a main$i
+// expectasmordered: cmp #$08
+// expectasmordered: lda main$i,y
+// expectasmordered: sta ptr0
+// forbidasm: ldx #$00
+
+include "machine_6502.c26"
+
+uint8_t *p;
+
+void main(void) {
+   // Pointer-target stores need the general indirect-lvalue path, so this loop
+   // must not claim X for i: that path is allowed to clobber X internally.
+   for (uint8_t i := 0; i < 8; i += 2) {
+      p[i] := i;
+   }
+}

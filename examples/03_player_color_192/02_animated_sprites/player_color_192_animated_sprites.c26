@@ -1547,165 +1547,88 @@ const uint8_t animation_phase_next[16] := {
 };
 
 void install_frames(void) {
-   // The packed row-color tables use sixteen bytes per animation set: four
-   // bytes per frame, with two source palette indices in each byte. Reuse the
-   // renderer graphics pointers as temporary color-data pointers so this keeps
-   // the existing zero-RAM-overhead selection contract.
+   // Select the packed row-color page, then advance to this sprite/frame.
+   if (sprite0 < 16) {
+      game_player0_graphics := sprite_row_colors_0;
+   }
+   else {
+      game_player0_graphics := sprite_row_colors_1;
+   }
+   game_player0_graphics += (sprite0 & 0x0f) << 4;
+   game_player0_graphics += (animation_frame & 0x03) << 2;
 
-   asm lda.z sprite0;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta.z game_player0_graphics;
-   asm lda.z animation_frame;
-   asm and #$03;
-   asm asl;
-   asm asl;
-   asm ora.z game_player0_graphics;
-   asm sta.z game_player0_graphics;
-   asm lda.z sprite0;
-   asm cmp #16;
-   asm bcc @p0_color_page0;
-   asm lda #>sprite_row_colors_1;
-   asm jmp @p0_color_page_done;
-   asm @p0_color_page0:;
-   asm lda #>sprite_row_colors_0;
-   asm @p0_color_page_done:;
-   asm sta.z game_player0_graphics + 1;
+   // Four packed bytes expand to the renderer's eight per-row TIA colors.
+   for (uint8_t color_row0 := 0; color_row0 < 8; color_row0 += 2) {
+      game_player0_colors[color_row0] :=
+         pico8_tia_palette[game_player0_graphics[color_row0 >> 1] & 0x0f];
+      game_player0_colors[color_row0 + 1] :=
+         pico8_tia_palette[game_player0_graphics[color_row0 >> 1] >> 4];
+   }
 
-   asm ldx #0;
-   asm @p0_expand_colors:;
-   asm txa;
-   asm lsr;
-   asm tay;
-   asm lda.iy (game_player0_graphics),y;
-   asm and #$0f;
-   asm tay;
-   asm lda.ay pico8_tia_palette,y;
-   asm sta.ax game_player0_colors,x;
-   asm inx;
-   asm txa;
-   asm lsr;
-   asm tay;
-   asm lda.iy (game_player0_graphics),y;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm tay;
-   asm lda.ay pico8_tia_palette,y;
-   asm sta.ax game_player0_colors,x;
-   asm inx;
-   asm cpx #8;
-   asm bne @p0_expand_colors;
+   // Install the selected eight-byte bitmap frame.
+   if (sprite0 < 8) {
+      game_player0_graphics := sprite_frames_0;
+   }
+   else {
+      if (sprite0 < 16) {
+         game_player0_graphics := sprite_frames_1;
+      }
+      else {
+         if (sprite0 < 24) {
+            game_player0_graphics := sprite_frames_2;
+         }
+         else {
+            game_player0_graphics := sprite_frames_3;
+         }
+      }
+   }
+   game_player0_graphics += (sprite0 & 0x07) << 5;
+   game_player0_graphics += (animation_frame & 0x03) << 3;
 
-   // The graphics low byte is exactly twice the packed-color low byte.
-   asm lda.z game_player0_graphics;
-   asm asl;
-   asm sta.z game_player0_graphics;
-   asm lda.z sprite0;
-   asm cmp #8;
-   asm bcc @p0_page0;
-   asm cmp #16;
-   asm bcc @p0_page1;
-   asm cmp #24;
-   asm bcc @p0_page2;
-   asm lda #>sprite_frames_3;
-   asm jmp @p0_page_done;
-   asm @p0_page0:;
-   asm lda #>sprite_frames_0;
-   asm jmp @p0_page_done;
-   asm @p0_page1:;
-   asm lda #>sprite_frames_1;
-   asm jmp @p0_page_done;
-   asm @p0_page2:;
-   asm lda #>sprite_frames_2;
-   asm @p0_page_done:;
-   asm sta.z game_player0_graphics + 1;
+   if (sprite1 < 16) {
+      game_player1_graphics := sprite_row_colors_0;
+   }
+   else {
+      game_player1_graphics := sprite_row_colors_1;
+   }
+   game_player1_graphics += (sprite1 & 0x0f) << 4;
+   if (sprite1 == THREE_FRAME_SET) {
+      game_player1_graphics += (animation_frame >> 2) << 2;
+   }
+   else {
+      game_player1_graphics += (animation_frame & 0x03) << 2;
+   }
 
-   asm lda.z sprite1;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta.z game_player1_graphics;
-   asm lda.z sprite1;
-   asm cmp #3;
-   asm bne @p1_color_four_frame;
-   // Bits 2..3 are set 03's independent modulo-3 counter.
-   asm lda.z animation_frame;
-   asm lsr;
-   asm lsr;
-   asm jmp @p1_color_frame_ready;
-   asm @p1_color_four_frame:;
-   asm lda.z animation_frame;
-   asm and #$03;
-   asm @p1_color_frame_ready:;
-   asm asl;
-   asm asl;
-   asm ora.z game_player1_graphics;
-   asm sta.z game_player1_graphics;
-   asm lda.z sprite1;
-   asm cmp #16;
-   asm bcc @p1_color_page0;
-   asm lda #>sprite_row_colors_1;
-   asm jmp @p1_color_page_done;
-   asm @p1_color_page0:;
-   asm lda #>sprite_row_colors_0;
-   asm @p1_color_page_done:;
-   asm sta.z game_player1_graphics + 1;
+   for (uint8_t color_row1 := 0; color_row1 < 8; color_row1 += 2) {
+      game_player1_colors[color_row1] :=
+         pico8_tia_palette[game_player1_graphics[color_row1 >> 1] & 0x0f];
+      game_player1_colors[color_row1 + 1] :=
+         pico8_tia_palette[game_player1_graphics[color_row1 >> 1] >> 4];
+   }
 
-   asm ldx #0;
-   asm @p1_expand_colors:;
-   asm txa;
-   asm lsr;
-   asm tay;
-   asm lda.iy (game_player1_graphics),y;
-   asm and #$0f;
-   asm tay;
-   asm lda.ay pico8_tia_palette,y;
-   asm sta.ax game_player1_colors,x;
-   asm inx;
-   asm txa;
-   asm lsr;
-   asm tay;
-   asm lda.iy (game_player1_graphics),y;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm tay;
-   asm lda.ay pico8_tia_palette,y;
-   asm sta.ax game_player1_colors,x;
-   asm inx;
-   asm cpx #8;
-   asm bne @p1_expand_colors;
-
-   asm lda.z game_player1_graphics;
-   asm asl;
-   asm sta.z game_player1_graphics;
-   asm lda.z sprite1;
-   asm cmp #8;
-   asm bcc @p1_page0;
-   asm cmp #16;
-   asm bcc @p1_page1;
-   asm cmp #24;
-   asm bcc @p1_page2;
-   asm lda #>sprite_frames_3;
-   asm jmp @p1_page_done;
-   asm @p1_page0:;
-   asm lda #>sprite_frames_0;
-   asm jmp @p1_page_done;
-   asm @p1_page1:;
-   asm lda #>sprite_frames_1;
-   asm jmp @p1_page_done;
-   asm @p1_page2:;
-   asm lda #>sprite_frames_2;
-   asm @p1_page_done:;
-   asm sta.z game_player1_graphics + 1;
+   if (sprite1 < 8) {
+      game_player1_graphics := sprite_frames_0;
+   }
+   else {
+      if (sprite1 < 16) {
+         game_player1_graphics := sprite_frames_1;
+      }
+      else {
+         if (sprite1 < 24) {
+            game_player1_graphics := sprite_frames_2;
+         }
+         else {
+            game_player1_graphics := sprite_frames_3;
+         }
+      }
+   }
+   game_player1_graphics += (sprite1 & 0x07) << 5;
+   if (sprite1 == THREE_FRAME_SET) {
+      game_player1_graphics += (animation_frame >> 2) << 3;
+   }
+   else {
+      game_player1_graphics += (animation_frame & 0x03) << 3;
+   }
 }
 
 inline void next_pair(void) {
@@ -1731,9 +1654,7 @@ inline void update_animation(void) {
          if (animation_clock >= FRAME_HOLD) {
             animation_clock := 0;
             // Advance the packed modulo-4/modulo-3 phases together.
-            asm ldx.z animation_frame;
-            asm lda.ax animation_phase_next,x;
-            asm sta.z animation_frame;
+            animation_frame := animation_phase_next[animation_frame];
             install_frames();
          }
       }

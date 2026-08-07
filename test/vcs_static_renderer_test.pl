@@ -87,16 +87,22 @@ for my $v ($nmi,$irq) {
 }
 
 my $map=read_file($mapfile);
-require_re($map,qr/^\s*RENDERER_CODE\s+load=\$F300\s+size=\$0300\b/m,
-   'renderer code is not fixed at the page-aligned F300..F5FF window');
-require_re($map,qr/^\s*RENDERER_RODATA\s+load=\$F600\s+size=\$0058\b/m,
-   'score table is not fixed at the page-aligned F600 window');
+$map =~ /^\s*RENDERER_CODE\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0300\b/m
+   or die "renderer code lost its three-page component window\n";
+my $renderer_load=hex($1);
+($renderer_load & 0xff)==0
+   or die sprintf("renderer code is not page-aligned at %04X\n",$renderer_load);
+$map =~ /^\s*RENDERER_RODATA\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0058\b/m
+   or die "score table lost its component window\n";
+my $renderer_rodata_load=hex($1);
+($renderer_rodata_load & 0xff)==0 && $renderer_rodata_load==$renderer_load+0x300
+   or die sprintf("score table is not page-aligned immediately after renderer code at %04X\n",$renderer_rodata_load);
 require_re($map,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
    'map lost the standard renderer hook-aware stack allowance');
-map_symbol($map,'vcs_standard_renderer_drawscreen')==0xf300
-   or die "standard renderer entry moved from F300\n";
-map_symbol($map,'vcs_standard_score_table')==0xf600
-   or die "score table moved from F600\n";
+map_symbol($map,'vcs_standard_renderer_drawscreen')==$renderer_load
+   or die "standard renderer entry does not match its component load address\n";
+map_symbol($map,'vcs_standard_score_table')==$renderer_rodata_load
+   or die "score table does not match its component load address\n";
 my $playfield=map_symbol($map,'vcs_standard_playfield');
 (($playfield & 0xff) <= 0xd0 && ($playfield >> 8)==(($playfield+47) >> 8))
    or die sprintf("ROM playfield crosses a page at %04X\n",$playfield);
@@ -164,7 +170,7 @@ require_re($src,
    'static scene no longer reapplies volatile TIA geometry before each deterministic draw');
 
 # Lock the imported zero-page addends used by the six-digit score pipeline.
-my $renderer_bytes=substr($rom,0x300,0x300);
+my $renderer_bytes=substr($rom,$renderer_load-0xf000,0x300);
 for my $pattern (
    "\xB1\x9F", "\xB1\xA1", "\xB1\xA3",
    "\xB1\xA5", "\xB1\xA7", "\xB1\xA9") {

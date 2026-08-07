@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, direct byte lowering, and hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -71,10 +71,14 @@ without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote out
 -s $bin==4096 or die "animated gallery is not a 4K cartridge\n";
 my $map=read_file($mapfile);
 my $asm=read_file($assembly);
-$map =~ /rom\s+used=3662 bytes .*free=428 bytes/
-   or die "3662-byte compact-lowering ROM result changed\n";
+$map =~ /rom\s+used=3969 bytes .*free=121 bytes/
+   or die "3969-byte high-level frame-installation ROM result changed\n";
 $map =~ /ram\s+used=110 bytes .*free=18 bytes .*objects=102 bytes hardware-stack=8 bytes/
    or die "110-byte compact-lowering RAM result changed\n";
+$map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$021C/m
+   or die "high-level install_frames code size changed from 540 bytes\n";
+$map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
+   or die "high-level install_frames unexpectedly gained activation RAM\n";
 
 my %layouts;
 while ($map =~ /^\s+(?:BSS|DATA)\.__vcsc_object\$(\S+)\s+[^\n]*?run=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/mg) {
@@ -208,10 +212,10 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>3,
+   schema=>4,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3662, rom_free_bytes=>428,
+      rom_bytes=>3969, rom_free_bytes=>121,
       ram_bytes=>110, free_ram_bytes=>18, object_bytes=>102, hardware_stack_bytes=>8,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -233,6 +237,13 @@ my $report={
          ram_saved_bytes=>5, free_ram_gained_bytes=>5,
          previous_rom_bytes=>3993, rom_bytes=>3662, rom_saved_bytes=>331,
       },
+      high_level_install_frames=>{
+         handwritten_assembly_bytes=>236, high_level_code_bytes=>540,
+         previous_rom_bytes=>3662, rom_bytes=>3969, rom_added_bytes=>307,
+         previous_ram_bytes=>110, ram_bytes=>110, ram_added_bytes=>0,
+         previous_free_ram_bytes=>18, free_ram_bytes=>18,
+         activation_bytes=>0, rom_free_bytes=>121,
+      },
    },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
@@ -251,4 +262,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, direct byte lowering, and hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 2 main-activation bytes, 18 free bytes, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";

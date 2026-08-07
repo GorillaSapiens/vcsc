@@ -1,0 +1,80 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda.a sprite
+// expectasmordered: cmp #$10
+// expectasmordered: bcc @u8_lt_true_
+// expectasmordered: jmp @if_false_
+// expectasmordered: lda #<{rows0 + 0}
+// expectasmordered: sta.a p + 0
+// expectasmordered: lda #>{rows0 + 0}
+// expectasmordered: sta.a p + 1
+// expectasmordered: jmp @if_end_
+// expectasmordered: lda #<{rows1 + 0}
+// expectasmordered: sta.a p + 0
+// expectasmordered: lda #>{rows1 + 0}
+// expectasmordered: sta.a p + 1
+// expectasmordered: lda.a sprite
+// expectasmordered: and #$0f
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: clc
+// expectasmordered: adc.a p + 0
+// expectasmordered: sta.a p + 0
+// expectasmordered: lda.a sprite
+// expectasmordered: tay
+// expectasmordered: lda.ay transition,y
+// expectasmordered: sta.a sprite
+// expectasmordered: ldx #$00
+// expectasmordered: @for_start_
+// expectasmordered: cpx #$08
+// expectasmordered: bcs @for_end_
+// expectasmordered: txa
+// expectasmordered: lsr
+// expectasmordered: tay
+// expectasmordered: lda.iy (p),y
+// expectasmordered: and #$0f
+// expectasmordered: tay
+// expectasmordered: lda.ay palette,y
+// expectasmordered: sta.ax out,x
+// expectasmordered: txa
+// expectasmordered: lsr
+// expectasmordered: tay
+// expectasmordered: lda.iy (p),y
+// expectasmordered: lsr
+// expectasmordered: lsr
+// expectasmordered: lsr
+// expectasmordered: lsr
+// expectasmordered: tay
+// expectasmordered: lda.ay palette,y
+// expectasmordered: inx
+// expectasmordered: sta.ax out,x
+// expectasmordered: dex
+// expectasmordered: @for_step_
+// expectasmordered: inx
+// expectasmordered: inx
+// expectasmordered: jmp @for_start_
+// forbidasm: __vcsc_scratch_
+// forbidasm: main$i
+// forbidasm: sta ptr0
+
+include "machine_6502.c26"
+
+const uint8_t rows0[256] := {0};
+const uint8_t rows1[256] := {0};
+const uint8_t transition[16] := {0};
+const uint8_t palette[16] := {0};
+uint8_t *p;
+uint8_t sprite;
+uint8_t out[8];
+
+void main(void) {
+   if (sprite < 16) { p := rows0; }
+   else { p := rows1; }
+   p += (sprite & 0x0f) << 4;
+   sprite := transition[sprite];
+   for (uint8_t i := 0; i < 8; i += 2) {
+      out[i] := palette[p[i >> 1] & 0x0f];
+      out[i + 1] := palette[p[i >> 1] >> 4];
+   }
+}

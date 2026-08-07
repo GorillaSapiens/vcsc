@@ -811,10 +811,11 @@ every physical RIOT address `$80-$FF`, pins the lifetime-overlaid two-byte
 `main` activation and eighteen-byte free gap, records all `-X scratch`
 scope/lifetime-group diagnostics, proves both sequential `next_pair()` expansions
 allocate zero expression scratch, and checks the linker's source-call edges,
-deepest path, and `.callstackextra` contribution. Schema 3 also records item 3's
-seven-to-two-byte activation reduction, five-byte total RAM saving, and
-3993-to-3662-byte ROM reduction. The separate animation emulator test remains
-the behavioral/frame oracle.
+deepest path, and `.callstackextra` contribution. Schema 4 retains the compact-byte
+lowering history and also pins the assembly-to-high-level `install_frames()` change:
+110 RAM bytes and an unchanged two-byte `main` activation, zero `install_frames()`
+activation bytes, 3969 ordinary ROM bytes, and 121 ordinary ROM bytes free. The
+separate animation emulator test remains the behavioral/frame oracle.
 
 `direct_u8_state_update_codegen_test.c26` locks exact direct assembly for ordinary
 unsigned-byte constant updates, unit increment/decrement, copy-plus/minus-
@@ -822,6 +823,31 @@ constant assignment, logical-not assignment, truth/mask tests, and constant
 comparisons. It forbids generic expression-scratch symbols and Y setup.
 `e2e_direct_u8_state_update_verify.c26` executes the corresponding wraparound,
 mask, comparison, truth, and logical-not behavior in `vcsc-sim`.
+
+`compact_u8_table_loop_codegen_test.c26` pins the compiler path needed by the
+animated gallery's high-level frame installer: conditional ROM-page selection, direct
+array-to-pointer assignment, pointer-plus-byte-offset arithmetic, indexed const-table
+loads, nibble masks/shifts, a register-backed two-at-a-time byte loop, and indexed
+byte-array stores. It forbids expression scratch and a materialized loop-local object.
+The independent animated-gallery emulator exercises the same operations with the full
+source assets.
+
+`register_counted_loop_fallback_codegen_test.c26` is the safety counterpart: a
+counted loop whose body performs a general indirect pointer store must materialize
+its loop local instead of reserving X, preventing the compact path from silently
+claiming a register the body can clobber.
+
+`direct_u8_ref_array_fallback_codegen_test.c26` prevents a ref-array formal from
+being mistaken for directly allocated array storage. Its source declarator retains
+array shape, but the runtime object is pointer-backed, so stores must use the normal
+indirect lvalue path.
+
+`example_assembly_allowlist.pl` audits every `.c26` under `examples/`. The compact TSV
+fixture pins the normalized assembly statements for each source by count and SHA-256,
+classifies each use as beam-critical, a direct hardware idiom, compiler-limitation
+debt, or a combination, and requires focused existing regressions for every debt
+entry. Any added or changed example assembly therefore requires an explicit policy
+review rather than silently becoming ordinary application logic.
 
 `scratch_lifetime_overlay.pl` executes a generic 6502 fixture covering sequential
 expressions, mutually exclusive branches, a loop, three repeated inline
