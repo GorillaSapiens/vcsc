@@ -25,6 +25,8 @@ Guiding rules
 * Distinguish persistent application state, renderer-owned state, expression
   scratch, activation storage, and hardware-return-stack reservation.
 * Prefer whole-program lifetime reuse over hand-written assembly in examples.
+* Public examples should contain little or no assembly; ordinary application logic
+  must exercise the high-level language and drive compiler improvements.
 * Do not remove Ball support from the existing player-color renderers merely to
   make this gallery fit. First complete the compiler scratch work and remeasure.
 * Keep the 181-line and 192-line public renderer contracts stable unless a new
@@ -77,6 +79,26 @@ writes it during VBLANK and shifts it in place during drawing. A different
 representation or renderer schedule could reduce it, but that is a renderer
 redesign and must be proven against the beam.
 
+What the faithful legacy renderer proves
+----------------------------------------
+The retained faithful legacy player-color renderer supports arbitrary P0, P1,
+and Ball Y positions and heights without `game_object_masks` or any equivalent
+48-byte object schedule. During visible drawing it destructively counts the
+three object Y values down, compares them directly with their heights, and emits
+`GRP0`, `GRP1`, and `ENABL` from those live counters. It saves the public Y
+values before drawing and restores them afterward.
+
+That implementation uses unofficial `DCP` instructions and has other legacy
+constraints, so it cannot simply replace the maintained official renderer.
+Nevertheless, it proves that arbitrary P0/P1/Ball vertical positioning does not
+inherently require a 48-byte RAM schedule. The maintained renderer's array is an
+implementation choice, not a TIA requirement.
+
+A serious redesign must therefore investigate an official-opcode direct-countdown
+schedule before deleting Ball support. The result must preserve the maintained
+renderer lifecycle, composable handoff, ROM playfield, per-row player colors,
+legal-opcode contract, arbitrary object positions/heights, and exact beam timing.
+
 Why `main` owns twenty scratch bytes
 ------------------------------------
 The animated gallery's current `main` activation record includes approximately:
@@ -118,6 +140,34 @@ Inlining everything is not automatically correct. `install_frames()` is large
 and called repeatedly; blindly duplicating it would waste ROM and may overflow
 4K. Stack reduction must use measured whole-program inlining, helper flattening,
 or renderer redesign only when the linked result improves.
+
+Why `install_frames()` is full of assembly
+------------------------------------------
+`install_frames()` is not beam-critical renderer code. It runs during startup or
+outside visible drawing and performs ordinary data work:
+
+* choose one of the hard ROM pages for each player's bitmap;
+* compute the selected frame offset;
+* choose the packed row-color page;
+* unpack two four-bit source palette indices from each byte;
+* translate those indices through `pico8_tia_palette`;
+* fill the two eight-byte mutable player-color tables; and
+* install the two graphics pointers.
+
+That work is written in assembly because the current compiler makes the obvious
+high-level formulation too expensive. Dynamic pointer/page selection, pointer
+arithmetic, indexed ROM loads, nibble extraction, and small loops currently
+produce excessive generic expression scratch and/or larger code. The cartridge
+was already close to both its 4K ROM and 128-byte RAM ceilings, so the example
+used hand-written 6502 to control every byte. Keeping the routine out of line was
+then necessary to avoid duplicating the large body at each call site.
+
+This is an implementation failure, not a timing requirement. Examples exist to
+show users how to write VCSC programs; ordinary startup, animation, table lookup,
+and color-expansion logic should be VCSC source. Assembly in examples should be
+reserved for genuinely cycle-exact TIA sequences, explicit hardware idioms not
+yet expressible by the language, or narrowly documented compiler gaps that have
+an associated roadmap item and regression.
 
 Ordered roadmap
 ---------------
@@ -206,7 +256,37 @@ Ordered roadmap
       source evaluation semantics.
     * Add exact assembly and zero/additional-scratch regressions.
 
-[ ] 4. Overlay scratch across frame phases when contracts prove the lifetimes do
+[ ] 4. Make `install_frames()` ordinary VCSC and establish a minimal-assembly
+        example policy.
+
+    * Express bitmap-page selection, frame-offset calculation, packed color
+      lookup, nibble extraction, palette translation, color-table expansion,
+      and graphics-pointer installation in the high-level language.
+    * Add or improve compiler lowering for the exact missing pieces rather than
+      hiding them in one example: efficient ROM pointer selection, pointer-plus-
+      byte-offset arithmetic, indexed const loads, direct nibble extraction,
+      compact counted loops, and byte-array stores.
+    * Combine this work with items 1-3 so the high-level implementation does not
+      consume more activation scratch than the hand-written routine.
+    * Keep `install_frames()` out of line unless whole-program measurement proves
+      inlining wins. High-level source does not imply textual duplication.
+    * Audit all public examples. Assembly should be absent unless it is genuinely
+      beam-critical, a direct hardware idiom, or a documented language/compiler
+      limitation with a focused test and roadmap entry.
+    * Add an example-source assembly inventory/allowlist so ordinary application
+      logic cannot quietly migrate back into large `asm` blocks.
+
+    Acceptance criteria:
+
+    * The animated gallery contains no assembly in `install_frames()`.
+    * Generated behavior, all source bitmap/color hashes, controls, and exact
+      262-line frames remain unchanged.
+    * Final linked ROM fits the supported cartridge profile and activation RAM is
+      no larger than the assembly version after items 1-3.
+    * The source is readable as an example of VCSC table and pointer operations,
+      not as a disguised assembly program.
+
+[ ] 5. Overlay scratch across frame phases when contracts prove the lifetimes do
         not overlap.
 
     * Describe VSYNC, VBLANK, visible draw, and overscan ownership for reusable
@@ -219,7 +299,7 @@ Ordered roadmap
     * Prefer compiler/linker metadata over example-specific absolute aliases.
     * Add negative tests for phase objects whose lifetimes really do overlap.
 
-[ ] 5. Reduce the gallery's persistent bookkeeping without changing behavior.
+[ ] 6. Reduce the gallery's persistent bookkeeping without changing behavior.
 
     * Derive `sprite1` from `sprite0` unless storing both is measurably smaller in
       ROM or faster within the frame budget.
@@ -230,7 +310,7 @@ Ordered roadmap
       phase and preserve all controls.
     * Do not move persistent state into undocumented renderer scratch.
 
-[ ] 6. Reduce hardware-stack reservation by measurement, not by blanket inlining.
+[ ] 7. Reduce hardware-stack reservation by measurement, not by blanket inlining.
 
     * Report source calls and hidden assembly JSR depth separately in the map.
     * Evaluate flattening `prepare_one`/`set_range`, tail-jumping, or converting
@@ -243,20 +323,39 @@ Ordered roadmap
       do not rely on an ABI accident.
     * Keep the linker hardware-stack calculation conservative and exact.
 
-[ ] 7. Remeasure the animated gallery on the existing P0/P1/Ball renderer after
+[ ] 8. Remeasure the animated gallery on the existing P0/P1/Ball renderer after
         compiler and application-state optimization.
 
     * Retain Ball capability in `player_color_192` even though this particular
       gallery sets Ball height to zero.
-    * Determine whether items 1-6 recover enough RAM for useful game state while
+    * Determine whether items 1-7 recover enough RAM for useful game state while
       preserving the current general renderer.
     * Record ROM, RAM, activation, and stack deltas item by item.
     * Do not create a gallery-only renderer merely because it is easy.
 
-[ ] 8. Investigate a more compact Ball/object schedule without removing Ball.
+[ ] 9. Replace or redesign `game_object_masks` using an official-opcode direct-
+        countdown technique derived from the faithful legacy renderer.
 
-    * Separate the twelve meaningful Ball-mask bytes from VBLANK-only range
-      generation temporaries and P0/P1 threshold values.
+    * Start from the proven fact that the faithful renderer handles arbitrary P0,
+      P1, and Ball vertical positions without a 48-byte object schedule.
+    * Design an official-opcode visible-loop schedule that counts object Y state
+      directly, compares against heights, and restores public state after draw.
+    * Preserve the maintained renderer's ROM playfield, per-row P0/P1 colors,
+      arbitrary positions/heights, component lifecycle, handoff behavior, and
+      exact 192-line/262-line timing.
+    * Do not import unofficial `DCP` merely because it makes the schedule easy;
+      an unofficial-opcode variant may be measured separately but cannot silently
+      replace the official renderer.
+    * Compare RAM, ROM, VBLANK cost, visible cycles, and hardware-stack depth with
+      the current mask-based renderer.
+    * Add exact raster and edge-position regressions before considering removal of
+      the existing implementation.
+
+[ ] 10. Investigate a more compact Ball/object schedule without removing Ball.
+
+    * If direct countdown cannot satisfy the official-opcode schedule, separate
+      the twelve meaningful Ball-mask bytes from VBLANK-only range-generation
+      temporaries and P0/P1 threshold values.
     * Explore compact schedules, ROM-assisted start/end masks, on-the-fly row
       generation, alternate X/index choreography, or a small unpacked visible
       cache.
@@ -266,8 +365,8 @@ Ordered roadmap
     * Preserve arbitrary P0/P1/Ball Y positions and heights if this remains a
       general player-color renderer optimization.
 
-[ ] 9. Only if a generally useful capability split is still justified, create a
-        192-line two-sprite-only renderer.
+[ ] 11. Only if a generally useful capability split is still justified, create a
+         192-line two-sprite-only renderer.
 
     * This is a new maintained renderer profile, not a silent weakening of
       `player_color_192`.
@@ -277,10 +376,10 @@ Ordered roadmap
       work deliberately and document the RAM/ROM/timing savings.
     * Provide interactive examples and independent raster/timing/install tests.
 
-[ ] 10. Only if a generally useful capability split is still justified, create an
+[ ] 12. Only if a generally useful capability split is still justified, create an
          181-line two-sprite-only renderer.
 
-    * This is the score-composable counterpart to item 9.
+    * This is the score-composable counterpart to item 11.
     * Preserve the 181-line renderer's score-above/score-below handoff contracts,
       arbitrary P0/P1 positioning, per-row colors, playfield timing, and exact
       262-line frame behavior.
@@ -289,13 +388,14 @@ Ordered roadmap
     * Do not fork shared timing logic unnecessarily; derive it from the proven
       maintained 181-line renderer schedule.
 
-[ ] 11. Establish completion gates and choose the retained architecture.
+[ ] 13. Establish completion gates and choose the retained architecture.
 
     * The optimized gallery must have meaningful free RAM for application/game
       state; merely reaching 128/128 again is failure.
     * Publish before/after maps and identify savings from expression lifetime
-      overlay, inline scratch sharing, compact lowering, persistent-state packing,
-      stack depth, and any renderer change separately.
+      overlay, inline scratch sharing, compact lowering, high-level example
+      conversion, persistent-state packing, stack depth, and any renderer change
+      separately.
     * Keep existing public renderer binaries/raster behavior stable unless a
       change is explicitly accepted as a renderer fix.
     * Run the complete compile-only and end-to-end suites, staged installation,
@@ -313,7 +413,16 @@ Ball support must be removed. Those compiler changes are likely to benefit many
 VCSC programs, especially non-returning frame loops, and may make the existing
 three-object renderer entirely practical for this gallery.
 
+The faithful legacy renderer proves that arbitrary P0/P1/Ball vertical motion can
+also be implemented without a 48-byte object schedule. An official-opcode direct-
+countdown redesign should therefore be attempted before deleting Ball support.
+
+The animated gallery's ordinary data-selection and color-expansion code should
+also return to high-level VCSC once compiler lowering and scratch allocation make
+that practical. A compiler project whose examples become assembly programs has
+missed the point.
+
 A two-sprite-only renderer can still be valuable as an intentional low-RAM
 profile, but it should be justified as a reusable capability choice after the
-compiler stops wasting scratch—not used as camouflage for the compiler's current
-allocation behavior.
+compiler stops wasting scratch and after direct countdown is measured—not used
+as camouflage for either problem.

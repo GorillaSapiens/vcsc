@@ -293,3 +293,15 @@ optional renderer fallback is split into explicit maintained 192-line and
 remeasured after compiler optimization before either is justified. Added the
 focused-roadmap pointers to `.../README.md` and compact context without changing
 the active main-roadmap item.
+
+2026-08-06 19:12:08 PDT, expand RAM roadmap with direct countdown and high-level example goals
+--------------------------------------------------------------------------------
+* Record that the faithful legacy player-color renderer supports arbitrary P0,
+  P1, and Ball vertical positioning without `game_object_masks`, proving the
+  maintained renderer's 48-byte schedule is an implementation choice rather
+  than a TIA requirement. Add an official-opcode direct-countdown redesign item
+  ahead of the optional two-sprite-only renderer profiles.
+* Explain that the animated gallery's `install_frames()` assembly is ordinary
+  startup/overscan data work, not beam-critical code. Add a roadmap item to make
+  it high-level VCSC, improve the required pointer/index/nibble/loop lowering,
+  and enforce a minimal-assembly policy for public examples.

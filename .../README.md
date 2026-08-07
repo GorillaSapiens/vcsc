@@ -29,7 +29,7 @@ The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 ba
 
 ### `ram_optimization.txt`
 
-The focused RIOT-RAM optimization roadmap. It records the animated-gallery RAM baseline, explains renderer object-mask and hardware-stack ownership, and orders compiler lifetime overlay, repeated-inline scratch sharing, compact lowering, phase overlay, stack reduction, and optional two-sprite-only renderer work.
+The focused RIOT-RAM optimization roadmap. It records the animated-gallery RAM baseline, explains renderer object-mask and hardware-stack ownership, and orders compiler lifetime overlay, repeated-inline scratch sharing, compact lowering, high-level example cleanup, phase overlay, direct-countdown renderer work, stack reduction, and optional two-sprite-only renderer profiles.
 
 ### `instruction.txt`
 
