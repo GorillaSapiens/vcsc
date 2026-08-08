@@ -93,3 +93,14 @@ that the current renderer is sufficient for this gallery; the direct-countdown
 object-schedule redesign remains the next general RAM optimization. Updated hygiene
 expectations and test documentation. Verification: 455/455 compile-only and 260/260
 end-to-end cases pass in bounded batches.
+
+
+2026-08-07 17:51:46 PDT, Replaced player-color 192 object masks with official direct countdown
+
+- Replaced the 48-byte `game_object_masks` schedule and VBLANK range builder in `player_color_192` with official-opcode direct P0/P1/Ball countdown state; no unofficial `DCP` and no hidden assembly JSR remain.
+- Reduced renderer private RAM from 56 to 10 bytes and total module RAM from 69 to 23. The animated gallery falls from 3545 to 3290 ROM bytes and from 102/128 to 56/128 RIOT-RAM bytes, leaving 72 bytes free; stack remains four bytes and `main` activation remains one.
+- Reduced the measured VBLANK marker span from 920 to 468 CPU cycles while retaining 152-cycle visible pairs, exact 192-visible/262-total-line frames, and the general P0/P1/Ball public capability.
+- Added direct-countdown timing and Ball edge regressions. The conversion explicitly fixes the old mask builder's first-row Ball defect, which could shift/clip Ball early or stretch a four-pair Ball to five pairs; top clipping and first-row-boundary crossing are now pinned.
+- Updated the interactive full-height raster oracle to use the direct-countdown transition profile: steady PF writes remain 10/17/40/47, while the first P1 transition half uses 9/16/40/47 with pixel-identical visible output.
+- Advanced the accounting fixture to schema 10, completed RAM-roadmap item 9, and closed item 10's compact-mask fallback as unnecessary because the official direct design succeeded. The next RAM-roadmap decision is whether a separate two-sprite-only profile is generally useful.
+- Verification: 455/455 compile-only tests and all 260/260 end-to-end cases pass in bounded batches.

@@ -308,10 +308,13 @@ for my $component (
 }
 my $player_color_192_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','player_color_192','player_color_192.c26'));
 index($player_color_192_source,'asm .callstackextra 0;')>=0 &&
+index($player_color_192_source,'TEMPLATE_object_masks')<0 &&
 index($player_color_192_source,'asm jsr @TEMPLATE_prepare_object_masks;')<0 &&
 index($player_color_192_source,'asm jsr @prepare_one;')<0 &&
-index($player_color_192_source,'asm jsr @set_range;')>=0
-   or die "player_color_192 lost its measured zero-extra hidden-stack contract\n";
+index($player_color_192_source,'asm jsr @set_range;')<0 &&
+index($player_color_192_source,'asm dec.z TEMPLATE_ball_y;')>=0 &&
+index($player_color_192_source,'asm cmp.z TEMPLATE_ball_y;')>=0
+   or die "player_color_192 lost its official direct-countdown zero-extra-stack contract\n";
 my $standard_compat_cfg=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','vcs_standard_4k_ntsc.cfg'));
 $standard_compat_cfg !~ /callstack_extra|RENDERER_CODE|RENDERER_RODATA/
    or die "standard renderer compatibility cfg regained component-specific constraints
@@ -477,12 +480,13 @@ my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
 index($context,'RAM-optimization work through measured hardware-stack reduction is complete.')>=0 &&
-index($context,'The post-optimization gallery remeasurement is complete.')>=0 &&
-index($context,'The next RAM-optimization work is the `game_object_masks` official-opcode direct-')>=0 &&
+index($context,'RAM-roadmap item 9 is complete, and item 10')>=0 &&
+index($context,'The next RAM-')>=0 &&
+index($context,'optimization decision is item 11: determine whether a generally useful two-sprite-only')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its active RAM-roadmap pointer, completed gallery remeasurement, next renderer optimization, history-title policy, main-roadmap pause, or size ceiling\n";
+   or die "compact context lost its active RAM-roadmap pointer, completed direct-countdown item, next capability-split decision, history-title policy, main-roadmap pause, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
 $ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
 $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
@@ -494,6 +498,9 @@ $ram_roadmap =~ /^\[x\] 5\. Overlay scratch across frame phases when contracts p
 $ram_roadmap =~ /^\[x\] 6\. Reduce the gallery's persistent bookkeeping without changing behavior\./m &&
 $ram_roadmap =~ /^\[x\] 7\. Reduce hardware-stack reservation by measurement, not by blanket inlining\./m &&
 $ram_roadmap =~ /^\[x\] 8\. Remeasure the animated gallery on the existing P0\/P1\/Ball renderer after/m &&
+$ram_roadmap =~ /^\[x\] 9\. Replace or redesign `game_object_masks` using an official-opcode direct-/m &&
+$ram_roadmap =~ /^\[x\] 10\. Investigate a more compact Ball\/object schedule without removing Ball\./m &&
+$ram_roadmap =~ /^\[ \] 11\. Only if a generally useful capability split is still justified, create a/m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m

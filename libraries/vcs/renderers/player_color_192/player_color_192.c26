@@ -39,10 +39,10 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 48,
    TEMPLATE_PLAYFIELD_ROWS := 12,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
-   TEMPLATE_WORKSPACE_BYTES := 5,
-   TEMPLATE_PRIVATE_RAM_BYTES := 56,
+   TEMPLATE_WORKSPACE_BYTES := 7,
+   TEMPLATE_PRIVATE_RAM_BYTES := 10,
    TEMPLATE_PUBLIC_RAM_BYTES := 13,
-   TEMPLATE_MODULE_RAM_BYTES := 69
+   TEMPLATE_MODULE_RAM_BYTES := 23
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -83,26 +83,23 @@ uint8_t TEMPLATE_player0_height;
 uint8_t TEMPLATE_player1_height;
 uint8_t TEMPLATE_ball_height;
 
-uint8_t TEMPLATE_workspace[5];
+uint8_t TEMPLATE_workspace[7];
 uint8_t TEMPLATE_playfield_position;
-uint8_t TEMPLATE_object_masks[48];
 
 require inline void TEMPLATE_init(void) {
-   // This is frame-temporary renderer workspace: VBLANK reconstructs it fully
-   // before visible drawing consumes it, so prior-frame contents are dead.
-   // Phase-use metadata still determines the actual live interval; this marker
-   // merely authorizes the linker to reuse the bytes outside that interval.
-   asm .ifndef __phaseworkspace$V1$TEMPLATE_object_masks;
-   asm __phaseworkspace$V1$TEMPLATE_object_masks = 0;
-   asm .export __phaseworkspace$V1$TEMPLATE_object_masks;
+   // The private workspace is rebuilt from public state every VBLANK and is
+   // dead after overscan restores the public Y coordinates.  Authorize the
+   // linker to share it with compiler-owned storage from disjoint frame phases.
+   asm .ifndef __phaseworkspace$V1$TEMPLATE_workspace;
+   asm __phaseworkspace$V1$TEMPLATE_workspace = 0;
+   asm .export __phaseworkspace$V1$TEMPLATE_workspace;
    asm .endif;
 }
 
 require inline void TEMPLATE_vblank(void) {
-   // The only remaining assembly JSR is @set_range. Its return address is
-   // never deeper than the two-return-address reserve already required by
-   // startup -> main plus main -> ordinary callee, so it needs zero extra bytes.
+   // The visible loop uses no hidden assembly subroutines.
    asm .callstackextra 0;
+
    // Preserve application Y coordinates before the visible renderer mutates them.
    asm lda.z TEMPLATE_player0_y;
    asm sta.z TEMPLATE_workspace + 1;
@@ -125,173 +122,22 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_player1_y;
    asm lda.z TEMPLATE_ball_y;
    asm clc;
-   asm adc #1;
+   // Ball is committed on the P1 half through VDELBL, one pair later than
+   // the countdown decision that stages ENABL.
+   asm adc #2;
    asm sta.z TEMPLATE_ball_y;
 
-   asm ldy #0;
-   asm ldx #0;
-   asm @clear:;
-   asm sty.zx TEMPLATE_object_masks,x;
-   asm sty.zx TEMPLATE_object_masks + 1,x;
-   asm sty.zx TEMPLATE_object_masks + 2,x;
-   asm txa;
-   asm clc;
-   asm adc #4;
-   asm tax;
-   asm cpx #48;
-   asm bcc @clear;
-   // The uniform 12-row loop addresses all 96 two-scanline pairs.
-   asm lda #95;
-   asm sta.z TEMPLATE_object_masks + 31;
-   asm lda.z TEMPLATE_ball_y;
-   asm ldy.z TEMPLATE_ball_height;
-   asm ldx #0;
-   asm jmp @prepare_one;
-   asm @prepare_one_done:;
+   // P0/P1 use the same direct countdown as the visible loop.  Store height+1
+   // thresholds because CPY then gives an active result exactly when the
+   // decremented row index is in 0..height, including the normal uint8_t wrap.
    asm lda.z TEMPLATE_player0_height;
    asm clc;
    asm adc #1;
-   asm sta.z TEMPLATE_object_masks + 11;
+   asm sta.z TEMPLATE_workspace + 5;
    asm lda.z TEMPLATE_player1_height;
    asm clc;
    asm adc #1;
-   asm sta.z TEMPLATE_object_masks + 15;
-   asm lda #0;
-   asm sta.z TEMPLATE_object_masks + 19;
-   asm lda #1;
-   asm sta.z TEMPLATE_object_masks + 23;
-
-   // No special terminal row is required: Ball, P0, and P1 all remain in
-   // the ordinary raster pipeline through row twelve. Skip the helper bodies.
-   asm jmp @TEMPLATE_prepare_object_masks_done;
-
-   asm @prepare_one:;
-   asm sta.z TEMPLATE_object_masks + 11;
-   asm stx.z TEMPLATE_object_masks + 3;
-   asm sty.z TEMPLATE_object_masks + 35;
-   asm sec;
-   asm sbc.z TEMPLATE_object_masks + 35;
-   asm sta.z TEMPLATE_object_masks + 7;
-   asm sta.z TEMPLATE_object_masks + 39;
-   asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap;
-   asm beq @no_wrap;
-   asm lda.z TEMPLATE_object_masks + 11;
-   asm beq @wrapped_high;
-   asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_low_ready;
-   asm beq @wrapped_low_ready;
-   asm lda.z TEMPLATE_object_masks + 31;
-   asm sta.z TEMPLATE_object_masks + 11;
-   asm @wrapped_low_ready:;
-   asm lda #1;
-   asm sta.z TEMPLATE_object_masks + 7;
-   asm jsr @set_range;
-   asm @wrapped_high:;
-   asm lda.z TEMPLATE_object_masks + 39;
-   asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_high_ready;
-   asm beq @wrapped_high_ready;
-   asm jmp @prepare_one_done;
-   asm @wrapped_high_ready:;
-   asm sta.z TEMPLATE_object_masks + 7;
-   asm lda.z TEMPLATE_object_masks + 31;
-   asm sta.z TEMPLATE_object_masks + 11;
-   asm jsr @set_range;
-   asm jmp @prepare_one_done;
-   asm @no_wrap:;
-   asm lda.z TEMPLATE_object_masks + 7;
-   asm bne @no_wrap_first_ready;
-   asm lda #1;
-   asm sta.z TEMPLATE_object_masks + 7;
-   asm @no_wrap_first_ready:;
-   asm lda.z TEMPLATE_object_masks + 11;
-   asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @no_wrap_last_ready;
-   asm beq @no_wrap_last_ready;
-   asm lda.z TEMPLATE_object_masks + 31;
-   asm sta.z TEMPLATE_object_masks + 11;
-   asm @no_wrap_last_ready:;
-   asm lda.z TEMPLATE_object_masks + 7;
-   asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap_set_range;
-   asm beq @no_wrap_set_range;
-   asm jmp @prepare_one_done;
-   asm @no_wrap_set_range:;
-   asm jsr @set_range;
-   asm jmp @prepare_one_done;
-   asm @set_range:;
-   asm lda.z TEMPLATE_object_masks + 7;
-   asm sec;
-   asm sbc #1;
-   asm tay;
-   asm and #7;
-   asm tax;
-   asm lda @start_bits,x;
-   asm sta.z TEMPLATE_object_masks + 23;
-   asm tya;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm sta.z TEMPLATE_object_masks + 15;
-   asm lda.z TEMPLATE_object_masks + 11;
-   asm sec;
-   asm sbc #1;
-   asm tay;
-   asm and #7;
-   asm tax;
-   asm lda @end_bits,x;
-   asm sta.z TEMPLATE_object_masks + 27;
-   asm tya;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm sta.z TEMPLATE_object_masks + 19;
-   asm lda.z TEMPLATE_object_masks + 15;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc.z TEMPLATE_object_masks + 3;
-   asm tax;
-   asm lda.z TEMPLATE_object_masks + 15;
-   asm cmp.z TEMPLATE_object_masks + 19;
-   asm bne @range_many;
-   asm lda.z TEMPLATE_object_masks + 23;
-   asm and.z TEMPLATE_object_masks + 27;
-   asm ora.zx TEMPLATE_object_masks,x;
-   asm sta.zx TEMPLATE_object_masks,x;
-   asm rts;
-   asm @range_many:;
-   asm lda.zx TEMPLATE_object_masks,x;
-   asm ora.z TEMPLATE_object_masks + 23;
-   asm sta.zx TEMPLATE_object_masks,x;
-   asm inc.z TEMPLATE_object_masks + 15;
-   asm @range_middle:;
-   asm lda.z TEMPLATE_object_masks + 15;
-   asm cmp.z TEMPLATE_object_masks + 19;
-   asm bcs @range_last;
-   asm txa;
-   asm clc;
-   asm adc #4;
-   asm tax;
-   asm lda #$ff;
-   asm sta.zx TEMPLATE_object_masks,x;
-   asm inc.z TEMPLATE_object_masks + 15;
-   asm jmp @range_middle;
-   asm @range_last:;
-   asm txa;
-   asm clc;
-   asm adc #4;
-   asm tax;
-   asm lda.zx TEMPLATE_object_masks,x;
-   asm ora.z TEMPLATE_object_masks + 27;
-   asm sta.zx TEMPLATE_object_masks,x;
-   asm rts;
-   asm @start_bits:;
-   asm .byte $ff,$fe,$fc,$f8,$f0,$e0,$c0,$80;
-   asm @end_bits:;
-   asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
-   asm @TEMPLATE_prepare_object_masks_done:;
+   asm sta.z TEMPLATE_workspace + 6;
 
    // Position Ball, P1, and P0 entirely during VBLANK using the retained
    // divide-by-fifteen schedule.  The older full-height conversion reused a
@@ -370,15 +216,17 @@ require inline void TEMPLATE_vblank(void) {
    // still asserted.  draw() can therefore begin with the P0 half at exactly
    // the same phase used after every later row transition; no visible setup
    // scanline is consumed.
-   asm lda.z TEMPLATE_object_masks + 23;
-   asm lsr.zx TEMPLATE_object_masks,x;
+   asm dec.z TEMPLATE_ball_y;
+   asm lda.z TEMPLATE_ball_height;
+   asm cmp.z TEMPLATE_ball_y;
+   asm lda #1;
    asm adc #0;
    asm sta ENABL;
 
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
+   asm cpy.z TEMPLATE_workspace + 6;
    asm bcs @TEMPLATE_first_player1_zero;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @TEMPLATE_first_player1_ready;
@@ -417,9 +265,8 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm sty.z TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
+   asm cpy.z TEMPLATE_workspace + 5;
+   asm dec.z TEMPLATE_ball_y;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
@@ -433,7 +280,7 @@ require inline void TEMPLATE_draw(void) {
    asm @first_skipP0:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @first_continueP0:;
    // Carry the selected P0 graphics byte in A and its color-table index in Y
    // across the pair boundary; DEC/branch do not disturb either register.
@@ -458,12 +305,16 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP0;
 #endif
    asm @continuerenderer2:;
+   // Keep the historical two-cycle lead-in so the left playfield writes retain
+   // their exact phases.  Y is free after PF2, letting LDY/CPY replace the old
+   // six-cycle Ball-mask shift without disturbing A=#1 for the carry conversion.
    asm lda #1;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
-   asm lsr.zx TEMPLATE_object_masks,x;
+   asm ldy.z TEMPLATE_ball_height;
+   asm cpy.z TEMPLATE_ball_y;
    asm adc #0;
    asm sta ENABL;
    asm ldy.z TEMPLATE_player1_y;
@@ -475,7 +326,7 @@ require inline void TEMPLATE_draw(void) {
    asm @goback:;
    asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
+   asm cpy.z TEMPLATE_workspace + 6;
 #ifdef VCS_PLAYER_COLOR_192_MUTABLE_COLORS
    // Keep the original 26-cycle tail, but install the delayed P0 color just
    // before GRP1 transfers the pending P0 graphics. Reloading P1 graphics after
@@ -496,7 +347,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    asm lda #0;
    asm sta GRP1;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @continueP1:;
 #else
    asm bcs @skipP1;
@@ -505,7 +356,7 @@ require inline void TEMPLATE_draw(void) {
    asm @skipP1:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @continueP1:;
    // Stage P1 in otherwise-unused workspace and commit it only after both
    // player colors are installed.  The GRP1 write then lands in horizontal
@@ -519,9 +370,9 @@ require inline void TEMPLATE_draw(void) {
 #endif
 
    asm @p0renderer:;
-   // P0 half.  Move eleven cycles of P0 bookkeeping ahead of the playfield
-   // writes and remove the old carry clear; every Ball ADC gets its carry from
-   // the immediately preceding LSR.  The pair remains exactly 152 cycles.
+   // P0 half. Move eleven cycles of P0 bookkeeping ahead of the playfield
+   // writes. The five-cycle direct Ball decrement occupies the old BIT/NOP pad,
+   // so the pair remains exactly 152 cycles without an object-mask shift.
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
@@ -529,9 +380,8 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm sty.z TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
+   asm cpy.z TEMPLATE_workspace + 5;
+   asm dec.z TEMPLATE_ball_y;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
@@ -543,7 +393,7 @@ require inline void TEMPLATE_draw(void) {
    asm @skipP0:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @continueP0:;
    // Carry the selected P0 graphics byte in A and its color-table index in Y
    // across the pair boundary; DEC/branch do not disturb either register.
@@ -585,27 +435,29 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
-   // GRP1 transfers delayed P0 as well as changing P1.  Shift the Ball mask
-   // before either GRP1 write: this moves both the zero and graphics commits
-   // into horizontal blank without changing the row-transition cycle count.
+   asm cpy.z TEMPLATE_workspace + 6;
+   // GRP1 transfers delayed P0 as well as changing P1. Compute the Ball
+   // countdown carry before either GRP1 write so both the zero and graphics
+   // commits stay in horizontal blank without changing the transition count.
    asm bcc @transition_activeP1;
    // The inactive and active paths are both eleven cycles.  The absolute STY
    // supplies the otherwise impossible one-cycle pad while also leaving Y=0
    // for the color lookup below.
    asm ldy #0;
-   asm lsr.zx TEMPLATE_object_masks-4,x;
+   asm lda.z TEMPLATE_ball_height;
+   asm cmp.z TEMPLATE_ball_y;
    asm sty.a GRP1;
    asm jmp @transition_continueP1;
    asm @transition_activeP1:;
+   asm lda.z TEMPLATE_ball_height;
+   asm cmp.z TEMPLATE_ball_y;
    asm lda.iy (TEMPLATE_player1_graphics),y;
-   asm lsr.zx TEMPLATE_object_masks-4,x;
    asm sta GRP1;
    asm @transition_continueP1:;
-   // Preserve the P1 color in A before the playfield loads reuse Y.  The Ball
-   // mask shift then supplies carry while leaving A untouched.  This keeps the
-   // four playfield writes at cycles 10, 17, 40, and 47, installs the correct
-   // P1 color, and still enables the Ball well before its horizontal position.
+   // Preserve the P1 color in A before the playfield loads reuse Y. The Ball
+   // height/countdown compare has already supplied carry. This keeps the four
+   // playfield writes at cycles 10, 17, 40, and 47, installs the correct P1
+   // color, and still enables the Ball well before its horizontal position.
    asm lda.ay TEMPLATE_player1_colors,y;
 
    // First P0 half after a row transition.  Its four playfield writes must land
@@ -627,14 +479,14 @@ require inline void TEMPLATE_draw(void) {
    // Save the decremented P0 index only after the beam-critical writes.  The
    // absolute store also preserves the established row-transition phase.
    asm sty.a TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
+   asm cpy.z TEMPLATE_workspace + 5;
    asm bcs @transition_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @transition_continueP0;
    asm @transition_skipP0:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @transition_continueP0:;
    asm sta.a GRP0;
    asm lda.ay TEMPLATE_player0_colors,y;
@@ -644,16 +496,16 @@ require inline void TEMPLATE_draw(void) {
    // after the four display writes so this line reaches the same safe phases as
    // the steady lines without changing the total pair length.
    asm @transition_firstP1:;
-   asm lda #1;
-   asm nop;
+   asm lda.z TEMPLATE_ball_height;
    asm ldy.ax TEMPLATE_playfield,x;
    asm sty PF1;
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
-   asm lsr.zx TEMPLATE_object_masks,x;
+   asm dec.z TEMPLATE_ball_y;
+   asm cmp.z TEMPLATE_ball_y;
+   asm lda #1;
    asm adc #0;
    asm sta ENABL;
-   asm bit.z CXM0P;
    asm lda #7;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm sty PF2;
@@ -663,13 +515,13 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.z TEMPLATE_player1_y;
    asm dey;
    asm sty.z TEMPLATE_player1_y;
-   asm cpy.z TEMPLATE_object_masks + 15;
+   asm cpy.z TEMPLATE_workspace + 6;
    asm bcc @transition_first_activeP1;
    asm lda #0;
    asm sta GRP1;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm nop;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm jmp @transition_first_doneP1;
    asm @transition_first_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
@@ -687,9 +539,8 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.z TEMPLATE_player0_y;
    asm dey;
    asm sty.z TEMPLATE_player0_y;
-   asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
-   asm nop;
+   asm cpy.z TEMPLATE_workspace + 5;
+   asm dec.z TEMPLATE_ball_y;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
@@ -700,7 +551,7 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_skipP0:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_object_masks + 19;
+   asm bit.z TEMPLATE_workspace + 5;
    asm @transition_follow_continueP0:;
    asm dec.z TEMPLATE_workspace;
    asm bne @continuerenderer;

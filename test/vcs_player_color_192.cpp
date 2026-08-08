@@ -190,19 +190,19 @@ uint8_t expected_resp_value(uint8_t x) {
    do remainder-=15; while (remainder>=0);
    return static_cast<uint8_t>(remainder);
 }
-void verify_positioning(const std::string &mode) {
+void verify_positioning(const std::string &) {
    const std::array<uint8_t,3> x{{44,108,78}};
    const std::array<uint16_t,3> resp{{kResp0,kResp1,kResbl}};
    const std::array<uint16_t,3> hmp{{kHmp0,kHmp1,kHmbl}};
-   const std::array<uint64_t,3> line = mode == "terminal"
-      ? std::array<uint64_t,3>{{14,13,12}}
-      : std::array<uint64_t,3>{{13,12,11}};
+   // Direct countdown removes the variable-cost VBLANK mask builder, so the
+   // three horizontal positions are now reached deterministically on lines 5-7.
+   const std::array<uint64_t,3> line{{7,6,5}};
    for (size_t i=0;i<x.size();++i) {
       const int rc=expected_resp_cycle(x[i]);
       expect_write(resp[i],line[i],static_cast<uint64_t>(rc),expected_resp_value(x[i]),"VBLANK RESP");
       expect_write(hmp[i],line[i],static_cast<uint64_t>(rc+11),expected_hmp(x[i]),"VBLANK HMP");
    }
-   expect_write(kHmove,mode == "terminal" ? 14 : 13,71,0,"VBLANK HMOVE");
+   expect_write(kHmove,7,71,0,"VBLANK HMOVE");
    for (const TimedWrite &event:frame_writes) {
       const bool position=(event.address>=kResp0 && event.address<=kResbl) ||
                           (event.address>=kHmp0 && event.address<=kHmbl) ||
@@ -294,10 +294,12 @@ void verify_object_pixel_raster(const std::string &mode) {
    const std::vector<uint8_t> p1=alien_sprites
       ? std::vector<uint8_t>{{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}}
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
-   const bool static_scene=mode!="terminal";
-   const int p0_first=static_scene ? 166 : 204;
-   const int p1_first=static_scene ? 112 : 206;
-   const int ball_first=static_scene ? 126 : 214;
+   const bool terminal=mode=="terminal";
+   const int p0_first=terminal ? 204 : 166;
+   const int p1_first=terminal ? 206 : 112;
+   const int ball_first=mode=="ball-top" ? 36 :
+                        mode=="ball-row-edge" ? 52 :
+                        terminal ? 214 : 126;
    const std::array<unsigned,3> x{{44,108,78}};
    const uint64_t phase=(frame_writes.front().beam_cycle+kCyclesPerLine-
                          frame_writes.front().cycle)%kCyclesPerLine;
@@ -387,11 +389,14 @@ int main(int argc,char **argv) {
       return 2;
    }
    const std::string mode=argv[1];
-   if (mode!="static" && mode!="static-alien" && mode!="terminal")
-      fail("mode must be static, static-alien, or terminal");
+   if (mode!="static" && mode!="static-alien" && mode!="terminal" &&
+       mode!="ball-top" && mode!="ball-row-edge")
+      fail("mode must be static, static-alien, terminal, ball-top, or ball-row-edge");
    y_address={{parse_zp(argv[4]),parse_zp(argv[5]),parse_zp(argv[6])}};
-   expected_y=mode!="terminal" ? std::array<uint8_t,3>{{70,42,45}} :
-                                  std::array<uint8_t,3>{{89,89,89}};
+   expected_y=mode=="terminal" ? std::array<uint8_t,3>{{89,89,89}} :
+              mode=="ball-top" ? std::array<uint8_t,3>{{70,42,0}} :
+              mode=="ball-row-edge" ? std::array<uint8_t,3>{{70,42,8}} :
+              std::array<uint8_t,3>{{70,42,45}};
 
    std::memset(memory_image,0,sizeof(memory_image));
    memory_image[0x0280] = 0xff;
@@ -430,17 +435,27 @@ int main(int argc,char **argv) {
    const std::vector<uint8_t> p1=alien_sprites
       ? std::vector<uint8_t>{{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}}
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
-   if (mode!="terminal") {
-      expect_nonzero_lines(kGrp0,{164,166,168,170,172,174,176,178},p0,"static P0");
-      expect_nonzero_lines(kGrp1,{112,114,116,118,119,121,124,126},p1,"static P1");
-      expect_nonzero_lines(kEnabl,{125,127,129,131},{2,2,2,2},"static Ball");
-      std::printf("vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n");
-   }
-   else {
+   if (mode=="terminal") {
       expect_nonzero_lines(kGrp0,{202,204,206,208,210,212,214,216},p0,"terminal P0");
       expect_nonzero_lines(kGrp1,{206,208,210,212,214,215,217,220},p1,"terminal P1");
       expect_nonzero_lines(kEnabl,{213,216,217,219},{2,2,2,2},"terminal Ball");
       std::printf("vcs_player_color_192 terminal ok: P0/P1/Ball reach the uniform twelfth-row raster\n");
+   }
+   else {
+      expect_nonzero_lines(kGrp0,{164,166,168,170,172,174,176,178},p0,"static P0");
+      expect_nonzero_lines(kGrp1,{112,114,116,118,119,121,124,126},p1,"static P1");
+      if (mode=="ball-top") {
+         expect_nonzero_lines(kEnabl,{41},{2},"top-edge Ball");
+         std::printf("vcs_player_color_192 ball-top ok: Ball clips cleanly at the visible top edge\n");
+      }
+      else if (mode=="ball-row-edge") {
+         expect_nonzero_lines(kEnabl,{51,53,56,57},{2,2,2,2},"row-edge Ball");
+         std::printf("vcs_player_color_192 ball-row-edge ok: Ball keeps four pairs across the first row boundary\n");
+      }
+      else {
+         expect_nonzero_lines(kEnabl,{125,127,129,131},{2,2,2,2},"static Ball");
+         std::printf("vcs_player_color_192 static ok: exact 192-line frame, VBLANK positioning, P0/P1 rows, Ball, and no missiles\n");
+      }
    }
    return 0;
 }

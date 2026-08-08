@@ -444,11 +444,17 @@ The legacy and
 
 `vcs_player_color_181.pl` and `vcs_player_color_192.pl` require every gameplay
 GRP0 and GRP1 handoff, including zero GRP1 transfers, to occur during horizontal
-blanking. The 181-line oracle also rejects both failure modes in the Ball
-positioning sequence: an immediate `HMCLR` that interrupts the first HMOVE, and
-a later HMOVE reached while `HMBL` is still nonzero. `vcs_player_extreme_right.pl` builds both heights with alternating
-$AA/$55 checkerboard players at X=159; that pattern exposes the one-bit row swap
-that solid glyphs hide at the extreme right edge.
+blanking. The 192-line test also pins the official direct-countdown implementation:
+no `game_object_masks` storage or unofficial opcodes, 23 total renderer RAM bytes,
+exact 152-cycle visible pairs, top-clipped Ball output, and a four-pair Ball crossing
+the first 16-line row boundary. Its `full-direct` display timing profile allows the
+accepted row-transition left-playfield phases 9/16 while retaining 40/47 on the
+right and checking all 160 visible pixels independently. The 181-line oracle also
+rejects both failure modes in the Ball positioning sequence: an immediate `HMCLR`
+that interrupts the first HMOVE, and a later HMOVE reached while `HMBL` is still
+nonzero. `vcs_player_extreme_right.pl` builds both heights with alternating $AA/$55
+checkerboard players at X=159; that pattern exposes the one-bit row swap that solid
+glyphs hide at the extreme right edge.
 
 `vcs_player_color_192_animation.pl` builds the public animated-sprite gallery,
 checks 29 attributed four-frame source sets plus the source's sole three-frame
@@ -813,18 +819,21 @@ RAM/ROM report. It regenerates
 every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
 records compiler scratch diagnostics, proves both sequential `next_pair()`
 expansions allocate zero expression scratch, and checks the linker's source-call
-edges, deepest path, and explicit `.callstackextra` contribution. Schema 9 records
-the completed optimization sequence: phase overlay, padding/alignment cleanup,
-persistent-state packing, measured hardware-stack reduction, and the explicit
-post-optimization remeasurement checkpoint. The gallery is now 3545 ROM bytes
-and **102 RAM bytes with 26 free**: 98 object bytes plus a four-byte hardware-stack
-reserve. The schema-9 remeasurement section pins the baseline-to-current ROM,
-RAM, activation, and stack checkpoints, retains the general P0/P1/Ball renderer,
-and records the decision that the 26-byte margin is sufficient useful game-state
-space for this gallery. The stack report remains explicit at source=4, hidden=0,
-total=4; `player_color_192` carries `.callstackextra 0` after its two single-use
-VBLANK helper wrappers were flattened. The fixture also retains the complete
-high-level frame-installer history and the 232-byte final `install_frames()` span.
+edges, deepest path, and explicit `.callstackextra` contribution. Schema 10 records
+the completed optimization sequence through the official-opcode direct-countdown
+`player_color_192` renderer. The former 48-byte `game_object_masks` schedule is
+absent; renderer private RAM falls from 56 to 10 bytes and total renderer RAM from
+69 to 23. The gallery is now **3290/4090 ROM bytes** and **56/128 RAM bytes**, with
+**72 RAM bytes free**: 52 object bytes plus a four-byte hardware-stack reserve.
+Relative to the item-8 mask-renderer checkpoint, direct countdown saves 255 ROM
+bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
+measured VBLANK marker span falls from 920 to 468 CPU cycles. Every visible two-
+line pair remains 152 cycles; steady playfield phases remain 10/17/40/47, while
+the first P1 transition half uses 9/16/40/47 with the pixel oracle proving the
+earlier left writes remain in safe blanking time. The report also records the
+accepted Ball first-row mask-boundary fix, full baseline-to-current checkpoint
+history, and the unchanged 232-byte high-level `install_frames()` span. The stack
+report remains explicit at source=4, hidden=0, total=4 and `.callstackextra 0`.
 The separate animation emulator remains the behavioral/frame oracle.
 
 `phase_overlay.pl` is the generic positive/negative lifetime proof. Explicit

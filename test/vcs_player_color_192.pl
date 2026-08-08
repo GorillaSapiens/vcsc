@@ -79,8 +79,8 @@ require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/, 'visible-line contra
 require_re($text,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*48/, 'playfield-byte contract changed');
 require_re($text,qr/TEMPLATE_PLAYFIELD_ROWS\s*:=\s*12/, 'playfield-row contract changed');
 require_re($text,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*13/, 'public-RAM contract changed');
-require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*56/, 'private-RAM contract changed');
-require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*69/, 'module-RAM contract changed');
+require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*10/, 'private-RAM contract changed');
+require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*23/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
 require_re($text,qr/cpx #44.*?beq \@terminalrenderer/s,
@@ -89,8 +89,11 @@ require_re($text,qr/\@terminalrenderer:.*?sty PF2;.*?sta\.a PF1;.*?sta WSYNC;/s,
    'terminal path no longer completes line 231 before the overscan handoff');
 require_re($text,qr/ldy\.ax TEMPLATE_playfield\+2,x;.*?sty PF2;.*?sta PF1;/s,
    'right-half playfield bytes are no longer written in display order');
-require_re($text,qr/TEMPLATE_object_masks\[48\]/,
-   'full-height object mask storage no longer covers all 96 two-line pairs');
+$text !~ /TEMPLATE_object_masks/ or die "direct-countdown renderer still declares object-mask storage\n";
+require_re($text,qr/dec\.z TEMPLATE_ball_y/,
+   'Ball direct countdown no longer advances in the visible schedule');
+require_re($text,qr/cmp\.z TEMPLATE_ball_y/,
+   'Ball direct countdown no longer compares against Ball height');
 require_re($text,qr/Position Ball, P1, and P0 entirely during VBLANK/,
    'objects are no longer positioned entirely during VBLANK');
 for my $bad (qw(score font VSYNC VBLANK TIM1T TIM8T TIM64T T1024T INTIM TIMINT)) {
@@ -107,14 +110,16 @@ for my $name (qw(game_playfield game_player0_colors game_player1_colors p0_graph
 }
 my %sizes=(game_object_x=>5,game_player0_y=>1,game_player1_y=>1,game_ball_y=>1,
    game_player0_graphics=>2,game_player1_graphics=>2,game_player0_height=>1,
-   game_player1_height=>1,game_ball_height=>1,game_workspace=>5,
-   game_playfield_position=>1,game_object_masks=>48);
+   game_player1_height=>1,game_ball_height=>1,game_workspace=>7,
+   game_playfield_position=>1);
 my $sum=0;
 for my $name (sort keys %sizes) {
    my $got=bss_size($map,$name); $got==$sizes{$name} or die "$name is $got bytes; expected $sizes{$name}\n"; $sum += $got;
 }
-$sum==69 or die "component BSS totals $sum bytes; expected 69\n";
-$map !~ /\bgame_(?:score|score_color|missile0|missile1)\b/ or die "forbidden score/missile state linked\n";
+$sum==23 or die "component BSS totals $sum bytes; expected 23\n";
+$map !~ /\bgame_(?:score|score_color|missile0|missile1|object_masks)\b/ or die "forbidden score/missile/mask state linked\n";
+require_re($map,qr/BSS\.__vcsc_object\$\Qgame_workspace\E\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0007\s+page=preferred\s+phase=\$0E/,
+   'direct-countdown workspace is not phase-overlay eligible');
 $map !~ /(?:score|font)/i or die "score/font symbols linked\n";
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -141,6 +146,33 @@ $out eq "vcs_player_color_192 terminal ok: P0/P1/Ball reach the uniform twelfth-
    or die "unexpected player-color 192 terminal output: $out";
 $err eq '' or die "player-color 192 terminal harness stderr: $err";
 
+# Pin the Ball positions that exposed the old 48-byte mask's first-row defect.
+# The direct countdown follows the public coordinate rule instead: height 3 is
+# four two-line pairs, clipped only by the 192-line visible window.
+for my $edge (['ball-top',0,'top edge'],['ball-row-edge',8,'first row boundary']) {
+   my($mode,$ball_y,$label)=@$edge;
+   my $edge_text=$fixture;
+   $edge_text =~ s/game_ball_y := 45;/game_ball_y := $ball_y;/
+      or die "could not set $label Ball Y in edge fixture\n";
+   my $edge_src=File::Spec->catfile($tmp,"player_color_192_$mode.c26");
+   my $edge_bin=File::Spec->catfile($tmp,"player_color_192_$mode.bin");
+   my $edge_mapfile=File::Spec->catfile($tmp,"player_color_192_$mode.map");
+   write_file($edge_src,$edge_text);
+   ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$edge_mapfile,$edge_src,'-o',$edge_bin);
+   $rc==0 && !$sig or die "$label build failed\n$out$err";
+   without_usage($out) eq '' && $err eq '' or die "$label build wrote output\n$out$err";
+   my $edge_map=read_file($edge_mapfile);
+   my @edge_zp=map { sprintf('0x%02x',map_zp($edge_map,$_)) }
+      qw(game_object_x game_player0_y game_player1_y game_ball_y);
+   ($rc,$sig,$out,$err)=capture($harness,$mode,$edge_bin,@edge_zp);
+   $rc==0 && !$sig or die "$label raster failed\n$out$err";
+   my $want=$mode eq 'ball-top'
+      ? "vcs_player_color_192 ball-top ok: Ball clips cleanly at the visible top edge\n"
+      : "vcs_player_color_192 ball-row-edge ok: Ball keeps four pairs across the first row boundary\n";
+   $out eq $want or die "unexpected $label output: $out";
+   $err eq '' or die "$label harness stderr: $err";
+}
+
 my $phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my $phase_exe=File::Spec->catfile($tmp,'player_color_192_playfield');
 ($rc,$sig,$out,$err)=capture(
@@ -161,9 +193,9 @@ $rc==0 && !$sig or die "player-color 192 display harness build failed\n$out$err"
 $out eq '' && $err eq '' or die "player-color 192 display harness build wrote output\n$out$err";
 my @display_symbols=map { map_symbol($map,$_) }
    qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
-($rc,$sig,$out,$err)=capture($display_exe,$bin,'full',@display_symbols);
+($rc,$sig,$out,$err)=capture($display_exe,$bin,'full-direct',@display_symbols);
 $rc==0 && !$sig or die "player-color 192 display raster failed\n$out$err";
-$out eq "vcs_multicolor_display_raster full ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
+$out eq "vcs_multicolor_display_raster full-direct ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
    or die "unexpected player-color 192 display output: $out";
 $err eq '' or die "player-color 192 display harness stderr: $err";
 

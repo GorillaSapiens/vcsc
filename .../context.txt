@@ -348,59 +348,74 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-9 report records a one-byte `main`
+The animated gallery's authoritative schema-10 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
-scratch still aliases the first byte of the 48-byte VBLANK+visible
-`game_object_masks` workspace. Persistent gallery bookkeeping is now four bytes:
-`animation_state` combines the normal modulo-4 phase, the independent source-set-03
-modulo-3 phase, and the eight-frame hold clock, while `control_flags` combines
-Select-ready, Fire-ready, and pause state. `sprite0` and `sprite1` remain separate:
-a measured derivation trial saved one RAM byte but cost 50 ROM bytes and grew
-`install_frames()` from 232 to 303 bytes, so the roadmap's smaller-ROM exception
-applies. The `player_color_192` VBLANK mask preparation now flattens its two
-single-use assembly wrappers; only `set_range` remains an assembly subroutine, with
-explicit `.callstackextra 0` recording that no supplementary stack bytes are needed.
-Total RIOT RAM is now **102/128 bytes**—98 object bytes plus the four-byte hardware-
-stack reservation—leaving **26 bytes free**. `install_frames()` remains 232 linked
-bytes. After the earlier 64-byte padding removal, packed-state lowering further
-reduces ordinary ROM from 3560 to **3545/4090 bytes**, leaving **545 bytes free**.
+scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
+48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
+remains four bytes: `animation_state` combines the normal modulo-4 phase, the
+independent source-set-03 modulo-3 phase, and the eight-frame hold clock, while
+`control_flags` combines Select-ready, Fire-ready, and pause state. `sprite0` and
+`sprite1` remain separate because the measured derivation trial saved one RAM byte at
+a 50-ROM-byte cost. `install_frames()` remains ordinary high-level VCSC and 232 linked
+bytes.
 
-`test/phase_overlay.pl` is the generic lifetime proof: it verifies positive sharing
-independent of declaration order and refuses overlapping, unscoped, misleadingly
-named, or phase-confined-but-unmarked storage. The six-digit score regression proves
-that solitary phase-tagged component objects retain their historical ordinary address
-order. The detailed implementation and acceptance record lives in
+`player_color_192` now uses an official-opcode direct-countdown schedule for arbitrary
+P0/P1/Ball vertical state. Its private RAM falls from 56 to 10 bytes and total module
+RAM from 69 to 23; the 48-byte mask and VBLANK range-builder code are gone. P0/P1 use
+height+1 thresholds in phase workspace, while Ball uses a directly decremented Y
+counter with the VDELBL pipeline bias. The renderer has no hidden assembly subroutine,
+retains `.callstackextra 0`, and keeps Ball as a public capability.
+
+The direct-countdown conversion reduces the animated gallery from the item-8
+**3545/4090 ROM, 102/128 RAM, 26 free** checkpoint to **3290/4090 ROM and 56/128
+RIOT-RAM bytes**, leaving **72 bytes free (56.25%)**. Object bytes fall from 98 to 52;
+the one-byte `main` activation and four-byte hardware-stack reserve are unchanged.
+From the original measured RAM-roadmap baseline the gallery has now recovered 703 ROM
+bytes and 72 RAM bytes, with activation down by 19 bytes and stack down by four.
+
+Measured VBLANK work from the first saved-Y workspace write through final pre-visible
+PF2 staging falls from 920 to 468 CPU cycles. Every visible pair remains exactly 152
+CPU cycles and the frame remains exactly 192 visible / 262 total lines. Steady
+playfield writes remain at cycles 10/17/40/47. The first P1 half after a row transition
+uses 9/16/40/47; the independent pixel oracle confirms the one-cycle-earlier left
+writes remain safely blanked and do not change visible playfield pixels.
+
+Normal and terminal P0/P1/Ball output remains raster-identical. New Ball edge oracles
+cover top clipping and crossing the first 16-line row boundary. They deliberately fix
+a defect in the removed mask builder that could shift/clip Ball early near the first
+row or stretch a nominal four-pair Ball to five pairs. Direct countdown now follows the
+public Ball coordinate/height rule with visible-window clipping; this is an accepted
+renderer fix, not an accidental behavior change.
+
+`test/phase_overlay.pl` remains the generic lifetime proof: it verifies positive
+sharing independent of declaration order and refuses overlapping, unscoped,
+misleadingly named, or phase-confined-but-unmarked storage. The six-digit score
+regression proves that solitary phase-tagged component objects retain their historical
+ordinary address order. The detailed implementation and acceptance record lives in
 `.../ram_optimization.txt`.
 
 The separate 8x16 `libraries/vcs/fonts/big_ascii.c26` module contains all 95 printable
 ASCII glyphs in a contiguous 1520-byte `align(256)` table; all large 8x8 ASCII fonts are
 likewise contiguous `align(256)` objects. Linked tests prove that no 8-byte or 16-byte
-glyph crosses a hardware page. The bankswitching diagnostic now renders
-complete centered white **PASS** or **FAIL** words with the six-glyph-wide component;
-its mapper transition simulator matrix and recursive example builds pass.
+glyph crosses a hardware page. The bankswitching diagnostic renders complete centered
+white **PASS** or **FAIL** words with the six-glyph-wide component; its mapper
+transition simulator matrix and recursive example builds pass.
 
 Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Exact
 beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
 score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-The post-optimization gallery remeasurement is complete. A fresh build of the unchanged
-general P0/P1/Ball `player_color_192` gallery confirms **3545/4090 ROM bytes** and
-**102/128 RIOT-RAM bytes**, with a one-byte `main` activation, four-byte hardware-stack
-reserve, and **26 bytes free (20.31%)**. From the measured pre-optimization baseline,
-items 1-7 recover 448 ROM bytes and 26 RAM bytes while reducing activation storage by
-19 bytes and stack reservation by four. Ball capability remains linked; this gallery
-merely sets Ball height to zero. The schema-9 accounting fixture now pins the complete
-checkpoint sequence and the decision that the current general renderer provides a
-useful application-state margin without a gallery-only capability cut.
+RAM-roadmap item 9 is complete, and item 10's compact-mask fallback is closed as not
+applicable because the official direct-countdown schedule succeeded. The next RAM-
+optimization decision is item 11: determine whether a generally useful two-sprite-only
+192-line capability split is still justified now that the general P0/P1/Ball renderer
+leaves 72 gallery RAM bytes free. Do not create it merely to reduce this gallery.
 
-The next RAM-optimization work is the `game_object_masks` official-opcode direct-
-countdown redesign in `.../ram_optimization.txt`. Treat it as a general renderer RAM
-optimization, not as a prerequisite for making the animated gallery fit.
-
-Verification after the gallery remeasurement is **455/455 compile-only tests and
-260/260 end-to-end cases** in bounded batches. The authoritative RAM-accounting fixture,
-full animated-gallery emulator oracle, renderer/bankswitching regressions, and clean
-source-tree hygiene all pass. Clean source-tree hygiene remains the packaging gate.
+Verification after the direct-countdown conversion is **455/455 compile-only** and
+**260/260 end-to-end cases** in bounded batches. The authoritative schema-10 RAM-
+accounting fixture, complete animation emulator, player-color edge/timing and pixel
+oracles, recursive examples, bankswitching regressions, and source-tree hygiene all
+pass. Clean source-tree hygiene remains the packaging gate.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

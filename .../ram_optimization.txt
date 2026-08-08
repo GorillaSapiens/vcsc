@@ -812,7 +812,7 @@ Ordered roadmap
       accounting fixture, the complete animation oracle, and renderer/bankswitching
       regressions.
 
-[ ] 9. Replace or redesign `game_object_masks` using an official-opcode direct-
+[x] 9. Replace or redesign `game_object_masks` using an official-opcode direct-
         countdown technique derived from the faithful legacy renderer.
 
     * Start from the proven fact that the faithful renderer handles arbitrary P0,
@@ -830,7 +830,52 @@ Ordered roadmap
     * Add exact raster and edge-position regressions before considering removal of
       the existing implementation.
 
-[ ] 10. Investigate a more compact Ball/object schedule without removing Ball.
+    Completed direct-countdown redesign:
+
+    * Replaced the 48-byte `game_object_masks` schedule and its VBLANK range builder
+      with direct P0/P1/Ball countdown state. P0/P1 retain one height+1 threshold
+      each in the seven-byte phase workspace; Ball compares its public height
+      against the directly decremented working Y coordinate. The Ball counter uses
+      a two-pair VBLANK bias to account for VDELBL/GRP1 transfer timing.
+    * The maintained public profile remains P0/P1/Ball and uses only official
+      NMOS 6502 opcodes. No `DCP` or raw-opcode substitute was introduced. The
+      renderer has no hidden assembly JSRs and retains `.callstackextra 0`.
+    * Renderer private RAM falls from **56 to 10 bytes** and total renderer RAM
+      from **69 to 23 bytes**. In the animated gallery, object RAM falls from 98
+      to 52 bytes and total RIOT RAM from **102/128 to 56/128 bytes**, increasing
+      free RAM from **26 to 72 bytes (56.25%)** while the four-byte hardware-stack
+      reserve and one-byte `main` activation remain unchanged.
+    * Gallery ROM falls from **3545 to 3290/4090 bytes**, saving 255 bytes. The
+      standalone player-color smoke fixture falls from 1623 to 1368 ordinary ROM
+      bytes and from 82 to 36 RIOT-RAM bytes.
+    * The measured VBLANK span from the first saved-Y workspace write through the
+      final pre-visible PF2 staging write falls from **920 to 468 CPU cycles**, a
+      452-cycle reduction. Horizontal positioning consequently occurs earlier in
+      VBLANK, but remains entirely blanked and the visible-field entry is unchanged.
+    * Every visible two-line pair remains exactly **152 CPU cycles** and draw still
+      owns exactly 192 visible scanlines in a 262-line NTSC frame. Steady playfield
+      writes remain at cycles **10/17/40/47**. The first P1 half after a row
+      transition writes the left playfield bytes one cycle earlier at **9/16**
+      while retaining **40/47** on the right; the independent 160-pixel-per-line
+      playfield oracle proves that this blanking-region timing change is visually
+      identical.
+    * Normal and terminal P0/P1/Ball rasters remain unchanged. New exact Ball edge
+      regressions cover top-of-visible clipping and a four-pair Ball crossing the
+      first 16-line row boundary. Those tests exposed and deliberately fix an old
+      mask-builder defect: near the first row boundary the mask schedule could
+      shift/clip Ball early or stretch a nominal four-pair Ball to five pairs.
+      Direct countdown now follows the public Ball coordinate/height rule with
+      ordinary visible-window clipping. This is an explicitly accepted renderer
+      fix rather than preserved broken raster behavior.
+    * The authoritative animated-gallery accounting fixture is schema 10 and pins
+      the item-8 to item-9 RAM/ROM/VBLANK/visible-cycle/stack comparison plus the
+      accepted edge fix. The complete animated-gallery emulator oracle passes.
+    * Final verification is **455/455 compile-only** and **260/260 end-to-end**
+      cases in bounded batches, including exact player-color/playfield timing,
+      the animation oracle, recursive examples, bankswitching regressions, RAM
+      accounting, and source-tree hygiene.
+
+[x] 10. Investigate a more compact Ball/object schedule without removing Ball.
 
     * If direct countdown cannot satisfy the official-opcode schedule, separate
       the twelve meaningful Ball-mask bytes from VBLANK-only range-generation
@@ -843,6 +888,10 @@ Ordered roadmap
       beam deadline is not an optimization.
     * Preserve arbitrary P0/P1/Ball Y positions and heights if this remains a
       general player-color renderer optimization.
+
+    Closed as unnecessary after item 9: the official-opcode direct-countdown
+    schedule satisfies the visible-cycle contract while removing the 48-byte
+    schedule entirely, so no compact Ball-mask fallback is needed.
 
 [ ] 11. Only if a generally useful capability split is still justified, create a
          192-line two-sprite-only renderer.

@@ -152,13 +152,16 @@ std::vector<uint8_t> reversed_rom_table(uint16_t address) {
 int main(int argc, char **argv) {
    if (argc != 8) {
       std::fprintf(stderr,
-         "usage: %s ROM full|above|below playfield p0_graphics p1_graphics p0_colors p1_colors\n",
+         "usage: %s ROM full|full-direct|above|below playfield p0_graphics p1_graphics p0_colors p1_colors\n",
          argv[0]);
       return 2;
    }
    const std::string placement = argv[2];
-   if (placement != "full" && placement != "above" && placement != "below")
+   if (placement != "full" && placement != "full-direct" &&
+       placement != "above" && placement != "below")
       fail("bad placement");
+   const bool full_height=placement=="full" || placement=="full-direct";
+   const bool direct_full=placement=="full-direct";
    const uint16_t playfield = parse_u16(argv[3]);
    const uint16_t p0_graphics = parse_u16(argv[4]);
    const uint16_t p1_graphics = parse_u16(argv[5]);
@@ -188,8 +191,8 @@ int main(int argc, char **argv) {
       if (frame_periods[i] != 262*kCyclesPerLine) fail("frame is not exactly 262 lines");
 
    const uint64_t game_first = placement == "above" ? 51 : 40;
-   const uint64_t first_row = placement == "full" ? game_first : game_first + 4;
-   const int rows = placement == "full" ? 12 : 11;
+   const uint64_t first_row = full_height ? game_first : game_first + 4;
+   const int rows = full_height ? 12 : 11;
    auto pf = [](uint64_t line,uint64_t cycle,uint16_t address,uint8_t value) {
       return TimedWrite{line,cycle,address,value};
    };
@@ -209,10 +212,13 @@ int main(int argc, char **argv) {
          }, what);
       };
       const std::array<uint64_t,4> exact{{10,17,40,47}};
+      const std::array<uint64_t,4> transition_p1{{9,16,40,47}};
       for (int row=0;row<12;++row) {
          const uint64_t first=first_row+row*16;
-         for (int sub=0;sub<16;++sub)
-            expect_full_line(first+sub,row,exact,"full-height row");
+         for (int sub=0;sub<16;++sub) {
+            const auto &cycle=direct_full && row>0 && sub==1 ? transition_p1 : exact;
+            expect_full_line(first+sub,row,cycle,"full-height row");
+         }
       }
       bool boundary=false;
       uint64_t visible_line=0;
@@ -247,7 +253,7 @@ int main(int argc, char **argv) {
       }
    }
 
-   const uint64_t game_end = game_first + (placement == "full" ? 192 : 181);
+   const uint64_t game_end = game_first + (full_height ? 192 : 181);
    auto graphics_sequence = [&](uint16_t address) {
       std::vector<TimedWrite> out;
       for (const TimedWrite &event:frame_writes)
@@ -283,7 +289,7 @@ int main(int argc, char **argv) {
    if (balls<3) fail("Ball raster is missing");
    if (missiles) fail("gameplay unexpectedly enabled a missile");
 
-   if (placement != "full") {
+   if (!full_height) {
       const uint64_t score_first=placement=="above" ? 40 : 221;
       unsigned score_grp=0,score_pf=0,score_objects=0;
       for (const TimedWrite &event:frame_writes) {

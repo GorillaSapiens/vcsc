@@ -33,7 +33,7 @@
             "class" : "activation_scratch",
             "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
             "size" : 1,
-            "start" : 225,
+            "start" : 179,
             "subclass" : "inline_parameter"
          }
       ],
@@ -54,7 +54,7 @@
          "total_saved_from_unshared_baseline" : 12
       },
       "size" : 1,
-      "start" : 225
+      "start" : 179
    },
    "alignment_padding_cleanup" : {
       "alignment" : 256,
@@ -65,6 +65,77 @@
       "rom_bytes" : 3560,
       "rom_saved_bytes" : 64,
       "sprite_frames_3_bytes" : 192
+   },
+   "direct_countdown_renderer" : {
+      "ball_capability_retained" : true,
+      "delta" : {
+         "free_ram_bytes" : 46,
+         "object_bytes" : -46,
+         "ram_bytes" : -46,
+         "rom_bytes" : -255,
+         "stack_bytes" : 0
+      },
+      "edge_fix" : "the removed mask schedule shifted/clipped Ball positions in the first visible row and could stretch a four-pair Ball across the first row boundary; direct countdown now follows the public Ball coordinate/height rule with visible-window clipping",
+      "gallery_after" : {
+         "free_ram_bytes" : 72,
+         "object_bytes" : 52,
+         "ram_bytes" : 56,
+         "rom_bytes" : 3290,
+         "stack_bytes" : 4
+      },
+      "gallery_before" : {
+         "free_ram_bytes" : 26,
+         "object_bytes" : 98,
+         "ram_bytes" : 102,
+         "rom_bytes" : 3545,
+         "stack_bytes" : 4
+      },
+      "object_schedule_bytes_after" : 0,
+      "object_schedule_bytes_before" : 48,
+      "official_opcodes" : true,
+      "renderer_module_bytes_after" : 23,
+      "renderer_module_bytes_before" : 69,
+      "renderer_private_bytes_after" : 10,
+      "renderer_private_bytes_before" : 56,
+      "smoke_after" : {
+         "free_ram_bytes" : 92,
+         "ram_bytes" : 36,
+         "rom_bytes" : 1368
+      },
+      "smoke_before" : {
+         "free_ram_bytes" : 46,
+         "ram_bytes" : 82,
+         "rom_bytes" : 1623
+      },
+      "vblank_marker_span" : {
+         "after_cycles" : 468,
+         "before_cycles" : 920,
+         "method" : "frame-2 cycles from the first saved-Y workspace write through the final pre-visible PF2 staging write in the static renderer fixture",
+         "saved_cycles" : 452
+      },
+      "visible_schedule" : {
+         "exact_frame_lines" : 262,
+         "exact_visible_lines" : 192,
+         "pair_cycles" : 152,
+         "steady_pf_cycles" : [
+            10,
+            17,
+            40,
+            47
+         ],
+         "transition_p1_pf_cycles_after" : [
+            9,
+            16,
+            40,
+            47
+         ],
+         "transition_p1_pf_cycles_before" : [
+            10,
+            17,
+            40,
+            47
+         ]
+      }
    },
    "hardware_stack" : {
       "bank_extra_slots" : 0,
@@ -114,7 +185,7 @@
       "previous_free_ram_bytes" : 22,
       "previous_ram_bytes" : 106,
       "previous_stack_bytes" : 8,
-      "proof" : "single-use prepare_object_masks and prepare_one wrappers are flattened; the remaining set_range JSR is never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 is sufficient",
+      "proof" : "historical item-7 mask-renderer proof: single-use prepare_object_masks and prepare_one wrappers were flattened; the remaining set_range JSR was never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 was sufficient; item 9 subsequently removes the mask builder entirely while retaining the four-byte stack floor",
       "ram_bytes" : 102,
       "ram_saved_bytes" : 4,
       "rom_bytes" : 3545,
@@ -253,7 +324,7 @@
       {
          "class" : "renderer_state",
          "name" : "game_workspace",
-         "size" : 5,
+         "size" : 7,
          "start" : 167,
          "subclass" : "private_workspace"
       },
@@ -261,56 +332,49 @@
          "class" : "renderer_state",
          "name" : "game_playfield_position",
          "size" : 1,
-         "start" : 172,
-         "subclass" : "private_workspace"
-      },
-      {
-         "class" : "renderer_state",
-         "name" : "game_object_masks",
-         "size" : 48,
-         "start" : 173,
+         "start" : 174,
          "subclass" : "private_workspace"
       },
       {
          "class" : "persistent_state",
          "name" : "sprite0",
          "size" : 1,
-         "start" : 221,
+         "start" : 175,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "sprite1",
          "size" : 1,
-         "start" : 222,
+         "start" : 176,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "animation_state",
          "size" : 1,
-         "start" : 223,
+         "start" : 177,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "control_flags",
          "size" : 1,
-         "start" : 224,
+         "start" : 178,
          "subclass" : "gallery_control"
       },
       {
          "class" : "activation_scratch",
          "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
          "size" : 1,
-         "start" : 225,
+         "start" : 179,
          "subclass" : "inline_parameter"
       },
       {
          "class" : "free_ram",
          "name" : "free_ram",
-         "size" : 26,
-         "start" : 226,
+         "size" : 72,
+         "start" : 180,
          "subclass" : "unallocated"
       },
       {
@@ -359,21 +423,22 @@
       }
    },
    "phase_overlay" : {
-      "baseline_free_ram_bytes" : 18,
-      "baseline_ram_bytes" : 110,
-      "free_ram_bytes" : 19,
+      "baseline_free_ram_bytes" : 71,
+      "baseline_ram_bytes" : 57,
+      "free_ram_bytes" : 72,
       "host" : {
-         "phase_mask" : 6,
+         "phase_mask" : 14,
          "phases" : [
             "VBLANK",
-            "visible"
+            "visible",
+            "overscan"
          ],
-         "size" : 48,
-         "start" : 173,
-         "symbol" : "game_object_masks"
+         "size" : 7,
+         "start" : 167,
+         "symbol" : "game_workspace"
       },
       "proof" : "disjoint conservative phase intervals plus explicit workspace eligibility; compiler scratch is written before use and needs no startup zeroing",
-      "ram_bytes" : 109,
+      "ram_bytes" : 56,
       "ram_saved_bytes" : 1,
       "scratch" : {
          "diagnostics" : [
@@ -394,7 +459,7 @@
             "VSYNC"
          ],
          "size" : 1,
-         "start" : 173,
+         "start" : 167,
          "symbol" : "__vcsc_scratch_0"
       }
    },
@@ -407,7 +472,7 @@
          "rom_bytes" : 3993,
          "stack_bytes" : 8
       },
-      "checkpoint_source" : "historical rows are the measurements recorded by completed roadmap items; the current item-7 row is freshly regenerated from the present linker map",
+      "checkpoint_source" : "historical rows are measurements recorded by completed roadmap items; item9 is freshly regenerated from the present linker map",
       "checkpoints" : [
          {
             "activation_bytes" : 20,
@@ -528,25 +593,37 @@
             "rom_bytes" : 3545,
             "stack_bytes" : 4,
             "step" : "item7"
+         },
+         {
+            "activation_bytes" : 1,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : -46,
+            "delta_rom_bytes" : -255,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 72,
+            "ram_bytes" : 56,
+            "rom_bytes" : 3290,
+            "stack_bytes" : 4,
+            "step" : "item9"
          }
       ],
       "current" : {
          "activation_bytes" : 1,
-         "free_ram_bytes" : 26,
-         "ram_bytes" : 102,
-         "rom_bytes" : 3545,
+         "free_ram_bytes" : 72,
+         "ram_bytes" : 56,
+         "rom_bytes" : 3290,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
-      "free_ram_percent" : 20.31,
+      "free_ram_percent" : 56.25,
       "gallery_ball_height" : 0,
-      "rationale" : "26 free bytes is a meaningful application-state margin for this gallery; direct-countdown remains a general renderer optimization rather than a prerequisite for making the gallery fit",
+      "rationale" : "the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes",
       "renderer_profile" : "player_color_192 P0/P1/Ball",
       "total_delta" : {
          "activation_bytes" : -19,
-         "free_ram_bytes" : 26,
-         "ram_bytes" : -26,
-         "rom_bytes" : -448,
+         "free_ram_bytes" : 72,
+         "ram_bytes" : -72,
+         "rom_bytes" : -703,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true
@@ -556,32 +633,32 @@
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp"
    ],
-   "schema" : 9,
+   "schema" : 10,
    "totals" : {
       "category_bytes" : {
          "activation_scratch" : 1,
-         "free_ram" : 26,
+         "free_ram" : 72,
          "hardware_stack" : 4,
          "persistent_state" : 4,
-         "renderer_state" : 85,
+         "renderer_state" : 39,
          "runtime_scratch" : 8
       },
-      "free_ram_bytes" : 26,
+      "free_ram_bytes" : 72,
       "hardware_stack_bytes" : 4,
-      "object_bytes" : 98,
-      "ram_bytes" : 102,
-      "rom_bytes" : 3545,
-      "rom_free_bytes" : 545,
+      "object_bytes" : 52,
+      "ram_bytes" : 56,
+      "rom_bytes" : 3290,
+      "rom_free_bytes" : 800,
       "subcategory_bytes" : {
          "argument" : 2,
          "gallery_control" : 4,
          "inline_parameter" : 1,
          "mutable_row_colors" : 16,
          "pointer" : 6,
-         "private_workspace" : 56,
+         "private_workspace" : 10,
          "public_state" : 13,
          "return_addresses" : 4,
-         "unallocated" : 26
+         "unallocated" : 72
       }
    }
 }

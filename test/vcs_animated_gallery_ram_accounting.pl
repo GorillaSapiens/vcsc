@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 26 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -73,12 +73,12 @@ my $map=read_file($mapfile);
 my $asm=read_file($assembly);
 index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
    or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
-index($asm,'__phaseworkspace$V1$game_object_masks')>=0
-   or die "renderer object-mask workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3545 bytes .*free=545 bytes/
-   or die "3545-byte packed-state animated-gallery ROM result changed\n";
-$map =~ /ram\s+used=102 bytes .*free=26 bytes .*objects=98 bytes hardware-stack=4 bytes/
-   or die "102-byte stack-reduced RAM result changed\n";
+index($asm,'__phaseworkspace$V1$game_workspace')>=0
+   or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
+$map =~ /rom\s+used=3290 bytes .*free=800 bytes/
+   or die "3290-byte direct-countdown animated-gallery ROM result changed\n";
+$map =~ /ram\s+used=56 bytes .*free=72 bytes .*objects=52 bytes hardware-stack=4 bytes/
+   or die "56-byte direct-countdown RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
    or die "optimized high-level install_frames code size changed from 232 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
@@ -172,7 +172,7 @@ add_object('game_ball_x',$layouts{game_object_x}{start}+4,1,'renderer_state','pu
 for my $name (qw(game_player0_y game_player1_y game_ball_y game_player0_graphics game_player1_graphics game_player0_height game_player1_height game_ball_height)) {
    add_object($name,$layouts{$name}{start},$layouts{$name}{size},'renderer_state','public_state');
 }
-for my $name (qw(game_workspace game_playfield_position game_object_masks)) {
+for my $name (qw(game_workspace game_playfield_position)) {
    add_object($name,$layouts{$name}{start},$layouts{$name}{size},'renderer_state','private_workspace');
 }
 for my $name (qw(sprite0 sprite1 animation_state control_flags)) {
@@ -183,7 +183,7 @@ for my $member (@activation_members) {
 }
 my $free_start=$activation_start+$activation_size;
 my $free_size=$stack{start}-$free_start;
-$free_size==26 or die "free RAM gap is $free_size bytes, expected 26\n";
+$free_size==72 or die "free RAM gap is $free_size bytes, expected 72\n";
 add_object('free_ram',$free_start,$free_size,'free_ram','unallocated');
 add_object('hardware_stack',$stack{start},$stack{size},'hardware_stack','return_addresses');
 @objects=sort { $a->{start}<=>$b->{start} || $a->{name} cmp $b->{name} } @objects;
@@ -209,23 +209,24 @@ for my $obj (@objects) {
 my $sum=0; $sum+=$_ for values %category_totals;
 $sum==128 or die "classified RAM total is $sum, expected 128\n";
 $category_totals{runtime_scratch}==8 or die "runtime scratch baseline changed\n";
-$category_totals{renderer_state}==85 or die "renderer-state baseline changed\n";
+$category_totals{renderer_state}==39 or die "direct-countdown renderer-state result changed\n";
 $category_totals{persistent_state}==4 or die "persistent-state packing result changed\n";
 $category_totals{activation_scratch}==1 or die "phase overlay did not remove VSYNC scratch from main activation\n";
 $category_totals{hardware_stack}==4 or die "hardware-stack reduction changed\n";
-$category_totals{free_ram}==26 or die "free-RAM stack-reduction result changed\n";
+$category_totals{free_ram}==72 or die "direct-countdown free-RAM result changed\n";
 $subcategory_totals{public_state}==13 or die "renderer public-state baseline changed\n";
-$subcategory_totals{private_workspace}==56 or die "renderer private-workspace baseline changed\n";
+$subcategory_totals{private_workspace}==10 or die "renderer private-workspace result changed\n";
 $subcategory_totals{mutable_row_colors}==16 or die "mutable color baseline changed\n";
 
 exists $layouts{'__vcsc_scratch_0'} or die "map missing standalone phase-scoped compiler scratch\n";
 $layouts{'__vcsc_scratch_0'}{size}==1 or die "phase-scoped compiler scratch changed size\n";
-$layouts{'__vcsc_scratch_0'}{start}==$layouts{game_object_masks}{start}
-   or die "VSYNC scratch no longer overlays game_object_masks\n";
+$layouts{'__vcsc_scratch_0'}{start}==$layouts{game_workspace}{start}
+   or die "VSYNC scratch no longer overlays game_workspace\n";
 defined($layouts{'__vcsc_scratch_0'}{phase}) && $layouts{'__vcsc_scratch_0'}{phase}==0x01
    or die "compiler scratch is not classified as VSYNC-only\n";
-defined($layouts{game_object_masks}{phase}) && $layouts{game_object_masks}{phase}==0x06
-   or die "game_object_masks is not classified as VBLANK+visible\n";
+defined($layouts{game_workspace}{phase}) && $layouts{game_workspace}{phase}==0x0e
+   or die "game_workspace is not classified as VBLANK+visible+overscan\n";
+exists $layouts{game_object_masks} and die "removed game_object_masks unexpectedly linked\n";
 
 my @next_pair_expansions=($asm =~ /; begin inline expansion next_pair #(\d+)/g);
 @next_pair_expansions==2 or die "expected two next_pair expansions, found ".scalar(@next_pair_expansions)."\n";
@@ -235,11 +236,11 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>9,
+   schema=>10,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3545, rom_free_bytes=>545,
-      ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, hardware_stack_bytes=>4,
+      rom_bytes=>3290, rom_free_bytes=>800,
+      ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
    objects=>\@objects,
@@ -272,16 +273,16 @@ my $report={
       },
    },
    phase_overlay=>{
-      baseline_ram_bytes=>110, ram_bytes=>109, ram_saved_bytes=>1,
-      baseline_free_ram_bytes=>18, free_ram_bytes=>19,
+      baseline_ram_bytes=>57, ram_bytes=>56, ram_saved_bytes=>1,
+      baseline_free_ram_bytes=>71, free_ram_bytes=>72,
       scratch=>{
          symbol=>'__vcsc_scratch_0', start=>$layouts{'__vcsc_scratch_0'}{start}, size=>1,
          phase_mask=>1, phases=>['VSYNC'], diagnostics=>\@scratch,
       },
       host=>{
-         symbol=>'game_object_masks', start=>$layouts{game_object_masks}{start},
-         size=>$layouts{game_object_masks}{size}, phase_mask=>6,
-         phases=>['VBLANK','visible'],
+         symbol=>'game_workspace', start=>$layouts{game_workspace}{start},
+         size=>$layouts{game_workspace}{size}, phase_mask=>14,
+         phases=>['VBLANK','visible','overscan'],
       },
       proof=>'disjoint conservative phase intervals plus explicit workspace eligibility; compiler scratch is written before use and needs no startup zeroing',
    },
@@ -309,7 +310,7 @@ my $report={
       previous_stack_bytes=>8, stack_bytes=>4, stack_saved_bytes=>4,
       rom_bytes=>3545, rom_delta_bytes=>0,
       source_stack_bytes=>4, hidden_stack_bytes=>0,
-      proof=>'single-use prepare_object_masks and prepare_one wrappers are flattened; the remaining set_range JSR is never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 is sufficient',
+      proof=>'historical item-7 mask-renderer proof: single-use prepare_object_masks and prepare_one wrappers were flattened; the remaining set_range JSR was never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 was sufficient; item 9 subsequently removes the mask builder entirely while retaining the four-byte stack floor',
       floor=>'with stock startup JSR main and a real main -> install_frames/deadline source call, four hardware-stack bytes are the conservative minimum without a separate startup/ABI change',
    },
    post_optimization_remeasurement=>{
@@ -317,13 +318,13 @@ my $report={
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3545, ram_bytes=>102, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>26},
-      total_delta=>{rom_bytes=>-448, ram_bytes=>-26, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>26},
-      free_ram_percent=>20.31,
+      current=>{rom_bytes=>3290, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72},
+      total_delta=>{rom_bytes=>-703, ram_bytes=>-72, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>72},
+      free_ram_percent=>56.25,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
-      rationale=>'26 free bytes is a meaningful application-state margin for this gallery; direct-countdown remains a general renderer optimization rather than a prerequisite for making the gallery fit',
-      checkpoint_source=>'historical rows are the measurements recorded by completed roadmap items; the current item-7 row is freshly regenerated from the present linker map',
+      rationale=>'the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes',
+      checkpoint_source=>'historical rows are measurements recorded by completed roadmap items; item9 is freshly regenerated from the present linker map',
       checkpoints=>[
          {step=>'baseline', rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item1', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>-13, delta_activation_bytes=>-13, delta_stack_bytes=>0},
@@ -335,7 +336,27 @@ my $report={
          {step=>'item5a', rom_bytes=>3560, ram_bytes=>109, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>19, delta_rom_bytes=>-64, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item6', rom_bytes=>3545, ram_bytes=>106, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>22, delta_rom_bytes=>-15, delta_ram_bytes=>-3, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item7', rom_bytes=>3545, ram_bytes=>102, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>26, delta_rom_bytes=>0, delta_ram_bytes=>-4, delta_activation_bytes=>0, delta_stack_bytes=>-4},
+         {step=>'item9', rom_bytes=>3290, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>-255, delta_ram_bytes=>-46, delta_activation_bytes=>0, delta_stack_bytes=>0},
       ],
+   },
+   direct_countdown_renderer=>{
+      official_opcodes=>JSON::PP::true,
+      ball_capability_retained=>JSON::PP::true,
+      object_schedule_bytes_before=>48, object_schedule_bytes_after=>0,
+      renderer_private_bytes_before=>56, renderer_private_bytes_after=>10,
+      renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
+      gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
+      gallery_after=>{rom_bytes=>3290, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
+      delta=>{rom_bytes=>-255, ram_bytes=>-46, free_ram_bytes=>46, object_bytes=>-46, stack_bytes=>0},
+      smoke_before=>{rom_bytes=>1623, ram_bytes=>82, free_ram_bytes=>46},
+      smoke_after=>{rom_bytes=>1368, ram_bytes=>36, free_ram_bytes=>92},
+      vblank_marker_span=>{before_cycles=>920, after_cycles=>468, saved_cycles=>452,
+         method=>'frame-2 cycles from the first saved-Y workspace write through the final pre-visible PF2 staging write in the static renderer fixture'},
+      visible_schedule=>{pair_cycles=>152, steady_pf_cycles=>[10,17,40,47],
+         transition_p1_pf_cycles_before=>[10,17,40,47],
+         transition_p1_pf_cycles_after=>[9,16,40,47],
+         exact_visible_lines=>192, exact_frame_lines=>262},
+      edge_fix=>'the removed mask schedule shifted/clipped Ball positions in the first visible row and could stretch a four-pair Ball across the first row boundary; direct countdown now follows the public Ball coordinate/height rule with visible-window clipping',
    },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
@@ -354,4 +375,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 26 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline\n";

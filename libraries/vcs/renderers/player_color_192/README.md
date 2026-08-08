@@ -28,23 +28,30 @@ The component owns exactly 192 visible lines:
 twelve playfield rows of sixteen scanlines each. It cannot be combined with an
 eleven-line score inside the standard visible field.
 
-RAM contract: 13 public bytes, 56 private bytes, 69 bytes total. The component
-contains one page-contained 16-byte fine-motion table. Missiles are unavailable.
-It owns no score/font, VSYNC, VBLANK, or RIOT timer state and uses only official
-NMOS 6502 opcodes. Its VBLANK mask builder flattens the two single-use helper
-wrappers; only the shared `set_range` body remains an assembly subroutine. The
-object therefore declares `.callstackextra 0`: that remaining hidden JSR is
-explicitly audited and never requires more hardware-stack bytes than the ordinary
-source-call reserve already needs.
+RAM contract: 13 public bytes, 10 private bytes, 23 bytes total. Private
+storage is the two saved NUSIZ bytes inside `object_x`, seven bytes of phase-
+overlay-eligible workspace, and one playfield-position byte. The former 48-byte
+`object_masks` schedule is gone. The component contains one page-contained
+16-byte fine-motion table. Missiles are unavailable. It owns no score/font,
+VSYNC, VBLANK, or RIOT timer state and uses only official NMOS 6502 opcodes.
+The direct-countdown path contains no hidden assembly subroutines and declares
+`.callstackextra 0`.
 
-P0, P1, and Ball are positioned entirely during VBLANK. The first P1/Ball half
-and the left half of playfield row zero are staged while output is blanked, so
-visible drawing starts directly at line 40 in the same two-line pipeline used
-for every later row. Row transitions use cycle-matched paths so the four
-playfield writes stay aligned instead of drifting downward. P1 graphics are
-staged in private workspace and committed through GRP1 during horizontal
-blanking; that commit also transfers the delayed P0 and Ball graphics before
-the beam reaches the visible right edge. The terminal path
+P0, P1, and Ball are positioned entirely during VBLANK. P0/P1 visibility is
+decided from direct decremented Y counters and height+1 thresholds held in
+workspace. Ball likewise uses a direct counter; its two-pair staging bias accounts
+for the TIA's VDELBL/GRP1 transfer pipeline. There is no per-frame object-mask
+construction. The first P1/Ball half and the left half of playfield row zero are
+staged while output is blanked, so visible drawing starts directly at line 40 in
+the same two-line pipeline used for every later row. Row transitions remain
+cycle-matched at 152 CPU cycles per two-line pair. Steady pairs retain playfield
+write phases 10/17/40/47. On the first P1 half after a row transition the left
+writes occur at 9/16 while the right writes remain 40/47; the independent
+pixel-raster oracle proves this one-cycle-earlier blanking-region placement does
+not alter visible playfield pixels. P1 graphics are staged in private workspace
+and committed through GRP1 during horizontal blanking; that commit also transfers
+the delayed P0 and Ball graphics before the beam reaches the visible right edge.
+The terminal path
 finishes row twelve, then uses WSYNC to consume the remainder of visible line
 231. draw() therefore returns at the line-232 boundary, where the frame scheduler
 asserts VBLANK at physical beam cycle five. Display-state cleanup and the private
@@ -58,8 +65,12 @@ profile, including page containment and updates outside visible drawing. They
 also verify all 192 visible lines against the source playfield bytes at the exact safe write
 phases, exact 262-line frames, VBLANK-only horizontal positioning, P0/P1 glyph
 order and colors, Ball activity in both the normal and terminal bands, and the
-absence of missile activity. Nonzero GRP1 handoffs are required to occur in
-horizontal blanking, preventing a new sprite row from appearing in the final
-pixels of the preceding scanline. Example 06 is also reviewed in Stella 7.0.
+absence of missile activity. Ball edge fixtures cover clipping at the top of the
+visible field and a four-pair Ball crossing the first 16-line row boundary. Those
+fixtures intentionally lock the direct-countdown coordinate rule: the removed
+mask builder had a first-row boundary defect that could shift/clip Ball early or
+stretch a nominal four-pair Ball to five pairs. Nonzero GRP1 handoffs are required
+to occur in horizontal blanking, preventing a new sprite row from appearing in
+the final pixels of the preceding scanline. Example 06 is also reviewed in Stella 7.0.
 Historical PNG fixtures are not treated as authoritative because several are
 captured from broken rasters.

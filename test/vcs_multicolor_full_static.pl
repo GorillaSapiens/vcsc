@@ -110,9 +110,9 @@ $rc==0 && !$sig or die "player_color_192 interactive example display harness bui
 $out eq '' && $err eq '' or die "player_color_192 interactive example display harness build wrote output\n$out$err";
 my @display_symbols=map { map_symbol($map,$_) }
    qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
-($rc,$sig,$out,$err)=capture($display_exe,$bin,'full',@display_symbols);
+($rc,$sig,$out,$err)=capture($display_exe,$bin,'full-direct',@display_symbols);
 $rc==0 && !$sig or die "player_color_192 interactive example display raster failed\n$out$err";
-$out eq "vcs_multicolor_display_raster full ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
+$out eq "vcs_multicolor_display_raster full-direct ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"
    or die "unexpected player_color_192 interactive example display output: $out";
 $err eq '' or die "player_color_192 interactive example display stderr: $err";
 
