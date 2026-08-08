@@ -75,8 +75,8 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
    or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
 index($asm,'__phaseworkspace$V1$game_workspace')>=0
    or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3290 bytes .*free=800 bytes/
-   or die "3290-byte direct-countdown animated-gallery ROM result changed\n";
+$map =~ /rom\s+used=3292 bytes .*free=798 bytes/
+   or die "3292-byte Stella-corrected delayed-Ball/playfield-safe animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=56 bytes .*free=72 bytes .*objects=52 bytes hardware-stack=4 bytes/
    or die "56-byte direct-countdown RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -236,10 +236,10 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>10,
+   schema=>13,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3290, rom_free_bytes=>800,
+      rom_bytes=>3292, rom_free_bytes=>798,
       ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -318,13 +318,13 @@ my $report={
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3290, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72},
-      total_delta=>{rom_bytes=>-703, ram_bytes=>-72, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>72},
+      current=>{rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72},
+      total_delta=>{rom_bytes=>-701, ram_bytes=>-72, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>72},
       free_ram_percent=>56.25,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
       rationale=>'the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes',
-      checkpoint_source=>'historical rows are measurements recorded by completed roadmap items; item9 is freshly regenerated from the present linker map',
+      checkpoint_source=>'historical rows through item10a-playfield are measurements recorded by completed roadmap steps; item10a-stella is freshly regenerated after restoring the Stella-proven 192-line row-boundary PF schedule',
       checkpoints=>[
          {step=>'baseline', rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item1', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>-13, delta_activation_bytes=>-13, delta_stack_bytes=>0},
@@ -337,6 +337,9 @@ my $report={
          {step=>'item6', rom_bytes=>3545, ram_bytes=>106, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>22, delta_rom_bytes=>-15, delta_ram_bytes=>-3, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item7', rom_bytes=>3545, ram_bytes=>102, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>26, delta_rom_bytes=>0, delta_ram_bytes=>-4, delta_activation_bytes=>0, delta_stack_bytes=>-4},
          {step=>'item9', rom_bytes=>3290, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>-255, delta_ram_bytes=>-46, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item9a', rom_bytes=>3297, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>7, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item10a-playfield', rom_bytes=>3289, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>-8, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item10a-stella', rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>3, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
       ],
    },
    direct_countdown_renderer=>{
@@ -346,17 +349,18 @@ my $report={
       renderer_private_bytes_before=>56, renderer_private_bytes_after=>10,
       renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
       gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
-      gallery_after=>{rom_bytes=>3290, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
-      delta=>{rom_bytes=>-255, ram_bytes=>-46, free_ram_bytes=>46, object_bytes=>-46, stack_bytes=>0},
+      gallery_after=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
+      delta=>{rom_bytes=>-253, ram_bytes=>-46, free_ram_bytes=>46, object_bytes=>-46, stack_bytes=>0},
       smoke_before=>{rom_bytes=>1623, ram_bytes=>82, free_ram_bytes=>46},
-      smoke_after=>{rom_bytes=>1368, ram_bytes=>36, free_ram_bytes=>92},
+      smoke_after=>{rom_bytes=>1370, ram_bytes=>36, free_ram_bytes=>92},
       vblank_marker_span=>{before_cycles=>920, after_cycles=>468, saved_cycles=>452,
          method=>'frame-2 cycles from the first saved-Y workspace write through the final pre-visible PF2 staging write in the static renderer fixture'},
       visible_schedule=>{pair_cycles=>152, steady_pf_cycles=>[10,17,40,47],
          transition_p1_pf_cycles_before=>[10,17,40,47],
          transition_p1_pf_cycles_after=>[9,16,40,47],
+         row_end_pf_cycles_after=>[10,17,40,47], terminal_row_end_pf_cycles_after=>[10,17,43,50],
          exact_visible_lines=>192, exact_frame_lines=>262},
-      edge_fix=>'the removed mask schedule shifted/clipped Ball positions in the first visible row and could stretch a four-pair Ball across the first row boundary; direct countdown now follows the public Ball coordinate/height rule with visible-window clipping',
+      edge_fix=>'the removed mask schedule and early direct-count revisions mishandled the delayed Ball latch/PF row-boundary interaction; the final schedule computes the Ball decision in carry without moving the proven PF writes, then materializes ENABL on the following half, preserving the Stella-correct playfield raster',
    },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
@@ -365,6 +369,8 @@ my $report={
    protected_oracles=>[
       'test/vcs_player_color_192_animation.pl',
       'test/vcs_player_color_192_animation.cpp',
+      'test/vcs_playfield_phase.cpp',
+      'test/vcs_player_color_192_stella.pl',
    ],
 };
 my $json=JSON::PP->new->canonical(1)->pretty(1)->encode($report);

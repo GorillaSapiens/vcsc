@@ -348,7 +348,7 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-10 report records a one-byte `main`
+The animated gallery's authoritative schema-13 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
 scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
 48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
@@ -367,25 +367,32 @@ counter with the VDELBL pipeline bias. The renderer has no hidden assembly subro
 retains `.callstackextra 0`, and keeps Ball as a public capability.
 
 The direct-countdown conversion reduces the animated gallery from the item-8
-**3545/4090 ROM, 102/128 RAM, 26 free** checkpoint to **3290/4090 ROM and 56/128
+**3545/4090 ROM, 102/128 RAM, 26 free** checkpoint to **3292/4090 ROM and 56/128
 RIOT-RAM bytes**, leaving **72 bytes free (56.25%)**. Object bytes fall from 98 to 52;
 the one-byte `main` activation and four-byte hardware-stack reserve are unchanged.
-From the original measured RAM-roadmap baseline the gallery has now recovered 703 ROM
+From the original measured RAM-roadmap baseline the gallery has now recovered 701 ROM
 bytes and 72 RAM bytes, with activation down by 19 bytes and stack down by four.
 
 Measured VBLANK work from the first saved-Y workspace write through final pre-visible
 PF2 staging falls from 920 to 468 CPU cycles. Every visible pair remains exactly 152
 CPU cycles and the frame remains exactly 192 visible / 262 total lines. Steady
-playfield writes remain at cycles 10/17/40/47. The first P1 half after a row transition
-uses 9/16/40/47; the independent pixel oracle confirms the one-cycle-earlier left
-writes remain safely blanked and do not change visible playfield pixels.
+playfield writes remain at display-harness cycles 10/17/40/47. Nonterminal row
+endings now use that same proven 10/17/40/47 schedule; the first P1 half of the
+following row uses 9/16/40/47 and the terminal row uses 10/17/43/50. The physical
+phase oracle sees 18/25/48/55, 17/24/48/55, and terminal 18/25/51/58 respectively.
+The former 15/22/51/54 row-ending schedule was internally self-consistent but visibly
+corrupted one scanline at every 16-line row boundary in Stella. The default tests now
+pin every PF row of both public 192-line examples: the asymmetric interactive
+playfield and the animated gallery's full/checker/blank/checker/full pattern. Both
+profiles reject the broken boundary schedule; a separate Stella 7.0 snapshot target
+certifies the actual interactive visible raster.
 
-Normal and terminal P0/P1/Ball output remains raster-identical. New Ball edge oracles
-cover top clipping and crossing the first 16-line row boundary. They deliberately fix
-a defect in the removed mask builder that could shift/clip Ball early near the first
-row or stretch a nominal four-pair Ball to five pairs. Direct countdown now follows the
-public Ball coordinate/height rule with visible-window clipping; this is an accepted
-renderer fix, not an accidental behavior change.
+The Ball edge audit found that the mask builder was not the whole bug: every extra
+row-boundary `GRP1` transfers VDELBL, and the first direct-count renderer could still
+transfer a stale ENABL value there. All componentized player/Ball renderers now stage
+ENABL before that transfer. Top clipping and internal row crossings are explicitly
+pinned; a requested four-pair Ball remains four pairs with no duplicated boundary pair
+or dropped successor.
 
 `test/phase_overlay.pl` remains the generic lifetime proof: it verifies positive
 sharing independent of declaration order and refuses overlapping, unscoped,
@@ -405,17 +412,20 @@ Public-example assembly remains audited by `test/example_assembly_allowlist.pl`.
 beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
 score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-RAM-roadmap item 9 is complete, and item 10's compact-mask fallback is closed as not
-applicable because the official direct-countdown schedule succeeded. The next RAM-
-optimization decision is item 11: determine whether a generally useful two-sprite-only
-192-line capability split is still justified now that the general P0/P1/Ball renderer
-leaves 72 gallery RAM bytes free. Do not create it merely to reduce this gallery.
+RAM-roadmap item 10a is complete. `player_color_181` and its unofficial twin now use
+mask-free direct countdowns and publish a 13-public/11-private/24-total-byte contract.
+The all-five 192 renderer retains its cycle-critical Ball/M1/M0 schedule but reuses the
+dead fourth lane for scratch, reducing 78 to 71 component bytes; both all-five 181 twins
+similarly fall from 74 to 67 bytes. The official/unofficial 181 player-color smoke links
+are now size-identical at 1428 ROM bytes; the all-five 181 pair are size-identical at
+1795. The next RAM-optimization decision remains item 11: determine whether a generally
+useful two-sprite-only 192-line capability split is still justified. Do not create it
+merely to reduce the gallery.
 
-Verification after the direct-countdown conversion is **455/455 compile-only** and
-**260/260 end-to-end cases** in bounded batches. The authoritative schema-10 RAM-
-accounting fixture, complete animation emulator, player-color edge/timing and pixel
-oracles, recursive examples, bankswitching regressions, and source-tree hygiene all
-pass. Clean source-tree hygiene remains the packaging gate.
+Final verification for RAM-roadmap item 10a is **455/455 compile-only** and
+**260/260 end-to-end**. This includes the componentized renderer edge/timing oracles,
+public score/gameplay composition matrix, wide-score 181 compositions, schema-13 RAM
+accounting, the complete animated-gallery emulator, and source-tree hygiene.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

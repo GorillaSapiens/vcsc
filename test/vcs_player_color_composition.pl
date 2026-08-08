@@ -66,9 +66,9 @@ for my $mode (qw(static motion)) {
          game_object_x game_player0_y game_player1_y game_ball_y
          game_player0_graphics game_player1_graphics game_player0_height
          game_player1_height game_ball_height game_workspace
-         game_playfield_position game_object_masks
+         game_playfield_position
       );
-      $game_ram==64 or die "$key game RAM is $game_ram, expected 64\n";
+      $game_ram==24 or die "$key game RAM is $game_ram, expected 24\n";
       my $score_ram=0;
       $score_ram += object_size($map,$_) for qw(score_score score_pointers score_row score_delayed);
       $score_ram==17 or die "$key score RAM is $score_ram, expected 17\n";

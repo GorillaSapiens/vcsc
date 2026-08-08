@@ -36,7 +36,7 @@ an independent eleven-line six-glyph score above or below it:
 ```
 
 The scheduler owns VSYNC, VBLANK, timer deadlines, visible-component order,
-and the complete frame loop. `game_vblank()` prepares masks and positions M0,
+and the complete frame loop. `game_vblank()` prepares the compact timed schedule and positions M0,
 M1, and Ball while output is blanked. Once their HMOVE has completed, it clears
 `HMM0`, `HMM1`, and `HMBL` individually late in VBLANK. The later P0/P1 entry
 HMOVE therefore cannot move the non-player objects again, while avoiding the
@@ -67,15 +67,17 @@ Machine-readable contracts publish:
 - `game_VBLANK_MAX_CYCLES := 1800`
 - `game_OVERSCAN_MAX_CYCLES := 58`
 - `game_PUBLIC_RAM_BYTES := 23`
-- `game_PRIVATE_RAM_BYTES := 51`
-- `game_MODULE_RAM_BYTES := 74`
-- `game_WORKSPACE_BYTES := 7`
+- `game_PRIVATE_RAM_BYTES := 44`
+- `game_MODULE_RAM_BYTES := 67`
+- `game_WORKSPACE_BYTES := 0`
 - `game_PLAYFIELD_BYTES := 44`
 - `game_PLAYFIELD_ROWS := 11`
 
-Private storage consists of seven workspace bytes, one playfield-position byte,
-and 43 object-mask bytes. The implementation uses only official NMOS
-6502/6507 opcodes. P1 graphics and both missile-enable updates are pipelined
+Private storage is a 44-byte four-lane schedule. Three lanes carry the
+cycle-critical Ball/M1/M0 vertical bits; the fourth lane is reused for renderer
+scratch/state, and its final byte backs `game_playfield_position`. This removes
+the former separate seven-byte workspace and playfield-position allocation.
+The implementation uses only official NMOS 6502/6507 opcodes. P1 graphics and both missile-enable updates are pipelined
 across scanline boundaries and committed during horizontal blanking, preventing
 the next object row from leaking into the visible right edge.
 
@@ -96,6 +98,8 @@ score-above and score-below order. Emulator tests require:
 - full-range asynchronous X motion, including X=0 and X=159
 - one completed fine-motion application per frame for M0, M1, and Ball
 - preservation of application-visible Y coordinates across the lifecycle
+- an eight-scanline Ball crossing the first packed-row boundary with no stale
+  delayed-latch pair
 - no playfield, missile, or Ball leakage into the score region
 - official opcodes only and the exact RAM/page/stack contract
 
@@ -105,3 +109,5 @@ independent score contributes only its own separately measured resources.
 The ten official public compositions live under `examples/06_all_five_181/`;
 the separately named, raster-identical unofficial-opcode matrix lives under
 `examples/08_all_five_181_unofficial/`.
+
+A current gameplay-only smoke link uses 86/128 RIOT RAM bytes including the eight-byte hardware-stack reserve. The centered interactive score-above example uses 108/128, leaving 20 bytes free.

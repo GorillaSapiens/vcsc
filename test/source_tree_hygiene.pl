@@ -159,6 +159,8 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
 -f File::Spec->catfile($test,'stella_png_rgb_digest.pl') &&
+-f File::Spec->catfile($test,'vcs_player_color_192_stella.pl') &&
+-f File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_7.0.png') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 -f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
@@ -177,6 +179,7 @@ index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0 
 index($top_make,'stella-renderer-bank-test: tools')>=0 &&
 index($top_make,'standard_renderer_banked_f8.map')>=0 &&
 index($top_make,'stella-wide-score-test: tools')>=0 &&
+index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'install -m 0644 libraries/vcs/six_glyph_wide_component.c26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0
    or die "top-level installed simulator/Stella and wide-score coverage is incomplete\n";
@@ -299,12 +302,20 @@ for my $component (
    'all_five_181/all_five_181.c26',
    'all_five_181_unofficial/all_five_181_unofficial.c26',
    'all_five_192/all_five_192.c26',
-   'player_color_181/player_color_181.c26',
-   'player_color_181_unofficial/player_color_181_unofficial.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 4;')>=0
       or die "$component lost its object-owned inline-assembly stack allowance\n";
+}
+for my $component (
+   'player_color_181/player_color_181.c26',
+   'player_color_181_unofficial/player_color_181_unofficial.c26',
+) {
+   my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
+   index($source,'asm .callstackextra 0;')>=0 &&
+   index($source,'TEMPLATE_object_masks')<0 &&
+   index($source,'asm dec.z TEMPLATE_ball_y;')>=0
+      or die "$component lost its mask-free direct-countdown zero-extra-stack contract\n";
 }
 my $player_color_192_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','player_color_192','player_color_192.c26'));
 index($player_color_192_source,'asm .callstackextra 0;')>=0 &&
@@ -480,9 +491,8 @@ my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
 index($context,'RAM-optimization work through measured hardware-stack reduction is complete.')>=0 &&
-index($context,'RAM-roadmap item 9 is complete, and item 10')>=0 &&
-index($context,'The next RAM-')>=0 &&
-index($context,'optimization decision is item 11: determine whether a generally useful two-sprite-only')>=0 &&
+index($context,'RAM-roadmap item 10a is complete.')>=0 &&
+index($context,'The next RAM-optimization decision remains item 11: determine whether a generally')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
 length($context) <= 100 * 1024
@@ -500,6 +510,7 @@ $ram_roadmap =~ /^\[x\] 7\. Reduce hardware-stack reservation by measurement, no
 $ram_roadmap =~ /^\[x\] 8\. Remeasure the animated gallery on the existing P0\/P1\/Ball renderer after/m &&
 $ram_roadmap =~ /^\[x\] 9\. Replace or redesign `game_object_masks` using an official-opcode direct-/m &&
 $ram_roadmap =~ /^\[x\] 10\. Investigate a more compact Ball\/object schedule without removing Ball\./m &&
+$ram_roadmap =~ /^\[x\] 10a\. Propagate the delayed-Ball row-boundary repair and RAM cleanup through/m &&
 $ram_roadmap =~ /^\[ \] 11\. Only if a generally useful capability split is still justified, create a/m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
@@ -699,6 +710,21 @@ index($superchip_diagnostic,'validate_superchip_startup')>=0 &&
 index($superchip_diagnostic,'poison_superchip_before_result')>=0 &&
 index($superchip_diagnostic,'diagnostic_superchip_ram')<0
    or die "bankswitching diagnostic lost its mixed allocator-owned Superchip lifecycle probe\n";
+my $pc192_test=slurp(File::Spec->catfile($test,'vcs_player_color_192.pl'));
+my $pf_phase=slurp(File::Spec->catfile($test,'vcs_playfield_phase.cpp'));
+index($pc192_test,'03_player_color_192 01_interactive player_color_192_interactive.c26')>=0 &&
+index($pc192_test,q{'diagonal-192'})>=0 &&
+index(slurp(File::Spec->catfile($test,'vcs_player_color_192_animation.pl')),q{'gallery-192'})>=0 &&
+index($pf_phase,'kDiagonalPlayfield192')>=0 &&
+index($pf_phase,'kGalleryPlayfield192')>=0 &&
+index($pf_phase,'15/22/51/54')<0
+   or die "player-color-192 asymmetric playfield regression coverage is incomplete
+";
+my $pc192_reference=File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_7.0.png');
+sha256_hex(slurp($pc192_reference)) eq '6ac771765db3b5c0b91836c69fd3e21ff755fe48a668b06938960f1c2373a980'
+   or die "reviewed player-color-192 Stella reference PNG changed without updating its contract
+";
+
 my $snapshot_keys=slurp(File::Spec->catfile($test,'stella_snapshot_keys.pl'));
 index($snapshot_keys,"'--reset'")>=0 &&
 index($snapshot_keys,"function_keycode('F2')")>=0

@@ -185,6 +185,23 @@ $out eq "vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n"
    or die "unexpected player-color 192 playfield timing output: $out";
 $err eq '' or die "player-color 192 playfield timing stderr: $err";
 
+# The symmetric smoke playfield above is useful for broad object coverage but
+# can hide a row-boundary PF timing error.  Compile the public asymmetric
+# interactive example too and require every one of its 192 scanlines to emit
+# the empirically Stella-safe PF byte/order/phase schedule.  This specifically
+# rejects the 15/22/51/54 row-ending schedule that visibly tore the playfield.
+my $interactive_src=File::Spec->catfile($repo,qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26));
+my $interactive_bin=File::Spec->catfile($tmp,'player_color_192_interactive.bin');
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$interactive_src,'-o',$interactive_bin);
+$rc==0 && !$sig or die "player-color 192 interactive playfield fixture build failed\n$out$err";
+without_usage($out) eq '' && $err eq ''
+   or die "player-color 192 interactive playfield fixture build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($phase_exe,$interactive_bin,12,12,40,'diagonal-192');
+$rc==0 && !$sig or die "player-color 192 asymmetric playfield timing failed\n$out$err";
+$out eq "vcs_playfield_diagonal_192 ok: 12 asymmetric rows x 16 lines with proven PF phases\n"
+   or die "unexpected player-color 192 asymmetric playfield output: $out";
+$err eq '' or die "player-color 192 asymmetric playfield stderr: $err";
+
 my $display_src=File::Spec->catfile($repo,qw(test vcs_multicolor_display_raster.cpp));
 my $display_exe=File::Spec->catfile($tmp,'player_color_192_display');
 ($rc,$sig,$out,$err)=capture(

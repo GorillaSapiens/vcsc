@@ -213,4 +213,18 @@ $out eq "vcs_player_color_192_animation ok: 29 four-frame animations use modulo-
    or die "unexpected animation harness output: $out";
 $err eq '' or die "animation harness stderr: $err";
 
+# The animated gallery is the second public player_color_192 example and was
+# affected by the same one-scanline row-boundary playfield tear. Verify its
+# full/checker/blank/checker/full playfield independently of sprite animation.
+my $phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
+my $phase=File::Spec->catfile($tmp,'vcs_player_color_192_gallery_playfield');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-I',$mos,$phase_src,@mos_input,'-o',$phase);
+$rc==0 && !$sig or die "animated gallery playfield harness build failed\n$out$err";
+$out eq '' && $err eq '' or die "animated gallery playfield harness build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($phase,$bin,12,12,40,'gallery-192');
+$rc==0 && !$sig or die "animated gallery playfield timing failed\n$out$err";
+$out eq "vcs_playfield_gallery_192 ok: 12 gallery rows x 16 lines with proven PF phases\n"
+   or die "unexpected animated gallery playfield output: $out";
+$err eq '' or die "animated gallery playfield stderr: $err";
+
 print "vcs_player_color_192_animation_test ok\n";

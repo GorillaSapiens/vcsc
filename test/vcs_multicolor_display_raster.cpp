@@ -213,10 +213,17 @@ int main(int argc, char **argv) {
       };
       const std::array<uint64_t,4> exact{{10,17,40,47}};
       const std::array<uint64_t,4> transition_p1{{9,16,40,47}};
+      // The transition's reflected bytes must not be written while the TIA is
+      // still consuming the left half.  30/33 visually shreds the playfield in
+      // Stella even though a byte-only event oracle can appear self-consistent.
+      const std::array<uint64_t,4> transition_p0{{10,17,40,47}};
+      const std::array<uint64_t,4> transition_terminal{{10,17,43,50}};
       for (int row=0;row<12;++row) {
          const uint64_t first=first_row+row*16;
          for (int sub=0;sub<16;++sub) {
-            const auto &cycle=direct_full && row>0 && sub==1 ? transition_p1 : exact;
+            const auto &cycle=direct_full && sub==15 && row==11 ? transition_terminal :
+               (direct_full && sub==15 ? transition_p0 :
+               (direct_full && row>0 && sub==1 ? transition_p1 : exact));
             expect_full_line(first+sub,row,cycle,"full-height row");
          }
       }

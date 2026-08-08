@@ -68,8 +68,8 @@ unstable opcodes.
 The maintained smoke cartridge measures:
 
 ```text
-official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2090
+official linked ROM bytes:   1795
+unofficial linked ROM bytes: 1795
 signed byte difference:          0
 ```
 
@@ -80,17 +80,13 @@ object behavior, score composition, and stable 262-line frames.
 Completed player-color component byte comparison
 ------------------------------------------------
 
-The matched `player_color_181_unofficial` component uses two reviewed
-stable/common `AXS #252` sites and four stable/common zero-page NOP (`$04`)
-sites. Two other candidate `AXS` substitutions were rejected by emulator
-comparison because the official sequences' flag results were live and the
-candidate cartridges failed to complete frames. Compensating NOPs preserve the
-accepted sites' exact cycle boundaries.
+The matched `player_color_181_unofficial` profile remains separately named and
+must be requested explicitly with `-Wa,--illegals`, but the direct-countdown
+conversion removed the old row-mask helper where its reviewed `AXS`/zero-page
+NOP substitutions lived. The current generated renderer therefore contains no
+unofficial mnemonic at all.
 
-The terminal-row raster repair moves cleanup behind a scanline boundary and
-adds a compact 30-cycle blank-line phase pad. The maintained smoke cartridge
-therefore measures 1429 linked ROM bytes for both the official and unofficial
-components: **0 bytes saved**. Pairwise smoke, static,
-and motion raster/timing tests cover both score orders, and the existing
-320-frame player-color motion oracle enforces full-range P0/P1/Ball behavior,
-per-row colors, and application-state preservation.
+The maintained smoke cartridges measure **1428 linked ROM bytes** for both the
+official and unofficial components: **0 bytes saved**. Pairwise smoke, static,
+and motion raster/timing tests cover both score orders; the 320-frame motion
+oracle also pins the corrected Ball transfer across an internal row boundary.

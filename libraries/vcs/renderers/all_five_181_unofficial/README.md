@@ -11,7 +11,7 @@
 
 `all_five_181_unofficial.c26` is the separately named experimental counterpart to
 `../all_five_181/all_five_181.c26`. It has the same lifecycle API, 23-byte
-public state, 51-byte private state, 74-byte total RAM contract, 44-byte
+public state, 44-byte private state, 67-byte total RAM contract, 44-byte
 playfield contract, solid player colors, five-object behavior, and score-above
 or score-below composition rules. Assemble cartridges that instantiate it with
 `-Wa,--illegals`.
@@ -25,16 +25,17 @@ corrected official renderer.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2090
+official linked ROM bytes:   1795
+unofficial linked ROM bytes: 1795
 signed byte difference:          0
 ```
 
 Tests compare all five official/unofficial cartridge pairs byte-for-byte at the
 visible TIA-event level, including score above, score below, static state, and
 asynchronous motion. They also require identical RAM addresses, the single
-reviewed unofficial opcode, stable 262-line frames, and the corrected playfield
-schedule in both variants.
+reviewed unofficial opcode, stable 262-line frames, and the corrected playfield schedule in both variants. The official edge oracle also
+pins the delayed-Ball transfer across the first packed-row boundary; the
+unofficial source retains the same transition logic.
 
 The ten-cartridge public score/poison matrix lives under
 `examples/08_all_five_181_unofficial/`. They are application-level counterparts to the official

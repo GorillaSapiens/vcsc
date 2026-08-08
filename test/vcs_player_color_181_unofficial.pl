@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_player_color_181_unofficial ok: official=1681 unofficial=1679 saving=2
+# expectstdout: vcs_player_color_181_unofficial ok: official=1428 unofficial=1428 delta=0
 # expectexit: 0
 
 use strict;
@@ -60,16 +60,15 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1681 or die "official smoke now uses $official_used bytes, expected 1681\n";
-$unofficial_used==1679 or die "unofficial smoke now uses $unofficial_used bytes, expected 1679\n";
-$official_used-$unofficial_used==2
-   or die "unexpected savings: official=$official_used unofficial=$unofficial_used\n";
+$official_used==1428 or die "official smoke now uses $official_used bytes, expected 1428\n";
+$unofficial_used==1428 or die "unofficial smoke now uses $unofficial_used bytes, expected 1428\n";
+$unofficial_used-$official_used==0
+   or die "unexpected size delta: official=$official_used unofficial=$unofficial_used\n";
 
 my @ram_symbols=qw(
    game_object_x game_player0_y game_player1_y game_ball_y
    game_player0_graphics game_player1_graphics game_player0_height
    game_player1_height game_ball_height game_workspace game_playfield_position
-   game_object_masks
 );
 for my $name (@ram_symbols) {
    my $a=map_symbol($built{smoke}{official}[1],$name);
@@ -83,10 +82,10 @@ my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Wa,--illegals','-S',
 $rc==0 && !$sig or die "unofficial assembly generation failed\n$out$err";
 $out eq '' && $err eq '' or die "unofficial assembly generation wrote output\n$out$err";
 my $text=read_file($asm);
-my $axs_count=()=($text =~ /^\s*axs\s+#252\s*$/gim);
-$axs_count==2 or die "unofficial assembly has $axs_count AXS substitutions, expected 2\n";
+my $axs_count=()=($text =~ /^\s*axs\b/gim);
+$axs_count==0 or die "unofficial assembly has $axs_count AXS sites; direct countdown should need none\n";
 my $zpnop_count=()=($text =~ /^\s*nop\.z\s+\$00\s*$/gim);
-$zpnop_count==1 or die "unofficial assembly has $zpnop_count zero-page NOP substitutions, expected 1\n";
+$zpnop_count==0 or die "unofficial assembly has $zpnop_count zero-page NOP sites; expected none\n";
 $text !~ /^\s*(?:dcp|lax|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|xaa|ahx|shx|shy|tas|las)\b/im
    or die "unofficial assembly contains an unreviewed unofficial mnemonic\n";
 
@@ -128,4 +127,4 @@ for my $mode (qw(static motion)) {
    }
 }
 
-print "vcs_player_color_181_unofficial ok: official=$official_used unofficial=$unofficial_used saving=2\n";
+print "vcs_player_color_181_unofficial ok: official=$official_used unofficial=$unofficial_used delta=0\n";

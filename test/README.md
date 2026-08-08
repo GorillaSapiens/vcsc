@@ -449,8 +449,16 @@ no `game_object_masks` storage or unofficial opcodes, 23 total renderer RAM byte
 exact 152-cycle visible pairs, top-clipped Ball output, and a four-pair Ball crossing
 the first 16-line row boundary. Its `full-direct` display timing profile allows the
 accepted row-transition left-playfield phases 9/16 while retaining 40/47 on the
-right and checking all 160 visible pixels independently. The 181-line oracle also
-rejects both failure modes in the Ball positioning sequence: an immediate `HMCLR`
+right and checking all 160 visible pixels independently. The 181-line player-color
+composition oracle retains steady diagonal-playfield writes at 18/25/48/55, pins
+nonterminal row endings at 18/25/45/48, the first following P1 half at
+17/24/48/55, and the terminal row ending at 18/25/48/55. The reflected
+row-ending writes are deliberately kept out of the left-half display window;
+the earlier 38/41 schedule produced visible playfield corruption in Stella even
+though the byte-only reconstruction was self-consistent. Its object oracle also
+pins the corrected Ball row-boundary transfer through its motion trace and rejects
+both failure modes in the Ball
+positioning sequence: an immediate `HMCLR`
 that interrupts the first HMOVE, and a later HMOVE reached while `HMBL` is still
 nonzero. `vcs_player_extreme_right.pl` builds both heights with alternating $AA/$55
 checkerboard players at X=159; that pattern exposes the one-bit row swap that solid
@@ -473,7 +481,7 @@ pages, mutable eight-byte RAM color tables, and 262-line frame periods.
 
 `vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
 components derived from the proven player-color rasters. They lock the 23-byte
-public interfaces, 74-byte and 78-byte total RAM contracts, official-opcode
+public interfaces, 67-byte and 71-byte total RAM contracts, official-opcode
 policy, solid P0/P1 colors, all-five enable activity, exact 181/192 visible-line
 contracts, and every playfield pixel across all eleven or twelve 16-line
 rows. The all-five timing profile also locks the steady PF1/PF2/PF2/PF1 writes
@@ -481,7 +489,10 @@ to cycles 17/24/45/52 on both alternating scanline halves and bounds every
 row-transition write, so a two-cycle P1/P0 reflected-half mismatch cannot hide
 behind the byte-level raster model. They also reject every late P0/P1 transfer
 and every effective M0/M1 enable-state change after horizontal blanking,
-covering the same extreme-right row-tearing failure for all five objects. The
+covering the same extreme-right row-tearing failure for all five objects.
+Dedicated Y=8,height=3 edge cartridges additionally require exactly eight Ball
+scanlines across the first packed-row boundary, catching stale VDELBL transfer
+at the extra transition `GRP1`. The
 192-line regression additionally runs a 360-frame asynchronous fixture through
 the independent endpoint oracle: all five VBLANK RESP/HMxx/HMOVE transactions
 must match the requested X coordinates, every object must reach X=0 and X=159,
@@ -509,7 +520,7 @@ against the corrected official schedule. It requires identical RAM addresses,
 one reviewed zero-page unofficial NOP, no AXS sites, the same physical
 modulo-76 playfield profile, pairwise visible-trace identity for all five static
 and motion compositions, direct per-pixel object-raster checks for both static
-score orders, and the measured 2090/2090-byte result.
+score orders, and the measured 1795/1795-byte result.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
@@ -819,18 +830,27 @@ RAM/ROM report. It regenerates
 every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
 records compiler scratch diagnostics, proves both sequential `next_pair()`
 expansions allocate zero expression scratch, and checks the linker's source-call
-edges, deepest path, and explicit `.callstackextra` contribution. Schema 10 records
+edges, deepest path, and explicit `.callstackextra` contribution. Schema 13 records
 the completed optimization sequence through the official-opcode direct-countdown
 `player_color_192` renderer. The former 48-byte `game_object_masks` schedule is
 absent; renderer private RAM falls from 56 to 10 bytes and total renderer RAM from
-69 to 23. The gallery is now **3290/4090 ROM bytes** and **56/128 RAM bytes**, with
+69 to 23. The gallery is now **3292/4090 ROM bytes** and **56/128 RAM bytes**, with
 **72 RAM bytes free**: 52 object bytes plus a four-byte hardware-stack reserve.
-Relative to the item-8 mask-renderer checkpoint, direct countdown saves 255 ROM
-bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
+Relative to the item-8 mask-renderer checkpoint, the direct-countdown renderer
+plus the delayed-Ball and playfield-transition corrections saves 253 ROM bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
 measured VBLANK marker span falls from 920 to 468 CPU cycles. Every visible two-
-line pair remains 152 cycles; steady playfield phases remain 10/17/40/47, while
-the first P1 transition half uses 9/16/40/47 with the pixel oracle proving the
-earlier left writes remain in safe blanking time. The report also records the
+line pair remains 152 cycles; steady and nonterminal row-ending playfield phases
+are 10/17/40/47, while the first P1 transition half uses 9/16/40/47 and the
+terminal line uses 10/17/43/50. The default player-color-192 tests now exercise both public examples' playfields:
+`01_interactive` verifies all 192 scanlines of its asymmetric diagonal pattern, and
+`02_animated_sprites` independently verifies its full/checker/blank/checker/full
+pattern against the same Stella-proven PF byte/order/phase contract. Both profiles
+reject the previously accepted 15/22/51/54 boundary schedule that corrupted one
+visible scanline per 16-line row. The optional
+`make stella-player-color-192-test STELLA=/path/to/stella` target snapshots that
+exact public example in Stella 7.0 and compares its RGB raster to a reviewed
+reference PNG. The report also records the corrected delayed-Ball carry staging
+across the extra row-boundary `GRP1`, plus the
 accepted Ball first-row mask-boundary fix, full baseline-to-current checkpoint
 history, and the unchanged 232-byte high-level `install_frames()` span. The stack
 report remains explicit at source=4, hidden=0, total=4 and `.callstackextra 0`.

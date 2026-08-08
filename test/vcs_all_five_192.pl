@@ -86,9 +86,9 @@ require_re($module,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/,
    'component does not publish 192 visible scanlines');
 require_re($module,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*23/,
    'component public-RAM contract changed');
-require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*55/,
+require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*48/,
    'component private-RAM contract changed');
-require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*78/,
+require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*71/,
    'component total-RAM contract changed');
 require_re($fixture,qr/template\s+"renderers\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
@@ -124,14 +124,17 @@ my @public=qw(
    game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
    game_player0_color game_player1_color
 );
-my @private=qw(game_workspace game_playfield_position game_object_masks);
+my @private=qw(game_object_masks);
 my $public=0; $public += bss_size($map,$_) for @public;
 my $private=0; $private += bss_size($map,$_) for @private;
 $public==23 or die "linked public gameplay RAM is $public bytes, expected 23\n";
-$private==55 or die "linked private gameplay RAM is $private bytes, expected 55\n";
-$public+$private==78 or die "linked gameplay RAM is not 78 bytes\n";
-bss_size($map,'game_workspace')==6 or die "workspace is not six bytes\n";
+$private==48 or die "linked private gameplay RAM is $private bytes, expected 48\n";
+$public+$private==71 or die "linked gameplay RAM is not 71 bytes\n";
 bss_size($map,'game_object_masks')==48 or die "object-mask storage is not 48 bytes\n";
+$map !~ /BSS[.]__vcsc_object\$game_(?:workspace|playfield_position)\b/
+   or die "all-five 192 unexpectedly retained separate workspace/playfield-position RAM\n";
+require_re($module,qr/alias TEMPLATE_playfield_position TEMPLATE_object_masks\[47\]/,
+   'playfield position is no longer overlaid on the dead mask lane');
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0030\s+page=hard\b/m
    or die "game playfield is not a page-contained 48-byte ROM object\n";
 $map !~ /(?:score|font)/i or die "gameplay-only map retained score/font symbols\n";
@@ -184,6 +187,29 @@ $out eq "vcs_all_five_composition static none ok
 "
    or die "unexpected static object-pixel output: $out";
 $err eq '' or die "static object-pixel stderr: $err";
+
+# Pin the first packed-row boundary that exposed the stale delayed-Ball
+# transfer.  Y=8,height=3 must render exactly eight scanlines (relative
+# lines 12..19), with no duplicated pair at relative line 16.
+my $edge_text=$fixture;
+$edge_text =~ s/game_ball_y := 48;/game_ball_y := 8;/
+   or die "could not set all-five 192 Ball row-edge fixture
+";
+my $edge_src=File::Spec->catfile($tmp,'all_five_192_ball_row_edge.c26');
+my $edge_bin=File::Spec->catfile($tmp,'all_five_192_ball_row_edge.bin');
+write_file($edge_src,$edge_text);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$edge_src,'-o',$edge_bin);
+$rc==0 && !$sig or die "all-five 192 Ball row-edge build failed
+$out$err";
+without_usage($out) eq '' && $err eq '' or die "all-five 192 Ball row-edge build wrote output
+$out$err";
+($rc,$sig,$out,$err)=capture($endpoint_exe,$edge_bin,'none','ball-edge','12','8');
+$rc==0 && !$sig or die "all-five 192 Ball row-edge raster failed
+$out$err";
+$out eq "vcs_all_five_composition ball-edge none ok
+"
+   or die "unexpected all-five 192 Ball row-edge output: $out";
+$err eq '' or die "all-five 192 Ball row-edge stderr: $err";
 
 my @endpoint_args=(
    map_symbol($motion_map,'game_object_x'),

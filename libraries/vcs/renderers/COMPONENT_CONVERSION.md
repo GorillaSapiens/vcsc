@@ -262,12 +262,13 @@ map contract is:
 | Resource | Bytes |
 | --- | ---: |
 | public gameplay state | 23 |
-| private workspace and masks | 51 |
-| total component RAM | 74 |
+| private timed schedule/scratch | 44 |
+| total component RAM | 67 |
 | application playfield ROM | 44 |
 
-The private span contains seven workspace bytes, one playfield-position byte,
-and 43 object-mask bytes. Public state includes all five X coordinates, complete
+The private span is one 44-byte four-lane timed schedule: three lanes carry
+Ball/M1/M0 vertical bits and the otherwise dead fourth lane is reused as
+scratch/state, with its final byte backing `playfield_position`. Public state includes all five X coordinates, complete
 Y/height state, P0/P1 graphics pointers and heights, independent P0/P1 NUSIZ
 values, and independent solid P0/P1 colors.
 
@@ -283,7 +284,7 @@ restored application Y state, and a clean score region.
 
 `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` is the
 separately named experimental counterpart to the official 181-line component. It has
-the same lifecycle API, 23-byte public state, 51-byte private state, 74-byte
+the same lifecycle API, 23-byte public state, 44-byte private state, 67-byte
 total RAM layout, 44-byte playfield contract, solid player colors, and
 score-above/score-below fixtures. It must be assembled with `-Wa,--illegals`.
 
@@ -295,8 +296,8 @@ or unstable opcodes.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   2090
-unofficial linked ROM bytes: 2090
+official linked ROM bytes:   1795
+unofficial linked ROM bytes: 1795
 signed byte difference:          0
 ```
 
@@ -319,8 +320,10 @@ page-contained 48-byte/twelve-row playfield, and cannot be combined with the
 independent eleven-line score inside the standard visible region. It owns no
 score state, score pointers, or font.
 
-Its exact map contract is 23 public bytes plus 55 private bytes: six workspace
-bytes, one playfield-position byte, and 48 object-mask bytes, for 78 bytes total.
+Its exact map contract is 23 public bytes plus 48 private bytes, for 71 bytes
+total. The 48-byte four-lane schedule keeps the cycle-critical Ball/M1/M0 bits;
+the dead fourth lane now carries scratch/state and `playfield_position`, so no
+separate workspace is allocated.
 All five objects are positioned during VBLANK. `draw()` renders twelve uniform
 16-line rows; `overscan()` clears visible TIA state and restores the
 application-visible Y coordinates.
@@ -346,11 +349,17 @@ write the left PF1/PF2 pair at cycles 21/28 while retaining the right pair at
 The rebuilt unofficial twin retains one reviewed `$04` NOP as exact-cycle
 padding outside the visible raster.
 
+The row-boundary repair now also stages the Ball enable value before every
+extra transition `GRP1`, preventing the delayed Ball latch from duplicating one
+pair and dropping the next at an internal 16-line boundary. Dedicated edge
+oracles pin this for the 192- and 181-line all-five families.
+
 The 181-line all-five and player-color profiles also preserve the final row
 through a WSYNC boundary before clearing visible TIA state. The player-color
 path needs a compact 30-cycle phase pad on the blank cleanup line to retain its
 exact 181-line return boundary; both official and unofficial smoke links now
-measure 1429 bytes and still differ by zero bytes.
+measure 1428 bytes and still differ by zero bytes after direct-countdown and
+delayed-Ball correction.
 
 The maintained source-level oracle checks every gameplay row, sixteen lines per
 row, and all 160 playfield pixels per line. The 192-line player-color profile
@@ -394,7 +403,10 @@ and M1 remain unavailable.
 The application supplies an eleven-row/44-byte page-contained playfield plus
 page-contained eight-byte P0 and P1 color tables. Graphics and colors use the
 same highest-index-to-zero row order. The measured component contract is 13
-bytes of public gameplay state plus 52 private bytes, 65 total. No score/font,
+bytes of public gameplay state plus 11 private bytes, 24 total. The former
+43-byte object-mask schedule is gone; private state is the two retained NUSIZ
+shadow slots, eight phase-overlay-eligible countdown/work bytes, and one
+playfield-position byte. No score/font,
 VSYNC, VBLANK, or RIOT timer state is linked. The maintained static fixture
 holds stable 262-line scheduler frames and proves all eight P0 and P1 rows use
 the exact requested colors while Ball remains active and both missiles remain
@@ -404,28 +416,24 @@ Static and asynchronous-motion composition fixtures now cover both explicit
 orders: score above gameplay and score below gameplay. The emulator evidence
 locks 181+11=192 visible lines, stable 262-line frames, disjoint score/gameplay
 activity, exact P0/P1 color rows, disabled missiles, and full X=0..159 traversal
-for P0, P1, and Ball over 320 frames. Composed maps retain separate 64-byte
-gameplay and 17-byte score allocations; a gameplay-only map contains no score
-state or font.
+for P0, P1, and Ball over 320 frames. The centered interactive score-above example now links at 65/128 total RIOT RAM
+bytes; a gameplay-only map contains no score state or font.
 
 
 ## Matched unofficial player-color 181-line experiment
 
 `renderers/player_color_181_unofficial/player_color_181_unofficial.c26` is the
 separately named stable/common-NMOS twin of the official score-composable
-player-color component. It keeps the same lifecycle API, exact 13/51/64-byte
-RAM map, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
+player-color component. It keeps the same lifecycle API, exact 13/11/24-byte public/private/total RAM contract, per-row P0/P1 colors, Ball behavior, 181-line visible schedule, both
 score orders, and static/motion fixtures. It must be assembled with
 `-Wa,--illegals`.
 
-Only two `AXS #252` row-mask advance sites and one zero-page unofficial NOP
-site survived equivalence testing. The other two tempting `AXS` substitutions
-were rejected because they changed live flag behavior and prevented complete
-frames. Compensating official NOPs retain every accepted site's cycle boundary.
-After the terminal-row cleanup repair, the maintained smoke cartridges measure
-1787 linked ROM bytes for the official component and 1785 bytes for the
-unofficial component: **2 bytes saved**. Five pairwise raster/timing
-comparisons plus the existing 320-frame composition oracle enforce that result.
+The direct-countdown conversion removed the row-mask helper that contained the
+reviewed unofficial substitutions. The current generated unofficial profile
+contains no unofficial mnemonic and measures 1428 linked ROM bytes, exactly the
+same as the official twin. Five pairwise raster/timing comparisons plus the
+320-frame composition oracle enforce equivalence, including the corrected Ball
+transfer across an internal row boundary.
 
 ## Official player-color 192-line scoreless profile
 
@@ -440,7 +448,8 @@ The full-height component has one uniform two-line raster loop for all twelve
 rows. P0, P1, and Ball are positioned entirely during VBLANK; staged row-zero
 state enters the visible field at the same half-row phase used by every later
 row. The obsolete terminal pipeline and its 160-byte position table were
-removed. Its measured RAM contract is 13 public plus 56 private bytes, 69 total,
+removed. The later RAM optimization also removed the 48-byte object-mask
+schedule in favor of direct P0/P1/Ball vertical countdowns. Its measured RAM contract is 13 public plus 10 private bytes, 23 total,
 and its only position helper is a page-contained 16-byte divide-by-15 table.
 Missiles remain unavailable; score/font and scheduler-owned frame/timer state
 remain absent. The maintained trace regression locks exact 262-line frames,

@@ -33,7 +33,7 @@ The component draws exactly 192 visible gameplay scanlines as twelve uniform
 fit inside the standard 192-line visible field.
 
 The scheduler owns VSYNC, VBLANK, timer deadlines, and the complete frame loop.
-`game_vblank()` prepares the object masks and positions all five objects while
+`game_vblank()` prepares the compact timed object schedule and positions all five objects while
 output is blanked. `game_draw()` renders the complete visible field, and
 `game_overscan()` clears gameplay state and restores the application-visible Y
 coordinates.
@@ -50,15 +50,17 @@ Machine-readable contracts publish:
 - `game_VBLANK_MAX_CYCLES := 1800`
 - `game_OVERSCAN_MAX_CYCLES := 66`
 - `game_PUBLIC_RAM_BYTES := 23`
-- `game_PRIVATE_RAM_BYTES := 55`
-- `game_MODULE_RAM_BYTES := 78`
-- `game_WORKSPACE_BYTES := 6`
+- `game_PRIVATE_RAM_BYTES := 48`
+- `game_MODULE_RAM_BYTES := 71`
+- `game_WORKSPACE_BYTES := 0`
 - `game_PLAYFIELD_BYTES := 48`
 - `game_PLAYFIELD_ROWS := 12`
 
-Private storage consists of six workspace bytes, one playfield-position byte,
-and 48 object-mask bytes. The application supplies the playfield and player
-graphics in ROM. The implementation uses only official NMOS 6502/6507
+Private storage is one 48-byte four-lane schedule. Three lanes carry the
+cycle-critical Ball/M1/M0 vertical bits; the otherwise dead fourth lane now
+doubles as VBLANK/visible scratch and backs `game_playfield_position`, so no
+separate workspace or playfield-position byte is allocated. The application
+supplies the playfield and player graphics in ROM. The implementation uses only official NMOS 6502/6507
 opcodes. P1 graphics and both missile-enable updates are pipelined across the
 scanline boundary and committed during horizontal blanking, so objects at the
 right edge cannot expose the next row early.
@@ -75,6 +77,10 @@ Maintained emulator tests require:
 - HBLANK-only P0/P1 handoffs and effective missile-state changes, including
   right-edge positions
 - correct VBLANK positioning and lifecycle restoration
+- an eight-scanline Ball crossing the first 16-line schedule boundary without
+  duplication, loss, or early transfer
 - official opcodes only
 - exact RAM, page-placement, and stack contracts
 - successful source-tree and staged-installed builds
+
+A current gameplay-only smoke link uses 89/128 RIOT RAM bytes including the eight-byte hardware-stack reserve; the public interactive example uses 91/128, leaving 37 bytes free.

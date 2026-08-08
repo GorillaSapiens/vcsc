@@ -893,6 +893,86 @@ Ordered roadmap
     schedule satisfies the visible-cycle contract while removing the 48-byte
     schedule entirely, so no compact Ball-mask fallback is needed.
 
+[x] 10a. Propagate the delayed-Ball row-boundary repair and RAM cleanup through
+          every maintained componentized player/Ball renderer.
+
+    * Auditing the sibling renderers exposed the real row-boundary failure: VDELBL
+      transfers the pending Ball value on `GRP1`, and each 16-line row transition
+      performs an extra `GRP1`. The old mask renderers, and the first direct-count
+      `player_color_192` conversion, could reach that transfer before the next Ball
+      value had been written to ENABL. A Ball pair adjacent to the boundary was then
+      duplicated while the following pair disappeared.
+    * `player_color_192` and both `player_color_181` twins now stage ENABL before
+      every row-boundary `GRP1`. The 181-line pair also drops its 43-byte mask
+      schedule entirely and uses direct P0/P1/Ball countdowns. Its contract falls
+      from **13 public + 51 private = 64 bytes** to **13 public + 11 private = 24
+      bytes**. The two retained NUSIZ shadow bytes inside `object_x[5]` are private;
+      the remaining private storage is eight phase-workspace bytes plus one
+      playfield-position byte.
+    * The all-five renderers cannot afford direct per-pair missile countdowns in
+      the official-opcode beam budget, so their cycle-critical Ball/M1/M0 bit
+      schedules remain. The fourth byte of each four-byte row, previously dead,
+      now carries scratch/state and the playfield-position value. `all_five_192`
+      falls from **78 to 71 component RAM bytes** (55 to 48 private), and both
+      181-line all-five twins fall from **74 to 67 bytes** (51 to 44 private).
+      The 181 schedule grows from 43 to 44 bytes solely to make the final fourth
+      lane explicit; the former separate seven-byte workspace and one-byte
+      playfield-position object disappear.
+    * Ball Y/height inputs are no longer destructively rewritten in the all-five
+      VBLANK path. P0/P1 state is still restored where the visible handoff uses it.
+      The official and unofficial 181 twins retain identical visible traces; the
+      unofficial all-five twin keeps only its one reviewed zero-page NOP pad, while
+      the unofficial player-color twin currently emits no unofficial mnemonic at
+      all because the removed mask helper contained the former substitutions.
+    * New pixel-level edge cartridges pin Y=8,height=3 across the first packed row
+      for both all-five families. The player-color 192 top/boundary oracles and the
+      181 motion oracle likewise require the corrected delayed-Ball transfer.
+      Internal row boundaries now produce one Ball pair per requested two scanlines
+      with no five-pair stretch or dropped following pair.
+    * A manual Stella pass caught a second transition regression after Ball staging:
+      the first repair moved reflected PF writes too early. In `player_color_192`,
+      row-ending PF2/PF1 at cycles 30/33 (and terminal 37/44) changed PF state while
+      the TIA was still consuming the left half. The 181 player-color twins had the
+      same class of defect at 38/41. Byte-level register reconstruction was internally
+      consistent and therefore missed the hardware-timing failure.
+    * A second manual Stella pass showed the first 192-only timing repair was still
+      wrong: both public `player_color_192` examples had one visibly malformed
+      scanline at each 16-line playfield-row boundary. The symmetric smoke fixture
+      hid it. The final 192 schedule leaves the proven playfield writes where the
+      old visibly-correct renderer had them and carries the direct Ball decision
+      across the boundary instead of moving PF traffic. In the display-raster
+      harness, steady and nonterminal row-ending writes are **10/17/40/47**, the
+      first following P1 half is **9/16/40/47**, and the terminal row is
+      **10/17/43/50**. The independent physical-phase harness observes the same
+      schedule as **18/25/48/55**, **17/24/48/55**, and terminal **18/25/51/58**.
+      The 181 schedules remain **18/25/48/55** steady, **18/25/45/48** row ending,
+      **17/24/48/55** first following P1, and **18/25/48/55** terminal.
+    * Playfield testing is now deliberately asymmetric. The default
+      `vcs_player_color_192.pl` compiles the actual public interactive example and
+      checks all 12x16 PF write rows against the Stella-proven byte/order/phase
+      contract; `vcs_player_color_192_animation.pl` does the same for the animated
+      gallery's full/checker/blank/checker/full playfield. Both oracles demonstrably
+      reject the broken 15/22/51/54 boundary schedule. `make
+      stella-player-color-192-test` independently snapshots the interactive example
+      under Stella 7.0 and compares it to a reviewed raster.
+    * The final factoring is **3292/4090 ROM** and **56/128 RAM** for the animated
+      gallery, still leaving **72 bytes free**; the standalone player-color-192
+      smoke is **1370 ROM / 36 RAM**. Schema **13** records the Stella-corrected
+      follow-up. The 181 player-color official/unofficial smoke pair remains
+      size-identical at **1428 ROM / 39 RAM**.
+    * Representative current links: player-color-181 smoke **1428 ROM / 39 RAM**
+      including its fixture and four-byte stack; all-five-192 smoke **1617 ROM / 89
+      RAM** including its fixture and eight-byte stack; all-five-181 smoke **1795 ROM
+      / 86 RAM** including its fixture and eight-byte stack. The centered interactive
+      player-color-181 example uses 65/128 RAM, all-five-192 uses 91/128, and centered
+      all-five-181 uses 108/128.
+    * Final verification is **455/455 compile-only** and **260/260 end-to-end**.
+      The full public score/gameplay matrix and wide-score 181 compositions pin the
+      direct-count transition schedules; the new asymmetric public-example oracle
+      additionally rejects the exact broken 192 boundary schedule, and the reviewed
+      Stella 7.0 snapshot independently certifies the visible player-color-192
+      playfield raster.
+
 [ ] 11. Only if a generally useful capability split is still justified, create a
          192-line two-sprite-only renderer.
 

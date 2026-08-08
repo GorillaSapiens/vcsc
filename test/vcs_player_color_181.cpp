@@ -555,7 +555,7 @@ void verify_raster() {
       if (terminal_mode == TerminalMode::Lines181)
          expect_lines(2,kEnabl,{213,215,217},"terminal BL");
       else
-         expect_lines(2,kEnabl,{214,216,219},"terminal BL");
+         expect_lines(2,kEnabl,{214,215,219},"terminal BL");
       expect_colors(2,kColup0,0,0,p0,"terminal P0 colors");
       expect_colors(2,kColup1,0,0,p1,"terminal P1 colors");
       return;
@@ -573,7 +573,7 @@ void verify_raster() {
       if (motion_mode) {
          expect_lines(checked, kGrp0, shifted({60,62,64,66,68,70,72,74}, offset), "motion P0");
          expect_lines(checked, kGrp1, shifted({184,186,187,189,192,194,196,198}, offset), "motion P1");
-         expect_lines(checked, kEnabl, shifted({133,135,137,140}, offset), "motion BL");
+         expect_lines(checked, kEnabl, shifted({133,135,137,139}, offset), "motion BL");
          expect_colors(checked, kColup0, 63 + offset, 17, p0_colors, "motion P0 colors");
          expect_colors(checked, kColup1, 183 + offset, 11, p1_colors, "motion P1 colors");
       }

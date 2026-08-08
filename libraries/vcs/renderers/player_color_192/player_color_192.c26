@@ -404,6 +404,9 @@ require inline void TEMPLATE_draw(void) {
    // horizontal blank without changing the row-transition phase.
    asm sta GRP0;
    asm lda.ay TEMPLATE_player0_colors,y;
+   // Keep the row-boundary entry at the same phase as the proven mask-based
+   // renderer.  This store is redundant as color state, but its three cycles
+   // are beam timing: without them the boundary playfield line is visibly torn.
    asm sta COLUP0;
 
    // The sixteenth line of a row is a P1 half.  Draw the old row one last time,
@@ -420,9 +423,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm cpx #44;
    asm beq @terminalrenderer;
-   // Keep both old-row right bytes in registers while X advances.  PF2 is
-   // written first because it is the first register consumed on the reflected
-   // right half.
+   // Keep both old-row right bytes in registers while X advances.  This is the
+   // proven row-boundary playfield schedule: PF1/PF2 left at 18/25 and PF2/PF1
+   // right at 48/55 in Stella's physical scanline phase.
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm inx;
@@ -436,28 +439,28 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_workspace + 6;
-   // GRP1 transfers delayed P0 as well as changing P1. Compute the Ball
-   // countdown carry before either GRP1 write so both the zero and graphics
-   // commits stay in horizontal blank without changing the transition count.
+   // The old sparse Ball mask spent six cycles producing carry here.  Direct
+   // countdown can produce the identical carry in the same six cycles with
+   // LDA/CMP, so the playfield schedule does not need to move.  The active P1
+   // path commits GRP1 first to preserve its graphics byte in A; the compare
+   // follows immediately and still precedes the next line's ENABL materialization.
    asm bcc @transition_activeP1;
-   // The inactive and active paths are both eleven cycles.  The absolute STY
-   // supplies the otherwise impossible one-cycle pad while also leaving Y=0
-   // for the color lookup below.
    asm ldy #0;
    asm lda.z TEMPLATE_ball_height;
    asm cmp.z TEMPLATE_ball_y;
    asm sty.a GRP1;
    asm jmp @transition_continueP1;
    asm @transition_activeP1:;
-   asm lda.z TEMPLATE_ball_height;
-   asm cmp.z TEMPLATE_ball_y;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
+   asm lda.z TEMPLATE_ball_height;
+   asm cmp.z TEMPLATE_ball_y;
    asm @transition_continueP1:;
-   // Preserve the P1 color in A before the playfield loads reuse Y. The Ball
-   // height/countdown compare has already supplied carry. This keeps the four
-   // playfield writes at cycles 10, 17, 40, and 47, installs the correct P1
-   // color, and still enables the Ball well before its horizontal position.
+   // Preserve the P1 color in A before the next line reuses Y.  CMP leaves the
+   // direct-count Ball decision in carry; the next P0 half materializes that
+   // carry into ENABL in the original seven-cycle slot.  Keeping Ball work out
+   // of the boundary PF window preserves the proven 18/25/48/55 physical
+   // playfield phases.
    asm lda.ay TEMPLATE_player1_colors,y;
 
    // First P0 half after a row transition.  Its four playfield writes must land
@@ -467,6 +470,8 @@ require inline void TEMPLATE_draw(void) {
    asm ldy.ax TEMPLATE_playfield+1,x;
    asm sty PF2;
    asm sta COLUP1;
+   // Materialize the direct-count Ball carry in the same seven-cycle slot used
+   // by the original mask renderer.  LDA/ADC/STA preserve the proven PF phases.
    asm lda #1;
    asm adc #0;
    asm sta ENABL;
@@ -562,6 +567,7 @@ require inline void TEMPLATE_draw(void) {
    // 231.  draw() therefore returns at cycle zero of line 232 and the caller's
    // immediate VBLANK write cannot leave a partially drawn extra scanline.
    asm @terminalrenderer:;
+   asm bit.z CXM0P;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm bit.z CXM0P;

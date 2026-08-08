@@ -28,15 +28,15 @@ independent eleven-line six-glyph component above or below it to complete the
 
 The public object slots are P0, P1, and Ball X plus retained P0/P1 NUSIZ values.
 M0/M1 are deliberately absent. The component owns no score/font state and no
-VSYNC, VBLANK, or RIOT timer state. Its `vblank()` callback positions Ball,
-prepares the visible raster, and performs constant-time lookups for the two
-player handoff records.
+VSYNC, VBLANK, or RIOT timer state. Its `vblank()` callback positions Ball, prepares direct P0/P1/Ball vertical
+countdowns, and performs constant-time lookups for the two player handoff records.
+The former 43-byte object-mask schedule is gone.
 
 Resource contract:
 
 - public gameplay RAM: 13 bytes
-- private RAM: 51 bytes
-- total component RAM: 64 bytes
+- private RAM: 11 bytes
+- total component RAM: 24 bytes
 - private positioning ROM: 176 bytes
 - application playfield ROM: 44 bytes
 - application color ROM: 8 bytes per player
@@ -91,20 +91,19 @@ disjoint eleven-line score plus 181-line gameplay regions. The poison debug
 score supplies hostile P0/P1 position, size, reflection, delay, graphics, and
 motion state; the resulting gameplay raster and object positions remain
 identical. The trace oracle rejects every gameplay GRP0 or GRP1 handoff, including zero
-GRP1 transfers, that lands after horizontal blanking. A dedicated alternating
+GRP1 transfers, that lands after horizontal blanking. Ball regressions also cross internal 16-line row boundaries and reject a stale
+delayed-Ball transfer at the extra row-boundary `GRP1`. A dedicated alternating
 checkerboard fixture places both players at X=159, covering the subtle bit-row
 swap that solid glyphs can hide at the extreme right edge and the earlier tear that
 late graphics writes can cause.
 
-A centered composed link measures 64 bytes of gameplay RAM plus 18 bytes for
-the mutable-color production score. The wide mutable-color score has the same
-18-byte component cost. Its public score-above and score-below examples use the
-same Game Select object cycling, left-joystick selected-object motion, filtered
-right-joystick digit editing, score-color changes, and reset behavior as the
-centered examples. Each links at 118 of 128 total RAM bytes and 3,306 ROM bytes,
-leaving ten bytes free. A poison composition adds one byte for its
-caller-selected background handoff. A gameplay-only link contains no score
-state or font.
+The 11 private bytes are the two retained NUSIZ shadow slots inside
+`object_x[5]`, eight phase-overlay-eligible countdown/work bytes, and one
+playfield-position byte. A current centered interactive score-above example
+links at 65/128 RAM bytes and 2,608 ordinary ROM bytes, leaving 63 RAM bytes
+free. The public score-above and score-below examples retain the same controls
+and score editing behavior. A gameplay-only link contains no score state or
+font.
 
 ## Reviewed Stella reference
 

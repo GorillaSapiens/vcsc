@@ -79,6 +79,7 @@ make e2e           # linked/simulated and generic tests
 make sieve         # quick driver smoke build
 make installcheck  # staged installed-toolchain validation
 make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
+make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
 make docs          # Doxygen output under doxygen/
 make clean
 ```

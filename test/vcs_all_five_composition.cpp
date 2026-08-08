@@ -93,6 +93,9 @@ std::map<int,std::array<uint8_t,ObjectCount>> frame_x;
 bool score_above = false;
 bool scoreless = false;
 bool motion_mode = false;
+bool ball_edge_mode = false;
+int ball_first_override = -1;
+int ball_lines_override = -1;
 bool poison_score = false;
 uint8_t object_x_zp = 0;
 std::array<uint8_t,5> y_zp{};
@@ -483,7 +486,10 @@ bool expected_enable(Object object,int relative_line) {
    switch (object) {
       case M0: first=59; lines=12; break;
       case M1: first=110; lines=16; break;
-      case BL: first=92; lines=8; break;
+      case BL:
+         first=ball_first_override >= 0 ? ball_first_override : 92;
+         lines=ball_lines_override >= 0 ? ball_lines_override : 8;
+         break;
       default: return false;
    }
    if (!scoreless) first+=2;
@@ -597,8 +603,8 @@ void verify_frames() {
 } // namespace
 
 int main(int argc,char **argv) {
-   if (argc != 4 && argc != 5 && argc != 11 && argc != 12) {
-      std::fprintf(stderr,"usage: %s ROM above|below|none static|motion [object_x p0_y p1_y m0_y m1_y ball_y motion_frame] [score|poison]\n",argv[0]);
+   if (argc != 4 && argc != 5 && argc != 6 && argc != 11 && argc != 12) {
+      std::fprintf(stderr,"usage: %s ROM above|below|none static|ball-edge|motion [args]\n",argv[0]);
       return 2;
    }
    scoreless = std::strcmp(argv[2],"none")==0;
@@ -606,13 +612,20 @@ int main(int argc,char **argv) {
    if (!scoreless && !score_above && std::strcmp(argv[2],"below")!=0)
       fail("bad score order");
    motion_mode = std::strcmp(argv[3],"motion")==0;
-   if (!motion_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
+   ball_edge_mode = std::strcmp(argv[3],"ball-edge")==0;
+   if (!motion_mode && !ball_edge_mode && std::strcmp(argv[3],"static")!=0) fail("bad scene mode");
    if (motion_mode) {
       if (argc != 11 && argc != 12) fail("motion mode needs seven zero-page addresses");
       object_x_zp=parse_zp(argv[4]);
       for (size_t i=0;i<5;++i) y_zp[i]=parse_zp(argv[5+static_cast<int>(i)]);
       motion_frame_zp=parse_zp(argv[10]);
       if (argc==12) poison_score=std::strcmp(argv[11],"poison")==0;
+   }
+   else if (ball_edge_mode) {
+      if (argc != 6) fail("ball-edge mode needs expected first line and line count");
+      ball_first_override=std::atoi(argv[4]);
+      ball_lines_override=std::atoi(argv[5]);
+      if (ball_first_override < 0 || ball_lines_override < 0) fail("bad Ball edge expectation");
    }
    else {
       if (argc != 4 && argc != 5) fail("static mode takes only an optional score kind");

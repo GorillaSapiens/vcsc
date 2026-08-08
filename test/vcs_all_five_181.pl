@@ -67,9 +67,9 @@ require_re($module,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/,
    'component does not publish 181 visible scanlines');
 require_re($module,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*23/,
    'component public-RAM contract changed');
-require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*51/,
+require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*44/,
    'component private-RAM contract changed');
-require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*74/,
+require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*67/,
    'component total-RAM contract changed');
 require_re($fixture,qr/template\s+"renderers\/all_five_181\/all_five_181\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
@@ -92,8 +92,8 @@ $absolute_pf_loads==30
    or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 30\n";
 require_re($module,qr/asm bit\.z CXM0P;/,
    'official three-cycle delay no longer has an explicit zero-page mode');
-require_re($module,qr/lda\.z TEMPLATE_workspace \+ 5;\s*asm sec;\s*asm sbc #88;\s*asm sta\.z TEMPLATE_missile0_y;/s,
-   'M0 private Y is no longer derived from the exact 88-line bias');
+$module !~ /asm sta[.]z TEMPLATE_missile[01]_y;/
+   or die "all-five 181 unexpectedly mutates public missile Y state during rendering\n";
 require_re($module,qr/TEMPLATE_player0_color.*TEMPLATE_player1_color/s,
    'solid player-color controls are missing');
 $module !~ /TEMPLATE_player[01]_colors/
@@ -118,14 +118,17 @@ my @public=qw(
    game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
    game_player0_color game_player1_color
 );
-my @private=qw(game_workspace game_playfield_position game_object_masks);
+my @private=qw(game_object_masks);
 my $public=0; $public += bss_size($map,$_) for @public;
 my $private=0; $private += bss_size($map,$_) for @private;
 $public==23 or die "linked public gameplay RAM is $public bytes, expected 23\n";
-$private==51 or die "linked private gameplay RAM is $private bytes, expected 51\n";
-$public+$private==74 or die "linked gameplay RAM is not 74 bytes\n";
-bss_size($map,'game_workspace')==7 or die "workspace is not seven bytes\n";
-bss_size($map,'game_object_masks')==43 or die "object-mask storage is not 43 bytes\n";
+$private==44 or die "linked private gameplay RAM is $private bytes, expected 44\n";
+$public+$private==67 or die "linked gameplay RAM is not 67 bytes\n";
+bss_size($map,'game_object_masks')==44 or die "object-mask storage is not 44 bytes\n";
+$map !~ /BSS[.]__vcsc_object\$game_(?:workspace|playfield_position)\b/
+   or die "all-five 181 unexpectedly retained separate workspace/playfield-position RAM\n";
+require_re($module,qr/alias TEMPLATE_playfield_position TEMPLATE_object_masks\[43\]/,
+   'playfield position is no longer overlaid on the final mask lane');
 $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield\s+load=\$[0-9A-Fa-f]{4}\s+size=\$002C\s+page=hard\b/m
    or die "game playfield is not a page-contained 44-byte ROM object\n";
 $map !~ /(?:score|font)/i or die "gameplay-only map retained score/font symbols\n";
@@ -159,6 +162,36 @@ for my $h (@harnesses) {
    $out =~ $expect or die "unexpected $name output: $out";
    $err eq '' or die "$name harness stderr: $err";
 }
+
+# Pin the first packed-row boundary with the independent object-pixel oracle.
+# In the 181-line score-above composition Y=8,height=3 occupies relative
+# gameplay lines 14..21: exactly eight scanlines across the row transition.
+my $edge_fixture=read_file(File::Spec->catfile($repo,qw(test fixtures all_five_181 static_score_above.c26)));
+$edge_fixture =~ s/game_ball_y := 48;/game_ball_y := 8;/
+   or die "could not set all-five 181 Ball row-edge fixture
+";
+my $edge_src=File::Spec->catfile($tmp,'all_five_181_ball_row_edge.c26');
+my $edge_bin=File::Spec->catfile($tmp,'all_five_181_ball_row_edge.bin');
+write_file($edge_src,$edge_fixture);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$edge_src,'-o',$edge_bin);
+$rc==0 && !$sig or die "all-five 181 Ball row-edge build failed
+$out$err";
+without_usage($out) eq '' && $err eq '' or die "all-five 181 Ball row-edge build wrote output
+$out$err";
+my $edge_exe=File::Spec->catfile($tmp,'all_five_181_ball_row_edge');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+   File::Spec->catfile($repo,qw(test vcs_all_five_composition.cpp)),@mos_input,'-o',$edge_exe);
+$rc==0 && !$sig or die "all-five 181 Ball row-edge harness build failed
+$out$err";
+$out eq '' && $err eq '' or die "all-five 181 Ball row-edge harness build wrote output
+$out$err";
+($rc,$sig,$out,$err)=capture($edge_exe,$edge_bin,'above','ball-edge','12','8');
+$rc==0 && !$sig or die "all-five 181 Ball row-edge raster failed
+$out$err";
+$out eq "vcs_all_five_composition ball-edge above ok
+"
+   or die "unexpected all-five 181 Ball row-edge output: $out";
+$err eq '' or die "all-five 181 Ball row-edge stderr: $err";
 
 # The template's four lifecycle phases remain mandatory. Omit each call from an
 # otherwise valid cartridge and require the component-specific link diagnostic.

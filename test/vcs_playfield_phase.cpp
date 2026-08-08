@@ -44,6 +44,39 @@ constexpr uint8_t kDiagonalPlayfield[11][4] = {
    {0x20, 0x04, 0x82, 0x10},
 };
 
+// The public player_color_192 interactive example's deliberately asymmetric
+// playfield.  Unlike the old symmetric smoke fixture, every row transition can
+// expose a left/right or old/new-byte timing mistake as a visible pixel error.
+constexpr uint8_t kDiagonalPlayfield192[12][4] = {
+   {0x80, 0x08, 0x01, 0x00},
+   {0x40, 0x10, 0x00, 0x01},
+   {0x20, 0x20, 0x00, 0x02},
+   {0x10, 0x40, 0x00, 0x04},
+   {0x08, 0x80, 0x00, 0x08},
+   {0x04, 0x00, 0x80, 0x10},
+   {0x02, 0x00, 0x40, 0x20},
+   {0x01, 0x00, 0x20, 0x40},
+   {0x00, 0x01, 0x10, 0x80},
+   {0x00, 0x02, 0x08, 0x40},
+   {0x00, 0x04, 0x04, 0x20},
+   {0x00, 0x08, 0x02, 0x10},
+};
+
+constexpr uint8_t kGalleryPlayfield192[12][4] = {
+   {0xff, 0xff, 0xff, 0xff},
+   {0x55, 0xaa, 0x55, 0xaa},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0x00, 0x00, 0x00, 0x00},
+   {0xaa, 0x55, 0xaa, 0x55},
+   {0xff, 0xff, 0xff, 0xff},
+};
+
 uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
 uint64_t cpu_cycles = 0;
@@ -130,15 +163,22 @@ int main(int argc, char **argv) {
       std::strcmp(argv[5], "all-five-181-official") == 0;
    const bool player_diagonal_profile = argc == 6 &&
       std::strcmp(argv[5], "diagonal") == 0;
+   const bool player_diagonal_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "diagonal-192") == 0;
+   const bool player_gallery_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "gallery-192") == 0;
    const bool all_five_diagonal_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-diagonal") == 0;
    const bool diagonal_values_profile = player_diagonal_profile ||
+                                        player_diagonal_192_profile ||
+                                        player_gallery_192_profile ||
                                         all_five_diagonal_profile;
    const bool all_five_fixed_profile = all_five_192_profile ||
                                        all_five_181_official_profile ||
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
-       !player_diagonal_profile)
+       !player_diagonal_profile && !player_diagonal_192_profile &&
+       !player_gallery_192_profile)
       fail("unknown timing profile");
    if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
       fail("checked raster row count must be 11 or 12");
@@ -358,9 +398,60 @@ int main(int argc, char **argv) {
    }
 
    if (raster_rows) {
+      if (player_diagonal_192_profile || player_gallery_192_profile) {
+         const uint8_t (*expected_playfield)[4] = player_diagonal_192_profile ?
+            kDiagonalPlayfield192 : kGalleryPlayfield192;
+         const char *profile_name = player_diagonal_192_profile ? "192 diagonal" : "192 gallery";
+         const uint16_t addresses[] = {kPf1, kPf2, kPf2, kPf1};
+         const uint64_t steady_cycles[] = {18, 25, 48, 55};
+         const uint64_t transition_first_p1_cycles[] = {17, 24, 48, 55};
+         const uint64_t terminal_cycles[] = {18, 25, 51, 58};
+         for (int row = 0; row < raster_rows; ++row) {
+            for (int subline = 0; subline < 16; ++subline) {
+               const uint64_t line = first_row_line + row * 16 + subline;
+               const auto found = by_line.find(line);
+               if (found == by_line.end() || found->second.size() != 4) {
+                  std::fprintf(stderr,
+                     "vcs_playfield_phase: %s row %d line %d has %zu PF writes; expected 4\n",
+                     profile_name, row, subline,
+                     found == by_line.end() ? size_t{0} : found->second.size());
+                  return 1;
+               }
+               for (size_t i = 0; i < 4; ++i) {
+                  const PfEvent &event = found->second[i];
+                  const uint64_t *expected_cycles =
+                     row == raster_rows - 1 && subline == 15 ? terminal_cycles :
+                     (row > 0 && subline == 1 ? transition_first_p1_cycles : steady_cycles);
+                  if (event.address != addresses[i] ||
+                      event.cycle != expected_cycles[i] ||
+                      event.value != expected_playfield[row][i]) {
+                     std::fprintf(stderr,
+                        "vcs_playfield_phase: %s row %d line %d write %zu is "
+                        "reg $%02x value $%02x cycle %llu; expected reg $%02x "
+                        "value $%02x cycle %llu\n",
+                        profile_name, row, subline, i, event.address, event.value,
+                        static_cast<unsigned long long>(event.cycle), addresses[i],
+                        expected_playfield[row][i],
+                        static_cast<unsigned long long>(expected_cycles[i]));
+                     return 1;
+                  }
+               }
+            }
+         }
+      }
       if (player_diagonal_profile) {
-         const uint16_t expected_addresses[] = {kPf1, kPf2, kPf2, kPf1};
-         const uint64_t expected_cycles[] = {18, 25, 48, 55};
+         const uint16_t normal_addresses[] = {kPf1, kPf2, kPf2, kPf1};
+         const uint16_t row_end_addresses[] = {kPf1, kPf2, kPf1, kPf2};
+         const int normal_values[] = {0, 1, 2, 3};
+         const int row_end_values[] = {0, 1, 3, 2};
+         const uint64_t steady_cycles[] = {18, 25, 48, 55};
+         const uint64_t transition_first_p1_cycles[] = {17, 24, 48, 55};
+         // Keep the reflected writes in the proven safe window.  The earlier
+         // 38/41 transition overwrote PF state while the TIA was still drawing
+         // the left half and produced the same visible corruption in every
+         // player-color 181 composition.
+         const uint64_t row_end_cycles[] = {18, 25, 45, 48};
+         const uint64_t terminal_cycles[] = {18, 25, 48, 55};
          for (int row = 0; row < raster_rows; ++row) {
             for (int subline = 0; subline < 16; ++subline) {
                const uint64_t line = first_row_line + row * 16 + subline;
@@ -372,18 +463,28 @@ int main(int argc, char **argv) {
                      found == by_line.end() ? size_t{0} : found->second.size());
                   return 1;
                }
+               const bool row_end = subline == 15;
+               const bool terminal = row_end && row == raster_rows - 1;
+               const uint16_t *expected_addresses =
+                  row_end && !terminal ? row_end_addresses : normal_addresses;
+               const int *expected_values =
+                  row_end && !terminal ? row_end_values : normal_values;
+               const uint64_t *expected_cycles = terminal ? terminal_cycles :
+                  (row_end ? row_end_cycles :
+                   (row > 0 && subline == 1 ? transition_first_p1_cycles : steady_cycles));
                for (size_t i = 0; i < 4; ++i) {
                   const PfEvent &event = found->second[i];
+                  const uint8_t expected_value = kDiagonalPlayfield[row][expected_values[i]];
                   if (event.address != expected_addresses[i] ||
                       event.cycle != expected_cycles[i] ||
-                      event.value != kDiagonalPlayfield[row][i]) {
+                      event.value != expected_value) {
                      std::fprintf(stderr,
                         "vcs_playfield_phase: diagonal row %d line %d write %zu is "
                         "reg $%02x value $%02x cycle %llu; expected reg $%02x "
                         "value $%02x cycle %llu\n",
                         row, subline, i, event.address, event.value,
                         static_cast<unsigned long long>(event.cycle),
-                        expected_addresses[i], kDiagonalPlayfield[row][i],
+                        expected_addresses[i], expected_value,
                         static_cast<unsigned long long>(expected_cycles[i]));
                      return 1;
                   }
@@ -392,6 +493,8 @@ int main(int argc, char **argv) {
          }
       }
       auto expected_byte = [&](int row, int byte) -> uint8_t {
+         if (player_diagonal_192_profile) return kDiagonalPlayfield192[row][byte];
+         if (player_gallery_192_profile) return kGalleryPlayfield192[row][byte];
          if (diagonal_values_profile) return kDiagonalPlayfield[row][byte];
          if (row == 0 || row == source_rows - 1) return 0xff;
          if (byte == 0 || byte == 3) return 0x81;
@@ -471,8 +574,15 @@ int main(int argc, char **argv) {
             }
          }
       }
-      std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
-                  raster_rows);
+      if (player_diagonal_192_profile)
+         std::printf("vcs_playfield_diagonal_192 ok: %d asymmetric rows x 16 lines with proven PF phases\n",
+                     raster_rows);
+      else if (player_gallery_192_profile)
+         std::printf("vcs_playfield_gallery_192 ok: %d gallery rows x 16 lines with proven PF phases\n",
+                     raster_rows);
+      else
+         std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
+                     raster_rows);
    } else {
       std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24/31, 25/32, or 27/34,41,48\n", checked);
    }

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_all_five_181_unofficial ok: official=2073 unofficial=2073 delta=0
+# expectstdout: vcs_all_five_181_unofficial ok: official=1795 unofficial=1795 delta=0
 # expectexit: 0
 
 use strict;
@@ -64,8 +64,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==2073 or die "official smoke now uses $official_used bytes, expected 2073\n";
-$unofficial_used==2073 or die "unofficial smoke now uses $unofficial_used bytes, expected 2073\n";
+$official_used==1795 or die "official smoke now uses $official_used bytes, expected 1795\n";
+$unofficial_used==1795 or die "unofficial smoke now uses $unofficial_used bytes, expected 1795\n";
 $unofficial_used-$official_used==0
    or die "unexpected size delta: official=$official_used unofficial=$unofficial_used\n";
 
@@ -74,8 +74,7 @@ my @ram_symbols=qw(
    game_missile1_y game_ball_y game_player0_graphics game_player1_graphics
    game_player0_height game_player1_height game_missile0_height
    game_missile0_y game_ball_height game_player0_nusiz game_player1_nusiz
-   game_player0_color game_player1_color game_workspace game_playfield_position
-   game_object_masks
+   game_player0_color game_player1_color game_object_masks
 );
 for my $name (@ram_symbols) {
    my $a=map_symbol($built{smoke}{official}[1],$name);
