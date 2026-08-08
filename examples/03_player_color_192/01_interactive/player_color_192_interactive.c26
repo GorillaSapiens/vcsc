@@ -43,7 +43,7 @@ page const uint8_t game_player1_colors[8] := {
    VCS_NTSC_ORCHID
 };
 
-template "renderers/player_color_192/player_color_192.c26" as game
+instantiate "renderers/player_color_192/player_color_192.c26" as game
 
 // These source rows are intentionally bottom-to-top. The maintained renderers
 // reverse macro arguments for highest-index-to-zero traversal, so this makes

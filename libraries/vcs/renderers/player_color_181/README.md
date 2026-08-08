@@ -18,7 +18,7 @@ Instantiate it after `vcs.c26`:
 page const uint8_t game_playfield[44] := { /* eleven four-byte rows */ };
 page const uint8_t game_player0_colors[8] := { /* storage index 0..7 */ };
 page const uint8_t game_player1_colors[8] := { /* storage index 0..7 */ };
-template "renderers/player_color_181/player_color_181.c26" as game
+instantiate "renderers/player_color_181/player_color_181.c26" as game
 ```
 
 Graphics and color arrays use the same highest-index-to-zero row order. The

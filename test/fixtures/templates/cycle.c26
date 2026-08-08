@@ -1,1 +1,1 @@
-template "fixtures/templates/./cycle.c26" as again
+instantiate "fixtures/templates/./cycle.c26" as again

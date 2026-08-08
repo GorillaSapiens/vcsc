@@ -52,7 +52,7 @@ require_re($text,qr/^include "color_ntsc\.c26"$/m,
    'faithful legacy interactive example does not use named NTSC colors');
 require_re($text,qr/^include "playfield\.c26"$/m,
    'faithful legacy interactive example does not use visual playfield rows');
-require_re($text,qr/template "renderers\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
+require_re($text,qr/instantiate "renderers\/faithful_legacy_playercolors\/faithful_legacy_playercolors\.c26" as legacy/,
    'faithful legacy interactive example does not use the oracle-backed faithful legacy renderer');
 require_re($text,qr/^uint8_t legacy_playfield\[48\]/m,
    'faithful legacy interactive example playfield is not RAM-backed');

@@ -11,7 +11,7 @@ include "fonts/default_decimal.c26"
 alias BACKGROUND_COLOR 0x84
 alias SCORE_PERIOD     20
 
-template "six_glyph_component.c26" as score
+instantiate "six_glyph_component.c26" as score
 uint8_t frame_counter := 0;
 
 void main(void) {

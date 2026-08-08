@@ -90,7 +90,7 @@ require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*48/,
    'component private-RAM contract changed');
 require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*71/,
    'component total-RAM contract changed');
-require_re($fixture,qr/template\s+"renderers\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
+require_re($fixture,qr/instantiate\s+"renderers\/all_five_192\/all_five_192\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');

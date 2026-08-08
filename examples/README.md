@@ -39,7 +39,7 @@ bank-switching diagnostic wrapper, the public tree contains **51 editable
 cartridges**.
 
 The unofficial groups are separate source-level examples rather than a build
-switch hidden inside the official examples. Their template names and
+switch hidden inside the official examples. Their component filenames and
 `-Wa,--illegals` build option make the opcode policy visible.
 
 ## Assembly policy

@@ -3,7 +3,8 @@
 // for code coverage, some is nonsensical
 
 include "machine_6502.c26"
-template "fixtures/templates/coverage_empty.c26" as coverage_template
+instantiate "fixtures/templates/coverage_empty.c26" as coverage_template
+instantiate "fixtures/instantiation_parameters/component.c26" as coverage_params (lines:=1)
 
 typedef int16_t coverage_int;
 

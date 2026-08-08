@@ -40,8 +40,8 @@ close $cfh;
 open my $mfh, '>', $main or die "write $main: $!";
 print $mfh <<'C26';
 include "machine_6502.c26"
-template "component.c26" as first
-template "component.c26" as λ
+instantiate "component.c26" as first
+instantiate "component.c26" as λ
 uint8_t MY_TEMPLATE_HELPER;
 void main(void) {
    first_touch();

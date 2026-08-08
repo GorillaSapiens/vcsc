@@ -21,7 +21,7 @@ Instantiate it after defining a page-contained 44-byte playfield:
 include "vcs.c26"
 include "frame_ntsc.c26"
 
-template "renderers/all_five_181/all_five_181.c26" as game
+instantiate "renderers/all_five_181/all_five_181.c26" as game
 
 page const uint8_t game_playfield[44] := {
    /* eleven rows, four bytes per row */

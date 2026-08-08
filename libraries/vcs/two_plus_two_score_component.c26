@@ -5,7 +5,7 @@
 // Include two_plus_two_score_support.c26 once, then instantiate this source:
 //
 //     include "two_plus_two_score_support.c26"
-//     template "two_plus_two_score_component.c26" as score
+//     instantiate "two_plus_two_score_component.c26" as score
 //
 // Each instance owns two packed-BCD values, two colors, two horizontal
 // positions, four glyph pointers, and two precomputed positioning controls.

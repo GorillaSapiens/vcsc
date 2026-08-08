@@ -8,6 +8,7 @@
 
 #include "ast.h"
 #include "coverage.h"
+#include "compile_init.h"
 #include "enumname.h"
 #include "lextern.h"
 #include "memname.h"
@@ -91,6 +92,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token INLINE
 %token INC
 %token INCLUDE
+%token INSTANTIATE
 %token LE
 %token LSHIFT
 %token LSHIFT_ASSIGN
@@ -101,6 +103,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token OR
 %token OR_ASSIGN
 %token PAGE
+%token PARAMETER
 %token ALIGN
 %token READ_ADDRESS
 %token RECOMMEND
@@ -114,7 +117,6 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token SIZEOF
 %token SUB_ASSIGN
 %token SWITCH
-%token TEMPLATE
 %token TO
 %token TYPE
 %token TYPEDEF
@@ -192,7 +194,8 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %type <node> goto_stmt
 %type <node> if_stmt
 %type <node> include_stmt
-%type <node> template_stmt
+%type <node> instantiate_stmt
+%type <node> parameter_decl_stmt
 %type <node> initializer
 %type <node> label_stmt
 %type <node> logical_and_expr
@@ -252,7 +255,8 @@ program:
 
 program_item:
     include_stmt                             { COVER; $$ = $1; }
-  | template_stmt                            { COVER; $$ = $1; }
+  | instantiate_stmt                         { COVER; $$ = $1; }
+  | parameter_decl_stmt                      { COVER; $$ = $1; }
   | xform_decl_stmt                          { COVER; $$ = $1; register_xform($$->children[0]->strval, $$->children[1]); }
   | mem_decl_stmt                            { COVER; $$ = $1; }
   | cartridge_decl_stmt                      { COVER; $$ = $1; }
@@ -276,17 +280,36 @@ include_stmt:
                                              }
   ;
 
-template_stmt:
-    TEMPLATE STRING AS IDENTIFIER            {
+instantiate_stmt:
+    INSTANTIATE STRING AS IDENTIFIER          {
                                                 COVER;
-                                                $$ = MAKE_NODE(make_string_leaf($2), make_identifier_leaf($4));
+                                                $$ = MAKE_NAMED_NODE("instantiate_stmt", make_string_leaf($2), make_identifier_leaf($4));
                                                 const char *instance_source = lexer_token_source_spelling($4);
-                                                if (push_template_file($2, instance_source ? instance_source : $4,
-                                                                       current_filename,
-                                                                       @1.first_line, @1.first_column) != 0) {
-                                                   yyerror("failed to instantiate template file: %s", $2);
+                                                if (push_instantiated_file($2, instance_source ? instance_source : $4,
+                                                                           current_filename,
+                                                                           @1.first_line, @1.first_column) != 0) {
+                                                   yyerror("failed to instantiate source file: %s", $2);
                                                    YYABORT;
                                                 }
+                                             }
+  ;
+
+parameter_decl_stmt:
+    PARAMETER IDENTIFIER ';'                 {
+                                                COVER;
+                                                if (lexer_declare_instantiation_parameter($2, NULL, current_filename,
+                                                                                          @1.first_line, @1.first_column) != 0) {
+                                                   YYABORT;
+                                                }
+                                                $$ = MAKE_NAMED_NODE("parameter_decl_stmt", make_identifier_leaf($2));
+                                             }
+  | PARAMETER IDENTIFIER ASSIGN INTEGER ';'  {
+                                                COVER;
+                                                if (lexer_declare_instantiation_parameter($2, $4, current_filename,
+                                                                                          @1.first_line, @1.first_column) != 0) {
+                                                   YYABORT;
+                                                }
+                                                $$ = MAKE_NAMED_NODE("parameter_decl_stmt", make_identifier_leaf($2), make_integer_leaf($4));
                                              }
   ;
 

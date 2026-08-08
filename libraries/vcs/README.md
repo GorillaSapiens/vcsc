@@ -28,7 +28,7 @@ Files:
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_component.c26` ... repeatable lifecycle-template centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
+- `six_glyph_component.c26` ... repeatable instantiable lifecycle centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
 - `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116, an 88-pixel span, and the compact delayed-player pipeline
 - `six_glyph_left_component.c26` ... eleven-line fixed-color variant justified at X=0..47
 - `six_glyph_right_component.c26` ... eleven-line fixed-color variant justified at X=112..159
@@ -173,7 +173,7 @@ many times as RAM permits:
 
 ```vcsc
 include "two_plus_two_score_support.c26"
-template "two_plus_two_score_component.c26" as score
+instantiate "two_plus_two_score_component.c26" as score
 
 score_left_score := 12;
 score_right_score := 34;
@@ -206,7 +206,7 @@ collision-latch clearing.
 Use it wherever an ordinary short score component would be composed:
 
 ```vcsc
-template "renderers/poison_debug_score/poison_debug_score.c26" as poison
+instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
 ```
 
 Set `poison_exit_background` to the background expected by the following

@@ -1,0 +1,9 @@
+// vcsc-cc1 -I . -I .. -I ../libraries/runtime -I ../libraries/vcs -o -
+
+include "machine_6502.c26"
+
+#if 1
+instantiate "fixtures/instantiation_parameters/component.c26" as boundary (lines:=1)
+#endif
+
+uint8_t boundary_value := boundary_color_copy;

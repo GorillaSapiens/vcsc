@@ -8,7 +8,7 @@
 //
 // Instantiate this source with:
 //
-//     template "six_glyph_color_component.c26" as score1
+//     instantiate "six_glyph_color_component.c26" as score1
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
 // must define the shared page-contained score_font table.  Each instance owns

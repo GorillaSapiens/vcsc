@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: instantiation argument must be written name:=integer
+
+include "machine_6502.c26"
+instantiate "fixtures/instantiation_parameters/component.c26" as bad (lines=7)

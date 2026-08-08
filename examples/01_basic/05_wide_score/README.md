@@ -18,7 +18,7 @@ The cartridge starts at packed-BCD value `123456` and increments every 20 NTSC
 frames. It instantiates:
 
 ```vcsc
-template "six_glyph_wide_component.c26" as score
+instantiate "six_glyph_wide_component.c26" as score
 ```
 
 The application owns frame scheduling. The component consumes exactly eleven

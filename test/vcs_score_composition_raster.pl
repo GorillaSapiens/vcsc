@@ -42,7 +42,7 @@ sub transform_score {
    return $text if $kind eq 'center';
    if ($kind eq 'left' || $kind eq 'right') {
       my $component=$kind eq 'left' ? 'six_glyph_left_component.c26' : 'six_glyph_right_component.c26';
-      $text =~ s/template "six_glyph_component\.c26" as score/template "$component" as score/
+      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "$component" as score/
          or die "could not install $kind score component\n";
       $text =~ s/^(\s*score_score := 123456;\n)/$1   score_color := 0x0e;\n/m
          or die "could not initialize $kind score color\n";
@@ -51,14 +51,14 @@ sub transform_score {
    if ($kind eq 'two-plus-two') {
       $text =~ s/(include "fonts\/default_decimal\.c26"\n)/$1include "two_plus_two_score_support.c26"\n/
          or die "could not add two-plus-two support\n";
-      $text =~ s/template "six_glyph_component\.c26" as score/template "two_plus_two_score_component.c26" as score/
+      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "two_plus_two_score_component.c26" as score/
          or die "could not install two-plus-two component\n";
       $text =~ s/^\s*score_score := 123456;\n/   score_left_score := 12;\n   score_right_score := 34;\n   score_left_color := 0x0e;\n   score_right_color := 0x2e;\n   score_left_x := 16;\n   score_right_x := 104;\n/m
          or die "could not initialize two-plus-two component\n";
       return $text;
    }
    if ($kind eq 'poison') {
-      $text =~ s/template "six_glyph_component\.c26" as score/template "renderers\/poison_debug_score\/poison_debug_score.c26" as score/
+      $text =~ s/instantiate "six_glyph_component\.c26" as score/instantiate "renderers\/poison_debug_score\/poison_debug_score.c26" as score/
          or die "could not install poison component\n";
       $text =~ s/^\s*score_score := 123456;\n/   score_exit_background := 0x84;\n/m
          or die "could not initialize poison component\n";
@@ -123,9 +123,9 @@ for my $family (@families) {
          my @sources=bsd_glob(File::Spec->catfile($leaf,'*.c26'));
          @sources==1 or die "$leaf has ".scalar(@sources)." editable sources, expected one\n";
          my $text=read_file($sources[0]);
-         $text =~ /template\s+"\Q$score->{component}\E"\s+as\s+score\b/
+         $text =~ /instantiate\s+"\Q$score->{component}\E"\s+as\s+score\b/
             or die "$sources[0] does not use $score->{component}\n";
-         $text =~ /template\s+"renderers\/\Q$family->{fixture}\E\/\Q$family->{fixture}\E\.c26"\s+as\s+game\b/
+         $text =~ /instantiate\s+"renderers\/\Q$family->{fixture}\E\/\Q$family->{fixture}\E\.c26"\s+as\s+game\b/
             or die "$sources[0] does not use $family->{fixture}\n";
          my $expected=$order eq 'above'
             ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s

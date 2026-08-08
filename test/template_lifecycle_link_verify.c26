@@ -2,8 +2,8 @@
 // expectexit: 0
 
 include "machine_6502.c26"
-template "fixtures/templates/lifecycle_component.c26" as first
-template "fixtures/templates/lifecycle_component.c26" as second
+instantiate "fixtures/templates/lifecycle_component.c26" as first
+instantiate "fixtures/templates/lifecycle_component.c26" as second
 
 void fail(void) {
    asm lda #$ff;

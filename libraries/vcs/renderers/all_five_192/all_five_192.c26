@@ -7,7 +7,7 @@
 //
 // Instantiate with:
 //
-//     template "renderers/all_five_192/all_five_192.c26" as game
+//     instantiate "renderers/all_five_192/all_five_192.c26" as game
 //
 // Include vcs.c26 first. Each instance requires a page-contained immutable
 // INSTANCE_playfield[48]. The component draws an exact 192-line scoreless

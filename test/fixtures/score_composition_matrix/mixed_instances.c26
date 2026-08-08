@@ -4,10 +4,10 @@ include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 include "two_plus_two_score_support.c26"
 
-template "six_glyph_component.c26" as centered
-template "six_glyph_left_component.c26" as left
-template "six_glyph_right_component.c26" as right
-template "two_plus_two_score_component.c26" as split
+instantiate "six_glyph_component.c26" as centered
+instantiate "six_glyph_left_component.c26" as left
+instantiate "six_glyph_right_component.c26" as right
+instantiate "two_plus_two_score_component.c26" as split
 
 void main(void) {
    PF0 := 0;

@@ -15,7 +15,7 @@ page const uint8_t game_playfield[48] := {
    0x81,0x00,0x00,0x81,
    0xff,0xff,0xff,0xff
 };
-template "renderers/all_five_192/all_five_192.c26" as game
+instantiate "renderers/all_five_192/all_five_192.c26" as game
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00)

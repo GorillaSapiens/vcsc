@@ -5,15 +5,15 @@
    \_/  \___||___/ \___|
 ```
 
-# Template instantiation and use contracts
+# Source instantiation and use contracts
 
 ## Status
 
 This document specifies a VCSC feature under staged implementation.
 `require`/`recommend` declarations, declaration and semantic-use metadata,
 link-time reachable external-use enforcement, repeatable
-`template ... as ...` source instantiation, controlled identifier rewriting,
-inline-assembly integration, template hygiene, and the standard component
+`instantiate ... as ...` source instantiation, controlled identifier rewriting,
+inline-assembly integration, instantiation hygiene, and the standard component
 lifecycle are implemented. The foundational NTSC frame support file now
 provides phase constants, scanline waiting, and VSYNC; scheduler-owned RIOT
 deadlines and emulator-backed phase enforcement remain roadmap work.
@@ -48,7 +48,7 @@ The feature must provide all of the following:
 
 This proposal does not add:
 
-- C++-style type or value template parameters;
+- C++-style type parameters or general compile-time metaprogramming;
 - function or class templates;
 - overload resolution;
 - namespaces or a general qualified-name operator;
@@ -114,7 +114,7 @@ recommended function 'void score2_overscan(void)' is not used
 ```
 
 Diagnostics should use the final instantiated source name and type, identify the
-contract's original source location, and identify the template invocation when
+contract's original source location, and identify the instantiation when
 one exists.
 
 ### What counts as use
@@ -124,7 +124,7 @@ contract owner.
 
 The contract owner is:
 
-- the declaring template instance for a declaration produced by `template`;
+- the declaring instantiation instance for a declaration produced by `instantiate`;
 - otherwise, the declaring translation unit.
 
 For a function, a use is a reachable direct call from outside the owner. A mere
@@ -185,7 +185,7 @@ Each contracted declaration needs linker-visible metadata containing at least:
 - canonical type or function signature;
 - contract-owner identity;
 - original source file, line, and column;
-- template instance name and invocation location, when applicable.
+- instantiation name and invocation location, when applicable.
 
 Each semantic use record needs at least:
 
@@ -199,39 +199,72 @@ The linker should consume this metadata only after ordinary object and archive
 selection. Existing VCSC hidden metadata mechanisms may be extended if they can
 represent these records without losing source locations or inline calls.
 
-## `template`
+## `instantiate`
 
 ### Syntax
 
 ```c
-template "six_glyph_component.c26" as score1
-template "six_glyph_component.c26" as score2
+instantiate "six_glyph_component.c26" as score1
+instantiate "renderer.c26" as game (lines:=192, color:=0x2e)
 ```
 
-The instance argument after `as` is one ordinary VCSC identifier. UTF-8
-identifiers follow the same validation and assembler-safe mangling rules as
-other source identifiers.
+There is no semicolon after an `instantiate` directive. The former `template`
+keyword has been removed. The instance name after `as` is one ordinary VCSC
+identifier. UTF-8 identifiers follow the same validation and assembler-safe
+mangling rules as other source identifiers.
 
 File lookup follows the ordinary `include` search path and relative-path rules.
-A conventional `.c26` suffix may be omitted only if ordinary `include` already
-supports the same omission; `template` should not introduce a second, different
-file-search policy.
+Instantiation deliberately bypasses `include`'s include-once suppression, so the
+same source may be instantiated repeatedly under different names.
+
+### Instantiation parameters
+
+Directly instantiated source may declare integer-literal configuration parameters
+at file scope:
+
+```c
+parameter lines;
+parameter color := 0x20;
+
+uint8_t TEMPLATE_rows[TEMPLATE_lines];
+uint8_t TEMPLATE_background := TEMPLATE_color;
+```
+
+`parameter lines;` declares a required argument. `parameter color := 0x20;`
+declares an optional argument whose default is `0x20`. Parameter declarations
+require semicolons and must precede uses of their corresponding `TEMPLATE_name`
+identifiers. They are valid only directly in the instantiated source, not in an
+ordinary source file or an included helper.
+
+The caller supplies arguments after the instance name using `:=`:
+
+```c
+instantiate "renderer.c26" as game (lines:=192)
+instantiate "renderer.c26" as short_game (lines:=181, color:=0x2e)
+```
+
+Argument and default values are VCSC integer literals: decimal, hexadecimal,
+octal, or binary/visual-binary. A declared `TEMPLATE_name` is replaced by the
+supplied literal or its default. Other `TEMPLATE_` identifiers retain the normal
+instance-prefix rewriting described below. Missing required arguments, unknown
+arguments, duplicate arguments, duplicate parameter declarations, and non-integer
+argument values are compile-time errors.
 
 ### Difference from `include`
 
 Ordinary `include` retains its current MD5-based include-once behavior.
 
-`template` intentionally does not consult or update that MD5-seen set. Every
+`instantiate` intentionally does not consult or update that MD5-seen set. Every
 invocation processes the requested source again, even when the same bytes or
 same path were instantiated earlier:
 
 ```c
-template "six_glyph_component.c26" as score1
-template "six_glyph_component.c26" as score2
+instantiate "six_glyph_component.c26" as score1
+instantiate "six_glyph_component.c26" as score2
 ```
 
-Ordinary `include` directives encountered inside a template retain ordinary
-include-once behavior. Nested `template` directives create nested instance
+Ordinary `include` directives encountered inside instantiated source retain ordinary
+include-once behavior. Nested `instantiate` directives create nested instance
 contexts and remain subject to a finite nesting limit and cycle diagnostic.
 
 ### Identifier rewriting
@@ -296,9 +329,9 @@ unrelated identifier substrings remain unchanged.
 Assembler-local `@labels` remain governed by the existing inline-assembly and
 assembler hygiene rules.
 
-### Template hygiene
+### Instantiation hygiene
 
-Every instance-owned file-scope definition in a template must use either
+Every instance-owned file-scope definition in directly instantiated source must use either
 `TEMPLATE` or the `TEMPLATE_` prefix. This includes:
 
 - functions and objects;
@@ -308,13 +341,13 @@ Every instance-owned file-scope definition in a template must use either
 - source-visible assembler symbols.
 
 The compiler rejects an unqualified file-scope definition created directly
-inside a template instance, because two instances would otherwise collide or
+inside an instantiation instance, because two instances would otherwise collide or
 silently share state. Shared declarations should come from an ordinary included
-support file rather than being redefined by each template instance.
+support file rather than being redefined by each instantiation instance.
 
-The direct-template/source provenance is retained separately from the active
-template instance. Consequently an ordinary included support file is exempt
-even when it is read while a template instance is active. Function locals,
+The directly-instantiated/source provenance is retained separately from the active
+instantiation instance. Consequently an ordinary included support file is exempt
+even when it is read while an instantiation instance is active. Function locals,
 parameters, aggregate members, and assembler-local `@labels` are not
 file-scope instance names and remain unrestricted. Nonlocal assembler labels
 defined by inline assembly are source-visible and therefore require the same
@@ -508,8 +541,8 @@ resource conflicts machine-checkable.
 A two-instance score application should be expressible approximately as:
 
 ```c
-template "six_glyph_component.c26" as score1
-template "six_glyph_component.c26" as score2
+instantiate "six_glyph_component.c26" as score1
+instantiate "six_glyph_component.c26" as score2
 
 void main(void) {
     score1_init();
@@ -585,7 +618,7 @@ Tests must cover:
 - exact file, line, type, symbol, and instance diagnostics;
 - true inline calls satisfying function contracts without a `JSR` relocation.
 
-### Template instantiation
+### Source instantiation
 
 Tests must cover:
 
@@ -595,18 +628,25 @@ Tests must cover:
 - no middle-of-identifier replacement;
 - comments and strings remaining unchanged;
 - UTF-8 instance identifiers and assembler-safe mangling;
-- ordinary includes inside templates remaining include-once;
-- repeated templates bypassing the MD5-seen set;
-- nested template contexts and recursion/nesting diagnostics;
-- unqualified file-scope definitions rejected by template hygiene;
+- ordinary includes inside instantiated source remaining include-once;
+- repeated instantiations bypassing the MD5-seen set;
+- nested instantiation contexts and recursion/nesting diagnostics;
+- unqualified file-scope definitions rejected by instantiation hygiene;
 - inline-assembly instance identifiers rewritten while the assembly itself
-  remains opaque to peephole optimization.
+  remains opaque to peephole optimization;
+- required parameters, defaults, explicit overrides, and parameter substitution;
+- missing required, unknown, duplicate, and non-integer arguments rejected;
+- duplicate parameter declarations and declarations outside directly instantiated
+  source rejected;
+- an instantiation immediately before a preprocessor directive preserves the
+  newline and directive boundary;
+- the retired `template` keyword is rejected.
 
 ### Display composition
 
 The first real component conversion should prove:
 
-- one six-glyph component behaves exactly as its non-template predecessor;
+- one six-glyph component behaves exactly as its non-instantiated predecessor;
 - two instances maintain independent scores and private state;
 - both instances coexist within measured RAM, ROM, and stack budgets;
 - the application may draw instance 1 above instance 2 or reverse the order;
@@ -640,8 +680,12 @@ Implement this as vertical slices rather than one parser-to-renderer leap:
    reads/writes that produce no ordinary relocation.
 4. Add linker enforcement after archive selection and reachability analysis,
    with exact error/warning diagnostics.
-5. Add `template "file" as instance` using the ordinary include path but
+5. Add `instantiate "file" as instance` using the ordinary include path but
    bypassing the MD5-seen set. **Complete.**
+5a. Add `parameter name;` required arguments and `parameter name := literal;`
+   optional/default arguments, with strict missing/unknown/duplicate validation
+   and `(name:=literal, ...)` invocation syntax. Remove the former `template`
+   keyword rather than maintaining two spellings. **Complete.**
 6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting and reject
    unqualified instance-owned file-scope definitions while exempting ordinary
    included support declarations. **Complete.**

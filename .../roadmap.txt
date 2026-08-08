@@ -23,11 +23,11 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 28 — continue the minimal unbanked/non-Superchip multisprite
-port from the now-locked faithful legacy baseline. Define and prove one stack-safe
-VCSC game-logic boundary inside the retained 26-byte application window before
-adding any multisprite variants. Item 23 remains an earlier unfinished item, but
-the current work is intentionally following the user's requested item 28.
+Current next action: 28 — derive one modern unbanked/non-Superchip multisprite
+component from the locked faithful legacy baseline, parameterized by visible scanline
+count through `instantiate`. Prove 192-line and 181-line interactive compositions
+before considering any additional profiles. Item 23 remains an earlier unfinished
+item, but the current work is intentionally following the user's requested item 28.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -541,17 +541,28 @@ the current work is intentionally following the user's requested item 28.
                   the declaring template instance, unreachable code, and
                   unselected archive members must not satisfy or trigger the
                   contract.
-        [x] 22d. Add `template "file.c26" as instance`. Reuse ordinary include
+        [x] 22d. Add `instantiate "file.c26" as instance`. Reuse ordinary include
                   path resolution but deliberately bypass include's MD5-seen
                   suppression so one source can be instantiated repeatedly.
                   Rewrite only the identifier `TEMPLATE` and the prefix
                   `TEMPLATE_` before ordinary identifier classification and UTF-8
                   symbol mangling; never rewrite comments, strings, or unrelated
                   identifier substrings. Support UTF-8 instance names, ordinary
-                  include-once behavior inside templates, nested instantiation,
-                  recursive-template diagnostics, identifier-aware alias
-                  rewriting, and stable invocation identities in contract/use
-                  metadata.
+                  include-once behavior inside instantiated source, nested
+                  instantiation, recursive-instantiation diagnostics,
+                  identifier-aware alias rewriting, and stable invocation
+                  identities in contract/use metadata.
+
+                  [x] 22d1. Hard-cut the source keyword from `template` to
+                            `instantiate` and add integer-literal instantiation
+                            parameters. `parameter name;` is required;
+                            `parameter name := literal;` supplies an optional
+                            default. Accept caller overrides as
+                            `(name:=literal, ...)`; reject missing required,
+                            unknown, duplicate, and non-integer arguments plus
+                            duplicate declarations. Keep `instantiate` itself
+                            semicolon-free and parameter declarations terminated
+                            by semicolons.
         [x] 22e. Complete inline-assembly integration and template hygiene.
 
                   [x] 22e1. Rewrite exact `TEMPLATE` and leading `TEMPLATE_`
@@ -1316,10 +1327,12 @@ the current work is intentionally following the user's requested item 28.
           coexist with this profile's complete RIOT-RAM ownership.
 
 [ ] 28. Port and verify the minimal unbanked, non-Superchip multisprite profile.
-        Build a fixed diagnostic cartridge first, then connect one stack-safe
-        VCSC game-logic boundary. Lock object multiplexing, playfield and score
-        timing, RAM ownership, hidden stack depth, exact frame length, visible
-        raster behavior, and measured ROM cost before adding cartridge variants.
+        Build and lock a faithful fixed diagnostic first, then derive one modern
+        component parameterized by visible scanline count. Prove 192-line and
+        181-line interactive compositions, including score placement where relevant.
+        Lock object multiplexing, playfield and score timing, RAM ownership, hidden
+        stack depth, exact frame length, visible raster behavior, and measured ROM
+        cost before considering additional cartridge or timing profiles.
 
         Progress 2026-08-08 — faithful fixed baseline complete:
 
@@ -1342,9 +1355,18 @@ the current work is intentionally following the user's requested item 28.
           `%00111100` from remaining latched while later P1 reposition HMOVEs walk
           that stale four-pixel bar sideways. The corrected oracle is 391 visible
           TIA writes and the diagnostic grows by one ROM byte to 1472.
-        * Remaining item-28 substep: connect and prove one stack-safe ordinary VCSC
-          game-logic boundary using the retained 26-byte application window. Do not
-          add bankswitching, Superchip, optional legacy features, or variants first.
+        * Language prerequisite completed 2026-08-08: source components now use
+          `instantiate` rather than the retired `template` keyword and may declare
+          required/default integer parameters with `parameter`. This lets the modern
+          multisprite work use one renderer source parameterized by visible scanline
+          count instead of multiplying 192-line, 181-line, and future renderer files.
+        * Remaining item-28 substep: derive one parameterized modern multisprite
+          component from the faithful baseline, with visible-line count supplied at
+          instantiation time. Prove 192-line and 181-line interactive compositions
+          first, including score-above/score-below where applicable, exact raster and
+          frame timing, playfield correctness, stack/RAM/ROM accounting, and the
+          existing joystick/Select/Reset control conventions. Do not add separate
+          scanline-count renderer variants unless a genuine timing contract forces it.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

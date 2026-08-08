@@ -185,7 +185,7 @@ for my $omit (qw(init vblank draw overscan)) {
    open(my $fh,'>:raw',$missing) or die "write $missing: $!\n";
    print {$fh} qq{include "vcs.c26"\n};
    print {$fh} qq{include "fonts/default_decimal.c26"\n};
-   print {$fh} qq{template "six_glyph_component.c26" as one\n};
+   print {$fh} qq{instantiate "six_glyph_component.c26" as one\n};
    print {$fh} "void main(void) {\n";
    for my $phase (qw(init vblank draw overscan)) {
       next if $phase eq $omit;

@@ -381,7 +381,7 @@ index($score_make,'-eq 2048')>=0
 my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','wide_score.c26'));
 my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','Makefile'));
 index($wide_source,'include "vcs_2k.c26"')>=0 &&
-index($wide_source,'template "six_glyph_wide_component.c26" as score')>=0 &&
+index($wide_source,'instantiate "six_glyph_wide_component.c26" as score')>=0 &&
 index($wide_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
 index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide.pl') &&
@@ -512,7 +512,8 @@ index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'Main-roadmap item 23 remains an earlier')>=0 &&
 index($context,'item 28 is active')>=0 &&
 index($context,'faithful_legacy_multisprite')>=0 &&
-index($context,'26-byte `A..Z` application window')>=0 &&
+index($context,'one modern parameterized multisprite component')>=0 &&
+index($context,'192- and 181-line')>=0 &&
 length($context) <= 100 * 1024
    or die "compact context lost its user-directed item-28 multisprite pointer, completed RAM/assembly closeout, history-title policy, skipped item-23 note, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
@@ -543,7 +544,9 @@ $roadmap =~ /^\[ \] 28\. Port and verify the minimal unbanked, non-Superchip mul
 index($roadmap,'faithful fixed baseline complete')>=0 &&
 index($roadmap,'1472/4090 ROM bytes')>=0 &&
 index($roadmap,'122 state +')>=0 &&
-index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0
+index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0 &&
+index($roadmap,'one renderer source parameterized by visible scanline')>=0 &&
+$roadmap =~ /^\s*\[x\] 22d1\. Hard-cut the source keyword from `template` to/m
    or die "main roadmap lost the active item-28 faithful multisprite baseline or task-27 completion\n";
 $roadmap =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";

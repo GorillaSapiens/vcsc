@@ -7,8 +7,8 @@ include "color_ntsc.c26"
 include "playfield.c26"
 include "fonts/default_decimal.c26"
 
-template "renderers/player_color_181/player_color_181.c26" as game
-template "six_glyph_left_component.c26" as score
+instantiate "renderers/player_color_181/player_color_181.c26" as game
+instantiate "six_glyph_left_component.c26" as score
 
 include "../../../common/fixed_six_digit_controls.c26"
 

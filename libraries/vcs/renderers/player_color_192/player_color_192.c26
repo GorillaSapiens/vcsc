@@ -5,7 +5,7 @@
 //
 // Instantiate with:
 //
-//     template "renderers/player_color_192/player_color_192.c26" as game
+//     instantiate "renderers/player_color_192/player_color_192.c26" as game
 //
 // Include vcs.c26 first. Each instance requires a page-contained immutable
 // INSTANCE_playfield[48]. Player color tables are normally page-contained

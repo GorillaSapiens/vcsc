@@ -31,7 +31,7 @@ motion oracle also pins the corrected delayed-Ball transfer across a row
 boundary.
 
 This profile is explicit rather than selected by an alias so opcode policy is
-obvious from the template filename.
+obvious from the component filename.
 
 The ten-cartridge public score/poison matrix lives under
 `examples/07_player_color_181_unofficial/`. They are direct twins of the

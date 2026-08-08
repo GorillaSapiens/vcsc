@@ -46,7 +46,7 @@ for my $case (@bad) {
    write_file($component, "$body\n");
    write_file($main, <<'C26');
 include "machine_6502.c26"
-template "component.c26" as one
+instantiate "component.c26" as one
 void main(void) {
 }
 C26
@@ -58,7 +58,7 @@ C26
    local $/;
    my $text = <$efh>;
    close $efh;
-   index($text, 'template hygiene:') >= 0
+   index($text, 'instantiation hygiene:') >= 0
       or die "$name: missing template-hygiene diagnostic\n$text";
    index($text, $needle) >= 0
       or die "$name: wrong definition-class diagnostic; expected '$needle'\n$text";
@@ -94,8 +94,8 @@ inline void TEMPLATE_draw(void) {
 C26
    write_file($main, <<'C26');
 include "machine_6502.c26"
-template "component.c26" as first
-template "component.c26" as second
+instantiate "component.c26" as first
+instantiate "component.c26" as second
 uint8_t shared_value;
 void main(void) {
    first_draw();

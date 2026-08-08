@@ -18,9 +18,9 @@
 // forbidasm: MY_first_HELPER
 
 include "machine_6502.c26"
-template "fixtures/templates/component.c26" as first
-template "fixtures/templates/component.c26" as second
-template "fixtures/templates/component.c26" as λ
+instantiate "fixtures/templates/component.c26" as first
+instantiate "fixtures/templates/component.c26" as second
+instantiate "fixtures/templates/component.c26" as λ
 
 uint8_t MY_TEMPLATE_HELPER;
 uint8_t result;

@@ -8,7 +8,7 @@ include "playfield.c26"
 // the eleven-line score components, while leaving the renderer's default
 // retained-source ordering untouched for oracle fixtures.
 alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1
-template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+instantiate "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 alias score_score legacy_score
 alias score_color legacy_score_color
 include "../../common/fixed_six_digit_controls.c26"

@@ -11,7 +11,8 @@ bank rom {
    $image_size:0x1000 $file_index:1 $image_offset:0
    $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
 };
-template "fixtures/templates/coverage_empty.c26" as coverage_template
+instantiate "fixtures/templates/coverage_empty.c26" as coverage_template
+instantiate "fixtures/instantiation_parameters/component.c26" as coverage_params (lines:=1)
 
 typedef int16_t coverage_int;
 

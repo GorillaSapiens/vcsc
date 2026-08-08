@@ -61,7 +61,7 @@ require_re($text,qr/^include "color_ntsc\.c26"$/m,
    'player_color_192 interactive example does not use named NTSC colors');
 require_re($text,qr/^include "playfield\.c26"$/m,
    'player_color_192 interactive example does not use visual playfield rows');
-require_re($text,qr/template "renderers\/player_color_192\/player_color_192\.c26" as game/,
+require_re($text,qr/instantiate "renderers\/player_color_192\/player_color_192\.c26" as game/,
    'player_color_192 interactive example does not use the full 192-line player-color renderer');
 $text !~ /six_glyph_component|score_draw|score_/ or die "player_color_192 interactive example unexpectedly contains score ownership\n";
 my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;

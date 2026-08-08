@@ -136,7 +136,7 @@ uint8_t spanning[4];
 uint8_t middle[4];
 uint8_t status;
 
-template "phase_component.c26" as game
+instantiate "phase_component.c26" as game
 
 void vcs_ntsc_vsync(void) {
    spanning[0] := 0x99;

@@ -2,7 +2,7 @@ include "vcs_4k.c26"
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 
-template "six_glyph_wide_component.c26" as score
+instantiate "six_glyph_wide_component.c26" as score
 
 void main(void) {
    PF0 := 0;

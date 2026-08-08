@@ -16,3 +16,18 @@
 - Example `.cfg` sidecars are now classified with `.map/.sym/.lst` as generated build products. Checked-in linker/profile `.cfg` files under `libraries/` remain subject to the normal explicit CC0 audit.
 - Regression procedure deliberately leaves `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic.cfg` present while running source-tree hygiene, matching the user workflow that exposed the bug.
 - Verification with that generated sidecar left in place: 458/458 compile-only and 261/261 e2e pass, including source-tree hygiene in normal suite order.
+
+2026-08-08 13:32:58 PDT, add parameterized source instantiation
+
+* Replace the user-facing `template` keyword with `instantiate` across the language, maintained sources, examples, tests, and documentation; keep `TEMPLATE`/`TEMPLATE_` as the instance placeholder spelling.
+* Add file-scope `parameter name;` required arguments and `parameter name := integer_literal;` optional/default arguments. Invocation overrides use `instantiate "file.c26" as instance (name=literal, ...)`; reject missing required, unknown, duplicate, non-integer arguments and duplicate parameter declarations.
+* Preserve the no-semicolon instantiation syntax and fix optional-argument lookahead so an instantiation immediately before `#endif` does not consume the preprocessor-significant newline.
+* Add focused positive/codegen and negative diagnostics, parser coverage, and a preprocessor-boundary regression. Final compile-only coverage is 467/467; all 261 e2e cases are accounted for as passing, including recursive public example builds, and staged installcheck passes.
+* Update item 28 to use one modern multisprite component parameterized by visible scanline count, with 192- and 181-line interactive compositions as the first proof points rather than separate scanline-count renderer files.
+
+2026-08-08 13:47:17 PDT, require VCSC assignment syntax for instantiation arguments
+
+* Correct parameterized `instantiate` call syntax from the accidental C-style `(name=literal, ...)` spelling to VCSC `(name:=literal, ...)`; parameter declarations already used `:=` and are unchanged.
+* The raw instantiation argument parser now accepts only `name:=integer_literal`. A dedicated negative regression proves `name=integer_literal` is rejected with a syntax diagnostic, preventing `=` from re-entering the language through instantiation syntax.
+* Update the user-facing template/instantiation design documentation, compiler README, parser coverage fixtures, focused parameter tests, roadmap wording, and current handoff to use `:=`.
+* Verification: 468/468 compile-only tests pass; all 261 e2e cases are accounted for as passing in harness-order shards; staged installcheck passes.

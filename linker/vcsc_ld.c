@@ -3309,7 +3309,7 @@ static void enforce_declaration_use_contracts(const input_set_t *in)
          if (contract->detail && *contract->detail)
             fprintf(stderr, "  declared type: %s\n", contract->detail);
          if (strcmp(contract->invoke, "none"))
-            fprintf(stderr, "  template invocation: %s\n", contract->invoke);
+            fprintf(stderr, "  instantiation: %s\n", contract->invoke);
          if (!strcmp(level, "require"))
             errors++;
       }

@@ -22,6 +22,9 @@
 #include "parser.tab.h"
 
 static int input(void);
+static void yyunput(int c, char *buf_ptr);
+static int alias_read_char(void);
+static void alias_append_char(char **buf, size_t *len, size_t *cap, int c);
 
 #define MAX_INCLUDE_DEPTH 32
 #define MAX_ALIAS_DEPTH 128
@@ -47,7 +50,32 @@ typedef struct FileContext {
    char *saved_template_invoke_file;
    int saved_template_invoke_line;
    int saved_template_invoke_column;
+   struct InstantiationContext *saved_instantiation_context;
 } FileContext;
+
+#define MAX_INSTANTIATION_ARGUMENTS 64
+#define MAX_INSTANTIATION_PARAMETERS 64
+
+typedef struct InstantiationArgument {
+   char *name;
+   char *value;
+   int declared;
+} InstantiationArgument;
+
+typedef struct InstantiationParameter {
+   char *name;
+   char *value;
+   int required;
+   int supplied;
+   int used;
+} InstantiationParameter;
+
+typedef struct InstantiationContext {
+   InstantiationArgument arguments[MAX_INSTANTIATION_ARGUMENTS];
+   int argument_count;
+   InstantiationParameter parameters[MAX_INSTANTIATION_PARAMETERS];
+   int parameter_count;
+} InstantiationContext;
 
 typedef struct AliasContext {
    int alias_index;
@@ -69,6 +97,11 @@ static FileContext file_stack[MAX_INCLUDE_DEPTH];
 static int file_stack_top = -1;
 static char *current_template_instance = NULL;
 static char *current_template_invoke_file = NULL;
+static InstantiationContext *current_instantiation_context = NULL;
+static int expect_instantiation_instance = 0;
+static char *pending_instantiation_arg_names[MAX_INSTANTIATION_ARGUMENTS];
+static char *pending_instantiation_arg_values[MAX_INSTANTIATION_ARGUMENTS];
+static int pending_instantiation_arg_count = 0;
 static int current_template_invoke_line = 0;
 static int current_template_invoke_column = 0;
 static AliasContext alias_stack[MAX_ALIAS_DEPTH];
@@ -244,7 +277,10 @@ static int push_file_internal(const char *filename,
                               const char *template_instance,
                               const char *invoke_file,
                               int invoke_line,
-                              int invoke_column) {
+                              int invoke_column,
+                              int arg_count,
+                              const char **arg_names,
+                              const char **arg_values) {
    int is_template = template_instance && *template_instance;
 
    if (file_stack_top + 1 >= MAX_INCLUDE_DEPTH) {
@@ -265,7 +301,7 @@ static int push_file_internal(const char *filename,
             lexer_set_error_location(invoke_file ? invoke_file : current_filename,
                                      invoke_line, invoke_column, filename);
             free(canonical_filename);
-            error_user("recursive template instantiation of '%s'", filename);
+            error_user("recursive instantiation of '%s'", filename);
             return -1;
          }
       }
@@ -275,7 +311,7 @@ static int push_file_internal(const char *filename,
    if (!f) {
       lexer_set_error_location(current_filename, yylloc.first_line, yylloc.first_column, filename);
       free(canonical_filename);
-      error_user("cannot open %s file: %s", is_template ? "template" : "include", filename);
+      error_user("cannot open %s file: %s", is_template ? "instantiated source" : "include", filename);
       return -1;
    }
 
@@ -301,12 +337,36 @@ static int push_file_internal(const char *filename,
    file_stack[file_stack_top].saved_template_invoke_file = current_template_invoke_file;
    file_stack[file_stack_top].saved_template_invoke_line = current_template_invoke_line;
    file_stack[file_stack_top].saved_template_invoke_column = current_template_invoke_column;
+   file_stack[file_stack_top].saved_instantiation_context = current_instantiation_context;
 
    if (is_template) {
+      if (arg_count < 0 || arg_count > MAX_INSTANTIATION_ARGUMENTS) {
+         lexer_set_error_location(invoke_file ? invoke_file : current_filename,
+                                  invoke_line, invoke_column, template_instance);
+         error_user("too many instantiation arguments (maximum %d)", MAX_INSTANTIATION_ARGUMENTS);
+         return -1;
+      }
       current_template_instance = strdup(template_instance);
       current_template_invoke_file = strdup(invoke_file ? invoke_file : current_filename);
       current_template_invoke_line = invoke_line;
       current_template_invoke_column = invoke_column;
+      current_instantiation_context = calloc(1, sizeof(*current_instantiation_context));
+      if (!current_instantiation_context)
+         error_unreachable("out of memory creating instantiation context");
+      current_instantiation_context->argument_count = arg_count;
+      for (int i = 0; i < arg_count; i++) {
+         for (int j = 0; j < i; j++) {
+            if (!strcmp(arg_names[i], arg_names[j])) {
+               lexer_set_error_location(current_template_invoke_file, invoke_line, invoke_column, arg_names[i]);
+               error_user("duplicate instantiation argument '%s'", arg_names[i]);
+               return -1;
+            }
+         }
+         current_instantiation_context->arguments[i].name = strdup(arg_names[i]);
+         current_instantiation_context->arguments[i].value = strdup(arg_values[i]);
+         if (!current_instantiation_context->arguments[i].name || !current_instantiation_context->arguments[i].value)
+            error_unreachable("out of memory copying instantiation argument");
+      }
    }
 
    YY_BUFFER_STATE new_buffer = yy_create_buffer(f, YY_BUF_SIZE);
@@ -320,12 +380,132 @@ static int push_file_internal(const char *filename,
 }
 
 int push_file(const char *filename) {
-   return push_file_internal(filename, NULL, NULL, 0, 0);
+   return push_file_internal(filename, NULL, NULL, 0, 0, 0, NULL, NULL);
 }
 
-int push_template_file(const char *filename, const char *instance,
-                       const char *invoke_file, int invoke_line, int invoke_column) {
-   return push_file_internal(filename, instance, invoke_file, invoke_line, invoke_column);
+static void clear_pending_instantiation_arguments(void) {
+   for (int i = 0; i < pending_instantiation_arg_count; i++) {
+      free(pending_instantiation_arg_names[i]);
+      free(pending_instantiation_arg_values[i]);
+      pending_instantiation_arg_names[i] = NULL;
+      pending_instantiation_arg_values[i] = NULL;
+   }
+   pending_instantiation_arg_count = 0;
+}
+
+int push_instantiated_file(const char *filename, const char *instance,
+                           const char *invoke_file, int invoke_line, int invoke_column) {
+   const char *names[MAX_INSTANTIATION_ARGUMENTS];
+   const char *values[MAX_INSTANTIATION_ARGUMENTS];
+   int count = pending_instantiation_arg_count;
+   int rc;
+   for (int i = 0; i < count; i++) {
+      names[i] = pending_instantiation_arg_names[i];
+      values[i] = pending_instantiation_arg_values[i];
+   }
+   rc = push_file_internal(filename, instance, invoke_file, invoke_line, invoke_column,
+                           count, names, values);
+   clear_pending_instantiation_arguments();
+   return rc;
+}
+
+static InstantiationArgument *find_instantiation_argument(const char *name) {
+   if (!current_instantiation_context || !name)
+      return NULL;
+   for (int i = 0; i < current_instantiation_context->argument_count; i++) {
+      if (!strcmp(current_instantiation_context->arguments[i].name, name))
+         return &current_instantiation_context->arguments[i];
+   }
+   return NULL;
+}
+
+static InstantiationParameter *find_instantiation_parameter(const char *name) {
+   if (!current_instantiation_context || !name)
+      return NULL;
+   for (int i = 0; i < current_instantiation_context->parameter_count; i++) {
+      if (!strcmp(current_instantiation_context->parameters[i].name, name))
+         return &current_instantiation_context->parameters[i];
+   }
+   return NULL;
+}
+
+int lexer_declare_instantiation_parameter(const char *name, const char *default_value,
+                                          const char *decl_file, int decl_line, int decl_column) {
+   InstantiationArgument *arg;
+   InstantiationParameter *param;
+
+   if (!current_instantiation_context || file_stack_top < 0 || !file_stack[file_stack_top].is_template) {
+      lexer_set_error_location(decl_file ? decl_file : current_filename, decl_line, decl_column, name);
+      error_user("'parameter' declarations are only allowed directly in an instantiated source file");
+      return -1;
+   }
+   if (find_instantiation_parameter(name)) {
+      lexer_set_error_location(decl_file ? decl_file : current_filename, decl_line, decl_column, name);
+      error_user("duplicate instantiation parameter '%s'", name);
+      return -1;
+   }
+   if (current_instantiation_context->parameter_count >= MAX_INSTANTIATION_PARAMETERS) {
+      lexer_set_error_location(decl_file ? decl_file : current_filename, decl_line, decl_column, name);
+      error_user("too many instantiation parameters (maximum %d)", MAX_INSTANTIATION_PARAMETERS);
+      return -1;
+   }
+
+   arg = find_instantiation_argument(name);
+   param = &current_instantiation_context->parameters[current_instantiation_context->parameter_count++];
+   memset(param, 0, sizeof(*param));
+   param->name = strdup(name);
+   param->required = default_value == NULL;
+   param->supplied = arg != NULL;
+   param->value = strdup(arg ? arg->value : (default_value ? default_value : ""));
+   if (!param->name || !param->value)
+      error_unreachable("out of memory declaring instantiation parameter");
+   if (arg)
+      arg->declared = 1;
+
+   if (param->required && !param->supplied) {
+      lexer_set_error_location(current_template_invoke_file, current_template_invoke_line,
+                               current_template_invoke_column, name);
+      error_user("missing required instantiation argument '%s'", name);
+      return -1;
+   }
+   return 0;
+}
+
+static const char *instantiation_parameter_value_for_source(const char *source) {
+   InstantiationParameter *param;
+   if (!source || strncmp(source, "TEMPLATE_", 9))
+      return NULL;
+   param = find_instantiation_parameter(source + 9);
+   if (!param)
+      return NULL;
+   param->used = 1;
+   return param->value;
+}
+
+static void validate_instantiation_arguments(void) {
+   if (!current_instantiation_context)
+      return;
+   for (int i = 0; i < current_instantiation_context->argument_count; i++) {
+      InstantiationArgument *arg = &current_instantiation_context->arguments[i];
+      if (!arg->declared) {
+         lexer_set_error_location(current_template_invoke_file, current_template_invoke_line,
+                                  current_template_invoke_column, arg->name);
+         error_user("unrecognized instantiation argument '%s'", arg->name);
+      }
+   }
+}
+
+static void free_instantiation_context(InstantiationContext *ctx) {
+   if (!ctx) return;
+   for (int i = 0; i < ctx->argument_count; i++) {
+      free(ctx->arguments[i].name);
+      free(ctx->arguments[i].value);
+   }
+   for (int i = 0; i < ctx->parameter_count; i++) {
+      free(ctx->parameters[i].name);
+      free(ctx->parameters[i].value);
+   }
+   free(ctx);
 }
 
 const char *lexer_current_template_instance(void) {
@@ -362,13 +542,16 @@ void pop_file() {
    BEGIN(ctx->start);
 
    if (ctx->owns_template_context) {
+      validate_instantiation_arguments();
       free(current_template_instance);
       free(current_template_invoke_file);
+      free_instantiation_context(current_instantiation_context);
    }
    current_template_instance = ctx->saved_template_instance;
    current_template_invoke_file = ctx->saved_template_invoke_file;
    current_template_invoke_line = ctx->saved_template_invoke_line;
    current_template_invoke_column = ctx->saved_template_invoke_column;
+   current_instantiation_context = ctx->saved_instantiation_context;
    file_stack_top--;
 }
 
@@ -409,6 +592,154 @@ static char *normalize_integer_literal(const char *p) {
    }
 
    return ret;
+}
+
+static int instantiation_name_start(unsigned char c) {
+   return c == '_' || isalpha(c) || c >= 0x80;
+}
+
+static int instantiation_name_char(unsigned char c) {
+   return c == '_' || isalnum(c) || c >= 0x80;
+}
+
+static int instantiation_digits_valid(const char *p, int (*digit_ok)(int)) {
+   int saw_digit = 0;
+   int previous_underscore = 0;
+   if (!p || !*p) return 0;
+   for (; *p; p++) {
+      unsigned char c = (unsigned char)*p;
+      if (c == '_') {
+         if (!saw_digit || previous_underscore || p[1] == 0) return 0;
+         previous_underscore = 1;
+         continue;
+      }
+      if (!digit_ok(c)) return 0;
+      saw_digit = 1;
+      previous_underscore = 0;
+   }
+   return saw_digit && !previous_underscore;
+}
+
+static int digit_hex(int c) { return isxdigit((unsigned char)c) != 0; }
+static int digit_dec(int c) { return c >= '0' && c <= '9'; }
+static int digit_oct(int c) { return c >= '0' && c <= '7'; }
+static int digit_bin_visual(int c) {
+   return c == '0' || c == '1' || c == '.' || c == 'x' || c == 'X';
+}
+
+static int instantiation_integer_literal_valid(const char *text) {
+   if (!text || !*text) return 0;
+   if (text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+      return instantiation_digits_valid(text + 2, digit_hex);
+   if (text[0] == '0' && (text[1] == 'b' || text[1] == 'B'))
+      return instantiation_digits_valid(text + 2, digit_bin_visual);
+   if (text[0] == '0') {
+      if (text[1] == 0) return 1;
+      return instantiation_digits_valid(text + 1, digit_oct);
+   }
+   if (text[0] < '1' || text[0] > '9') return 0;
+   return instantiation_digits_valid(text, digit_dec);
+}
+
+static char *trim_instantiation_field(char *text) {
+   char *end;
+   while (*text && isspace((unsigned char)*text)) text++;
+   end = text + strlen(text);
+   while (end > text && isspace((unsigned char)end[-1])) end--;
+   *end = 0;
+   return text;
+}
+
+static void parse_instantiation_argument_text(char *text) {
+   char *cursor = text;
+   clear_pending_instantiation_arguments();
+   for (;;) {
+      char *segment;
+      char *comma;
+      char *assign;
+      char *name;
+      char *value;
+      char *normalized;
+      size_t name_len;
+
+      while (*cursor && isspace((unsigned char)*cursor)) cursor++;
+      if (!*cursor) return;
+      segment = cursor;
+      comma = strchr(cursor, ',');
+      if (comma) {
+         *comma = 0;
+         cursor = comma + 1;
+      }
+      else {
+         cursor += strlen(cursor);
+      }
+      segment = trim_instantiation_field(segment);
+      if (!*segment)
+         LEX_RUNTIME_ERROR(NULL, "empty instantiation argument");
+      assign = strstr(segment, ":=");
+      if (!assign || strstr(assign + 2, ":=") || strchr(segment, '=') != assign + 1)
+         LEX_RUNTIME_ERROR(NULL, "instantiation argument must be written name:=integer");
+      *assign = 0;
+      name = trim_instantiation_field(segment);
+      value = trim_instantiation_field(assign + 2);
+      name_len = strlen(name);
+      if (!name_len || !instantiation_name_start((unsigned char)name[0]))
+         LEX_RUNTIME_ERROR(NULL, "invalid instantiation argument name '%s'", name);
+      for (size_t i = 1; i < name_len; i++) {
+         if (!instantiation_name_char((unsigned char)name[i]))
+            LEX_RUNTIME_ERROR(NULL, "invalid instantiation argument name '%s'", name);
+      }
+      if (!instantiation_integer_literal_valid(value))
+         LEX_RUNTIME_ERROR(NULL, "instantiation argument '%s' requires an integer literal", name);
+      if (pending_instantiation_arg_count >= MAX_INSTANTIATION_ARGUMENTS)
+         LEX_RUNTIME_ERROR(NULL, "too many instantiation arguments (maximum %d)", MAX_INSTANTIATION_ARGUMENTS);
+      normalized = normalize_integer_literal(value);
+      if (!normalized)
+         error_unreachable("out of memory normalizing instantiation argument");
+      pending_instantiation_arg_names[pending_instantiation_arg_count] = strdup(name);
+      pending_instantiation_arg_values[pending_instantiation_arg_count] = normalized;
+      if (!pending_instantiation_arg_names[pending_instantiation_arg_count])
+         error_unreachable("out of memory copying instantiation argument name");
+      pending_instantiation_arg_count++;
+   }
+}
+
+static void collect_optional_instantiation_arguments(void) {
+   char *text = NULL;
+   size_t len = 0;
+   size_t cap = 0;
+   int c;
+
+   clear_pending_instantiation_arguments();
+   do {
+      c = alias_read_char();
+   } while (c != EOF && c != '\n' && isspace((unsigned char)c));
+
+   if (c != '(') {
+      if (c != EOF) {
+         unput(c);
+         if (c == '\n') {
+            yylineno--;
+            yycolumn = 1;
+         }
+         else {
+            yycolumn--;
+         }
+      }
+      return;
+   }
+
+   for (;;) {
+      c = alias_read_char();
+      if (c == EOF)
+         LEX_RUNTIME_ERROR(NULL, "unterminated instantiation argument list");
+      if (c == ')')
+         break;
+      alias_append_char(&text, &len, &cap, c);
+   }
+   if (!text) text = strdup("");
+   parse_instantiation_argument_text(text);
+   free(text);
 }
 
 //! @brief Issue a useful diagnostic for a malformed visual binary literal.
@@ -638,6 +969,11 @@ static char *template_rewrite_identifier_source(const char *source) {
    if (!current_template_instance ||
        (strcmp(source, "TEMPLATE") && strncmp(source, "TEMPLATE_", 9)))
       return strdup(source);
+   {
+      const char *parameter_value = instantiation_parameter_value_for_source(source);
+      if (parameter_value)
+         return strdup(parameter_value);
+   }
 
    suffix = !strcmp(source, "TEMPLATE") ? "" : source + strlen("TEMPLATE");
    instance_len = strlen(current_template_instance);
@@ -707,11 +1043,17 @@ static char *template_rewrite_inline_asm_text(const char *text) {
          while (*p && pp_is_ident_char((unsigned char)*p)) p++;
          source = strndup(start, (size_t)(p - start));
          if (!strcmp(source, "TEMPLATE") || !strncmp(source, "TEMPLATE_", 9)) {
-            rewritten = template_rewrite_identifier_source(source);
-            mangled = mangle_identifier_utf8_or_die(rewritten);
-            template_rewrite_append(&out, &out_len, &out_cap, mangled, strlen(mangled));
-            free(mangled);
-            free(rewritten);
+            const char *parameter_value = instantiation_parameter_value_for_source(source);
+            if (parameter_value) {
+               template_rewrite_append(&out, &out_len, &out_cap, parameter_value, strlen(parameter_value));
+            }
+            else {
+               rewritten = template_rewrite_identifier_source(source);
+               mangled = mangle_identifier_utf8_or_die(rewritten);
+               template_rewrite_append(&out, &out_len, &out_cap, mangled, strlen(mangled));
+               free(mangled);
+               free(rewritten);
+            }
          }
          else {
             template_rewrite_append(&out, &out_len, &out_cap, source, strlen(source));
@@ -2080,7 +2422,7 @@ static void alias_append_rhs(const char *rhs) {
 
 %}
 
-%option nounput noyywrap
+%option noyywrap
 
 HEXINT    0[xX][0-9a-fA-F]((_)?[0-9a-fA-F])*
 BINDIGIT  [01.xX]
@@ -2175,7 +2517,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 <ALIAS_RHS>[^\n]+          { alias_append_rhs(yytext); }
 
 "align"         return ALIGN;
-"as"            return AS;
+"as"            { expect_instantiation_instance = 1; return AS; }
 "bank"          return BANK;
 "break"         return BREAK;
 "case"          return CASE;
@@ -2192,8 +2534,10 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "if"            return IF;
 "inline"        return INLINE;
 "include"       return INCLUDE;
+"instantiate"   { clear_pending_instantiation_arguments(); expect_instantiation_instance = 0; return INSTANTIATE; }
 "mem"           return MEM;
 "page"          return PAGE;
+"parameter"     return PARAMETER;
 "recommend"     return RECOMMEND;
 "ref"           return REF;
 "require"       return REQUIRE;
@@ -2202,7 +2546,6 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "static"        return STATIC;
 "struct"        return STRUCT;
 "switch"        return SWITCH;
-"template"      return TEMPLATE;
 "to"            return TO;
 "type"          return TYPE;
 "typedef"       return TYPEDEF;
@@ -2284,6 +2627,26 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
    int owner_depth;
    int param_index;
    int i;
+   if (expect_instantiation_instance) {
+      char *source;
+      char *ident;
+      expect_instantiation_instance = 0;
+      source = template_rewrite_identifier_source(yytext);
+      ident = mangle_identifier_utf8_or_die(source);
+      yylval.str = ident;
+      lexer_register_token_location(ident, source, yytext);
+      free(source);
+      collect_optional_instantiation_arguments();
+      return IDENTIFIER;
+   }
+   const char *parameter_value = instantiation_parameter_value_for_source(yytext);
+   if (parameter_value) {
+      yylval.str = strdup(parameter_value);
+      if (!yylval.str)
+         error_unreachable("out of memory substituting instantiation parameter");
+      lexer_register_token_location(yylval.str, parameter_value, yytext);
+      return INTEGER;
+   }
    char *source = template_rewrite_identifier_source(yytext);
    char *ident = mangle_identifier_utf8_or_die(source);
 

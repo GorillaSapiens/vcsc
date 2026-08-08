@@ -432,21 +432,22 @@ surface.
 The authoritative schema-14 accounting closes the RAM campaign from 3993 ROM /
 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
-that accounting unchanged. The compiler-only suite is now **458/458** with the three
-new compact-lowering regressions; the complete end-to-end suite is now **261/261** after adding the faithful
+that accounting unchanged. The compiler-only suite is now **468/468** after adding instantiation-parameter and
+preprocessor-boundary regressions; the complete end-to-end suite remains **261/261** after adding the faithful
 multisprite baseline oracle. Recursive public examples, staged
 `installcheck`, focused simulator/raster/accounting oracles, source hygiene, and the
 reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
 build products, like `.map/.sym/.lst`; hygiene therefore passes both before and
 after `make clean`. Checked-in library/profile `.cfg` files remain license-audited.
-The exact regression leaves the faithful-multisprite diagnostic `.cfg` sidecar present
-through the complete test run; compiler-only is 458/458 and e2e is 261/261 in that
-dirty-by-normal-build-products state.
+The generated-sidecar hygiene regression remains explicit: a faithful-multisprite
+example `.cfg` may be present without being mistaken for editable source, while
+checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
+is 468/468 and e2e coverage is 261/261.
 
 The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
-item 27 is now complete and item 28 is active. Its first milestone is locked as the
+item 27 is complete and item 28 is active. Its first milestone is locked as the
 `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
@@ -456,7 +457,18 @@ snapshot is also certified. The corrected diagnostic stores sprite rows bottom-t
 uses the required ninth zero P0 clearing row so stale GRP0 cannot be walked sideways
 by later P1 HMOVEs, and gives logical sprite 5 an aquamarine color distinct from the
 goldenrod playfield. The visible oracle now contains 391 writes. The legacy score is
-three display-order packed-BCD bytes, not VCSC `bcd24_t`. The next item-28 substep is one stack-safe ordinary VCSC game-logic
-boundary inside the retained 26-byte `A..Z` application window. Do not add multisprite
-variants, bankswitching, or Superchip before that boundary is proven. Main-roadmap
-items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
+three display-order packed-BCD bytes, not VCSC `bcd24_t`.
+
+Source instantiation now uses the hard-cut `instantiate "file.c26" as instance`
+keyword; the former `template` keyword is intentionally rejected. Directly instantiated
+source may declare `parameter name;` for a required integer-literal argument or
+`parameter name := literal;` for an optional/default argument. Callers override with
+`(name:=literal, ...)` after the instance name. Declared `TEMPLATE_name` identifiers
+substitute the supplied/default literal while undeclared `TEMPLATE_` names retain
+ordinary instance-prefix rewriting. Missing required, unknown, duplicate, and
+non-integer arguments and duplicate parameter declarations are compile-time errors.
+`instantiate` remains semicolon-free; `parameter` declarations require semicolons.
+The next item-28 step is therefore one modern parameterized multisprite component,
+with visible gameplay lines supplied at instantiation time; prove 192- and 181-line
+interactive compositions rather than creating separate renderer source families.
+Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.

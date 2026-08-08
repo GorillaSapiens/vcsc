@@ -2,8 +2,8 @@ include "vcs.c26"
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 
-template "renderers/poison_debug_score/poison_debug_score.c26" as poison
-template "six_glyph_color_component.c26" as score
+instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
+instantiate "six_glyph_color_component.c26" as score
 
 void main(void) {
    PF0 := 0;

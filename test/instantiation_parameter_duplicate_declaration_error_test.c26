@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: duplicate instantiation parameter 'value'
+
+include "machine_6502.c26"
+instantiate "fixtures/instantiation_parameters/duplicate_parameter.c26" as bad (value:=7)

@@ -6,7 +6,7 @@
 //
 // Instantiate with:
 //
-//     template "renderers/all_five_181/all_five_181.c26" as game
+//     instantiate "renderers/all_five_181/all_five_181.c26" as game
 //
 // Include vcs.c26 first. Each instance requires a page-contained immutable
 // INSTANCE_playfield[44]. The component draws exactly 181 gameplay scanlines;

@@ -41,7 +41,7 @@ page const uint8_t game_player1_colors[8] := {
    VCS_NTSC_PALE_GREEN
 };
 
-template "renderers/player_color_192/player_color_192.c26" as game
+instantiate "renderers/player_color_192/player_color_192.c26" as game
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(

@@ -50,34 +50,73 @@ An included file is processed once per translation unit. Identity is based on
 an MD5 digest of its contents, so including identical content through different
 paths still produces one inclusion.
 
-### Templates
+### Instantiation
+
+Reusable source components are instantiated explicitly:
 
 ```vcsc
-template "component.c26" as first
-template "component.c26" as second
+instantiate "component.c26" as first
+instantiate "component.c26" as second
 ```
 
-A template uses the ordinary include search path but is processed on every
-invocation rather than participating in include's MD5-based include-once set.
-Within the instantiated source, the exact identifier `TEMPLATE` becomes the
-instance identifier and an identifier beginning with `TEMPLATE_` receives the
-instance prefix. Comments, strings, and unrelated identifier substrings are not
-rewritten. Rewriting occurs before identifier classification and UTF-8 symbol
-mangling, so ordinary and UTF-8 instance names are both supported.
+`instantiate` uses the ordinary include search path but processes the selected
+file on every invocation instead of participating in `include`'s MD5-based
+include-once set. There is no semicolon after an `instantiate` directive.
+The former `template` keyword has been removed; source must use `instantiate`.
 
-Ordinary includes inside a template remain include-once. Nested templates are
-allowed, while recursive template inclusion is diagnosed. Alias names,
-parameters, and identifier tokens in alias replacement text participate in the
-same rewriting. Exact `TEMPLATE` and leading `TEMPLATE_` identifier tokens in
-inline assembly are also rewritten and UTF-8-mangled on assembler-identifier
-boundaries; quoted assembler data and unrelated identifiers remain unchanged.
-Definitions written directly in a template file must name every instance-owned
-file-scope function, object, typedef, tag, enum constant, table, and
-source-visible assembler label with exact `TEMPLATE` or the leading
+Within instantiated source, the exact identifier `TEMPLATE` becomes the
+instance identifier and an identifier beginning with `TEMPLATE_` normally
+receives the instance prefix. Comments, strings, and unrelated identifier
+substrings are not rewritten. Rewriting occurs before identifier classification
+and UTF-8 symbol mangling, so ordinary and UTF-8 instance names are both
+supported.
+
+An instantiated component may declare integer-literal configuration parameters
+at file scope:
+
+```vcsc
+parameter lines;
+parameter color := 0x20;
+
+uint8_t TEMPLATE_rows[TEMPLATE_lines];
+uint8_t TEMPLATE_background := TEMPLATE_color;
+```
+
+A `parameter` declaration with no assignment is required. A declaration with
+`:=` supplies a default and is optional. Parameter declarations end with a
+semicolon and must precede uses of the corresponding `TEMPLATE_name`. The caller
+supplies overrides in parentheses after the instance
+name, using `:=`:
+
+```vcsc
+instantiate "renderer.c26" as game (lines:=192)
+instantiate "renderer.c26" as short_game (lines:=181, color:=0x2e)
+```
+
+Instantiation argument values are integer literals, including VCSC hexadecimal,
+octal, binary/visual-binary, and decimal forms. A declared `TEMPLATE_name`
+parameter is replaced by the supplied literal or its default; remaining
+`TEMPLATE_` identifiers continue to receive the instance prefix. Missing
+required arguments, unknown arguments, duplicate arguments, and duplicate
+parameter declarations are compile-time errors. `parameter` declarations are
+valid only directly in the instantiated source file, not in an ordinary source
+file or an included helper.
+
+Ordinary includes inside instantiated source remain include-once. Nested
+instantiations are allowed, while recursive instantiation of the same source is
+diagnosed. Alias names, alias parameters, and identifier tokens in alias
+replacement text participate in the same instance rewriting. Exact `TEMPLATE`
+and leading `TEMPLATE_` identifier tokens in inline assembly are also rewritten
+(or replaced by declared parameter literals) on assembler-identifier boundaries;
+quoted assembler data and unrelated identifiers remain unchanged.
+Definitions written directly in an instantiated file must name every
+instance-owned file-scope function, object, typedef, tag, enum constant, table,
+and source-visible assembler label with exact `TEMPLATE` or the leading
 `TEMPLATE_` prefix. Ordinary included support files are exempt, so genuinely
 shared declarations can live in one include-once header instead of being
 redeclared by every instance. Assembler-local `@labels`, function locals,
-parameters, and aggregate members do not require the prefix.
+function parameters, instantiation-parameter declaration names, and aggregate
+members do not require the prefix.
 
 ### Aliases
 
@@ -869,10 +908,10 @@ bodies happen not to declare locals.
 
 ### VCS frame-phase lifetime metadata
 
-For the fixed NTSC scheduler and reusable template component lifecycle, the
+For the fixed NTSC scheduler and reusable instantiated-component lifecycle, the
 compiler also records when writable storage is live within a frame. The internal
 phase mask uses VSYNC, VBLANK, visible draw, and overscan bits. Template suffixes
-such as `_vblank`, `_draw`, and `_overscan` are recognized only on template-owned
+such as `_vblank`, `_draw`, and `_overscan` are recognized only on instantiation-owned
 `require` lifecycle functions; an ordinary function merely ending in `_draw`
 does not become a phase contract. The fixed `vcs_ntsc_*` scheduler helpers are
 classified directly.
@@ -1095,8 +1134,8 @@ asm @again:
 The compiler leaves general assembler text under programmer control, with three
 source-aware rewrites:
 
-- exact `TEMPLATE` and leading `TEMPLATE_` identifiers inside a template
-  instance receive the instance prefix and ordinary UTF-8 symbol mangling;
+- exact `TEMPLATE` and leading `TEMPLATE_` identifiers inside an instantiated
+  source instance receive the instance prefix and ordinary UTF-8 symbol mangling;
 - absolute `ref` operands select the legal read or write address from the
   instruction's access kind;
 - assembler-local `@labels` inside an inline-function expansion receive a

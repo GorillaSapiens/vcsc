@@ -18,7 +18,7 @@ aliases, zero-page playfield accesses, and branch page-cross timing.
 Instantiate it after `vcs.c26`:
 
 ```vcsc
-template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+instantiate "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
 ```
 
 The application supplies RAM-backed `legacy_playfield[48]`, page-contained
@@ -51,7 +51,7 @@ its complete provenance live under
 `test/oracles/pristine_basic_v1.9_playercolors/`.
 
 This profile may be used as the faithful derivation baseline. Any later
-transformation—template wrapping, score extraction, opcode legalization, object
+transformation—instantiation wrapping, score extraction, opcode legalization, object
 extension, or line-budget change—must be introduced and proved separately.
 
 ## Score byte order
@@ -59,7 +59,7 @@ extension, or line-budget change—must be introduced and proved separately.
 By default, the retained renderer preserves its historical score-byte contract:
 `score[0]`, `score[1]`, and `score[2]` are displayed from left to right. That is
 not VCSC's normal little-endian packed-BCD order. Defining the object-like alias
-`VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER` before instantiating the template makes
+`VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER` before instantiating the component makes
 the display consume the three bytes in reverse order, matching `bcd24_t` and the
 eleven-line score components. The oracle fixtures deliberately leave the symbol
 undefined so the default remains byte-for-byte faithful.

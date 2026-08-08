@@ -165,7 +165,7 @@ static void compile(ASTNode *program) {
 
    for (int i = 0; i < program->count; i++) {
       ASTNode *node = program->children[i];
-      if (!strcmp(node->name, "include_stmt") || !strcmp(node->name, "template_stmt")) {
+      if (!strcmp(node->name, "include_stmt") || !strcmp(node->name, "instantiate_stmt") || !strcmp(node->name, "parameter_decl_stmt")) {
          node->handled = true;
          // ignore these, they're handled in the parser
       }

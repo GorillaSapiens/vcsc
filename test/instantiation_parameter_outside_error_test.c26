@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'parameter' declarations are only allowed directly in an instantiated source file
+
+include "machine_6502.c26"
+parameter lines;

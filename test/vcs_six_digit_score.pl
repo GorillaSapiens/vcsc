@@ -124,7 +124,7 @@ my $component_text=read_file($component);
 my $frame_text=read_file($frame);
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'score fixture no longer uses the shared NTSC scheduler');
-require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+score/,
+require_re($source,qr/instantiate\s+"six_glyph_component\.c26"\s+as\s+score/,
            'score fixture no longer instantiates the reusable component');
 $source !~ /six_glyph_display\.c26/ or die "score fixture still includes the legacy display module\n";
 require_re($source,qr/score_score\s*:=\s*123456/,

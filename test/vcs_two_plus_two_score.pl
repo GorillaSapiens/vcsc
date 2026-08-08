@@ -137,7 +137,7 @@ for my $omit (qw(init vblank draw overscan)) {
    open(my $fh,'>:raw',$missing) or die "write $missing: $!\n";
    print {$fh} qq{include "vcs.c26"\n};
    print {$fh} qq{include "two_plus_two_score_support.c26"\n};
-   print {$fh} qq{template "two_plus_two_score_component.c26" as one\n};
+   print {$fh} qq{instantiate "two_plus_two_score_component.c26" as one\n};
    print {$fh} "void main(void) {\n";
    for my $phase (qw(init vblank draw overscan)) {
       next if $phase eq $omit;

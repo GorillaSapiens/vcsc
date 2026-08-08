@@ -1,0 +1,11 @@
+parameter lines;
+parameter color := 0x20;
+parameter flags := 0b.X;
+
+uint8_t TEMPLATE_rows[TEMPLATE_lines];
+uint8_t TEMPLATE_color_copy := TEMPLATE_color;
+uint8_t TEMPLATE_flags_copy := TEMPLATE_flags;
+
+inline uint8_t TEMPLATE_get_color(void) {
+   return TEMPLATE_color;
+}

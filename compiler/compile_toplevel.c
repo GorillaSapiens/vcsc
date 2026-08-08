@@ -52,7 +52,7 @@ static void require_hygienic_template_name(const ASTNode *name, const char *kind
       return;
    source = name && name->source_spelling ? name->source_spelling :
             (name && name->strval ? name->strval : "?");
-   error_user("[%s:%d.%d] template hygiene: file-scope %s '%s' defined directly in a template must use 'TEMPLATE' or the 'TEMPLATE_' prefix",
+   error_user("[%s:%d.%d] instantiation hygiene: file-scope %s '%s' defined directly in instantiated source must use 'TEMPLATE' or the 'TEMPLATE_' prefix",
               name && name->file ? name->file : "?",
               name ? name->line : 0,
               name ? name->column : 0,
@@ -138,7 +138,7 @@ static void enforce_template_asm_label_hygiene(const ASTNode *node) {
       error_unreachable("out of memory checking template assembler label");
    memcpy(name, start, len);
    name[len] = 0;
-   error_user("[%s:%d.%d] template hygiene: source-visible assembler symbol '%s' defined directly in a template must use 'TEMPLATE' or the 'TEMPLATE_' prefix",
+   error_user("[%s:%d.%d] instantiation hygiene: source-visible assembler symbol '%s' defined directly in instantiated source must use 'TEMPLATE' or the 'TEMPLATE_' prefix",
               node->file ? node->file : "?", node->line, node->column, name);
 }
 

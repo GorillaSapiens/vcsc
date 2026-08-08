@@ -328,7 +328,7 @@ $source_text !~ /diagnostic_superchip_ram/
 $source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
 $source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
    or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
-$source_text =~ /template\s+"six_glyph_wide_component\.c26"\s+as\s+status_word/
+$source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+status_word/
    or die "diagnostic does not use the six-glyph wide score component\n";
 for my $glyph (
    [A => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXXX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.\s*\)/s],

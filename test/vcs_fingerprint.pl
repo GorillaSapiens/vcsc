@@ -145,11 +145,11 @@ require_re($source,qr/include\s+"fonts\/logo_font\.c26"/,
            'fingerprint fixture does not include the logo font');
 require_re($source,qr/include\s+"frame_ntsc\.c26"/,
            'fingerprint fixture no longer uses the shared NTSC scheduler');
-require_re($source,qr/template\s+"six_glyph_component\.c26"\s+as\s+display/,
+require_re($source,qr/instantiate\s+"six_glyph_component\.c26"\s+as\s+display/,
            'fingerprint fixture no longer instantiates the reusable fingerprint component');
-require_re($source,qr/template\s+"six_glyph_right_component\.c26"\s+as\s+upper_logo/,
+require_re($source,qr/instantiate\s+"six_glyph_right_component\.c26"\s+as\s+upper_logo/,
            'fingerprint fixture no longer instantiates the right-justified upper logo');
-require_re($source,qr/template\s+"six_glyph_left_component\.c26"\s+as\s+lower_logo/,
+require_re($source,qr/instantiate\s+"six_glyph_left_component\.c26"\s+as\s+lower_logo/,
            'fingerprint fixture no longer instantiates the left-justified lower logo');
 $source !~ /six_glyph_display\.c26/
    or die "fingerprint fixture still includes the legacy display module\n";

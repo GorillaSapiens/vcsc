@@ -71,7 +71,7 @@ require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*44/,
    'component private-RAM contract changed');
 require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*67/,
    'component total-RAM contract changed');
-require_re($fixture,qr/template\s+"renderers\/all_five_181\/all_five_181\.c26"\s+as\s+game/,
+require_re($fixture,qr/instantiate\s+"renderers\/all_five_181\/all_five_181\.c26"\s+as\s+game/,
    'fixture does not instantiate the gameplay template');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_wait_scanlines\(11\);/s,
    'fixture no longer accounts for 181 gameplay plus 11 score-reserved lines');

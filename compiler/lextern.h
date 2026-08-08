@@ -10,9 +10,14 @@
 // called when an "include" directive is found
 int push_file(const char *filename);
 
-// called when a repeatable template directive is found
-int push_template_file(const char *filename, const char *instance,
-                       const char *invoke_file, int invoke_line, int invoke_column);
+// called when a repeatable instantiate directive is found
+int push_instantiated_file(const char *filename, const char *instance,
+                           const char *invoke_file, int invoke_line, int invoke_column);
+
+// Declare one parameter from the directly instantiated source file. A NULL
+// default value marks a required parameter.
+int lexer_declare_instantiation_parameter(const char *name, const char *default_value,
+                                          const char *decl_file, int decl_line, int decl_column);
 
 // Return the active template instance and its invocation location, or NULL.
 const char *lexer_current_template_instance(void);

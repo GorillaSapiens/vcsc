@@ -21,8 +21,8 @@ page const uint8_t game_player0_colors[8] := {
 page const uint8_t game_player1_colors[8] := {
    0x5e,0x6e,0x7e,0x8e,0x9e,0xae,0xbe,0xce
 };
-template "renderers/player_color_181/player_color_181.c26" as game
-template "renderers/poison_debug_score/poison_debug_score.c26" as poison
+instantiate "renderers/player_color_181/player_color_181.c26" as game
+instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(0x7e,0xc3,0xc3,0xc7,0xcb,0xd3,0xc3,0x7e)
