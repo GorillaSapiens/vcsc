@@ -66,7 +66,7 @@ my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 for my $h (
-   ['timing','vcs_frame_timing.cpp',[50,'--no-audio','--raw-lines',262],qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n$/],
+   ['timing','vcs_frame_timing.cpp',[50,'--no-audio','--raw-lines',264],qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n$/],
    ['phase','vcs_playfield_phase.cpp',[10,10,44,'all-five-181-official'],qr/^vcs_playfield_raster ok: 10 rows x 16 lines x 160 pixels\n$/],
    ['objects','vcs_standard_objects.cpp',['--hblank'],qr/^vcs_standard_objects ok: P0=7 P1=7 M0=6 M1=8 BL=4\n$/],
 ) {

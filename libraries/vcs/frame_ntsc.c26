@@ -200,13 +200,21 @@ inline void vcs_ntsc_begin_overscan(void) {
 }
 
 // Wait only for the unused overscan budget and align the following VSYNC phase.
-// VBLANK remains asserted across overscan and VSYNC.  If callbacks missed the
-// deadline, continue at the next scanline boundary; optional diagnostics record
-// the overrun.
+// VBLANK remains asserted across overscan and VSYNC.  Stella's TIA frame
+// accounting needs two additional blanked WSYNC boundaries after the timer-owned
+// overscan budget; without them these scheduler users are reported as 260-line
+// / 60.5 Hz frames even though the simplified CPU harness sees 262 raw lines.
+// Keep the compensation here, after all game work and visible drawing, so it
+// cannot perturb any component entry or beam-critical raster phase.  The CPU-only
+// scheduler regression therefore expects 264 raw harness lines for Stella's
+// authoritative 262-line / 60.0 Hz result.  If callbacks missed the deadline,
+// continue at the next scanline boundary; optional diagnostics record the overrun.
 inline void vcs_ntsc_end_overscan(void) {
 #ifdef VCS_NTSC_DIAGNOSTICS
    vcs_ntsc_overrun_phase := VCS_NTSC_OVERSCAN_OVERRUN`uint8_t;
 #endif
    vcs_ntsc_finish_deadline();
+   WSYNC := 0;
+   WSYNC := 0;
    WSYNC := 0;
 }

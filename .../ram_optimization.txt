@@ -957,12 +957,12 @@ Ordered roadmap
       under Stella 7.0 and compares it to a reviewed raster.
     * The final factoring is **3292/4090 ROM** and **56/128 RAM** for the animated
       gallery, still leaving **72 bytes free**; the standalone player-color-192
-      smoke is **1370 ROM / 36 RAM**. Schema **13** records the Stella-corrected
+      smoke is **1374 ROM / 36 RAM** after the later four-byte NTSC frame-closeout correction. Schema **13** records the Stella-corrected
       follow-up. The 181 player-color official/unofficial smoke pair remains
-      size-identical at **1428 ROM / 39 RAM**.
-    * Representative current links: player-color-181 smoke **1428 ROM / 39 RAM**
-      including its fixture and four-byte stack; all-five-192 smoke **1617 ROM / 89
-      RAM** including its fixture and eight-byte stack; all-five-181 smoke **1795 ROM
+      size-identical at **1432 ROM / 39 RAM**.
+    * Representative current links: player-color-181 smoke **1432 ROM / 39 RAM**
+      including its fixture and four-byte stack; all-five-192 smoke **1621 ROM / 89
+      RAM** including its fixture and eight-byte stack; all-five-181 smoke **1799 ROM
       / 86 RAM** including its fixture and eight-byte stack. The centered interactive
       player-color-181 example uses 65/128 RAM, all-five-192 uses 91/128, and centered
       all-five-181 uses 108/128.
@@ -1109,8 +1109,8 @@ Ordered roadmap
       fields remain intact for the renderer/debug ABI and are selected by a
       high-level `switch`; no address-table manipulation or indirect application
       assembly remains. Representative final public builds remain comfortably
-      within 4K/128-byte limits: all-five-192 is **2206 ROM / 92 RAM**, and the
-      centered official/unofficial all-five-181 score examples are **3225 ROM /
+      within 4K/128-byte limits: all-five-192 is **2210 ROM / 92 RAM**, and the
+      centered official/unofficial all-five-181 score examples are **3229 ROM /
       112 RAM**.
     * The fingerprint's display-word copy is high-level typed access, and its six
       glyph-address arrays are correctly declared `uint16_t[6]` instead of raw
@@ -1129,9 +1129,11 @@ Ordered roadmap
       statement is classified only as beam-critical or a direct hardware idiom:
       cycle-exact low-level examples, Reset-vector jumps, ARR probes, and the
       simulator trap.
-    * The animated gallery remains **3292/4090 ROM, 56/128 RAM, 72 free** under
-      authoritative schema 14. Item 14 introduces no change to the completed RAM
-      accounting or retained renderer architecture.
+    * The RAM-roadmap closeout remains **3292/4090 ROM, 56/128 RAM, 72 free** before
+      the later shared scheduler correction. Current scheduler users pay four ROM bytes
+      for the Stella-proven 262-line frame closeout, so the animated gallery is now
+      **3296/4090 ROM, 56/128 RAM, 72 free** under authoritative schema 15. The
+      correction changes no RAM or retained renderer architecture.
     * Final item-14 gates pass: **458/458 compile-only**, **260/260 end-to-end**,
       recursive public examples, staged `installcheck`, source-tree hygiene, the
       focused simulator/raster/accounting oracles, and the reviewed Stella 7.0

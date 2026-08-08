@@ -528,7 +528,7 @@ against the corrected official schedule. It requires identical RAM addresses,
 one reviewed zero-page unofficial NOP, no AXS sites, the same physical
 modulo-76 playfield profile, pairwise visible-trace identity for all five static
 and motion compositions, direct per-pixel object-raster checks for both static
-score orders, and the measured 1795/1795-byte result.
+score orders, and the measured 1799/1799-byte result.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502
@@ -832,22 +832,32 @@ three-deep call graph. It requires terminal and map-file RAM accounting to
 report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
+
+`vcs_frame_ntsc_scheduler.pl` uses a deliberately calibrated pseudo-TIA frame
+period. The CPU-only harness observes **264 raw WSYNC intervals** for cartridges
+that Stella 7.0 reports as **262 scanlines / 60.0 Hz**. This two-line calibration
+is intentional: removing the two blanked end-of-overscan closeout WSYNCs makes
+Stella report 260 / 60.5 Hz even though older simplified harnesses called their
+262 raw intervals "262 lines." The default scheduler and renderer tests therefore
+pin raw 264 while user-facing frame claims remain the Stella-authoritative 262.
+
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
 every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
 records compiler scratch diagnostics, proves both sequential `next_pair()`
 expansions allocate zero expression scratch, and checks the linker's source-call
-edges, deepest path, and explicit `.callstackextra` contribution. Schema 14 records
+edges, deepest path, and explicit `.callstackextra` contribution. Schema 15 records
 the completed optimization sequence through the official-opcode direct-countdown
 `player_color_192` renderer. The former 48-byte `game_object_masks` schedule is
 absent; renderer private RAM falls from 56 to 10 bytes and total renderer RAM from
-69 to 23. The gallery is now **3292/4090 ROM bytes** and **56/128 RAM bytes**, with
+69 to 23. The gallery is now **3296/4090 ROM bytes** and **56/128 RAM bytes**, with
 **72 RAM bytes free**: 52 object bytes plus a four-byte hardware-stack reserve.
-Schema 14 also records the RAM-roadmap completion decision: retain the general
+Schema 15 also records the RAM-roadmap completion decision: retain the general
 P0/P1/Ball renderer, close the optional two-sprite-only 192/181 profiles as
-unnecessary by measurement, and reconcile the complete 3993-to-3292 ROM and
-128-to-56 RAM before/after accounting by optimization category.
+unnecessary by measurement, and reconcile the RAM-roadmap 3993-to-3292 ROM / 128-to-56 RAM optimization
+closeout separately from the later four-ROM-byte NTSC frame-closeout correction.
+The current cartridge is 3296 ROM bytes; RAM remains 56 bytes with 72 free.
 Relative to the item-8 mask-renderer checkpoint, the direct-countdown renderer
 plus the delayed-Ball and playfield-transition corrections saves 253 ROM bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
 measured VBLANK marker span falls from 920 to 468 CPU cycles. Every visible two-

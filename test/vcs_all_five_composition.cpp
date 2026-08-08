@@ -575,7 +575,7 @@ void verify_frames() {
    const int needed = motion_mode ? kMotionFrames : 12;
    if (frame < needed) fail("instruction limit reached before enough frames");
    for (size_t i=3;i<frame_periods.size();++i)
-      if (frame_periods[i] != 262*kCyclesPerLine) fail("frame is not exactly 262 scanlines");
+      if (frame_periods[i] != 264*kCyclesPerLine) fail("frame is not exactly 262 scanlines");
    for (int i=3;i<12;++i) {
       const FrameStats &s=frames[static_cast<size_t>(i)];
       if (s.vblank_clear_line != 40) fail("visible field does not begin on line 40");

@@ -95,7 +95,7 @@ my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'
 ($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$hsrc,@mos_input,'-o',$harness);
 $rc==0 && !$sig or die "poison timing harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "poison timing harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($harness,$bin,'50','--no-audio','--raw-lines','262');
+($rc,$sig,$out,$err)=capture($harness,$bin,'50','--no-audio','--raw-lines','264');
 $rc==0 && !$sig or die "poison timing failed\n$out$err";
 $out =~ /vcs_frame_timing ok: 47 frames at 262 lines/
    or die "unexpected poison timing output: $out";

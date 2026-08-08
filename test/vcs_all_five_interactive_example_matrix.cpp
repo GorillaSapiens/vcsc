@@ -354,7 +354,7 @@ private:
 
    void validate_frame_spacing() const {
       require(!timer_overrun_, "frame timer overran");
-      const uint64_t expected = 262 * kCyclesPerLine;
+      const uint64_t expected = 264 * kCyclesPerLine;
       for (size_t i = 4; i < vsync_cycles_.size(); ++i) {
          const uint64_t actual = vsync_cycles_[i] - vsync_cycles_[i - 1];
          if (actual != expected) fail(std::string(profile_.name) + ": frame is not 262 lines");

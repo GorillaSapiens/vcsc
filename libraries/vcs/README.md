@@ -150,12 +150,14 @@ compiler lowering improvements from silently moving beam-sensitive work.
 
 `vcs_ntsc_begin_vblank()` and `vcs_ntsc_begin_overscan()` assert VBLANK and
 start scheduler-owned TIM64T deadlines. Their matching end operations wait only
-for the unused part of the phase, detect RIOT timer underflow without mistaking
-a wrapped `INTIM` value for remaining time, issue the final `WSYNC`, and return
-`void`. A missed deadline cannot be repaired generically, so the production path
-continues at the next scanline boundary and produces one long frame rather than
-waiting on wrapped timer state. `vcs_ntsc_end_vblank()` clears VBLANK;
-`vcs_ntsc_end_overscan()` leaves it asserted for VSYNC. Component callbacks must
+for the unused part of the phase and detect RIOT timer underflow without mistaking
+a wrapped `INTIM` value for remaining time. `vcs_ntsc_end_vblank()` issues its
+boundary `WSYNC` and clears VBLANK. `vcs_ntsc_end_overscan()` leaves VBLANK
+asserted for VSYNC and issues three blanked `WSYNC` boundaries: the normal deadline
+boundary plus two frame-closeout boundaries required by Stella/TIA accounting for
+a stable 262-scanline, 60.0 Hz NTSC frame. A missed deadline cannot be repaired
+generically, so the production path continues at the next scanline boundary and
+produces one long frame rather than waiting on wrapped timer state. Component callbacks must
 not touch VBLANK, INTIM, TIMINT, or a timer-start register, and must not
 perform the final phase transition. They may use WSYNC for bounded internal
 blanking work; those stalled cycles consume the already-running shared deadline.

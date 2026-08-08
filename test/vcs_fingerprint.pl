@@ -265,7 +265,7 @@ die "CRC selftest exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $ex
    'g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-DILLEGAL_OPCODES',
    '-I'.$mos_dir,$timing_source,(-f $mos_obj ? $mos_obj : $mos_source),'-o',$timing_exe);
 die "timing harness compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
-($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'80','--no-audio','--raw-lines','262');
+($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'80','--no-audio','--raw-lines','264');
 die "timing harness exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 require_re($out,qr/vcs_frame_timing ok: 77 frames at 262 lines/,
            'fingerprint cartridge lost stable 262-line timing');

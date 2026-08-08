@@ -16,7 +16,7 @@ namespace {
 constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kRomSize = 4096;
 constexpr uint64_t kCyclesPerLine = 76;
-constexpr uint64_t kFrameLines = 262;
+constexpr uint64_t kFrameLines = 264;
 constexpr int kFramesToRun = 100;
 
 constexpr uint16_t kVsync = 0x0000;
@@ -507,7 +507,7 @@ int main(int argc,char **argv) {
    for (size_t i=3;i+1<frames.size();++i) {
       const uint64_t period=frames[i+1].start-frames[i].start;
       if (period!=kFrameLines*kCyclesPerLine)
-         fail("frame %zu has %llu cycles instead of 262 scanlines",i,
+         fail("frame %zu has %llu cycles instead of the 264-line raw-harness period calibrated to Stella's 262-line display",i,
               static_cast<unsigned long long>(period));
    }
    verify_all(frames);

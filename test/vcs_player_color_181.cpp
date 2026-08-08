@@ -836,15 +836,15 @@ int main(int argc, char **argv) {
       fail("missing frame-period samples");
    for (size_t i = 2; i < frame_periods.size(); ++i) {
       const uint64_t period = frame_periods[i];
-      if (period < 262 * kCyclesPerScanline || period >= 263 * kCyclesPerScanline) {
+      if (period < 264 * kCyclesPerScanline || period >= 265 * kCyclesPerScanline) {
          const auto pos=frame_x.find(static_cast<int>(i));
          if (pos!=frame_x.end())
             std::fprintf(stderr,
-               "vcs_player_color_181: frame %zu period is %llu cycles at P0=%u P1=%u BL=%u; expected 262 raw lines\n",
+               "vcs_player_color_181: frame %zu period is %llu cycles at P0=%u P1=%u BL=%u; expected the 264-line raw-harness period calibrated to Stella's 262-line display\n",
                i,static_cast<unsigned long long>(period),pos->second[P0],pos->second[P1],pos->second[BL]);
          else
             std::fprintf(stderr,
-               "vcs_player_color_181: frame %zu period is %llu cycles; expected 262 raw lines\n",
+               "vcs_player_color_181: frame %zu period is %llu cycles; expected the 264-line raw-harness period calibrated to Stella's 262-line display\n",
                i,static_cast<unsigned long long>(period));
          return 1;
       }

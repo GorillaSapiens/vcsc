@@ -349,7 +349,7 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-14 report records a one-byte `main`
+The animated gallery's authoritative schema-15 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
 scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
 48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
@@ -429,8 +429,9 @@ maintained wide-score 181 compositions fit. Do not create a two-sprite-only prof
 without a concrete future program that justifies another maintained timing/API
 surface.
 
-The authoritative schema-14 accounting closes the RAM campaign from 3993 ROM /
-128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
+The authoritative schema-15 accounting preserves the RAM-campaign closeout from
+3993 ROM / 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free, then records the
+post-closeout NTSC scheduler correction at 3296 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
 that accounting unchanged. The compiler-only suite is now **469/469** after adding instantiation-parameter,
 preprocessor-boundary, and parameter-in-conditional regressions; the complete
@@ -444,6 +445,15 @@ The generated-sidecar hygiene regression remains explicit: a faithful-multisprit
 example `.cfg` may be present without being mistaken for editable source, while
 checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
 is 469/469 and e2e coverage is 262/262.
+
+The shared `frame_ntsc.c26` scheduler is Stella-calibrated to a true **262-line /
+60.0 Hz** NTSC frame. `vcs_ntsc_end_overscan()` performs the deadline boundary plus
+two additional blanked WSYNC closeout boundaries. The simplified MOS6502 frame
+harness therefore observes 264 raw line intervals for Stella's authoritative 262
+lines; all scheduler-based renderer/score tests use that explicit calibration.
+Manual Stella 7.0 verification covers all-five `lines:=192`, `181`, and `170` and
+player-color 192, each at 262 / 60.0 Hz. The two closeout stores cost four ROM bytes
+in current scheduler users and no RAM or visible cycles.
 
 The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
@@ -474,7 +484,7 @@ old separate official `all_five_192` and `all_five_181` renderer source director
 are removed. Existing public 192- and 181-line examples instantiate the unified
 source. `examples/11_all_five_170/01_score_above_and_below/01_interactive` composes
 11 score + 170 gameplay + 11 score = 192 visible lines and exercises the same
-Select/joystick/Reset controls. It measures 3601/4090 ROM and exactly 128/128 RAM
+Select/joystick/Reset controls. It measures 3605/4090 ROM and exactly 128/128 RAM
 including the eight-byte hardware-stack reserve, so the dual-score proof fits with
 zero RAM slack. Declared instantiation parameters are also available as integer
 literals in `#if`/`#elif`, allowing renderer timing profiles to remain compile-time

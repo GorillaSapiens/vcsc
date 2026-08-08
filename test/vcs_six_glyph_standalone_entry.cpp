@@ -67,7 +67,7 @@ public:
       if (vsync_assertions_.size() < kRequestedAssertions) {
          fail("instruction limit reached before enough complete frames");
       }
-      const uint64_t expected = 262 * kCyclesPerScanline;
+      const uint64_t expected = 264 * kCyclesPerScanline;
       for (size_t i = 3; i < vsync_assertions_.size(); ++i) {
          if (vsync_assertions_[i] - vsync_assertions_[i - 1] != expected) {
             fail("frame is not exactly 262 raw scanlines");

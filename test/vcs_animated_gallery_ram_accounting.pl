@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-14 JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-15 JSON baseline
 # expectexit: 0
 
 use strict;
@@ -75,8 +75,8 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')>=0
    or die "phase-scoped compiler scratch lacks explicit workspace eligibility metadata\n";
 index($asm,'__phaseworkspace$V1$game_workspace')>=0
    or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3292 bytes .*free=798 bytes/
-   or die "3292-byte Stella-corrected delayed-Ball/playfield-safe animated-gallery ROM result changed\n";
+$map =~ /rom\s+used=3296 bytes .*free=794 bytes/
+   or die "3296-byte Stella-corrected 262-line animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=56 bytes .*free=72 bytes .*objects=52 bytes hardware-stack=4 bytes/
    or die "56-byte direct-countdown RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -236,10 +236,10 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>14,
+   schema=>15,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3292, rom_free_bytes=>798,
+      rom_bytes=>3296, rom_free_bytes=>794,
       ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -318,13 +318,13 @@ my $report={
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72},
-      total_delta=>{rom_bytes=>-701, ram_bytes=>-72, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>72},
+      current=>{rom_bytes=>3296, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72},
+      total_delta=>{rom_bytes=>-697, ram_bytes=>-72, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>72},
       free_ram_percent=>56.25,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
       rationale=>'the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes',
-      checkpoint_source=>'historical rows through item10a-playfield are measurements recorded by completed roadmap steps; item10a-stella is freshly regenerated after restoring the Stella-proven 192-line row-boundary PF schedule',
+      checkpoint_source=>'historical rows through item10a-stella are measurements recorded by the completed RAM roadmap; frame-ntsc-262 is the post-closeout four-byte cost of the Stella-proven two-WSYNC frame-length correction',
       checkpoints=>[
          {step=>'baseline', rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item1', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>-13, delta_activation_bytes=>-13, delta_stack_bytes=>0},
@@ -340,6 +340,7 @@ my $report={
          {step=>'item9a', rom_bytes=>3297, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>7, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item10a-playfield', rom_bytes=>3289, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>-8, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item10a-stella', rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>3, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'frame-ntsc-262', rom_bytes=>3296, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>4, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
       ],
    },
    completion_gates=>{
@@ -353,15 +354,15 @@ my $report={
       ],
       optional_two_sprite_profiles=>{item11_192=>'closed-unnecessary',item12_181=>'closed-unnecessary'},
       baseline=>{rom_bytes=>3993,ram_bytes=>128,free_ram_bytes=>0,activation_bytes=>20,stack_bytes=>8},
-      final=>{rom_bytes=>3292,ram_bytes=>56,free_ram_bytes=>72,activation_bytes=>1,stack_bytes=>4},
+      final=>{rom_bytes=>3296,ram_bytes=>56,free_ram_bytes=>72,activation_bytes=>1,stack_bytes=>4},
       ram_savings=>{
          total=>72, activation_total=>19, persistent_state=>3, hardware_stack=>4, renderer=>46,
          repeated_inline_within_item1=>12, other_item1_lifetime_overlay=>1,
          compact_lowering=>5, phase_overlay=>1, item2_incremental=>0,
       },
       rom_savings=>{
-         total=>701, compact_lowering=>331, high_level_install_frames_net=>38,
-         alignment_padding=>64, persistent_state=>15, renderer_final=>253,
+         total=>697, compact_lowering=>331, high_level_install_frames_net=>38,
+         alignment_padding=>64, persistent_state=>15, renderer_final=>253, frame_scheduler_262_cost=>4,
          lifetime_and_inline_overlay=>0, phase_overlay=>0, hardware_stack=>0,
       },
       meaningful_free_ram=>JSON::PP::true, free_ram_percent=>56.25,
@@ -376,7 +377,9 @@ my $report={
       renderer_private_bytes_before=>56, renderer_private_bytes_after=>10,
       renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
       gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
-      gallery_after=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
+      gallery_after_renderer_fix=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
+      gallery_current=>{rom_bytes=>3296, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
+      frame_scheduler_262_rom_cost=>4,
       delta=>{rom_bytes=>-253, ram_bytes=>-46, free_ram_bytes=>46, object_bytes=>-46, stack_bytes=>0},
       smoke_before=>{rom_bytes=>1623, ram_bytes=>82, free_ram_bytes=>46},
       smoke_after=>{rom_bytes=>1370, ram_bytes=>36, free_ram_bytes=>92},
@@ -408,4 +411,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-14 JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-15 JSON baseline\n";

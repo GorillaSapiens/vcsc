@@ -78,7 +78,7 @@ $rc==0 && !$sig or die "frame harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "frame harness build wrote output\n$out$err";
 for my $name (sort keys %cases) {
    my($bin)=@{$built{$name}};
-   ($rc,$sig,$out,$err)=capture($frame,$bin,'50','--no-audio','--raw-lines','262');
+   ($rc,$sig,$out,$err)=capture($frame,$bin,'50','--no-audio','--raw-lines','264');
    $rc==0 && !$sig or die "$name frame timing failed\n$out$err";
    $out =~ /vcs_frame_timing ok: 47 frames at 262 lines/
       or die "unexpected $name frame output: $out";

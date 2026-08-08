@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
    }
    if (frame < 4) fail("instruction limit reached");
    for (size_t i=2;i<frame_periods.size();++i)
-      if (frame_periods[i] != 262*kCyclesPerLine) fail("frame is not exactly 262 lines");
+      if (frame_periods[i] != 264*kCyclesPerLine) fail("frame is not exactly 262 lines");
 
    const uint64_t game_first = placement == "above" ? 51 : 40;
    const uint64_t first_row = full_height ? game_first : game_first + 4;

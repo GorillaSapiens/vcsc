@@ -25,8 +25,8 @@ corrected official renderer.
 The maintained smoke links measure:
 
 ```text
-official linked ROM bytes:   1795
-unofficial linked ROM bytes: 1795
+official linked ROM bytes:   1799
+unofficial linked ROM bytes: 1799
 signed byte difference:          0
 ```
 

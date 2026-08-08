@@ -137,18 +137,18 @@ const TimedWrite &find_vblank(uint64_t start, uint64_t end, uint8_t value,
 }
 
 void check_mode(const std::string &mode, uint16_t flag_address) {
-   uint64_t expected_lines = 262;
+   uint64_t expected_lines = 264;
    uint8_t expected_flags = 0;
    uint64_t clear_offset = 40;
    uint64_t overscan_offset = 232;
    if (mode == "vblank-overrun") {
-      expected_lines = 263;
+      expected_lines = 265;
       expected_flags = 1;
       clear_offset = 41;
       overscan_offset = 233;
    }
    else if (mode == "overscan-overrun") {
-      expected_lines = 263;
+      expected_lines = 265;
       expected_flags = 2;
    }
    else if (mode != "normal" && mode != "boundary") {

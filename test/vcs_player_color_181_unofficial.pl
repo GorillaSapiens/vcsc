@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 12
-# expectstdout: vcs_player_color_181_unofficial ok: official=1428 unofficial=1428 delta=0
+# expectstdout: vcs_player_color_181_unofficial ok: official=1432 unofficial=1432 delta=0
 # expectexit: 0
 
 use strict;
@@ -60,8 +60,8 @@ for my $case (@cases) {
 }
 my $official_used=$built{smoke}{official}[2];
 my $unofficial_used=$built{smoke}{unofficial}[2];
-$official_used==1428 or die "official smoke now uses $official_used bytes, expected 1428\n";
-$unofficial_used==1428 or die "unofficial smoke now uses $unofficial_used bytes, expected 1428\n";
+$official_used==1432 or die "official smoke now uses $official_used bytes, expected 1432\n";
+$unofficial_used==1432 or die "unofficial smoke now uses $unofficial_used bytes, expected 1432\n";
 $unofficial_used-$official_used==0
    or die "unexpected size delta: official=$official_used unofficial=$unofficial_used\n";
 
@@ -99,7 +99,7 @@ my $compare=File::Spec->catfile($tmp,'player_color_181_pair_compare');
 $rc==0 && !$sig or die "pair comparator build failed\n$out$err";
 for my $case (@cases) {
    ($rc,$sig,$out,$err)=capture($compare,$built{$case}{official}[0],
-      $built{$case}{unofficial}[0],'262','262');
+      $built{$case}{unofficial}[0],'264','264');
    $rc==0 && !$sig or die "$case pair comparison failed\n$out$err";
    $out =~ /^vcs_visible_trace_compare ok: \d+ events and 42 stable frames per ROM\n$/
       or die "unexpected $case comparison output: $out";

@@ -307,7 +307,7 @@ int main(int argc,char **argv) {
    constexpr size_t kAutomaticFrames=15*125;
    run_until_frames(cpu,kAutomaticFrames+1);
    for (size_t f=0;f<kAutomaticFrames;++f) {
-      if (f>=2 && frames[f].period!=262*kCyclesPerLine) fail("frame is not exactly 262 lines");
+      if (f>=2 && frames[f].period!=264*kCyclesPerLine) fail("frame is not exactly 262 lines");
       verify_state(frames[f],f);
       if (f>=8 && ((f%8)==0 || (f%125)==124)) verify_pixels(frames[f],f);
    }

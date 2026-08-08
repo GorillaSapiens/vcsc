@@ -418,7 +418,7 @@ int main(int argc,char **argv) {
    }
    if (frame<4) fail("instruction limit reached");
    for (size_t i=2;i<frame_periods.size();++i)
-      if (frame_periods[i]!=262*kCyclesPerLine) fail("frame is not exactly 262 raw lines");
+      if (frame_periods[i]!=264*kCyclesPerLine) fail("frame is not exactly 262 raw lines");
 
    verify_boundaries();
    verify_positioning(mode);

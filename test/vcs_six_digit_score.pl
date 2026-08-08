@@ -189,7 +189,7 @@ my $trace_exe=File::Spec->catfile($tmp,'vcs_visible_trace_compare');
    $cxx,'-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-O2',
    '-I',$mos,$trace_source,@mos_input,'-o',$trace_exe);
 die "visible trace/timing harness build failed\n$out$err" if $exit || $sig;
-($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin,'261','262','--timing-only');
+($exit,$sig,$out,$err)=run_capture($trace_exe,$oldbin,$bin,'261','264','--timing-only');
 die "visible trace/timing comparison failed\n$out$err" if $exit || $sig;
 require_re($out,
    qr/^vcs_visible_trace_compare timing ok: 42 stable frames per ROM\n$/,

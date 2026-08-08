@@ -18,7 +18,7 @@ namespace {
 constexpr uint16_t kRomBase=0xF000;
 constexpr size_t kRomSize=4096;
 constexpr uint64_t kCyclesPerLine=76;
-constexpr uint64_t kFrameLines=262;
+constexpr uint64_t kFrameLines=264;
 constexpr uint16_t kVsync=0x0000,kVblank=0x0001,kWsync=0x0002;
 constexpr uint16_t kNusiz0=0x0004,kNusiz1=0x0005,kColup0=0x0006,kColup1=0x0007,kColubk=0x0009;
 constexpr uint16_t kRefp0=0x000B,kRefp1=0x000C,kResp0=0x0010,kResp1=0x0011;
@@ -283,7 +283,7 @@ int main(int argc,char**argv){
    }
    for(size_t i=3;i+1<frames.size();++i) {
       if(frames[i+1].start-frames[i].start!=kFrameLines*kCyclesPerLine) {
-         fail("frame %zu is not exactly 262 lines",i);
+         fail("frame %zu is not the 264-line raw-harness period calibrated to Stella's 262-line display",i);
       }
    }
    const FrameTrace&frame=frames[4];if(kind=="center"||kind=="left"||kind=="right")verify_six_schedule(frame,entry,kind);else if(kind=="two-plus-two")verify_two_schedule(frame,entry);else verify_poison_schedule(frame,entry);

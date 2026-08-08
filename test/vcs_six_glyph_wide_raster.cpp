@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
    const uint64_t entry=parse_line(argv[2]);
    validate_digits(argv[3]);
    TraceMachine machine(argv[1]);
-   const std::vector<Event> events=machine.run(262,"wide-score ROM");
+   const std::vector<Event> events=machine.run(264,"wide-score ROM");
 
    bool shifted=false;
    for (const Event &event : events) {

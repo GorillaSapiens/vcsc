@@ -150,7 +150,7 @@ my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 my @harnesses=(
-   ['timing','vcs_frame_timing.cpp','50','--no-audio','--raw-lines','262',
+   ['timing','vcs_frame_timing.cpp','50','--no-audio','--raw-lines','264',
       qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes
 $/],
    ['phase','vcs_playfield_phase.cpp','12','12','40','all-five-192',

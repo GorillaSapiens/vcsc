@@ -63,9 +63,9 @@ struct Profile {
 
 Profile parse_profile(const std::string &name) {
    if (name == "legacy") return {"legacy", 264, 78, 87, true, 123456};
-   if (name == "192") return {"192", 262, 70, 95, false, 0};
-   if (name == "above") return {"above", 262, 70, 87, true, 123456};
-   if (name == "below") return {"below", 262, 70, 87, true, 123456};
+   if (name == "192") return {"192", 264, 70, 95, false, 0};
+   if (name == "above") return {"above", 264, 70, 87, true, 123456};
+   if (name == "below") return {"below", 264, 70, 87, true, 123456};
    fail("bad profile");
 }
 

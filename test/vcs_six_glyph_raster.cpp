@@ -372,7 +372,7 @@ int main(int argc, char **argv) {
       return 2;
    }
    TraceMachine machine(argv[1]);
-   const std::vector<Event> events = machine.run(262,"ROM");
+   const std::vector<Event> events = machine.run(264,"ROM");
    for (int i=2; i<argc; i+=2) {
       validate_digits(argv[i+1]);
       require_score(events,parse_line(argv[i]),argv[i+1]);
