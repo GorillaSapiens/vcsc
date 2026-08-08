@@ -993,10 +993,11 @@ the minimal NTSC, unbanked, non-Superchip retained multisprite profile.  It
 requires reproducible normalization, the exact `$80-$F9` 122-byte state object,
 six physical hardware-stack bytes at `$FA-$FF`, zero compiler activation RAM in
 the fixed diagnostic, the retained unofficial-opcode and TXS/PHP enable path,
-1471 bytes of diagnostic ROM, stable 264-line frames, and a complete 390-event
+1472 bytes of diagnostic ROM, stable 264-line frames, and a complete 391-event
 visible TIA-write oracle.  The raster oracle independently pins P0 plus all five
-logical P1 sprites, their colors/reposition phases, asymmetric playfield, and
-integrated score timing.
+logical P1 sprites in upright display order, their colors/reposition phases,
+the explicit P0 trailing clear that prevents stale-HMOVE stripes, asymmetric
+playfield, and integrated score timing.
 
 `vcs_faithful_legacy_multisprite_stella.pl` is the independent Stella 7.0
 certification for the same fixed cartridge.  Run it through

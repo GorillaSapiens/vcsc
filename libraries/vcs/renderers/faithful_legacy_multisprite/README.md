@@ -67,11 +67,13 @@ state once, then `main` repeatedly calls the faithful `drawscreen` entry.
 The locked baseline is:
 
 - P0 plus five distinct logical sprites multiplexed through P1;
+- sprite rows stored bottom-to-top as consumed by the retained renderer;
+- a ninth zero P0 row which clears `GRP0` before later P1 reposition `HMOVE`s;
 - asymmetric playfield data so left/right or row timing corruption is visible;
 - integrated six-digit score displaying `123456`;
 - 88-line gameplay profile;
 - **264 raw scanlines per stable frame** (faithful legacy behavior);
-- **1471/4090 ROM bytes** for the fixed diagnostic;
+- **1472/4090 ROM bytes** for the fixed diagnostic;
 - **122 object bytes + 6 hardware-stack bytes = 128/128 RIOT RAM**.
 
 `test/vcs_faithful_legacy_multisprite.pl` is the default deterministic oracle.

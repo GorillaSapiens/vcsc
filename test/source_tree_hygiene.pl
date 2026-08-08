@@ -536,7 +536,7 @@ $roadmap =~ /^Current next action: 28\b/m &&
 $roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
 $roadmap =~ /^\[ \] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
 index($roadmap,'faithful fixed baseline complete')>=0 &&
-index($roadmap,'1471/4090 ROM bytes')>=0 &&
+index($roadmap,'1472/4090 ROM bytes')>=0 &&
 index($roadmap,'122 state +')>=0 &&
 index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0
    or die "main roadmap lost the active item-28 faithful multisprite baseline or task-27 completion\n";

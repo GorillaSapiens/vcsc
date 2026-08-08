@@ -285,10 +285,10 @@ void validate_multisprite_oracle(const std::vector<Event> &events) {
       hash_byte(static_cast<uint8_t>(event.address >> 8));
       hash_byte(value);
    }
-   if (events.size() != 390 || hash != 0xf354d1b5e1870d47ULL) {
+   if (events.size() != 391 || hash != 0x0c40f1fcd683374dULL) {
       std::fprintf(stderr,
          "vcs_faithful_legacy_compare: multisprite visible trace changed: "
-         "events=%zu hash=%016llx, expected 390/f354d1b5e1870d47\n",
+         "events=%zu hash=%016llx, expected 391/0c40f1fcd683374d\n",
          events.size(), static_cast<unsigned long long>(hash));
       std::exit(1);
    }
@@ -318,12 +318,23 @@ void validate_multisprite_oracle(const std::vector<Event> &events) {
          fail("P0 glyph/timing changed");
    }
 
+   bool p0_cleared = false;
+   for (const Event &event : events) {
+      if (event.line == 84 && event.cycle == 45 &&
+          event.address == 0x001b && event.value == 0) {
+         p0_cleared = true;
+         break;
+      }
+   }
+   if (!p0_cleared)
+      fail("P0 trailing clear row is missing; stale GRP0 would stripe under later HMOVEs");
+
    const uint8_t expected_p1[5][8] = {
-      {0x3c,0x66,0x06,0x06,0x7c,0x60,0x60,0x7e},
-      {0x0c,0x0c,0xfe,0xcc,0x6c,0x3c,0x1c,0x0c},
-      {0x3c,0x66,0x06,0x06,0x3c,0x06,0x06,0x7c},
-      {0x7e,0x60,0x30,0x18,0x0c,0x06,0x66,0x3c},
-      {0x7e,0x18,0x18,0x18,0x18,0x78,0x38,0x18}
+      {0x7e,0x60,0x60,0x7c,0x06,0x06,0x66,0x3c},
+      {0x0c,0x1c,0x3c,0x6c,0xcc,0xfe,0x0c,0x0c},
+      {0x7c,0x06,0x06,0x3c,0x06,0x06,0x66,0x3c},
+      {0x3c,0x66,0x06,0x0c,0x18,0x30,0x60,0x7e},
+      {0x18,0x38,0x78,0x18,0x18,0x18,0x18,0x7e}
    };
    const uint64_t p1_first_line[] = {57,89,121,153,185};
    if (p1.size() != 40) fail("multiplexed P1 row count is not forty");
@@ -337,7 +348,7 @@ void validate_multisprite_oracle(const std::vector<Event> &events) {
    }
 
    const uint64_t color_lines[] = {55,87,119,151,183};
-   const uint8_t colors[] = {0x2e,0x5e,0xae,0xce,0x4e};
+   const uint8_t colors[] = {0xbe,0x5e,0xae,0xce,0x4e};
    if (p1_colors.size() != 5) fail("multiplexed P1 color count changed");
    for (size_t i = 0; i < 5; ++i) {
       if (p1_colors[i].line != color_lines[i] || p1_colors[i].cycle != 31 ||
@@ -356,7 +367,7 @@ void validate_multisprite_oracle(const std::vector<Event> &events) {
 
    std::printf(
       "vcs_faithful_legacy_compare multisprite oracle ok: "
-      "390 visible events, 264-line frames, six exact players\n");
+      "391 visible events, 264-line frames, six exact players\n");
 }
 
 uint64_t parse_raw_lines(const char *text) {

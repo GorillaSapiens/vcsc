@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@
 # phase: e2e
 # timeout: 30
-# expectstdout: vcs_faithful_legacy_multisprite ok: 1471 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0
+# expectstdout: vcs_faithful_legacy_multisprite ok: 1472 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0
 # expectexit: 0
 # Faithful fixed diagnostic and source-integration contract for the retained
 # unbanked/non-Superchip multisprite renderer.
@@ -101,8 +101,8 @@ require_re($startup_text,qr/lda\s+#0.*?ldx\s+#\$7f.*?sta\s+\$80,x/s,
    $driver,'-nostdlib','-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,
    $source,$fixture,$renderer,$startup,'-o',$bin);
 $err eq '' or die "faithful multisprite build stderr: $err";
-require_re($out,qr/ROM\s+used=1471 bytes .* free=2619 bytes/s,
-   'faithful multisprite fixed diagnostic ROM cost changed from 1471 bytes');
+require_re($out,qr/ROM\s+used=1472 bytes .* free=2618 bytes/s,
+   'faithful multisprite fixed diagnostic ROM cost changed from 1472 bytes');
 require_re($out,qr/ram\s+used=128 bytes .* objects=122 bytes hardware-stack=6 bytes/s,
    'faithful multisprite fixed diagnostic RAM accounting changed');
 length(slurp($bin))==4096 or die "faithful multisprite diagnostic is not a 4096-byte ROM\n";
@@ -132,8 +132,8 @@ my $harness=File::Spec->catfile($tmp,'faithful_multisprite_oracle');
 $out eq '' && $err eq '' or die "faithful multisprite oracle compiler wrote output\n$out$err";
 ($out,$err)=run_ok('faithful multisprite timing/raster oracle',
    $harness,$bin,'264','--multisprite');
-$out eq "vcs_faithful_legacy_compare multisprite oracle ok: 390 visible events, 264-line frames, six exact players\n"
+$out eq "vcs_faithful_legacy_compare multisprite oracle ok: 391 visible events, 264-line frames, six exact players\n"
    or die "unexpected faithful multisprite oracle output: $out";
 $err eq '' or die "faithful multisprite oracle stderr: $err";
 
-print "vcs_faithful_legacy_multisprite ok: 1471 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0\n";
+print "vcs_faithful_legacy_multisprite ok: 1472 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0\n";

@@ -442,12 +442,15 @@ The RAM optimization workstream is complete. Main-roadmap item 23 remains an ear
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
 item 27 is now complete and item 28 is active. Its first milestone is locked as the
 `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
-P0 plus five multiplexed P1 sprites, integrated score/playfield, 1471/4090 ROM, exact
+P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
 activation RAM, and stable 264-line frames. The default oracle pins the complete
 visible TIA-write stream and all six player rasters; an independent Stella 7.0
-snapshot is also certified. The legacy score is three display-order packed-BCD bytes,
-not VCSC `bcd24_t`. The next item-28 substep is one stack-safe ordinary VCSC game-logic
+snapshot is also certified. The corrected diagnostic stores sprite rows bottom-to-top,
+uses the required ninth zero P0 clearing row so stale GRP0 cannot be walked sideways
+by later P1 HMOVEs, and gives logical sprite 5 an aquamarine color distinct from the
+goldenrod playfield. The visible oracle now contains 391 writes. The legacy score is
+three display-order packed-BCD bytes, not VCSC `bcd24_t`. The next item-28 substep is one stack-safe ordinary VCSC game-logic
 boundary inside the retained 26-byte `A..Z` application window. Do not add multisprite
 variants, bankswitching, or Superchip before that boundary is proven. Main-roadmap
 items 29 and 30 and the completed bankswitching sub-roadmap remain closed.

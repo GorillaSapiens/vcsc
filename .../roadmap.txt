@@ -1326,7 +1326,7 @@ the current work is intentionally following the user's requested item 28.
         * Add the `faithful_legacy_multisprite` profile and a fixed diagnostic
           showing independent P0 plus five distinct logical sprites multiplexed
           through P1, asymmetric playfield data, and integrated score `123456`.
-        * Lock the fixed cartridge at 1471/4090 ROM bytes and exactly 122 state +
+        * Lock the fixed cartridge at 1472/4090 ROM bytes and exactly 122 state +
           6 hardware-stack = 128/128 RIOT-RAM bytes, with zero compiler activation
           RAM and stable 264-line legacy frames.
         * Lock the complete visible TIA-write event stream plus exact P0/P1 raster,
@@ -1335,6 +1335,13 @@ the current work is intentionally following the user's requested item 28.
           reviewed Stella 7.0 raster certification.
         * Keep the three score bytes explicitly as display-order packed BCD rather
           than falsely typing them as VCSC `bcd24_t`.
+        * Correct the fixed visual fixture after hardware/Stella review: store glyph
+          rows bottom-to-top as consumed by the retained renderer, give P0 its
+          required ninth zero clearing row, and make logical sprite 5 aquamarine
+          instead of playfield-goldenrod. The clear row prevents the final P0
+          `%00111100` from remaining latched while later P1 reposition HMOVEs walk
+          that stale four-pixel bar sideways. The corrected oracle is 391 visible
+          TIA writes and the diagnostic grows by one ROM byte to 1472.
         * Remaining item-28 substep: connect and prove one stack-safe ordinary VCSC
           game-logic boundary using the retained 26-byte application window. Do not
           add bankswitching, Superchip, optional legacy features, or variants first.
