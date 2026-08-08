@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Shared controls for mutable-color left/right six-digit examples.
+// Shared controls for fixed-position six-digit packed-BCD score examples.
 // The including source must instantiate the display as `score`.
 
 uint8_t selected_score_digit := 0;
@@ -8,9 +8,7 @@ uint8_t right_joystick_countdown := 19;
 uint8_t right_joystick_previous := 0x0f;
 
 // Decimal digit weights, indexed from ones through hundred-thousands.
-page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
-page const uint8_t score_digit_middle[6] := { 0x00, 0x00, 0x01, 0x10, 0x00, 0x00 };
-page const uint8_t score_digit_high[6] := { 0x00, 0x00, 0x00, 0x00, 0x01, 0x10 };
+page const bcd24_t score_digit_weight[6] := { 1, 10, 100, 1000, 10000, 100000 };
 
 inline void initialize_score_state(void) {
    score_score := 123456;
@@ -22,91 +20,46 @@ inline void initialize_score_state(void) {
 
 inline void update_score_controls(void) {
    // Sample once every twenty frames and require two matching samples.
-   asm lda right_joystick_countdown;
-   asm beq @sample;
-   asm dec right_joystick_countdown;
-   asm jmp @done;
+   if (right_joystick_countdown) {
+      right_joystick_countdown--;
+   }
+   else {
+      right_joystick_countdown := SWCHA & 0x0f;
 
-   asm @sample:;
-   asm lda SWCHA;
-   asm and #$0f;
-   asm tax;
-   asm eor right_joystick_previous;
-   asm bne @record;
+      if (right_joystick_countdown == right_joystick_previous) {
+         // A stable horizontal sample chooses the decimal digit and advances the hue.
+         if (!(right_joystick_countdown & 0x04)) {
+            selected_score_digit++;
+            if (selected_score_digit >= 6) {
+               selected_score_digit := 0;
+            }
+            score_color += 0x10;
+         }
+         else {
+            if (!(right_joystick_countdown & 0x08)) {
+               if (selected_score_digit == 0) {
+                  selected_score_digit := 5;
+               }
+               else {
+                  selected_score_digit--;
+               }
+               score_color += 0x10;
+            }
+         }
 
-   // A stable horizontal sample chooses the decimal digit and advances the hue.
-   asm txa;
-   asm and #$04;
-   asm bne @not_left;
-   asm inc selected_score_digit;
-   asm lda selected_score_digit;
-   asm cmp #6;
-   asm bcc @left_color;
-   asm lda #0;
-   asm sta selected_score_digit;
-   asm @left_color:;
-   asm lda score_color;
-   asm clc;
-   asm adc #$10;
-   asm sta score_color;
-   asm jmp @vertical;
+         // A stable vertical sample changes the selected decimal weight. Up has
+         // priority if both active-low direction bits are asserted.
+         if (!(right_joystick_countdown & 0x01)) {
+            score_score += score_digit_weight[selected_score_digit];
+         }
+         else {
+            if (!(right_joystick_countdown & 0x02)) {
+               score_score -= score_digit_weight[selected_score_digit];
+            }
+         }
+      }
 
-   asm @not_left:;
-   asm txa;
-   asm and #$08;
-   asm bne @vertical;
-   asm lda selected_score_digit;
-   asm bne @decrement_digit;
-   asm lda #6;
-   asm sta selected_score_digit;
-   asm @decrement_digit:;
-   asm dec selected_score_digit;
-   asm lda score_color;
-   asm clc;
-   asm adc #$10;
-   asm sta score_color;
-
-   // A stable vertical sample changes the selected decimal weight.
-   asm @vertical:;
-   asm txa;
-   asm and #$01;
-   asm bne @not_up;
-   asm sed;
-   asm clc;
-   asm ldy selected_score_digit;
-   asm lda score_score;
-   asm adc score_digit_low,y;
-   asm sta score_score;
-   asm lda score_score+1;
-   asm adc score_digit_middle,y;
-   asm sta score_score+1;
-   asm lda score_score+2;
-   asm adc score_digit_high,y;
-   asm sta score_score+2;
-   asm cld;
-   asm jmp @record;
-
-   asm @not_up:;
-   asm txa;
-   asm and #$02;
-   asm bne @record;
-   asm sed;
-   asm sec;
-   asm ldy selected_score_digit;
-   asm lda score_score;
-   asm sbc score_digit_low,y;
-   asm sta score_score;
-   asm lda score_score+1;
-   asm sbc score_digit_middle,y;
-   asm sta score_score+1;
-   asm lda score_score+2;
-   asm sbc score_digit_high,y;
-   asm sta score_score+2;
-   asm cld;
-
-   asm @record:;
-   asm stx right_joystick_previous;
-   asm lda #19;
-   asm sta right_joystick_countdown;
-   asm @done:;
+      right_joystick_previous := right_joystick_countdown;
+      right_joystick_countdown := 19;
+   }
 }

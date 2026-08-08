@@ -121,58 +121,32 @@ void compute_fingerprint(void) {
 // The display component stores packed BCD for decimal-score users.  This
 // hexadecimal application deliberately copies the fingerprint bytes verbatim:
 // the component pointer builder interprets the same six nibbles as hex glyphs.
-inline void load_display_fingerprint(void) {
-   // Satisfy the component score contract before replacing its bytes raw.
-   display_score := 0;
-   asm lda fingerprint;
-   asm sta display_score;
-   asm lda fingerprint+1;
-   asm sta display_score+1;
-   asm lda fingerprint+2;
-   asm sta display_score+2;
+void load_display_fingerprint(void) {
+   uint24_t *raw_display := (uint24_t *)&display_score;
+   *raw_display := fingerprint;
 }
+
 #endif
 
 #ifndef FINGERPRINT_SELFTEST
 // The reusable components normally derive pointers from score_font. Both logos
 // use the fixed packed-BCD value 012345, then redirect their six glyph pointers
 // to the corresponding slices in logo_font.
-inline void load_logo_pointers(void) {
-   // logo_font is page-contained, so all six pointers share one high byte.
-   asm lda #<logo_font;
-   asm sta upper_logo_pointers;
-   asm sta lower_logo_pointers;
-   asm clc;
-   asm adc #$08;
-   asm sta upper_logo_pointers+2;
-   asm sta lower_logo_pointers+2;
-   asm adc #$08;
-   asm sta upper_logo_pointers+4;
-   asm sta lower_logo_pointers+4;
-   asm adc #$08;
-   asm sta upper_logo_pointers+6;
-   asm sta lower_logo_pointers+6;
-   asm adc #$08;
-   asm sta upper_logo_pointers+8;
-   asm sta lower_logo_pointers+8;
-   asm adc #$08;
-   asm sta upper_logo_pointers+10;
-   asm sta lower_logo_pointers+10;
-
-   asm lda #>logo_font;
-   asm sta upper_logo_pointers+1;
-   asm sta lower_logo_pointers+1;
-   asm sta upper_logo_pointers+3;
-   asm sta lower_logo_pointers+3;
-   asm sta upper_logo_pointers+5;
-   asm sta lower_logo_pointers+5;
-   asm sta upper_logo_pointers+7;
-   asm sta lower_logo_pointers+7;
-   asm sta upper_logo_pointers+9;
-   asm sta lower_logo_pointers+9;
-   asm sta upper_logo_pointers+11;
-   asm sta lower_logo_pointers+11;
+void load_logo_pointers(void) {
+   upper_logo_pointers[0] := (uint16_t)&logo_font[0];
+   lower_logo_pointers[0] := (uint16_t)&logo_font[0];
+   upper_logo_pointers[1] := (uint16_t)&logo_font[8];
+   lower_logo_pointers[1] := (uint16_t)&logo_font[8];
+   upper_logo_pointers[2] := (uint16_t)&logo_font[16];
+   lower_logo_pointers[2] := (uint16_t)&logo_font[16];
+   upper_logo_pointers[3] := (uint16_t)&logo_font[24];
+   lower_logo_pointers[3] := (uint16_t)&logo_font[24];
+   upper_logo_pointers[4] := (uint16_t)&logo_font[32];
+   lower_logo_pointers[4] := (uint16_t)&logo_font[32];
+   upper_logo_pointers[5] := (uint16_t)&logo_font[40];
+   lower_logo_pointers[5] := (uint16_t)&logo_font[40];
 }
+
 #endif
 
 #ifdef FINGERPRINT_SELFTEST

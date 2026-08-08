@@ -78,7 +78,7 @@ uint8_t TEMPLATE_ball_height;
 
 // Preserve the retained three-byte score representation rather than adapting
 // it to bcd24_t.  The faithful example initializes the exact legacy byte order.
-uint8_t TEMPLATE_score[3];
+bcd24_t TEMPLATE_score;
 uint8_t TEMPLATE_score_color;
 uint8_t TEMPLATE_pointer_workspace[12];
 uint8_t TEMPLATE_playfield_position;

@@ -78,63 +78,39 @@ inline void update_object_selection(void) {
 }
 
 inline void move_selected_object(void) {
-   asm .importzp _vcsc_ptr0;
-   asm lda selected_object;
-   asm and #$07;
-   asm tax;
+   if (!(SWCHA & 0x40)) {
+      if (game_object_x[selected_object] > 0) {
+         game_object_x[selected_object] -= 1;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (game_object_x[selected_object] < 159) {
+            game_object_x[selected_object] += 1;
+         }
+      }
+   }
 
-   asm lda SWCHA;
-   asm and #$40;
-   asm bne @not_left;
-   asm lda.zx game_object_x,x;
-   asm beq @vertical;
-   asm sec;
-   asm sbc #1;
-   asm sta.zx game_object_x,x;
-   asm jmp @vertical;
-
-   asm @not_left:;
-   asm lda SWCHA;
-   asm and #$80;
-   asm bne @vertical;
-   asm lda.zx game_object_x,x;
-   asm cmp #159;
-   asm bcs @vertical;
-   asm clc;
-   asm adc #1;
-   asm sta.zx game_object_x,x;
-
-   asm @vertical:;
-   asm lda @object_y_addresses,x;
-   asm sta _vcsc_ptr0;
-   asm lda #0;
-   asm sta _vcsc_ptr0+1;
-   asm ldy #0;
-   asm lda SWCHA;
-   asm and #$10;
-   asm bne @not_up;
-   asm lda.iy (_vcsc_ptr0),y;
-   asm beq @done;
-   asm sec;
-   asm sbc #1;
-   asm sta.iy (_vcsc_ptr0),y;
-   asm jmp @done;
-
-   asm @not_up:;
-   asm lda SWCHA;
-   asm and #$20;
-   asm bne @done;
-   asm lda.iy (_vcsc_ptr0),y;
-   asm cmp #95;
-   asm bcs @done;
-   asm clc;
-   asm adc #1;
-   asm sta.iy (_vcsc_ptr0),y;
-   asm @done:;
-   asm jmp @addresses_done;
-   asm @object_y_addresses:;
-   asm .byte game_player0_y,game_player1_y,game_missile0_y,game_missile1_y,game_ball_y;
-   asm @addresses_done:;
+   if (!(SWCHA & 0x10)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:  if (game_player0_y > 0)  { game_player0_y -= 1; } break;
+         case SELECTED_PLAYER1:  if (game_player1_y > 0)  { game_player1_y -= 1; } break;
+         case SELECTED_MISSILE0: if (game_missile0_y > 0) { game_missile0_y -= 1; } break;
+         case SELECTED_MISSILE1: if (game_missile1_y > 0) { game_missile1_y -= 1; } break;
+         case SELECTED_BALL:     if (game_ball_y > 0)     { game_ball_y -= 1; } break;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:  if (game_player0_y < OBJECT_MAX_Y)  { game_player0_y += 1; } break;
+            case SELECTED_PLAYER1:  if (game_player1_y < OBJECT_MAX_Y)  { game_player1_y += 1; } break;
+            case SELECTED_MISSILE0: if (game_missile0_y < OBJECT_MAX_Y) { game_missile0_y += 1; } break;
+            case SELECTED_MISSILE1: if (game_missile1_y < OBJECT_MAX_Y) { game_missile1_y += 1; } break;
+            case SELECTED_BALL:     if (game_ball_y < OBJECT_MAX_Y)     { game_ball_y += 1; } break;
+         }
+      }
+   }
 }
 
 inline void update_controls(void) {

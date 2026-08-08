@@ -59,17 +59,7 @@ my @p1c_reverse=reverse @$p1c;
 
 my @definitions=(
    [qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26)],
-   [qw(examples 04_player_color_181 01_score_above 01_interactive player_color_181_score_above_interactive.c26)],
-   [qw(examples 04_player_color_181 02_score_below 01_interactive player_color_181_score_below_interactive.c26)],
-   [qw(examples 04_player_color_181 11_wide_score_above 01_interactive player_color_181_wide_score_above_interactive.c26)],
-   [qw(examples 04_player_color_181 12_wide_score_below 01_interactive player_color_181_wide_score_below_interactive.c26)],
    [qw(examples 05_all_five_192 01_interactive all_five_192_interactive.c26)],
-   [qw(examples 06_all_five_181 01_score_above 01_interactive all_five_181_score_above_interactive.c26)],
-   [qw(examples 06_all_five_181 02_score_below 01_interactive all_five_181_score_below_interactive.c26)],
-   [qw(examples 07_player_color_181_unofficial 01_score_above 01_interactive player_color_181_unofficial_score_above_interactive.c26)],
-   [qw(examples 07_player_color_181_unofficial 02_score_below 01_interactive player_color_181_unofficial_score_below_interactive.c26)],
-   [qw(examples 08_all_five_181_unofficial 01_score_above 01_interactive all_five_181_unofficial_score_above_interactive.c26)],
-   [qw(examples 08_all_five_181_unofficial 02_score_below 01_interactive all_five_181_unofficial_score_below_interactive.c26)],
    [qw(examples common player_color_181_interactive_common.c26)],
    [qw(examples common all_five_181_interactive_common.c26)],
 );

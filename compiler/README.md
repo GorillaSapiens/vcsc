@@ -1169,11 +1169,24 @@ identical selector suffixes are shared. When a later page-pointer setup is prove
 masked/shifted byte offsets and the intervening counted loop cannot mutate the pointer
 or source values, the compiler reuses the existing low byte with `ASL` instead of
 reconstructing the offset. The proof is byte-exact modulo 256 and does not allocate a
-hidden temporary. These shortcuts are deliberately narrow: absolute hardware bindings,
-signed or packed-BCD values, wider objects, calls/assembly across a reuse lifetime, and
-expressions that need general aliasing semantics still use the normal lowering machinery.
+hidden temporary. These shortcuts are deliberately narrow: absolute hardware bindings, most signed or
+packed-BCD forms, wider objects, calls/assembly across a reuse lifetime, and expressions
+that need general aliasing semantics still use the normal lowering machinery. The few
+additional direct application-code shapes recognized below are explicit exceptions.
 Ref-array formals are deliberately excluded from direct absolute-array stores: their
 declarator retains array shape, but their runtime representation is pointer-backed.
+
+The direct application-code path also covers three narrowly proven forms used by the
+public VCS examples. A runtime-indexed direct `uint8_t` array element may participate
+in an unsigned constant comparison or `+=`/`-=` constant update without materializing
+a general lvalue. A packed-BCD scalar may use `+=` or `-=` with a runtime-indexed
+direct array element of the same packed-BCD width; the index is scaled by the element
+width and the compiler emits one decimal-mode carry chain over the selected bytes.
+Finally, assigning a relocatable address expression to a constant-index element of a
+direct two-byte unsigned array emits relocatable low/high stores directly. These are
+shape-specific code-size optimizations, not new aliasing rules: indirect/ref-backed,
+mixed-width, signed, or otherwise unproven forms continue through the general
+expression/lvalue machinery.
 
 A small counted loop of the form `for (uint8_t i := C; i < N; i += S)` may keep its
 loop-local index in X when the complete body is proven to contain only supported

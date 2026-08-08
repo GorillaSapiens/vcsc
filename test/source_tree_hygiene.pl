@@ -489,15 +489,15 @@ index($component_guide,'Retirement of these working profiles is not a completion
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
-index($context,'Active workstream: `.../ram_optimization.txt`.')>=0 &&
-index($context,'RAM-optimization work through measured hardware-stack reduction is complete.')>=0 &&
-index($context,'RAM-roadmap items 0-13 are complete.')>=0 &&
-index($context,'The next RAM')>=0 &&
-index($context,'roadmap item is 14, the separately scoped removal of ordinary application assembly')>=0 &&
+index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
+index($context,'The focused RAM-optimization roadmap is complete through its final ordinary-application')>=0 &&
+index($context,'RAM-roadmap items 0-14 are complete.')>=0 &&
+index($context,'The RAM optimization workstream is complete.')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
-index($context,'The next unfinished main-roadmap item remains 23')>=0 &&
+index($context,'The next unfinished main-roadmap item')>=0 &&
+index($context,'is 23; resume `.../roadmap.txt`')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its active RAM-roadmap pointer, completed RAM closeout, next assembly-cleanup item, history-title policy, main-roadmap pause, or size ceiling\n";
+   or die "compact context lost its resumed main-roadmap pointer, completed RAM/assembly closeout, history-title policy, next main item, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
 $ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
 $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
@@ -515,7 +515,7 @@ $ram_roadmap =~ /^\[x\] 10a\. Propagate the delayed-Ball row-boundary repair and
 $ram_roadmap =~ /^\[x\] 11\. Only if a generally useful capability split is still justified, create a/m &&
 $ram_roadmap =~ /^\[x\] 12\. Only if a generally useful capability split is still justified, create an/m &&
 $ram_roadmap =~ /^\[x\] 13\. Establish completion gates and choose the retained architecture\./m &&
-$ram_roadmap =~ /^\[ \] 14\. Remove remaining ordinary application assembly recorded by the example allowlist\./m &&
+$ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly recorded by the example allowlist\./m &&
 -f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-14 JSON baseline
 # expectexit: 0
 
 use strict;

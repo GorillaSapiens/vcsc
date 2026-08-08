@@ -921,11 +921,12 @@ array shape, but the runtime object is pointer-backed, so stores must use the no
 indirect lvalue path.
 
 `example_assembly_allowlist.pl` audits every `.c26` under `examples/`. The compact TSV
-fixture pins the normalized assembly statements for each source by count and SHA-256,
-classifies each use as beam-critical, a direct hardware idiom, compiler-limitation
-debt, or a combination, and requires focused existing regressions for every debt
-entry. Any added or changed example assembly therefore requires an explicit policy
-review rather than silently becoming ordinary application logic.
+fixture pins the normalized assembly statements for each source by count and SHA-256
+and classifies each use as beam-critical or a direct hardware idiom. The item-14
+cleanup reduced the allowlist from 21 sources to nine and the regression now requires
+**zero** `compiler-limitation` entries. Any added or changed example assembly therefore
+requires an explicit policy review rather than silently becoming ordinary application
+logic.
 
 `scratch_lifetime_overlay.pl` executes a generic 6502 fixture covering sequential
 expressions, mutually exclusive branches, a loop, three repeated inline

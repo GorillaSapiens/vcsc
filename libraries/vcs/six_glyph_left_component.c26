@@ -39,7 +39,7 @@ enum TEMPLATE_contract {
 
 recommend bcd24_t TEMPLATE_score := 0;
 recommend uint8_t TEMPLATE_color := 0x0e;
-uint8_t TEMPLATE_pointers[12];
+uint16_t TEMPLATE_pointers[6];
 uint8_t TEMPLATE_delayed;
 
 static inline void TEMPLATE_prepare_pointers(void) {

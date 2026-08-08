@@ -56,21 +56,21 @@ for my $case (@cases) {
       join(' ',@{$case->{extra}}) eq '-Wa,--illegals'
          or die "$dir does not opt into unofficial opcodes explicitly\n";
    }
-   $text =~ /SELECTED_PLAYER0/ && $text =~ /SELECTED_PLAYER1/ &&
-   $text =~ /SELECTED_MISSILE0/ && $text =~ /SELECTED_MISSILE1/ && $text =~ /SELECTED_BALL/
-      or die "$dir does not expose all five selectable objects\n";
-   $text =~ /game_MISSILE0_X/ && $text =~ /game_MISSILE1_X/ &&
-   $text =~ /game_missile0_y/ && $text =~ /game_missile1_y/
-      or die "$dir does not initialize and move both missiles\n";
-   $text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+   if ($case->{profile} eq 'all5_192') {
+      $text =~ /SELECTED_PLAYER0/ && $text =~ /SELECTED_PLAYER1/ &&
+      $text =~ /SELECTED_MISSILE0/ && $text =~ /SELECTED_MISSILE1/ && $text =~ /SELECTED_BALL/
+         or die "$dir does not expose all five selectable objects\n";
+      $text =~ /game_MISSILE0_X/ && $text =~ /game_MISSILE1_X/ &&
+      $text =~ /game_missile0_y/ && $text =~ /game_missile1_y/
+         or die "$dir does not initialize and move both missiles\n";
+      $text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+   } else {
+      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/
+         or die "$dir does not use the shared high-level score controls\n";
+      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_181_interactive_common\.c26"/
+         or die "$dir does not use the shared high-level all-five controls\n";
+   }
    if ($case->{score}) {
-      $text =~ /uint8_t object_control_state := 0x98;/ &&
-      $text =~ /uint8_t score_control_state := 0x8f;/
-         or die "$dir lacks packed RAM-safe control state\n";
-      $text =~ /asm sbc #\$08;/ && $text =~ /asm ora #\$98;/
-         or die "$dir lacks twentieth-frame score sampling\n";
-      $text =~ /asm adc #\$10;.*?asm sta score_color;/s
-         or die "$dir does not advance the score color\n";
       my $score=index($text,'score_draw();'); my $game=index($text,'game_draw();');
       ($case->{profile} eq 'all5_above' ? $score<$game : $game<$score)
          or die "$dir draw order is wrong\n";
@@ -88,11 +88,12 @@ for my $case (@cases) {
       map_zp($map,'game_player0_y'),map_zp($map,'game_player1_y'),
       map_zp($map,'game_missile0_y'),map_zp($map,'game_missile1_y'),map_zp($map,'game_ball_y'),
    );
+   push @args,map_zp($map,'selected_object'),map_zp($map,'select_switch_ready');
    if ($case->{score}) {
-      push @args,map_zp($map,'object_control_state'),map_zp($map,'score_control_state'),
-                 map_zp($map,'score_score'),map_zp($map,'score_color');
+      push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
+                 map_zp($map,'right_joystick_previous'),map_zp($map,'score_score'),map_zp($map,'score_color');
    } else {
-      push @args,map_zp($map,'selected_object'),map_zp($map,'select_switch_ready'),qw(none none);
+      push @args,qw(none none none none none);
    }
    ($rc,$sig,$out,$err)=capture($harness,@args);
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";

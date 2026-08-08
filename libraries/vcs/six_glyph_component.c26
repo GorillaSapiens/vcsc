@@ -38,7 +38,7 @@ enum TEMPLATE_contract {
 };
 
 recommend bcd24_t TEMPLATE_score := 0;
-uint8_t TEMPLATE_pointers[12];
+uint16_t TEMPLATE_pointers[6];
 uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
 

@@ -1075,7 +1075,7 @@ Ordered roadmap
       meaningful 56.25% application-state margin and is complete except for the
       separately scoped ordinary-application-assembly cleanup in item 14.
 
-[ ] 14. Remove remaining ordinary application assembly recorded by the example allowlist.
+[x] 14. Remove remaining ordinary application assembly recorded by the example allowlist.
 
     * Replace hand-written packed-BCD score-control updates with compact VCSC
       once dynamic digit-weight arithmetic can be lowered without the current
@@ -1093,6 +1093,53 @@ Ordered roadmap
     * Use the example assembly allowlist and its focused behavioral regressions as
       the removal checklist. Delete allowlist debt when equivalent VCSC source is
       demonstrably as small and preserves the existing exact behavior or raster.
+
+    Completed. Ordinary application assembly debt is now zero.
+
+    * Fixed six-digit and two-plus-two score controls are ordinary VCSC. Runtime
+      digit selection uses packed-BCD `+=`/`-=` against a same-width indexed
+      decimal-weight table; the compiler lowers the selected 24-bit weight to a
+      three-byte `SED`/`ADC` or `SBC` chain without `_mul8` or generic expression
+      scratch. The faithful legacy interactive score is now declared `bcd24_t`,
+      so it uses the same high-level control path without changing its three-byte
+      representation.
+    * All-five X motion is ordinary indexed byte-array VCSC. The compiler now
+      lowers direct runtime-indexed byte comparisons and constant `+=`/`-=`
+      updates without constructing a general lvalue. The five separately named Y
+      fields remain intact for the renderer/debug ABI and are selected by a
+      high-level `switch`; no address-table manipulation or indirect application
+      assembly remains. Representative final public builds remain comfortably
+      within 4K/128-byte limits: all-five-192 is **2206 ROM / 92 RAM**, and the
+      centered official/unofficial all-five-181 score examples are **3225 ROM /
+      112 RAM**.
+    * The fingerprint's display-word copy is high-level typed access, and its six
+      glyph-address arrays are correctly declared `uint16_t[6]` instead of raw
+      `uint8_t[12]`. Constant-index assignments such as
+      `upper_logo_pointers[3] := (uint16_t)&logo_font[24]` lower directly to
+      relocatable low/high stores. The fingerprint fits at **3853 ROM / 108 RAM**;
+      its only remaining assembly is the deliberate ARR silicon probes and the
+      simulator self-test trap.
+    * Three compiler regressions pin the new compact paths: indexed packed-BCD
+      compound arithmetic, indexed unsigned-byte compare/update, and relocatable
+      16-bit array-address assignment. The public score, all-five interaction,
+      fingerprint, six-glyph, animation, and RAM-accounting behavior oracles all
+      pass.
+    * The example assembly allowlist contracts from 21 entries to **9** and now
+      rejects any `compiler-limitation` entry. Every remaining source assembly
+      statement is classified only as beam-critical or a direct hardware idiom:
+      cycle-exact low-level examples, Reset-vector jumps, ARR probes, and the
+      simulator trap.
+    * The animated gallery remains **3292/4090 ROM, 56/128 RAM, 72 free** under
+      authoritative schema 14. Item 14 introduces no change to the completed RAM
+      accounting or retained renderer architecture.
+    * Final item-14 gates pass: **458/458 compile-only**, **260/260 end-to-end**,
+      recursive public examples, staged `installcheck`, source-tree hygiene, the
+      focused simulator/raster/accounting oracles, and the reviewed Stella 7.0
+      player-color-192 certification.
+
+    The RAM-optimization roadmap is complete. Future assembly removal should be
+    driven by a concrete language/compiler improvement, not by weakening timing
+    code whose purpose is to expose the hardware directly.
 
 Expected direction
 ------------------

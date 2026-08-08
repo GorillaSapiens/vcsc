@@ -323,9 +323,10 @@ Important active constraints and open questions
 
 Immediate TODO
 --------------
-Active workstream: `.../ram_optimization.txt`.
+Active workstream: `.../roadmap.txt`.
 
-RAM-optimization work through measured hardware-stack reduction is complete.
+The focused RAM-optimization roadmap is complete through its final ordinary-application
+assembly cleanup.
 Compiler-owned expression scratch is lifetime-colored across the complete runtime
 activation owner, ordinary directly addressable unsigned-byte state uses compact
 lowering, and the high-level animated-frame installer plus its page/pointer optimizer
@@ -408,28 +409,35 @@ glyph crosses a hardware page. The bankswitching diagnostic renders complete cen
 white **PASS** or **FAIL** words with the six-glyph-wide component; its mapper
 transition simulator matrix and recursive example builds pass.
 
-Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Exact
-beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
-score, fingerprint, renderer, animation, or banked-renderer raster contracts.
+Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Item
+14 removed every ordinary-application `compiler-limitation` entry: the allowlist is
+now nine sources, all classified only as beam-critical or direct hardware idioms.
+Packed-BCD score editing is high-level VCSC using indexed decimal-weight `+=`/`-=`,
+all-five object movement is high-level VCSC, and the fingerprint installs semantic
+`uint16_t[6]` glyph addresses directly. The compiler has narrow regression-pinned
+lowerings for indexed packed-BCD compound arithmetic, direct indexed uint8_t
+compare/update, and constant-index relocatable uint16_t address stores. Exact beam
+timing remains authoritative; Reset-vector jumps, deliberate ARR silicon probes, and
+low-level cycle demonstrations remain assembly by design.
 
-RAM-roadmap items 0-13 are complete. The final architecture retains the general
+RAM-roadmap items 0-14 are complete. The final architecture retains the general
 P0/P1/Ball `player_color_192` and `player_color_181` profiles plus the all-five
 families and their explicitly separate unofficial twins. The optional 192- and
-181-line P0/P1-only profiles are closed as unnecessary: the animated gallery now
-uses 56/128 RAM with 72 free, the official 181 component is only 24 bytes, and
-even the maintained wide-score 181 compositions fit at 118/128 RAM. Do not create
-a two-sprite-only profile without a concrete future program that justifies another
-maintained timing/API surface.
+181-line P0/P1-only profiles are closed as unnecessary: the animated gallery uses
+56/128 RAM with 72 free, the official 181 component is only 24 bytes, and even the
+maintained wide-score 181 compositions fit. Do not create a two-sprite-only profile
+without a concrete future program that justifies another maintained timing/API
+surface.
 
 The authoritative schema-14 accounting closes the RAM campaign from 3993 ROM /
 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
-bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Final
-verification is **455/455 compile-only**, **260/260 end-to-end**, recursive public
-examples, staged installcheck, focused simulator/raster/accounting oracles, source
-hygiene, and the reviewed Stella 7.0 player-color-192 certification. The next RAM
-roadmap item is 14, the separately scoped removal of ordinary application assembly
-recorded by the example allowlist.
+bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
+that accounting unchanged. The compiler-only suite is now **458/458** with the three
+new compact-lowering regressions; the complete end-to-end suite remains **260/260**
+after the item-14 application cleanup. Recursive public examples, staged
+`installcheck`, focused simulator/raster/accounting oracles, source hygiene, and the
+reviewed Stella 7.0 player-color-192 certification remain green.
 
-The next unfinished main-roadmap item remains 23, but it is paused while the RAM
-workstream is explicitly active. Main-roadmap items 29 and 30 and the completed
-bankswitching sub-roadmap remain closed.
+The RAM optimization workstream is complete. The next unfinished main-roadmap item
+is 23; resume `.../roadmap.txt` when starting the next project task. Main-roadmap
+items 29 and 30 and the completed bankswitching sub-roadmap remain closed.

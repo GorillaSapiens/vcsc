@@ -1,0 +1,26 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda xs,y
+// expectasmordered: cmp #$00
+// expectasmordered: lda xs,y
+// expectasmordered: sbc #$01
+// expectasmordered: sta xs,y
+// expectasmordered: lda xs,y
+// expectasmordered: cmp #$9f
+// expectasmordered: lda xs,y
+// expectasmordered: adc #$01
+// expectasmordered: sta xs,y
+// forbidasm: __vcsc_scratch_
+// forbidasm: sta ptr0
+include "machine_6502.c26"
+
+uint8_t xs[5];
+uint8_t index;
+
+void main(void) {
+   if (xs[index] > 0) {
+      xs[index] -= 1;
+   }
+   if (xs[index] < 159) {
+      xs[index] += 1;
+   }
+}

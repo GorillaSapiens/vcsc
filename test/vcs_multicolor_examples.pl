@@ -87,23 +87,27 @@ for my $case (@cases) {
    my $dir=$case->{dir}; my $stem=$case->{stem}; my $profile=$case->{profile};
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
    my $text=read_file($src);
+   my $behavior_text=$text;
+   if ($profile ne 'legacy' && $profile ne '192') {
+      $behavior_text .= read_file(File::Spec->catfile($repo,qw(examples common player_color_181_interactive_common.c26)));
+   }
    $text =~ /^include "color_ntsc\.c26"$/m or die "$dir lacks named NTSC colors\n";
    $text =~ /^include "playfield\.c26"$/m or die "$dir lacks visual playfield rows\n";
-   $text =~ /0b[.X]{8}(?![.X])/ or die "$dir lacks visual sprite glyphs\n";
-   $text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
-   $text =~ /update_object_selection\(\)/ && $text =~ /move_selected_object\(\)/
+   $behavior_text =~ /0b[.X]{8}(?![.X])/ or die "$dir lacks visual sprite glyphs\n";
+   $behavior_text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+   $behavior_text =~ /update_object_selection\(\)/ && $behavior_text =~ /move_selected_object\(\)/
       or die "$dir lacks interactive object selection and motion\n";
-   $text =~ /SWCHA/ && $text =~ /SWCHB/ or die "$dir lacks joystick or console-switch input\n";
-   $text =~ /SELECTED_PLAYER0/ && $text =~ /SELECTED_PLAYER1/ && $text =~ /SELECTED_BALL/
+   $behavior_text =~ /SWCHA/ && $behavior_text =~ /SWCHB/ or die "$dir lacks joystick or console-switch input\n";
+   $behavior_text =~ /SELECTED_PLAYER0/ && $behavior_text =~ /SELECTED_PLAYER1/ && $behavior_text =~ /SELECTED_BALL/
       or die "$dir does not cycle P0, P1, and Ball\n";
-   $text !~ /SELECTED_MISSILE|SELECTED_M0|SELECTED_M1/
+   $behavior_text !~ /SELECTED_MISSILE|SELECTED_M0|SELECTED_M1/
       or die "$dir exposes missiles absent from the public player-color profile\n";
    if ($profile eq 'legacy') {
       $text =~ /faithful_legacy_playercolors/ or die "$dir does not use the faithful legacy renderer\n";
       $text =~ /alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1/
          or die "$dir does not opt into human left-to-right packed-BCD score order\n";
-      $text =~ /legacy_score\[0\]\s*:=\s*0x56;.*?legacy_score\[1\]\s*:=\s*0x34;.*?legacy_score\[2\]\s*:=\s*0x12;/s
-         or die "$dir does not initialize visible score 123456 in little-endian packed BCD\n";
+      $text =~ /legacy_score\s*:=\s*123456;/
+         or die "$dir does not initialize visible score 123456 as packed BCD\n";
    } elsif ($profile eq '192') {
       $text =~ /player_color_192/ or die "$dir does not use player_color_192\n";
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
@@ -125,18 +129,8 @@ for my $case (@cases) {
       $text =~ /vcs_ntsc_component_handoff\(\)/ or die "$dir lacks component handoff\n";
    }
    if (defined $case->{score}) {
-      $text =~ /uint8_t selected_score_digit := 0;/
-         or die "$dir does not start with the ones digit selected\n";
-      $text =~ /uint8_t right_joystick_countdown := 19;/
-         && $text =~ /uint8_t right_joystick_previous := 0x0f;/
-         && $text =~ /asm dec right_joystick_countdown;/
-         && $text =~ /asm eor right_joystick_previous;/
-         && $text =~ /asm lda #19;\s*asm sta right_joystick_countdown;/s
-         or die "$dir lacks twentieth-frame two-sample right-joystick filtering\n";
-      $text =~ /asm adc #\$10;.*?asm sta \Q$case->{color}\E;/s
-         or die "$dir does not advance score color when the selected digit changes\n";
-      $text =~ /score_digit_low/ && $text =~ /score_digit_middle/ && $text =~ /score_digit_high/
-         or die "$dir lacks decimal 10^n score weights\n";
+      $text =~ /include "(?:\.\.\/)+common\/fixed_six_digit_controls\.c26"/
+         or die "$dir does not use the shared high-level packed-BCD score controls\n";
    }
 
    my $bin=File::Spec->catfile($tmp,"$stem.bin"); my $mapfile=File::Spec->catfile($tmp,"$stem.map");

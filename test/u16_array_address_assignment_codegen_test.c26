@@ -1,0 +1,15 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #<{font + 16}
+// expectasmordered: sta pointers + 4
+// expectasmordered: lda #>{font + 16}
+// expectasmordered: sta pointers + 5
+// forbidasm: __vcsc_scratch_
+// forbidasm: sta ptr0
+include "machine_6502.c26"
+
+page const uint8_t font[48] := { 0 };
+uint16_t pointers[6];
+
+void main(void) {
+   pointers[2] := (uint16_t)&font[16];
+}

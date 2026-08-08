@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: example assembly allowlist ok: 21 sources pinned and every asm use classified
+# expectstdout: example assembly allowlist ok: 9 sources pinned, no compiler-limitation debt, and every asm use classified
 # expectexit: 0
 
 use strict;
@@ -23,6 +23,7 @@ sub slurp {
 }
 
 my %allowed_policy=map { $_=>1 } qw(beam-critical hardware-idiom compiler-limitation);
+my $compiler_limitation_count=0;
 my %expected;
 for my $line (split /\n/,slurp($fixture)) {
    next if $line eq '' || $line =~ /^#/;
@@ -38,6 +39,7 @@ for my $line (split /\n/,slurp($fixture)) {
       $allowed_policy{$policy} or die "unknown assembly policy '$policy' for $path\n";
    }
    if (grep { $_ eq 'compiler-limitation' } @policies) {
+      ++$compiler_limitation_count;
       $regressions ne '-' or die "compiler-limitation asm lacks a focused regression: $path\n";
       for my $regression (split /,/,$regressions) {
          -f File::Spec->catfile($repo,split m{/},$regression)
@@ -80,5 +82,7 @@ for my $path (sort keys %actual) {
 for my $path (sort keys %expected) {
    exists $actual{$path} or die "stale assembly allowlist entry for $path\n";
 }
+$compiler_limitation_count==0
+   or die "ordinary application assembly debt remains in $compiler_limitation_count allowlist entries\n";
 
-print "example assembly allowlist ok: ".scalar(keys %actual)." sources pinned and every asm use classified\n";
+print "example assembly allowlist ok: ".scalar(keys %actual)." sources pinned, no compiler-limitation debt, and every asm use classified\n";

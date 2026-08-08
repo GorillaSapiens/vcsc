@@ -56,13 +56,12 @@ struct Profile {
    const char *name;
    uint8_t max_y;
    bool has_score;
-   bool packed_controls;
 };
 
 Profile parse_profile(const std::string &name) {
-   if (name == "all5_192") return {"all5_192", 95, false, false};
-   if (name == "all5_above") return {"all5_above", 87, true, true};
-   if (name == "all5_below") return {"all5_below", 87, true, true};
+   if (name == "all5_192") return {"all5_192", 95, false};
+   if (name == "all5_above") return {"all5_above", 87, true};
+   if (name == "all5_below") return {"all5_below", 87, true};
    fail("bad profile");
 }
 
@@ -70,10 +69,13 @@ class Machine {
 public:
    Machine(const char *rom_path, const Profile &profile,
            uint16_t object_x, std::array<uint16_t,5> y,
-           uint16_t object_state, uint16_t score_state,
+           uint16_t selected_object, uint16_t select_ready,
+           uint16_t score_digit, uint16_t score_countdown, uint16_t score_previous,
            uint16_t score, uint16_t score_color)
-      : profile_(profile), object_x_(object_x), y_(y), object_state_(object_state),
-        score_state_(score_state), score_(score), score_color_(score_color),
+      : profile_(profile), object_x_(object_x), y_(y),
+        selected_object_(selected_object), select_ready_(select_ready),
+        score_digit_(score_digit), score_countdown_(score_countdown), score_previous_(score_previous),
+        score_(score), score_color_(score_color),
         cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
       std::memset(memory_, 0, sizeof(memory_));
@@ -154,8 +156,11 @@ private:
    Profile profile_;
    uint16_t object_x_;
    std::array<uint16_t,5> y_;
-   uint16_t object_state_;
-   uint16_t score_state_;
+   uint16_t selected_object_;
+   uint16_t select_ready_;
+   uint16_t score_digit_;
+   uint16_t score_countdown_;
+   uint16_t score_previous_;
    uint16_t score_;
    uint16_t score_color_;
    uint8_t swcha_ = kIdle;
@@ -182,31 +187,15 @@ private:
       if (!condition) fail(std::string(profile_.name) + ": " + message);
    }
 
-   uint8_t selected_object() const {
-      return profile_.packed_controls ? static_cast<uint8_t>(memory_[object_state_] & 7)
-                                      : memory_[object_state_];
-   }
-   void set_selected_object(uint8_t value) {
-      if (profile_.packed_controls)
-         memory_[object_state_] = static_cast<uint8_t>((memory_[object_state_] & 0xf8) | value);
-      else memory_[object_state_] = value;
-   }
-   bool select_ready() const {
-      return profile_.packed_controls ? (memory_[score_state_] & 0x80) != 0
-                                      : memory_[score_state_] != 0;
-   }
-   uint8_t score_digit() const { return static_cast<uint8_t>((memory_[score_state_] >> 4) & 7); }
-   uint8_t score_countdown() const { return static_cast<uint8_t>(memory_[object_state_] >> 3); }
-   uint8_t score_previous() const { return static_cast<uint8_t>(memory_[score_state_] & 0x0f); }
-   void set_score_digit(uint8_t value) {
-      memory_[score_state_] = static_cast<uint8_t>((memory_[score_state_] & 0x8f) | (value << 4));
-   }
-   void set_score_countdown(uint8_t value) {
-      memory_[object_state_] = static_cast<uint8_t>((memory_[object_state_] & 7) | (value << 3));
-   }
-   void set_score_previous(uint8_t value) {
-      memory_[score_state_] = static_cast<uint8_t>((memory_[score_state_] & 0xf0) | (value & 0x0f));
-   }
+   uint8_t selected_object() const { return memory_[selected_object_]; }
+   void set_selected_object(uint8_t value) { memory_[selected_object_] = value; }
+   bool select_ready() const { return memory_[select_ready_] != 0; }
+   uint8_t score_digit() const { return memory_[score_digit_]; }
+   uint8_t score_countdown() const { return memory_[score_countdown_]; }
+   uint8_t score_previous() const { return memory_[score_previous_]; }
+   void set_score_digit(uint8_t value) { memory_[score_digit_] = value; }
+   void set_score_countdown(uint8_t value) { memory_[score_countdown_] = value; }
+   void set_score_previous(uint8_t value) { memory_[score_previous_] = value; }
 
    uint8_t timer_value() const {
       if (!timer_active_) return memory_[kIntim];
@@ -375,21 +364,24 @@ Machine *Machine::active_ = nullptr;
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 13) {
+   if (argc != 16) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below object_x p0_y p1_y m0_y m1_y ball_y object_state score_state score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_above|all5_below object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_countdown|none score_previous|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }
    const Profile profile = parse_profile(argv[2]);
-   const uint16_t score = profile.has_score ? parse_address(argv[11]) : 0;
-   const uint16_t color = profile.has_score ? parse_address(argv[12]) : 0;
-   if (!profile.has_score && (std::strcmp(argv[11], "none") || std::strcmp(argv[12], "none")))
-      fail("scoreless profile requires none score arguments");
+   auto optional_address = [&](int index) -> uint16_t {
+      if (profile.has_score) return parse_address(argv[index]);
+      if (std::strcmp(argv[index], "none")) fail("scoreless profile requires none score arguments");
+      return 0;
+   };
    Machine machine(argv[1], profile, parse_address(argv[3]),
                    {{parse_address(argv[4]), parse_address(argv[5]), parse_address(argv[6]),
                      parse_address(argv[7]), parse_address(argv[8])}},
-                   parse_address(argv[9]), parse_address(argv[10]), score, color);
+                   parse_address(argv[9]), parse_address(argv[10]),
+                   optional_address(11), optional_address(12), optional_address(13),
+                   optional_address(14), optional_address(15));
    machine.run();
    std::printf("vcs_all_five_interactive_example_matrix %s ok: five-object controls and reset across %zu frames\n",
                profile.name, machine.frame_count());

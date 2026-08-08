@@ -9,6 +9,9 @@ include "playfield.c26"
 // retained-source ordering untouched for oracle fixtures.
 alias VCSC_FAITHFUL_LEGACY_HUMAN_SCORE_ORDER 1
 template "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26" as legacy
+alias score_score legacy_score
+alias score_color legacy_score_color
+include "../../common/fixed_six_digit_controls.c26"
 
 uint8_t legacy_playfield[48] := {
    VCS_PLAYFIELD_ROW(0bXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX),
@@ -86,15 +89,6 @@ alias SELECTED_OBJECT_COUNT 3
 
 uint8_t selected_object := SELECTED_PLAYER0;
 uint8_t select_switch_ready := 1;
-uint8_t selected_score_digit := 0;
-uint8_t right_joystick_countdown := 19;
-uint8_t right_joystick_previous := 0x0f;
-
-// Decimal digit weights, indexed from ones through hundred-thousands.
-page const uint8_t score_digit_low[6] := { 0x01, 0x10, 0x00, 0x00, 0x00, 0x00 };
-page const uint8_t score_digit_middle[6] := { 0x00, 0x00, 0x01, 0x10, 0x00, 0x00 };
-page const uint8_t score_digit_high[6] := { 0x00, 0x00, 0x00, 0x00, 0x01, 0x10 };
-
 inline void update_object_selection(void) {
    if (SWCHB & 0x02) {
       select_switch_ready := 1;
@@ -166,96 +160,6 @@ inline void move_selected_object(void) {
    }
 }
 
-inline void update_score_controls(void) {
-   // Sample once every twenty frames and require two matching samples.
-   asm lda right_joystick_countdown;
-   asm beq @sample;
-   asm dec right_joystick_countdown;
-   asm jmp @done;
-
-   asm @sample:;
-   asm lda SWCHA;
-   asm and #$0f;
-   asm tax;
-   asm eor right_joystick_previous;
-   asm bne @record;
-
-   // A stable horizontal sample selects a digit and advances the score hue.
-   asm txa;
-   asm and #$04;
-   asm bne @not_left;
-   asm inc selected_score_digit;
-   asm lda selected_score_digit;
-   asm cmp #6;
-   asm bcc @left_color;
-   asm lda #0;
-   asm sta selected_score_digit;
-   asm @left_color:;
-   asm lda legacy_score_color;
-   asm clc;
-   asm adc #$10;
-   asm sta legacy_score_color;
-   asm jmp @vertical;
-
-   asm @not_left:;
-   asm txa;
-   asm and #$08;
-   asm bne @vertical;
-   asm lda selected_score_digit;
-   asm bne @decrement_digit;
-   asm lda #6;
-   asm sta selected_score_digit;
-   asm @decrement_digit:;
-   asm dec selected_score_digit;
-   asm lda legacy_score_color;
-   asm clc;
-   asm adc #$10;
-   asm sta legacy_score_color;
-
-   // A stable vertical sample changes the currently selected decimal weight.
-   asm @vertical:;
-   asm txa;
-   asm and #$01;
-   asm bne @not_up;
-   asm sed;
-   asm clc;
-   asm ldy selected_score_digit;
-   asm lda legacy_score;
-   asm adc score_digit_low,y;
-   asm sta legacy_score;
-   asm lda legacy_score+1;
-   asm adc score_digit_middle,y;
-   asm sta legacy_score+1;
-   asm lda legacy_score+2;
-   asm adc score_digit_high,y;
-   asm sta legacy_score+2;
-   asm cld;
-   asm jmp @record;
-
-   asm @not_up:;
-   asm txa;
-   asm and #$02;
-   asm bne @record;
-   asm sed;
-   asm sec;
-   asm ldy selected_score_digit;
-   asm lda legacy_score;
-   asm sbc score_digit_low,y;
-   asm sta legacy_score;
-   asm lda legacy_score+1;
-   asm sbc score_digit_middle,y;
-   asm sta legacy_score+1;
-   asm lda legacy_score+2;
-   asm sbc score_digit_high,y;
-   asm sta legacy_score+2;
-   asm cld;
-
-   asm @record:;
-   asm stx right_joystick_previous;
-   asm lda #19;
-   asm sta right_joystick_countdown;
-   asm @done:;
-}
 
 inline void update_controls(void) {
    // Keep the console Reset path scratch-free; the renderer's hidden
@@ -302,9 +206,7 @@ void main(void) {
    legacy_player1_colors := p1c;
 
    // Standard little-endian packed BCD for the visible value 123456.
-   legacy_score[0] := 0x56;
-   legacy_score[1] := 0x34;
-   legacy_score[2] := 0x12;
+   legacy_score := 123456;
    legacy_score_color := VCS_NTSC_GRAY_92;
    legacy_playfield_position := 8;
 

@@ -101,9 +101,7 @@ void main(void) {
    legacy_player0_colors := p0c;
    legacy_player1_colors := p1c;
 
-   legacy_score[0] := 0x21;
-   legacy_score[1] := 0x07;
-   legacy_score[2] := 0x21;
+   legacy_score := 210721;
    legacy_score_color := VCS_NTSC_GRAY_92;
    legacy_playfield_position := 8;
 

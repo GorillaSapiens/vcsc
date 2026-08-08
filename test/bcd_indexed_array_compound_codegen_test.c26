@@ -1,0 +1,24 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta arg0
+// expectasmordered: asl
+// expectasmordered: adc arg0
+// expectasmordered: tay
+// expectasmordered: sed
+// expectasmordered: adc weights,y
+// expectasmordered: iny
+// expectasmordered: cld
+// expectasmordered: sed
+// expectasmordered: sbc weights,y
+// expectasmordered: cld
+// forbidasm: _mul8
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+
+page const bcd24_t weights[6] := { 1, 10, 100, 1000, 10000, 100000 };
+bcd24_t score;
+uint8_t digit;
+
+void main(void) {
+   score += weights[digit];
+   score -= weights[digit];
+}

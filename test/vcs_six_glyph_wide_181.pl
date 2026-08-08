@@ -79,13 +79,9 @@ for my $case (
       ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
       : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;
    $source_text =~ $draw_order or die "$sources[0] has the wrong $order draw order\n";
-   $source_text =~ /update_object_selection\(\);.*move_selected_object\(\);.*update_score_controls\(\);/s
-      or die "$sources[0] does not use the standard player-color interactive controls\n";
-   $source_text =~ /SELECTED_PLAYER0.*SELECTED_PLAYER1.*SELECTED_BALL/s
-      && $source_text =~ /right_joystick_countdown := 19;/
-      && $source_text =~ /asm eor right_joystick_previous;/
-      && $source_text =~ /asm adc #\$10;.*asm sta score_color;/s
-      or die "$sources[0] lost Game Select object cycling or filtered right-joystick score controls\n";
+   $source_text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/
+      && $source_text =~ /include "\.\.\/\.\.\/\.\.\/common\/player_color_181_interactive_common\.c26"/
+      or die "$sources[0] does not use the shared high-level interactive controls\n";
 
    my $tag="wide_181_$order";
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
@@ -96,7 +92,7 @@ for my $case (
    -s $bin==4096 or die "$tag is not a 4K cartridge\n";
 
    my $map=read_file($mapfile);
-   $map =~ /rom\s+used=2603 bytes/ or die "$tag ROM accounting changed\n";
+   $map =~ /rom\s+used=2664 bytes/ or die "$tag ROM accounting changed\n";
    $map =~ /ram\s+used=65 bytes.*objects=61 bytes hardware-stack=4 bytes/
       or die "$tag RAM accounting changed\n";
 

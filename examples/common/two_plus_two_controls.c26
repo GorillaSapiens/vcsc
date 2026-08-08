@@ -45,97 +45,50 @@ inline void update_score_field_selection(void) {
 inline void update_score_controls(void) {
    update_score_field_selection();
 
-   // Sample once every twenty frames and require two matching samples.
-   asm lda right_joystick_countdown;
-   asm beq @sample;
-   asm dec right_joystick_countdown;
-   asm jmp @done;
+   // Sample once every twenty frames and require two matching samples. While
+   // sampling, reuse the countdown byte for the four active-low joystick bits;
+   // it is reset to 19 before returning.
+   if (right_joystick_countdown) {
+      right_joystick_countdown--;
+   }
+   else {
+      right_joystick_countdown := SWCHA & 0x0f;
 
-   asm @sample:;
-   asm lda SWCHA;
-   asm and #$0f;
-   asm tax;
-   asm eor right_joystick_previous;
-   asm bne @record;
+      if (right_joystick_countdown == right_joystick_previous) {
+         // Horizontal input moves only the selected field's private X origin.
+         if (!(right_joystick_countdown & 0x04)) {
+            if (selected_score_field) {
+               if (score_right_x > 32) { score_right_x--; }
+            }
+            else {
+               if (score_left_x > 0) { score_left_x--; }
+            }
+         }
+         else {
+            if (!(right_joystick_countdown & 0x08)) {
+               if (selected_score_field) {
+                  if (score_right_x < 144) { score_right_x++; }
+               }
+               else {
+                  if (score_left_x < 64) { score_left_x++; }
+               }
+            }
+         }
 
-   // Horizontal input moves only the selected field's private X origin.
-   asm txa;
-   asm and #$04;
-   asm bne @not_left;
-   asm lda selected_score_field;
-   asm bne @move_right_field_left;
-   asm lda score_left_x;
-   asm cmp #0;
-   asm beq @vertical;
-   asm dec score_left_x;
-   asm jmp @vertical;
-   asm @move_right_field_left:;
-   asm lda score_right_x;
-   asm cmp #32;
-   asm beq @vertical;
-   asm dec score_right_x;
-   asm jmp @vertical;
+         // Vertical input changes only the selected packed-BCD two-digit value.
+         if (!(right_joystick_countdown & 0x01)) {
+            if (selected_score_field) { score_right_score += 1; }
+            else { score_left_score += 1; }
+         }
+         else {
+            if (!(right_joystick_countdown & 0x02)) {
+               if (selected_score_field) { score_right_score -= 1; }
+               else { score_left_score -= 1; }
+            }
+         }
+      }
 
-   asm @not_left:;
-   asm txa;
-   asm and #$08;
-   asm bne @vertical;
-   asm lda selected_score_field;
-   asm bne @move_right_field_right;
-   asm lda score_left_x;
-   asm cmp #64;
-   asm beq @vertical;
-   asm inc score_left_x;
-   asm jmp @vertical;
-   asm @move_right_field_right:;
-   asm lda score_right_x;
-   asm cmp #144;
-   asm beq @vertical;
-   asm inc score_right_x;
-
-   // Vertical input changes only the selected packed-BCD two-digit value.
-   asm @vertical:;
-   asm txa;
-   asm and #$01;
-   asm bne @not_up;
-   asm sed;
-   asm clc;
-   asm lda selected_score_field;
-   asm bne @increment_right;
-   asm lda score_left_score;
-   asm adc #1;
-   asm sta score_left_score;
-   asm cld;
-   asm jmp @record;
-   asm @increment_right:;
-   asm lda score_right_score;
-   asm adc #1;
-   asm sta score_right_score;
-   asm cld;
-   asm jmp @record;
-
-   asm @not_up:;
-   asm txa;
-   asm and #$02;
-   asm bne @record;
-   asm sed;
-   asm sec;
-   asm lda selected_score_field;
-   asm bne @decrement_right;
-   asm lda score_left_score;
-   asm sbc #1;
-   asm sta score_left_score;
-   asm cld;
-   asm jmp @record;
-   asm @decrement_right:;
-   asm lda score_right_score;
-   asm sbc #1;
-   asm sta score_right_score;
-   asm cld;
-
-   asm @record:;
-   asm stx right_joystick_previous;
-   asm lda #19;
-   asm sta right_joystick_countdown;
-   asm @done:;
+      right_joystick_previous := right_joystick_countdown;
+      right_joystick_countdown := 19;
+   }
 }
