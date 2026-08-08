@@ -432,9 +432,9 @@ surface.
 The authoritative schema-14 accounting closes the RAM campaign from 3993 ROM /
 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
-that accounting unchanged. The compiler-only suite is now **468/468** after adding instantiation-parameter and
-preprocessor-boundary regressions; the complete end-to-end suite remains **261/261** after adding the faithful
-multisprite baseline oracle. Recursive public examples, staged
+that accounting unchanged. The compiler-only suite is now **469/469** after adding instantiation-parameter,
+preprocessor-boundary, and parameter-in-conditional regressions; the complete
+end-to-end suite is **262/262** after adding the 170-line all-five profile oracle. Recursive public examples, staged
 `installcheck`, focused simulator/raster/accounting oracles, source hygiene, and the
 reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
@@ -443,7 +443,7 @@ after `make clean`. Checked-in library/profile `.cfg` files remain license-audit
 The generated-sidecar hygiene regression remains explicit: a faithful-multisprite
 example `.cfg` may be present without being mistaken for editable source, while
 checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
-is 468/468 and e2e coverage is 261/261.
+is 469/469 and e2e coverage is 262/262.
 
 The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
@@ -468,6 +468,19 @@ substitute the supplied/default literal while undeclared `TEMPLATE_` names retai
 ordinary instance-prefix rewriting. Missing required, unknown, duplicate, and
 non-integer arguments and duplicate parameter declarations are compile-time errors.
 `instantiate` remains semicolon-free; `parameter` declarations require semicolons.
+The official all-five renderer now proves that parameterized renderer shape in
+production. `libraries/vcs/renderers/all_five/all_five.c26` has required `parameter lines;` and supports compile-time `lines:=192`, `lines:=181`, and `lines:=170`; the
+old separate official `all_five_192` and `all_five_181` renderer source directories
+are removed. Existing public 192- and 181-line examples instantiate the unified
+source. `examples/11_all_five_170/01_score_above_and_below/01_interactive` composes
+11 score + 170 gameplay + 11 score = 192 visible lines and exercises the same
+Select/joystick/Reset controls. It measures 3601/4090 ROM and exactly 128/128 RAM
+including the eight-byte hardware-stack reserve, so the dual-score proof fits with
+zero RAM slack. Declared instantiation parameters are also available as integer
+literals in `#if`/`#elif`, allowing renderer timing profiles to remain compile-time
+code selection rather than runtime branches. The separately maintained
+`all_five_181_unofficial` experiment remains distinct.
+
 The next item-28 step is therefore one modern parameterized multisprite component,
 with visible gameplay lines supplied at instantiation time; prove 192- and 181-line
 interactive compositions rather than creating separate renderer source families.

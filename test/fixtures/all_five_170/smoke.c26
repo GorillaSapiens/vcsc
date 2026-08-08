@@ -1,9 +1,7 @@
-// All-five 181-line static scene with the independent score above gameplay.
 include "vcs.c26"
 include "frame_ntsc.c26"
-include "fonts/default_decimal.c26"
 
-page const uint8_t game_playfield[44] := {
+page const uint8_t game_playfield[40] := {
    0xff,0xff,0xff,0xff,
    0x81,0x18,0x18,0x81,
    0x81,0x00,0x00,0x81,
@@ -13,11 +11,9 @@ page const uint8_t game_playfield[44] := {
    0x81,0x00,0x00,0x81,
    0x81,0x18,0x18,0x81,
    0x81,0x00,0x00,0x81,
-   0x81,0x18,0x18,0x81,
    0xff,0xff,0xff,0xff
 };
-instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
-instantiate "six_glyph_component.c26" as score
+instantiate "renderers/all_five/all_five.c26" as game (lines:=170)
 
 page const uint8_t p0_graphics[8] := {
    game_SPRITE_GLYPH(0x3c,0x66,0x66,0x7e,0x66,0x66,0x66,0x00)
@@ -26,14 +22,17 @@ page const uint8_t p1_graphics[8] := {
    game_SPRITE_GLYPH(0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00)
 };
 
-
-void initialize_scene(void) {
+void main(void) {
    VBLANK := 2;
    COLUBK := 0x84;
    COLUPF := 0x2e;
-   CTRLPF := 0x21;
+   COLUP0 := 0x0e;
+   COLUP1 := 0xc8;
    game_player0_color := 0x0e;
    game_player1_color := 0xc8;
+   CTRLPF := 0x21;
+   NUSIZ0 := 0x20;
+   NUSIZ1 := 0x20;
    game_PLAYER0_NUSIZ := 0x20;
    game_PLAYER1_NUSIZ := 0x20;
    game_PLAYER0_X := 20;
@@ -54,25 +53,17 @@ void initialize_scene(void) {
    game_missile1_height := 7;
    game_ball_height := 3;
    game_playfield_position := 8;
-   score_score := 123456;
    game_init();
-   score_init();
-}
-
-void main(void) {
-   initialize_scene();
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
       game_vblank();
-      score_vblank();
       vcs_ntsc_end_vblank();
-      score_draw();
-      vcs_ntsc_component_handoff();
       game_draw();
+      vcs_ntsc_wait_scanlines(22);
+      asm nop;
       vcs_ntsc_begin_overscan();
       game_overscan();
-      score_overscan();
       vcs_ntsc_end_overscan();
    }
 }

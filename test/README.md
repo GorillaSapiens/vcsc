@@ -479,12 +479,13 @@ motion through X=140, wrap through every pair, exact player pixels, exact
 converted source-row colors, graphics-pointer selection across all four hard
 pages, mutable eight-byte RAM color tables, and 262-line frame periods.
 
-`vcs_all_five_181.pl` and `vcs_all_five_192.pl` build the official five-object
-components derived from the proven player-color rasters. They lock the 23-byte
-public interfaces, 67-byte and 71-byte total RAM contracts, official-opcode
-policy, solid P0/P1 colors, all-five enable activity, exact 181/192 visible-line
-contracts, and every playfield pixel across all eleven or twelve 16-line
-rows. The all-five timing profile also locks the steady PF1/PF2/PF2/PF1 writes
+`vcs_all_five_170.pl`, `vcs_all_five_181.pl`, and `vcs_all_five_192.pl`
+build three compile-time profiles of the single official
+`renderers/all_five/all_five.c26` component. They lock the required `lines`
+instantiation parameter, 23-byte public interface, 67-byte 170/181 and 71-byte
+192 total RAM contracts, official-opcode policy, solid P0/P1 colors, all-five
+enable activity, exact 170/181/192 visible-line contracts, and every playfield
+pixel across ten, eleven, or twelve 16-line rows. The all-five timing profile also locks the steady PF1/PF2/PF2/PF1 writes
 to cycles 17/24/45/52 on both alternating scanline halves and bounds every
 row-transition write, so a two-cycle P1/P0 reflected-half mismatch cannot hide
 behind the byte-level raster model. They also reject every late P0/P1 transfer
@@ -492,7 +493,9 @@ and every effective M0/M1 enable-state change after horizontal blanking,
 covering the same extreme-right row-tearing failure for all five objects.
 Dedicated Y=8,height=3 edge cartridges additionally require exactly eight Ball
 scanlines across the first packed-row boundary, catching stale VDELBL transfer
-at the extra transition `GRP1`. The
+at the extra transition `GRP1`. The 170-line regression also proves that reserving the remaining 22 visible
+lines yields a stable 262-line frame, matching the intended score-above plus
+score-below composition. The
 192-line regression additionally runs a 360-frame asynchronous fixture through
 the independent endpoint oracle: all five VBLANK RESP/HMxx/HMOVE transactions
 must match the requested X coordinates, every object must reach X=0 and X=159,
@@ -501,8 +504,13 @@ correct at both edges. They also require the C26 component to carry its
 four-byte hidden helper-JSR allowance as `.callstackextra` object metadata
 rather than inheriting it from a renderer cfg.
 
+`vcs_all_five_interactive_examples.pl` exercises the public 192-, 181-, and
+170-line interactive cartridges through one behavior harness; the 170-line case
+requires scores on both sides of gameplay while preserving the same five-object
+selection/movement and score-edit controls.
+
 `vcs_all_five_composition.pl` builds static and asynchronous score-above and
-score-below cartridges around the 181-line component. It requires explicit
+score-below cartridges around the 181-line profile. It requires explicit
 component handoff, stable 262-line frames, complete five-object activity, clean
 score regions, full-range object motion, restored application Y state, no
 immediate `HMCLR` after the non-player HMOVE, and zero M0/M1/Ball fine-motion

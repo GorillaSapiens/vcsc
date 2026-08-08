@@ -207,6 +207,7 @@ Each maintained gameplay family has these explicit products:
 
 | Profile | Gameplay lines | Score ownership | Opcode policy |
 | --- | ---: | --- | --- |
+| two-score composable | 170 | none; `main()` may compose independent 11-line scores above and below | official 6502/6507 only |
 | score-composable | 181 | none; `main()` must compose one independent 11-line score component | official 6502/6507 only |
 | full-height scoreless | 192 | none; no score fits beside it inside the standard visible field | official 6502/6507 only |
 | score-composable unofficial twin | 181 | none; same application contract as the official 181-line component | reviewed stable/common NMOS unofficial forms allowed |
@@ -224,12 +225,12 @@ another hidden blank-line allowance or silently crop either component. The
 component implementation owns the complete internal accounting needed to enter
 and leave on its documented scanline boundaries.
 
-The full-height component is a separate, explicitly named 192-line scoreless
-profile. It preserves the predecessor's full gameplay-height use case without
-pretending an eleven-line score can also fit inside the same 192-line field.
-This is not a compile-time switch hidden inside the 181-line source: maps,
-fixtures, timing contracts, and diagnostics must identify which profile was
-linked.
+The official all-five implementation is one parameterized source.  Its required
+`lines` instantiation parameter selects the 170-, 181-, or 192-line timing
+profile at compile time.  Maps, fixtures, timing contracts, and diagnostics
+must still identify which profile was linked; parameterization does not weaken
+the profile-specific raster contracts.  The 170-line profile permits two
+independent eleven-line scores because `11 + 170 + 11 = 192` visible lines.
 
 The unofficial-opcode experiment is likewise a separate source/profile, not a
 hidden alias. Its public API, public and private RAM layout, visible TIA-write
@@ -240,60 +241,7 @@ and unofficial linked ROM byte counts and their signed difference; a zero or
 negative saving is a valid result. Only reviewed stable/common NMOS 6502/6507
 forms are eligible. Silicon-sensitive or unstable forms remain forbidden.
 
-The inherited monolith's gameplay field is twelve 16-line rows, or 192 lines.
-Producing the new 181-line profile therefore requires an explicit retimed or
-reduced gameplay schedule. The extraction regression must lock that internal
-choice; neither this contract nor an application may disguise the missing
-11 lines as scheduler padding.
-
-## Official all-five 181-line score-composable profile
-
-`renderers/all_five_181/all_five_181.c26` is the official-opcode
-P0/P1/M0/M1/BL lifecycle component. Its visible raster is derived from the
-proven `player_color_181` pipeline rather than from the older all-five
-monolith. The two timed slots formerly used for per-row P0/P1 color loads now
-update M1 and M0, so the players use independent solid colors for the complete
-frame.
-
-The component requires a page-contained 44-byte, eleven-row playfield and owns
-no score, font, score pointers, VSYNC, VBLANK, or RIOT timer state. Its exact
-map contract is:
-
-| Resource | Bytes |
-| --- | ---: |
-| public gameplay state | 23 |
-| private timed schedule/scratch | 44 |
-| total component RAM | 67 |
-| application playfield ROM | 44 |
-
-The private span is one 44-byte four-lane timed schedule: three lanes carry
-Ball/M1/M0 vertical bits and the otherwise dead fourth lane is reused as
-scratch/state, with its final byte backing `playfield_position`. Public state includes all five X coordinates, complete
-Y/height state, P0/P1 graphics pointers and heights, independent P0/P1 NUSIZ
-values, and independent solid P0/P1 colors.
-
-Static and asynchronous-motion fixtures compose the component with the
-independent six-glyph score in both visible orders. Adjacent visible components
-use `vcs_ntsc_component_handoff()`, and `draw()` restores the P0/P1 positioning,
-NUSIZ, and colors needed after a score has owned the players. Emulator evidence
-locks stable 262-line frames, all eleven rows and every one of their 160 pixels,
-visible activity from all five objects, complete 0..159 asynchronous X motion,
-restored application Y state, and a clean score region.
-
-## Unofficial all-five 181-line counterpart
-
-`renderers/all_five_181_unofficial/all_five_181_unofficial.c26` is the
-separately named experimental counterpart to the official 181-line component. It has
-the same lifecycle API, 23-byte public state, 44-byte private state, 67-byte
-total RAM layout, 44-byte playfield contract, solid player colors, and
-score-above/score-below fixtures. It must be assembled with `-Wa,--illegals`.
-
-Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
-(`$04`) used as exact-size, exact-cycle dead-flag padding during VBLANK
-positioning. There are no retained AXS substitutions and no silicon-sensitive
-or unstable opcodes.
-
-The maintained smoke links measure:
+The current matched 181-line smoke fixtures measure:
 
 ```text
 official linked ROM bytes:   1795
@@ -301,37 +249,89 @@ unofficial linked ROM bytes: 1795
 signed byte difference:          0
 ```
 
-The unofficial renderer now shares the corrected circular physical playfield
-schedule exactly. Pairwise emulator comparison requires every visible TIA event
-and stable frame to match across smoke, static score-above/score-below, and
-motion score-above/score-below cartridges. Map evidence also requires every RAM
-symbol to retain the official address.
+The inherited monolith's gameplay field is twelve 16-line rows, or 192 lines.
+Producing the new 181-line profile therefore requires an explicit retimed or
+reduced gameplay schedule. The extraction regression must lock that internal
+choice; neither this contract nor an application may disguise the missing
+11 lines as scheduler padding.
 
-## Official all-five 192-line scoreless profile
+## Parameterized official all-five gameplay
 
-`renderers/all_five_192/all_five_192.c26` is the distinct official-opcode,
-full-height P0/P1/M0/M1/BL lifecycle component. Its twelve-row visible raster
-is derived from the proven `player_color_192` pipeline. As in the 181-line
-profile, the missile updates occupy the former per-row color slots, so P0 and
-P1 use independent solid colors.
+`renderers/all_five/all_five.c26` is the single official-opcode
+P0/P1/M0/M1/BL lifecycle component. A required compile-time `lines`
+instantiation parameter selects the maintained visible contract:
 
-The component owns the complete 192-line visible gameplay field, takes a
-page-contained 48-byte/twelve-row playfield, and cannot be combined with the
-independent eleven-line score inside the standard visible region. It owns no
-score state, score pointers, or font.
+```vcsc
+instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=170)
+```
 
-Its exact map contract is 23 public bytes plus 48 private bytes, for 71 bytes
-total. The 48-byte four-lane schedule keeps the cycle-critical Ball/M1/M0 bits;
-the dead fourth lane now carries scratch/state and `playfield_position`, so no
-separate workspace is allocated.
-All five objects are positioned during VBLANK. `draw()` renders twelve uniform
-16-line rows; `overscan()` clears visible TIA state and restores the
-application-visible Y coordinates.
+The parameter is available to `#if`/`#elif` inside directly instantiated source,
+so the timed profile is selected at compile time. There is no run-time scanline
+counter and no run-time renderer dispatch.
 
-Regression evidence locks stable 262-line frames, all twelve rows and all 160
-pixels on every scanline, visible output from all five objects, official
-mnemonics only, exact RAM/page/stack contracts, and source plus staged-installed
-builds.
+### 192-line all-five gameplay
+
+The 192-line profile is the full-height scoreless form. It uses a page-contained
+48-byte/twelve-row playfield and the proven `player_color_192`-derived visible
+pipeline. All five objects are positioned during VBLANK. The exact RAM contract
+is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
+
+### 181-line all-five gameplay
+
+The 181-line profile is score-composable. It uses a page-contained 44-byte,
+eleven-row playfield and the score-safe P0/P1 visible-entry handoff. One
+independent eleven-line score may appear above or below it:
+
+```text
+181 gameplay + 11 score = 192 visible lines
+```
+
+Its exact RAM contract is 23 public bytes plus 44 private schedule/scratch
+bytes, or 67 bytes total. Adjacent visible components use
+`vcs_ntsc_component_handoff()`.
+
+### 170-line all-five gameplay
+
+The 170-line profile uses the same score-composable timing family with a
+page-contained 40-byte/ten-row playfield. Ten 16-line playfield rows plus the
+five-line score-entry region and five terminal blank lines make the component
+return after exactly 170 scanlines. It is intended for:
+
+```text
+11 score above + 170 gameplay + 11 score below = 192 visible lines
+```
+
+The 170 profile retains the 181 profile's 44-byte private schedule/scratch span,
+so its total component RAM is also 67 bytes. The extra private bytes are timing
+workspace, not playfield storage.
+
+All three official profiles retain independent solid P0/P1 colors, use only
+official NMOS 6502/6507 opcodes, keep the missile/Ball updates inside their
+proven beam deadlines, and own no score/font or frame-scheduler state.
+Maintained regression evidence locks exact 262-line frames, every playfield
+pixel, all five object rasters, RAM/page/stack contracts, and staged-installed
+builds for the supported line counts.
+
+## Unofficial all-five 181-line counterpart
+
+`renderers/all_five_181_unofficial/all_five_181_unofficial.c26` remains the
+separately named experimental counterpart to the official `lines:=181`
+profile. It has the same lifecycle API, 23-byte public state, 44-byte private
+state, 67-byte total RAM layout, 44-byte playfield contract, solid player
+colors, and score-above/score-below fixtures. It must be assembled with
+`-Wa,--illegals`.
+
+Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
+(`$04`) used as exact-size, exact-cycle dead-flag padding during VBLANK
+positioning. There are no retained AXS substitutions and no silicon-sensitive
+or unstable opcodes.
+
+The maintained smoke links compare the unofficial renderer against the
+parameterized official `lines:=181` profile and require the same visible TIA
+schedule, stable frames, object positions, collision behavior, and RAM symbol
+addresses before executable-size differences are considered meaningful.
 
 ## RAM-optimization architecture closeout
 

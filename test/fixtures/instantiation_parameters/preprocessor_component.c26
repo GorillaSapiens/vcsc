@@ -1,0 +1,9 @@
+parameter lines := 192;
+
+#if TEMPLATE_lines == 170
+uint8_t TEMPLATE_value := 170;
+#elif TEMPLATE_lines == 181
+uint8_t TEMPLATE_value := 181;
+#else
+uint8_t TEMPLATE_value := 192;
+#endif

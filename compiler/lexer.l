@@ -1491,6 +1491,16 @@ static long long pp_parse_primary(const char **pp) {
          return value;
       }
 
+      {
+         const char *parameter_value = instantiation_parameter_value_for_source(name);
+         if (parameter_value) {
+            value = parse_int(parameter_value);
+            free(name);
+            *pp = p;
+            return value;
+         }
+      }
+
       int index = alias_find(name);
       if (index != -1) {
          if (alias_entries[index].is_function_like) {

@@ -313,9 +313,8 @@ index($standard_renderer_source,'.callstackextra 4')>=0
    or die "standard renderer lost object-owned placement or hidden-stack constraints
 ";
 for my $component (
-   'all_five_181/all_five_181.c26',
+   'all_five/all_five.c26',
    'all_five_181_unofficial/all_five_181_unofficial.c26',
-   'all_five_192/all_five_192.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 4;')>=0

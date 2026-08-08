@@ -98,7 +98,12 @@ octal, binary/visual-binary, and decimal forms. A declared `TEMPLATE_name`
 parameter is replaced by the supplied literal or its default; remaining
 `TEMPLATE_` identifiers continue to receive the instance prefix. Missing
 required arguments, unknown arguments, duplicate arguments, and duplicate
-parameter declarations are compile-time errors. `parameter` declarations are
+parameter declarations are compile-time errors.
+
+Declared parameter names are also integer constants in `#if` and `#elif` while
+that instantiated source is being processed. The conditional sees the supplied
+argument or the parameter default, so profile selection remains compile-time; no
+run-time branch or parameter storage is emitted. `parameter` declarations are
 valid only directly in the instantiated source file, not in an ordinary source
 file or an included helper.
 

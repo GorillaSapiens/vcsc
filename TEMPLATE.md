@@ -250,6 +250,11 @@ instance-prefix rewriting described below. Missing required arguments, unknown
 arguments, duplicate arguments, duplicate parameter declarations, and non-integer
 argument values are compile-time errors.
 
+Declared parameter names are also integer constants in `#if` and `#elif` while
+that instantiated source is being processed. The conditional sees the supplied
+argument or the parameter default, so profile selection remains compile-time; no
+run-time branch or parameter storage is emitted.
+
 ### Difference from `include`
 
 Ordinary `include` retains its current MD5-based include-once behavior.

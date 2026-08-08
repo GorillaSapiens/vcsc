@@ -11,7 +11,7 @@ all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/renderers/all_five_192/all_five_192.c26
+           $(VCS_DIR)/renderers/all_five/all_five.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

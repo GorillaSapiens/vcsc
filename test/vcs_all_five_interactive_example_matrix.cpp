@@ -62,6 +62,7 @@ Profile parse_profile(const std::string &name) {
    if (name == "all5_192") return {"all5_192", 95, false};
    if (name == "all5_above") return {"all5_above", 87, true};
    if (name == "all5_below") return {"all5_below", 87, true};
+   if (name == "all5_dual") return {"all5_dual", 79, true};
    fail("bad profile");
 }
 
@@ -366,7 +367,7 @@ Machine *Machine::active_ = nullptr;
 int main(int argc, char **argv) {
    if (argc != 16) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_countdown|none score_previous|none score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_countdown|none score_previous|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }

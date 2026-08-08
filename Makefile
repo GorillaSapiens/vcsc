@@ -136,18 +136,14 @@ install-data:
 	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26 \
 	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181
-	install -m 0644 libraries/vcs/renderers/all_five_181/README.md \
-	  libraries/vcs/renderers/all_five_181/all_five_181.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five
+	install -m 0644 libraries/vcs/renderers/all_five/README.md \
+	  libraries/vcs/renderers/all_five/all_five.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial
 	install -m 0644 libraries/vcs/renderers/all_five_181_unofficial/README.md \
 	  libraries/vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192
-	install -m 0644 libraries/vcs/renderers/all_five_192/README.md \
-	  libraries/vcs/renderers/all_five_192/all_five_192.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181
 	install -m 0644 libraries/vcs/renderers/player_color_181/README.md \
 	  libraries/vcs/renderers/player_color_181/player_color_181.c26 \
@@ -247,15 +243,12 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/all_five_181.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/all_five.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial/all_five_181_unofficial.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192/all_five_192.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_192 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/player_color_181.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181 2>/dev/null || true
@@ -456,8 +449,8 @@ installcheck: tools
 	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/all_five_181/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five_181/all_five_181.c26"; \
+	test -f "$$stage_vcs/renderers/all_five/README.md"; \
+	test -f "$$stage_vcs/renderers/all_five/all_five.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/all_five_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181.bin"; \
@@ -474,12 +467,14 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/all_five_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/all_five_192/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five_192/all_five_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/all_five_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_192.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/all_five_170/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_170.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_170.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/player_color_181/README.md"; \
 	test -f "$$stage_vcs/renderers/player_color_181/player_color_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -560,6 +555,7 @@ installcheck: tools
 	  "$(CURDIR)/examples/06_all_five_181" \
 	  "$(CURDIR)/examples/07_player_color_181_unofficial" \
 	  "$(CURDIR)/examples/08_all_five_181_unofficial" \
+	  "$(CURDIR)/examples/11_all_five_170" \
 	  -path '*/01_interactive/*.c26' -type f | sort); do \
 	  leaf=$$(dirname "$$src"); stem=$$(basename "$$src" .c26); extra=; \
 	  case "$$src" in *_unofficial/*) extra='-Wa,--illegals' ;; esac; \

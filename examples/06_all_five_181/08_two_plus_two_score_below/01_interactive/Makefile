@@ -13,7 +13,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/two_plus_two_score_component.c26 \
-           $(VCS_DIR)/renderers/all_five_181/all_five_181.c26 \
+           $(VCS_DIR)/renderers/all_five/all_five.c26 \
            $(ROOT)/examples/common/two_plus_two_controls.c26 \
            $(ROOT)/examples/common/all_five_181_interactive_common.c26 \
            $(VCS_DIR)/two_plus_two_score_support.c26

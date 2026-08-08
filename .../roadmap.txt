@@ -1360,6 +1360,16 @@ item, but the current work is intentionally following the user's requested item 
           required/default integer parameters with `parameter`. This lets the modern
           multisprite work use one renderer source parameterized by visible scanline
           count instead of multiplying 192-line, 181-line, and future renderer files.
+        * Parameterization proof completed 2026-08-08: collapse the official
+          all-five 192- and 181-line sources into one
+          `renderers/all_five/all_five.c26` with required `parameter lines;`.
+          Compile-time profiles `lines:=192`, `lines:=181`, and `lines:=170` are
+          raster/frame tested; the 170-line public interactive composition places
+          independent eleven-line scores above and below gameplay. This also proves
+          declared instantiation parameters can select `#if`/`#elif` timing code.
+          Keep the unofficial 181-line experiment separate. Use this established
+          pattern for the modern multisprite extraction rather than multiplying
+          scanline-count source families.
         * Remaining item-28 substep: derive one parameterized modern multisprite
           component from the faithful baseline, with visible-line count supplied at
           instantiation time. Prove 192-line and 181-line interactive compositions

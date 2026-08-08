@@ -9,7 +9,7 @@
 
 # `all_five_181` examples
 
-This group demonstrates the official-opcode `renderers/all_five_181/all_five_181.c26` lifecycle component. It draws
+This group demonstrates the official-opcode `renderers/all_five/all_five.c26` instantiated with `lines:=181` lifecycle component. It draws
 181 gameplay scanlines and P0, P1, M0, M1, and Ball; an adjacent eleven-line score-profile
 component completes the 192-line visible field.
 

@@ -1,0 +1,22 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
+<!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
+
+# all_five 170-line score-above-and-below interactive example
+
+This interactive cartridge instantiates the single official `all_five` renderer
+with `lines:=170`, then composes one eleven-line six-digit score above it and a
+second eleven-line score below it. The resulting visible field is exactly 192
+scanlines.
+
+Game Select cycles P0, P1, M0, M1, and Ball. The left joystick moves the selected
+object. The right joystick uses the same twenty-frame filtered digit-selection and
+packed-BCD editing convention as the other all-five score examples; the top
+score is editable while the lower score remains a contrasting static reference. Reset restores the initial scene.
+
+Build with `make`.

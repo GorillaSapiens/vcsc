@@ -4,18 +4,15 @@ ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-TARGET := all_five_181_poison_score_below_interactive.bin
-SOURCE := all_five_181_poison_score_below_interactive.c26
+TARGET := all_five_170_score_above_and_below_interactive.bin
+SOURCE := all_five_170_score_above_and_below_interactive.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
-           $(VCS_DIR)/frame_ntsc.c26 \
-           $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/renderers/poison_debug_score/poison_debug_score.c26 \
+$(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/frame_ntsc.c26 \
+           $(VCS_DIR)/playfield.c26 $(VCS_DIR)/six_glyph_color_component.c26 \
            $(VCS_DIR)/renderers/all_five/all_five.c26 \
-           $(ROOT)/examples/common/poison_score_controls.c26 \
-           $(ROOT)/examples/common/all_five_181_interactive_common.c26
+           $(VCS_DIR)/fonts/default_decimal.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@
 	@test `wc -c < $@` -eq 4096
 

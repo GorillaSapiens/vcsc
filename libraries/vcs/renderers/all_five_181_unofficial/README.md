@@ -10,7 +10,7 @@
 # All-five 181-line unofficial-opcode component
 
 `all_five_181_unofficial.c26` is the separately named experimental counterpart to
-`../all_five_181/all_five_181.c26`. It has the same lifecycle API, 23-byte
+the official `../all_five/all_five.c26` renderer instantiated with `lines:=181`. It has the same lifecycle API, 23-byte
 public state, 44-byte private state, 67-byte total RAM contract, 44-byte
 playfield contract, solid player colors, five-object behavior, and score-above
 or score-below composition rules. Assemble cartridges that instantiate it with

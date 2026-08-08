@@ -62,6 +62,7 @@ my @definitions=(
    [qw(examples 05_all_five_192 01_interactive all_five_192_interactive.c26)],
    [qw(examples common player_color_181_interactive_common.c26)],
    [qw(examples common all_five_181_interactive_common.c26)],
+   [qw(examples 11_all_five_170 01_score_above_and_below 01_interactive all_five_170_score_above_and_below_interactive.c26)],
 );
 
 for my $parts (@definitions) {
@@ -84,7 +85,7 @@ find(sub {
    return unless -f $_ && /\.c26\z/ && $File::Find::name =~ m{/01_interactive/};
    push @leaves,$File::Find::name;
 },File::Spec->catdir($repo,'examples'));
-@leaves==45 or die "found ".scalar(@leaves)." interactive sources, expected 45\n";
+@leaves==46 or die "found ".scalar(@leaves)." interactive sources, expected 46\n";
 for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);

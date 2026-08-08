@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasm: first_value:
+// expectasm: .byte $aa
+// expectasm: second_value:
+// expectasm: .byte $b5
+// expectasm: third_value:
+// expectasm: .byte $c0
+
+include "machine_6502.c26"
+instantiate "fixtures/instantiation_parameters/preprocessor_component.c26" as first (lines:=170)
+instantiate "fixtures/instantiation_parameters/preprocessor_component.c26" as second (lines:=181)
+instantiate "fixtures/instantiation_parameters/preprocessor_component.c26" as third

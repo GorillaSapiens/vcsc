@@ -47,7 +47,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
-my $component=File::Spec->catfile($vcs,qw(renderers all_five_181 all_five_181.c26));
+my $component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures all_five_181 smoke.c26));
 my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'all_five_181.bin');
@@ -60,10 +60,13 @@ without_usage($out) eq '' && $err eq ''
    or die "all-five 181 build wrote output\n$out$err";
 -s $bin == 4096 or die "all-five 181 cartridge is not exactly 4096 bytes\n";
 
-my $module=read_file($component);
+my $whole_module=read_file($component);
+$whole_module =~ /#elif TEMPLATE_lines == 181(.*?)#elif TEMPLATE_lines == 170/s
+   or die "could not isolate 181-line branch of unified all-five renderer\n";
+my $module=$1;
 my $fixture=read_file($source);
 my $map=read_file($mapfile);
-require_re($module,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/,
+require_re($module,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/,
    'component does not publish 181 visible scanlines');
 require_re($module,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*23/,
    'component public-RAM contract changed');
@@ -71,7 +74,7 @@ require_re($module,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*44/,
    'component private-RAM contract changed');
 require_re($module,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*67/,
    'component total-RAM contract changed');
-require_re($fixture,qr/instantiate\s+"renderers\/all_five_181\/all_five_181\.c26"\s+as\s+game/,
+require_re($fixture,qr/instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(lines:=181\)/,
    'fixture does not instantiate the gameplay template');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_wait_scanlines\(11\);/s,
    'fixture no longer accounts for 181 gameplay plus 11 score-reserved lines');

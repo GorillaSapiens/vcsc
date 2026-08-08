@@ -180,8 +180,8 @@ int main(int argc, char **argv) {
        !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
-   if (raster_rows != 0 && raster_rows != 11 && raster_rows != 12)
-      fail("checked raster row count must be 11 or 12");
+   if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 && raster_rows != 12)
+      fail("checked raster row count must be 10, 11, or 12");
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
       fail("source row count must equal checked rows or be 12 when checking 11");
    std::memset(memory_image, 0, sizeof(memory_image));
