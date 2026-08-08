@@ -1,0 +1,119 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Faithful source-integration baseline for the retained legacy BASIC
+// multisprite renderer.  This profile deliberately keeps the original
+// unbanked/non-Superchip RAM layout, multiplexing algorithm, integrated score,
+// stack-pointer tricks, unofficial opcodes, and monolithic frame ownership.
+// It is a reference profile, not yet the eventual composable VCSC interface.
+
+enum VCS_MULTISPRITE_contract {
+   VCS_MULTISPRITE_RAM_BYTES := 122,
+   VCS_MULTISPRITE_MULTIPLEXED_PLAYERS := 5,
+   VCS_MULTISPRITE_APPLICATION_BYTES := 26
+};
+
+union VCS_MULTISPRITE_application_storage {
+   uint8_t bytes[26];
+   uint16_t words[13];
+};
+
+struct VCS_MULTISPRITE_state {
+   // $80-$89: horizontal object state.
+   uint8_t missile0_x;
+   uint8_t missile1_x;
+   uint8_t ball_x;
+   uint8_t sprite_index;
+   uint8_t player0_x;
+   uint8_t new_sprite_x[5];
+
+   // $8A-$92: vertical object state.
+   uint8_t missile0_y;
+   uint8_t missile1_y;
+   uint8_t ball_y;
+   uint8_t player0_y;
+   uint8_t new_sprite_y[5];
+
+   // $93-$9C: per-multiplexed-player attributes.
+   uint8_t new_nusiz[5];
+   uint8_t new_colup1[5];
+
+   // $9D-$A1: sorted source-player indices.
+   uint8_t sprite_gfx_index[5];
+
+   // $A2-$A5: P0 pointer and vertical bounds.
+   uint8_t *player0_graphics;
+   uint8_t player0_bottom;
+   uint8_t player1_bottom;
+
+   // $A6-$AF: retained split pointer table for P1 multiplexed sprites.
+   uint8_t player_graphics_lo[5];
+   uint8_t player_graphics_hi[5];
+
+   // $B0-$B5: player heights.
+   uint8_t player0_height;
+   uint8_t sprite_height[5];
+
+   // $B6-$BA: playfield staging.
+   uint8_t pf1_temp1;
+   uint8_t pf1_temp2;
+   uint8_t pf2_temp1;
+   uint8_t pf2_temp2;
+   uint8_t pf_pixel_height;
+
+   // $BB-$BE: two retained playfield pointers.
+   uint8_t *pf1_pointer;
+   uint8_t *pf2_pointer;
+
+   // $BF-$C4: optional/status fields retained because their addresses are part
+   // of the original layout even though the minimal profile does not use every
+   // alias.
+   uint8_t statusbar_length;
+   uint8_t life_color;
+   uint8_t life_pointer;
+   uint8_t lives;
+   uint8_t playfield_position;
+   uint8_t pf_height;
+
+   // $C5-$CA: six score-pointer low bytes.
+   uint8_t score_pointers[6];
+
+   // $CB-$D1: renderer temporaries.  The original source aliases P1display to
+   // temp2/temp3, RepoLine to temp4, and P0Top to temp5.
+   uint8_t temp[7];
+
+   // $D2-$D6: score and retained random byte.  The legacy multisprite score
+   // is three display-order packed-BCD bytes, not a little-endian VCSC
+   // bcd24_t integer; the eventual game-logic boundary must adapt explicitly.
+   uint8_t score[3];
+   uint8_t score_color;
+   uint8_t rand;
+
+   // $D7-$F0: the legacy application-owned A..Z window.  The faithful fixed
+   // diagnostic uses only words[0] as address scratch while later item-28 work may establish
+   // the actual VCSC game-logic boundary here.
+   VCS_MULTISPRITE_application_storage application;
+
+   // $F1-$F5: persistent flicker-sort order.
+   uint8_t sprite_sort[5];
+
+   // $F6-$F9: renderer stack-save/scratch bytes.  $FA-$FF are deliberately
+   // left to the hardware return stack; the renderer temporarily points S into
+   // mirrored TIA space while emitting Ball/M1/M0 enables.
+   uint8_t stack_scratch[4];
+};
+
+VCS_MULTISPRITE_state vcs_multisprite_state;
+
+// Human-facing aliases for the fields used by the fixed diagnostic.
+alias vcs_multisprite_PLAYER0_X vcs_multisprite_state.player0_x
+alias vcs_multisprite_PLAYER1_X vcs_multisprite_state.new_sprite_x[0]
+alias vcs_multisprite_PLAYER2_X vcs_multisprite_state.new_sprite_x[1]
+alias vcs_multisprite_PLAYER3_X vcs_multisprite_state.new_sprite_x[2]
+alias vcs_multisprite_PLAYER4_X vcs_multisprite_state.new_sprite_x[3]
+alias vcs_multisprite_PLAYER5_X vcs_multisprite_state.new_sprite_x[4]
+alias vcs_multisprite_MISSILE0_X vcs_multisprite_state.missile0_x
+alias vcs_multisprite_MISSILE1_X vcs_multisprite_state.missile1_x
+alias vcs_multisprite_BALL_X vcs_multisprite_state.ball_x
+
+extern void vcs_multisprite_setup(void);
+extern void vcs_multisprite_drawscreen(void);

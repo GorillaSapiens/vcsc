@@ -257,6 +257,108 @@ void validate_sprite_oracle(const std::vector<Event> &events, bool alien_sprites
       "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n");
 }
 
+void validate_multisprite_oracle(const std::vector<Event> &events) {
+   auto fail = [](const char *message) {
+      std::fprintf(stderr, "vcs_faithful_legacy_compare: multisprite %s\n", message);
+      std::exit(1);
+   };
+
+   // Lock the complete stable visible TIA-write schedule, not merely register
+   // values.  Strobe data-bus values are intentionally normalized because TIA
+   // ignores them and harmless ROM relocation can change the accumulator there.
+   auto is_strobe = [](uint16_t address) {
+      return (address >= 0x0010 && address <= 0x0014) ||
+             address == 0x002a || address == 0x002b || address == 0x002c;
+   };
+   uint64_t hash = 1469598103934665603ULL;
+   auto hash_byte = [&hash](uint8_t byte) {
+      hash ^= byte;
+      hash *= 1099511628211ULL;
+   };
+   for (const Event &event : events) {
+      const uint8_t value = is_strobe(event.address) ? 0 : event.value;
+      for (unsigned shift = 0; shift != 64; shift += 8)
+         hash_byte(static_cast<uint8_t>(event.line >> shift));
+      for (unsigned shift = 0; shift != 64; shift += 8)
+         hash_byte(static_cast<uint8_t>(event.cycle >> shift));
+      hash_byte(static_cast<uint8_t>(event.address));
+      hash_byte(static_cast<uint8_t>(event.address >> 8));
+      hash_byte(value);
+   }
+   if (events.size() != 390 || hash != 0xf354d1b5e1870d47ULL) {
+      std::fprintf(stderr,
+         "vcs_faithful_legacy_compare: multisprite visible trace changed: "
+         "events=%zu hash=%016llx, expected 390/f354d1b5e1870d47\n",
+         events.size(), static_cast<unsigned long long>(hash));
+      std::exit(1);
+   }
+
+   struct Row { uint64_t line; uint64_t cycle; uint8_t value; };
+   std::vector<Row> p0;
+   std::vector<Row> p1;
+   std::vector<Row> p1_colors;
+   std::vector<Row> p1_repositions;
+   for (const Event &event : events) {
+      if (event.line >= 210) continue; // score field starts later
+      if (event.address == 0x001b && event.value)
+         p0.push_back({event.line, event.cycle, event.value});
+      if (event.address == 0x001c && event.value)
+         p1.push_back({event.line, event.cycle, event.value});
+      if (event.address == 0x0007)
+         p1_colors.push_back({event.line, event.cycle, event.value});
+      if (event.address == 0x0011)
+         p1_repositions.push_back({event.line, event.cycle, event.value});
+   }
+
+   const uint8_t expected_p0[] = {0x3c,0x66,0xc3,0xdb,0xdb,0xc3,0x66,0x3c};
+   if (p0.size() != 8) fail("P0 row count is not eight");
+   for (size_t i = 0; i < 8; ++i) {
+      if (p0[i].line != 68 + i * 2 || p0[i].cycle != 73 ||
+          p0[i].value != expected_p0[i])
+         fail("P0 glyph/timing changed");
+   }
+
+   const uint8_t expected_p1[5][8] = {
+      {0x3c,0x66,0x06,0x06,0x7c,0x60,0x60,0x7e},
+      {0x0c,0x0c,0xfe,0xcc,0x6c,0x3c,0x1c,0x0c},
+      {0x3c,0x66,0x06,0x06,0x3c,0x06,0x06,0x7c},
+      {0x7e,0x60,0x30,0x18,0x0c,0x06,0x66,0x3c},
+      {0x7e,0x18,0x18,0x18,0x18,0x78,0x38,0x18}
+   };
+   const uint64_t p1_first_line[] = {57,89,121,153,185};
+   if (p1.size() != 40) fail("multiplexed P1 row count is not forty");
+   for (size_t sprite = 0; sprite < 5; ++sprite) {
+      for (size_t row = 0; row < 8; ++row) {
+         const Row &actual = p1[sprite * 8 + row];
+         if (actual.line != p1_first_line[sprite] + row * 2 ||
+             actual.cycle != 11 || actual.value != expected_p1[sprite][row])
+            fail("multiplexed P1 glyph/timing changed");
+      }
+   }
+
+   const uint64_t color_lines[] = {55,87,119,151,183};
+   const uint8_t colors[] = {0x2e,0x5e,0xae,0xce,0x4e};
+   if (p1_colors.size() != 5) fail("multiplexed P1 color count changed");
+   for (size_t i = 0; i < 5; ++i) {
+      if (p1_colors[i].line != color_lines[i] || p1_colors[i].cycle != 31 ||
+          p1_colors[i].value != colors[i])
+         fail("multiplexed P1 color schedule changed");
+   }
+
+   const uint64_t reposition_lines[] = {53,85,117,149,181};
+   const uint64_t reposition_cycles[] = {63,54,44,39,29};
+   if (p1_repositions.size() != 5) fail("multiplexed P1 reposition count changed");
+   for (size_t i = 0; i < 5; ++i) {
+      if (p1_repositions[i].line != reposition_lines[i] ||
+          p1_repositions[i].cycle != reposition_cycles[i])
+         fail("multiplexed P1 reposition timing changed");
+   }
+
+   std::printf(
+      "vcs_faithful_legacy_compare multisprite oracle ok: "
+      "390 visible events, 264-line frames, six exact players\n");
+}
+
 uint64_t parse_raw_lines(const char *text) {
    char *end = nullptr;
    const unsigned long value = std::strtoul(text, &end, 10);
@@ -270,18 +372,22 @@ uint64_t parse_raw_lines(const char *text) {
 int main(int argc, char **argv) {
    if (argc == 4 &&
        (std::strcmp(argv[3], "--sprites") == 0 ||
-        std::strcmp(argv[3], "--alien-sprites") == 0)) {
+        std::strcmp(argv[3], "--alien-sprites") == 0 ||
+        std::strcmp(argv[3], "--multisprite") == 0)) {
       TraceMachine machine(argv[1]);
       const std::vector<Event> events =
          machine.run(parse_raw_lines(argv[2]), "oracle");
-      validate_sprite_oracle(events,
-         std::strcmp(argv[3], "--alien-sprites") == 0);
+      if (std::strcmp(argv[3], "--multisprite") == 0)
+         validate_multisprite_oracle(events);
+      else
+         validate_sprite_oracle(events,
+            std::strcmp(argv[3], "--alien-sprites") == 0);
       return 0;
    }
    if (argc != 5) {
       std::fprintf(stderr,
          "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n"
-         "       %s ROM.bin RAW_LINES --sprites|--alien-sprites\n", argv[0], argv[0]);
+         "       %s ROM.bin RAW_LINES --sprites|--alien-sprites|--multisprite\n", argv[0], argv[0]);
       return 2;
    }
    TraceMachine old_machine(argv[1]);

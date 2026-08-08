@@ -1,0 +1,17 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+include "vcs.c26"
+include "renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26"
+
+// The faithful fixed fixture owns initialization in assembly because the
+// retained renderer already consumes all 128 bytes of RIOT RAM.  Ordinary
+// VCSC game-logic integration is deliberately the next item-28 milestone.
+extern void vcs_multisprite_diagnostic_init(void);
+
+void main(void) {
+   vcs_multisprite_setup();
+   vcs_multisprite_diagnostic_init();
+   while (1) {
+      vcs_multisprite_drawscreen();
+   }
+}

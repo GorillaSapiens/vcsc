@@ -985,3 +985,20 @@ page objects, component-owned startup placement, one VBLANK-only bank1 hook,
 per-bank ROM and replicated bridge costs, 37-cycle cross-bank calls, RIOT and
 Superchip usage, 12 hardware-stack bytes, 20140-cycle frame length, exact raster
 identity, mapper restoration, and the consolidated one-cartridge public example.
+
+## Faithful legacy multisprite baseline
+
+`vcs_faithful_legacy_multisprite.pl` locks the first roadmap-item-28 milestone:
+the minimal NTSC, unbanked, non-Superchip retained multisprite profile.  It
+requires reproducible normalization, the exact `$80-$F9` 122-byte state object,
+six physical hardware-stack bytes at `$FA-$FF`, zero compiler activation RAM in
+the fixed diagnostic, the retained unofficial-opcode and TXS/PHP enable path,
+1471 bytes of diagnostic ROM, stable 264-line frames, and a complete 390-event
+visible TIA-write oracle.  The raster oracle independently pins P0 plus all five
+logical P1 sprites, their colors/reposition phases, asymmetric playfield, and
+integrated score timing.
+
+`vcs_faithful_legacy_multisprite_stella.pl` is the independent Stella 7.0
+certification for the same fixed cartridge.  Run it through
+`make stella-faithful-multisprite-test STELLA=/path/to/stella`; the default e2e
+suite does not require a graphical Stella installation.

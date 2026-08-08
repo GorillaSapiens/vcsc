@@ -14,6 +14,7 @@ STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
+STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 
 all: test
 
@@ -53,7 +54,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -127,6 +128,14 @@ install-data:
 	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26 \
 	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite
+	install -m 0644 libraries/vcs/renderers/faithful_legacy_multisprite/README.md \
+	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26 \
+	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc \
+	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26 \
+	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26 \
+	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181
 	install -m 0644 libraries/vcs/renderers/all_five_181/README.md \
 	  libraries/vcs/renderers/all_five_181/all_five_181.c26 \
@@ -231,6 +240,13 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181/all_five_181.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_181 2>/dev/null || true
@@ -426,6 +442,20 @@ installcheck: tools
 	  "$(CURDIR)/examples/02_faithful_legacy_playercolors/01_interactive/faithful_legacy_playercolors_interactive.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors_interactive.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors_interactive.bin"` -eq 4096; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/README.md"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26"; \
+	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg"; \
+	"$$stage_bin/vcsc" -nostdlib -I "$$stage_vcs" -Wa,--illegals \
+	  -T "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg" \
+	  "$(CURDIR)/examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic.c26" \
+	  "$(CURDIR)/examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26" \
+	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26" \
+	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26" \
+	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/all_five_181/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five_181/all_five_181.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -584,4 +614,10 @@ stella-player-color-192-test: tools
 	  "$(CURDIR)" "$(STELLA_PLAYER_COLOR_192_TEST_TMP)"
 	rm -rf $(STELLA_PLAYER_COLOR_192_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test docs
+stella-faithful-multisprite-test: tools
+	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_faithful_legacy_multisprite_stella.pl \
+	  "$(CURDIR)" "$(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)"
+	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
+
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test docs

@@ -1,0 +1,47 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Minimal faithful startup for the retained multisprite RAM contract.
+; The renderer owns $80-$F9 and needs all six bytes $FA-$FF for its ordinary
+; caller return plus two hidden nested JSR levels.  The stock VCSC startup calls
+; main with JSR and also needs zero/copy-table scratch, so this profile instead
+; clears RAM directly and tail-enters main exactly once.
+
+.import main
+.export __reset
+.export __nmi
+.export __irqbrk
+
+.segment "STARTUP"
+__reset:
+   sei
+   cld
+   ldx #$ff
+   txs
+
+   ; No stack is used while clearing the full RIOT RAM window.
+   lda #0
+   ldx #$7f
+@clear_ram:
+   sta $80,x
+   dex
+   bpl @clear_ram
+
+   ; Clear the TIA write-register window to a known startup state.
+   ldx #$2c
+@clear_tia:
+   sta $00,x
+   dex
+   bpl @clear_tia
+
+   ldx #$ff
+   txs
+   jmp main
+
+__nmi:
+__irqbrk:
+   rti
+
+.segment "VECTORS"
+   .word __nmi
+   .word __reset
+   .word __irqbrk

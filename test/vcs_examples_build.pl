@@ -38,6 +38,8 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $faithful_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
+my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
+my $faithful_multisprite_cfg=File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite.cfg');
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
 find({
@@ -67,6 +69,8 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
+   } elsif ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
+      push @extra,'-nostdlib','-Wa,--illegals','-T',$faithful_multisprite_cfg;
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
    } elsif ($file eq 'bankswitching_diagnostic.c26' ||
@@ -84,6 +88,12 @@ for my $entry (@examples) {
    if ($file eq 'banked_standard_renderer.c26') {
       push @renderer,File::Spec->catfile(
          $vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
+   }
+   if ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
+      push @renderer,
+         File::Spec->catfile($source_dir,'faithful_legacy_multisprite_diagnostic_data.s26'),
+         File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_renderer.s26'),
+         File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_startup.s26');
    }
    push @cmd,$source,@renderer,'-o',$bin;
    my($rc,$sig,$out,$err)=capture(@cmd);

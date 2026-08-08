@@ -23,10 +23,11 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 23 — investigate a fresh standard renderer that retains
-P0, P1, M0, M1, and Ball while adding per-row P0/P1 colors. Preserve the existing
-profiles, measure the actual RAM/ROM/timing cost, and abandon the variant rather
-than ship a fragile schedule if the hardware budget does not close.
+Current next action: 28 — continue the minimal unbanked/non-Superchip multisprite
+port from the now-locked faithful legacy baseline. Define and prove one stack-safe
+VCSC game-logic boundary inside the retained 26-byte application window before
+adding any multisprite variants. Item 23 remains an earlier unfinished item, but
+the current work is intentionally following the user's requested item 28.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1293,17 +1294,50 @@ than ship a fragile schedule if the hardware budget does not close.
         regression design, examples, installation, and how a new profile remains
         separate from existing profiles.
 
-[ ] 27. Inventory and define the source-integration contract for one minimal
+[x] 27. Inventory and define the source-integration contract for one minimal
         multisprite renderer profile. Keep it separate from every standard-renderer
         profile, make its near-complete RIOT RAM ownership and hardware-stack
         tricks explicit, normalize only the required retained source, and defer
         bankswitching and Superchip RAM to their own later milestones.
+
+        Completed 2026-08-08:
+
+        * Select exactly the retained NTSC, unbanked 4K, non-Superchip, default
+          88-line gameplay profile with integrated six-digit score and all optional
+          multisprite feature conditionals disabled.
+        * Define the exact legacy `$80-$F9` 122-byte state layout, including the
+          historical 26-byte `A..Z` application window, and reserve `$FA-$FF` for
+          the measured six-byte physical hardware stack.
+        * Normalize the selected retained source reproducibly without editing the
+          imported legacy files. Preserve the legacy LAX path and TXS/PHP object-
+          enable trick, and keep this profile separate from standard renderers,
+          bankswitching, and Superchip work.
+        * Add a custom tail-entry startup because the stock runtime startup cannot
+          coexist with this profile's complete RIOT-RAM ownership.
 
 [ ] 28. Port and verify the minimal unbanked, non-Superchip multisprite profile.
         Build a fixed diagnostic cartridge first, then connect one stack-safe
         VCSC game-logic boundary. Lock object multiplexing, playfield and score
         timing, RAM ownership, hidden stack depth, exact frame length, visible
         raster behavior, and measured ROM cost before adding cartridge variants.
+
+        Progress 2026-08-08 — faithful fixed baseline complete:
+
+        * Add the `faithful_legacy_multisprite` profile and a fixed diagnostic
+          showing independent P0 plus five distinct logical sprites multiplexed
+          through P1, asymmetric playfield data, and integrated score `123456`.
+        * Lock the fixed cartridge at 1471/4090 ROM bytes and exactly 122 state +
+          6 hardware-stack = 128/128 RIOT-RAM bytes, with zero compiler activation
+          RAM and stable 264-line legacy frames.
+        * Lock the complete visible TIA-write event stream plus exact P0/P1 raster,
+          P1 color/reposition phases, score/playfield timing, normalization, and
+          hidden-stack ownership in the default e2e suite. Add an independent
+          reviewed Stella 7.0 raster certification.
+        * Keep the three score bytes explicitly as display-order packed BCD rather
+          than falsely typing them as VCSC `bcd24_t`.
+        * Remaining item-28 substep: connect and prove one stack-safe ordinary VCSC
+          game-logic boundary using the retained 26-byte application window. Do not
+          add bankswitching, Superchip, optional legacy features, or variants first.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in
