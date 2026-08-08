@@ -66,6 +66,62 @@
       "rom_saved_bytes" : 64,
       "sprite_frames_3_bytes" : 192
    },
+   "completion_gates" : {
+      "ball_capability_retained" : true,
+      "baseline" : {
+         "activation_bytes" : 20,
+         "free_ram_bytes" : 0,
+         "ram_bytes" : 128,
+         "rom_bytes" : 3993,
+         "stack_bytes" : 8
+      },
+      "decision" : "retain-general-renderers-no-two-sprite-split",
+      "final" : {
+         "activation_bytes" : 1,
+         "free_ram_bytes" : 72,
+         "ram_bytes" : 56,
+         "rom_bytes" : 3292,
+         "stack_bytes" : 4
+      },
+      "free_ram_percent" : 56.25,
+      "item14_remains" : true,
+      "meaningful_free_ram" : true,
+      "optional_two_sprite_profiles" : {
+         "item11_192" : "closed-unnecessary",
+         "item12_181" : "closed-unnecessary"
+      },
+      "ram_savings" : {
+         "activation_total" : 19,
+         "compact_lowering" : 5,
+         "hardware_stack" : 4,
+         "item2_incremental" : 0,
+         "other_item1_lifetime_overlay" : 1,
+         "persistent_state" : 3,
+         "phase_overlay" : 1,
+         "renderer" : 46,
+         "repeated_inline_within_item1" : 12,
+         "total" : 72
+      },
+      "retained_architecture" : [
+         "player_color_192:p0-p1-ball",
+         "player_color_181:p0-p1-ball",
+         "player_color_181_unofficial:p0-p1-ball",
+         "all_five_192:p0-p1-m0-m1-ball",
+         "all_five_181:p0-p1-m0-m1-ball",
+         "all_five_181_unofficial:p0-p1-m0-m1-ball"
+      ],
+      "rom_savings" : {
+         "alignment_padding" : 64,
+         "compact_lowering" : 331,
+         "hardware_stack" : 0,
+         "high_level_install_frames_net" : 38,
+         "lifetime_and_inline_overlay" : 0,
+         "persistent_state" : 15,
+         "phase_overlay" : 0,
+         "renderer_final" : 253,
+         "total" : 701
+      }
+   },
    "direct_countdown_renderer" : {
       "ball_capability_retained" : true,
       "delta" : {
@@ -683,7 +739,7 @@
       "test/vcs_playfield_phase.cpp",
       "test/vcs_player_color_192_stella.pl"
    ],
-   "schema" : 13,
+   "schema" : 14,
    "totals" : {
       "category_bytes" : {
          "activation_scratch" : 1,

@@ -973,7 +973,7 @@ Ordered roadmap
       Stella 7.0 snapshot independently certifies the visible player-color-192
       playfield raster.
 
-[ ] 11. Only if a generally useful capability split is still justified, create a
+[x] 11. Only if a generally useful capability split is still justified, create a
          192-line two-sprite-only renderer.
 
     * This is a new maintained renderer profile, not a silent weakening of
@@ -984,7 +984,15 @@ Ordered roadmap
       work deliberately and document the RAM/ROM/timing savings.
     * Provide interactive examples and independent raster/timing/install tests.
 
-[ ] 12. Only if a generally useful capability split is still justified, create an
+    Closed as unnecessary after final measurement. The retained official-opcode
+    P0/P1/Ball `player_color_192` component uses only 23 bytes of component RAM,
+    and the complete animated gallery uses 56/128 RIOT-RAM bytes with **72 bytes
+    free (56.25%)**. Removing Ball would therefore create another maintained
+    renderer family without solving an actual RAM constraint. Retain the general
+    renderer and do not add the two-sprite-only profile absent a concrete future
+    program that demonstrates a distinct need.
+
+[x] 12. Only if a generally useful capability split is still justified, create an
          181-line two-sprite-only renderer.
 
     * This is the score-composable counterpart to item 11.
@@ -996,7 +1004,15 @@ Ordered roadmap
     * Do not fork shared timing logic unnecessarily; derive it from the proven
       maintained 181-line renderer schedule.
 
-[ ] 13. Establish completion gates and choose the retained architecture.
+    Closed as unnecessary after final measurement. The retained official 181-line
+    P0/P1/Ball component is only **24 component RAM bytes**; the centered public
+    score composition uses 65/128 RAM bytes with 63 free, and even the maintained
+    wide-score compositions fit at 118/128 with ten bytes free. The unofficial
+    twin has the same RAM contract. A second two-sprite-only score-composable
+    family would add examples, timing contracts, installation coverage, and
+    maintenance burden without an identified application requirement.
+
+[x] 13. Establish completion gates and choose the retained architecture.
 
     * The optimized gallery must have meaningful free RAM for application/game
       state; merely reaching 128/128 again is failure.
@@ -1011,6 +1027,53 @@ Ordered roadmap
     * Update `.../context.txt`, `.../roadmap.txt` where cross-references are
       appropriate, renderer READMEs, compiler ABI/developer documentation, and
       the daily history.
+
+    Completion decision and final accounting:
+
+    * **Retained architecture:** keep the existing general P0/P1/Ball
+      `player_color_192` and `player_color_181` profiles, plus the maintained
+      all-five profiles and their deliberately separate unofficial twins. Do not
+      add 192- or 181-line two-sprite-only profiles without a future concrete use
+      case. Items 11 and 12 are therefore closed as unnecessary, not deferred.
+    * The animated-gallery map moves from the measured baseline **3993/4090 ROM,
+      128/128 RAM, 0 free** to **3292/4090 ROM, 56/128 RAM, 72 free**. The final
+      128-byte RAM ownership is: 8 runtime scratch, 39 renderer state (13 public,
+      10 private, 16 mutable row colors), 4 persistent gallery state, 1 `main`
+      activation byte, 4 hardware-stack bytes, and 72 unallocated bytes.
+    * The **72 RAM bytes recovered** reconcile exactly: 19 activation bytes,
+      3 persistent-state bytes, 4 hardware-stack bytes, and 46 renderer bytes.
+      Within the activation work, repeated-inline accounting attributes 12 bytes
+      of the item-1 reduction to eliminating two duplicated six-byte `next_pair()`
+      scratch footprints; item 2 added no further physical bytes because item 1's
+      activation-owner lifetime coloring had already delivered that sharing.
+      Compact byte lowering removes another five activation bytes and frame-phase
+      overlay removes the final one.
+    * The **701 ROM bytes recovered** also reconcile exactly: compact lowering
+      saves 331; replacing hand-written `install_frames()` with ordinary VCSC plus
+      its optimizer follow-up is a net 38-byte gallery saving versus the old
+      hand-written version; removing literal alignment padding saves 64; packed
+      persistent bookkeeping saves 15; and the final direct-countdown renderer,
+      including all accepted Ball/playfield correctness repairs, saves 253.
+      Expression/inline lifetime overlay, phase overlay, and stack-depth reduction
+      add no ROM cost at their final checkpoints.
+    * `install_frames()` remains ordinary VCSC at 232 linked bytes with zero
+      activation bytes. The hardware stack is four bytes, the conservative floor
+      under the current startup/call ABI. Ball remains a supported public object;
+      the gallery merely chooses height zero. Visible pairs remain 152 CPU cycles,
+      the frame remains 192 visible / 262 total lines, and the final playfield/
+      delayed-Ball fixes are explicitly accepted renderer correctness repairs.
+    * The authoritative accounting fixture is schema **14** and pins both the
+      before/after ownership maps and this retained-architecture decision. The
+      compiler ABI/developer documentation was audited against the final result;
+      no additional ABI change is introduced by this closeout because activation
+      lifetime coloring, phase workspace ownership, and hardware-stack accounting
+      were documented when implemented.
+    * Completion gates pass: **455/455 compile-only**, **260/260 end-to-end**,
+      recursive public examples, staged `installcheck`, source-tree hygiene, the
+      focused simulator/raster/accounting oracles, and the reviewed Stella 7.0
+      player-color-192 raster certification. The RAM optimization campaign has a
+      meaningful 56.25% application-state margin and is complete except for the
+      separately scoped ordinary-application-assembly cleanup in item 14.
 
 [ ] 14. Remove remaining ordinary application assembly recorded by the example allowlist.
 

@@ -236,7 +236,7 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>13,
+   schema=>14,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
       rom_bytes=>3292, rom_free_bytes=>798,
@@ -342,6 +342,33 @@ my $report={
          {step=>'item10a-stella', rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>3, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
       ],
    },
+   completion_gates=>{
+      retained_architecture=>[
+         'player_color_192:p0-p1-ball',
+         'player_color_181:p0-p1-ball',
+         'player_color_181_unofficial:p0-p1-ball',
+         'all_five_192:p0-p1-m0-m1-ball',
+         'all_five_181:p0-p1-m0-m1-ball',
+         'all_five_181_unofficial:p0-p1-m0-m1-ball',
+      ],
+      optional_two_sprite_profiles=>{item11_192=>'closed-unnecessary',item12_181=>'closed-unnecessary'},
+      baseline=>{rom_bytes=>3993,ram_bytes=>128,free_ram_bytes=>0,activation_bytes=>20,stack_bytes=>8},
+      final=>{rom_bytes=>3292,ram_bytes=>56,free_ram_bytes=>72,activation_bytes=>1,stack_bytes=>4},
+      ram_savings=>{
+         total=>72, activation_total=>19, persistent_state=>3, hardware_stack=>4, renderer=>46,
+         repeated_inline_within_item1=>12, other_item1_lifetime_overlay=>1,
+         compact_lowering=>5, phase_overlay=>1, item2_incremental=>0,
+      },
+      rom_savings=>{
+         total=>701, compact_lowering=>331, high_level_install_frames_net=>38,
+         alignment_padding=>64, persistent_state=>15, renderer_final=>253,
+         lifetime_and_inline_overlay=>0, phase_overlay=>0, hardware_stack=>0,
+      },
+      meaningful_free_ram=>JSON::PP::true, free_ram_percent=>56.25,
+      ball_capability_retained=>JSON::PP::true,
+      item14_remains=>JSON::PP::true,
+      decision=>'retain-general-renderers-no-two-sprite-split',
+   },
    direct_countdown_renderer=>{
       official_opcodes=>JSON::PP::true,
       ball_capability_retained=>JSON::PP::true,
@@ -381,4 +408,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 72 free bytes, direct-countdown renderer state, phase-overlaid VSYNC scratch, packed persistent gallery state, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative schema-14 JSON baseline\n";

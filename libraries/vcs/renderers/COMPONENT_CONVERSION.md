@@ -333,6 +333,22 @@ pixels on every scanline, visible output from all five objects, official
 mnemonics only, exact RAM/page/stack contracts, and source plus staged-installed
 builds.
 
+## RAM-optimization architecture closeout
+
+Final RAM measurement does **not** justify separate P0/P1-only 192- or 181-line
+component families. The general official `player_color_192` profile retains P0,
+P1, and Ball in 23 component RAM bytes; the animated gallery uses 56/128 RIOT RAM
+bytes and leaves 72 bytes free. The official `player_color_181` profile retains the
+same three gameplay objects in 24 component RAM bytes, and its ordinary centered
+score composition leaves 63 RAM bytes free. Even the maintained wide-score
+composition fits with ten bytes free.
+
+The retained architecture is therefore the existing general P0/P1/Ball pair plus
+the all-five families and their explicitly named unofficial twins. A future
+two-sprite-only renderer should be added only for a concrete program whose measured
+requirements justify another public timing/API profile, not as a generic RAM
+optimization.
+
 ## Stop-ship row-boundary raster repair
 
 The inherited two-line renderer cleared PF1 and PF2 at cycles 18 and 21 of every

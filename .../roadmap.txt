@@ -1224,6 +1224,13 @@ than ship a fragile schedule if the hardware budget does not close.
 # items 29 and 30 were complete but stale here and are corrected below. Items
 # 23, 25-28, 31-33, and 35-43 still lack at least one defining deliverable.
 
+# RAM OPTIMIZATION CLOSEOUT 2026-08-07: `.../ram_optimization.txt` items 0-13
+# are complete. Measured free RIOT RAM in the animated gallery is 72/128 bytes
+# while retaining the general P0/P1/Ball renderer, so the optional 192- and
+# 181-line P0/P1-only capability splits were closed as unnecessary. RAM item 14
+# remains a separate ordinary-application-assembly cleanup; main task 23 remains
+# paused until that focused workstream is explicitly left.
+
 [ ] 23. If possible, add another standard-renderer variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
         color tables. Treat this as a fresh cycle-scheduled profile rather than

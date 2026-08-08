@@ -830,12 +830,16 @@ RAM/ROM report. It regenerates
 every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
 records compiler scratch diagnostics, proves both sequential `next_pair()`
 expansions allocate zero expression scratch, and checks the linker's source-call
-edges, deepest path, and explicit `.callstackextra` contribution. Schema 13 records
+edges, deepest path, and explicit `.callstackextra` contribution. Schema 14 records
 the completed optimization sequence through the official-opcode direct-countdown
 `player_color_192` renderer. The former 48-byte `game_object_masks` schedule is
 absent; renderer private RAM falls from 56 to 10 bytes and total renderer RAM from
 69 to 23. The gallery is now **3292/4090 ROM bytes** and **56/128 RAM bytes**, with
 **72 RAM bytes free**: 52 object bytes plus a four-byte hardware-stack reserve.
+Schema 14 also records the RAM-roadmap completion decision: retain the general
+P0/P1/Ball renderer, close the optional two-sprite-only 192/181 profiles as
+unnecessary by measurement, and reconcile the complete 3993-to-3292 ROM and
+128-to-56 RAM before/after accounting by optimization category.
 Relative to the item-8 mask-renderer checkpoint, the direct-countdown renderer
 plus the delayed-Ball and playfield-transition corrections saves 253 ROM bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
 measured VBLANK marker span falls from 920 to 468 CPU cycles. Every visible two-

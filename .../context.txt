@@ -285,12 +285,12 @@ When removing or changing a feature:
 
 The current completely verified baseline is:
 
-    compile-only:             442 passed
-    end-to-end/generic:       255 passed
-    staged installed tools:   previously passed, including all final cartridge builds
+    compile-only:             455 passed
+    end-to-end/generic:       260 passed
+    staged installed tools:   passed, including all final cartridge builds
 
-The active RAM work has been verified against all 442 compile-only tests and all
-255 end-to-end tests. The end-to-end inventory is executed in ordered capped
+The active RAM work has been verified against all 455 compile-only tests and all
+260 end-to-end tests. The end-to-end inventory is executed in ordered capped
 batches because the container imposes a hard wall-clock limit on one monolithic
 command; every listed case must run and pass. Exact raster, event-trace, frame-
 length, bankswitching, installed-profile, assembly-policy, and source-hygiene
@@ -348,7 +348,7 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-13 report records a one-byte `main`
+The animated gallery's authoritative schema-14 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
 scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
 48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
@@ -412,20 +412,23 @@ Public-example assembly remains audited by `test/example_assembly_allowlist.pl`.
 beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
 score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-RAM-roadmap item 10a is complete. `player_color_181` and its unofficial twin now use
-mask-free direct countdowns and publish a 13-public/11-private/24-total-byte contract.
-The all-five 192 renderer retains its cycle-critical Ball/M1/M0 schedule but reuses the
-dead fourth lane for scratch, reducing 78 to 71 component bytes; both all-five 181 twins
-similarly fall from 74 to 67 bytes. The official/unofficial 181 player-color smoke links
-are now size-identical at 1428 ROM bytes; the all-five 181 pair are size-identical at
-1795. The next RAM-optimization decision remains item 11: determine whether a generally
-useful two-sprite-only 192-line capability split is still justified. Do not create it
-merely to reduce the gallery.
+RAM-roadmap items 0-13 are complete. The final architecture retains the general
+P0/P1/Ball `player_color_192` and `player_color_181` profiles plus the all-five
+families and their explicitly separate unofficial twins. The optional 192- and
+181-line P0/P1-only profiles are closed as unnecessary: the animated gallery now
+uses 56/128 RAM with 72 free, the official 181 component is only 24 bytes, and
+even the maintained wide-score 181 compositions fit at 118/128 RAM. Do not create
+a two-sprite-only profile without a concrete future program that justifies another
+maintained timing/API surface.
 
-Final verification for RAM-roadmap item 10a is **455/455 compile-only** and
-**260/260 end-to-end**. This includes the componentized renderer edge/timing oracles,
-public score/gameplay composition matrix, wide-score 181 compositions, schema-13 RAM
-accounting, the complete animated-gallery emulator, and source-tree hygiene.
+The authoritative schema-14 accounting closes the RAM campaign from 3993 ROM /
+128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
+bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Final
+verification is **455/455 compile-only**, **260/260 end-to-end**, recursive public
+examples, staged installcheck, focused simulator/raster/accounting oracles, source
+hygiene, and the reviewed Stella 7.0 player-color-192 certification. The next RAM
+roadmap item is 14, the separately scoped removal of ordinary application assembly
+recorded by the example allowlist.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed
