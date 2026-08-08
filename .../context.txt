@@ -436,7 +436,13 @@ that accounting unchanged. The compiler-only suite is now **458/458** with the t
 new compact-lowering regressions; the complete end-to-end suite is now **261/261** after adding the faithful
 multisprite baseline oracle. Recursive public examples, staged
 `installcheck`, focused simulator/raster/accounting oracles, source hygiene, and the
-reviewed Stella 7.0 player-color-192 certification remain green.
+reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
+treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
+build products, like `.map/.sym/.lst`; hygiene therefore passes both before and
+after `make clean`. Checked-in library/profile `.cfg` files remain license-audited.
+The exact regression leaves the faithful-multisprite diagnostic `.cfg` sidecar present
+through the complete test run; compiler-only is 458/458 and e2e is 261/261 in that
+dirty-by-normal-build-products state.
 
 The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap

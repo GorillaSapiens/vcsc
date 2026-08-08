@@ -10,3 +10,9 @@
 - Fixed the diagnostic's white staircase stripes by honoring the legacy P0 record convention: an eight-row glyph uses height 9 with a low-address zero sentinel. Without that ninth clear draw, the final P0 row `%00111100` remained latched in `GRP0`; later P1 reposition `HMOVE` strobes repeatedly shifted the stale four-pixel bar sideways.
 - Strengthened `vcs_faithful_legacy_compare` to require the exact P0 zero clear at visible-trace line 84/cycle 45 and upright P1 row bytes. The complete visible event stream is now 391 writes. Updated the reviewed Stella 7.0 reference raster and corrected the fixed diagnostic cost from 1471 to 1472 ROM bytes; RAM remains exact 122 state + 6 stack = 128/128.
 - Verification: focused faithful multisprite oracle and Stella certification pass, source-tree hygiene passes, compiler-only remains 458/458, and all 261 e2e cases are accounted for as passing. Item 28 remains active at the same next boundary: prove one stack-safe ordinary VCSC game-logic boundary inside the retained 26-byte A..Z window.
+
+2026-08-08 11:02:00 PDT, make source hygiene tolerate generated example Stella cfg sidecars
+- Fixed `source_tree_hygiene.pl` after a normal public-example build exposed that same-stem linker/Stella `.cfg` sidecars were being mistaken for editable example sources and rejected for lacking an `examples/LICENSE.txt` CC0 notice.
+- Example `.cfg` sidecars are now classified with `.map/.sym/.lst` as generated build products. Checked-in linker/profile `.cfg` files under `libraries/` remain subject to the normal explicit CC0 audit.
+- Regression procedure deliberately leaves `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic.cfg` present while running source-tree hygiene, matching the user workflow that exposed the bug.
+- Verification with that generated sidecar left in place: 458/458 compile-only and 261/261 e2e pass, including source-tree hygiene in normal suite order.

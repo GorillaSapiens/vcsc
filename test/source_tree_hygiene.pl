@@ -55,7 +55,12 @@ for my $tree (qw(libraries examples)) {
          ($path eq $animated_license || index($path,$animated_root . '/')==0);
       my $rel=File::Spec->abs2rel($path,$repo);
       next if $rel =~ /(?:^|\/)(?:wrk)(?:\/|$)/;
+      # Linker/Stella sidecars produced beside public example ROMs are build
+      # products, not editable example sources.  In particular, ordinary example
+      # builds leave a same-stem .cfg behind until `make clean`; hygiene must be
+      # valid before or after that cleanup just as it is for .map/.sym/.lst.
       next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
+      next if $tree eq 'examples' && $rel =~ /\.cfg\z/;
       basename($path) !~ /(?:license|copying|copyright)/i
          or die "subordinate license file remains under $tree: $rel\n";
       my $body=slurp($path);
