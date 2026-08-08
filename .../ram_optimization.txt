@@ -711,7 +711,7 @@ Ordered roadmap
     * Final verification is **455/455 compile-only** and **260/260 end-to-end**
       tests in bounded batches with no timing/raster oracle changes.
 
-[ ] 7. Reduce hardware-stack reservation by measurement, not by blanket inlining.
+[x] 7. Reduce hardware-stack reservation by measurement, not by blanket inlining.
 
     * Report source calls and hidden assembly JSR depth separately in the map.
     * Evaluate flattening `prepare_one`/`set_range`, tail-jumping, or converting
@@ -724,7 +724,36 @@ Ordered roadmap
       do not rely on an ABI accident.
     * Keep the linker hardware-stack calculation conservative and exact.
 
-[ ] 8. Remeasure the animated gallery on the existing P0/P1/Ball renderer after
+    Completed result:
+
+    * The authoritative gallery map before this item reported source-call depth
+      2 = four bytes (`startup -> main` plus one ordinary `main` callee) and a
+      four-byte `.callstackextra` allowance from the renderer, for **8 hardware-
+      stack bytes total**. The hidden depth came from the VBLANK chain through
+      the single-use `prepare_object_masks` wrapper and single-use `prepare_one`
+      wrapper into `set_range`.
+    * Measured alternatives rather than applying blanket inlining. Flattening only
+      `prepare_object_masks` reduced the reserve to **6 bytes**. Flattening both
+      single-use wrappers leaves only `set_range` as an assembly subroutine and
+      reduces the reserve to the source-call floor of **4 bytes**. The renderer
+      carries explicit `.callstackextra 0` metadata to record that the remaining
+      assembly JSR was audited rather than silently omitted from accounting.
+    * The final linked gallery remains **3545/4090 ROM bytes**; the helper changes
+      do not increase final ROM. VBLANK helper overhead decreases, while exact
+      262-line scheduler and renderer timing/raster oracles remain unchanged.
+    * Total gallery RAM falls from **106/128 to 102/128 bytes**, with object bytes
+      unchanged at 98 and hardware-stack bytes falling from 8 to 4. Free RAM rises
+      from **22 to 26 bytes**. The `main` activation remains one byte and
+      `install_frames()` remains 232 linked bytes.
+    * Four stack bytes are the conservative minimum under the current ABI because
+      stock startup enters `main` with JSR and the program has a genuine ordinary
+      `main -> install_frames` / deadline-helper call depth. A no-return startup
+      path could only be evaluated as a separate startup/ABI optimization; it was
+      not used to obtain this result.
+    * The authoritative animated-gallery RAM fixture is schema 8 and records the
+      source/hidden split explicitly: source=4 bytes, hidden=0, total=4.
+
+[x] 8. Remeasure the animated gallery on the existing P0/P1/Ball renderer after
         compiler and application-state optimization.
 
     * Retain Ball capability in `player_color_192` even though this particular
@@ -733,6 +762,55 @@ Ordered roadmap
       preserving the current general renderer.
     * Record ROM, RAM, activation, and stack deltas item by item.
     * Do not create a gallery-only renderer merely because it is easy.
+
+    Completed remeasurement:
+
+    * A fresh build of the unchanged general `player_color_192` gallery reports
+      **3545/4090 ROM bytes** and **102/128 RIOT-RAM bytes**, leaving **545 ROM
+      bytes** and **26 RAM bytes** free. `main` owns one activation byte and the
+      hardware return stack reserves four bytes. The full animation/control/color
+      emulator oracle still passes with exact 262-line frames.
+    * Ball capability is still present in the maintained renderer and in the
+      linked gallery state (`game_ball_x`, `game_ball_y`, and `game_ball_height`);
+      this gallery simply initializes Ball height to zero. No gallery-only or
+      two-sprite renderer was introduced to obtain the margin.
+    * The item-by-item accounting below uses the measurements already pinned by
+      each completed roadmap slice. The final row was regenerated from the
+      current linker map during this item. Item 2 has no separate incremental
+      row change because its repeated-inline sharing was already delivered by
+      item 1's activation-owner lifetime coloring. Item 4a and item 5a are shown
+      separately because they materially changed ROM after their parent items.
+
+          checkpoint   ROM   dROM   RAM   dRAM   activation   dact   stack   dstack   free RAM
+          baseline    3993      -   128      -           20      -       8        -          0
+          item 1      3993      0   115    -13            7    -13       8        0         13
+          item 2      3993      0   115      0            7      0       8        0         13
+          item 3      3662   -331   110     -5            2     -5       8        0         18
+          item 4      3854   +192   110      0            2      0       8        0         18
+          item 4a     3624   -230   110      0            2      0       8        0         18
+          item 5      3624      0   109     -1            1     -1       8        0         19
+          item 5a     3560    -64   109      0            1      0       8        0         19
+          item 6      3545    -15   106     -3            1      0       8        0         22
+          item 7      3545      0   102     -4            1      0       4       -4         26
+
+      Net from the measured pre-optimization baseline: **448 ROM bytes saved,
+      26 RIOT-RAM bytes saved, 19 activation bytes removed, and four hardware-
+      stack bytes removed**. Free RAM rises from zero to 26 bytes, or **20.31% of
+      RIOT RAM**.
+    * Twenty-six free bytes is a meaningful application-state margin for this
+      gallery while retaining the general P0/P1/Ball renderer. The renderer is
+      therefore sufficient for the gallery after compiler/application cleanup.
+      The direct-countdown work in the next item remains worthwhile as a general
+      renderer RAM optimization, not as an emergency prerequisite for fitting
+      this example.
+    * The authoritative machine-readable fixture is now schema 9 and records the
+      same remeasurement decision, checkpoint table, total deltas, retained Ball
+      capability, and current 26-byte free margin so later renderer work cannot
+      quietly rewrite the before/after story.
+    * Final verification is **455/455 compile-only** and **260/260 end-to-end**
+      tests in bounded batches, including source-tree hygiene, the authoritative
+      accounting fixture, the complete animation oracle, and renderer/bankswitching
+      regressions.
 
 [ ] 9. Replace or redesign `game_object_masks` using an official-opcode direct-
         countdown technique derived from the faithful legacy renderer.

@@ -31,7 +31,11 @@ eleven-line score inside the standard visible field.
 RAM contract: 13 public bytes, 56 private bytes, 69 bytes total. The component
 contains one page-contained 16-byte fine-motion table. Missiles are unavailable.
 It owns no score/font, VSYNC, VBLANK, or RIOT timer state and uses only official
-NMOS 6502 opcodes.
+NMOS 6502 opcodes. Its VBLANK mask builder flattens the two single-use helper
+wrappers; only the shared `set_range` body remains an assembly subroutine. The
+object therefore declares `.callstackextra 0`: that remaining hidden JSR is
+explicitly audited and never requires more hardware-stack bytes than the ordinary
+source-call reserve already needs.
 
 P0, P1, and Ball are positioned entirely during VBLANK. The first P1/Ball half
 and the left half of playfield row zero are staged while output is blanked, so

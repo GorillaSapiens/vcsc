@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 22 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline
+# expectstdout: vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 26 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline
 # expectexit: 0
 
 use strict;
@@ -77,8 +77,8 @@ index($asm,'__phaseworkspace$V1$game_object_masks')>=0
    or die "renderer object-mask workspace lacks explicit phase-workspace ownership metadata\n";
 $map =~ /rom\s+used=3545 bytes .*free=545 bytes/
    or die "3545-byte packed-state animated-gallery ROM result changed\n";
-$map =~ /ram\s+used=106 bytes .*free=22 bytes .*objects=98 bytes hardware-stack=8 bytes/
-   or die "106-byte packed-state RAM result changed\n";
+$map =~ /ram\s+used=102 bytes .*free=26 bytes .*objects=98 bytes hardware-stack=4 bytes/
+   or die "102-byte stack-reduced RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
    or die "optimized high-level install_frames code size changed from 232 bytes\n";
 $map !~ /^\s+BSS\.__vcsc_activation\$install_frames\b/m
@@ -118,8 +118,8 @@ my @hidden;
 while ($map =~ /^\s+HIDDEN bytes=\$([0-9A-Fa-f]{4}) reason=(\S+) object=\S+$/mg) {
    push @hidden,{bytes=>hexnum($1),reason=>$2};
 }
-@hidden==1 && $hidden[0]{bytes}==4 && $hidden[0]{reason} eq '.callstackextra'
-   or die "hidden hardware-stack explanation changed\n";
+@hidden==1 && $hidden[0]{bytes}==0 && $hidden[0]{reason} eq '.callstackextra'
+   or die "audited zero-byte hidden hardware-stack explanation changed\n";
 $map =~ /^\s+TOTAL source-bytes=\$([0-9A-Fa-f]{4}) hidden-bytes=\$([0-9A-Fa-f]{4}) total-bytes=\$([0-9A-Fa-f]{4})$/m
    or die "map missing hardware-stack total explanation\n";
 my %stack_totals=(source_bytes=>hexnum($1),hidden_bytes=>hexnum($2),total_bytes=>hexnum($3));
@@ -183,7 +183,7 @@ for my $member (@activation_members) {
 }
 my $free_start=$activation_start+$activation_size;
 my $free_size=$stack{start}-$free_start;
-$free_size==22 or die "free RAM gap is $free_size bytes, expected 22\n";
+$free_size==26 or die "free RAM gap is $free_size bytes, expected 26\n";
 add_object('free_ram',$free_start,$free_size,'free_ram','unallocated');
 add_object('hardware_stack',$stack{start},$stack{size},'hardware_stack','return_addresses');
 @objects=sort { $a->{start}<=>$b->{start} || $a->{name} cmp $b->{name} } @objects;
@@ -212,8 +212,8 @@ $category_totals{runtime_scratch}==8 or die "runtime scratch baseline changed\n"
 $category_totals{renderer_state}==85 or die "renderer-state baseline changed\n";
 $category_totals{persistent_state}==4 or die "persistent-state packing result changed\n";
 $category_totals{activation_scratch}==1 or die "phase overlay did not remove VSYNC scratch from main activation\n";
-$category_totals{hardware_stack}==8 or die "hardware-stack baseline changed\n";
-$category_totals{free_ram}==22 or die "free-RAM persistent-packing result changed\n";
+$category_totals{hardware_stack}==4 or die "hardware-stack reduction changed\n";
+$category_totals{free_ram}==26 or die "free-RAM stack-reduction result changed\n";
 $subcategory_totals{public_state}==13 or die "renderer public-state baseline changed\n";
 $subcategory_totals{private_workspace}==56 or die "renderer private-workspace baseline changed\n";
 $subcategory_totals{mutable_row_colors}==16 or die "mutable color baseline changed\n";
@@ -235,11 +235,11 @@ $asm !~ /; begin inline expansion next_pair #\d+.*?__vcsc_scratch_.*?; end inlin
    or die "next_pair still uses compiler expression scratch\n";
 
 my $report={
-   schema=>7,
+   schema=>9,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
       rom_bytes=>3545, rom_free_bytes=>545,
-      ram_bytes=>106, free_ram_bytes=>22, object_bytes=>98, hardware_stack_bytes=>8,
+      ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
    objects=>\@objects,
@@ -303,6 +303,40 @@ my $report={
          decision=>'keep sprite1 because the roadmap permits storage when it is measurably smaller in ROM'},
       proof=>'phase and hold clock share one byte; Select/fire edge latches and pause share one flags byte; source-set-03 keeps independent modulo-3 bits',
    },
+   hardware_stack_reduction=>{
+      previous_ram_bytes=>106, ram_bytes=>102, ram_saved_bytes=>4,
+      previous_free_ram_bytes=>22, free_ram_bytes=>26,
+      previous_stack_bytes=>8, stack_bytes=>4, stack_saved_bytes=>4,
+      rom_bytes=>3545, rom_delta_bytes=>0,
+      source_stack_bytes=>4, hidden_stack_bytes=>0,
+      proof=>'single-use prepare_object_masks and prepare_one wrappers are flattened; the remaining set_range JSR is never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 is sufficient',
+      floor=>'with stock startup JSR main and a real main -> install_frames/deadline source call, four hardware-stack bytes are the conservative minimum without a separate startup/ABI change',
+   },
+   post_optimization_remeasurement=>{
+      renderer_profile=>'player_color_192 P0/P1/Ball',
+      ball_capability_retained=>JSON::PP::true,
+      gallery_ball_height=>0,
+      baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
+      current=>{rom_bytes=>3545, ram_bytes=>102, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>26},
+      total_delta=>{rom_bytes=>-448, ram_bytes=>-26, activation_bytes=>-19, stack_bytes=>-4, free_ram_bytes=>26},
+      free_ram_percent=>20.31,
+      useful_game_state_margin=>JSON::PP::true,
+      decision=>'retain-general-p0-p1-ball-renderer',
+      rationale=>'26 free bytes is a meaningful application-state margin for this gallery; direct-countdown remains a general renderer optimization rather than a prerequisite for making the gallery fit',
+      checkpoint_source=>'historical rows are the measurements recorded by completed roadmap items; the current item-7 row is freshly regenerated from the present linker map',
+      checkpoints=>[
+         {step=>'baseline', rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item1', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>-13, delta_activation_bytes=>-13, delta_stack_bytes=>0},
+         {step=>'item2', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item3', rom_bytes=>3662, ram_bytes=>110, activation_bytes=>2, stack_bytes=>8, free_ram_bytes=>18, delta_rom_bytes=>-331, delta_ram_bytes=>-5, delta_activation_bytes=>-5, delta_stack_bytes=>0},
+         {step=>'item4', rom_bytes=>3854, ram_bytes=>110, activation_bytes=>2, stack_bytes=>8, free_ram_bytes=>18, delta_rom_bytes=>192, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item4a', rom_bytes=>3624, ram_bytes=>110, activation_bytes=>2, stack_bytes=>8, free_ram_bytes=>18, delta_rom_bytes=>-230, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item5', rom_bytes=>3624, ram_bytes=>109, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>19, delta_rom_bytes=>0, delta_ram_bytes=>-1, delta_activation_bytes=>-1, delta_stack_bytes=>0},
+         {step=>'item5a', rom_bytes=>3560, ram_bytes=>109, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>19, delta_rom_bytes=>-64, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item6', rom_bytes=>3545, ram_bytes=>106, activation_bytes=>1, stack_bytes=>8, free_ram_bytes=>22, delta_rom_bytes=>-15, delta_ram_bytes=>-3, delta_activation_bytes=>0, delta_stack_bytes=>0},
+         {step=>'item7', rom_bytes=>3545, ram_bytes=>102, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>26, delta_rom_bytes=>0, delta_ram_bytes=>-4, delta_activation_bytes=>0, delta_stack_bytes=>-4},
+      ],
+   },
    hardware_stack=>{
       %stack, edges=>\@edges, deepest=>{weighted_depth=>$deepest_depth,path=>$deepest_path},
       hidden=>\@hidden, totals=>\%stack_totals,
@@ -320,4 +354,4 @@ if ($ENV{VCSC_UPDATE_RAM_GOLDEN}) {
 my $golden=read_file($golden_file);
 $json eq $golden or die "animated-gallery RAM accounting changed; compare $actual_file with $golden_file\n";
 
-print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 22 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and hardware-stack causes match the authoritative JSON baseline\n";
+print "vcs_animated_gallery_ram_accounting ok: all 128 RIOT bytes, 1 main-activation byte, 26 free bytes, packed persistent gallery state, phase-overlaid VSYNC scratch, high-level frame installation, and measured four-byte hardware-stack causes match the authoritative JSON baseline\n";

@@ -99,8 +99,10 @@ require inline void TEMPLATE_init(void) {
 }
 
 require inline void TEMPLATE_vblank(void) {
-   // Internal assembly helpers add one hidden JSR level.
-   asm .callstackextra 4;
+   // The only remaining assembly JSR is @set_range. Its return address is
+   // never deeper than the two-return-address reserve already required by
+   // startup -> main plus main -> ordinary callee, so it needs zero extra bytes.
+   asm .callstackextra 0;
    // Preserve application Y coordinates before the visible renderer mutates them.
    asm lda.z TEMPLATE_player0_y;
    asm sta.z TEMPLATE_workspace + 1;
@@ -126,9 +128,6 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #1;
    asm sta.z TEMPLATE_ball_y;
 
-   asm jsr @TEMPLATE_prepare_object_masks;
-   asm jmp @TEMPLATE_prepare_object_masks_done;
-   asm @TEMPLATE_prepare_object_masks:;
    asm ldy #0;
    asm ldx #0;
    asm @clear:;
@@ -147,7 +146,8 @@ require inline void TEMPLATE_vblank(void) {
    asm lda.z TEMPLATE_ball_y;
    asm ldy.z TEMPLATE_ball_height;
    asm ldx #0;
-   asm jsr @prepare_one;
+   asm jmp @prepare_one;
+   asm @prepare_one_done:;
    asm lda.z TEMPLATE_player0_height;
    asm clc;
    asm adc #1;
@@ -162,8 +162,8 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 23;
 
    // No special terminal row is required: Ball, P0, and P1 all remain in
-   // the ordinary raster pipeline through row twelve.
-   asm rts;
+   // the ordinary raster pipeline through row twelve. Skip the helper bodies.
+   asm jmp @TEMPLATE_prepare_object_masks_done;
 
    asm @prepare_one:;
    asm sta.z TEMPLATE_object_masks + 11;
@@ -192,13 +192,13 @@ require inline void TEMPLATE_vblank(void) {
    asm cmp.z TEMPLATE_object_masks + 31;
    asm bcc @wrapped_high_ready;
    asm beq @wrapped_high_ready;
-   asm rts;
+   asm jmp @prepare_one_done;
    asm @wrapped_high_ready:;
    asm sta.z TEMPLATE_object_masks + 7;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm jsr @set_range;
-   asm rts;
+   asm jmp @prepare_one_done;
    asm @no_wrap:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm bne @no_wrap_first_ready;
@@ -214,9 +214,12 @@ require inline void TEMPLATE_vblank(void) {
    asm @no_wrap_last_ready:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @set_range;
-   asm beq @set_range;
-   asm rts;
+   asm bcc @no_wrap_set_range;
+   asm beq @no_wrap_set_range;
+   asm jmp @prepare_one_done;
+   asm @no_wrap_set_range:;
+   asm jsr @set_range;
+   asm jmp @prepare_one_done;
    asm @set_range:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm sec;

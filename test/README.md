@@ -810,14 +810,20 @@ combined used bytes, and physical free bytes exactly.
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
-every physical RIOT address `$80-$FF`, pins the one-byte `main` activation and
-nineteen-byte free gap, records the compiler scratch diagnostics, proves both
-sequential `next_pair()` expansions allocate zero expression scratch, and checks
-the linker's source-call edges, deepest path, and `.callstackextra` contribution.
-Schema 6 records the phase overlay explicitly: the one-byte VSYNC
-`__vcsc_scratch_0` shares the first byte of the 48-byte VBLANK+visible
-`game_object_masks` workspace, reducing the cartridge to 109 RAM bytes with 19
-free while leaving ROM at 3624 bytes with 466 free. It also retains the complete
+every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
+records compiler scratch diagnostics, proves both sequential `next_pair()`
+expansions allocate zero expression scratch, and checks the linker's source-call
+edges, deepest path, and explicit `.callstackextra` contribution. Schema 9 records
+the completed optimization sequence: phase overlay, padding/alignment cleanup,
+persistent-state packing, measured hardware-stack reduction, and the explicit
+post-optimization remeasurement checkpoint. The gallery is now 3545 ROM bytes
+and **102 RAM bytes with 26 free**: 98 object bytes plus a four-byte hardware-stack
+reserve. The schema-9 remeasurement section pins the baseline-to-current ROM,
+RAM, activation, and stack checkpoints, retains the general P0/P1/Ball renderer,
+and records the decision that the 26-byte margin is sufficient useful game-state
+space for this gallery. The stack report remains explicit at source=4, hidden=0,
+total=4; `player_color_192` carries `.callstackextra 0` after its two single-use
+VBLANK helper wrappers were flattened. The fixture also retains the complete
 high-level frame-installer history and the 232-byte final `install_frames()` span.
 The separate animation emulator remains the behavioral/frame oracle.
 

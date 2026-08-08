@@ -325,7 +325,7 @@ Immediate TODO
 --------------
 Active workstream: `.../ram_optimization.txt`.
 
-RAM-optimization work through persistent gallery-state packing is complete.
+RAM-optimization work through measured hardware-stack reduction is complete.
 Compiler-owned expression scratch is lifetime-colored across the complete runtime
 activation owner, ordinary directly addressable unsigned-byte state uses compact
 lowering, and the high-level animated-frame installer plus its page/pointer optimizer
@@ -348,7 +348,7 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-7 report records a one-byte `main`
+The animated gallery's authoritative schema-9 report records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
 scratch still aliases the first byte of the 48-byte VBLANK+visible
 `game_object_masks` workspace. Persistent gallery bookkeeping is now four bytes:
@@ -357,9 +357,12 @@ modulo-3 phase, and the eight-frame hold clock, while `control_flags` combines
 Select-ready, Fire-ready, and pause state. `sprite0` and `sprite1` remain separate:
 a measured derivation trial saved one RAM byte but cost 50 ROM bytes and grew
 `install_frames()` from 232 to 303 bytes, so the roadmap's smaller-ROM exception
-applies. Total RIOT RAM is now **106/128 bytes**—98 object bytes plus the eight-byte
-hardware-stack reservation—leaving **22 bytes free**. `install_frames()` remains 232
-linked bytes. After the earlier 64-byte padding removal, packed-state lowering further
+applies. The `player_color_192` VBLANK mask preparation now flattens its two
+single-use assembly wrappers; only `set_range` remains an assembly subroutine, with
+explicit `.callstackextra 0` recording that no supplementary stack bytes are needed.
+Total RIOT RAM is now **102/128 bytes**—98 object bytes plus the four-byte hardware-
+stack reservation—leaving **26 bytes free**. `install_frames()` remains 232 linked
+bytes. After the earlier 64-byte padding removal, packed-state lowering further
 reduces ordinary ROM from 3560 to **3545/4090 bytes**, leaving **545 bytes free**.
 
 `test/phase_overlay.pl` is the generic lifetime proof: it verifies positive sharing
@@ -380,15 +383,24 @@ Public-example assembly remains audited by `test/example_assembly_allowlist.pl`.
 beam timing remains authoritative: compiler/storage optimizations do not relax scheduler,
 score, fingerprint, renderer, animation, or banked-renderer raster contracts.
 
-The next RAM-optimization work is hardware-stack reduction by measurement, not blanket
-inlining. Keep source-call depth and hidden assembly JSR depth separately visible, and
-only flatten or tail-jump helpers when final linked ROM, VBLANK timing, and the exact
-stack reservation improve. The completed persistent-state packing step is recorded in
-`.../ram_optimization.txt`.
+The post-optimization gallery remeasurement is complete. A fresh build of the unchanged
+general P0/P1/Ball `player_color_192` gallery confirms **3545/4090 ROM bytes** and
+**102/128 RIOT-RAM bytes**, with a one-byte `main` activation, four-byte hardware-stack
+reserve, and **26 bytes free (20.31%)**. From the measured pre-optimization baseline,
+items 1-7 recover 448 ROM bytes and 26 RAM bytes while reducing activation storage by
+19 bytes and stack reservation by four. Ball capability remains linked; this gallery
+merely sets Ball height to zero. The schema-9 accounting fixture now pins the complete
+checkpoint sequence and the decision that the current general renderer provides a
+useful application-state margin without a gallery-only capability cut.
 
-Verification after persistent gallery-state packing is **455/455 compile-only tests
-and 260/260 end-to-end cases** in bounded batches. Clean source-tree hygiene remains
-the packaging gate.
+The next RAM-optimization work is the `game_object_masks` official-opcode direct-
+countdown redesign in `.../ram_optimization.txt`. Treat it as a general renderer RAM
+optimization, not as a prerequisite for making the animated gallery fit.
+
+Verification after the gallery remeasurement is **455/455 compile-only tests and
+260/260 end-to-end cases** in bounded batches. The authoritative RAM-accounting fixture,
+full animated-gallery emulator oracle, renderer/bankswitching regressions, and clean
+source-tree hygiene all pass. Clean source-tree hygiene remains the packaging gate.
 
 The next unfinished main-roadmap item remains 23, but it is paused while the RAM
 workstream is explicitly active. Main-roadmap items 29 and 30 and the completed

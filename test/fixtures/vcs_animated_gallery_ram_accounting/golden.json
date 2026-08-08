@@ -93,19 +93,35 @@
       "end" : 255,
       "hidden" : [
          {
-            "bytes" : 4,
+            "bytes" : 0,
             "reason" : ".callstackextra"
          }
       ],
-      "hidden_extra" : 4,
-      "size" : 8,
-      "start" : 248,
+      "hidden_extra" : 0,
+      "size" : 4,
+      "start" : 252,
       "totals" : {
-         "hidden_bytes" : 4,
+         "hidden_bytes" : 0,
          "source_bytes" : 4,
-         "total_bytes" : 8
+         "total_bytes" : 4
       },
       "weighted_depth" : 2
+   },
+   "hardware_stack_reduction" : {
+      "floor" : "with stock startup JSR main and a real main -> install_frames/deadline source call, four hardware-stack bytes are the conservative minimum without a separate startup/ABI change",
+      "free_ram_bytes" : 26,
+      "hidden_stack_bytes" : 0,
+      "previous_free_ram_bytes" : 22,
+      "previous_ram_bytes" : 106,
+      "previous_stack_bytes" : 8,
+      "proof" : "single-use prepare_object_masks and prepare_one wrappers are flattened; the remaining set_range JSR is never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 is sufficient",
+      "ram_bytes" : 102,
+      "ram_saved_bytes" : 4,
+      "rom_bytes" : 3545,
+      "rom_delta_bytes" : 0,
+      "source_stack_bytes" : 4,
+      "stack_bytes" : 4,
+      "stack_saved_bytes" : 4
    },
    "objects" : [
       {
@@ -293,15 +309,15 @@
       {
          "class" : "free_ram",
          "name" : "free_ram",
-         "size" : 22,
+         "size" : 26,
          "start" : 226,
          "subclass" : "unallocated"
       },
       {
          "class" : "hardware_stack",
          "name" : "hardware_stack",
-         "size" : 8,
-         "start" : 248,
+         "size" : 4,
+         "start" : 252,
          "subclass" : "return_addresses"
       }
    ],
@@ -382,25 +398,178 @@
          "symbol" : "__vcsc_scratch_0"
       }
    },
+   "post_optimization_remeasurement" : {
+      "ball_capability_retained" : true,
+      "baseline" : {
+         "activation_bytes" : 20,
+         "free_ram_bytes" : 0,
+         "ram_bytes" : 128,
+         "rom_bytes" : 3993,
+         "stack_bytes" : 8
+      },
+      "checkpoint_source" : "historical rows are the measurements recorded by completed roadmap items; the current item-7 row is freshly regenerated from the present linker map",
+      "checkpoints" : [
+         {
+            "activation_bytes" : 20,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : 0,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 0,
+            "ram_bytes" : 128,
+            "rom_bytes" : 3993,
+            "stack_bytes" : 8,
+            "step" : "baseline"
+         },
+         {
+            "activation_bytes" : 7,
+            "delta_activation_bytes" : -13,
+            "delta_ram_bytes" : -13,
+            "delta_rom_bytes" : 0,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 13,
+            "ram_bytes" : 115,
+            "rom_bytes" : 3993,
+            "stack_bytes" : 8,
+            "step" : "item1"
+         },
+         {
+            "activation_bytes" : 7,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : 0,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 13,
+            "ram_bytes" : 115,
+            "rom_bytes" : 3993,
+            "stack_bytes" : 8,
+            "step" : "item2"
+         },
+         {
+            "activation_bytes" : 2,
+            "delta_activation_bytes" : -5,
+            "delta_ram_bytes" : -5,
+            "delta_rom_bytes" : -331,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 18,
+            "ram_bytes" : 110,
+            "rom_bytes" : 3662,
+            "stack_bytes" : 8,
+            "step" : "item3"
+         },
+         {
+            "activation_bytes" : 2,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : 192,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 18,
+            "ram_bytes" : 110,
+            "rom_bytes" : 3854,
+            "stack_bytes" : 8,
+            "step" : "item4"
+         },
+         {
+            "activation_bytes" : 2,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : -230,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 18,
+            "ram_bytes" : 110,
+            "rom_bytes" : 3624,
+            "stack_bytes" : 8,
+            "step" : "item4a"
+         },
+         {
+            "activation_bytes" : 1,
+            "delta_activation_bytes" : -1,
+            "delta_ram_bytes" : -1,
+            "delta_rom_bytes" : 0,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 19,
+            "ram_bytes" : 109,
+            "rom_bytes" : 3624,
+            "stack_bytes" : 8,
+            "step" : "item5"
+         },
+         {
+            "activation_bytes" : 1,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : -64,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 19,
+            "ram_bytes" : 109,
+            "rom_bytes" : 3560,
+            "stack_bytes" : 8,
+            "step" : "item5a"
+         },
+         {
+            "activation_bytes" : 1,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : -3,
+            "delta_rom_bytes" : -15,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 22,
+            "ram_bytes" : 106,
+            "rom_bytes" : 3545,
+            "stack_bytes" : 8,
+            "step" : "item6"
+         },
+         {
+            "activation_bytes" : 1,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : -4,
+            "delta_rom_bytes" : 0,
+            "delta_stack_bytes" : -4,
+            "free_ram_bytes" : 26,
+            "ram_bytes" : 102,
+            "rom_bytes" : 3545,
+            "stack_bytes" : 4,
+            "step" : "item7"
+         }
+      ],
+      "current" : {
+         "activation_bytes" : 1,
+         "free_ram_bytes" : 26,
+         "ram_bytes" : 102,
+         "rom_bytes" : 3545,
+         "stack_bytes" : 4
+      },
+      "decision" : "retain-general-p0-p1-ball-renderer",
+      "free_ram_percent" : 20.31,
+      "gallery_ball_height" : 0,
+      "rationale" : "26 free bytes is a meaningful application-state margin for this gallery; direct-countdown remains a general renderer optimization rather than a prerequisite for making the gallery fit",
+      "renderer_profile" : "player_color_192 P0/P1/Ball",
+      "total_delta" : {
+         "activation_bytes" : -19,
+         "free_ram_bytes" : 26,
+         "ram_bytes" : -26,
+         "rom_bytes" : -448,
+         "stack_bytes" : -4
+      },
+      "useful_game_state_margin" : true
+   },
    "program" : "examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26",
    "protected_oracles" : [
       "test/vcs_player_color_192_animation.pl",
       "test/vcs_player_color_192_animation.cpp"
    ],
-   "schema" : 7,
+   "schema" : 9,
    "totals" : {
       "category_bytes" : {
          "activation_scratch" : 1,
-         "free_ram" : 22,
-         "hardware_stack" : 8,
+         "free_ram" : 26,
+         "hardware_stack" : 4,
          "persistent_state" : 4,
          "renderer_state" : 85,
          "runtime_scratch" : 8
       },
-      "free_ram_bytes" : 22,
-      "hardware_stack_bytes" : 8,
+      "free_ram_bytes" : 26,
+      "hardware_stack_bytes" : 4,
       "object_bytes" : 98,
-      "ram_bytes" : 106,
+      "ram_bytes" : 102,
       "rom_bytes" : 3545,
       "rom_free_bytes" : 545,
       "subcategory_bytes" : {
@@ -411,8 +580,8 @@
          "pointer" : 6,
          "private_workspace" : 56,
          "public_state" : 13,
-         "return_addresses" : 8,
-         "unallocated" : 22
+         "return_addresses" : 4,
+         "unallocated" : 26
       }
    }
 }
