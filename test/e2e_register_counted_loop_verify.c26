@@ -28,6 +28,19 @@ void main(void) {
    if (out[4] != 5) { fail(4); }
    if (out[6] != 7) { fail(5); }
 
+   for (uint8_t i := 8; i; i--) {
+      out[i] := i + 0x10;
+   }
+   if (out[1] != 0x11) { fail(6); }
+   if (out[4] != 0x14) { fail(7); }
+   if (out[8] != 0x18) { fail(8); }
+
+   out[0] := 0x55;
+   for (uint8_t i := 0; i; i--) {
+      out[0] := 0xaa;
+   }
+   if (out[0] != 0x55) { fail(9); }
+
    asm lda #$ff;
    asm ldx #0;
    asm ldy #0;

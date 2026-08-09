@@ -69,3 +69,13 @@
 
 2026-08-08 18:48:07 PDT, compact postfix byte conditions and renumbered basic examples
 Renumbered `examples/01_basic` so `blank_noasm` is 02 and the later basic examples advance by one, updating public path references and documentation. The source-only blank example now uses `while (i--)` for its 192 visible WSYNC lines. Diagnosed the prior 455-line failure as generic postfix-condition scratch/pointer lowering crossing the 76-cycle scanline boundary after each WSYNC; direct ordinary-byte prefix/postfix truth tests now mutate storage in place while preserving postfix old-value semantics. Added a source/timing regression and zero-value postfix semantic checks. Restored the faithful-multisprite diagnostic data fixture and `test/compiler_dash_stdout.pl`, both of which were absent from the input archive despite being required by the current handoff invariants.
+
+2026-08-08 19:23:00 PDT, X-backed downward counted loops and source-only blank-frame compaction
+Extended the narrow register-backed uint8_t for-loop lowering to proven-nonempty
+countdowns to zero (`i`, `i > 0`, or `i != 0` with `i--`/`--i`). Direct one-byte
+hardware discard stores are now recognized as X-safe, so `WSYNC := _;` participates
+without changing its existing language semantics. Rewrote `02_blank_noasm` to four
+source-level X-backed scanline countdowns; it now links at 445 ROM / 22 RAM versus
+449 ROM / 22 RAM for the inline-assembly blank screen while preserving exactly 262
+scanlines. Added compiler and execution regressions, including zero-initialized
+fallback semantics. Final verification: 470/470 compile-only and 264/264 e2e.

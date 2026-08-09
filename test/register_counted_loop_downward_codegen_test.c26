@@ -1,0 +1,35 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$c0
+// expectasmordered: sta  $02
+// expectasmordered: dex
+// expectasmordered: bne @for_start_
+// expectasmordered: ldx #$25
+// expectasmordered: sta  $02
+// expectasmordered: dex
+// expectasmordered: bne @for_start_
+// expectasmordered: ldx #$1e
+// expectasmordered: sta  $02
+// expectasmordered: dex
+// expectasmordered: bne @for_start_
+// forbidasm: main$i
+// forbidasm: main$j
+// forbidasm: main$k
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+uint8_t WSYNC@[none/0x02];
+
+void main(void) {
+   // A nonzero constant countdown can live entirely in X.  The hardware
+   // discard-store is a direct STA and therefore cannot clobber that counter.
+   for (uint8_t i := 192; i; i--) {
+      WSYNC := _;
+   }
+   for (uint8_t j := 37; j > 0; --j) {
+      WSYNC := _;
+   }
+   for (uint8_t k := 30; k != 0; k--) {
+      WSYNC := _;
+   }
+}

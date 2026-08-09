@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 20
-# expectstdout: vcs_blank_noasm ok: source-only postfix countdown preserves exact 262-line frames
+# expectstdout: vcs_blank_noasm ok: X-backed source countdowns use <=449 ROM bytes and preserve exact 262-line frames
 # expectexit: 0
 
 use strict;
@@ -54,13 +54,20 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 my $mos_obj=File::Spec->catfile($mos_dir,'mos6502.o');
 
 my $text=read_file($source);
-$text =~ /while\s*\(\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*_\s*;/s
-   or die "blank_noasm no longer exercises the postfix visible countdown\n";
+for my $count (3,37,192,30) {
+   $text =~ /for\s*\(\s*uint8_t\s+i\s*:=\s*$count\s*;\s*i\s*;\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*_\s*;/s
+      or die "blank_noasm no longer uses the X-backed $count-line source countdown\n";
+}
 $text !~ /\basm\b/
    or die "blank_noasm contains inline assembly\n";
 
 my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$source,'-o',$bin);
 die "blank_noasm build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
+$out =~ /\brom\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report ROM usage\n$out";
+my $rom_used=$1;
+$rom_used <= 449 or die "blank_noasm uses $rom_used ROM bytes; assembly baseline is 449\n";
+$out =~ /\bram\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RAM usage\n$out";
+$1 == 22 or die "blank_noasm uses $1 RAM bytes; assembly baseline is 22\n";
 die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
    if without_cartridge_usage($out) ne '' || $err ne '';
 
@@ -68,8 +75,11 @@ die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
 die "blank_noasm compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "blank_noasm compile wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
 my $asm_text=read_file($asm);
-$asm_text =~ /\@while_start_\d+:\s+lda main\$i\s+dec main\$i\s+cmp #0\s+beq \@while_end_\d+\s+sta\s+\$02/s
-   or die "postfix visible countdown did not use compact direct condition lowering\n";
+my @counts=($asm_text =~ /\bldx #\$([0-9a-fA-F]{2})\s+\@for_start_\d+:\s+sta\s+\$02\s+\@for_step_\d+:\s+dex\s+bne \@for_start_\d+/sg);
+@counts == 4 && join(',',map { lc($_) } @counts) eq '03,25,c0,1e'
+   or die "blank_noasm countdowns did not lower to the expected LDX/STA WSYNC/DEX/BNE loops\n";
+$asm_text !~ /\bmain\$i\b/
+   or die "blank_noasm materialized the X-backed loop index in RAM\n";
 
 ($exit,$sig,$out,$err)=run_capture(
    'g++','-std=c++17','-Wall','-Wextra','-Werror','-pedantic','-DILLEGAL_OPCODES',
@@ -83,4 +93,4 @@ $out eq "vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n"
    or die "blank_noasm lost exact frame timing: $out";
 $err eq '' or die "timing harness stderr: $err";
 
-print "vcs_blank_noasm ok: source-only postfix countdown preserves exact 262-line frames\n";
+print "vcs_blank_noasm ok: X-backed source countdowns use <=449 ROM bytes and preserve exact 262-line frames\n";

@@ -14,10 +14,21 @@ produced by this reduced compiler.
 
 It calls `choose_background()` using VCSC's fixed-symbol function model: the
 parameter and named local storage are statically allocated, while the local
-initializer runs when control reaches its declaration. The television frame is expressed entirely in VCSC source.  In particular, the
-192-line visible countdown uses `while (i--)`; the compiler lowers that direct
-byte truth test compactly enough that each loop iteration reaches `WSYNC` within
-one 6507 scanline.
+initializer runs when control reaches its declaration. The television frame is
+expressed entirely in VCSC source. Each fixed nonzero scanline count uses a
+source-level countdown such as:
+
+```c
+for (uint8_t i := 192; i; i--) {
+   WSYNC := _;
+}
+```
+
+The compiler proves that this straight-line loop cannot clobber X, keeps `i`
+entirely in X, and lowers the loop to `LDX` / `STA WSYNC` / `DEX` / `BNE`.
+`WSYNC := _` is the ordinary discard-store form: it stores the accumulator that
+is already live without manufacturing a source value. No RAM byte is allocated
+for the lexical loop index.
 
 Build from this directory after building the toolchain:
 
@@ -26,5 +37,8 @@ make
 ```
 
 The result is `blank_noasm.bin`, a raw 4096-byte cartridge image mapped at
-`$F000-$FFFF`, plus `blank_noasm.map`. The display uses a medium blue background (`COLUBK=$84`). The frame consists of 262 scanlines:
-3 VSYNC, 37 vertical blank, 192 visible, and 30 overscan.
+`$F000-$FFFF`, plus `blank_noasm.map`. In the maintained baseline the source-only
+example uses 445 ROM bytes and 22 RAM bytes, versus 449 ROM / 22 RAM for the
+inline-assembly blank-screen example. The display uses a medium blue background
+(`COLUBK=$84`). The frame consists of 262 scanlines: 3 VSYNC, 37 vertical blank,
+192 visible, and 30 overscan.

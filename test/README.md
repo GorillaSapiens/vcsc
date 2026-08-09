@@ -929,9 +929,12 @@ counted loop whose body performs a general indirect pointer store must materiali
 its loop local instead of reserving X, preventing the compact path from silently
 claiming a register the body can clobber. `register_counted_loop_zero_iteration_codegen_test.c26`
 requires potentially empty X-backed loops to retain their entry `CPX`/`BCS` test, while
-`e2e_register_counted_loop_verify.c26` executes both zero-iteration and proven-nonempty
-post-tested loops and catches any accidental reference to a nonexistent materialized
-counter.
+`register_counted_loop_downward_codegen_test.c26` pins nonzero downward truth/`> 0`/
+`!= 0` loops to X-backed `DEX`/`BNE` lowering, including direct `WSYNC := _` hardware
+discard stores with no materialized counter or compiler scratch. The execution test
+`e2e_register_counted_loop_verify.c26` covers ascending loops, a nonempty downward
+countdown, and the zero-initialized downward fallback, catching both register-lifetime
+mistakes and accidental loss of zero-iteration semantics.
 
 `direct_u8_ref_array_fallback_codegen_test.c26` prevents a ref-array formal from
 being mistaken for directly allocated array storage. Its source declarator retains

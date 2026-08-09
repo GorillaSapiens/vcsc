@@ -1232,18 +1232,29 @@ shape-specific code-size optimizations, not new aliasing rules: indirect/ref-bac
 mixed-width, signed, or otherwise unproven forms continue through the general
 expression/lvalue machinery.
 
-A small counted loop of the form `for (uint8_t i := C; i < N; i += S)` may keep its
-loop-local index in X when the complete body is proven to contain only supported
-straight-line byte assignments and expressions. Calls, inline assembly, nested control
-flow, address-taking, signed/BCD arithmetic, and other X-clobbering constructs reject
-the shortcut. Such a proven loop emits no activation object for its lexical index; X
-is restored around the supported `i + constant` array-store form. When `C < N` proves
-the loop nonempty, lowering uses a post-tested `CPX`/`BCC` loop and avoids a redundant
-entry test/back jump. A loop that can be empty retains the pre-test, so zero-iteration
-semantics are unchanged. Constant stores through an X-backed array subscript are routed
-through the same direct array path rather than referring to a nonexistent materialized
-loop-local object. This optimization is what makes compact high-level table expansion
-practical without turning an example's loop counter into permanent RIOT RAM.
+A small counted loop may keep its loop-local unsigned-byte index entirely in X when the
+complete body is proven to contain only supported straight-line byte assignments and
+expressions. The established ascending shape is
+`for (uint8_t i := C; i < N; i += S)`. A constant nonzero countdown to zero is also
+recognized in the natural forms `for (uint8_t i := C; i; i--)`, `i > 0`, or `i != 0`;
+prefix `--i` is equivalent in the discarded `for` step clause. Proven countdowns emit
+`LDX #C`, the body, then `DEX` / `BNE` and therefore need neither an entry comparison
+nor a RAM object for `i`.
+
+Calls, inline assembly, nested control flow, address-taking, signed/BCD arithmetic,
+and other X-clobbering constructs reject the shortcut. Direct one-byte hardware stores
+are allowed when their addressing is known not to touch X. In particular,
+`WSYNC := _;` remains the ordinary bare-`STA` discard-store and is safe inside an
+X-backed countdown. Such a proven loop emits no activation object for its lexical
+index; X is restored around the supported `i + constant` array-store form. When an
+ascending `C < N` proves the loop nonempty, lowering uses a post-tested `CPX`/`BCC`
+loop and avoids a redundant entry test/back jump. An ascending loop that can be empty
+retains the pre-test. A zero-initialized downward loop is deliberately not classified
+as a post-tested countdown, preserving zero-iteration semantics. Constant stores
+through an X-backed array subscript are routed through the same direct array path
+rather than referring to a nonexistent materialized loop-local object. This
+optimization makes compact high-level table expansion and scanline waits practical
+without turning lexical loop counters into permanent RAM.
 
 There is no language software stack or frame pointer. The 6502 hardware stack
 is used for `JSR`/`RTS` and the startup initializer cursor. A linker memory

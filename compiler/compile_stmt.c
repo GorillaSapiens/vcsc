@@ -1050,10 +1050,13 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
    name = expr_bare_identifier_name(u);
    if (name) {
       if (counter && !strcmp(name, counter)) return false;
-      return resolve_ref_argument_lvalue(ctx, u, &lv) && lv.size == 1 &&
-             !lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect &&
-             !lv.needs_runtime_address &&
-             !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
+      if (!resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 ||
+          lv.is_bitfield || lv.indirect || lv.needs_runtime_address ||
+          type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type)) {
+         return false;
+      }
+      if (lv.is_absolute_ref) return lv.write_expr && *lv.write_expr;
+      return true;
    }
 
    if (!u || strcmp(u->name, "lvalue") || u->count < 2) return false;
@@ -1078,6 +1081,28 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
           !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
 }
 
+//! @brief Verify one discard store cannot clobber an X-backed counted-loop index.
+static bool counted_loop_x_safe_discard_store(ASTNode *stmt, Context *ctx,
+                                              const char *counter) {
+   ASTNode *target;
+   ASTNode *u;
+   LValueRef lv;
+   const char *name;
+
+   if (!stmt || strcmp(stmt->name, "discard_store") || stmt->count != 1) return false;
+   target = stmt->children[0];
+   u = (ASTNode *)unwrap_expr_node(target);
+   name = expr_bare_identifier_name(u);
+   if (name && counter && !strcmp(name, counter)) return false;
+   if (!resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 ||
+       lv.is_bitfield || lv.indirect || lv.needs_runtime_address) {
+      return false;
+   }
+   if (lv.is_absolute_ref) return lv.write_expr && *lv.write_expr;
+   return lv.is_static || lv.is_zeropage || lv.is_global ||
+          (lv.offset >= 0 && lv.offset <= 255);
+}
+
 //! @brief Verify a small counted-loop body cannot clobber its X-backed counter.
 static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *counter) {
    if (!body || strcmp(body->name, "statement_list")) return false;
@@ -1085,6 +1110,7 @@ static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *co
       ASTNode *stmt = body->children[i];
       ASTNode *target;
       ASTNode *rhs;
+      if (counted_loop_x_safe_discard_store(stmt, ctx, counter)) continue;
       if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
           !stmt->children[0] || strcmp(stmt->children[0]->strval, ":=")) {
          return false;
@@ -1099,7 +1125,29 @@ static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *co
    return true;
 }
 
-//! @brief Recognize a register-backed `for (uint8_t i := C; i < N; i += S)` loop.
+//! @brief Return the bare object name operated on by one ++/-- expression.
+static const char *counted_loop_incdec_name(ASTNode *expr) {
+   ASTNode *base;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || !classify_incdec_lvalue_expr(expr, NULL, NULL) ||
+       strcmp(expr->name, "lvalue") || expr->count < 3) {
+      return NULL;
+   }
+   base = expr->children[0];
+   if (!base || strcmp(base->name, "lvalue_base") || base->count != 1 ||
+       !base->children[0] || base->children[0]->kind != AST_IDENTIFIER) {
+      return NULL;
+   }
+   return base->children[0]->strval;
+}
+
+//! @brief Recognize a narrow register-backed unsigned-byte counted loop.
+//!
+//! Accepted shapes are the established ascending
+//! `for (uint8_t i := C; i < N; i += S)` form and proven-nonempty countdowns
+//! `for (uint8_t i := C; i; i--)` / `i > 0` / `i != 0`, where C is nonzero.
+//! The latter can use DEX/BNE without materializing the source loop variable.
 static bool classify_register_counted_for(ASTNode *node, Context *ctx,
                                           ContextEntry **entry_out,
                                           int *initial_out, int *limit_out,
@@ -1120,6 +1168,7 @@ static bool classify_register_counted_for(ASTNode *node, Context *ctx,
    const char *step_name;
    ContextEntry *entry;
    int initial, limit, step_value;
+   bool decrement = false;
 
    if (!node || node->count < 4) return false;
    init = node->children[0];
@@ -1140,19 +1189,46 @@ static bool classify_register_counted_for(ASTNode *node, Context *ctx,
        !counted_loop_u8_constant(initializer, &initial)) {
       return false;
    }
-   ucond = (ASTNode *)unwrap_expr_node(cond);
-   if (!ucond || ucond->count != 2 || strcmp(ucond->name, "<") ||
-       !(cond_name = expr_bare_identifier_name(ucond->children[0])) ||
-       strcmp(cond_name, name) || !counted_loop_u8_constant(ucond->children[1], &limit)) {
-      return false;
-   }
    ustep = (ASTNode *)unwrap_expr_node(step);
-   if (!ustep || ustep->count != 3 || !ustep->children[0] ||
-       strcmp(ustep->children[0]->strval, "+=") ||
-       !(step_name = expr_bare_identifier_name(ustep->children[1])) ||
-       strcmp(step_name, name) || !counted_loop_u8_constant(ustep->children[2], &step_value) ||
-       step_value <= 0) {
-      return false;
+   ucond = (ASTNode *)unwrap_expr_node(cond);
+
+   /* Existing ascending form. */
+   if (ucond && ucond->count == 2 && !strcmp(ucond->name, "<") &&
+       (cond_name = expr_bare_identifier_name(ucond->children[0])) != NULL &&
+       !strcmp(cond_name, name) && counted_loop_u8_constant(ucond->children[1], &limit) &&
+       ustep && ustep->count == 3 && ustep->children[0] &&
+       !strcmp(ustep->children[0]->strval, "+=") &&
+       (step_name = expr_bare_identifier_name(ustep->children[1])) != NULL &&
+       !strcmp(step_name, name) && counted_loop_u8_constant(ustep->children[2], &step_value) &&
+       step_value > 0) {
+      decrement = false;
+   }
+   else {
+      bool inc = true;
+      bool pre = false;
+      bool zero_condition = false;
+      const char *truth_name = expr_bare_identifier_name(ucond);
+
+      if (truth_name && !strcmp(truth_name, name)) {
+         zero_condition = true;
+      }
+      else if (ucond && ucond->count == 2 &&
+               (!strcmp(ucond->name, ">") || !strcmp(ucond->name, "!=")) &&
+               (cond_name = expr_bare_identifier_name(ucond->children[0])) != NULL &&
+               !strcmp(cond_name, name) && counted_loop_u8_constant(ucond->children[1], &limit) &&
+               limit == 0) {
+         zero_condition = true;
+      }
+
+      if (!zero_condition || initial == 0 || !ustep ||
+          !classify_incdec_lvalue_expr(ustep, &inc, &pre) || inc ||
+          !(step_name = counted_loop_incdec_name(ustep)) || strcmp(step_name, name)) {
+         return false;
+      }
+      (void)pre; /* Prefix/postfix value is discarded by the for-step clause. */
+      limit = 0;
+      step_value = -1;
+      decrement = true;
    }
    entry = ctx_lookup(ctx, name);
    if (!entry || entry->size != 1 || !counted_loop_x_safe_body(body, ctx, name)) {
@@ -1161,7 +1237,7 @@ static bool classify_register_counted_for(ASTNode *node, Context *ctx,
    if (entry_out) *entry_out = entry;
    if (initial_out) *initial_out = initial;
    if (limit_out) *limit_out = limit;
-   if (step_out) *step_out = step_value;
+   if (step_out) *step_out = decrement ? -1 : step_value;
    return true;
 }
 
@@ -1196,18 +1272,24 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
          if (named_loop) push_named_loop_labels(named_loop, end_label, step_label);
          emit(&es_code, "    ldx #$%02x\n", (unsigned int)initial);
          emit(&es_code, "%s:\n", start_label);
-         if (initial >= limit) {
+         if (increment > 0 && initial >= limit) {
             emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
             emit(&es_code, "    bcs %s\n", end_label);
          }
          compile_statement_list(body, ctx);
          emit(&es_code, "%s:\n", step_label);
-         for (int i = 0; i < increment; ++i) emit(&es_code, "    inx\n");
-         if (initial < limit) {
+         if (increment < 0) {
+            emit(&es_code, "    dex\n");
+            emit(&es_code, "    bne %s\n", start_label);
+         }
+         else {
+            for (int i = 0; i < increment; ++i) emit(&es_code, "    inx\n");
+         }
+         if (increment > 0 && initial < limit) {
             emit(&es_code, "    cpx #$%02x\n", (unsigned int)limit);
             emit(&es_code, "    bcc %s\n", start_label);
          }
-         else {
+         else if (increment > 0) {
             emit(&es_code, "    jmp %s\n", start_label);
          }
          emit(&es_code, "%s:\n", end_label);
