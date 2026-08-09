@@ -567,10 +567,13 @@ four bytes of hidden hardware-stack depth; it retains stable/common NMOS `LAX` p
 the faithful TXS/PHP enable pipeline, so users assemble it with `-Wa,--illegals`.
 The corrected 192 profile uses logical height 95; the 181 profile uses logical height
 89 and a faithful two-line divide-by-15 P0 reposition handoff. The port must preserve
-the faithful three-cycle mask reads, nearby short K1 branches, branch-page timing
-contracts, direct three-cycle HMCLR store, and a local cycle-balanced reposition
-decision; ordinary branch relaxation or a one-cycle addressing-mode change can make
-frame length depend on coordinates. `examples/14_multisprite/` proves a full-height
+the faithful three-cycle mask reads, direct three-cycle HMCLR store, and local
+cycle-balanced reposition decision. Every conditional branch executed by `draw()`
+is timing-critical and hard-annotated `.same`; the audited raster requires the
+three-cycle taken case throughout and has no timing-critical `.cross` edge. The
+VBLANK divide-by-15 positioning loop is also `.same`; noncritical setup/sort/overscan
+branches stay at the default flexible policy. Ordinary branch relaxation or a
+one-cycle addressing-mode change can make frame length depend on coordinates. `examples/14_multisprite/` proves a full-height
 interactive cartridge and both 181+11 score orders. P0 and all five logical P1 sprites
 move over X=0..159 and independently over bounded Y ranges: P0/P1 max Y are 95/91 for
 192 and 89/85 for 181. M0/M1/Ball stay off the maintained active raster. The graphics

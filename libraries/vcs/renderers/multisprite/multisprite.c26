@@ -442,7 +442,7 @@ require inline void TEMPLATE_draw(void) {
    asm stx.z TEMPLATE_state + 55;
    asm sta.z TEMPLATE_state + 57;
    asm dey;
-   asm bmi @TEMPLATE_pagewraphandler;
+   asm bmi.same @TEMPLATE_pagewraphandler;
    asm lda (TEMPLATE_state + 59),y;
    asm @TEMPLATE_cyclebalance:;
    asm sta.z TEMPLATE_state + 54;
@@ -476,7 +476,7 @@ require inline void TEMPLATE_draw(void) {
    asm and.z TEMPLATE_state + 76;
    asm bne.same @TEMPLATE_RendererLoopa;
    asm dec.z TEMPLATE_state + 58;
-   asm bpl @TEMPLATE_RendererLoopb;
+   asm bpl.same @TEMPLATE_RendererLoopb;
    asm @TEMPLATE_donewrenderer:;
    asm jmp @TEMPLATE_DoneWithRenderer;
    asm @TEMPLATE_pagewraphandler:;

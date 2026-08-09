@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -51,8 +51,30 @@ $text =~ /TEMPLATE_PLAYER0_MAX_Y\s+95\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+9
    or die "192 legal Y bounds changed\n";
 $text =~ /TEMPLATE_PLAYER0_MAX_Y\s+89\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+85\b/
    or die "181 legal Y bounds changed\n";
-$text =~ /asm\s+beq\.same\s+\@TEMPLATE_RepoRenderer;/
-   or die "beam-critical RepoRenderer branch lost its same-page contract\n";
+# Every conditional edge in draw() is part of the beam-cycle contract.  The
+# faithful renderer and the repaired composable profiles require the ordinary
+# three-cycle taken-branch case for every one of these edges; none requires a
+# four-cycle page-crossing branch.  Keep the exact labels explicit so a future
+# edit cannot add a bare timing-sensitive branch unnoticed.
+$text =~ /require\s+inline\s+void\s+TEMPLATE_draw\s*\(void\)\s*\{(.*?)\n\}/s
+   or die "multisprite draw body is missing\n";
+my $draw=$1;
+my @draw_same=qw(
+   SwitchDrawP0K1 WaitDrawP0K1 SkipDrawP1K1 pagewraphandler
+   RepoRenderer RendererLoopa RendererLoopb updateXKR SwitchDrawP0KR
+   WaitDrawP0KR DivideBy15LoopK skipthis SwitchDrawP0KV WaitDrawP0KV
+   SetNextLine nodec DrawDivideBy15Loop
+);
+for my $label (@draw_same) {
+   $draw =~ /asm\s+b(?:cc|cs|eq|ne|mi|pl|vc|vs)\.same\s+\@TEMPLATE_\Q$label\E;/
+      or die "beam-critical branch to $label lost its required .same contract\n";
+}
+$draw !~ /asm\s+b(?:cc|cs|eq|ne|mi|pl|vc|vs)\s+\@TEMPLATE_/
+   or die "bare conditional branch remains in beam-critical multisprite draw path\n";
+$draw !~ /asm\s+b(?:cc|cs|eq|ne|mi|pl|vc|vs)\.cross\s+\@TEMPLATE_/
+   or die "multisprite draw path unexpectedly requires a .cross branch\n";
+$text =~ /asm\s+bcs\.same\s+\@TEMPLATE_DivideBy15Loop;/
+   or die "VBLANK divide-by-15 position loop lost its same-page timing contract\n";
 $text =~ /asm\s+jsr\s+\@TEMPLATE_DrawPositionASpriteSubroutine;/
    or die "181 score handoff no longer uses the full-range two-line P0 positioner\n";
 $text =~ /asm\s+sta\s+HMCLR;/
@@ -150,4 +172,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";

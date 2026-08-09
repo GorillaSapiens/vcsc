@@ -1,2 +1,6 @@
 2026-08-09 05:26:58 UTC, Consolidated official player-color 192/181 renderers into parameterized lines:=192/181/170 source and added 170-line dual-score proof.
 2026-08-09 01:10:36 PDT, Repaired modern multisprite coordinate-dependent raster timing: restored faithful cycle geometry, full legal X/Y movement, page-safe glyph layout, stable 192/181 frames, and exact 123456 score handoffs.
+
+2026-08-09 06:09:12 PDT, audited multisprite branch page timing
+
+Reviewed every conditional branch in the modern multisprite renderer against the faithful cycle schedule. All draw-path conditional branches require the three-cycle same-page taken case, so the two remaining bare beam-critical branches (page-wrap BMI and RendererLoopb BPL) are now `.same`; no timing-critical `.cross` edge is required. Noncritical setup/sort/overscan branches remain at the default flexible policy. The multisprite profile regression now locks the complete draw-path branch contract.

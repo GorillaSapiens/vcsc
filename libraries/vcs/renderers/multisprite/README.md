@@ -91,7 +91,13 @@ multiplexing timing and is not part of this component contract.
 
 Beam timing is deliberately structural. The faithful three-cycle mask reads,
 short K1 branches, branch-page constraints, and the local cycle-balanced
-reposition decision must not be simplified as ordinary code. The regression
+reposition decision must not be simplified as ordinary code. Every conditional
+branch executed by `draw()` has a hard page-timing annotation. The maintained
+raster requires the three-cycle taken-branch case for all of them, so they are
+`.same`; no draw-path branch requires the four-cycle `.cross` case. The VBLANK
+divide-by-15 positioning loop is likewise `.same` because one extra taken cycle
+would change horizontal placement. Non-beam-critical setup/sort/overscan branches
+remain unannotated and therefore use the normal `.flex` default. The regression
 sweeps every legal independent X/Y position and rejects any frame-length drift.
 
 The scheduler owns VSYNC, VBLANK, RIOT timers, and visible-component order.
