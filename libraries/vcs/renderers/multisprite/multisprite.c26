@@ -31,8 +31,8 @@ alias TEMPLATE_PLAYER1_MAX_Y 86
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
-alias TEMPLATE_PERSISTENT_SORT_BYTES 0
-alias TEMPLATE_MODULE_RAM_BYTES_VALUE 81
+alias TEMPLATE_PERSISTENT_SORT_BYTES 5
+alias TEMPLATE_MODULE_RAM_BYTES_VALUE 86
 #else
 extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_or_192];
 #endif
@@ -69,12 +69,10 @@ alias TEMPLATE_PLAYER0_GLYPH(a,b,c,d,e,f,g,h) 0,h,g,f,e,d,c,b,a
 uint8_t TEMPLATE_state[79];
 uint8_t TEMPLATE_player0_color;
 uint8_t TEMPLATE_player0_nusiz;
-#if TEMPLATE_lines == 192
 // The faithful flicker-sort order is frame-persistent. state[70..74] must be
-// reused for the packed horizontal controls before draw(), so the 192 profile
-// keeps the evolving sort order in a separate five-byte retained array.
+// reused for packed horizontal controls before draw(), so both timing profiles
+// keep the evolving sort order in a separate five-byte retained array.
 uint8_t TEMPLATE_sprite_sort[5];
-#endif
 
 alias TEMPLATE_PLAYER0_X TEMPLATE_state[4]
 alias TEMPLATE_PLAYER1_X TEMPLATE_state[5]
@@ -162,20 +160,12 @@ require inline void TEMPLATE_init(void) {
    asm sta TEMPLATE_state + 61;
    asm lda #>TEMPLATE_pf2;
    asm sta TEMPLATE_state + 62;
-#if TEMPLATE_lines == 192
    asm ldx #4;
    asm @TEMPLATE_SeedP1SortOrderLoop:;
    asm txa;
    asm sta.zx TEMPLATE_sprite_sort,X;
    asm dex;
    asm bpl @TEMPLATE_SeedP1SortOrderLoop;
-#else
-   TEMPLATE_state[70] := 0;
-   TEMPLATE_state[71] := 1;
-   TEMPLATE_state[72] := 2;
-   TEMPLATE_state[73] := 3;
-   TEMPLATE_state[74] := 4;
-#endif
    // Retain the faithful 3-cycle zero-page AND timing in the visible raster.
    TEMPLATE_state[76] := 15;
    TEMPLATE_state[29] := 0;
@@ -238,30 +228,19 @@ require inline void TEMPLATE_vblank(void) {
 #endif
 
    // state[70..74] doubles as per-frame packed P1 control storage after
-   // sorting. The faithful 192 renderer does *not* restart its sort order each
+   // sorting. The faithful renderer does *not* restart its sort order each
    // frame: overlap rotates the hidden sprite to the back of a persistent
    // five-byte order, producing the intended flicker arbitration. Copy that
-   // retained order into the sort workspace before SetupP1. The 181 profile is
-   // intentionally left on its existing identity-seeded behavior until its
-   // overlap path is separately re-certified.
+   // retained order into the sort workspace before SetupP1 in both profiles.
    asm ldx #4;
-#if TEMPLATE_lines == 192
    asm @TEMPLATE_LoadP1SortOrderLoop:;
    asm lda.zx TEMPLATE_sprite_sort,X;
    asm sta.zx TEMPLATE_state + 70,X;
    asm dex;
    asm bpl @TEMPLATE_LoadP1SortOrderLoop;
-#else
-   asm @TEMPLATE_ResetP1IdentityLoop:;
-   asm txa;
-   asm sta.zx TEMPLATE_state + 70,X;
-   asm dex;
-   asm bpl @TEMPLATE_ResetP1IdentityLoop;
-#endif
    asm lda #5;
    asm sta TEMPLATE_state + 58;
    asm jsr @TEMPLATE_SetupP1Subroutine;
-#if TEMPLATE_lines == 192
    // SetupP1 mutates state[70..74] while resolving overlaps. Preserve that
    // evolved order for the next frame before the workspace is overwritten by
    // packed horizontal controls.
@@ -271,7 +250,6 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.zx TEMPLATE_sprite_sort,X;
    asm dex;
    asm bpl @TEMPLATE_SaveP1SortOrderLoop;
-#endif
    // Precompute packed P1 controls while the beam is blanked. The table is
    // calibrated for the ordinary in-raster phase, so public X is a direct
    // lookup and public state is never mutated.

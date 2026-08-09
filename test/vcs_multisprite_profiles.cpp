@@ -415,9 +415,9 @@ SweepMachine *SweepMachine::active_ = nullptr;
 // The faithful multisprite sorter intentionally keeps its five-entry ordering
 // across frames.  When two logical P1 sprites overlap, one is omitted for the
 // current frame and rotated behind the other, so the visible winner alternates
-// rather than becoming a permanent sprite-number priority.  The modern 192
-// renderer once lost that behavior by reinitializing the sort workspace every
-// VBLANK before reusing it for packed horizontal controls.
+// rather than becoming a permanent sprite-number priority.  The modern renderer
+// once lost that behavior by reinitializing the sort workspace every VBLANK
+// before reusing it for packed horizontal controls.
 class FlickerMachine {
 public:
    FlickerMachine(const char *path,uint16_t state_base)
@@ -494,7 +494,7 @@ public:
                      memory_[state_base_+15]=40;
                      memory_[state_base_+16]=56;
                      memory_[state_base_+17]=72;
-                     memory_[state_base_+18]=88;
+                     memory_[state_base_+18]=84;
                      player1_color_=memory_[state_base_+24];
                      player2_color_=memory_[state_base_+25];
                      if (player1_color_==player2_color_)
@@ -768,9 +768,7 @@ int main(int argc, char **argv) {
    validate(events,*profile);
    SweepMachine sweep(argv[1],static_cast<uint16_t>(parsed),profile==&k192);
    sweep.run(profile->name);
-   if (profile==&k192) {
-      FlickerMachine flicker(argv[1],static_cast<uint16_t>(parsed));
-      flicker.run(profile->name);
-   }
+   FlickerMachine flicker(argv[1],static_cast<uint16_t>(parsed));
+   flicker.run(profile->name);
    return 0;
 }

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent 192 overlap flicker, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -38,16 +38,15 @@ my $text=read_file($renderer);
 $text =~ /parameter\s+lines\s*;/ or die "multisprite lines parameter is missing\n";
 $text =~ /#if\s+TEMPLATE_lines\s*==\s*192/ or die "multisprite 192 profile is missing\n";
 $text =~ /#elif\s+TEMPLATE_lines\s*==\s*181/ or die "multisprite 181 profile is missing\n";
-$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+5\b/ &&
-$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+86\b/ &&
-$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+0\b/ &&
-$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+81\b/ &&
+my $persistent_sort_contracts=()=$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+5\b/g;
+my $module_ram_contracts=()=$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+86\b/g;
+$persistent_sort_contracts==2 && $module_ram_contracts==2 &&
 $text =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*TEMPLATE_MODULE_RAM_BYTES_VALUE/
-   or die "multisprite profile-specific RAM contract changed\n";
+   or die "multisprite profile RAM contract changed\n";
 $text =~ /uint8_t\s+TEMPLATE_sprite_sort\[5\]/ &&
 $text =~ /TEMPLATE_LoadP1SortOrderLoop/ &&
 $text =~ /TEMPLATE_SaveP1SortOrderLoop/
-   or die "192 persistent flicker-sort storage/copy contract is missing\n";
+   or die "persistent flicker-sort storage/copy contract is missing\n";
 $text =~ /TEMPLATE_DRAW_HMOVE_COUNT\s*:=\s*TEMPLATE_DRAW_HMOVE_COUNT_VALUE/ or die "multisprite HMOVE contract is missing\n";
 $text =~ /asm\s+lax\s+\(TEMPLATE_state\s*\+\s*59\),y;/ or die "retained stable/common LAX path is missing\n";
 $text =~ /asm\s+\.callstackextra\s+4;/ or die "multisprite hidden call-stack declaration changed\n";
@@ -97,8 +96,8 @@ $text =~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text =~ /asm\s+adc\s+#9;/
 
 my @examples=(
    ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2871,107,99,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3456,121,113,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3456,121,113,8],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3446,126,118,8],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3446,126,118,8],
 );
 my %bins;
 my %state_bases;
@@ -122,10 +121,8 @@ for my $e (@examples) {
    $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$([0-9A-Fa-f]{4})\s+size=\$004F\b/
       or die "$mode game_state is not exactly 79 bytes\n";
    $state_bases{$mode}="0x$1";
-   if ($mode eq '192') {
-      $maptext =~ /BSS\.__vcsc_object\$game_sprite_sort\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0005\b/
-         or die "192 persistent flicker-sort storage is not exactly five bytes\n";
-   }
+   $maptext =~ /BSS\.__vcsc_object\$game_sprite_sort\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0005\b/
+      or die "$mode persistent flicker-sort storage is not exactly five bytes\n";
    $maptext =~ /RODATA\.__vcsc_object\$game_graphics\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0091\b[^\n]*component-align=\$0100\b/
       or die "$mode graphics block is not 145 bytes at a 256-byte boundary\n$maptext";
    $bins{$mode}=$bin;
@@ -198,4 +195,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent 192 overlap flicker, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";

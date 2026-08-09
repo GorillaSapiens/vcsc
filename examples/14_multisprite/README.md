@@ -24,11 +24,10 @@ selected sprite horizontally across X=0..159 and vertically through the
 profile-specific legal Y range. Up moves upward and Down moves downward; Y=0 is
 the fully clipped bottom position. The automated MOS6502/TIA regression sweeps
 every legal independent X/Y position and requires a stable 262-line NTSC frame.
-For the 192 profile it also forces two logical P1 sprites into the same vertical
+For every profile it also forces two logical P1 sprites into the same vertical
 band for consecutive frames and verifies the faithful flicker arbitration: the
 conflicting sprites alternate instead of permanently hiding the lower-numbered
-sprite. The 181 overlap/flicker case is intentionally deferred until the 192
-profile has been user-verified.
+sprite.
 An optional Stella 7.0 pixel regression (`make stella-multisprite-test`) checks
 actual rendered horizontal placement across all five multiplex ranks, both edges,
 the P1 top edge, and the 181 P0 sort-order/no-stripe regressions. The two 181-line

@@ -1411,20 +1411,19 @@ one.
           181 P0 sort invariance, and P0 Y=0 with no broad stripe. The interactive
           examples expose left/right/up/down movement with Y increasing upward and
           Reset; P0/P1 max Y are 95/92 for 192 and 89/86 for 181. M0/M1/Ball stay
-          outside the maintained active raster. Current public sizes are 2881 ROM /
-          102 RAM for 192 and 3456 ROM / 121 RAM for each 181 score composition.
-        * Post-completion 192 overlap/flicker repair 2026-08-09: the modern port had
+          outside the maintained active raster. Current public sizes are 2871 ROM /
+          107 RAM for 192 and 3446 ROM / 126 RAM for each 181 score composition.
+        * Post-completion overlap/flicker repair 2026-08-09: the modern port had
           reused the faithful persistent five-byte sort table as packed horizontal
           control storage, then restored identity order every VBLANK. Overlapping
           logical P1 sprites therefore acquired permanent sprite-number priority
           instead of flickering. Keep a separate five-byte persistent sort order in
-          `lines:=192`, copy it into/out of the sort workspace around SetupP1, and
-          only then overwrite the workspace with packed horizontal controls. A
-          six-frame MOS6502/TIA overlap regression now requires logical P1/P2 to
-          alternate as the visible winner; the pre-repair ROM fails that check.
-          The repaired 192 public example is 2871 ROM / 107 RAM. Per the user's
-          instruction to stabilize 192 first, the 181 overlap/flicker policy is
-          intentionally unchanged and has not yet been re-certified.
+          both `lines:=192` and `lines:=181`, copy it into/out of the sort workspace
+          around SetupP1, and only then overwrite the workspace with packed horizontal
+          controls. Six-frame MOS6502/TIA overlap regressions now require logical
+          P1/P2 to alternate as the visible winner in 192 and both 181 score orders;
+          the pre-repair ROMs fail that check. The repaired public examples are
+          2871 ROM / 107 RAM for 192 and 3446 ROM / 126 RAM for each 181 composition.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in
