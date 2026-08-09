@@ -12,9 +12,14 @@ This is the compact durable handoff for continuing VCSC after a chat restart.
 It records only current state, durable invariants, active problems, and the next
 work. It is not a chronological diary.
 
-When asked to read `.../context.txt` and continue:
+When asked to read `.../context.txt` and continue in a **new chat**:
 
-1. Read this file first.
+1. Read this file once near the start of the chat. This is bootstrap state, not a
+   per-turn checklist. Do not reread the whole file on later turns unless it has
+   materially changed and the current task genuinely requires the new contents.
+   For later verification, prefer a targeted search, section, line range, or tail.
+   Reinjecting the same handoff text every turn wastes the conversational context
+   this file is intended to save.
 2. Inspect the current tree and verify that it agrees with this record.
 3. Follow the user's newest instruction. Otherwise continue the first item under
    "Immediate TODO."
@@ -70,6 +75,29 @@ Generate it with:
 
 Never put a growing changelog back into this file. Update the current-state
 sections here and append the historical narrative only to the daily history.
+
+Single-chat source-lineage policy
+---------------------------------
+A VCSC source lineage must have only one active development chat at a time. Parallel
+chats can each start from the same archive, make valid but different changes, and then
+return tarballs that silently omit the other chat's work. A later timestamp does not
+prove that one archive is a descendant of another.
+
+* Treat the exact archive supplied by the user in the current chat as the authoritative
+  starting tree for that chat. Do not substitute a working tree or tarball from another
+  chat, even if it appears newer or familiar.
+* Normal handoff is serial: finish the current chat's work, obtain its returned tarball,
+  then use **that returned tarball** as the input archive when continuing in a new chat.
+* Do not continue modifying the same project lineage in two chats at once. If another
+  chat is still doing VCSC work, finish or abandon one lineage before starting new work
+  in the other.
+* If concurrent work happened accidentally, stop feature/bug work and reconcile the
+  divergent trees first. Diff both descendants against their known common input, identify
+  every unique change, and explicitly merge or choose changes. Never resolve divergence by
+  simply picking the archive with the newest filename or timestamp.
+* Before packaging a result, make sure the working tree descends from the archive supplied
+  for the current task. Never overwrite newer user work with a stale tree carried over from
+  another chat.
 
 General workflow invariants
 ---------------------------

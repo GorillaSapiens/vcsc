@@ -13,7 +13,13 @@ The deliberately terse directory name is `...`. This directory is **for develope
 
 ### `context.txt`
 
-The compact durable project handoff. It contains current state, durable invariants, active constraints, and the immediate next action. Read it before continuing queued work and keep it small by updating existing state rather than appending history.
+The compact durable project handoff. It contains current state, durable invariants, active constraints, and the immediate next action. **Treat it as a new-chat bootstrap, not a per-turn checklist:** read it once near the start of a new chat, retain that state in the conversation, and do not reread the whole file on later turns merely because another task arrived. If later verification is needed, read only the relevant section, search result, line range, or tail. Re-reading unchanged handoff text repeatedly wastes the chat context that this file exists to conserve. Keep it small by updating existing state rather than appending history.
+
+### Chat and archive lineage
+
+Do not develop the same VCSC source lineage concurrently in multiple chats. A returned tarball is a handoff point: finish work in one chat, use that chat's returned archive as the input to the next chat, and then continue there. The newest user-supplied archive is the sole source-tree authority for that chat; never silently combine it with, or overwrite it from, an older working copy remembered from another chat.
+
+If parallel chats were used accidentally, stop normal development and reconcile the divergent archives explicitly before doing more work. Compare the trees, identify changes unique to each lineage, and deliberately merge or choose between them. Do **not** assume that the archive with the newest timestamp contains all prior work, and do not package a stale working tree over a newer one.
 
 ### `roadmap.txt`
 
