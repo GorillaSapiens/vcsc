@@ -1,0 +1,152 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Shared scene and controls for the modern parameterized multisprite examples.
+// The including cartridge must instantiate the renderer as `game` first.
+
+align(256) const uint8_t game_graphics[129] := {
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   game_PLAYER0_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0bXX....XX,
+      0bXX.XX.XX,
+      0bXX.XX.XX,
+      0bXX....XX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b...XX...,0b..XXX...,0b.XXXX...,0b...XX...,
+      0b...XX...,0b...XX...,0b...XX...,0b.XXXXXX.
+   ),
+   game_SPRITE_GLYPH(
+      0b..XXXX..,0b.XX..XX.,0b.....XX.,0b....XX..,
+      0b...XX...,0b..XX....,0b.XX.....,0b.XXXXXX.
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXX..,0b.....XX.,0b.....XX.,0b..XXXX..,
+      0b.....XX.,0b.....XX.,0b.XX..XX.,0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b....XX..,0b...XXX..,0b..XXXX..,0b.XX.XX..,
+      0bXX..XX..,0bXXXXXXX.,0b....XX..,0b....XX..
+   ),
+   game_SPRITE_GLYPH(
+      0b.XXXXXX.,0b.XX.....,0b.XX.....,0b.XXXXX..,
+      0b.....XX.,0b.....XX.,0b.XX..XX.,0b..XXXX..
+   )
+};
+
+// Six retained playfield rows are consumed from high index to low index.
+const uint8_t game_pf1[6] := { 0x81,0x42,0x24,0x18,0xa5,0xc3 };
+const uint8_t game_pf2[6] := { 0x81,0x3c,0x5a,0xa5,0x66,0xe7 };
+
+alias SELECTED_PLAYER0 0
+alias SELECTED_PLAYER1 1
+alias SELECTED_PLAYER2 2
+alias SELECTED_PLAYER3 3
+alias SELECTED_PLAYER4 4
+alias SELECTED_PLAYER5 5
+alias SELECTED_OBJECT_COUNT 6
+
+uint8_t selected_object := SELECTED_PLAYER0;
+uint8_t select_switch_ready := 1;
+
+inline void initialize_multisprite_scene(void) {
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x01;
+
+   game_PLAYER0_X := 18;
+   game_PLAYER0_Y := 70;
+   game_PLAYER0_HEIGHT := 9;
+   game_PLAYER0_COLOR := VCS_NTSC_GRAY_92;
+   game_PLAYER0_NUSIZ := 0;
+
+   game_PLAYER1_X := 36;
+   game_PLAYER2_X := 62;
+   game_PLAYER3_X := 88;
+   game_PLAYER4_X := 114;
+   game_PLAYER5_X := 140;
+   game_PLAYER1_Y := 16;
+   game_PLAYER2_Y := 30;
+   game_PLAYER3_Y := 44;
+   game_PLAYER4_Y := 58;
+   game_PLAYER5_Y := 72;
+   game_PLAYER1_HEIGHT := 9;
+   game_PLAYER2_HEIGHT := 9;
+   game_PLAYER3_HEIGHT := 9;
+   game_PLAYER4_HEIGHT := 9;
+   game_PLAYER5_HEIGHT := 9;
+   game_PLAYER1_NUSIZ := 0;
+   game_PLAYER2_NUSIZ := 0;
+   game_PLAYER3_NUSIZ := 0;
+   game_PLAYER4_NUSIZ := 0;
+   game_PLAYER5_NUSIZ := 0;
+   game_PLAYER1_COLOR := VCS_NTSC_LIGHT_CORAL;
+   game_PLAYER2_COLOR := VCS_NTSC_PALE_GREEN;
+   game_PLAYER3_COLOR := VCS_NTSC_SKY_BLUE;
+   game_PLAYER4_COLOR := VCS_NTSC_ORCHID;
+   game_PLAYER5_COLOR := VCS_NTSC_AQUAMARINE;
+
+   game_MISSILE0_X := 8;
+   game_MISSILE1_X := 152;
+   game_BALL_X := 80;
+   // The retained minimal profile keeps M0/M1/Ball outside the gameplay field.
+   game_MISSILE0_Y := 250;
+   game_MISSILE1_Y := 251;
+   game_BALL_Y := 252;
+
+   selected_object := SELECTED_PLAYER0;
+   select_switch_ready := 1;
+   game_init();
+}
+
+inline void update_multisprite_selection(void) {
+   if (SWCHB & 0x02) {
+      select_switch_ready := 1;
+   }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object >= SELECTED_OBJECT_COUNT) {
+            selected_object := SELECTED_PLAYER0;
+         }
+         select_switch_ready := 0;
+      }
+   }
+}
+
+inline void move_selected_multisprite_object(void) {
+   // Horizontal motion is intentionally the interactive dimension here. The
+   // retained minimal multisprite pipeline changes physical line scheduling
+   // when logical sprites cross some vertical multiplexing boundaries; the
+   // maintained 181/192 profiles therefore keep their proven Y schedule fixed.
+   if (!(SWCHA & 0x40)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0: if (game_PLAYER0_X > 0) { game_PLAYER0_X--; } break;
+         case SELECTED_PLAYER1: if (game_PLAYER1_X > 0) { game_PLAYER1_X--; } break;
+         case SELECTED_PLAYER2: if (game_PLAYER2_X > 0) { game_PLAYER2_X--; } break;
+         case SELECTED_PLAYER3: if (game_PLAYER3_X > 0) { game_PLAYER3_X--; } break;
+         case SELECTED_PLAYER4: if (game_PLAYER4_X > 0) { game_PLAYER4_X--; } break;
+         default: if (game_PLAYER5_X > 0) { game_PLAYER5_X--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0: if (game_PLAYER0_X < 159) { game_PLAYER0_X++; } break;
+            case SELECTED_PLAYER1: if (game_PLAYER1_X < 159) { game_PLAYER1_X++; } break;
+            case SELECTED_PLAYER2: if (game_PLAYER2_X < 159) { game_PLAYER2_X++; } break;
+            case SELECTED_PLAYER3: if (game_PLAYER3_X < 159) { game_PLAYER3_X++; } break;
+            case SELECTED_PLAYER4: if (game_PLAYER4_X < 159) { game_PLAYER4_X++; } break;
+            default: if (game_PLAYER5_X < 159) { game_PLAYER5_X++; }
+         }
+      }
+   }
+}
+
+inline void update_multisprite_controls(void) {
+   update_multisprite_selection();
+   move_selected_multisprite_object();
+}

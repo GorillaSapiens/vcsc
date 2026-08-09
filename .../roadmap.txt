@@ -23,11 +23,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: 28 — derive one modern unbanked/non-Superchip multisprite
-component from the locked faithful legacy baseline, parameterized by visible scanline
-count through `instantiate`. Prove 192-line and 181-line interactive compositions
-before considering any additional profiles. Item 23 remains an earlier unfinished
-item, but the current work is intentionally following the user's requested item 28.
+Current next action: none selected — item 28 is complete. Item 23 and other roadmap
+items remain unfinished, but no new workstream should be assumed until the user selects
+one.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1326,7 +1324,7 @@ item, but the current work is intentionally following the user's requested item 
         * Add a custom tail-entry startup because the stock runtime startup cannot
           coexist with this profile's complete RIOT-RAM ownership.
 
-[ ] 28. Port and verify the minimal unbanked, non-Superchip multisprite profile.
+[x] 28. Port and verify the minimal unbanked, non-Superchip multisprite profile.
         Build and lock a faithful fixed diagnostic first, then derive one modern
         component parameterized by visible scanline count. Prove 192-line and
         181-line interactive compositions, including score placement where relevant.
@@ -1370,13 +1368,29 @@ item, but the current work is intentionally following the user's requested item 
           Keep the unofficial 181-line experiment separate. Use this established
           pattern for the modern multisprite extraction rather than multiplying
           scanline-count source families.
-        * Remaining item-28 substep: derive one parameterized modern multisprite
-          component from the faithful baseline, with visible-line count supplied at
-          instantiation time. Prove 192-line and 181-line interactive compositions
-          first, including score-above/score-below where applicable, exact raster and
-          frame timing, playfield correctness, stack/RAM/ROM accounting, and the
-          existing joystick/Select/Reset control conventions. Do not add separate
-          scanline-count renderer variants unless a genuine timing contract forces it.
+        * Modern parameterized component completed 2026-08-08: add one
+          `renderers/multisprite/multisprite.c26` with required `parameter lines;`
+          and calibrated `lines:=192` / `lines:=181` profiles. The component owns
+          79 bytes of retained state plus two public P0 bytes = 81 RIOT-RAM bytes,
+          declares four hidden hardware-stack bytes, and retains the stable/common
+          NMOS `LAX`/TXS/PHP beam path, so callers use `-Wa,--illegals`.
+        * The 192 profile uses logical height 92 plus one terminal scanline. The 181
+          profile uses logical height 87 plus one score-handoff P0 restoration line,
+          and composes with the independent eleven-line score either above or below.
+          All three public interactive examples hold exact 262-line NTSC frames.
+        * Make graphics placement an explicit timing contract: applications provide a
+          129-byte `align(256)` graphics block with bytes 0..79 reserved and P0/P1..P5
+          at offsets 80/89/97/105/113/121. Full 16-bit pointer adjustment preserves
+          address correctness while the aligned high-offset layout prevents the
+          retained cycle-critical `(ptr),Y` glyph fetches from page crossing.
+        * Lock all eight P0 rows, all 40 rows of the five multiplexed P1 sprites,
+          five P1 colors/reposition phases, six asymmetric playfield rows, HMOVE
+          schedule, both score placements, frame timing, invalid-line rejection, and
+          installed-toolchain builds. The public 192 interactive cartridge measures
+          2246 ROM / 102 RAM; each 181 interactive score composition measures 2977
+          ROM / 121 RAM. Select cycles P0 plus five logical P1 sprites; horizontal
+          joystick motion and Reset are interactive while the calibrated P1 Y schedule
+          remains fixed. M0/M1/Ball stay outside the maintained active raster.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

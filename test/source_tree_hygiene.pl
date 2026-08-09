@@ -172,6 +172,13 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','README.md') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','faithful_legacy_multisprite','faithful_legacy_multisprite.c26') &&
 -f File::Spec->catfile($repo,'examples','10_faithful_legacy_multisprite','01_diagnostic','faithful_legacy_multisprite_diagnostic.c26') &&
+-f File::Spec->catfile($test,'vcs_multisprite_profiles.pl') &&
+-f File::Spec->catfile($test,'vcs_multisprite_profiles.cpp') &&
+-f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','README.md') &&
+-f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','multisprite.c26') &&
+-f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','14_multisprite','02_181_score_above','01_interactive','multisprite_181_score_above_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','14_multisprite','03_181_score_below','01_interactive','multisprite_181_score_below_interactive.c26') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 -f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
@@ -194,6 +201,9 @@ index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'stella-faithful-multisprite-test: tools')>=0 &&
 index($top_make,'libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
+index($top_make,'libraries/vcs/renderers/multisprite/multisprite.c26')>=0 &&
+index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/multisprite.c26')>=0 &&
+index($top_make,'examples/14_multisprite/01_192/01_interactive/multisprite_192_interactive.c26')>=0 &&
 index($top_make,'install -m 0644 libraries/vcs/six_glyph_wide_component.c26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0
    or die "top-level installed simulator/Stella and wide-score coverage is incomplete\n";
@@ -315,6 +325,7 @@ index($standard_renderer_source,'.callstackextra 4')>=0
 for my $component (
    'all_five/all_five.c26',
    'all_five_unofficial/all_five_unofficial.c26',
+   'multisprite/multisprite.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 4;')>=0
@@ -513,12 +524,12 @@ index($context,'RAM-roadmap items 0-14 are complete.')>=0 &&
 index($context,'The RAM optimization workstream is complete.')>=0 &&
 index($context,'The text after the comma is mandatory.')>=0 &&
 index($context,'Main-roadmap item 23 remains an earlier')>=0 &&
-index($context,'item 28 is active')>=0 &&
+index($context,'items 27 and 28 are complete')>=0 &&
 index($context,'faithful_legacy_multisprite')>=0 &&
-index($context,'one modern parameterized multisprite component')>=0 &&
+index($context,'renderers/multisprite/multisprite.c26')>=0 &&
 index($context,'192- and 181-line')>=0 &&
 length($context) <= 100 * 1024
-   or die "compact context lost its user-directed item-28 multisprite pointer, completed RAM/assembly closeout, history-title policy, skipped item-23 note, or size ceiling\n";
+   or die "compact context lost its completed item-28 multisprite pointer, completed RAM/assembly closeout, history-title policy, skipped item-23 note, or size ceiling\n";
 $ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
 $ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
 $ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
@@ -541,16 +552,16 @@ $ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly reco
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$roadmap =~ /^Current next action: 28\b/m &&
+$roadmap =~ /^Current next action: none selected\b/m &&
 $roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
-$roadmap =~ /^\[ \] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
+$roadmap =~ /^\[x\] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
 index($roadmap,'faithful fixed baseline complete')>=0 &&
 index($roadmap,'1472/4090 ROM bytes')>=0 &&
 index($roadmap,'122 state +')>=0 &&
 index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0 &&
 index($roadmap,'one renderer source parameterized by visible scanline')>=0 &&
 $roadmap =~ /^\s*\[x\] 22d1\. Hard-cut the source keyword from `template` to/m
-   or die "main roadmap lost the active item-28 faithful multisprite baseline or task-27 completion\n";
+   or die "main roadmap lost the completed item-28 multisprite baseline/modern component or task-27 completion\n";
 $roadmap =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";
 $roadmap =~ /^\s*\[x\] 22i4b6\./m

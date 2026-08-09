@@ -1034,6 +1034,18 @@ certification for the same fixed cartridge.  Run it through
 `make stella-faithful-multisprite-test STELLA=/path/to/stella`; the default e2e
 suite does not require a graphical Stella installation.
 
+`vcs_multisprite_profiles.pl` locks the modern item-28 derivative. It requires
+one `renderers/multisprite/multisprite.c26` source with compile-time
+`lines:=192` and `lines:=181`, rejects unsupported heights, and preserves the
+retained LAX/TXS/PHP path with a four-byte hidden-stack declaration. The public
+192 interactive cartridge and both 181 score orders are built and measured; a
+MOS6502/TIA oracle pins exact 262-line frames, all eight P0 rows, all 40 rows of
+the five multiplexed P1 glyphs, colors, reposition phases, six playfield rows,
+HMOVE schedule, and score placement. The examples must provide a 129-byte
+`align(256)` graphics block at `$xx00`; glyphs begin at offset 80 so every
+cycle-critical indexed fetch remains page-cross free. The test also pins the
+81-byte renderer state contract and current ROM/RAM accounting.
+
 `fixed_large_offset_codegen_test.c26` locks the fixed-address audit past the old
 8-bit-offset boundary: an automatic byte at offset 299 must use direct
 `symbol + 299` addressing rather than materializing a pointer or consuming Y.

@@ -118,6 +118,8 @@ not inferred from a count of source statements. The common contract is:
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| `multisprite (lines:=181)` | 181 | 3 / 0 | 0 / 0 | yes | 6 | yes |
+| `multisprite (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 5 | no |
 
 ### TIA ownership and exit state
 
@@ -409,6 +411,43 @@ The existing monolithic tests remain predecessor oracles.  They must not be
 weakened or rewritten to accept the replacement; new component fixtures compare
 against them where the selected composition profile is intended to preserve
 behavior.
+
+## Parameterized modern multisprite profile
+
+`renderers/multisprite/multisprite.c26` is the composable derivative of the
+faithful unbanked/non-Superchip multisprite baseline. One source accepts the
+required compile-time `lines` parameter at `192` or `181`; unsupported values
+are rejected. Both profiles draw one independent P0 plus five logical sprites
+multiplexed through P1 and six asymmetric playfield rows. They retain the
+faithful TXS/PHP enable pipeline and the stable/common NMOS `LAX`, so users must
+assemble with `-Wa,--illegals`.
+
+The module owns 79 bytes of private state plus two public P0 color/NUSIZ bytes,
+81 RIOT-RAM bytes total, and declares four bytes of hidden hardware-stack depth.
+It does not own VSYNC, VBLANK, RIOT timers, a score, or application controls.
+The 192 profile uses logical height 92; the retained core consumes 191 physical
+lines and a terminal WSYNC closes line 192. The 181 profile uses logical height
+87 and spends its first visible line restoring P0 after a preceding score; it
+then returns on a score-composable cycle-zero boundary. Five P1 reposition
+HMOVEs occur in either profile; the 181 P0 restoration adds a sixth visible
+HMOVE.
+
+The application supplies one **129-byte, 256-byte-aligned graphics block**.
+Bytes 0..79 are reserved; P0 occupies 80..88 and logical P1..P5 occupy
+89..96, 97..104, 105..112, 113..120, and 121..128. This layout is a timing
+contract: the retained beam core uses cycle-critical `(ptr),Y` glyph loads, and
+6502 page crossing would add a cycle and perturb later horizontal repositioning.
+Full 16-bit pointer adjustment remains required for correctness, while the
+aligned high-offset block guarantees that maintained glyph fetches never cross
+a page.
+
+The five multiplexed P1 Y values are a calibrated scheduling profile rather
+than unrestricted vertical game state. The maintained public examples therefore
+move P0/P1 sprites horizontally while keeping that Y schedule fixed; M0, M1,
+and Ball remain off the active raster because enabling them changes the retained
+physical scheduling. `examples/14_multisprite/` proves a full-height 192-line
+interactive cartridge and both 181+11 score orders, all at exact 262-line NTSC
+frames.
 
 ## Official player-color 181-line profile
 

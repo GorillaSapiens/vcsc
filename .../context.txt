@@ -466,9 +466,9 @@ post-closeout NTSC scheduler correction at 3296 ROM / 56 RAM / 72 free: 19 activ
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
 that accounting unchanged. The compiler-only suite is **472/472** after adding
 the nonzero downward X-backed counted-loop and discard-store transparency regressions. The end-to-end suite
-contains **266** tests; its source-only blank-frame regression now pins four
+contains **267** tests; its source-only blank-frame regression now pins four
 X-backed scanline countdowns, <=449 ROM / 22 RAM, and exact 262-line timing. The
-clean source baseline is **266/266**. Recursive public examples,
+clean source baseline is **267/267**. Recursive public examples,
 staged `installcheck`, focused simulator/raster/accounting oracles, source hygiene,
 and the reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
@@ -477,7 +477,7 @@ after `make clean`. Checked-in library/profile `.cfg` files remain license-audit
 The generated-sidecar hygiene regression remains explicit: a faithful-multisprite
 example `.cfg` may be present without being mistaken for editable source, while
 checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
-is 472/472 and complete e2e coverage is 266/266. The faithful-multisprite diagnostic
+is 472/472 and complete e2e coverage is 267/267. The faithful-multisprite diagnostic
 fixture `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26`
 is present in the source tree; packaging must retain it because the recursive example
 build and faithful-multisprite oracle both require it.
@@ -493,8 +493,8 @@ in current scheduler users and no RAM or visible cycles.
 
 The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
 unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
-item 27 is complete and item 28 is active. Its first milestone is locked as the
-`faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
+items 27 and 28 are complete; no new roadmap item has been selected yet. Item 28's
+first milestone remains locked as the `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
 activation RAM, and stable 264-line frames. The default oracle pins the complete
@@ -559,7 +559,22 @@ bank0 1848 -> 1827 with ordinary bank1 76 -> 55 and F8SC bank1 115 -> 86. A comp
 regression pins direct automatic-local addressing at byte offset 299 so the removed
 one-page cutoff cannot silently return.
 
-The next item-28 step is therefore one modern parameterized multisprite component,
-with visible gameplay lines supplied at instantiation time; prove 192- and 181-line
-interactive compositions rather than creating separate renderer source families.
-Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
+Main-roadmap item 28 is complete. `libraries/vcs/renderers/multisprite/multisprite.c26`
+is the single modern source, with required `parameter lines;` and calibrated
+`lines:=192` / `lines:=181` profiles. It owns 79 retained-state bytes plus two public
+P0 bytes = 81 RIOT-RAM bytes and declares four bytes of hidden hardware-stack depth;
+it retains stable/common NMOS `LAX` plus the faithful TXS/PHP enable pipeline, so
+users assemble it with `-Wa,--illegals`. The 192 profile uses logical height 92 and a
+terminal line; the 181 profile uses logical height 87 plus one P0 score-handoff line.
+`examples/14_multisprite/` proves a full-height interactive cartridge and both
+181+11 score orders, all at exact 262-line NTSC timing. Select cycles P0 plus the five
+logical P1 sprites and the left joystick moves the selected sprite horizontally; the
+calibrated P1 Y schedule remains fixed, and M0/M1/Ball stay off the maintained active
+raster. The graphics contract is one 129-byte `align(256)` block with bytes 0..79
+reserved and P0/P1..P5 at offsets 80/89/97/105/113/121; this combines full 16-bit
+pointer arithmetic with guaranteed no-page-cross `(ptr),Y` beam fetches. The public
+192 example measures 2246 ROM / 102 RAM; both 181 score examples measure 2977 ROM /
+121 RAM. The dedicated oracle pins all six player rasters, five P1 color/reposition
+phases, six playfield rows, HMOVE timing, both score placements, invalid-line rejection,
+and installed builds. Main-roadmap items 29 and 30 and the completed bankswitching
+sub-roadmap remain closed. No new main-roadmap item has been selected after item 28.

@@ -1,0 +1,46 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Modern 181-line multisprite with an independent score below gameplay.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "renderers/multisprite/multisprite.c26" as game (lines:=181)
+instantiate "six_glyph_color_component.c26" as score
+include "../../../common/multisprite_interactive_common.c26"
+
+inline void initialize_score(void) {
+   score_score := 123456;
+   score_color := VCS_NTSC_GRAY_92;
+   score_init();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   initialize_multisprite_scene();
+   initialize_score();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+
+      game_draw();
+      vcs_ntsc_component_handoff();
+      score_draw();
+
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      if (!(SWCHB & 0x01)) {
+         initialize_multisprite_scene();
+         initialize_score();
+      }
+      else { update_multisprite_controls(); }
+      vcs_ntsc_end_overscan();
+   }
+}

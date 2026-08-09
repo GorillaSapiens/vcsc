@@ -85,12 +85,12 @@ find(sub {
    return unless -f $_ && /\.c26\z/ && $File::Find::name =~ m{/01_interactive/};
    push @leaves,$File::Find::name;
 },File::Spec->catdir($repo,'examples'));
-@leaves==48 or die "found ".scalar(@leaves)." interactive sources, expected 48\n";
+@leaves==51 or die "found ".scalar(@leaves)." interactive sources, expected 51\n";
 for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
-               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five)_181_interactive_common\.c26"/;
+               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/;
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }
 

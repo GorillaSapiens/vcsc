@@ -1,0 +1,678 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Modern composable derivative of the faithful legacy BASIC multisprite raster.
+// One P0 plus five logical sprites multiplexed through P1. The visible gameplay
+// height is selected at instantiation time; frame scheduling and scores are owned
+// by independent components. This renderer intentionally retains the stable/common
+// NMOS LAX instruction in the beam-critical playfield path and therefore requires
+// -Wa,--illegals.
+
+parameter lines;
+
+#if TEMPLATE_lines == 192
+alias TEMPLATE_LOGICAL_HEIGHT 92
+alias TEMPLATE_PF_ROW_MAX 5
+alias TEMPLATE_P0_TOP_LIMIT 93
+alias TEMPLATE_P1_TOP_LIMIT 89
+alias TEMPLATE_PLAYFIELD_ROWS 6
+alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
+alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
+#elif TEMPLATE_lines == 181
+alias TEMPLATE_LOGICAL_HEIGHT 87
+alias TEMPLATE_PF_ROW_MAX 5
+alias TEMPLATE_P0_TOP_LIMIT 88
+alias TEMPLATE_P1_TOP_LIMIT 84
+alias TEMPLATE_PLAYFIELD_ROWS 6
+alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
+alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
+#else
+extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_or_192];
+#endif
+
+// Machine-readable visible-component handoff. The 192 profile owns the whole
+// standard visible field. The 181 profile spends its first owned line restoring
+// P0 after an adjacent score component, then runs the retained multiplexing core.
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_lines,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := TEMPLATE_lines,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := TEMPLATE_DRAW_HMOVE_COUNT_VALUE,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := TEMPLATE_DRAW_SUCCESSOR_VALUE,
+   TEMPLATE_MULTIPLEXED_PLAYERS := 5,
+   TEMPLATE_OBJECT_COUNT := 6,
+   TEMPLATE_PLAYFIELD_ROWS_VALUE := TEMPLATE_PLAYFIELD_ROWS,
+   TEMPLATE_PLAYFIELD_BYTES := 12,
+   TEMPLATE_GRAPHICS_BYTES := 129,
+   TEMPLATE_GRAPHICS_DATA_OFFSET := 80,
+   TEMPLATE_STATE_BYTES := 79,
+   TEMPLATE_PUBLIC_EXTRA_BYTES := 2,
+   TEMPLATE_MODULE_RAM_BYTES := 81
+};
+
+alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias TEMPLATE_PLAYER0_GLYPH(a,b,c,d,e,f,g,h) 0,h,g,f,e,d,c,b,a
+
+uint8_t TEMPLATE_state[79];
+uint8_t TEMPLATE_player0_color;
+uint8_t TEMPLATE_player0_nusiz;
+
+alias TEMPLATE_PLAYER0_X TEMPLATE_state[4]
+alias TEMPLATE_PLAYER1_X TEMPLATE_state[5]
+alias TEMPLATE_PLAYER2_X TEMPLATE_state[6]
+alias TEMPLATE_PLAYER3_X TEMPLATE_state[7]
+alias TEMPLATE_PLAYER4_X TEMPLATE_state[8]
+alias TEMPLATE_PLAYER5_X TEMPLATE_state[9]
+alias TEMPLATE_PLAYER0_Y TEMPLATE_state[13]
+alias TEMPLATE_PLAYER1_Y TEMPLATE_state[14]
+alias TEMPLATE_PLAYER2_Y TEMPLATE_state[15]
+alias TEMPLATE_PLAYER3_Y TEMPLATE_state[16]
+alias TEMPLATE_PLAYER4_Y TEMPLATE_state[17]
+alias TEMPLATE_PLAYER5_Y TEMPLATE_state[18]
+alias TEMPLATE_MISSILE0_X TEMPLATE_state[0]
+alias TEMPLATE_MISSILE1_X TEMPLATE_state[1]
+alias TEMPLATE_BALL_X TEMPLATE_state[2]
+alias TEMPLATE_MISSILE0_Y TEMPLATE_state[10]
+alias TEMPLATE_MISSILE1_Y TEMPLATE_state[11]
+alias TEMPLATE_BALL_Y TEMPLATE_state[12]
+alias TEMPLATE_PLAYER0_HEIGHT TEMPLATE_state[48]
+alias TEMPLATE_PLAYER1_HEIGHT TEMPLATE_state[49]
+alias TEMPLATE_PLAYER2_HEIGHT TEMPLATE_state[50]
+alias TEMPLATE_PLAYER3_HEIGHT TEMPLATE_state[51]
+alias TEMPLATE_PLAYER4_HEIGHT TEMPLATE_state[52]
+alias TEMPLATE_PLAYER5_HEIGHT TEMPLATE_state[53]
+alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_state[19]
+alias TEMPLATE_PLAYER2_NUSIZ TEMPLATE_state[20]
+alias TEMPLATE_PLAYER3_NUSIZ TEMPLATE_state[21]
+alias TEMPLATE_PLAYER4_NUSIZ TEMPLATE_state[22]
+alias TEMPLATE_PLAYER5_NUSIZ TEMPLATE_state[23]
+alias TEMPLATE_PLAYER1_COLOR TEMPLATE_state[24]
+alias TEMPLATE_PLAYER2_COLOR TEMPLATE_state[25]
+alias TEMPLATE_PLAYER3_COLOR TEMPLATE_state[26]
+alias TEMPLATE_PLAYER4_COLOR TEMPLATE_state[27]
+alias TEMPLATE_PLAYER5_COLOR TEMPLATE_state[28]
+alias TEMPLATE_PLAYER0_COLOR TEMPLATE_player0_color
+alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_player0_nusiz
+
+// The graphics block is page-aligned and intentionally starts glyph data at
+// byte 80. With the maintained Y schedules, every (ptr),Y graphics fetch then
+// stays in-page and has deterministic timing independent of surrounding ROM.
+extern const uint8_t TEMPLATE_graphics[129];
+alias TEMPLATE_PLAYER0_GRAPHICS_OFFSET 80
+alias TEMPLATE_PLAYER1_GRAPHICS_OFFSET 89
+alias TEMPLATE_PLAYER2_GRAPHICS_OFFSET 97
+alias TEMPLATE_PLAYER3_GRAPHICS_OFFSET 105
+alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 113
+alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 121
+extern const uint8_t TEMPLATE_pf1[TEMPLATE_PLAYFIELD_ROWS];
+extern const uint8_t TEMPLATE_pf2[TEMPLATE_PLAYFIELD_ROWS];
+
+align(256) const uint8_t TEMPLATE_fine_adjust_table[15] := {
+   0x60,0x50,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
+};
+
+#if TEMPLATE_lines == 181
+// Packed one-line P0 positioning controls used after a score component has
+// owned P0. The high nibble is HMP0 and the low nibble is the five-cycle
+// coarse-loop count. This is the same measured cycle-3 handoff geometry used
+// by the maintained score-composable renderer families.
+page const uint8_t TEMPLATE_player0_position_table[160] := {
+   0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
+   0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
+   0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
+   0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,0x25,0x15,
+   0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,0x16,0x06,
+   0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,
+   0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,
+   0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,
+   0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,
+   0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
+};
+#endif
+
+require inline void TEMPLATE_init(void) {
+   asm lda #<{TEMPLATE_graphics + 80};
+   asm sta TEMPLATE_state + 34;
+   asm lda #>{TEMPLATE_graphics + 80};
+   asm sta TEMPLATE_state + 35;
+   asm lda #<TEMPLATE_pf1;
+   asm sta TEMPLATE_state + 59;
+   asm lda #>TEMPLATE_pf1;
+   asm sta TEMPLATE_state + 60;
+   asm lda #<TEMPLATE_pf2;
+   asm sta TEMPLATE_state + 61;
+   asm lda #>TEMPLATE_pf2;
+   asm sta TEMPLATE_state + 62;
+   TEMPLATE_state[70] := 0;
+   TEMPLATE_state[71] := 1;
+   TEMPLATE_state[72] := 2;
+   TEMPLATE_state[73] := 3;
+   TEMPLATE_state[74] := 4;
+   TEMPLATE_state[29] := 0;
+   TEMPLATE_state[30] := 1;
+   TEMPLATE_state[31] := 2;
+   TEMPLATE_state[32] := 3;
+   TEMPLATE_state[33] := 4;
+   asm lda #<{TEMPLATE_graphics + 89};
+   asm sta TEMPLATE_state + 38;
+   asm lda #>{TEMPLATE_graphics + 89};
+   asm sta TEMPLATE_state + 43;
+   asm lda #<{TEMPLATE_graphics + 97};
+   asm sta TEMPLATE_state + 39;
+   asm lda #>{TEMPLATE_graphics + 97};
+   asm sta TEMPLATE_state + 44;
+   asm lda #<{TEMPLATE_graphics + 105};
+   asm sta TEMPLATE_state + 40;
+   asm lda #>{TEMPLATE_graphics + 105};
+   asm sta TEMPLATE_state + 45;
+   asm lda #<{TEMPLATE_graphics + 113};
+   asm sta TEMPLATE_state + 41;
+   asm lda #>{TEMPLATE_graphics + 113};
+   asm sta TEMPLATE_state + 46;
+   asm lda #<{TEMPLATE_graphics + 121};
+   asm sta TEMPLATE_state + 42;
+   asm lda #>{TEMPLATE_graphics + 121};
+   asm sta TEMPLATE_state + 47;
+}
+
+require inline void TEMPLATE_vblank(void) {
+   asm .callstackextra 4;
+#if TEMPLATE_lines == 181
+   asm ldx.z TEMPLATE_state + 4;
+   asm lda.ax TEMPLATE_player0_position_table,x;
+   asm sta.z TEMPLATE_state + 69;
+#endif
+   asm lda #5;
+   asm sta TEMPLATE_state + 58;
+   asm jsr @TEMPLATE_SetupP1Subroutine;
+   asm jsr @TEMPLATE_PrePositionAllObjects;
+   asm dec TEMPLATE_state + 13;
+   // Adjust the complete P0 graphics pointer; do not rely on the glyph
+   // landing late enough in its ROM page to avoid an 8-bit borrow.
+   asm lda TEMPLATE_state + 34;
+   asm sec;
+   asm sbc TEMPLATE_state + 13;
+   asm sta TEMPLATE_state + 34;
+   asm lda TEMPLATE_state + 35;
+   asm sbc #0;
+   asm sta TEMPLATE_state + 35;
+   asm lda TEMPLATE_state + 34;
+   asm clc;
+   asm adc TEMPLATE_state + 48;
+   asm sta TEMPLATE_state + 34;
+   asm lda TEMPLATE_state + 35;
+   asm adc #0;
+   asm sta TEMPLATE_state + 35;
+   asm lda TEMPLATE_state + 13;
+   asm sta TEMPLATE_state + 67;
+   asm sec;
+   asm sbc TEMPLATE_state + 48;
+   asm clc;
+   asm adc #$80;
+   asm sta TEMPLATE_state + 36;
+   asm ldx #4;
+   asm lda #$80;
+   asm @TEMPLATE_cycle74_HMCLR:;
+   asm sta HMP0,X;
+   asm dex;
+   asm bpl @TEMPLATE_cycle74_HMCLR;
+   asm lda #0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm jsr @TEMPLATE_RendererSetupSubroutine;
+   asm jmp @TEMPLATE_vblank_done;
+   asm @TEMPLATE_PositionASpriteSubroutine:;
+   asm sec;
+   asm sta WSYNC;
+   asm sta.a HMCLR;
+   asm @TEMPLATE_DivideBy15Loop:;
+   asm sbc #15;
+   asm bcs @TEMPLATE_DivideBy15Loop;
+   asm tay;
+   asm lda TEMPLATE_fine_adjust_table - 241,Y;
+   asm sta HMP0,X;
+   asm sta RESP0,X;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm rts;
+   asm @TEMPLATE_PrePositionAllObjects:;
+   asm ldx #4;
+   asm lda TEMPLATE_state + 2;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm lda TEMPLATE_state + 1;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm lda TEMPLATE_state + 0;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm dex;
+   asm lda TEMPLATE_state + 4;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm rts;
+   asm @TEMPLATE_RendererSetupSubroutine:;
+   asm ldx #4;
+   asm @TEMPLATE_AdjustYValuesUpLoop:;
+   asm lda TEMPLATE_state + 14,X;
+   asm clc;
+   asm adc #2;
+   asm sta TEMPLATE_state + 14,X;
+   asm dex;
+   asm bpl @TEMPLATE_AdjustYValuesUpLoop;
+   asm ldx TEMPLATE_state + 65;
+   asm lda TEMPLATE_state + 29,x;
+   asm tay;
+   asm lda TEMPLATE_state + 14,y;
+   asm sta TEMPLATE_state + 66;
+   asm lda TEMPLATE_state + 29-1,x;
+   asm tay;
+   asm lda TEMPLATE_state + 14,y;
+   asm sta TEMPLATE_state + 68;
+   asm stx TEMPLATE_state + 3;
+   asm lda #255;
+   asm sta TEMPLATE_state + 37;
+   asm lda TEMPLATE_state + 13;
+#if TEMPLATE_lines == 192
+   asm cmp #93;
+#else
+   asm cmp #88;
+#endif
+   asm bcc @TEMPLATE_nottoohigh;
+   asm lda TEMPLATE_state + 36;
+   asm sta TEMPLATE_state + 67;
+   asm @TEMPLATE_nottoohigh:;
+   asm rts;
+   asm @TEMPLATE_SetupP1Subroutine:;
+   asm @TEMPLATE_fsstart:;
+   asm ldx #255;
+   asm @TEMPLATE_copytable:;
+   asm inx;
+   asm lda TEMPLATE_state + 70,x;
+   asm sta TEMPLATE_state + 29,x;
+   asm cpx #4;
+   asm bne @TEMPLATE_copytable;
+   asm stx TEMPLATE_state + 65;
+   asm dex;
+   asm stx TEMPLATE_state + 64;
+   asm @TEMPLATE_sortloop:;
+   asm ldx TEMPLATE_state + 64;
+   asm lda TEMPLATE_state + 70,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+   asm sta TEMPLATE_state + 63;
+   asm ldx TEMPLATE_state + 64;
+   asm lda TEMPLATE_state + 70+1,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+   asm sec;
+   asm clc;
+   asm sbc TEMPLATE_state + 63;
+   asm bcc @TEMPLATE_largerXislower;
+   asm cmp TEMPLATE_state + 49,x;
+   asm bcs @TEMPLATE_countdown;
+   asm @TEMPLATE_overlapping:;
+   asm dec TEMPLATE_state + 65;
+   asm ldx TEMPLATE_state + 64;
+   asm jsr @TEMPLATE_shiftnumbers;
+   asm jmp @TEMPLATE_skipswapGfxtable;
+   asm @TEMPLATE_largerXislower:;
+   asm tay;
+   asm ldx TEMPLATE_state + 64;
+   asm lda TEMPLATE_state + 70,x;
+   asm tax;
+   asm tya;
+   asm eor #$FF;
+   asm sbc #1;
+   asm bcc @TEMPLATE_overlapping;
+   asm cmp TEMPLATE_state + 49,x;
+   asm bcs @TEMPLATE_notoverlapping;
+   asm dec TEMPLATE_state + 65;
+   asm ldx TEMPLATE_state + 64;
+   asm jsr @TEMPLATE_shiftnumbers;
+   asm jmp @TEMPLATE_skipswapGfxtable;
+   asm @TEMPLATE_notoverlapping:;
+   asm @TEMPLATE_skipswapGfxtable:;
+   asm ldx TEMPLATE_state + 64;
+   asm ldy TEMPLATE_state + 70+1,x;
+   asm lda TEMPLATE_state + 70,x;
+   asm sty TEMPLATE_state + 70,x;
+   asm sta TEMPLATE_state + 70+1,x;
+   asm @TEMPLATE_countdown:;
+   asm dec TEMPLATE_state + 64;
+   asm bpl @TEMPLATE_sortloop;
+   asm @TEMPLATE_checktoohigh:;
+   asm ldx TEMPLATE_state + 65;
+   asm lda TEMPLATE_state + 29,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+#if TEMPLATE_lines == 192
+   asm cmp #89;
+#else
+   asm cmp #84;
+#endif
+   asm bcc @TEMPLATE_nonetoohigh;
+   asm dec TEMPLATE_state + 65;
+   asm bne @TEMPLATE_checktoohigh;
+   asm @TEMPLATE_nonetoohigh:;
+   asm rts;
+   asm @TEMPLATE_shiftnumbers:;
+   asm @TEMPLATE_swaploop:;
+   asm cpx #4;
+   asm beq @TEMPLATE_shiftdone;
+   asm lda TEMPLATE_state + 29+1,x;
+   asm sta TEMPLATE_state + 29,x;
+   asm inx;
+   asm jmp @TEMPLATE_swaploop;
+   asm @TEMPLATE_shiftdone:;
+   asm rts;
+
+   asm @TEMPLATE_vblank_done:;
+}
+
+require inline void TEMPLATE_draw(void) {
+#if TEMPLATE_lines == 181
+   // A score component owns P0 positioning while it draws. Restore P0 on one
+   // visible handoff line, then HMOVE at cycle zero so the retained gameplay
+   // core resumes at its original cycle-3 entry phase. Clear the other motion
+   // registers so this HMOVE cannot disturb P1/M0/M1/Ball geometry.
+   asm ldy.z TEMPLATE_state + 69;
+   asm sty HMP0;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_player0_position_loop:;
+   asm dex;
+   asm bne.same @TEMPLATE_player0_position_loop;
+   asm sta RESP0;
+   asm lda #0;
+   asm sta HMP1;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm sta WSYNC;
+   asm sta HMOVE;
+#endif
+   // Re-establish TIA state that an adjacent score component may clobber.
+   asm lda #1;
+   asm sta VDELP0;
+   asm sta VDELBL;
+   asm lda.z TEMPLATE_player0_nusiz;
+   asm sta NUSIZ0;
+   asm lda.z TEMPLATE_player0_color;
+   asm sta COLUP0;
+#if TEMPLATE_lines == 192
+   asm ldy #92;
+#elif TEMPLATE_lines == 181
+   asm ldy #87;
+#endif
+   // Enter the retained two-scanline multiplexing pipeline. The historical
+   // SLEEP 12 is reduced by the explicit TIA restoration above; timing is
+   // calibrated by the renderer regression.
+   asm tsx;
+   asm stx.z TEMPLATE_state + 75;
+   asm ldx #$1f;
+   asm txs;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm @TEMPLATE_RendererLoopa:;
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm @TEMPLATE_RendererLoopb:;
+   asm nop;
+   asm cpy.z TEMPLATE_state + 67;
+   asm beq @TEMPLATE_SwitchDrawP0K1;
+   asm bpl @TEMPLATE_WaitDrawP0K1;
+   asm lda (TEMPLATE_state + 34),Y;
+   asm sta GRP0;
+   asm @TEMPLATE_BackFromSwitchDrawP0K1:;
+   asm cpy.z TEMPLATE_state + 37;
+   asm bcc @TEMPLATE_SkipDrawP1K1;
+   asm lda (TEMPLATE_state + 64),Y;
+   asm sta.a GRP1;
+   asm @TEMPLATE_BackFromSkipDrawP1:;
+   asm sty.z TEMPLATE_state + 63;
+   asm ldy.z TEMPLATE_state + 58;
+   asm lax (TEMPLATE_state + 59),y;
+   asm stx PF1;
+   asm lda (TEMPLATE_state + 61),y;
+   asm sta PF2;
+   asm stx.z TEMPLATE_state + 55;
+   asm sta.z TEMPLATE_state + 57;
+   asm dey;
+   asm bmi @TEMPLATE_pagewraphandler;
+   asm lda (TEMPLATE_state + 59),y;
+   asm @TEMPLATE_cyclebalance:;
+   asm sta.z TEMPLATE_state + 54;
+   asm lda (TEMPLATE_state + 61),y;
+   asm sta.z TEMPLATE_state + 56;
+   asm ldy.z TEMPLATE_state + 63;
+   asm ldx #$1f;
+   asm txs;
+   asm cpy.z TEMPLATE_state + 12;
+   asm php;
+   asm cpy.z TEMPLATE_state + 11;
+   asm php;
+   asm cpy.z TEMPLATE_state + 10;
+   asm php;
+   asm dey;
+   asm cpy.z TEMPLATE_state + 66;
+   asm beq @TEMPLATE_RepoRenderer;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm @TEMPLATE_newrepo:;
+   asm ldx.z TEMPLATE_state + 3;
+   asm lda.zx TEMPLATE_state + 29-1,x;
+   asm tax;
+   asm lda.zx TEMPLATE_state + 14,x;
+   asm sta.z TEMPLATE_state + 68;
+   asm nop;
+   asm nop;
+   asm @TEMPLATE_BackFromRepoRenderer:;
+   asm tya;
+   asm and #15;
+   asm bne @TEMPLATE_RendererLoopa;
+   asm dec.z TEMPLATE_state + 58;
+   asm bpl @TEMPLATE_RendererLoopb;
+   asm @TEMPLATE_donewrenderer:;
+   asm jmp @TEMPLATE_DoneWithRenderer;
+   asm @TEMPLATE_pagewraphandler:;
+   asm jmp @TEMPLATE_cyclebalance;
+   asm @TEMPLATE_SwitchDrawP0KR:;
+   asm lda.z TEMPLATE_state + 36;
+   asm sta.z TEMPLATE_state + 67;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0KR;
+   asm @TEMPLATE_WaitDrawP0KR:;
+   asm nop;
+   asm nop;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0KR;
+   asm @TEMPLATE_noUpdateXKR:;
+   asm ldx #1;
+   asm cpy.a TEMPLATE_state + 67;
+   asm JMP @TEMPLATE_retXKR;
+   asm @TEMPLATE_skipthis:;
+   asm ldx #1;
+   asm jmp @TEMPLATE_goback;
+   asm @TEMPLATE_RepoRenderer:;
+   asm tya;
+   asm and #15;
+   asm bne @TEMPLATE_noUpdateXKR;
+   asm tax;
+   asm dec.z TEMPLATE_state + 58;
+   asm cpy.z TEMPLATE_state + 67;
+   asm @TEMPLATE_retXKR:;
+   asm beq @TEMPLATE_SwitchDrawP0KR;
+   asm bpl @TEMPLATE_WaitDrawP0KR;
+   asm lda (TEMPLATE_state + 34),Y;
+   asm sta GRP0;
+   asm @TEMPLATE_BackFromSwitchDrawP0KR:;
+   asm sec;
+   asm lda.zx TEMPLATE_state + 56,X;
+   asm ldy.zx TEMPLATE_state + 54,X;
+   asm ldx.z TEMPLATE_state + 3;
+   asm sta PF2;
+   asm lda.zx TEMPLATE_state + 29,x;
+   asm sty PF1;
+   asm tax;
+   asm lda #0;
+   asm sta GRP1;
+   asm lda.zx TEMPLATE_state + 5,X;
+   asm @TEMPLATE_DivideBy15LoopK:;
+   asm sbc #15;
+   asm bcs @TEMPLATE_DivideBy15LoopK;
+   asm tax;
+   asm lda TEMPLATE_fine_adjust_table - 241,X;
+   asm sta HMP1;
+   asm sta RESP1;
+   asm sta WSYNC;
+   asm ldx #$1f;
+   asm txs;
+   asm ldy.z TEMPLATE_state + 66;
+   asm cpy.z TEMPLATE_state + 12;
+   asm php;
+   asm cpy.z TEMPLATE_state + 11;
+   asm php;
+   asm cpy.z TEMPLATE_state + 10;
+   asm php;
+   asm tya;
+   asm and #15;
+   asm and #$FE;
+   asm bne @TEMPLATE_skipthis;
+   asm tax;
+   asm nop;
+   asm nop;
+   asm @TEMPLATE_goback:;
+   asm dey;
+   asm cpy.z TEMPLATE_state + 67;
+   asm beq @TEMPLATE_SwitchDrawP0KV;
+   asm bpl @TEMPLATE_WaitDrawP0KV;
+   asm lda (TEMPLATE_state + 34),Y;
+   asm sta GRP0;
+   asm @TEMPLATE_BackFromSwitchDrawP0KV:;
+   asm lda.zx TEMPLATE_state + 56,X;
+   asm sta PF2;
+   asm lda.zx TEMPLATE_state + 54,X;
+   asm sta PF1;
+   asm sta HMOVE;
+   asm lda #0;
+   asm sta GRP1;
+   asm ldx #$1f;
+   asm txs;
+   asm ldx.z TEMPLATE_state + 3;
+   asm lda.zx TEMPLATE_state + 29,X;
+   asm tax;
+   asm lda.zx TEMPLATE_state + 19,X;
+   asm sta NUSIZ1;
+   asm sta REFP1;
+   asm lda.zx TEMPLATE_state + 24,X;
+   asm sta COLUP1;
+   asm lda.zx TEMPLATE_state + 14,X;
+   asm sec;
+   asm sbc.zx TEMPLATE_state + 49,X;
+   asm sta.z TEMPLATE_state + 37;
+   asm nop;
+   asm nop;
+   asm lda.zx TEMPLATE_state + 38,X;
+   asm sbc.z TEMPLATE_state + 37;
+   asm sta.z TEMPLATE_state + 64;
+   asm lda.zx TEMPLATE_state + 43,X;
+   asm sbc #0;
+   asm sta.z TEMPLATE_state + 64+1;
+   asm cpy.z TEMPLATE_state + 12;
+   asm php;
+   asm cpy.z TEMPLATE_state + 11;
+   asm php;
+   asm cpy.z TEMPLATE_state + 10;
+   asm php;
+   asm dec.z TEMPLATE_state + 3;
+   asm bpl @TEMPLATE_SetNextLine;
+   asm lda #255;
+   asm jmp @TEMPLATE_SetLastLine;
+   asm @TEMPLATE_SetNextLine:;
+   asm lda.a TEMPLATE_state + 68;
+   asm @TEMPLATE_SetLastLine:;
+   asm sta.z TEMPLATE_state + 66;
+   asm tya;
+   asm and #15;
+   asm bne @TEMPLATE_nodec;
+   asm dec.z TEMPLATE_state + 58;
+   asm dey;
+   asm jmp @TEMPLATE_BackFromRepoRenderer;
+   asm @TEMPLATE_nodec:;
+   asm nop;
+   asm nop;
+   asm dey;
+   asm jmp @TEMPLATE_BackFromRepoRenderer;
+   asm @TEMPLATE_SwitchDrawP0KV:;
+   asm lda.z TEMPLATE_state + 36;
+   asm sta.z TEMPLATE_state + 67;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0KV;
+   asm @TEMPLATE_WaitDrawP0KV:;
+   asm nop;
+   asm nop;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0KV;
+
+   asm @TEMPLATE_SwitchDrawP0K1:;
+   asm lda.z TEMPLATE_state + 36;
+   asm sta.z TEMPLATE_state + 67;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
+   asm @TEMPLATE_WaitDrawP0K1:;
+   asm nop;
+   asm nop;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
+   asm @TEMPLATE_SkipDrawP1K1:;
+   asm lda #0;
+   asm sta GRP1;
+   asm jmp @TEMPLATE_BackFromSkipDrawP1;
+   asm @TEMPLATE_DoneWithRenderer:;
+   asm sta WSYNC;
+   asm ldx.z TEMPLATE_state + 75;
+   asm txs;
+#if TEMPLATE_lines == 192
+   // The retained multiplexing core naturally consumes 191 physical lines
+   // from logical Y=92; one terminal blank line closes the 192-line profile.
+   asm sta WSYNC;
+#endif
+
+}
+
+require inline void TEMPLATE_overscan(void) {
+   // Restore the complete P0 pointer/Y mutation performed during vblank.
+   asm lda TEMPLATE_state + 34;
+   asm clc;
+   asm adc TEMPLATE_state + 13;
+   asm sta TEMPLATE_state + 34;
+   asm lda TEMPLATE_state + 35;
+   asm adc #0;
+   asm sta TEMPLATE_state + 35;
+   asm lda TEMPLATE_state + 34;
+   asm sec;
+   asm sbc TEMPLATE_state + 48;
+   asm sta TEMPLATE_state + 34;
+   asm lda TEMPLATE_state + 35;
+   asm sbc #0;
+   asm sta TEMPLATE_state + 35;
+   asm inc TEMPLATE_state + 13;
+   // Undo the +2 bias applied to all five multiplexed P1 Y values.
+   asm ldx #4;
+   asm @TEMPLATE_AdjustYValuesDownLoop:;
+   asm lda TEMPLATE_state + 14,X;
+   asm sec;
+   asm sbc #2;
+   asm sta TEMPLATE_state + 14,X;
+   asm dex;
+   asm bpl @TEMPLATE_AdjustYValuesDownLoop;
+}

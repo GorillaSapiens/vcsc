@@ -136,6 +136,10 @@ install-data:
 	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26 \
 	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite
+	install -m 0644 libraries/vcs/renderers/multisprite/README.md \
+	  libraries/vcs/renderers/multisprite/multisprite.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five
 	install -m 0644 libraries/vcs/renderers/all_five/README.md \
 	  libraries/vcs/renderers/all_five/all_five.c26 \
@@ -239,6 +243,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/multisprite.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/all_five.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five 2>/dev/null || true
@@ -442,6 +449,19 @@ installcheck: tools
 	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26" \
 	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"` -eq 4096; \
+	test -f "$$stage_vcs/renderers/multisprite/README.md"; \
+	test -f "$$stage_vcs/renderers/multisprite/multisprite.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	  "$(CURDIR)/examples/14_multisprite/01_192/01_interactive/multisprite_192_interactive.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/multisprite_192.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/multisprite_192.bin"` -eq 4096; \
+	for example in \
+	  02_181_score_above/01_interactive/multisprite_181_score_above_interactive.c26 \
+	  03_181_score_below/01_interactive/multisprite_181_score_below_interactive.c26; do \
+	  "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
+	    "$(CURDIR)/examples/14_multisprite/$$example" \
+	    -o "$(INSTALLCHECK_STAGING)/multisprite_181_$$(basename "$$example" .c26).bin"; \
+	done; \
 	test -f "$$stage_vcs/renderers/all_five/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five/all_five.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \

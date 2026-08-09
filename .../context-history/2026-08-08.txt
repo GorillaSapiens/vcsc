@@ -91,3 +91,4 @@ The separately maintained all-five unofficial renderer is now one `all_five_unof
 
 2026-08-08 21:31:00 PDT, Completed unofficial all-five profile integration
 Unified unofficial all-five 192/181/170 coverage now includes the public assembly allowlist, interactive orientation inventory, score-composition raster matrix, staged install checks, and a dedicated official/unofficial profile parity regression. Current suite inventory is 472 compile-only and 265 end-to-end tests.
+2026-08-08 23:56:40 PDT, completed parameterized modern multisprite renderer with 192/181 interactive score compositions and page-safe graphics timing contract

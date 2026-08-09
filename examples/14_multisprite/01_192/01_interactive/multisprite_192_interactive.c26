@@ -1,0 +1,41 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Full-height modern multisprite: P0 plus five logical sprites multiplexed through P1.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+instantiate "renderers/multisprite/multisprite.c26" as game (lines:=192)
+include "../../../common/multisprite_interactive_common.c26"
+
+inline void initialize_192_scene(void) {
+   initialize_multisprite_scene();
+   // The full-height retained schedule uses the original 16-line spacing.
+   game_PLAYER0_Y := 76;
+   game_PLAYER1_Y := 16;
+   game_PLAYER2_Y := 32;
+   game_PLAYER3_Y := 48;
+   game_PLAYER4_Y := 64;
+   game_PLAYER5_Y := 80;
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   initialize_192_scene();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      vcs_ntsc_end_vblank();
+
+      game_draw();
+
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      if (!(SWCHB & 0x01)) { initialize_192_scene(); }
+      else { update_multisprite_controls(); }
+      vcs_ntsc_end_overscan();
+   }
+}

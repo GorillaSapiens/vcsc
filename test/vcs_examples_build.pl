@@ -71,6 +71,8 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
    } elsif ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
       push @extra,'-nostdlib','-Wa,--illegals','-T',$faithful_multisprite_cfg;
+   } elsif ($file =~ /\Amultisprite_.*\.c26\z/) {
+      push @extra,'-Wa,--illegals';
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
    } elsif ($file eq 'bankswitching_diagnostic.c26' ||
