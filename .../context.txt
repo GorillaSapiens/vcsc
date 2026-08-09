@@ -442,7 +442,7 @@ transition simulator matrix and recursive example builds pass.
 
 Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Item
 14 removed every ordinary-application `compiler-limitation` entry: the allowlist is
-now nine sources, all classified only as beam-critical or direct hardware idioms.
+now eleven sources, all classified only as beam-critical or direct hardware idioms.
 Packed-BCD score editing is high-level VCSC using indexed decimal-weight `+=`/`-=`,
 all-five object movement is high-level VCSC, and the fingerprint installs semantic
 `uint16_t[6]` glyph addresses directly. The compiler has narrow regression-pinned
@@ -466,9 +466,9 @@ post-closeout NTSC scheduler correction at 3296 ROM / 56 RAM / 72 free: 19 activ
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
 that accounting unchanged. The compiler-only suite is **472/472** after adding
 the nonzero downward X-backed counted-loop and discard-store transparency regressions. The end-to-end suite
-contains **264** tests; its source-only blank-frame regression now pins four
+contains **265** tests; its source-only blank-frame regression now pins four
 X-backed scanline countdowns, <=449 ROM / 22 RAM, and exact 262-line timing. The
-clean source baseline is **264/264**. Recursive public examples,
+clean source baseline is **265/265**. Recursive public examples,
 staged `installcheck`, focused simulator/raster/accounting oracles, source hygiene,
 and the reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
@@ -477,7 +477,7 @@ after `make clean`. Checked-in library/profile `.cfg` files remain license-audit
 The generated-sidecar hygiene regression remains explicit: a faithful-multisprite
 example `.cfg` may be present without being mistaken for editable source, while
 checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
-is 472/472 and complete e2e coverage is 264/264. The faithful-multisprite diagnostic
+is 472/472 and complete e2e coverage is 265/265. The faithful-multisprite diagnostic
 fixture `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26`
 is present in the source tree; packaging must retain it because the recursive example
 build and faithful-multisprite oracle both require it.
@@ -514,18 +514,25 @@ substitute the supplied/default literal while undeclared `TEMPLATE_` names retai
 ordinary instance-prefix rewriting. Missing required, unknown, duplicate, and
 non-integer arguments and duplicate parameter declarations are compile-time errors.
 `instantiate` remains semicolon-free; `parameter` declarations require semicolons.
-The official all-five renderer now proves that parameterized renderer shape in
-production. `libraries/vcs/renderers/all_five/all_five.c26` has required `parameter lines;` and supports compile-time `lines:=192`, `lines:=181`, and `lines:=170`; the
-old separate official `all_five_192` and `all_five_181` renderer source directories
-are removed. Existing public 192- and 181-line examples instantiate the unified
-source. `examples/11_all_five_170/01_score_above_and_below/01_interactive` composes
-11 score + 170 gameplay + 11 score = 192 visible lines and exercises the same
-Select/joystick/Reset controls. It measures 3605/4090 ROM and exactly 128/128 RAM
-including the eight-byte hardware-stack reserve, so the dual-score proof fits with
-zero RAM slack. Declared instantiation parameters are also available as integer
-literals in `#if`/`#elif`, allowing renderer timing profiles to remain compile-time
-code selection rather than runtime branches. The separately maintained
-`all_five_181_unofficial` experiment remains distinct.
+The all-five renderer families prove that parameterized renderer shape in
+production. `libraries/vcs/renderers/all_five/all_five.c26` and the reviewed
+stable/common-NMOS twin `libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26`
+both have required `parameter lines;` and support compile-time `lines:=192`,
+`lines:=181`, and `lines:=170`. The unofficial source must be assembled with
+`-Wa,--illegals`; each selected profile differs from its official twin only by one
+same-size/same-cycle zero-page unofficial NOP in dead-flag VBLANK padding. Existing
+public 192- and 181-line official examples instantiate the unified official source;
+the maintained unofficial 181 score matrix now instantiates the unified unofficial
+source with `lines:=181`. `examples/11_all_five_170/` and
+`examples/12_all_five_170_unofficial/` each compose 11 score + 170 gameplay + 11
+score = 192 visible lines with the same Select/joystick/Reset controls. Both current
+dual-score cartridges measure 3507/4090 ROM and exactly 128/128 RAM including the
+eight-byte hardware-stack reserve, so they fit with zero RAM slack. Profile
+regressions compare 192/181/170 official/unofficial visible traces and 262-line timing,
+and staged installcheck compiles all three unofficial line selections. Declared
+instantiation parameters are also available as integer literals in `#if`/`#elif`,
+allowing renderer timing profiles to remain compile-time code selection rather than
+runtime branches.
 
 The fixed-address lowering audit is complete. Compile-time-constant offsets into fixed
 linker symbols use direct operands even beyond offset 255; Y remains reserved for real

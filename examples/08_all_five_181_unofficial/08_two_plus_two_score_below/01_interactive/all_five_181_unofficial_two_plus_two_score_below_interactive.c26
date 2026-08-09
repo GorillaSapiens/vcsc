@@ -7,7 +7,7 @@ include "color_ntsc.c26"
 include "playfield.c26"
 include "two_plus_two_score_support.c26"
 
-instantiate "renderers/all_five_181_unofficial/all_five_181_unofficial.c26" as game
+instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=181)
 instantiate "two_plus_two_score_component.c26" as score
 
 include "../../../common/two_plus_two_controls.c26"

@@ -71,5 +71,6 @@ VSYNC, VBLANK, RIOT timer deadlines and visible-component order.
 - `examples/11_all_five_170/` instantiates `lines:=170` between an 11-line
   score above and an 11-line score below.
 
-The separately maintained `all_five_181_unofficial` renderer remains a distinct
-experimental unofficial-opcode counterpart to the 181-line profile.
+The separately maintained `all_five_unofficial` renderer is the parameterized
+experimental unofficial-opcode twin and supports the same 192-, 181-, and
+170-line profiles.

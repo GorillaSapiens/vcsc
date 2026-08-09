@@ -525,12 +525,19 @@ latching, immediate missile enables, NUSIZ/CTRLPF widths, and physical
 color-clock write timing. It compares all five object layers at every visible
 pixel on the setup line and all 181 gameplay lines in both score orders.
 
-`vcs_all_five_181_unofficial.pl` checks the separately named unofficial twin
-against the corrected official schedule. It requires identical RAM addresses,
-one reviewed zero-page unofficial NOP, no AXS sites, the same physical
-modulo-76 playfield profile, pairwise visible-trace identity for all five static
-and motion compositions, direct per-pixel object-raster checks for both static
-score orders, and the measured 1794/1794-byte result.
+`vcs_all_five_181_unofficial.pl` keeps the detailed 181-line score/motion
+comparison for the parameterized unofficial twin. It requires identical RAM
+addresses, one reviewed zero-page unofficial NOP in the instantiated profile,
+no AXS sites, the same physical modulo-76 playfield profile, pairwise
+visible-trace identity for all five static and motion compositions, direct
+per-pixel object-raster checks for both static score orders, and equal linked
+ROM use.
+
+`vcs_all_five_unofficial_profiles.pl` exercises the unified unofficial source at
+`lines:=192`, `181`, and `170`. Every profile must have the same linked ROM use
+and object-mask RAM contract as its official twin, exactly one reviewed `$04`
+NOP in generated assembly, identical visible TIA traces, and stable 262-line
+frames.
 
 `vcs_standard_motion.pl` builds a private copy of the object-motion cartridge
 under `test/fixtures/vcs_examples/` and runs it for 320 frames in the 6502

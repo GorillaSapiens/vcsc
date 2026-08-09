@@ -16,7 +16,7 @@ page const uint8_t game_playfield[44] := {
    0x81,0x18,0x18,0x81,
    0xff,0xff,0xff,0xff
 };
-instantiate "renderers/all_five_181_unofficial/all_five_181_unofficial.c26" as game
+instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=181)
 instantiate "six_glyph_component.c26" as score
 
 page const uint8_t p0_graphics[8] := {

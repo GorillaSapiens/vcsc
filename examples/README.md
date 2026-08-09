@@ -31,11 +31,13 @@ the shared timing, resource, opcode, and composition contracts.
 | [`08_all_five_181_unofficial`](08_all_five_181_unofficial/) | Stable/common-NMOS unofficial-opcode twin of group 06 | Matching ten-layout score/poison matrix |
 | [`09_bankswitching`](09_bankswitching/) | F8/F6/F4 and F8SC/F6SC/F4SC mapper diagnostics using generated reset and cross-bank bridges | Parameterized all-transition PASS/FAIL cartridge plus shared-Superchip-RAM persistence checks for simulator and Stella certification |
 | [`10_faithful_legacy_multisprite`](10_faithful_legacy_multisprite/) | Faithful unbanked/non-Superchip legacy multisprite baseline with integrated score/playfield and retained unofficial opcodes | Fixed P0 + five multiplexed-P1 raster, asymmetric playfield, and six-digit score diagnostic |
+| [`11_all_five_170`](11_all_five_170/) | Official parameterized all-five renderer at `lines:=170` | Interactive score-above + gameplay + score-below composition |
+| [`12_all_five_170_unofficial`](12_all_five_170_unofficial/) | Stable/common-NMOS unofficial parameterized all-five twin at `lines:=170` | Matching interactive score-above + gameplay + score-below composition |
 
 The four 181-line groups contribute a **40-cartridge composition matrix**:
 four gameplay families x four production score layouts x two orders, plus eight
 poison stress compositions. Together with the ten basic, faithful-legacy, and 192-line cartridges plus the
-bank-switching diagnostic wrapper, the public tree contains **51 editable
+bank-switching diagnostic wrapper, the public tree contains **57 editable
 cartridges**.
 
 The unofficial groups are separate source-level examples rather than a build

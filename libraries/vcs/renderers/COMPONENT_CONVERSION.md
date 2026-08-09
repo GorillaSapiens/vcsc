@@ -314,24 +314,26 @@ Maintained regression evidence locks exact 262-line frames, every playfield
 pixel, all five object rasters, RAM/page/stack contracts, and staged-installed
 builds for the supported line counts.
 
-## Unofficial all-five 181-line counterpart
+## Parameterized unofficial all-five counterpart
 
-`renderers/all_five_181_unofficial/all_five_181_unofficial.c26` remains the
-separately named experimental counterpart to the official `lines:=181`
-profile. It has the same lifecycle API, 23-byte public state, 44-byte private
-state, 67-byte total RAM layout, 44-byte playfield contract, solid player
-colors, and score-above/score-below fixtures. It must be assembled with
-`-Wa,--illegals`.
+`renderers/all_five_unofficial/all_five_unofficial.c26` is the separately named
+stable/common-NMOS experimental twin of the parameterized official all-five
+renderer. It requires the same `lines` instantiation parameter and supports
+`lines:=192`, `lines:=181`, and `lines:=170` with the same API, RAM layout,
+playfield contract, visible scanline count, and TIA schedule as the corresponding
+official profile. It must be assembled with `-Wa,--illegals`.
 
-Only one reviewed stable/common NMOS form remains: a zero-page unofficial NOP
-(`$04`) used as exact-size, exact-cycle dead-flag padding during VBLANK
-positioning. There are no retained AXS substitutions and no silicon-sensitive
-or unstable opcodes.
+Each selected profile contains exactly one reviewed stable/common NMOS form: a
+zero-page unofficial NOP (`$04`) used as exact-size, exact-cycle dead-flag
+padding during VBLANK positioning. There are no retained AXS substitutions and
+no silicon-sensitive or unstable opcodes.
 
-The maintained smoke links compare the unofficial renderer against the
-parameterized official `lines:=181` profile and require the same visible TIA
-schedule, stable frames, object positions, collision behavior, and RAM symbol
-addresses before executable-size differences are considered meaningful.
+The maintained 181-line score matrix continues to compare static and moving
+unofficial cartridges against the official `lines:=181` profile. Additional
+profile regressions instantiate 192, 181, and 170 directly, require equal linked
+ROM use and profile RAM contracts, and compare visible TIA traces and stable
+262-line frames. The public `examples/12_all_five_170_unofficial/` cartridge
+composes 11 score + 170 gameplay + 11 score to prove the dual-score profile.
 
 ## RAM-optimization architecture closeout
 

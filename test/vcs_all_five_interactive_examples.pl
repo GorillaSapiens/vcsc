@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 45
-# expectstdout: vcs_all_five_interactive_examples ok: six all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks
+# expectstdout: vcs_all_five_interactive_examples ok: seven all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -29,6 +29,7 @@ my @cases=(
  { dir=>'06_all_five_181/01_score_above/01_interactive', stem=>'all_five_181_score_above_interactive', profile=>'all5_above', score=>1, extra=>[] },
  { dir=>'06_all_five_181/02_score_below/01_interactive', stem=>'all_five_181_score_below_interactive', profile=>'all5_below', score=>1, extra=>[] },
  { dir=>'11_all_five_170/01_score_above_and_below/01_interactive', stem=>'all_five_170_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>[] },
+ { dir=>'12_all_five_170_unofficial/01_score_above_and_below/01_interactive', stem=>'all_five_170_unofficial_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
  { dir=>'08_all_five_181_unofficial/01_score_above/01_interactive', stem=>'all_five_181_unofficial_score_above_interactive', profile=>'all5_above', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
  { dir=>'08_all_five_181_unofficial/02_score_below/01_interactive', stem=>'all_five_181_unofficial_score_below_interactive', profile=>'all5_below', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
 );
@@ -48,7 +49,7 @@ for my $case (@cases) {
    my $src=File::Spec->catfile($repo,'examples',$dir,"$stem.c26");
    my $text=read_file($src);
    my $renderer=$case->{unofficial}
-      ? 'renderers/all_five_181_unofficial/all_five_181_unofficial.c26'
+      ? 'renderers/all_five_unofficial/all_five_unofficial.c26'
       : 'renderers/all_five/all_five.c26';
    $text =~ /\Q$renderer\E/ or die "$dir does not use the selected all-five renderer\n";
    if ($case->{unofficial}) {
@@ -106,4 +107,4 @@ for my $case (@cases) {
    $err eq '' or die "$dir runtime stderr: $err";
 }
 
-print "vcs_all_five_interactive_examples ok: six all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks\n";
+print "vcs_all_five_interactive_examples ok: seven all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks\n";

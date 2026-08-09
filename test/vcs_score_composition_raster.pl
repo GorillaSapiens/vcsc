@@ -125,9 +125,12 @@ for my $family (@families) {
          my $text=read_file($sources[0]);
          $text =~ /instantiate\s+"\Q$score->{component}\E"\s+as\s+score\b/
             or die "$sources[0] does not use $score->{component}\n";
-         if ($family->{fixture} eq 'all_five_181' && !$family->{illegals}) {
-            $text =~ /instantiate\s+"renderers\/all_five\/all_five\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
-               or die "$sources[0] does not use unified all_five lines:=181\n";
+         if ($family->{class} eq 'all_five') {
+            my $renderer=$family->{illegals}
+               ? 'renderers/all_five_unofficial/all_five_unofficial.c26'
+               : 'renderers/all_five/all_five.c26';
+            $text =~ /instantiate\s+"\Q$renderer\E"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
+               or die "$sources[0] does not use $renderer lines:=181\n";
          } else {
             $text =~ /instantiate\s+"renderers\/\Q$family->{fixture}\E\/\Q$family->{fixture}\E\.c26"\s+as\s+game\b/
                or die "$sources[0] does not use $family->{fixture}\n";

@@ -49,7 +49,9 @@ my @components=(
    ['renderers/player_color_181_unofficial/player_color_181_unofficial.c26',181,1,1,'player-color 181 unofficial'],
    ['renderers/all_five/all_five.c26',                              181,1,1,'all-five 181'],
    ['renderers/all_five/all_five.c26',                              170,1,1,'all-five 170'],
-   ['renderers/all_five_181_unofficial/all_five_181_unofficial.c26',181,1,1,'all-five 181 unofficial'],
+   ['renderers/all_five_unofficial/all_five_unofficial.c26',192,0,0,'all-five 192 unofficial'],
+   ['renderers/all_five_unofficial/all_five_unofficial.c26',181,1,1,'all-five 181 unofficial'],
+   ['renderers/all_five_unofficial/all_five_unofficial.c26',170,1,1,'all-five 170 unofficial'],
    ['renderers/player_color_192/player_color_192.c26',              192,0,0,'player-color 192'],
    ['renderers/all_five/all_five.c26',                              192,0,0,'all-five 192'],
 );
@@ -58,7 +60,8 @@ for my $spec (@components) {
    my($rel,$lines,$hmove,$successor,$label)=@$spec;
    my $path=File::Spec->catfile($repo,'libraries','vcs',split('/', $rel));
    my $text=read_file($path);
-   my $parameterized_all_five = $rel eq 'renderers/all_five/all_five.c26';
+   my $parameterized_all_five = $rel eq 'renderers/all_five/all_five.c26' ||
+      $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26';
    if ($parameterized_all_five) {
       my $branch;
       if ($lines == 192) {

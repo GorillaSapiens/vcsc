@@ -85,3 +85,9 @@ Made `foo := _;` a general fixed-address one-STA invariant rather than a hardwar
 2026-08-08 19:58 - Audited fixed-address lowering: constant offsets into linker symbols now use direct operands instead of consuming Y; genuine runtime indexing/indirection remains indexed.
 2026-08-08 20:08 - Fixed audit boundary for ref parameters: pointer slots may use direct operands, but referred values remain indirect and directional split aliases remain preserved.
 2026-08-08 20:26 - Completed fixed-address lowering audit: removed constant-Y addressing and the 256-byte direct-offset cutoff across fixed symbols while preserving genuine runtime indexing, pointer dereference, and directional ref semantics.
+
+2026-08-08 21:17:28 PDT, Parameterized unofficial all-five renderer profiles
+The separately maintained all-five unofficial renderer is now one `all_five_unofficial.c26` source with required `lines` parameter and compile-time 192-, 181-, and 170-line profiles. Existing unofficial 181 examples now pass `lines:=181`; a new `examples/12_all_five_170_unofficial/` dual-score interactive proof passes `lines:=170` and `-Wa,--illegals`. Each selected unofficial profile retains exactly one reviewed stable/common-NMOS `$04` padding NOP and matches its official twin in ROM use, visible TIA trace, RAM contract, and 262-line frame timing. Install/uninstall/installcheck and public/test documentation were updated for the unified path.
+
+2026-08-08 21:31:00 PDT, Completed unofficial all-five profile integration
+Unified unofficial all-five 192/181/170 coverage now includes the public assembly allowlist, interactive orientation inventory, score-composition raster matrix, staged install checks, and a dedicated official/unofficial profile parity regression. Current suite inventory is 472 compile-only and 265 end-to-end tests.

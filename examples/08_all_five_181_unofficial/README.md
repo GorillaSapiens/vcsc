@@ -9,7 +9,7 @@
 
 # `all_five_181_unofficial` examples
 
-This group demonstrates the reviewed stable/common NMOS unofficial-opcode `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` lifecycle component. It draws
+This group demonstrates the reviewed stable/common NMOS unofficial-opcode `renderers/all_five_unofficial/all_five_unofficial.c26` lifecycle component instantiated with `lines:=181`. It draws
 181 gameplay scanlines and P0, P1, M0, M1, and Ball; an adjacent eleven-line score-profile
 component completes the 192-line visible field. Every leaf Makefile passes `-Wa,--illegals` explicitly.
 
