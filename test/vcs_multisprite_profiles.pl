@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing and physical X placement, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -47,9 +47,9 @@ $borrow_propagations >= 3 or die "multisprite no longer propagates full 16-bit g
 $text =~ /extern\s+const\s+uint8_t\s+TEMPLATE_graphics\[145\]/ or die "page-safe graphics block contract is missing\n";
 $text =~ /TEMPLATE_GRAPHICS_DATA_OFFSET\s*:=\s*96\b/ or die "graphics data offset contract changed\n";
 $text =~ /TEMPLATE_PLAYER5_GRAPHICS_OFFSET\s+137\b/ or die "P5 graphics offset changed\n";
-$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+95\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+91\b/
+$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+95\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+92\b/
    or die "192 legal Y bounds changed\n";
-$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+89\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+85\b/
+$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+89\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+86\b/
    or die "181 legal Y bounds changed\n";
 # Every conditional edge in draw() is part of the beam-cycle contract.  The
 # faithful renderer and the repaired composable profiles require the ordinary
@@ -62,7 +62,7 @@ my $draw=$1;
 my @draw_same=qw(
    SwitchDrawP0K1 WaitDrawP0K1 SkipDrawP1K1 pagewraphandler
    RepoRenderer RendererLoopa RendererLoopb updateXKR SwitchDrawP0KR
-   WaitDrawP0KR DivideBy15LoopK skipthis SwitchDrawP0KV WaitDrawP0KV
+   WaitDrawP0KR PackedPositionLoopK skipthis SwitchDrawP0KV WaitDrawP0KV
    SetNextLine nodec DrawDivideBy15Loop
 );
 for my $label (@draw_same) {
@@ -79,11 +79,17 @@ $text =~ /asm\s+jsr\s+\@TEMPLATE_DrawPositionASpriteSubroutine;/
    or die "181 score handoff no longer uses the full-range two-line P0 positioner\n";
 $text =~ /asm\s+sta\s+HMCLR;/
    or die "full-range positioner lost its 3-cycle HMCLR store\n";
+$text =~ /TEMPLATE_player_position_table\[160\]/ && $text =~ /asm\s+inx;\s*asm\s+\@TEMPLATE_PackedPositionLoopK:/s
+   or die "packed full-range P1 positioner contract changed\n";
+$text =~ /asm\s+lda\s+#\$80;\s*asm\s+sta\s+HMP0;\s*asm\s+nop;/s
+   or die "181 late-HMOVE neutral P0 motion contract changed\n";
+$text =~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text =~ /asm\s+adc\s+#9;/
+   or die "181 top-rank P1 phase compensation is missing\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2737,102,94,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3310,121,113,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3310,121,113,8],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2881,102,94,8],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3456,121,113,8],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3456,121,113,8],
 );
 my %bins;
 my %state_bases;
@@ -179,4 +185,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing and physical X placement, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";

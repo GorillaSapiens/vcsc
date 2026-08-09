@@ -15,6 +15,7 @@ STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
 STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
+STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
 
 all: test
 
@@ -54,7 +55,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -639,4 +640,10 @@ stella-faithful-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test docs
+stella-multisprite-test: tools
+	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_multisprite_stella.pl \
+	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
+	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
+
+.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs

@@ -174,6 +174,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($repo,'examples','10_faithful_legacy_multisprite','01_diagnostic','faithful_legacy_multisprite_diagnostic.c26') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.pl') &&
 -f File::Spec->catfile($test,'vcs_multisprite_profiles.cpp') &&
+-f File::Spec->catfile($test,'vcs_multisprite_stella.pl') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','README.md') &&
 -f File::Spec->catfile($repo,'libraries','vcs','renderers','multisprite','multisprite.c26') &&
 -f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
@@ -199,6 +200,7 @@ index($top_make,'standard_renderer_banked_f8.map')>=0 &&
 index($top_make,'stella-wide-score-test: tools')>=0 &&
 index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'stella-faithful-multisprite-test: tools')>=0 &&
+index($top_make,'stella-multisprite-test: tools')>=0 &&
 index($top_make,'libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
 index($top_make,'libraries/vcs/renderers/multisprite/multisprite.c26')>=0 &&

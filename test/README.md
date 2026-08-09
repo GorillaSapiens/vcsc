@@ -1041,10 +1041,18 @@ retained LAX/TXS/PHP path with a four-byte hidden-stack declaration. The public
 192 interactive cartridge and both 181 score orders are built and measured; a
 MOS6502/TIA oracle pins exact 262-line frames, all eight P0 rows, all 40 rows of
 the five multiplexed P1 glyphs, colors, reposition phases, six playfield rows,
-HMOVE schedule, and score placement. The examples must provide a 129-byte
-`align(256)` graphics block at `$xx00`; glyphs begin at offset 80 so every
-cycle-critical indexed fetch remains page-cross free. The test also pins the
-81-byte renderer state contract and current ROM/RAM accounting.
+HMOVE schedule, score placement, and exhaustive legal X/Y frame timing. The
+examples must provide a 145-byte `align(256)` graphics block at `$xx00`; glyphs
+begin at offset 96 so every cycle-critical indexed fetch remains page-cross free.
+The test also pins the 81-byte renderer state contract, packed full-range P1
+positioner, 181 late-HMOVE P0 neutralization, and current ROM/RAM accounting.
+
+`vcs_multisprite_stella.pl` independently grades actual Stella 7.0 pixels rather
+than inferring X from RESP/HMP write cycles. Run it through
+`make stella-multisprite-test STELLA=/path/to/stella`; the default e2e suite does
+not require a graphical Stella installation. It locks all five multiplexed rank
+phases at representative edge/interior X coordinates, natural X=159 wrap/clipping,
+the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 
 `fixed_large_offset_codegen_test.c26` locks the fixed-address audit past the old
 8-bit-offset boundary: an automatic byte at offset 299 must use direct

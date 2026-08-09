@@ -587,38 +587,48 @@ bank0 1848 -> 1827 with ordinary bank1 76 -> 55 and F8SC bank1 115 -> 86. A comp
 regression pins direct automatic-local addressing at byte offset 299 so the removed
 one-page cutoff cannot silently return.
 
-Main-roadmap item 28 is complete, including the post-integration timing repair.
-`libraries/vcs/renderers/multisprite/multisprite.c26` is the single modern source, with
-required `parameter lines;` and calibrated `lines:=192` / `lines:=181` profiles. It
-owns 79 retained-state bytes plus two public P0 bytes = 81 RIOT-RAM bytes and declares
-four bytes of hidden hardware-stack depth; it retains stable/common NMOS `LAX` plus
-the faithful TXS/PHP enable pipeline, so users assemble it with `-Wa,--illegals`.
-The corrected 192 profile uses logical height 95; the 181 profile uses logical height
-89 and a faithful two-line divide-by-15 P0 reposition handoff. The port must preserve
-the faithful three-cycle mask reads, direct three-cycle HMCLR store, and local
-cycle-balanced reposition decision. Every conditional branch executed by `draw()`
-is timing-critical and hard-annotated `.same`; the audited raster requires the
-three-cycle taken case throughout and has no timing-critical `.cross` edge. The
-VBLANK divide-by-15 positioning loop is also `.same`; noncritical setup/sort/overscan
-branches stay at the default flexible policy. Ordinary branch relaxation or a
-one-cycle addressing-mode change can make frame length depend on coordinates. `examples/14_multisprite/` proves a full-height
-interactive cartridge and both 181+11 score orders. P0 and all five logical P1 sprites
-move over X=0..159 and independently over bounded Y ranges: P0/P1 max Y are 95/91 for
-192 and 89/85 for 181. M0/M1/Ball stay off the maintained active raster. The graphics
-contract is one 145-byte `align(256)` block with bytes 0..95 reserved and P0/P1..P5 at
-offsets 96/105/113/121/129/137; this keeps every legal cycle-critical `(ptr),Y` glyph
-fetch page-cross free. Exhaustive runtime sweeps cover 1,516 independent X/Y cases for
-192 and 1,480 for each 181 score order, all at exact 262-line NTSC timing. The sweep
-also reconstructs displayed P1 physical X from RESP1/HMP1 and requires it to match
-the public X coordinate across the complete 0..159 range and every Y/sort transition.
-The retained P1 raster uses an internal +10 horizontal phase correction, with an
-additional +9 correction for the first/topmost P1 in the 181 profile; overscan restores
-public coordinates before application controls run. P0 Y=0 is explicitly guarded
-against the faithful predecrement underflow and must emit no gameplay GRP0 pixels.
-Public Y increases upward, so example joystick Up increments Y and Down decrements it.
-The score oracle locks `123456` above and below gameplay. Current public sizes are
-2737 ROM / 102 RAM for 192 and 3310 ROM / 121 RAM for each 181 score composition. The
-dedicated oracle also pins all six player rasters, five P1 color/reposition phases,
-six playfield rows, HMOVE timing, invalid-line rejection, and installed builds. Main-roadmap items
-29 and 30 and the completed bankswitching sub-roadmap remain closed. No new main-roadmap
-item has been selected after item 28.
+Main-roadmap item 28 is complete, including the post-integration Stella-visible
+multisprite timing repair. `libraries/vcs/renderers/multisprite/multisprite.c26` is the
+single modern source, with required `parameter lines;` and calibrated `lines:=192` /
+`lines:=181` profiles. It owns 79 retained-state bytes plus two public P0 bytes = 81
+RIOT-RAM bytes and declares four bytes of hidden hardware-stack depth; it retains
+stable/common NMOS `LAX` plus the faithful TXS/PHP enable pipeline, so users assemble
+it with `-Wa,--illegals`. The 192 profile uses logical height 95; the 181 profile uses
+logical height 89 and a faithful two-line divide-by-15 P0 reposition handoff. The port
+must preserve the faithful three-cycle mask reads, direct three-cycle HMCLR store,
+local cycle-balanced reposition decision, and hard `.same` annotations on every
+beam-critical taken branch. Noncritical setup/sort/overscan branches stay at the
+normal `.flex` default; one-cycle addressing or branch-page changes can alter the
+raster.
+
+The repaired P1 raster no longer executes a variable subtract-by-15 horizontal loop
+inside the visible scanline. VBLANK precomputes a packed HMP1 plus count-minus-one
+coarse control for each logical P1; draw increments once and runs a bounded countdown,
+so X=0..159 cannot fall off the scanline near the right edge. Public P1 X is never
+mutated. The 181 first/topmost reposition is three CPU cycles earlier, so only that
+rank uses a wrapped +9 packed-table lookup to equalize its phase. The 181 P0 handoff
+uses a VBLANK-precomputed wrapped public-X+3 value, and the multiplex loop reloads
+HMP0=$80 before its late HMOVEs; Stella establishes $80 as neutral at that raster
+phase, eliminating P0 horizontal dependence on P1 vertical sort order. The P0 Y=0
+predecrement guard remains and prevents the former broad white stripe.
+
+`examples/14_multisprite/` proves the full-height interactive cartridge and both
+181+11 score orders. P0 and all five logical P1 sprites move over X=0..159 and
+independently over bounded Y ranges: P0/P1 max Y are 95/92 for 192 and 89/86 for 181;
+the P1 maxima are the highest public coordinates that still reach the first gameplay
+line. M0/M1/Ball stay off the maintained active raster. The graphics contract is one
+145-byte `align(256)` block with bytes 0..95 reserved and P0/P1..P5 at offsets
+96/105/113/121/129/137, keeping every legal cycle-critical `(ptr),Y` glyph fetch
+page-cross free.
+
+The MOS6502/TIA regression exhaustively sweeps 1,521 independent legal X/Y cases for
+192 and 1,485 for each 181 score order, all at exact 262-line NTSC timing. It does not
+infer physical X from RESP1/HMP1; that previous formula was proven capable of declaring
+a visibly wrong Stella raster correct. Physical placement is independently locked by
+`test/vcs_multisprite_stella.pl`: actual Stella pixels cover all five P1 rank phases at
+left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach, 181
+P0 sort-invariant X, and the P0 Y=0 no-stripe case. The score oracle still locks
+`123456` above and below gameplay. Current public sizes are 2881 ROM / 102 RAM for 192
+and 3456 ROM / 121 RAM for each 181 score composition. Main-roadmap items 29 and 30 and
+the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
+been selected after item 28.

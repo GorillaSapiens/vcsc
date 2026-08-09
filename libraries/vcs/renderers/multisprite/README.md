@@ -81,22 +81,23 @@ cycle and would otherwise make frame length depend on sprite Y.
 Public aliases expose X/Y/height for P0 and the five logical P1 sprites, P0/P1
 NUSIZ and colors, plus the retained M0/M1/Ball coordinates. Public X coordinates
 are conventional Atari screen positions over the complete 0..159 range: X=0
-starts at the left edge and X=159 reaches the rightmost position. The retained
-in-raster P1 positioner has a fixed ten-pixel phase offset, and the 181 profile's
-first/topmost P1 reposition is another three CPU cycles early. `vblank()` applies
-those corrections to internal coordinates and `overscan()` restores the public
-values, so vertical sort/flicker transitions do not move a sprite horizontally.
-Applications should treat coordinates as application state outside the component's
-`vblank()`/`draw()` interval and let `overscan()` complete the restoration before
-updating them.
+starts at the left edge and X=159 reaches the rightmost position. `vblank()`
+precomputes one packed HMP1/coarse-count byte for each logical P1 sprite. The
+beam-critical reposition path decodes that byte with a bounded countdown instead
+of the old variable subtract-by-15 loop, so the right edge cannot run past the
+scanline. The 181 first/topmost reposition occurs three CPU cycles earlier than
+the other ranks; only its packed lookup uses a wrapped +9 index to compensate.
+Public P1 coordinates are never biased or restored, so vertical sort/flicker
+transitions cannot leak an internal coordinate mutation into application state.
 
 The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
-`PLAYER1_MAX_Y`: 95/91 for `lines:=192`, and 89/85 for `lines:=181`. Y increases
-upward. Y=0 is the completely clipped bottom position; `vblank()` guards the
-faithful P0 predecrement so that zero cannot underflow to 255 and turn stale P0
-pixels into a full-height stripe. The five multiplexed sprites may move vertically
-independently within the P1 range; their initial spacing is not a fixed timing
-schedule.
+`PLAYER1_MAX_Y`: 95/92 for `lines:=192`, and 89/86 for `lines:=181`. Y increases
+upward. The P1 maxima are the highest public coordinates that still reach the
+first gameplay line in the calibrated raster. Y=0 is the completely clipped
+bottom position; `vblank()` guards the faithful P0 predecrement so that zero
+cannot underflow to 255 and turn stale P0 pixels into a full-height stripe. The
+five multiplexed sprites may move vertically independently within the P1 range;
+their initial spacing is not a fixed timing schedule.
 
 The maintained minimal profiles deliberately keep M0, M1, and Ball outside the
 active gameplay field. Making those three objects active changes the retained
@@ -115,9 +116,9 @@ sweeps every legal independent X/Y position and rejects any frame-length drift.
 
 The scheduler owns VSYNC, VBLANK, RIOT timers, and visible-component order.
 `init()`, `vblank()`, `draw()`, and `overscan()` are the component lifecycle.
-`vblank()` may temporarily bias renderer-owned coordinates for faithful beam
-positioning; `overscan()` restores their public values before application controls
-or game logic should modify them.
+`vblank()` precomputes packed P1 positioning controls and the 181 P0 handoff
+coordinate. Public sprite coordinates remain application state throughout the
+component lifecycle.
 
 ## Maintained examples
 
@@ -131,10 +132,11 @@ or game logic should modify them.
 Select cycles P0 and the five logical P1 sprites; the left joystick moves the
 selected sprite horizontally and vertically within the profile's legal range;
 Reset restores the scene. Joystick Up increments Y and Down decrements Y, matching
-the renderer's upward-positive public coordinate system. The regression
-exhaustively checks 1,516 independent X/Y positions for the 192 profile and 1,480
-for each 181 score composition. It now reconstructs each displayed P1 sprite's
-physical horizontal position from RESP1/HMP1 and requires it to equal the public X
-coordinate across X endpoints and all Y/sort transitions; it also requires P0 Y=0
-to emit no gameplay pixels. The exact `123456` score raster remains locked above
-and below gameplay.
+the renderer's upward-positive public coordinate system. The MOS6502/TIA timing
+regression exhaustively checks 1,521 independent X/Y positions for the 192 profile
+and 1,485 for each 181 score composition, with every case frame-stable. Physical
+placement is certified separately by the optional Stella pixel regression
+(`make stella-multisprite-test`): it locks all five P1 rank phases at left/middle/
+right-edge coordinates, natural X=159 clipping/wrap, the P1 top edge, 181 P0
+sort-invariant X placement, and the P0 Y=0 no-stripe case. The exact `123456`
+score raster remains locked above and below gameplay.

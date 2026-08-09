@@ -13,9 +13,9 @@ parameter lines;
 alias TEMPLATE_LOGICAL_HEIGHT 95
 alias TEMPLATE_PF_ROW_MAX 5
 alias TEMPLATE_P0_TOP_LIMIT 96
-alias TEMPLATE_P1_TOP_LIMIT 92
+alias TEMPLATE_P1_TOP_LIMIT 95
 alias TEMPLATE_PLAYER0_MAX_Y 95
-alias TEMPLATE_PLAYER1_MAX_Y 91
+alias TEMPLATE_PLAYER1_MAX_Y 92
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
@@ -23,9 +23,9 @@ alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
 alias TEMPLATE_LOGICAL_HEIGHT 89
 alias TEMPLATE_PF_ROW_MAX 5
 alias TEMPLATE_P0_TOP_LIMIT 90
-alias TEMPLATE_P1_TOP_LIMIT 86
+alias TEMPLATE_P1_TOP_LIMIT 89
 alias TEMPLATE_PLAYER0_MAX_Y 89
-alias TEMPLATE_PLAYER1_MAX_Y 85
+alias TEMPLATE_PLAYER1_MAX_Y 86
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
@@ -119,6 +119,24 @@ align(256) const uint8_t TEMPLATE_fine_adjust_table[15] := {
    0x60,0x50,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
 };
 
+// Packed in-raster P1 controls. The low nibble stores coarse_count-1;
+// draw() increments it once before the countdown. That one-byte/two-cycle
+// adjustment keeps the eleven-step endpoint inside the scanline. The first
+// bucket uses the TIA RESP1 wrap phase near X=156, covering the clipped right
+// edge without the old variable subtract loop running past cycle 76.
+page const uint8_t TEMPLATE_player_position_table[160] := {
+   0xc0,0x71,0x61,0x51,0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,
+   0x72,0x62,0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x73,
+   0x63,0x53,0x43,0x33,0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x74,0x64,
+   0x54,0x44,0x34,0x24,0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x75,0x65,0x55,
+   0x45,0x35,0x25,0x15,0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x76,0x66,0x56,0x46,
+   0x36,0x26,0x16,0x06,0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x77,0x67,0x57,0x47,0x37,
+   0x27,0x17,0x07,0xf7,0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x78,0x68,0x58,0x48,0x38,0x28,
+   0x18,0x08,0xf8,0xe8,0xd8,0xc8,0xb8,0xa8,0x98,0x79,0x69,0x59,0x49,0x39,0x29,0x19,
+   0x09,0xf9,0xe9,0xd9,0xc9,0xb9,0xa9,0x99,0x7a,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,
+   0xfa,0xea,0xda,0xca,0xba,0xaa,0x9a,0x8a,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0
+};
+
 
 require inline void TEMPLATE_init(void) {
    asm lda #<{TEMPLATE_graphics + 96};
@@ -185,44 +203,59 @@ require inline void TEMPLATE_vblank(void) {
    asm sta TEMPLATE_state + 78;
    asm @TEMPLATE_P0YGuardDone:;
 
+#if TEMPLATE_lines == 181
+   // The post-score P0 handoff phase lands three pixels left of the public
+   // coordinate. Precompute the wrapped +3 value while the beam is blanked;
+   // draw() can then use it without adding a single cycle to the hot raster.
+   asm lda TEMPLATE_state + 4;
+   asm clc;
+   asm adc #3;
+   asm cmp #160;
+   asm bcc @TEMPLATE_P0XCalibrated;
+   asm sbc #160;
+   asm @TEMPLATE_P0XCalibrated:;
+   asm sta TEMPLATE_state + 69;
+#endif
+
+   // state[70..74] doubles as per-frame packed P1 control storage after
+   // sorting, so restore the identity seed before SetupP1 uses it.
+   asm ldx #4;
+   asm @TEMPLATE_ResetP1IdentityLoop:;
+   asm txa;
+   asm sta.zx TEMPLATE_state + 70,X;
+   asm dex;
+   asm bpl @TEMPLATE_ResetP1IdentityLoop;
    asm lda #5;
    asm sta TEMPLATE_state + 58;
    asm jsr @TEMPLATE_SetupP1Subroutine;
-
-   // The retained in-raster P1 positioner is entered ten color clocks later
-   // than the standalone positioner, so its raw coordinate is X-10 modulo
-   // 160.  Keep the public P1..P5 coordinates conventional (0..159) by
-   // applying the inverse +10 bias only for the internal frame.  In the 181
-   // profile the first/topmost displayed P1 reposition occurs three CPU
-   // cycles earlier than later repositions; add another nine pixels to that
-   // one logical sprite so changing vertical sort order cannot move it
-   // horizontally.  state[77] remembers which logical sprite received that
-   // transient 181-only correction.
+   // Precompute packed P1 controls while the beam is blanked. The table is
+   // calibrated for the ordinary in-raster phase, so public X is a direct
+   // lookup and public state is never mutated.
    asm ldx #4;
-   asm @TEMPLATE_AdjustP1XUpLoop:;
-   asm lda TEMPLATE_state + 5,X;
-   asm clc;
-   asm adc #10;
-   asm cmp #160;
-   asm bcc @TEMPLATE_AdjustP1XUpStore;
-   asm sbc #160;
-   asm @TEMPLATE_AdjustP1XUpStore:;
-   asm sta TEMPLATE_state + 5,X;
+   asm @TEMPLATE_PrecomputeP1ControlsLoop:;
+   asm ldy.zx TEMPLATE_state + 5,X;
+   asm lda.ay TEMPLATE_player_position_table,Y;
+   asm sta.zx TEMPLATE_state + 70,X;
    asm dex;
-   asm bpl @TEMPLATE_AdjustP1XUpLoop;
+   asm bpl @TEMPLATE_PrecomputeP1ControlsLoop;
 #if TEMPLATE_lines == 181
+   // In the 181 composition only, the first/topmost multiplexed reposition is
+   // three CPU cycles earlier than the ordinary phase. Override just that
+   // logical sprite with a wrapped +9 table index so it rejoins the same
+   // rendered horizontal phase as every later multiplex rank.
    asm ldx TEMPLATE_state + 65;
    asm lda TEMPLATE_state + 29,X;
-   asm sta TEMPLATE_state + 77;
    asm tax;
-   asm lda TEMPLATE_state + 5,X;
+   asm lda.zx TEMPLATE_state + 5,X;
    asm clc;
    asm adc #9;
    asm cmp #160;
-   asm bcc @TEMPLATE_AdjustTopP1XStore;
+   asm bcc @TEMPLATE_PrecomputeTopP1ControlReady;
    asm sbc #160;
-   asm @TEMPLATE_AdjustTopP1XStore:;
-   asm sta TEMPLATE_state + 5,X;
+   asm @TEMPLATE_PrecomputeTopP1ControlReady:;
+   asm tay;
+   asm lda.ay TEMPLATE_player_position_table,Y;
+   asm sta.zx TEMPLATE_state + 70,X;
 #endif
 
    asm jsr @TEMPLATE_PrePositionAllObjects;
@@ -388,9 +421,9 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda TEMPLATE_state + 14,x;
 #if TEMPLATE_lines == 192
-   asm cmp #92;
+   asm cmp #95;
 #else
-   asm cmp #86;
+   asm cmp #89;
 #endif
    asm bcc @TEMPLATE_nonetoohigh;
    asm dec TEMPLATE_state + 65;
@@ -435,7 +468,7 @@ require inline void TEMPLATE_draw(void) {
    // The helper returns six cycles after HMOVE; the profile-specific entry
    // padding below removes those same six cycles before the hot raster begins.
    asm ldx #0;
-   asm lda.z TEMPLATE_state + 4;
+   asm lda.z TEMPLATE_state + 69;
    asm jsr @TEMPLATE_DrawPositionASpriteSubroutine;
 #endif
    // Re-establish TIA state that an adjacent score component may clobber.
@@ -461,18 +494,33 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
    asm nop;
-   asm nop;
 #if TEMPLATE_lines == 192
+   asm nop;
    // The 181 profile arrived here through PositionASpriteSubroutine and has
    // already spent the six cycles represented by these three NOPs.
    asm nop;
    asm nop;
    asm nop;
+#else
+   // Match the 192 entry cadence. RendererLoopa loads the late-HMOVE neutral
+   // HMP0 value explicitly, so this is padding only.
+   asm nop;
 #endif
    asm @TEMPLATE_RendererLoopa:;
+#if TEMPLATE_lines == 192
    asm bit.z CXM0P;
    asm nop;
    asm nop;
+#else
+   // A P1 reposition strobes HMOVE at cycle 66. At that late TIA phase, $00
+   // moves P0 eight pixels left even though its nominal motion nibble is zero;
+   // $80 is Stella/TIA-neutral. Reload it every pass so a later P1 HMOVE cannot
+   // make P0 X depend on vertical sort order. LDA+STA+NOP is seven cycles,
+   // exactly matching the retained BIT+NOP+NOP cadence.
+   asm lda #$80;
+   asm sta HMP0;
+   asm nop;
+#endif
    asm @TEMPLATE_RendererLoopb:;
    asm nop;
    asm cpy.z TEMPLATE_state + 67;
@@ -577,13 +625,15 @@ require inline void TEMPLATE_draw(void) {
    asm tax;
    asm lda #0;
    asm sta GRP1;
-   asm lda.zx TEMPLATE_state + 5,X;
-   asm @TEMPLATE_DivideBy15LoopK:;
-   asm sbc #15;
-   asm bcs.same @TEMPLATE_DivideBy15LoopK;
-   asm tax;
-   asm lda TEMPLATE_fine_adjust_table - 241,X;
+   asm lda.zx TEMPLATE_state + 70,X;
    asm sta HMP1;
+   asm and #$0f;
+   asm tax;
+   asm inx;
+   asm @TEMPLATE_PackedPositionLoopK:;
+   asm dex;
+   asm bne.same @TEMPLATE_PackedPositionLoopK;
+   asm @TEMPLATE_PackedRESP1K:;
    asm sta RESP1;
    asm sta WSYNC;
    asm ldx #$1f;
@@ -724,32 +774,6 @@ require inline void TEMPLATE_overscan(void) {
    asm dec TEMPLATE_state + 13;
    asm @TEMPLATE_P0YRestoreDone:;
 
-#if TEMPLATE_lines == 181
-   // Undo the extra nine-pixel phase compensation on whichever logical P1
-   // sprite was first/topmost in this frame.
-   asm ldx TEMPLATE_state + 77;
-   asm lda TEMPLATE_state + 5,X;
-   asm sec;
-   asm sbc #9;
-   asm bcs @TEMPLATE_AdjustTopP1XDownStore;
-   asm clc;
-   asm adc #160;
-   asm @TEMPLATE_AdjustTopP1XDownStore:;
-   asm sta TEMPLATE_state + 5,X;
-#endif
-   // Undo the common +10 internal P1 horizontal-position bias.
-   asm ldx #4;
-   asm @TEMPLATE_AdjustP1XDownLoop:;
-   asm lda TEMPLATE_state + 5,X;
-   asm sec;
-   asm sbc #10;
-   asm bcs @TEMPLATE_AdjustP1XDownStore;
-   asm clc;
-   asm adc #160;
-   asm @TEMPLATE_AdjustP1XDownStore:;
-   asm sta TEMPLATE_state + 5,X;
-   asm dex;
-   asm bpl @TEMPLATE_AdjustP1XDownLoop;
 
    // Undo the +2 bias applied to all five multiplexed P1 Y values.
    asm ldx #4;
