@@ -28,7 +28,7 @@ path, so cartridges using it must be assembled with `-Wa,--illegals`.
 
 | `lines` | Logical core height | Typical composition | Module RAM |
 | ---: | ---: | --- | ---: |
-| 192 | 95 | full-height, scoreless | 81 bytes |
+| 192 | 95 | full-height, scoreless | 86 bytes |
 | 181 | 89 | one independent 11-line score above or below | 81 bytes |
 
 The legacy logical Y counter is not a physical scanline count. After restoring
@@ -90,6 +90,17 @@ the other ranks; only its packed lookup uses a wrapped +9 index to compensate.
 Public P1 coordinates are never biased or restored, so vertical sort/flicker
 transitions cannot leak an internal coordinate mutation into application state.
 
+The 192 profile also preserves the faithful renderer's **frame-persistent
+flicker-sort order**. When two or more logical P1 sprites occupy overlapping
+vertical bands, the sorter omits the conflicting sprite for the current frame
+and rotates it behind the other sprite(s) for the next frame. The conflicting
+sprites therefore flicker/round-robin instead of lower-numbered sprites losing
+permanently. The packed horizontal-control workspace cannot itself retain that
+order because it is overwritten before `draw()`, so `lines:=192` owns a separate
+five-byte sort-order array; that is the reason its module RAM is 86 rather than
+81 bytes. The 181 overlap/flicker policy has not yet been re-certified after
+this repair and intentionally remains unchanged for now.
+
 The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
 `PLAYER1_MAX_Y`: 95/92 for `lines:=192`, and 89/86 for `lines:=181`. Y increases
 upward. The P1 maxima are the highest public coordinates that still reach the
@@ -139,4 +150,7 @@ placement is certified separately by the optional Stella pixel regression
 (`make stella-multisprite-test`): it locks all five P1 rank phases at left/middle/
 right-edge coordinates, natural X=159 clipping/wrap, the P1 top edge, 181 P0
 sort-invariant X placement, and the P0 Y=0 no-stripe case. The exact `123456`
-score raster remains locked above and below gameplay.
+score raster remains locked above and below gameplay. The 192 simulator regression
+also forces P1/P2 into the same vertical band for six consecutive frames and
+requires the visible winner to alternate every frame, locking the persistent
+flicker-sort behavior that the original port accidentally lost.

@@ -590,8 +590,10 @@ one-page cutoff cannot silently return.
 Main-roadmap item 28 is complete, including the post-integration Stella-visible
 multisprite timing repair. `libraries/vcs/renderers/multisprite/multisprite.c26` is the
 single modern source, with required `parameter lines;` and calibrated `lines:=192` /
-`lines:=181` profiles. It owns 79 retained-state bytes plus two public P0 bytes = 81
-RIOT-RAM bytes and declares four bytes of hidden hardware-stack depth; it retains
+`lines:=181` profiles. The common renderer owns 79 retained-state bytes plus two public
+P0 bytes = 81 RIOT-RAM bytes and declares four bytes of hidden hardware-stack depth.
+The 192 profile additionally owns a five-byte persistent flicker-sort order, for 86
+module bytes total; 181 remains at 81 module bytes. The renderer retains
 stable/common NMOS `LAX` plus the faithful TXS/PHP enable pipeline, so users assemble
 it with `-Wa,--illegals`. The 192 profile uses logical height 95; the 181 profile uses
 logical height 89 and a faithful two-line divide-by-15 P0 reposition handoff. The port
@@ -605,7 +607,12 @@ The repaired P1 raster no longer executes a variable subtract-by-15 horizontal l
 inside the visible scanline. VBLANK precomputes a packed HMP1 plus count-minus-one
 coarse control for each logical P1; draw increments once and runs a bounded countdown,
 so X=0..159 cannot fall off the scanline near the right edge. Public P1 X is never
-mutated. The 181 first/topmost reposition is three CPU cycles earlier, so only that
+mutated. A post-completion 192 repair restores the faithful frame-persistent flicker
+sort: SetupP1 now starts from a retained five-byte order and saves its overlap-driven
+rotation before state[70..74] is reused for packed horizontal controls. This fixes the
+regression where overlapping sprites permanently hid lower-numbered logical players.
+The 181 overlap/flicker policy is intentionally unchanged pending separate user-driven
+re-certification. The 181 first/topmost reposition is three CPU cycles earlier, so only that
 rank uses a wrapped +9 packed-table lookup to equalize its phase. The 181 P0 handoff
 uses a VBLANK-precomputed wrapped public-X+3 value, and the multiplex loop reloads
 HMP0=$80 before its late HMOVEs; Stella establishes $80 as neutral at that raster
@@ -627,8 +634,11 @@ infer physical X from RESP1/HMP1; that previous formula was proven capable of de
 a visibly wrong Stella raster correct. Physical placement is independently locked by
 `test/vcs_multisprite_stella.pl`: actual Stella pixels cover all five P1 rank phases at
 left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach, 181
-P0 sort-invariant X, and the P0 Y=0 no-stripe case. The score oracle still locks
-`123456` above and below gameplay. Current public sizes are 2881 ROM / 102 RAM for 192
+P0 sort-invariant X, and the P0 Y=0 no-stripe case. The 192 MOS6502/TIA regression also
+forces logical P1/P2 onto the same vertical band for six consecutive frames and requires
+the visible winner to alternate every frame; the old identity-reset build fails this
+check. The score oracle still locks `123456` above and below gameplay. Current public
+sizes are 2871 ROM / 107 RAM for 192
 and 3456 ROM / 121 RAM for each 181 score composition. Main-roadmap items 29 and 30 and
 the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
 been selected after item 28.

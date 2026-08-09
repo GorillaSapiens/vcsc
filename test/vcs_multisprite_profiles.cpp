@@ -411,6 +411,178 @@ private:
    }
 };
 SweepMachine *SweepMachine::active_ = nullptr;
+
+// The faithful multisprite sorter intentionally keeps its five-entry ordering
+// across frames.  When two logical P1 sprites overlap, one is omitted for the
+// current frame and rotated behind the other, so the visible winner alternates
+// rather than becoming a permanent sprite-number priority.  The modern 192
+// renderer once lost that behavior by reinitializing the sort workspace every
+// VBLANK before reusing it for packed horizontal controls.
+class FlickerMachine {
+public:
+   FlickerMachine(const char *path,uint16_t state_base)
+      : cpu_(read_bus_thunk,write_bus_thunk,clock_thunk),state_base_(state_base) {
+      active_=this;
+      std::memset(memory_,0,sizeof(memory_));
+      memory_[0x0280]=0xff;
+      memory_[0x0282]=0xff;
+      std::ifstream rom(path,std::ios::binary);
+      if (!rom) fail("flicker regression could not open ROM");
+      rom.read(reinterpret_cast<char *>(memory_+kRomBase),kRomSize);
+      if (rom.gcount()!=static_cast<std::streamsize>(kRomSize))
+         fail("flicker regression ROM is not exactly 4096 bytes");
+      cpu_.Reset();
+   }
+
+   void run(const char *label) {
+      constexpr uint64_t kInstructionLimit=50000000;
+      constexpr uint64_t kExpectedFrameCycles=264*kCyclesPerScanline;
+      constexpr int kFramesToCheck=6;
+      for (uint64_t instructions=0;
+           instructions<kInstructionLimit && checked_frames_<kFramesToCheck;
+           ++instructions) {
+         writes_.clear();
+         const uint64_t before=cpu_cycles_;
+         cpu_.Run(1,cpu_cycles_,mos6502::INST_COUNT);
+         virtual_cycles_ += cpu_cycles_-before;
+         for (const Write &write:writes_) {
+            if (write.address==kWsync) {
+               const uint64_t within=virtual_cycles_%kCyclesPerScanline;
+               virtual_cycles_ += within ? kCyclesPerScanline-within
+                                         : kCyclesPerScanline;
+            }
+            else if (write.address==kVsync) {
+               const bool next=(write.value&2)!=0;
+               if (next && !vsync_asserted_) {
+                  if (frame_>=2) {
+                     const uint64_t delta=virtual_cycles_-last_assertion_;
+                     if (delta!=kExpectedFrameCycles) {
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s overlap frame has %llu cycles "
+                           "(%llu raw lines), expected 264 raw lines\n",
+                           label,
+                           static_cast<unsigned long long>(delta),
+                           static_cast<unsigned long long>(delta/kCyclesPerScanline));
+                        std::exit(1);
+                     }
+                     if (saw_player1_==saw_player2_) {
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s overlap frame %d must show "
+                           "exactly one of logical P1/P2 (P1=%d P2=%d)\n",
+                           label,frame_,saw_player1_?1:0,saw_player2_?1:0);
+                        std::exit(1);
+                     }
+                     const int winner=saw_player1_?1:2;
+                     if (previous_winner_ && winner==previous_winner_) {
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s overlap flicker stuck on "
+                           "logical P%d for consecutive frames\n",label,winner);
+                        std::exit(1);
+                     }
+                     previous_winner_=winner;
+                     ++checked_frames_;
+                  }
+
+                  last_assertion_=virtual_cycles_;
+                  ++frame_;
+                  saw_player1_=false;
+                  saw_player2_=false;
+                  if (frame_>=2) {
+                     // Force only logical P1/P2 to overlap. The remaining three
+                     // multiplexed sprites stay in non-overlapping 16-line bands.
+                     memory_[state_base_+14]=40;
+                     memory_[state_base_+15]=40;
+                     memory_[state_base_+16]=56;
+                     memory_[state_base_+17]=72;
+                     memory_[state_base_+18]=88;
+                     player1_color_=memory_[state_base_+24];
+                     player2_color_=memory_[state_base_+25];
+                     if (player1_color_==player2_color_)
+                        fail("flicker regression requires distinct P1/P2 colors");
+                  }
+               }
+               vsync_asserted_=next;
+            }
+            else if (write.address==kVblank) {
+               vblank_asserted_=(write.value&2)!=0;
+            }
+            else if (write.address>=kTim1t && write.address<=kT1024t) {
+               load_timer(write.address,write.value);
+            }
+
+            if (frame_>=2 && !vblank_asserted_ && write.address==kColup1) {
+               if (write.value==player1_color_) saw_player1_=true;
+               if (write.value==player2_color_) saw_player2_=true;
+            }
+         }
+      }
+      if (checked_frames_!=kFramesToCheck)
+         fail("flicker regression instruction limit reached");
+   }
+
+private:
+   static FlickerMachine *active_;
+   uint8_t memory_[65536]{};
+   mos6502 cpu_;
+   uint16_t state_base_;
+   uint64_t cpu_cycles_=0;
+   uint64_t virtual_cycles_=0;
+   uint64_t timer_start_=0;
+   uint64_t last_assertion_=0;
+   uint16_t timer_divisor_=1;
+   uint8_t timer_loaded_=0;
+   bool timer_active_=false;
+   bool vsync_asserted_=false;
+   bool vblank_asserted_=true;
+   bool saw_player1_=false;
+   bool saw_player2_=false;
+   uint8_t player1_color_=0;
+   uint8_t player2_color_=0;
+   int frame_=-1;
+   int checked_frames_=0;
+   int previous_winner_=0;
+   std::vector<Write> writes_;
+
+   [[noreturn]] static void fail(const char *message) {
+      std::fprintf(stderr,"vcs_multisprite_profiles: %s\n",message);
+      std::exit(1);
+   }
+   static uint8_t read_bus_thunk(uint16_t address) { return active_->read_bus(address); }
+   static void write_bus_thunk(uint16_t address,uint8_t value) { active_->write_bus(address,value); }
+   static void clock_thunk(mos6502 *) {}
+   bool timer_underflowed() const {
+      if (!timer_active_) return false;
+      return (virtual_cycles_-timer_start_)/timer_divisor_ > timer_loaded_;
+   }
+   uint8_t timer_value() const {
+      if (!timer_active_) return memory_[kIntim];
+      const uint64_t ticks=(virtual_cycles_-timer_start_)/timer_divisor_;
+      if (ticks<=timer_loaded_) return static_cast<uint8_t>(timer_loaded_-ticks);
+      return static_cast<uint8_t>(255-((ticks-timer_loaded_-1)&255));
+   }
+   uint8_t read_bus(uint16_t address) {
+      if (address==kIntim) return timer_value();
+      if (address==kTimint) return timer_underflowed()?0x80:0;
+      return memory_[address];
+   }
+   void write_bus(uint16_t address,uint8_t value) {
+      if (address<kRomBase) memory_[address]=value;
+      writes_.push_back({address,value});
+   }
+   void load_timer(uint16_t address,uint8_t value) {
+      timer_active_=true;
+      timer_start_=virtual_cycles_;
+      timer_loaded_=value;
+      switch(address) {
+         case kTim1t: timer_divisor_=1; break;
+         case kTim8t: timer_divisor_=8; break;
+         case kTim64t: timer_divisor_=64; break;
+         case kT1024t: timer_divisor_=1024; break;
+         default: std::abort();
+      }
+   }
+};
+FlickerMachine *FlickerMachine::active_=nullptr;
 } // namespace
 
 namespace {
@@ -596,5 +768,9 @@ int main(int argc, char **argv) {
    validate(events,*profile);
    SweepMachine sweep(argv[1],static_cast<uint16_t>(parsed),profile==&k192);
    sweep.run(profile->name);
+   if (profile==&k192) {
+      FlickerMachine flicker(argv[1],static_cast<uint16_t>(parsed));
+      flicker.run(profile->name);
+   }
    return 0;
 }

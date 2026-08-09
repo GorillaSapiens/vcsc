@@ -1044,8 +1044,12 @@ the five multiplexed P1 glyphs, colors, reposition phases, six playfield rows,
 HMOVE schedule, score placement, and exhaustive legal X/Y frame timing. The
 examples must provide a 145-byte `align(256)` graphics block at `$xx00`; glyphs
 begin at offset 96 so every cycle-critical indexed fetch remains page-cross free.
-The test also pins the 81-byte renderer state contract, packed full-range P1
-positioner, 181 late-HMOVE P0 neutralization, and current ROM/RAM accounting.
+The 192 case additionally forces logical P1/P2 into the same vertical band for
+six consecutive frames and requires the displayed winner to alternate every
+frame, catching accidental loss of the faithful persistent flicker-sort order.
+The test also pins the profile-specific renderer RAM contract (86 bytes for 192,
+81 for 181), packed full-range P1 positioner, 181 late-HMOVE P0 neutralization,
+and current ROM/RAM accounting.
 
 `vcs_multisprite_stella.pl` independently grades actual Stella 7.0 pixels rather
 than inferring X from RESP/HMP write cycles. Run it through
