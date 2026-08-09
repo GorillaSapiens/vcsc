@@ -9,7 +9,7 @@
 
 # Widely spaced score
 
-`01_basic/05_wide_score` displays six decimal glyphs across an 88-pixel span.
+`01_basic/06_wide_score` displays six decimal glyphs across an 88-pixel span.
 The 8-pixel glyph origins are fixed at visible X coordinates `36`, `52`, `68`,
 `84`, `100`, and `116`; each neighboring pair therefore has an 8-pixel gap.
 The centered score remains a separate component and example.

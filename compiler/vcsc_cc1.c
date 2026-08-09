@@ -117,7 +117,7 @@ static struct option_def options[] = {
    { 'X', "XRAY", "name", "enable named XRAY option for compiler debugging ('list' will list them)", opt_xray },
    { 'I', "include", "path", "add path to include search list", opt_include },
    { 'D', "define", "name[=value]", "predefine object-like alias (default value is 1)", opt_define },
-   { 'o', "output", "file.s26", "write assembly output to file instead of stdout", opt_output },
+   { 'o', "output", "file.s26", "write assembly output to file ('-' means stdout)", opt_output },
    { 0, "fpeephole", NULL, "enable compiler assembly peephole optimization (default)", opt_peephole },
    { 0, "fno-peephole", NULL, "disable all compiler assembly peephole rewrites", opt_no_peephole },
    { 0, "quiet", NULL, "accept GCC cc1's -quiet flag and ignore it", opt_ignore },
@@ -330,18 +330,20 @@ int main(int argc, char** argv) {
 
    {
       FILE *out = stdout;
+      bool close_out = false;
 
-      if (outfile) {
+      if (outfile && strcmp(outfile, "-") != 0) {
          out = fopen(outfile, "w");
          if (!out) {
             perror(outfile);
             exit(-1);
          }
+         close_out = true;
       }
 
       do_compile(out);
 
-      if (outfile) {
+      if (close_out) {
          fclose(out);
       }
    }

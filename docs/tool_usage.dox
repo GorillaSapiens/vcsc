@@ -15,7 +15,8 @@
 //!
 //! @section tool_usage_pipeline Normal pipeline
 //!
-//! - `vcsc-cc1` compiles `.c26` source into assembly.
+//! - `vcsc-cc1` compiles `.c26` source into assembly. Assembly goes to stdout
+//!   by default; `-o -` explicitly selects stdout, while `-o FILE` writes FILE.
 //! - `vcsc-as` assembles source into relocatable `.o26` objects or Intel HEX.
 //! - `vcsc-ar` bundles `.o26` objects into `.l26` archives for lazy linking.
 //! - `vcsc-ld` links objects and archives, lays out memory, resolves relocations,

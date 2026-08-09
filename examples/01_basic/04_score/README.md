@@ -9,7 +9,7 @@
 
 # Score
 
-`01_basic/03_score` displays a centered white six-digit score on a medium-blue
+`01_basic/04_score` displays a centered white six-digit score on a medium-blue
 Atari VCS background. It starts at `123456` and increments once every 20 NTSC
 frames.
 

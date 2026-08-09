@@ -301,20 +301,23 @@ static bool eval_direct_byte_constant(ASTNode *expr, const ASTNode *type,
 }
 
 //! @brief Classify an unsigned one-byte lvalue without emitting code.
-static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *expr,
-                                                       bool allow_runtime_pointer) {
+static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode *expr,
+                                                            bool allow_runtime_pointer,
+                                                            bool allow_incdec) {
    DirectByteOperand out;
    ContextEntry entry;
 
    memset(&out, 0, sizeof(out));
-   /* The compact compare path reads an lvalue directly and therefore must not
-      accept valued ++/-- expressions whose required side effect is carried by
-      the expression lowering path. */
-   if (classify_incdec_lvalue_expr(expr, NULL, NULL)) {
+   /* Most compact expression paths read an lvalue directly and therefore must
+      not accept valued ++/-- expressions whose required side effect belongs to
+      expression lowering.  A dedicated truth-test path opts in below so it can
+      preserve postfix value semantics while still avoiding generic scratch. */
+   if (!allow_incdec && classify_incdec_lvalue_expr(expr, NULL, NULL)) {
       return out;
    }
-   if (!resolve_ref_argument_lvalue(ctx, expr, &out.lv) || out.lv.size != 1 ||
-       type_is_signed_integer(out.lv.type) || out.lv.is_bitfield) {
+   if (!(allow_incdec ? resolve_lvalue(ctx, expr, &out.lv)
+                       : resolve_ref_argument_lvalue(ctx, expr, &out.lv)) ||
+       out.lv.size != 1 || type_is_signed_integer(out.lv.type) || out.lv.is_bitfield) {
       return out;
    }
    out.valid = true;
@@ -362,6 +365,17 @@ static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *exp
       out.valid = false;
    }
    return out;
+}
+
+//! @brief Classify an ordinary direct byte operand while rejecting valued ++/--.
+static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *expr,
+                                                       bool allow_runtime_pointer) {
+   return classify_direct_byte_operand_impl(ctx, expr, allow_runtime_pointer, false);
+}
+
+//! @brief Classify the lvalue storage underlying one valued ++/-- expression.
+static DirectByteOperand classify_direct_incdec_operand(Context *ctx, ASTNode *expr) {
+   return classify_direct_byte_operand_impl(ctx, expr, false, true);
 }
 
 //! @brief Load a classified direct byte operand into A.
@@ -478,6 +492,52 @@ static bool emit_modify_direct_byte_operand(const DirectByteOperand *op, bool in
       return true;
    }
    return false;
+}
+
+//! @brief Lower a direct ordinary-byte ++/-- truth test without expression scratch.
+//!
+//! Postfix must branch on the old value while still applying the side effect even
+//! when that old value is zero.  Loading the old byte into A, modifying storage in
+//! place, and then comparing A with zero preserves those semantics.  Prefix can
+//! branch directly on the flags produced by INC/DEC.  This compact path matters
+//! for scanline loops: the generic valued-expression scratch path can exceed one
+//! 6507 scanline before a following WSYNC.
+static bool compile_direct_u8_incdec_test_branch_false(ASTNode *expr, Context *ctx,
+                                                        const char *false_label,
+                                                        bool invert) {
+   DirectByteOperand operand;
+   bool increment;
+   bool pre;
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!classify_incdec_lvalue_expr(expr, &increment, &pre)) {
+      return false;
+   }
+   operand = classify_direct_incdec_operand(ctx, expr);
+   if (!direct_byte_operand_is_plain_uint8(&operand) || operand.lv.is_absolute_ref) {
+      return false;
+   }
+
+   require_lvalue_readable(&operand.lv);
+   require_lvalue_writable(&operand.lv);
+   emit_lvalue_semantic_use(ctx, &operand.lv, "read");
+   emit_lvalue_semantic_use(ctx, &operand.lv, "write");
+
+   if (!pre) {
+      if (!emit_load_direct_byte_operand_impl(ctx, &operand, false) ||
+          !emit_modify_direct_byte_operand(&operand, increment)) {
+         return false;
+      }
+      /* INC/DEC changes Z for the new value; restore flags from the postfix
+         expression's old value, which remains in A. */
+      emit(&es_code, "    cmp #0\n");
+   }
+   else if (!emit_modify_direct_byte_operand(&operand, increment)) {
+      return false;
+   }
+
+   emit(&es_code, invert ? "    bne %s\n" : "    beq %s\n", false_label);
+   return true;
 }
 
 //! @brief Return the sole subscript expression of a simple lvalue, or NULL.
@@ -1396,7 +1456,9 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 
    if (expr->count == 1 && !strcmp(expr->name, "!")) {
-      if (compile_direct_u8_test_branch_false(expr->children[0], ctx, false_label,
+      if (compile_direct_u8_incdec_test_branch_false(expr->children[0], ctx,
+                                                     false_label, true) ||
+          compile_direct_u8_test_branch_false(expr->children[0], ctx, false_label,
                                               true)) {
          return true;
       }
@@ -1455,6 +1517,10 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 
    require_no_mixed_signed_integer_binary_expr(expr, ctx);
+
+   if (compile_direct_u8_incdec_test_branch_false(expr, ctx, false_label, false)) {
+      return true;
+   }
 
    if (compile_direct_u8_compare_branch_false(expr, ctx, false_label)) {
       return true;

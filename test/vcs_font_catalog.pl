@@ -76,7 +76,7 @@ my @families=qw(default 21st_century alarm_clock handwritten interrupted retropu
 my $example_text=read_file($example);
 
 -f File::Spec->catfile($fonts,'README.md') or die "font catalog README is missing\n";
--d File::Spec->catdir($repo,'examples','01_basic','03_score','fonts')
+-d File::Spec->catdir($repo,'examples','01_basic','04_score','fonts')
    and die "score example still owns a private font directory\n";
 
 for my $family (@families) {

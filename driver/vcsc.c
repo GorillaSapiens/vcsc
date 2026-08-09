@@ -354,8 +354,8 @@ static void usage(FILE *fp)
       "  --no-sym             Do not write the default Stella symbol file\n"
       "  --no-list            Do not write the default Stella list file\n"
       "  --no-cfg             Do not write the default Stella config file\n"
-      "  -v                   Print subordinate commands before running them\n"
-      "  -###                 Print subordinate commands but do not run them\n"
+      "  -v                   Print subordinate commands to stderr before running them\n"
+      "  -###                 Print subordinate commands to stdout but do not run them\n"
       "  -Wc,ARG,...          Pass comma-split args to vcsc-cc1\n"
       "  -Wa,ARG,...          Pass comma-split args to vcsc-as\n"
       "  -Wl,ARG,...          Pass comma-split args to vcsc-ld\n"
@@ -370,6 +370,8 @@ static void usage(FILE *fp)
       "  * default linked output is a.hex\n"
       "  * -S accepts only .c26 inputs\n"
       "  * with -c or -S, using -o requires exactly one source input\n"
+      "  * with -S, -o - writes generated assembly to stdout\n"
+      "  * object and linked outputs require a filename; -o - is rejected\n"
       "  * default linking uses the bundled VCS 4K C26 profile and adds libvcsc.l26\n",
       arg0);
 }
@@ -652,15 +654,15 @@ static void temp_store_cleanup_at_exit(void)
 }
 
 //! @brief Emit cmd for driver pipeline diagnostics or output files.
-static void print_cmd(char *const *argv)
+static void print_cmd(FILE *fp, char *const *argv)
 {
    size_t i;
    for (i = 0; argv[i]; ++i) {
       if (i)
-         putchar(' ');
-      fputs(argv[i], stdout);
+         fputc(' ', fp);
+      fputs(argv[i], fp);
    }
-   putchar('\n');
+   fputc('\n', fp);
 }
 
 //! @brief Run the argument vector stage of the driver tool pipeline.
@@ -669,8 +671,10 @@ static int run_argv(char *const *argv, bool verbose, bool dry_run)
    pid_t pid;
    int status;
 
-   if (verbose || dry_run)
-      print_cmd(argv);
+   if (dry_run)
+      print_cmd(stdout, argv);
+   else if (verbose)
+      print_cmd(stderr, argv);
    if (dry_run)
       return 0;
 
@@ -986,6 +990,8 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
       die("no input files");
    if ((opt->compile_only || opt->asm_only) && opt->output && opt->inputs.count != 1)
       die("-o with -c or -S requires exactly one input file");
+   if (opt->output && strcmp(opt->output, "-") == 0 && !opt->asm_only)
+      die("-o - is supported only with -S; object and linked outputs require a filename");
 }
 
 

@@ -374,18 +374,18 @@ installcheck: tools
 	  > "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
 	perl -e '$$w=hex(shift); while (<>) { next unless /^:([0-9A-Fa-f]{2})([0-9A-Fa-f]{4})00([0-9A-Fa-f]*)/; ($$n,$$a,$$d)=(hex($$1),hex($$2),$$3); if ($$w >= $$a && $$w < $$a+$$n) { exit(hex(substr($$d,2*($$w-$$a),2)) == 0 ? 0 : 1); } } exit 2' \
 	  "$$sc_failure" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/03_score" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/04_score" \
 	  -T "$$stage_vcs/vcs.cfg" \
-	  "$(CURDIR)/examples/01_basic/03_score/score.c26" \
+	  "$(CURDIR)/examples/01_basic/04_score/score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/05_wide_score" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/06_wide_score" \
 	  -T "$$stage_vcs/vcs.cfg" \
-	  "$(CURDIR)/examples/01_basic/05_wide_score/wide_score.c26" \
+	  "$(CURDIR)/examples/01_basic/06_wide_score/wide_score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/wide_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/wide_score.bin"` -eq 2048; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/01_basic/04_fingerprint/fingerprint.c26" \
+	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
 	test -f "$$stage_vcs/color_ntsc.c26"; \

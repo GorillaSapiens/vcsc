@@ -14,9 +14,10 @@ produced by this reduced compiler.
 
 It calls `choose_background()` using VCSC's fixed-symbol function model: the
 parameter and named local storage are statically allocated, while the local
-initializer runs when control reaches its declaration. The television renderer is intentionally inline 6502
-assembly because scanline timing is exact machine behavior, not ordinary C-like
-control flow.
+initializer runs when control reaches its declaration. The television frame is expressed entirely in VCSC source.  In particular, the
+192-line visible countdown uses `while (i--)`; the compiler lowers that direct
+byte truth test compactly enough that each loop iteration reaches `WSYNC` within
+one 6507 scanline.
 
 Build from this directory after building the toolchain:
 

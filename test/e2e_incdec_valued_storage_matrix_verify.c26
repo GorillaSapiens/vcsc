@@ -171,6 +171,14 @@ void main(void) {
    if (!g8++) { fail(37); }
    if (g8 != 2) { fail(38); }
 
+   g8 := 0;
+   if (g8++) { fail(39); }
+   if (g8 != 1) { fail(40); }
+
+   g8 := 0;
+   if (g8--) { fail(41); }
+   if (g8 != 255) { fail(42); }
+
    asm lda #$ff;
    asm ldx #0;
    asm ldy #0;

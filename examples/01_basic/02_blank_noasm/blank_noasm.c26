@@ -2,7 +2,7 @@
 
 // Minimal unbanked 4K Atari VCS cartridge.
 //
-// This deliberately keeps the visible renderer in inline 6502 assembly while
+// This deliberately expresses the complete frame in VCSC source while
 // exercising the static-frame source ABI during initialization.
 
 include "vcs.c26"
@@ -50,9 +50,8 @@ void main(void) {
 
       // 192 visible scanlines
       i := 192;
-      while (i) {
+      while (i--) {
          WSYNC := _;
-         i--;
       }
 
       // 30 scanlines overscan

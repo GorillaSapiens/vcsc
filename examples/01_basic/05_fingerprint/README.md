@@ -9,7 +9,7 @@
 
 # 6507 silicon fingerprint
 
-`01_basic/04_fingerprint` runs four deliberately unstable unofficial
+`01_basic/05_fingerprint` runs four deliberately unstable unofficial
 `ARR`-immediate probes, feeds each probe's accumulator result and masked `NVZC`
 flags through CRC-24/OPENPGP, and displays the resulting 24-bit value as six
 hexadecimal digits in the middle of the screen. The hexadecimal display uses

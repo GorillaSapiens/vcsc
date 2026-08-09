@@ -370,15 +370,15 @@ index($vcs_2k_profile,'$vectors_offset:0x07fa')>=0
 my $vcs_4k_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_4k.c26'));
 index($vcs_4k_profile,'mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };')>=0
    or die "vcs_4k.c26 lost its allocatable-bytes-only ROM declaration\n";
-my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','03_score','score.c26'));
-my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','03_score','Makefile'));
+my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','score.c26'));
+my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','Makefile'));
 index($score_source,'include "vcs_2k.c26"')>=0 &&
 index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
 index($score_make,'-eq 2048')>=0
    or die "score example is not locked to the 2K C26 profile
 ";
-my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','wide_score.c26'));
-my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','05_wide_score','Makefile'));
+my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','wide_score.c26'));
+my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','Makefile'));
 index($wide_source,'include "vcs_2k.c26"')>=0 &&
 index($wide_source,'instantiate "six_glyph_wide_component.c26" as score')>=0 &&
 index($wide_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&

@@ -47,3 +47,25 @@
 * Recalibrate scheduler-based CPU-only frame oracles to 264 raw harness intervals = Stella's authoritative 262 displayed scanlines, and document why the two-line offset is deliberate. The default scheduler regression now fails if the two closeout WSYNCs disappear, preventing the old 260-line frame from being mislabeled as 262 again.
 * The correction costs four ROM bytes and no RAM or visible cycles in scheduler users. The animated gallery advances to schema 15 at 3296/4090 ROM and 56/128 RAM with 72 free; the RAM-roadmap optimization closeout remains the historical 3292-ROM checkpoint before this frame fix. Current representative all-five public links are 2210 ROM / 92 RAM at 192 lines, 3229 ROM / 112 RAM for the 181 score-above example, and 3605 ROM / 128 RAM for the 170 dual-score example.
 * Verification: 469/469 compile-only passed with the final scheduler source; all 262 e2e cases are accounted for as passing in harness-native bounded runs after updating frame calibration and four-byte ROM-size contracts; source-tree hygiene and staged `installcheck` pass.
+
+2026-08-08 17:36:15 PDT, stop compile regression from creating test/-
+
+* Traced the stray `test/-` left by top-level `make` to `instantiation_preprocessor_boundary_compile_test.c26`, the only source-test runner header carrying `-o -`. The compile harness already captures compiler stdout, while `vcsc-cc1` treats `-` as an ordinary output filename, so the option created exactly that file in `test/`.
+* Removed only the accidental `-o -`; the focused preprocessor-boundary regression still passes and no compiler or harness semantics changed. Repeated checks after the broader suite leave `test/-` absent.
+* Verification reached 469/469 compile-only passes. All 262 e2e cases were exercised in harness-order shards; 260 pass and the only two failures require `faithful_legacy_multisprite_diagnostic_data.s26`, which is already absent from the supplied `vcsc.20260809_002631.tar.gz` despite being required by the example Makefile and tests.
+
+
+2026-08-08 17:49:00 PDT, compiler stdout dash semantics
+
+* `vcsc-cc1 -o -` now explicitly writes generated assembly to stdout instead of creating a literal `-` file. The original instantiation/preprocessor-boundary fixture again uses `-o -`.
+* A dedicated CLI regression proves direct `vcsc-cc1 -o -` and `vcsc -S -o -` stdout behavior, proves `vcsc -v -S -o -` keeps command tracing on stderr, and proves object/link driver modes reject `-o -` cleanly rather than producing dash-named files. User-facing tool documentation was updated; `-###` remains the stdout dry-run listing mode.
+* Verification: 469/469 compile-only tests pass. Every exercised e2e test passes except the same two tests blocked by the input archive's missing `faithful_legacy_multisprite_diagnostic_data.s26`; the optional independent Stella certification requires that fixture plus Xvfb/Stella and is not part of the headless regression result.
+
+2026-08-08 18:15:47 PDT, restore faithful multisprite fixture and require complete green handoff
+
+* Restored `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26` byte-for-byte from the corrected 10:17 faithful-multisprite handoff. This is the version with the ninth P0 clear row, bottom-to-top P1 glyph storage, and aquamarine fifth sprite expected by the locked 391-write oracle.
+* The missing file was a packaging omission, not a source redesign. The focused faithful-multisprite oracle again reports 1472 ROM bytes, exact 122-byte retained state plus six hardware-stack bytes, and stable 264-line frames; recursive public-example builds also pass.
+* Handoff policy is explicit: do not return a VCSC tarball with known regression failures. The final source tree must have every compile-only and e2e test exercised successfully before packaging; when the container cannot finish one monolithic run within its execution cap, use the same harness in bounded explicit batches and verify exact test-name coverage.
+
+2026-08-08 18:48:07 PDT, compact postfix byte conditions and renumbered basic examples
+Renumbered `examples/01_basic` so `blank_noasm` is 02 and the later basic examples advance by one, updating public path references and documentation. The source-only blank example now uses `while (i--)` for its 192 visible WSYNC lines. Diagnosed the prior 455-line failure as generic postfix-condition scratch/pointer lowering crossing the 76-cycle scanline boundary after each WSYNC; direct ordinary-byte prefix/postfix truth tests now mutate storage in place while preserving postfix old-value semantics. Added a source/timing regression and zero-value postfix semantic checks. Restored the faithful-multisprite diagnostic data fixture and `test/compiler_dash_stdout.pl`, both of which were absent from the input archive despite being required by the current handoff invariants.
