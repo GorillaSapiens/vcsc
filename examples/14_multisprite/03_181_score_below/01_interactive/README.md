@@ -12,4 +12,5 @@
 Build with `make`. The cartridge draws 181 lines of multisprite gameplay, hands
 off to an 11-line six-digit score, and keeps a standard 262-line NTSC frame.
 Select cycles P0/P1..P5; the left joystick moves the selected sprite
-horizontally; Reset restores the scene.
+horizontally and vertically within the 181-line profile's legal range; Reset
+restores the scene. The score is `123456` after the gameplay handoff.

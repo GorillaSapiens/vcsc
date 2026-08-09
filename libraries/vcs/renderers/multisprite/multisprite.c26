@@ -10,18 +10,22 @@
 parameter lines;
 
 #if TEMPLATE_lines == 192
-alias TEMPLATE_LOGICAL_HEIGHT 92
+alias TEMPLATE_LOGICAL_HEIGHT 95
 alias TEMPLATE_PF_ROW_MAX 5
-alias TEMPLATE_P0_TOP_LIMIT 93
-alias TEMPLATE_P1_TOP_LIMIT 89
+alias TEMPLATE_P0_TOP_LIMIT 96
+alias TEMPLATE_P1_TOP_LIMIT 92
+alias TEMPLATE_PLAYER0_MAX_Y 95
+alias TEMPLATE_PLAYER1_MAX_Y 91
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
 #elif TEMPLATE_lines == 181
-alias TEMPLATE_LOGICAL_HEIGHT 87
+alias TEMPLATE_LOGICAL_HEIGHT 89
 alias TEMPLATE_PF_ROW_MAX 5
-alias TEMPLATE_P0_TOP_LIMIT 88
-alias TEMPLATE_P1_TOP_LIMIT 84
+alias TEMPLATE_P0_TOP_LIMIT 90
+alias TEMPLATE_P1_TOP_LIMIT 86
+alias TEMPLATE_PLAYER0_MAX_Y 89
+alias TEMPLATE_PLAYER1_MAX_Y 85
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
@@ -30,8 +34,9 @@ extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_or_192];
 #endif
 
 // Machine-readable visible-component handoff. The 192 profile owns the whole
-// standard visible field. The 181 profile spends its first owned line restoring
-// P0 after an adjacent score component, then runs the retained multiplexing core.
+// standard visible field. The 181 profile spends its first two owned lines in
+// the faithful P0 repositioner after an adjacent score component, then runs the
+// retained multiplexing core.
 enum TEMPLATE_contract {
    TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_lines,
    TEMPLATE_DRAW_ENTRY_CYCLE := 3,
@@ -46,8 +51,8 @@ enum TEMPLATE_contract {
    TEMPLATE_OBJECT_COUNT := 6,
    TEMPLATE_PLAYFIELD_ROWS_VALUE := TEMPLATE_PLAYFIELD_ROWS,
    TEMPLATE_PLAYFIELD_BYTES := 12,
-   TEMPLATE_GRAPHICS_BYTES := 129,
-   TEMPLATE_GRAPHICS_DATA_OFFSET := 80,
+   TEMPLATE_GRAPHICS_BYTES := 145,
+   TEMPLATE_GRAPHICS_DATA_OFFSET := 96,
    TEMPLATE_STATE_BYTES := 79,
    TEMPLATE_PUBLIC_EXTRA_BYTES := 2,
    TEMPLATE_MODULE_RAM_BYTES := 81
@@ -98,15 +103,15 @@ alias TEMPLATE_PLAYER0_COLOR TEMPLATE_player0_color
 alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_player0_nusiz
 
 // The graphics block is page-aligned and intentionally starts glyph data at
-// byte 80. With the maintained Y schedules, every (ptr),Y graphics fetch then
+// byte 96. With the maintained Y schedules, every (ptr),Y graphics fetch then
 // stays in-page and has deterministic timing independent of surrounding ROM.
-extern const uint8_t TEMPLATE_graphics[129];
-alias TEMPLATE_PLAYER0_GRAPHICS_OFFSET 80
-alias TEMPLATE_PLAYER1_GRAPHICS_OFFSET 89
-alias TEMPLATE_PLAYER2_GRAPHICS_OFFSET 97
-alias TEMPLATE_PLAYER3_GRAPHICS_OFFSET 105
-alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 113
-alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 121
+extern const uint8_t TEMPLATE_graphics[145];
+alias TEMPLATE_PLAYER0_GRAPHICS_OFFSET 96
+alias TEMPLATE_PLAYER1_GRAPHICS_OFFSET 105
+alias TEMPLATE_PLAYER2_GRAPHICS_OFFSET 113
+alias TEMPLATE_PLAYER3_GRAPHICS_OFFSET 121
+alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 129
+alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 137
 extern const uint8_t TEMPLATE_pf1[TEMPLATE_PLAYFIELD_ROWS];
 extern const uint8_t TEMPLATE_pf2[TEMPLATE_PLAYFIELD_ROWS];
 
@@ -114,29 +119,11 @@ align(256) const uint8_t TEMPLATE_fine_adjust_table[15] := {
    0x60,0x50,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
 };
 
-#if TEMPLATE_lines == 181
-// Packed one-line P0 positioning controls used after a score component has
-// owned P0. The high nibble is HMP0 and the low nibble is the five-cycle
-// coarse-loop count. This is the same measured cycle-3 handoff geometry used
-// by the maintained score-composable renderer families.
-page const uint8_t TEMPLATE_player0_position_table[160] := {
-   0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
-   0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
-   0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
-   0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,0x25,0x15,
-   0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,0x16,0x06,
-   0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,
-   0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,
-   0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,
-   0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,
-   0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
-};
-#endif
 
 require inline void TEMPLATE_init(void) {
-   asm lda #<{TEMPLATE_graphics + 80};
+   asm lda #<{TEMPLATE_graphics + 96};
    asm sta TEMPLATE_state + 34;
-   asm lda #>{TEMPLATE_graphics + 80};
+   asm lda #>{TEMPLATE_graphics + 96};
    asm sta TEMPLATE_state + 35;
    asm lda #<TEMPLATE_pf1;
    asm sta TEMPLATE_state + 59;
@@ -151,40 +138,37 @@ require inline void TEMPLATE_init(void) {
    TEMPLATE_state[72] := 2;
    TEMPLATE_state[73] := 3;
    TEMPLATE_state[74] := 4;
+   // Retain the faithful 3-cycle zero-page AND timing in the visible raster.
+   TEMPLATE_state[76] := 15;
    TEMPLATE_state[29] := 0;
    TEMPLATE_state[30] := 1;
    TEMPLATE_state[31] := 2;
    TEMPLATE_state[32] := 3;
    TEMPLATE_state[33] := 4;
-   asm lda #<{TEMPLATE_graphics + 89};
-   asm sta TEMPLATE_state + 38;
-   asm lda #>{TEMPLATE_graphics + 89};
-   asm sta TEMPLATE_state + 43;
-   asm lda #<{TEMPLATE_graphics + 97};
-   asm sta TEMPLATE_state + 39;
-   asm lda #>{TEMPLATE_graphics + 97};
-   asm sta TEMPLATE_state + 44;
    asm lda #<{TEMPLATE_graphics + 105};
-   asm sta TEMPLATE_state + 40;
+   asm sta TEMPLATE_state + 38;
    asm lda #>{TEMPLATE_graphics + 105};
-   asm sta TEMPLATE_state + 45;
+   asm sta TEMPLATE_state + 43;
    asm lda #<{TEMPLATE_graphics + 113};
-   asm sta TEMPLATE_state + 41;
+   asm sta TEMPLATE_state + 39;
    asm lda #>{TEMPLATE_graphics + 113};
-   asm sta TEMPLATE_state + 46;
+   asm sta TEMPLATE_state + 44;
    asm lda #<{TEMPLATE_graphics + 121};
-   asm sta TEMPLATE_state + 42;
+   asm sta TEMPLATE_state + 40;
    asm lda #>{TEMPLATE_graphics + 121};
+   asm sta TEMPLATE_state + 45;
+   asm lda #<{TEMPLATE_graphics + 129};
+   asm sta TEMPLATE_state + 41;
+   asm lda #>{TEMPLATE_graphics + 129};
+   asm sta TEMPLATE_state + 46;
+   asm lda #<{TEMPLATE_graphics + 137};
+   asm sta TEMPLATE_state + 42;
+   asm lda #>{TEMPLATE_graphics + 137};
    asm sta TEMPLATE_state + 47;
 }
 
 require inline void TEMPLATE_vblank(void) {
    asm .callstackextra 4;
-#if TEMPLATE_lines == 181
-   asm ldx.z TEMPLATE_state + 4;
-   asm lda.ax TEMPLATE_player0_position_table,x;
-   asm sta.z TEMPLATE_state + 69;
-#endif
    asm lda #5;
    asm sta TEMPLATE_state + 58;
    asm jsr @TEMPLATE_SetupP1Subroutine;
@@ -229,10 +213,10 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_PositionASpriteSubroutine:;
    asm sec;
    asm sta WSYNC;
-   asm sta.a HMCLR;
+   asm sta HMCLR;
    asm @TEMPLATE_DivideBy15Loop:;
    asm sbc #15;
-   asm bcs @TEMPLATE_DivideBy15Loop;
+   asm bcs.same @TEMPLATE_DivideBy15Loop;
    asm tay;
    asm lda TEMPLATE_fine_adjust_table - 241,Y;
    asm sta HMP0,X;
@@ -278,9 +262,9 @@ require inline void TEMPLATE_vblank(void) {
    asm sta TEMPLATE_state + 37;
    asm lda TEMPLATE_state + 13;
 #if TEMPLATE_lines == 192
-   asm cmp #93;
+   asm cmp #96;
 #else
-   asm cmp #88;
+   asm cmp #90;
 #endif
    asm bcc @TEMPLATE_nottoohigh;
    asm lda TEMPLATE_state + 36;
@@ -351,9 +335,9 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda TEMPLATE_state + 14,x;
 #if TEMPLATE_lines == 192
-   asm cmp #89;
+   asm cmp #92;
 #else
-   asm cmp #84;
+   asm cmp #86;
 #endif
    asm bcc @TEMPLATE_nonetoohigh;
    asm dec TEMPLATE_state + 65;
@@ -375,28 +359,31 @@ require inline void TEMPLATE_vblank(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
-#if TEMPLATE_lines == 181
-   // A score component owns P0 positioning while it draws. Restore P0 on one
-   // visible handoff line, then HMOVE at cycle zero so the retained gameplay
-   // core resumes at its original cycle-3 entry phase. Clear the other motion
-   // registers so this HMOVE cannot disturb P1/M0/M1/Ball geometry.
-   asm ldy.z TEMPLATE_state + 69;
-   asm sty HMP0;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm bit.z CXM0P;
-   asm @TEMPLATE_player0_position_loop:;
-   asm dex;
-   asm bne.same @TEMPLATE_player0_position_loop;
-   asm sta RESP0;
+   // Keep the K1 timing handlers physically adjacent to the hot loop.  If
+   // these conditional branches are relaxed into branch+JMP sequences the
+   // two-scanline pipeline gains five cycles per ordinary iteration.
+   asm jmp @TEMPLATE_RendererRoutine;
+   asm @TEMPLATE_SwitchDrawP0K1:;
+   asm lda.z TEMPLATE_state + 36;
+   asm sta.z TEMPLATE_state + 67;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
+   asm @TEMPLATE_WaitDrawP0K1:;
+   asm nop;
+   asm nop;
+   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
+   asm @TEMPLATE_SkipDrawP1K1:;
    asm lda #0;
-   asm sta HMP1;
-   asm sta HMM0;
-   asm sta HMM1;
-   asm sta HMBL;
-   asm sta WSYNC;
-   asm sta HMOVE;
+   asm sta GRP1;
+   asm jmp @TEMPLATE_BackFromSkipDrawP1;
+   asm @TEMPLATE_RendererRoutine:;
+#if TEMPLATE_lines == 181
+   // A score component owns P0 positioning while it draws. Reuse the faithful
+   // two-line divide-by-15 positioner so the complete 0..159 X range is legal.
+   // The helper returns six cycles after HMOVE; the profile-specific entry
+   // padding below removes those same six cycles before the hot raster begins.
+   asm ldx #0;
+   asm lda.z TEMPLATE_state + 4;
+   asm jsr @TEMPLATE_DrawPositionASpriteSubroutine;
 #endif
    // Re-establish TIA state that an adjacent score component may clobber.
    asm lda #1;
@@ -407,9 +394,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_player0_color;
    asm sta COLUP0;
 #if TEMPLATE_lines == 192
-   asm ldy #92;
+   asm ldy #95;
 #elif TEMPLATE_lines == 181
-   asm ldy #87;
+   asm ldy #89;
 #endif
    // Enter the retained two-scanline multiplexing pipeline. The historical
    // SLEEP 12 is reduced by the explicit TIA restoration above; timing is
@@ -422,10 +409,13 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
    asm nop;
+#if TEMPLATE_lines == 192
+   // The 181 profile arrived here through PositionASpriteSubroutine and has
+   // already spent the six cycles represented by these three NOPs.
    asm nop;
    asm nop;
    asm nop;
-   asm nop;
+#endif
    asm @TEMPLATE_RendererLoopa:;
    asm bit.z CXM0P;
    asm nop;
@@ -433,13 +423,13 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_RendererLoopb:;
    asm nop;
    asm cpy.z TEMPLATE_state + 67;
-   asm beq @TEMPLATE_SwitchDrawP0K1;
-   asm bpl @TEMPLATE_WaitDrawP0K1;
+   asm beq.same @TEMPLATE_SwitchDrawP0K1;
+   asm bpl.same @TEMPLATE_WaitDrawP0K1;
    asm lda (TEMPLATE_state + 34),Y;
    asm sta GRP0;
    asm @TEMPLATE_BackFromSwitchDrawP0K1:;
    asm cpy.z TEMPLATE_state + 37;
-   asm bcc @TEMPLATE_SkipDrawP1K1;
+   asm bcc.same @TEMPLATE_SkipDrawP1K1;
    asm lda (TEMPLATE_state + 64),Y;
    asm sta.a GRP1;
    asm @TEMPLATE_BackFromSkipDrawP1:;
@@ -469,7 +459,7 @@ require inline void TEMPLATE_draw(void) {
    asm php;
    asm dey;
    asm cpy.z TEMPLATE_state + 66;
-   asm beq @TEMPLATE_RepoRenderer;
+   asm beq.same @TEMPLATE_RepoRenderer;
    asm nop;
    asm nop;
    asm nop;
@@ -483,8 +473,8 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm @TEMPLATE_BackFromRepoRenderer:;
    asm tya;
-   asm and #15;
-   asm bne @TEMPLATE_RendererLoopa;
+   asm and.z TEMPLATE_state + 76;
+   asm bne.same @TEMPLATE_RendererLoopa;
    asm dec.z TEMPLATE_state + 58;
    asm bpl @TEMPLATE_RendererLoopb;
    asm @TEMPLATE_donewrenderer:;
@@ -499,23 +489,28 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
    asm jmp @TEMPLATE_BackFromSwitchDrawP0KR;
-   asm @TEMPLATE_noUpdateXKR:;
-   asm ldx #1;
-   asm cpy.a TEMPLATE_state + 67;
-   asm JMP @TEMPLATE_retXKR;
    asm @TEMPLATE_skipthis:;
    asm ldx #1;
    asm jmp @TEMPLATE_goback;
    asm @TEMPLATE_RepoRenderer:;
    asm tya;
+   // Keep the two paths cycle-identical without a distant timing-sensitive
+   // branch. The immediate AND saves one cycle; the non-update path spends it
+   // on the balancing NOP, so both paths still reach retXKR at the faithful
+   // cadence. The only conditional branch is now a short local .same edge.
    asm and #15;
-   asm bne @TEMPLATE_noUpdateXKR;
+   asm beq.same @TEMPLATE_updateXKR;
+   asm ldx #1;
+   asm cpy.a TEMPLATE_state + 67;
+   asm nop;
+   asm jmp @TEMPLATE_retXKR;
+   asm @TEMPLATE_updateXKR:;
    asm tax;
    asm dec.z TEMPLATE_state + 58;
    asm cpy.z TEMPLATE_state + 67;
    asm @TEMPLATE_retXKR:;
-   asm beq @TEMPLATE_SwitchDrawP0KR;
-   asm bpl @TEMPLATE_WaitDrawP0KR;
+   asm beq.same @TEMPLATE_SwitchDrawP0KR;
+   asm bpl.same @TEMPLATE_WaitDrawP0KR;
    asm lda (TEMPLATE_state + 34),Y;
    asm sta GRP0;
    asm @TEMPLATE_BackFromSwitchDrawP0KR:;
@@ -532,7 +527,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.zx TEMPLATE_state + 5,X;
    asm @TEMPLATE_DivideBy15LoopK:;
    asm sbc #15;
-   asm bcs @TEMPLATE_DivideBy15LoopK;
+   asm bcs.same @TEMPLATE_DivideBy15LoopK;
    asm tax;
    asm lda TEMPLATE_fine_adjust_table - 241,X;
    asm sta HMP1;
@@ -548,17 +543,17 @@ require inline void TEMPLATE_draw(void) {
    asm cpy.z TEMPLATE_state + 10;
    asm php;
    asm tya;
-   asm and #15;
+   asm and.z TEMPLATE_state + 76;
    asm and #$FE;
-   asm bne @TEMPLATE_skipthis;
+   asm bne.same @TEMPLATE_skipthis;
    asm tax;
    asm nop;
    asm nop;
    asm @TEMPLATE_goback:;
    asm dey;
    asm cpy.z TEMPLATE_state + 67;
-   asm beq @TEMPLATE_SwitchDrawP0KV;
-   asm bpl @TEMPLATE_WaitDrawP0KV;
+   asm beq.same @TEMPLATE_SwitchDrawP0KV;
+   asm bpl.same @TEMPLATE_WaitDrawP0KV;
    asm lda (TEMPLATE_state + 34),Y;
    asm sta GRP0;
    asm @TEMPLATE_BackFromSwitchDrawP0KV:;
@@ -598,7 +593,7 @@ require inline void TEMPLATE_draw(void) {
    asm cpy.z TEMPLATE_state + 10;
    asm php;
    asm dec.z TEMPLATE_state + 3;
-   asm bpl @TEMPLATE_SetNextLine;
+   asm bpl.same @TEMPLATE_SetNextLine;
    asm lda #255;
    asm jmp @TEMPLATE_SetLastLine;
    asm @TEMPLATE_SetNextLine:;
@@ -606,8 +601,8 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_SetLastLine:;
    asm sta.z TEMPLATE_state + 66;
    asm tya;
-   asm and #15;
-   asm bne @TEMPLATE_nodec;
+   asm and.z TEMPLATE_state + 76;
+   asm bne.same @TEMPLATE_nodec;
    asm dec.z TEMPLATE_state + 58;
    asm dey;
    asm jmp @TEMPLATE_BackFromRepoRenderer;
@@ -625,27 +620,32 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm jmp @TEMPLATE_BackFromSwitchDrawP0KV;
 
-   asm @TEMPLATE_SwitchDrawP0K1:;
-   asm lda.z TEMPLATE_state + 36;
-   asm sta.z TEMPLATE_state + 67;
-   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
-   asm @TEMPLATE_WaitDrawP0K1:;
-   asm nop;
-   asm nop;
-   asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
-   asm @TEMPLATE_SkipDrawP1K1:;
-   asm lda #0;
-   asm sta GRP1;
-   asm jmp @TEMPLATE_BackFromSkipDrawP1;
    asm @TEMPLATE_DoneWithRenderer:;
-   asm sta WSYNC;
-   asm ldx.z TEMPLATE_state + 75;
-   asm txs;
 #if TEMPLATE_lines == 192
-   // The retained multiplexing core naturally consumes 191 physical lines
-   // from logical Y=92; one terminal blank line closes the 192-line profile.
    asm sta WSYNC;
 #endif
+   asm ldx.z TEMPLATE_state + 75;
+   asm txs;
+   // Keep the draw-only two-line positioner physically after the hot raster.
+   // That avoids perturbing its branch-page geometry while still sharing the
+   // faithful divide-by-15 algorithm with the 181 score handoff.
+   asm jmp @TEMPLATE_DrawFinalWSYNC;
+   asm @TEMPLATE_DrawPositionASpriteSubroutine:;
+   asm sec;
+   asm sta WSYNC;
+   asm sta HMCLR;
+   asm @TEMPLATE_DrawDivideBy15Loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_DrawDivideBy15Loop;
+   asm tay;
+   asm lda TEMPLATE_fine_adjust_table - 241,Y;
+   asm sta HMP0,X;
+   asm sta RESP0,X;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm rts;
+   asm @TEMPLATE_DrawFinalWSYNC:;
+   asm sta WSYNC;
 
 }
 

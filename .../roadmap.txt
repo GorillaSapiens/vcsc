@@ -1368,29 +1368,39 @@ one.
           Keep the unofficial 181-line experiment separate. Use this established
           pattern for the modern multisprite extraction rather than multiplying
           scanline-count source families.
-        * Modern parameterized component completed 2026-08-08: add one
-          `renderers/multisprite/multisprite.c26` with required `parameter lines;`
-          and calibrated `lines:=192` / `lines:=181` profiles. The component owns
-          79 bytes of retained state plus two public P0 bytes = 81 RIOT-RAM bytes,
-          declares four hidden hardware-stack bytes, and retains the stable/common
-          NMOS `LAX`/TXS/PHP beam path, so callers use `-Wa,--illegals`.
-        * The 192 profile uses logical height 92 plus one terminal scanline. The 181
-          profile uses logical height 87 plus one score-handoff P0 restoration line,
-          and composes with the independent eleven-line score either above or below.
-          All three public interactive examples hold exact 262-line NTSC frames.
+        * Modern parameterized component completed 2026-08-08 and timing repair
+          completed 2026-08-09: keep one `renderers/multisprite/multisprite.c26`
+          with required `parameter lines;` and calibrated `lines:=192` / `lines:=181`
+          profiles. The component owns 79 retained state bytes plus two public P0
+          bytes = 81 RIOT-RAM bytes, declares four hidden hardware-stack bytes, and
+          retains the stable/common NMOS `LAX`/TXS/PHP beam path, so callers use
+          `-Wa,--illegals`.
+        * Preserve the faithful beam cadence rather than calibrating around one fixed
+          scene. The 192 profile uses logical height 95. The 181 profile uses logical
+          height 89 plus a faithful two-line divide-by-15 P0 reposition handoff, so
+          P0 remains legal over X=0..159 when a score owns P0 immediately before or
+          after gameplay. Restore the faithful three-cycle zero-page mask reads,
+          keep K1 handlers close enough for real short branches, constrain every
+          timing-sensitive branch to same-page geometry, keep HMCLR on its three-cycle
+          direct TIA store, and make the reposition decision a local cycle-balanced
+          branch so link order cannot alter raster cadence.
         * Make graphics placement an explicit timing contract: applications provide a
-          129-byte `align(256)` graphics block with bytes 0..79 reserved and P0/P1..P5
-          at offsets 80/89/97/105/113/121. Full 16-bit pointer adjustment preserves
-          address correctness while the aligned high-offset layout prevents the
-          retained cycle-critical `(ptr),Y` glyph fetches from page crossing.
+          145-byte `align(256)` graphics block with bytes 0..95 reserved and P0/P1..P5
+          at offsets 96/105/113/121/129/137. Full 16-bit pointer adjustment preserves
+          address correctness while the high-offset layout prevents every legal
+          cycle-critical `(ptr),Y` glyph fetch from page crossing, including P0 at its
+          top Y limit.
         * Lock all eight P0 rows, all 40 rows of the five multiplexed P1 sprites,
           five P1 colors/reposition phases, six asymmetric playfield rows, HMOVE
-          schedule, both score placements, frame timing, invalid-line rejection, and
-          installed-toolchain builds. The public 192 interactive cartridge measures
-          2246 ROM / 102 RAM; each 181 interactive score composition measures 2977
-          ROM / 121 RAM. Select cycles P0 plus five logical P1 sprites; horizontal
-          joystick motion and Reset are interactive while the calibrated P1 Y schedule
-          remains fixed. M0/M1/Ball stay outside the maintained active raster.
+          schedule, exact `123456` score rasters above and below gameplay, frame
+          timing, invalid-line rejection, and installed-toolchain builds. Exhaustive
+          runtime sweeps independently move all six sprites across X=0..159 and their
+          complete maintained Y ranges: 1,516 cases for 192 and 1,480 cases for each
+          181 score order, every one at exact 262-line NTSC timing. The interactive
+          examples expose left/right/up/down movement and Reset; P0/P1 max Y are
+          95/91 for 192 and 89/85 for 181. M0/M1/Ball stay outside the maintained
+          active raster. Current public sizes are 2679 ROM / 102 RAM for 192 and
+          3218 ROM / 121 RAM for each 181 score composition.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

@@ -1,1 +1,2 @@
 2026-08-09 05:26:58 UTC, Consolidated official player-color 192/181 renderers into parameterized lines:=192/181/170 source and added 170-line dual-score proof.
+2026-08-09 01:10:36 PDT, Repaired modern multisprite coordinate-dependent raster timing: restored faithful cycle geometry, full legal X/Y movement, page-safe glyph layout, stable 192/181 frames, and exact 123456 score handoffs.

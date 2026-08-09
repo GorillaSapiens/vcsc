@@ -28,15 +28,17 @@ path, so cartridges using it must be assembled with `-Wa,--illegals`.
 
 | `lines` | Logical core height | Typical composition | Module RAM |
 | ---: | ---: | --- | ---: |
-| 192 | 92 | full-height, scoreless | 81 bytes |
-| 181 | 87 | one independent 11-line score above or below | 81 bytes |
+| 192 | 95 | full-height, scoreless | 81 bytes |
+| 181 | 89 | one independent 11-line score above or below | 81 bytes |
 
-The legacy logical Y counter is not a physical scanline count. The measured
-192 profile runs the retained core from logical Y=92, which consumes 191
-physical lines, then closes the field with one terminal line. The 181 profile
-runs from logical Y=87 and uses one visible entry/handoff line to restore P0
-after an adjacent score component has owned the players. Adjacent visible
-components use `vcs_ntsc_component_handoff()`.
+The legacy logical Y counter is not a physical scanline count. After restoring
+the faithful two-scanline cadence, the measured 192 profile enters the retained
+core at logical Y=95 and closes the field with its terminal line. The 181
+profile enters at logical Y=89. When it follows or precedes a score component,
+its draw path spends two owned lines in the faithful divide-by-15 P0
+repositioner before entering the hot multiplexing loop, so P0 remains legal over
+the complete X=0..159 range. Adjacent visible components use
+`vcs_ntsc_component_handoff()`.
 
 Both profiles preserve the faithful five-P1 multiplexing algorithm, six
 playfield rows, P0 trailing clear, TXS/PHP enable pipeline, and beam-critical
@@ -50,14 +52,14 @@ so the public graphics layout below deliberately prevents those crossings.
 Applications provide one page-aligned graphics block plus the playfield rows:
 
 ```vcsc
-align(256) const uint8_t game_graphics[129] := {
-   // bytes 0..79 are reserved padding
-   // bytes 80..88: P0, including its leading clear sentinel
-   // bytes 89..96: logical P1
-   // bytes 97..104: logical P2
-   // bytes 105..112: logical P3
-   // bytes 113..120: logical P4
-   // bytes 121..128: logical P5
+align(256) const uint8_t game_graphics[145] := {
+   // bytes 0..95 are reserved padding
+   // bytes 96..104: P0, including its leading clear sentinel
+   // bytes 105..112: logical P1
+   // bytes 113..120: logical P2
+   // bytes 121..128: logical P3
+   // bytes 129..136: logical P4
+   // bytes 137..144: logical P5
 };
 const uint8_t game_pf1[6] := { ... };
 const uint8_t game_pf2[6] := { ... };
@@ -70,21 +72,27 @@ rows in the bottom-to-top order consumed by the retained raster.
 
 The **alignment and offsets are part of the timing contract**, not cosmetic
 padding. The retained raster performs cycle-critical `(ptr),Y` graphics loads.
-Starting the 129-byte block on a 256-byte boundary and putting glyph data at
-offsets 80..128 guarantees that every maintained sprite fetch stays within the
-same ROM page. This makes the visible reposition schedule independent of where
-the linker places surrounding ROM objects.
+Starting the 145-byte block on a 256-byte boundary and putting glyph data at
+offsets 96..144 guarantees that every legal maintained P0/P1 glyph fetch stays
+within the same ROM page. This matters at the top of the legal Y range as well
+as in the default scene: a page-crossing `(ptr),Y` load costs an extra 6502
+cycle and would otherwise make frame length depend on sprite Y.
 
 Public aliases expose X/Y/height for P0 and the five logical P1 sprites, P0/P1
-NUSIZ and colors, plus the retained M0/M1/Ball coordinates.
+NUSIZ and colors, plus the retained M0/M1/Ball coordinates. X is legal over the
+complete 0..159 range. The maintained legal Y ranges are exposed as
+`PLAYER0_MAX_Y` and `PLAYER1_MAX_Y`: 95/91 for `lines:=192`, and 89/85 for
+`lines:=181`. The five multiplexed sprites may move vertically independently
+within that P1 range; their initial spacing is not a fixed timing schedule.
 
 The maintained minimal profiles deliberately keep M0, M1, and Ball outside the
 active gameplay field. Making those three objects active changes the retained
-multiplexing timing and is not part of this component contract. Likewise, the
-five logical P1 Y positions are a **timing schedule**, not unrestricted game
-state: changing their vertical spacing can change the physical scanline count.
-The public interactive examples therefore keep the cycle-proven Y schedules
-fixed and move P0/P1 sprites horizontally.
+multiplexing timing and is not part of this component contract.
+
+Beam timing is deliberately structural. The faithful three-cycle mask reads,
+short K1 branches, branch-page constraints, and the local cycle-balanced
+reposition decision must not be simplified as ordinary code. The regression
+sweeps every legal independent X/Y position and rejects any frame-length drift.
 
 The scheduler owns VSYNC, VBLANK, RIOT timers, and visible-component order.
 `init()`, `vblank()`, `draw()`, and `overscan()` are the component lifecycle.
@@ -99,4 +107,7 @@ The scheduler owns VSYNC, VBLANK, RIOT timers, and visible-component order.
   below gameplay.
 
 Select cycles P0 and the five logical P1 sprites; the left joystick moves the
-selected sprite horizontally; Reset restores the scene.
+selected sprite horizontally and vertically within the profile's legal range;
+Reset restores the scene. The regression exhaustively checks 1,516 independent
+X/Y positions for the 192 profile and 1,480 for each 181 score composition, in
+addition to locking the exact `123456` score raster above and below gameplay.

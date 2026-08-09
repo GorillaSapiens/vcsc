@@ -19,6 +19,8 @@ with `-Wa,--illegals`.
   gameplay profile.
 - `03_181_score_below` composes the same score below gameplay.
 
-The interactive scene keeps the proven vertical multiplexing schedule fixed.
-Select cycles P0 and the five logical P1 sprites, and the left joystick moves
-the selected sprite horizontally.
+Select cycles P0 and the five logical P1 sprites. The left joystick moves the
+selected sprite horizontally across X=0..159 and vertically through the
+profile-specific legal Y range. The automated raster regression sweeps every
+legal independent X/Y position and requires a stable 262-line NTSC frame; the
+two 181-line compositions also lock the exact bottom/top score as `123456`.

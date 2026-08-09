@@ -425,29 +425,34 @@ assemble with `-Wa,--illegals`.
 The module owns 79 bytes of private state plus two public P0 color/NUSIZ bytes,
 81 RIOT-RAM bytes total, and declares four bytes of hidden hardware-stack depth.
 It does not own VSYNC, VBLANK, RIOT timers, a score, or application controls.
-The 192 profile uses logical height 92; the retained core consumes 191 physical
-lines and a terminal WSYNC closes line 192. The 181 profile uses logical height
-87 and spends its first visible line restoring P0 after a preceding score; it
-then returns on a score-composable cycle-zero boundary. Five P1 reposition
-HMOVEs occur in either profile; the 181 P0 restoration adds a sixth visible
-HMOVE.
+After the coordinate-stability audit, the 192 profile uses logical height 95.
+The 181 profile uses logical height 89 and spends two owned visible lines in the
+faithful divide-by-15 P0 positioner when composing across a score handoff. Five
+P1 reposition HMOVEs occur in either profile; the 181 P0 restoration adds a
+sixth visible HMOVE.
 
-The application supplies one **129-byte, 256-byte-aligned graphics block**.
-Bytes 0..79 are reserved; P0 occupies 80..88 and logical P1..P5 occupy
-89..96, 97..104, 105..112, 113..120, and 121..128. This layout is a timing
+The application supplies one **145-byte, 256-byte-aligned graphics block**.
+Bytes 0..95 are reserved; P0 occupies 96..104 and logical P1..P5 occupy
+105..112, 113..120, 121..128, 129..136, and 137..144. This layout is a timing
 contract: the retained beam core uses cycle-critical `(ptr),Y` glyph loads, and
-6502 page crossing would add a cycle and perturb later horizontal repositioning.
-Full 16-bit pointer adjustment remains required for correctness, while the
-aligned high-offset block guarantees that maintained glyph fetches never cross
-a page.
+a 6502 page crossing adds a cycle. The higher offsets guarantee fixed-cycle
+fetches across the complete maintained Y ranges, including P0 at its top edge;
+full 16-bit pointer adjustment remains required for address correctness.
 
-The five multiplexed P1 Y values are a calibrated scheduling profile rather
-than unrestricted vertical game state. The maintained public examples therefore
-move P0/P1 sprites horizontally while keeping that Y schedule fixed; M0, M1,
-and Ball remain off the active raster because enabling them changes the retained
-physical scheduling. `examples/14_multisprite/` proves a full-height 192-line
-interactive cartridge and both 181+11 score orders, all at exact 262-line NTSC
-frames.
+The hot raster also has an explicit code-placement contract. Faithful
+three-cycle zero-page mask reads, nearby short K1 handlers, same-page
+beam-critical branches, the direct three-cycle HMCLR store, and a local
+cycle-balanced reposition decision prevent source/link placement from changing
+raster cadence. P0 and all five logical P1 sprites are genuine movable game
+state: X is legal from 0..159; P0/P1 maximum Y are 95/91 for 192 and 89/85 for
+181. M0, M1, and Ball remain off the active raster because enabling them changes
+the retained physical scheduling.
+
+`examples/14_multisprite/` proves a full-height 192-line interactive cartridge
+and both 181+11 score orders. The regression independently sweeps every legal
+coordinate for each sprite—1,516 cases for 192 and 1,480 cases for each 181
+composition—and requires the frame to remain exactly 262 NTSC lines. It also
+locks the score raster as `123456` both before and after gameplay.
 
 ## Official player-color 181-line profile
 

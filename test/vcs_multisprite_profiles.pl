@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exact six-player/playfield rasters, score-above/below timing, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -44,17 +44,27 @@ $text =~ /asm\s+lax\s+\(TEMPLATE_state\s*\+\s*59\),y;/ or die "retained stable/c
 $text =~ /asm\s+\.callstackextra\s+4;/ or die "multisprite hidden call-stack declaration changed\n";
 my $borrow_propagations=()=$text =~ /asm\s+sbc\s+#0;/g;
 $borrow_propagations >= 3 or die "multisprite no longer propagates full 16-bit graphics-pointer borrow\n";
-$text =~ /TEMPLATE_player0_position_table\[160\]/ or die "181 P0 score-handoff position table is missing\n";
-$text =~ /extern\s+const\s+uint8_t\s+TEMPLATE_graphics\[129\]/ or die "page-safe graphics block contract is missing\n";
-$text =~ /TEMPLATE_GRAPHICS_DATA_OFFSET\s*:=\s*80\b/ or die "graphics data offset contract changed\n";
-$text =~ /TEMPLATE_PLAYER5_GRAPHICS_OFFSET\s+121\b/ or die "P5 graphics offset changed\n";
+$text =~ /extern\s+const\s+uint8_t\s+TEMPLATE_graphics\[145\]/ or die "page-safe graphics block contract is missing\n";
+$text =~ /TEMPLATE_GRAPHICS_DATA_OFFSET\s*:=\s*96\b/ or die "graphics data offset contract changed\n";
+$text =~ /TEMPLATE_PLAYER5_GRAPHICS_OFFSET\s+137\b/ or die "P5 graphics offset changed\n";
+$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+95\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+91\b/
+   or die "192 legal Y bounds changed\n";
+$text =~ /TEMPLATE_PLAYER0_MAX_Y\s+89\b/ && $text =~ /TEMPLATE_PLAYER1_MAX_Y\s+85\b/
+   or die "181 legal Y bounds changed\n";
+$text =~ /asm\s+beq\.same\s+\@TEMPLATE_RepoRenderer;/
+   or die "beam-critical RepoRenderer branch lost its same-page contract\n";
+$text =~ /asm\s+jsr\s+\@TEMPLATE_DrawPositionASpriteSubroutine;/
+   or die "181 score handoff no longer uses the full-range two-line P0 positioner\n";
+$text =~ /asm\s+sta\s+HMCLR;/
+   or die "full-range positioner lost its 3-cycle HMCLR store\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2246,102,94,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),2977,121,113,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),2977,121,113,8],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2679,102,94,8],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3218,121,113,8],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3218,121,113,8],
 );
 my %bins;
+my %state_bases;
 for my $e (@examples) {
    my($mode,@parts)=@$e;
    my($rom_expected,$ram_expected,$obj_expected,$stack_expected)=splice(@parts,-4);
@@ -72,21 +82,25 @@ for my $e (@examples) {
    without_usage($out) eq '' or die "$mode public example wrote unexpected stdout\n$out";
    -s $bin==4096 or die "$mode public example is not a 4K cartridge\n";
    my $maptext=read_file($map);
-   $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$[0-9A-Fa-f]{4}\s+size=\$004F\b/
+   $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$([0-9A-Fa-f]{4})\s+size=\$004F\b/
       or die "$mode game_state is not exactly 79 bytes\n";
-   $maptext =~ /RODATA\.__vcsc_object\$game_graphics\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0081\b[^\n]*component-align=\$0100\b/
-      or die "$mode graphics block is not 129 bytes at a 256-byte boundary\n$maptext";
+   $state_bases{$mode}="0x$1";
+   $maptext =~ /RODATA\.__vcsc_object\$game_graphics\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0091\b[^\n]*component-align=\$0100\b/
+      or die "$mode graphics block is not 145 bytes at a 256-byte boundary\n$maptext";
    $bins{$mode}=$bin;
 }
 
-# The interactive application may move only X. The five multiplexed Y values
-# are part of the maintained physical timing schedule.
+# The public interactive proof must exercise both axes for every logical player.
 my $common=read_file(File::Spec->catfile($repo,qw(examples common multisprite_interactive_common.c26)));
 $common =~ /inline\s+void\s+move_selected_multisprite_object\s*\(void\)\s*\{(.*?)\n\}/s
    or die "multisprite interactive motion helper is missing\n";
 my $motion=$1;
-$motion =~ /PLAYER0_X/ && $motion =~ /PLAYER5_X/ or die "interactive example does not move all six sprites\n";
-$motion !~ /PLAYER\d_Y/ or die "interactive example changed timing-sensitive multiplexed Y state\n";
+$motion =~ /PLAYER0_X/ && $motion =~ /PLAYER5_X/ or die "interactive example does not move all six sprites horizontally\n";
+$motion =~ /PLAYER0_Y/ && $motion =~ /PLAYER5_Y/ or die "interactive example does not move all six sprites vertically\n";
+$motion =~ /game_PLAYER0_MAX_Y/ && $motion =~ /game_PLAYER1_MAX_Y/
+   or die "interactive vertical motion does not honor renderer Y bounds\n";
+$motion =~ /SWCHA\s*&\s*0x10/ && $motion =~ /SWCHA\s*&\s*0x20/
+   or die "interactive example does not handle joystick up/down\n";
 $common =~ /SELECTED_OBJECT_COUNT\s+6\b/ or die "interactive Select cycle is not six sprites\n";
 $common =~ /game_MISSILE0_Y\s*:=\s*250/ && $common =~ /game_MISSILE1_Y\s*:=\s*251/ && $common =~ /game_BALL_Y\s*:=\s*252/
    or die "maintained minimal profile no longer keeps M0/M1/Ball off the active raster\n";
@@ -109,7 +123,7 @@ my $raster=File::Spec->catfile($tmp,'vcs_multisprite_profiles');
    File::Spec->catfile($repo,qw(test vcs_multisprite_profiles.cpp)),@mos_input,'-o',$raster);
 $rc==0 && !$sig && $out eq '' && $err eq '' or die "multisprite raster harness build failed\n$out$err";
 for my $mode (qw(192 181-score-above 181-score-below)) {
-   ($rc,$sig,$out,$err)=capture($raster,$bins{$mode},$mode);
+   ($rc,$sig,$out,$err)=capture($raster,$bins{$mode},$mode,$state_bases{$mode});
    $rc==0 && !$sig or die "$mode raster oracle failed\n$out$err";
    $out =~ /^vcs_multisprite_profiles \Q$mode\E ok:/ or die "unexpected $mode raster output: $out";
    $err eq '' or die "$mode raster stderr: $err";
@@ -117,7 +131,23 @@ for my $mode (qw(192 181-score-above 181-score-below)) {
 
 # The public scene must honor the graphics placement contract directly. The
 # alignment keeps all retained cycle-critical (ptr),Y fetches on one ROM page.
-$common =~ /align\(256\)\s+const\s+uint8_t\s+game_graphics\[129\]/
+$common =~ /align\(256\)\s+const\s+uint8_t\s+game_graphics\[145\]/
    or die "interactive examples no longer provide a page-aligned graphics block\n";
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exact six-player/playfield rasters, score-above/below timing, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+# Lock the user-visible score digits, not merely score activity. This catches
+# renderer/score handoff timing corruption such as a bottom score changing from
+# 123456 even when all six score pointers themselves remain intact.
+my $score_raster=File::Spec->catfile($tmp,'vcs_multisprite_score_raster');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+   File::Spec->catfile($repo,qw(test vcs_six_glyph_raster.cpp)),@mos_input,'-o',$score_raster);
+$rc==0 && !$sig && $out eq '' && $err eq '' or die "multisprite score raster harness build failed\n$out$err";
+for my $case (['181-score-above',40],['181-score-below',221]) {
+   my($mode,$entry)=@$case;
+   ($rc,$sig,$out,$err)=capture($score_raster,$bins{$mode},$entry,'123456');
+   $rc==0 && !$sig or die "$mode exact 123456 score raster failed\n$out$err";
+   $out =~ /^vcs_six_glyph_raster ok: 1 exact 48x8 score rasters/
+      or die "unexpected $mode score raster output: $out";
+   $err eq '' or die "$mode score raster stderr: $err";
+}
+
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";

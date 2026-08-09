@@ -190,6 +190,173 @@ private:
    }
 };
 TraceMachine *TraceMachine::active_ = nullptr;
+
+struct SweepCase {
+   uint8_t offset;
+   uint8_t value;
+   const char *axis;
+   int player;
+};
+
+// Exercise every supported player coordinate independently.  The historical
+// multisprite raster is cycle-sensitive: a page-crossing graphics fetch or a
+// late horizontal reposition can add a physical scanline even though one
+// nominal scene still looks correct.  This sweep makes the public coordinate
+// range part of the maintained renderer contract.
+class SweepMachine {
+public:
+   SweepMachine(const char *path, uint16_t state_base, bool profile192)
+      : cpu_(read_bus_thunk, write_bus_thunk, clock_thunk),
+        state_base_(state_base), profile192_(profile192) {
+      active_ = this;
+      std::memset(memory_,0,sizeof(memory_));
+      memory_[0x0280]=0xff;
+      memory_[0x0282]=0xff;
+      std::ifstream rom(path,std::ios::binary);
+      if (!rom) fail("coordinate sweep could not open ROM");
+      rom.read(reinterpret_cast<char *>(memory_ + kRomBase),kRomSize);
+      if (rom.gcount()!=static_cast<std::streamsize>(kRomSize))
+         fail("coordinate sweep ROM is not exactly 4096 bytes");
+      cpu_.Reset();
+
+      for (int player=0;player<6;++player)
+         for (int x=0;x<=159;++x)
+            cases_.push_back({static_cast<uint8_t>(player ? 5+(player-1) : 4),
+                              static_cast<uint8_t>(x),"X",player});
+      const int p0max=profile192_ ? 95 : 89;
+      const int p1max=profile192_ ? 91 : 85;
+      for (int y=0;y<=p0max;++y)
+         cases_.push_back({13,static_cast<uint8_t>(y),"Y",0});
+      for (int player=1;player<6;++player)
+         for (int y=0;y<=p1max;++y)
+            cases_.push_back({static_cast<uint8_t>(14+(player-1)),
+                              static_cast<uint8_t>(y),"Y",player});
+   }
+
+   void run(const char *label) {
+      constexpr uint64_t kInstructionLimit=300000000;
+      constexpr uint64_t kExpectedFrameCycles=264*kCyclesPerScanline;
+      size_t completed=0;
+      for (uint64_t instructions=0;
+           instructions<kInstructionLimit && completed<cases_.size();
+           ++instructions) {
+         writes_.clear();
+         const uint64_t before=cpu_cycles_;
+         cpu_.Run(1,cpu_cycles_,mos6502::INST_COUNT);
+         virtual_cycles_ += cpu_cycles_-before;
+         for (const Write &write:writes_) {
+            if (write.address==kWsync) {
+               const uint64_t within=virtual_cycles_%kCyclesPerScanline;
+               virtual_cycles_ += within ? kCyclesPerScanline-within
+                                         : kCyclesPerScanline;
+            }
+            else if (write.address==kVsync) {
+               const bool next=(write.value&2)!=0;
+               if (next && !vsync_asserted_) {
+                  ++frame_;
+                  if (frame_>=4 && active_case_>=0) {
+                     const uint64_t delta=virtual_cycles_-last_assertion_;
+                     if (delta!=kExpectedFrameCycles) {
+                        const SweepCase &c=cases_[active_case_];
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s coordinate sweep %s P%d=%u "
+                           "has %llu cycles (%llu raw lines), expected 264 raw lines\n",
+                           label,c.axis,c.player,c.value,
+                           static_cast<unsigned long long>(delta),
+                           static_cast<unsigned long long>(delta/kCyclesPerScanline));
+                        std::exit(1);
+                     }
+                     ++completed;
+                  }
+                  last_assertion_=virtual_cycles_;
+                  if (frame_>=3 && completed<cases_.size()) {
+                     active_case_=static_cast<long>(completed);
+                     reset_scene();
+                     const SweepCase &c=cases_[active_case_];
+                     memory_[state_base_+c.offset]=c.value;
+                  }
+               }
+               vsync_asserted_=next;
+            }
+            else if (write.address>=kTim1t && write.address<=kT1024t) {
+               load_timer(write.address,write.value);
+            }
+         }
+      }
+      if (completed!=cases_.size()) fail("coordinate sweep instruction limit reached");
+      const size_t expected=profile192_ ? 1516 : 1480;
+      if (completed!=expected) fail("coordinate sweep case count changed");
+   }
+
+private:
+   static SweepMachine *active_;
+   uint8_t memory_[65536]{};
+   mos6502 cpu_;
+   uint16_t state_base_;
+   bool profile192_;
+   uint64_t cpu_cycles_=0;
+   uint64_t virtual_cycles_=0;
+   uint64_t timer_start_=0;
+   uint64_t last_assertion_=0;
+   uint16_t timer_divisor_=1;
+   uint8_t timer_loaded_=0;
+   bool timer_active_=false;
+   bool vsync_asserted_=false;
+   int frame_=-1;
+   long active_case_=-1;
+   std::vector<Write> writes_;
+   std::vector<SweepCase> cases_;
+
+   [[noreturn]] static void fail(const char *message) {
+      std::fprintf(stderr,"vcs_multisprite_profiles: %s\n",message);
+      std::exit(1);
+   }
+   static uint8_t read_bus_thunk(uint16_t address) { return active_->read_bus(address); }
+   static void write_bus_thunk(uint16_t address,uint8_t value) { active_->write_bus(address,value); }
+   static void clock_thunk(mos6502 *) {}
+   bool timer_underflowed() const {
+      if (!timer_active_) return false;
+      return (virtual_cycles_-timer_start_)/timer_divisor_ > timer_loaded_;
+   }
+   uint8_t timer_value() const {
+      if (!timer_active_) return memory_[kIntim];
+      const uint64_t ticks=(virtual_cycles_-timer_start_)/timer_divisor_;
+      if (ticks<=timer_loaded_) return static_cast<uint8_t>(timer_loaded_-ticks);
+      return static_cast<uint8_t>(255-((ticks-timer_loaded_-1)&255));
+   }
+   uint8_t read_bus(uint16_t address) {
+      if (address==kIntim) return timer_value();
+      if (address==kTimint) return timer_underflowed()?0x80:0;
+      return memory_[address];
+   }
+   void write_bus(uint16_t address,uint8_t value) {
+      if (address<kRomBase) memory_[address]=value;
+      writes_.push_back({address,value});
+   }
+   void load_timer(uint16_t address,uint8_t value) {
+      timer_active_=true;
+      timer_start_=virtual_cycles_;
+      timer_loaded_=value;
+      switch(address) {
+         case kTim1t: timer_divisor_=1; break;
+         case kTim8t: timer_divisor_=8; break;
+         case kTim64t: timer_divisor_=64; break;
+         case kT1024t: timer_divisor_=1024; break;
+         default: std::abort();
+      }
+   }
+   void reset_scene() {
+      static const uint8_t xs[6]={18,36,62,88,114,140};
+      static const uint8_t ys192[6]={70,16,30,44,58,72};
+      static const uint8_t ys181[6]={70,16,30,44,58,72};
+      const uint8_t *ys=profile192_?ys192:ys181;
+      memory_[state_base_+4]=xs[0];
+      for(int i=1;i<6;++i) memory_[state_base_+5+(i-1)]=xs[i];
+      memory_[state_base_+13]=ys[0];
+      for(int i=1;i<6;++i) memory_[state_base_+14+(i-1)]=ys[i];
+   }
+};
+SweepMachine *SweepMachine::active_ = nullptr;
 } // namespace
 
 namespace {
@@ -219,50 +386,50 @@ struct ExpectedProfile {
 
 const ExpectedProfile k192 = {
    "192", 40, 230,
-   78, {8,10,12,15,18,21,24,27}, 94, 0,
-   {66,99,132,165,198},
+   82, {67,67,67,67,67,67,67,67}, 98, 39,
+   {71,103,135,167,199},
    {
-      {7,10,13,16,19,21,23,25},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28}
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5}
    },
-   {64,97,130,163,196}, 25,
-   {62,95,128,161,193}, {22,10,9,4,70},
-   {63,96,129,162,195,0}, {66,66,66,66,66,0}, 5
+   {69,101,133,165,197}, 25,
+   {67,99,131,163,195}, {59,49,39,34,24},
+   {68,100,132,164,196,0}, {66,66,66,66,66,0}, 5
 };
 
 const ExpectedProfile k181Above = {
    "181-score-above", 51, 230,
-   92, {2,4,6,8,10,13,16,19}, 107, 68,
-   {84,113,142,171,199},
+   95, {67,67,67,67,67,67,67,67}, 111, 39,
+   {88,116,144,172,200},
    {
-      {7,10,13,15,17,19,21,23},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28},
-      {7,10,13,16,19,22,25,28}
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5}
    },
-   {82,111,140,169,197}, 25,
-   {80,109,138,166,195}, {34,2,1,72,62},
-   {51,81,110,139,168,196}, {71,66,66,66,66,66}, 6
+   {86,114,142,170,198}, 25,
+   {84,112,140,168,196}, {56,49,39,34,24},
+   {52,85,113,141,169,197}, {71,66,66,66,66,66}, 6
 };
 
 const ExpectedProfile k181Below = {
    "181-score-below", 40, 219,
-   81, {1,3,5,7,9,12,15,18}, 96, 68,
-   {73,102,131,160,188},
+   84, {67,67,67,67,67,67,67,67}, 100, 39,
+   {77,105,133,161,189},
    {
-      {6,9,12,14,16,18,20,22},
-      {6,9,12,15,18,21,24,27},
-      {6,9,12,15,18,21,24,27},
-      {6,9,12,15,18,21,24,27},
-      {6,9,12,15,18,21,24,27}
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5},
+      {5,5,5,5,5,5,5,5}
    },
-   {71,100,129,158,186}, 24,
-   {69,98,127,155,184}, {35,2,1,72,62},
-   {40,70,99,128,157,185}, {71,65,65,65,65,65}, 6
+   {75,103,131,159,187}, 25,
+   {73,101,129,157,185}, {56,49,39,34,24},
+   {41,74,102,130,158,186}, {71,66,66,66,66,66}, 6
 };
 
 void validate(const std::vector<Event> &events, const ExpectedProfile &p) {
@@ -358,8 +525,8 @@ void validate(const std::vector<Event> &events, const ExpectedProfile &p) {
 }
 
 int main(int argc, char **argv) {
-   if (argc != 3) {
-      std::fprintf(stderr,"usage: %s ROM.bin 192|181-score-above|181-score-below\n",argv[0]);
+   if (argc != 4) {
+      std::fprintf(stderr,"usage: %s ROM.bin 192|181-score-above|181-score-below STATE_BASE\n",argv[0]);
       return 2;
    }
    const ExpectedProfile *profile = nullptr;
@@ -367,8 +534,13 @@ int main(int argc, char **argv) {
    else if (std::strcmp(argv[2],"181-score-above")==0) profile=&k181Above;
    else if (std::strcmp(argv[2],"181-score-below")==0) profile=&k181Below;
    else return 2;
+   char *end=nullptr;
+   const unsigned long parsed=std::strtoul(argv[3],&end,0);
+   if (!end || *end || parsed>0xffff) return 2;
    TraceMachine machine(argv[1]);
    const auto events=machine.run(264,profile->name);
    validate(events,*profile);
+   SweepMachine sweep(argv[1],static_cast<uint16_t>(parsed),profile==&k192);
+   sweep.run(profile->name);
    return 0;
 }

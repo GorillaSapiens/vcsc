@@ -37,7 +37,7 @@ Files:
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline, machine-readable visible-component handoff/TIA ownership table, and the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
 - `renderers/faithful_legacy_multisprite/` ... faithful unbanked/non-Superchip multisprite source-integration baseline: P0 plus five logical P1 sprites, integrated score/playfield, exact 122-byte legacy state, six-byte hardware stack, 264-line timing, and retained unofficial-opcode behavior
-- `renderers/multisprite/` ... modern parameterized P0-plus-five-multiplexed-P1 lifecycle component; `lines:=192` is full-height and `lines:=181` composes with an independent eleven-line score, using a page-aligned graphics block to keep cycle-critical indexed sprite fetches page-cross free
+- `renderers/multisprite/` ... modern parameterized P0-plus-five-multiplexed-P1 lifecycle component; `lines:=192` is full-height and `lines:=181` composes with an independent eleven-line score, with full X=0..159 and bounded independent Y motion plus a page-aligned graphics block and branch-page contracts that keep the retained raster cycle-stable
 - `renderers/all_five/` ... parameterized official-opcode P0/P1/M0/M1/BL lifecycle component; `lines:=192` is full-height, `lines:=181` composes with one eleven-line score, and `lines:=170` composes between scores above and below
 - `renderers/all_five_unofficial/` ... parameterized stable/common-NMOS experimental twin of `all_five`, supporting `lines:=192`, `181`, and `170` with the same API, RAM contracts, and corrected raster schedules
 - `renderers/player_color/` ... parameterized official-opcode P0/P1/BL per-row-color component; `lines:=192` is full-height, `lines:=181` composes with one eleven-line score, and `lines:=170` composes between scores above and below
@@ -57,7 +57,7 @@ Files:
 - `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/09_bankswitching/` ... parameterized F8/F6/F4 transition diagnostic with visible PASS/FAIL frames
 - `../../examples/10_faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
-- `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions
+- `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below

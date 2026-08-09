@@ -34,7 +34,7 @@ the shared timing, resource, opcode, and composition contracts.
 | [`11_all_five_170`](11_all_five_170/) | Official parameterized all-five renderer at `lines:=170` | Interactive score-above + gameplay + score-below composition |
 | [`12_all_five_170_unofficial`](12_all_five_170_unofficial/) | Stable/common-NMOS unofficial parameterized all-five twin at `lines:=170` | Matching interactive score-above + gameplay + score-below composition |
 | [`13_player_color_170`](13_player_color_170/) | Official parameterized player-color renderer at `lines:=170` | Interactive score-above + P0/P1/Ball gameplay + score-below composition |
-| [`14_multisprite`](14_multisprite/) | Parameterized modern P0 + five multiplexed-P1 renderer derived from the faithful legacy raster | 192-line interactive demo plus 181-line interactive score-above and score-below compositions |
+| [`14_multisprite`](14_multisprite/) | Parameterized modern P0 + five multiplexed-P1 renderer derived from the faithful legacy raster | 192-line and 181-line score-composed demos with full horizontal and bounded independent vertical movement |
 
 The four 181-line groups contribute a **40-cartridge composition matrix**:
 four gameplay families x four production score layouts x two orders, plus eight
