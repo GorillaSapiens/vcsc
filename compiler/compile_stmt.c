@@ -1081,26 +1081,28 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
           !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
 }
 
-//! @brief Verify one discard store cannot clobber an X-backed counted-loop index.
+//! @brief Verify one bare discard store is transparent to an X-backed loop index.
+//!
+//! A valid fixed-address `foo := _;` lowers to a single STA.  STA changes none
+//! of A, X, Y, S, or P, independent of zero-page versus absolute placement.
+//! Runtime-addressed lvalues are intentionally excluded: their address setup is
+//! not a single transparent store.
 static bool counted_loop_x_safe_discard_store(ASTNode *stmt, Context *ctx,
                                               const char *counter) {
-   ASTNode *target;
    ASTNode *u;
    LValueRef lv;
    const char *name;
 
    if (!stmt || strcmp(stmt->name, "discard_store") || stmt->count != 1) return false;
-   target = stmt->children[0];
-   u = (ASTNode *)unwrap_expr_node(target);
+   u = (ASTNode *)unwrap_expr_node(stmt->children[0]);
    name = expr_bare_identifier_name(u);
-   if (name && counter && !strcmp(name, counter)) return false;
+   if (!name || (counter && !strcmp(name, counter))) return false;
    if (!resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 ||
        lv.is_bitfield || lv.indirect || lv.needs_runtime_address) {
       return false;
    }
-   if (lv.is_absolute_ref) return lv.write_expr && *lv.write_expr;
-   return lv.is_static || lv.is_zeropage || lv.is_global ||
-          (lv.offset >= 0 && lv.offset <= 255);
+   if (lv.is_absolute_ref && (!lv.write_expr || !*lv.write_expr)) return false;
+   return true;
 }
 
 //! @brief Verify a small counted-loop body cannot clobber its X-backed counter.

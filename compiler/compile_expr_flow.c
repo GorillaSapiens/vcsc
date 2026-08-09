@@ -2350,9 +2350,14 @@ static bool emit_discard_store_lvalue(Context *ctx, const LValueRef *lv) {
    if (!lv->indirect && !lv->needs_runtime_address &&
        !lv->is_static && !lv->is_zeropage && !lv->is_global &&
        lv->offset >= 0 && lv->offset <= 255) {
+      char expr_buf[256];
+      const char *formatted = assembler_address_expr(compiler_scratch_active_symbol(),
+                                                      expr_buf, sizeof(expr_buf));
       emit_lvalue_semantic_use(ctx, lv, "write");
-      emit(&es_code, "    ldy #%d\n", lv->offset);
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      if (lv->offset == 0)
+         emit(&es_code, "    sta %s\n", formatted);
+      else
+         emit(&es_code, "    sta %s + %d\n", formatted, lv->offset);
       return true;
    }
 

@@ -1060,12 +1060,15 @@ _ := value + 1;                   // evaluate the expression only for its effect
 ```
 
 Assignment *from* `_` requires one-byte, non-bitfield lvalues. It generates no
-source-value load or conversion. A direct absolute register such as `WSYNC`
-therefore lowers to one `STA`; a right-associated chain ending in `_` emits its
-stores from the innermost target outward while preserving the accumulator value.
-Such chains require directly addressable targets, so pointer setup cannot destroy
-the raw accumulator source. Direct TIA-register chains require no register
-readback, compiler scratch, hardware-stack traffic, or Y setup. Assignment *to* `_` evaluates the right-hand expression normally and
+source-value load or conversion. A bare directly addressed byte object such as
+`foo := _;` lowers to exactly one `STA`, independent of whether `foo` is placed in
+zero page, ordinary RAM, a function activation, or at an absolute hardware address.
+That store is transparent to A, X, Y, S, and P. A right-associated chain ending in
+`_` emits its stores from the innermost target outward while preserving the
+accumulator value. Such chains require directly addressable targets, so pointer
+setup cannot destroy the raw accumulator source. Direct TIA-register chains require
+no register readback, compiler scratch, hardware-stack traffic, or index-register
+setup. Assignment *to* `_` evaluates the right-hand expression normally and
 creates no destination object. Both forms are value-less and are intended as
 expression statements, not operands in larger expressions. Identifiers
 containing underscores remain ordinary identifiers; only the exact one-character
@@ -1242,9 +1245,10 @@ prefix `--i` is equivalent in the discarded `for` step clause. Proven countdowns
 nor a RAM object for `i`.
 
 Calls, inline assembly, nested control flow, address-taking, signed/BCD arithmetic,
-and other X-clobbering constructs reject the shortcut. Direct one-byte hardware stores
-are allowed when their addressing is known not to touch X. In particular,
-`WSYNC := _;` remains the ordinary bare-`STA` discard-store and is safe inside an
+and other X-clobbering constructs reject the shortcut. A bare directly addressed
+one-byte discard store `foo := _;` is always register/flag transparent: it is one
+`STA`, regardless of the object's fixed address or placement. `WSYNC := _;` is just
+the hardware-register instance of that general rule and is therefore safe inside an
 X-backed countdown. Such a proven loop emits no activation object for its lexical
 index; X is restored around the supported `i + constant` array-store form. When an
 ascending `C < N` proves the loop nonempty, lowering uses a post-tested `CPX`/`BCC`

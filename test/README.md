@@ -283,9 +283,11 @@ underscores, and width overflow after normalization.
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
 
-`discard_store_codegen_test.c26`, `discard_store_chain_codegen_test.c26`,
-and `discard_result_codegen_test.c26` cover the dedicated lone-underscore
-discard token. They lock direct `WSYNC := _` lowering to a bare `STA`, require
+`discard_store_codegen_test.c26`, `discard_store_register_transparent_codegen_test.c26`,
+`discard_store_chain_codegen_test.c26`, and `discard_result_codegen_test.c26` cover the dedicated lone-underscore
+discard token. They lock direct `WSYNC := _` lowering to a bare `STA`, prove that
+bare byte-object discard stores across global, zeropage, absolute, and automatic-local
+placement emit only `STA` and therefore preserve A/X/Y/S/P, require
 `WSYNC := RESP1 := RESP0 := _` to emit three ordered stores with no load,
 scratch, or Y traffic, verify that `_ := expression` preserves calls and other
 evaluation, and confirm that longer identifiers containing underscores remain

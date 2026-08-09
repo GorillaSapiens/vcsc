@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta discard_global
+// expectasmordered: sta discard_zp
+// expectasmordered: sta  $d012
+// expectasm: sta discard_store_register_transparent_test$discard_local
+// forbidasm: lda
+// forbidasm: ldx
+// forbidasm: ldy
+// forbidasm: tax
+// forbidasm: tay
+// forbidasm: txa
+// forbidasm: tya
+// forbidasm: pla
+// forbidasm: php
+// forbidasm: plp
+// forbidasm: clc
+// forbidasm: sec
+
+include "machine_6502.c26"
+
+uint8_t discard_global;
+zeropage uint8_t discard_zp;
+uint8_t discard_abs@[none/0xd012];
+
+void discard_store_register_transparent_test(void) {
+   uint8_t discard_local;
+   discard_global := _;
+   discard_zp := _;
+   discard_abs := _;
+   discard_local := _;
+}

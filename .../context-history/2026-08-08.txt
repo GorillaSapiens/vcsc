@@ -79,3 +79,6 @@ source-level X-backed scanline countdowns; it now links at 445 ROM / 22 RAM vers
 449 ROM / 22 RAM for the inline-assembly blank screen while preserving exactly 262
 scanlines. Added compiler and execution regressions, including zero-initialized
 fallback semantics. Final verification: 470/470 compile-only and 264/264 e2e.
+
+2026-08-08 19:41:47 PDT, bare discard stores are register/flag transparent across fixed placements
+Made `foo := _;` a general fixed-address one-STA invariant rather than a hardware-register special case. Automatic scratch-backed fixed byte targets now use direct symbol+offset `STA` instead of loading Y, the X-backed counted-loop safety proof no longer distinguishes zeropage/global/absolute placement for a valid bare direct byte target, and compiler/test documentation pins preservation of A/X/Y/S/P. Added compile-only coverage across global, zeropage, absolute, and automatic-local destinations. Final validation: 471/471 compile-only and 264/264 e2e.
