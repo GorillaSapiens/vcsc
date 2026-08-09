@@ -580,10 +580,17 @@ move over X=0..159 and independently over bounded Y ranges: P0/P1 max Y are 95/9
 contract is one 145-byte `align(256)` block with bytes 0..95 reserved and P0/P1..P5 at
 offsets 96/105/113/121/129/137; this keeps every legal cycle-critical `(ptr),Y` glyph
 fetch page-cross free. Exhaustive runtime sweeps cover 1,516 independent X/Y cases for
-192 and 1,480 for each 181 score order, all at exact 262-line NTSC timing; the score
-oracle locks `123456` above and below gameplay. Current public sizes are 2679 ROM /
-102 RAM for 192 and 3218 ROM / 121 RAM for each 181 score composition. The dedicated
-oracle also pins all six player rasters, five P1 color/reposition phases, six playfield
-rows, HMOVE timing, invalid-line rejection, and installed builds. Main-roadmap items
+192 and 1,480 for each 181 score order, all at exact 262-line NTSC timing. The sweep
+also reconstructs displayed P1 physical X from RESP1/HMP1 and requires it to match
+the public X coordinate across the complete 0..159 range and every Y/sort transition.
+The retained P1 raster uses an internal +10 horizontal phase correction, with an
+additional +9 correction for the first/topmost P1 in the 181 profile; overscan restores
+public coordinates before application controls run. P0 Y=0 is explicitly guarded
+against the faithful predecrement underflow and must emit no gameplay GRP0 pixels.
+Public Y increases upward, so example joystick Up increments Y and Down decrements it.
+The score oracle locks `123456` above and below gameplay. Current public sizes are
+2737 ROM / 102 RAM for 192 and 3310 ROM / 121 RAM for each 181 score composition. The
+dedicated oracle also pins all six player rasters, five P1 color/reposition phases,
+six playfield rows, HMOVE timing, invalid-line rejection, and installed builds. Main-roadmap items
 29 and 30 and the completed bankswitching sub-roadmap remain closed. No new main-roadmap
 item has been selected after item 28.

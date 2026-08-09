@@ -4,3 +4,4 @@
 2026-08-09 06:09:12 PDT, audited multisprite branch page timing
 
 Reviewed every conditional branch in the modern multisprite renderer against the faithful cycle schedule. All draw-path conditional branches require the three-cycle same-page taken case, so the two remaining bare beam-critical branches (page-wrap BMI and RendererLoopb BPL) are now `.same`; no timing-critical `.cross` edge is required. Noncritical setup/sort/overscan branches remain at the default flexible policy. The multisprite profile regression now locks the complete draw-path branch contract.
+2026-08-09 07:18:24 PDT, repair modern multisprite interactive coordinate semantics and edge stability: joystick Up/Down now follow upward-positive Y, P1 public X=0..159 is phase-corrected across all Y/sort transitions, P0 Y=0 is safely clipped instead of underflowing, and the exhaustive oracle now verifies physical P1 X plus bottom clipping.

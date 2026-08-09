@@ -17,6 +17,9 @@ constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kColup1 = 0x0007;
+constexpr uint16_t kResp1 = 0x0011;
+constexpr uint16_t kHmp1 = 0x0021;
 constexpr uint16_t kIntim = 0x0284;
 constexpr uint16_t kTimint = 0x0285;
 constexpr uint16_t kTim1t = 0x0294;
@@ -234,6 +237,7 @@ public:
    }
 
    void run(const char *label) {
+      label_=label;
       constexpr uint64_t kInstructionLimit=300000000;
       constexpr uint64_t kExpectedFrameCycles=264*kCyclesPerScanline;
       size_t completed=0;
@@ -266,6 +270,14 @@ public:
                            static_cast<unsigned long long>(delta/kCyclesPerScanline));
                         std::exit(1);
                      }
+                     const SweepCase &done_case=cases_[active_case_];
+                     if (done_case.axis[0]=='X' && done_case.player>0 && !active_target_seen_) {
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s coordinate sweep X P%d=%u "
+                           "never displayed the target logical sprite\n",
+                           label,done_case.player,done_case.value);
+                        std::exit(1);
+                     }
                      ++completed;
                   }
                   last_assertion_=virtual_cycles_;
@@ -274,12 +286,70 @@ public:
                      reset_scene();
                      const SweepCase &c=cases_[active_case_];
                      memory_[state_base_+c.offset]=c.value;
+                     if (c.axis[0]=='X' && c.player>0) expected_x_[c.player-1]=c.value;
+                     active_target_seen_=false;
+                     have_hmp1_=false;
+                     have_resp1_=false;
                   }
                }
                vsync_asserted_=next;
             }
+            else if (write.address==kVblank) {
+               vblank_asserted_=(write.value&2)!=0;
+            }
             else if (write.address>=kTim1t && write.address<=kT1024t) {
                load_timer(write.address,write.value);
+            }
+
+            if (frame_>=4 && active_case_>=0 && !vblank_asserted_) {
+               const SweepCase &active=cases_[active_case_];
+               if (active.axis[0]=='Y' && active.player==0 && active.value==0 &&
+                   write.address==0x001b && write.value!=0) {
+                  const uint64_t line=(virtual_cycles_-last_assertion_)/kCyclesPerScanline;
+                  const bool gameplay =
+                     (profile192_ && line>=40 && line<=230) ||
+                     (!profile192_ && std::strstr(label_,"above") && line>=51 && line<=230) ||
+                     (!profile192_ && std::strstr(label_,"below") && line>=40 && line<=219);
+                  if (gameplay) {
+                     std::fprintf(stderr,
+                        "vcs_multisprite_profiles: %s P0 Y=0 emits nonzero GRP0 "
+                        "at gameplay line %llu (broad-stripe regression)\n",
+                        label_,static_cast<unsigned long long>(line));
+                     std::exit(1);
+                  }
+               }
+               if (write.address==kHmp1) {
+                  hmp1_value_=write.value;
+                  have_hmp1_=true;
+               }
+               else if (write.address==kResp1) {
+                  resp1_cycle_=virtual_cycles_%kCyclesPerScanline;
+                  have_resp1_=true;
+               }
+               else if (write.address==kColup1 && have_hmp1_ && have_resp1_) {
+                  for (int logical=0;logical<5;++logical) {
+                     if (write.value!=memory_[state_base_+24+logical]) continue;
+                     int fine=hmp1_value_>>4;
+                     if (fine>=8) fine-=16;
+                     int physical=(static_cast<int>(3*resp1_cycle_)-fine+90)%160;
+                     if (physical<0) physical+=160;
+                     if (physical!=expected_x_[logical]) {
+                        const SweepCase &c=cases_[active_case_];
+                        std::fprintf(stderr,
+                           "vcs_multisprite_profiles: %s coordinate sweep %s P%d=%u "
+                           "moves logical P%d horizontally to %d, expected %u "
+                           "(RESP1 cycle %llu HMP1 $%02x)\n",
+                           label_,c.axis,c.player,c.value,logical+1,physical,
+                           expected_x_[logical],
+                           static_cast<unsigned long long>(resp1_cycle_),hmp1_value_);
+                        std::exit(1);
+                     }
+                     if (casing_is_active_x_target(logical)) active_target_seen_=true;
+                     break;
+                  }
+                  have_hmp1_=false;
+                  have_resp1_=false;
+               }
             }
          }
       }
@@ -302,10 +372,24 @@ private:
    uint8_t timer_loaded_=0;
    bool timer_active_=false;
    bool vsync_asserted_=false;
+   bool vblank_asserted_=true;
    int frame_=-1;
+   uint8_t expected_x_[5]={36,62,88,114,140};
+   bool have_hmp1_=false;
+   bool have_resp1_=false;
+   uint8_t hmp1_value_=0;
+   uint64_t resp1_cycle_=0;
+   bool active_target_seen_=false;
    long active_case_=-1;
    std::vector<Write> writes_;
    std::vector<SweepCase> cases_;
+   const char *label_="";
+
+   bool casing_is_active_x_target(int logical) const {
+      if (active_case_<0) return false;
+      const SweepCase &c=cases_[active_case_];
+      return c.axis[0]=='X' && c.player==logical+1;
+   }
 
    [[noreturn]] static void fail(const char *message) {
       std::fprintf(stderr,"vcs_multisprite_profiles: %s\n",message);
@@ -351,7 +435,10 @@ private:
       static const uint8_t ys181[6]={70,16,30,44,58,72};
       const uint8_t *ys=profile192_?ys192:ys181;
       memory_[state_base_+4]=xs[0];
-      for(int i=1;i<6;++i) memory_[state_base_+5+(i-1)]=xs[i];
+      for(int i=1;i<6;++i) {
+         memory_[state_base_+5+(i-1)]=xs[i];
+         expected_x_[i-1]=xs[i];
+      }
       memory_[state_base_+13]=ys[0];
       for(int i=1;i<6;++i) memory_[state_base_+14+(i-1)]=ys[i];
    }
@@ -396,7 +483,7 @@ const ExpectedProfile k192 = {
       {5,5,5,5,5,5,5,5}
    },
    {69,101,133,165,197}, 25,
-   {67,99,131,163,195}, {59,49,39,34,24},
+   {67,99,131,163,195}, {64,54,44,34,29},
    {68,100,132,164,196,0}, {66,66,66,66,66,0}, 5
 };
 
@@ -412,7 +499,7 @@ const ExpectedProfile k181Above = {
       {5,5,5,5,5,5,5,5}
    },
    {86,114,142,170,198}, 25,
-   {84,112,140,168,196}, {56,49,39,34,24},
+   {84,112,140,168,196}, {61,54,44,34,29},
    {52,85,113,141,169,197}, {71,66,66,66,66,66}, 6
 };
 
@@ -428,7 +515,7 @@ const ExpectedProfile k181Below = {
       {5,5,5,5,5,5,5,5}
    },
    {75,103,131,159,187}, 25,
-   {73,101,129,157,185}, {56,49,39,34,24},
+   {73,101,129,157,185}, {61,54,44,34,29},
    {41,74,102,130,158,186}, {71,66,66,66,66,66}, 6
 };
 

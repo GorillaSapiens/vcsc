@@ -169,9 +169,62 @@ require inline void TEMPLATE_init(void) {
 
 require inline void TEMPLATE_vblank(void) {
    asm .callstackextra 4;
+   // P0 Y=0 is the fully clipped bottom position.  The retained legacy setup
+   // begins with DEC player0y, so bias only that value to 1 for the internal
+   // frame and remember to restore the public zero in overscan.  Without this
+   // guard the DEC underflows to 255 and turns the P0 sentinel into a full-
+   // height stripe.
+   asm lda TEMPLATE_state + 13;
+   asm bne @TEMPLATE_P0YReady;
+   asm inc TEMPLATE_state + 13;
+   asm lda #1;
+   asm sta TEMPLATE_state + 78;
+   asm jmp @TEMPLATE_P0YGuardDone;
+   asm @TEMPLATE_P0YReady:;
+   asm lda #0;
+   asm sta TEMPLATE_state + 78;
+   asm @TEMPLATE_P0YGuardDone:;
+
    asm lda #5;
    asm sta TEMPLATE_state + 58;
    asm jsr @TEMPLATE_SetupP1Subroutine;
+
+   // The retained in-raster P1 positioner is entered ten color clocks later
+   // than the standalone positioner, so its raw coordinate is X-10 modulo
+   // 160.  Keep the public P1..P5 coordinates conventional (0..159) by
+   // applying the inverse +10 bias only for the internal frame.  In the 181
+   // profile the first/topmost displayed P1 reposition occurs three CPU
+   // cycles earlier than later repositions; add another nine pixels to that
+   // one logical sprite so changing vertical sort order cannot move it
+   // horizontally.  state[77] remembers which logical sprite received that
+   // transient 181-only correction.
+   asm ldx #4;
+   asm @TEMPLATE_AdjustP1XUpLoop:;
+   asm lda TEMPLATE_state + 5,X;
+   asm clc;
+   asm adc #10;
+   asm cmp #160;
+   asm bcc @TEMPLATE_AdjustP1XUpStore;
+   asm sbc #160;
+   asm @TEMPLATE_AdjustP1XUpStore:;
+   asm sta TEMPLATE_state + 5,X;
+   asm dex;
+   asm bpl @TEMPLATE_AdjustP1XUpLoop;
+#if TEMPLATE_lines == 181
+   asm ldx TEMPLATE_state + 65;
+   asm lda TEMPLATE_state + 29,X;
+   asm sta TEMPLATE_state + 77;
+   asm tax;
+   asm lda TEMPLATE_state + 5,X;
+   asm clc;
+   asm adc #9;
+   asm cmp #160;
+   asm bcc @TEMPLATE_AdjustTopP1XStore;
+   asm sbc #160;
+   asm @TEMPLATE_AdjustTopP1XStore:;
+   asm sta TEMPLATE_state + 5,X;
+#endif
+
    asm jsr @TEMPLATE_PrePositionAllObjects;
    asm dec TEMPLATE_state + 13;
    // Adjust the complete P0 graphics pointer; do not rely on the glyph
@@ -666,6 +719,38 @@ require inline void TEMPLATE_overscan(void) {
    asm sbc #0;
    asm sta TEMPLATE_state + 35;
    asm inc TEMPLATE_state + 13;
+   asm lda TEMPLATE_state + 78;
+   asm beq @TEMPLATE_P0YRestoreDone;
+   asm dec TEMPLATE_state + 13;
+   asm @TEMPLATE_P0YRestoreDone:;
+
+#if TEMPLATE_lines == 181
+   // Undo the extra nine-pixel phase compensation on whichever logical P1
+   // sprite was first/topmost in this frame.
+   asm ldx TEMPLATE_state + 77;
+   asm lda TEMPLATE_state + 5,X;
+   asm sec;
+   asm sbc #9;
+   asm bcs @TEMPLATE_AdjustTopP1XDownStore;
+   asm clc;
+   asm adc #160;
+   asm @TEMPLATE_AdjustTopP1XDownStore:;
+   asm sta TEMPLATE_state + 5,X;
+#endif
+   // Undo the common +10 internal P1 horizontal-position bias.
+   asm ldx #4;
+   asm @TEMPLATE_AdjustP1XDownLoop:;
+   asm lda TEMPLATE_state + 5,X;
+   asm sec;
+   asm sbc #10;
+   asm bcs @TEMPLATE_AdjustP1XDownStore;
+   asm clc;
+   asm adc #160;
+   asm @TEMPLATE_AdjustP1XDownStore:;
+   asm sta TEMPLATE_state + 5,X;
+   asm dex;
+   asm bpl @TEMPLATE_AdjustP1XDownLoop;
+
    // Undo the +2 bias applied to all five multiplexed P1 Y values.
    asm ldx #4;
    asm @TEMPLATE_AdjustYValuesDownLoop:;

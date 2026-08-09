@@ -141,25 +141,27 @@ inline void move_selected_multisprite_object(void) {
       }
    }
 
+   // Multisprite Y coordinates increase upward.  The joystick directions
+   // therefore move up by incrementing Y and down by decrementing it.
    if (!(SWCHA & 0x10)) {
       switch (selected_object) {
-         case SELECTED_PLAYER0: if (game_PLAYER0_Y > 0) { game_PLAYER0_Y--; } break;
-         case SELECTED_PLAYER1: if (game_PLAYER1_Y > 0) { game_PLAYER1_Y--; } break;
-         case SELECTED_PLAYER2: if (game_PLAYER2_Y > 0) { game_PLAYER2_Y--; } break;
-         case SELECTED_PLAYER3: if (game_PLAYER3_Y > 0) { game_PLAYER3_Y--; } break;
-         case SELECTED_PLAYER4: if (game_PLAYER4_Y > 0) { game_PLAYER4_Y--; } break;
-         default: if (game_PLAYER5_Y > 0) { game_PLAYER5_Y--; }
+         case SELECTED_PLAYER0: if (game_PLAYER0_Y < game_PLAYER0_MAX_Y) { game_PLAYER0_Y++; } break;
+         case SELECTED_PLAYER1: if (game_PLAYER1_Y < game_PLAYER1_MAX_Y) { game_PLAYER1_Y++; } break;
+         case SELECTED_PLAYER2: if (game_PLAYER2_Y < game_PLAYER1_MAX_Y) { game_PLAYER2_Y++; } break;
+         case SELECTED_PLAYER3: if (game_PLAYER3_Y < game_PLAYER1_MAX_Y) { game_PLAYER3_Y++; } break;
+         case SELECTED_PLAYER4: if (game_PLAYER4_Y < game_PLAYER1_MAX_Y) { game_PLAYER4_Y++; } break;
+         default: if (game_PLAYER5_Y < game_PLAYER1_MAX_Y) { game_PLAYER5_Y++; }
       }
    }
    else {
       if (!(SWCHA & 0x20)) {
          switch (selected_object) {
-            case SELECTED_PLAYER0: if (game_PLAYER0_Y < game_PLAYER0_MAX_Y) { game_PLAYER0_Y++; } break;
-            case SELECTED_PLAYER1: if (game_PLAYER1_Y < game_PLAYER1_MAX_Y) { game_PLAYER1_Y++; } break;
-            case SELECTED_PLAYER2: if (game_PLAYER2_Y < game_PLAYER1_MAX_Y) { game_PLAYER2_Y++; } break;
-            case SELECTED_PLAYER3: if (game_PLAYER3_Y < game_PLAYER1_MAX_Y) { game_PLAYER3_Y++; } break;
-            case SELECTED_PLAYER4: if (game_PLAYER4_Y < game_PLAYER1_MAX_Y) { game_PLAYER4_Y++; } break;
-            default: if (game_PLAYER5_Y < game_PLAYER1_MAX_Y) { game_PLAYER5_Y++; }
+            case SELECTED_PLAYER0: if (game_PLAYER0_Y > 0) { game_PLAYER0_Y--; } break;
+            case SELECTED_PLAYER1: if (game_PLAYER1_Y > 0) { game_PLAYER1_Y--; } break;
+            case SELECTED_PLAYER2: if (game_PLAYER2_Y > 0) { game_PLAYER2_Y--; } break;
+            case SELECTED_PLAYER3: if (game_PLAYER3_Y > 0) { game_PLAYER3_Y--; } break;
+            case SELECTED_PLAYER4: if (game_PLAYER4_Y > 0) { game_PLAYER4_Y--; } break;
+            default: if (game_PLAYER5_Y > 0) { game_PLAYER5_Y--; }
          }
       }
    }

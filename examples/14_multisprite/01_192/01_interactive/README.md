@@ -12,3 +12,5 @@
 Build with `make`. Select cycles P0 and the five logical sprites multiplexed
 through P1. The left joystick moves the selected sprite left/right/up/down over
 the complete maintained coordinate range; Reset restores the scene.
+
+Joystick Up moves toward larger Y, Down toward smaller Y, and Y=0 is the fully clipped bottom edge. Public P1 X positions run from the left edge at 0 through the rightmost position at 159 without a vertical-sort-dependent horizontal shift.

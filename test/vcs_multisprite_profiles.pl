@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing and physical X placement, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -81,9 +81,9 @@ $text =~ /asm\s+sta\s+HMCLR;/
    or die "full-range positioner lost its 3-cycle HMCLR store\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2679,102,94,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3218,121,113,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3218,121,113,8],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2737,102,94,8],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3310,121,113,8],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3310,121,113,8],
 );
 my %bins;
 my %state_bases;
@@ -123,6 +123,13 @@ $motion =~ /game_PLAYER0_MAX_Y/ && $motion =~ /game_PLAYER1_MAX_Y/
    or die "interactive vertical motion does not honor renderer Y bounds\n";
 $motion =~ /SWCHA\s*&\s*0x10/ && $motion =~ /SWCHA\s*&\s*0x20/
    or die "interactive example does not handle joystick up/down\n";
+my($up_motion,$down_motion)=$motion =~
+   /(if\s*\(!\(SWCHA\s*&\s*0x10\)\).*?)(?=else\s*\{\s*if\s*\(!\(SWCHA\s*&\s*0x20\)\))(.+)/s;
+$up_motion && $down_motion or die "interactive up/down control structure changed\n";
+$up_motion =~ /game_PLAYER0_Y\+\+/ && $up_motion =~ /game_PLAYER5_Y\+\+/ && $up_motion !~ /game_PLAYER[0-5]_Y--/
+   or die "joystick up must increment multisprite Y coordinates\n";
+$down_motion =~ /game_PLAYER0_Y--/ && $down_motion =~ /game_PLAYER5_Y--/ && $down_motion !~ /game_PLAYER[0-5]_Y\+\+/
+   or die "joystick down must decrement multisprite Y coordinates\n";
 $common =~ /SELECTED_OBJECT_COUNT\s+6\b/ or die "interactive Select cycle is not six sprites\n";
 $common =~ /game_MISSILE0_Y\s*:=\s*250/ && $common =~ /game_MISSILE1_Y\s*:=\s*251/ && $common =~ /game_BALL_Y\s*:=\s*252/
    or die "maintained minimal profile no longer keeps M0/M1/Ball off the active raster\n";
@@ -172,4 +179,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y timing and physical X placement, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";

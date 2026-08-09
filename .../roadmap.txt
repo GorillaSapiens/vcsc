@@ -1396,11 +1396,16 @@ one.
           timing, invalid-line rejection, and installed-toolchain builds. Exhaustive
           runtime sweeps independently move all six sprites across X=0..159 and their
           complete maintained Y ranges: 1,516 cases for 192 and 1,480 cases for each
-          181 score order, every one at exact 262-line NTSC timing. The interactive
-          examples expose left/right/up/down movement and Reset; P0/P1 max Y are
-          95/91 for 192 and 89/85 for 181. M0/M1/Ball stay outside the maintained
-          active raster. Current public sizes are 2679 ROM / 102 RAM for 192 and
-          3218 ROM / 121 RAM for each 181 score composition.
+          181 score order, every one at exact 262-line NTSC timing. The sweep also
+          derives physical P1 X from RESP1/HMP1 and rejects any left/right wrap bias
+          or Y/sort-dependent horizontal jump; P0 Y=0 is required to emit no gameplay
+          pixels. Keep public X conventional by applying the retained raster's +10
+          internal P1 phase correction during VBLANK, plus +9 for the first/topmost
+          P1 in the 181 profile, and undo both in overscan. The interactive examples
+          expose left/right/up/down movement with Y increasing upward and Reset;
+          P0/P1 max Y are 95/91 for 192 and 89/85 for 181. M0/M1/Ball stay outside
+          the maintained active raster. Current public sizes are 2737 ROM / 102 RAM
+          for 192 and 3310 ROM / 121 RAM for each 181 score composition.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

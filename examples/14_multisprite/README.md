@@ -21,6 +21,9 @@ with `-Wa,--illegals`.
 
 Select cycles P0 and the five logical P1 sprites. The left joystick moves the
 selected sprite horizontally across X=0..159 and vertically through the
-profile-specific legal Y range. The automated raster regression sweeps every
-legal independent X/Y position and requires a stable 262-line NTSC frame; the
-two 181-line compositions also lock the exact bottom/top score as `123456`.
+profile-specific legal Y range. Up moves upward and Down moves downward; Y=0 is
+the fully clipped bottom position. The automated raster regression sweeps every
+legal independent X/Y position, requires a stable 262-line NTSC frame, and
+verifies displayed P1 physical X remains equal to its public coordinate even when
+vertical sorting changes the multiplex order. The two 181-line compositions also
+lock the exact bottom/top score as `123456`.
