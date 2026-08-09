@@ -1,0 +1,64 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Minimal unbanked 4K Atari VCS cartridge.
+//
+// This deliberately keeps the visible renderer in inline 6502 assembly while
+// exercising the static-frame source ABI during initialization.
+
+include "vcs.c26"
+
+typedef int16_t int;
+typedef uint8_t char;
+typedef uint8_t bool;
+
+uint8_t choose_background(uint8_t seed) {
+   uint8_t color := seed + 2;
+   return color;
+}
+
+void main(void) {
+   uint8_t color := choose_background(0x82);
+   uint8_t i;
+
+   // Clear every object that could otherwise contain power-up garbage.
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := color;
+
+   // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
+   while(1) {
+
+      // 3 scanlines VSYNC
+      VSYNC := 2;
+      for (i := 0; i < 3; i++) {
+         WSYNC := _;
+      }
+      VSYNC := 0;
+
+      // 37 scanlines vertical blank
+      VBLANK := 2;
+      for (i := 0; i < 37; i++) {
+         WSYNC := _;
+      }
+      VBLANK := 0;
+
+      // 192 visible scanlines
+      i := 192;
+      while (i) {
+         WSYNC := _;
+         i--;
+      }
+
+      // 30 scanlines overscan
+      VBLANK := 2;
+      for (i := 0; i < 30; i++) {
+         WSYNC := _;
+      }
+   }
+}
