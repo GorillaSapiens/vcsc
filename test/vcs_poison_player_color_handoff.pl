@@ -128,7 +128,7 @@ $above =~ /poison_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
 my $below=read_file(File::Spec->catfile($fixtures,'player_color_181_below.c26'));
 $below =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*poison_draw\(\);/s
    or die "score-below fixture is missing the explicit component handoff\n";
-my $game=read_file(File::Spec->catfile($vcs,qw(renderers player_color_181 player_color_181.c26)));
+my $game=read_file(File::Spec->catfile($vcs,qw(renderers player_color player_color.c26)));
 for my $required (qw(RESP0 RESP1 HMP0 HMP1 HMOVE NUSIZ0 NUSIZ1)) {
    $game =~ /\b\Q$required\E\b/ or die "gameplay handoff is missing $required\n";
 }

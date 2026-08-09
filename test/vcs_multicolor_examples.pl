@@ -109,13 +109,14 @@ for my $case (@cases) {
       $text =~ /legacy_score\s*:=\s*123456;/
          or die "$dir does not initialize visible score 123456 as packed BCD\n";
    } elsif ($profile eq '192') {
-      $text =~ /player_color_192/ or die "$dir does not use player_color_192\n";
+      $text =~ m{renderers/player_color/player_color[.]c26} && $text =~ /lines:=192/
+         or die "$dir does not use player_color lines:=192\n";
       $text !~ /six_glyph_component|selected_score_digit|score_draw/
          or die "$dir unexpectedly contains score controls\n";
    } else {
       my $renderer=$case->{unofficial}
          ? 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26'
-         : 'renderers/player_color_181/player_color_181.c26';
+         : 'renderers/player_color/player_color.c26';
       my $score_component=$case->{component} || 'six_glyph_color_component';
       $text =~ /\Q$renderer\E/ && $text =~ /\Q$score_component\E/
          or die "$dir lacks the selected 181-line renderer plus score composition\n";

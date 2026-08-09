@@ -9,7 +9,7 @@
 
 # `player_color_181` examples
 
-This group demonstrates the official-opcode `renderers/player_color_181/player_color_181.c26` lifecycle component. It draws
+This group demonstrates the official-opcode `renderers/player_color/player_color.c26` lifecycle component. It draws
 181 gameplay scanlines and P0, P1, and Ball; an adjacent eleven-line score-profile
 component completes the 192-line visible field.
 

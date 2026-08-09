@@ -73,8 +73,8 @@ for my $case (
    my $source_text=read_file($sources[0]);
    $source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+score\b/
       or die "$sources[0] does not instantiate the wide score\n";
-   $source_text =~ /instantiate\s+"renderers\/player_color_181\/player_color_181\.c26"\s+as\s+game\b/
-      or die "$sources[0] does not instantiate player_color_181\n";
+   $source_text =~ /instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(lines:=181\)/
+      or die "$sources[0] does not instantiate player_color(lines:=181)\n";
    my $draw_order=$order eq 'above'
       ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s
       : qr/game_draw\(\);.*vcs_ntsc_component_handoff\(\);.*score_draw\(\);/s;

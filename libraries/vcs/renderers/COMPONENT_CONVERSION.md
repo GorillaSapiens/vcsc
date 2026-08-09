@@ -113,9 +113,10 @@ not inferred from a count of source statements. The common contract is:
 | widely spaced six-glyph display | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | left/right two-plus-two score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
-| official/unofficial `player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| official `player_color (lines:=170)` | 170 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| official `player_color (lines:=181)` / unofficial `player_color_181_unofficial` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
-| `player_color_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 
 ### TIA ownership and exit state
@@ -409,10 +410,10 @@ weakened or rewritten to accept the replacement; new component fixtures compare
 against them where the selected composition profile is intended to preserve
 behavior.
 
-## Official player-color 181-line extraction
+## Official player-color 181-line profile
 
-`renderers/player_color_181/player_color_181.c26` is the first extracted member
-of the P0/P1/Ball per-row-color family. It consumes exactly 181 visible lines
+`renderers/player_color/player_color.c26` with `lines:=181` is the score-composable
+P0/P1/Ball per-row-color profile. It consumes exactly 181 visible lines
 and expects `main()` to compose the independent eleven-line score above or
 below it. It retains the predecessor's exact five-strobe horizontal-position
 schedule, with two private ghost-missile coordinates forced to zero, while M0
@@ -438,6 +439,19 @@ for P0, P1, and Ball over 320 frames. The centered interactive score-above examp
 bytes; a gameplay-only map contains no score state or font.
 
 
+
+## Official 170-line player-color gameplay profile
+
+The same `renderers/player_color/player_color.c26` source accepts `lines:=170`.
+This profile retains the 181-line score-handoff raster, uses a ten-row/40-byte
+page-contained playfield, and preserves the same 13 public + 11 private = 24-byte
+module RAM contract. Ten complete 16-line rows plus the inherited five-line
+entry/handoff region consume 165 lines; five terminal blank lines make the
+component exactly 170 lines. With explicit component handoffs, an eleven-line
+score above and another eleven-line score below therefore fill the standard
+192-line visible field. The maintained dual-score fixture pins 262-line frame
+timing and all ten 16-line playfield rows.
+
 ## Matched unofficial player-color 181-line experiment
 
 `renderers/player_color_181_unofficial/player_color_181_unofficial.c26` is the
@@ -455,7 +469,7 @@ transfer across an internal row boundary.
 
 ## Official player-color 192-line scoreless profile
 
-`renderers/player_color_192/player_color_192.c26` is the distinct full-height
+`renderers/player_color/player_color.c26` with `lines:=192` is the full-height
 P0/P1/Ball per-row-color component. It consumes exactly 192 visible lines and
 cannot be combined with the independent eleven-line score inside the standard
 visible field. The application supplies a twelve-row/48-byte playfield plus the

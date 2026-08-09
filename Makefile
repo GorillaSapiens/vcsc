@@ -144,18 +144,14 @@ install-data:
 	install -m 0644 libraries/vcs/renderers/all_five_unofficial/README.md \
 	  libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181
-	install -m 0644 libraries/vcs/renderers/player_color_181/README.md \
-	  libraries/vcs/renderers/player_color_181/player_color_181.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color
+	install -m 0644 libraries/vcs/renderers/player_color/README.md \
+	  libraries/vcs/renderers/player_color/player_color.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial
 	install -m 0644 libraries/vcs/renderers/player_color_181_unofficial/README.md \
 	  libraries/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192
-	install -m 0644 libraries/vcs/renderers/player_color_192/README.md \
-	  libraries/vcs/renderers/player_color_192/player_color_192.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score
 	install -m 0644 libraries/vcs/renderers/poison_debug_score/README.md \
 	  libraries/vcs/renderers/poison_debug_score/poison_debug_score.c26 \
@@ -249,15 +245,12 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/all_five_unofficial.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181/player_color_181.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/player_color.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192/player_color_192.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_192 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/poison_debug_score.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score 2>/dev/null || true
@@ -481,8 +474,8 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/all_five_170/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_170.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_170.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/player_color_181/README.md"; \
-	test -f "$$stage_vcs/renderers/player_color_181/player_color_181.c26"; \
+	test -f "$$stage_vcs/renderers/player_color/README.md"; \
+	test -f "$$stage_vcs/renderers/player_color/player_color.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
@@ -493,12 +486,14 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/player_color_181_unofficial/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/player_color_192/README.md"; \
-	test -f "$$stage_vcs/renderers/player_color_192/player_color_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  "$(CURDIR)/test/fixtures/player_color_192/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/player_color_192.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/player_color_170/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/player_color_170.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_170.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/poison_debug_score/README.md"; \
 	test -f "$$stage_vcs/renderers/poison_debug_score/poison_debug_score.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -563,6 +558,7 @@ installcheck: tools
 	  "$(CURDIR)/examples/08_all_five_181_unofficial" \
 	  "$(CURDIR)/examples/11_all_five_170" \
 	  "$(CURDIR)/examples/12_all_five_170_unofficial" \
+	  "$(CURDIR)/examples/13_player_color_170" \
 	  -path '*/01_interactive/*.c26' -type f | sort); do \
 	  leaf=$$(dirname "$$src"); stem=$$(basename "$$src" .c26); extra=; \
 	  case "$$src" in *_unofficial/*) extra='-Wa,--illegals' ;; esac; \

@@ -45,14 +45,14 @@ my @components=(
    ['six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
    ['two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
    ['renderers/poison_debug_score/poison_debug_score.c26',           11,1,1,'poison score'],
-   ['renderers/player_color_181/player_color_181.c26',              181,1,1,'player-color 181'],
+   ['renderers/player_color/player_color.c26',              181,1,1,'player-color 181'],
    ['renderers/player_color_181_unofficial/player_color_181_unofficial.c26',181,1,1,'player-color 181 unofficial'],
    ['renderers/all_five/all_five.c26',                              181,1,1,'all-five 181'],
    ['renderers/all_five/all_five.c26',                              170,1,1,'all-five 170'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',192,0,0,'all-five 192 unofficial'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',181,1,1,'all-five 181 unofficial'],
    ['renderers/all_five_unofficial/all_five_unofficial.c26',170,1,1,'all-five 170 unofficial'],
-   ['renderers/player_color_192/player_color_192.c26',              192,0,0,'player-color 192'],
+   ['renderers/player_color/player_color.c26',              192,0,0,'player-color 192'],
    ['renderers/all_five/all_five.c26',                              192,0,0,'all-five 192'],
 );
 
@@ -60,21 +60,22 @@ for my $spec (@components) {
    my($rel,$lines,$hmove,$successor,$label)=@$spec;
    my $path=File::Spec->catfile($repo,'libraries','vcs',split('/', $rel));
    my $text=read_file($path);
-   my $parameterized_all_five = $rel eq 'renderers/all_five/all_five.c26' ||
-      $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26';
-   if ($parameterized_all_five) {
+   my $parameterized_renderer = $rel eq 'renderers/all_five/all_five.c26' ||
+      $rel eq 'renderers/all_five_unofficial/all_five_unofficial.c26' ||
+      $rel eq 'renderers/player_color/player_color.c26';
+   if ($parameterized_renderer) {
       my $branch;
       if ($lines == 192) {
          $text =~ /#if TEMPLATE_lines == 192(.*?)#elif TEMPLATE_lines == 181/s
-            or die "could not isolate all-five 192 branch\n";
+            or die "could not isolate parameterized 192 branch\n";
          $branch=$1;
       } elsif ($lines == 181) {
          $text =~ /#elif TEMPLATE_lines == 181(.*?)#elif TEMPLATE_lines == 170/s
-            or die "could not isolate all-five 181 branch\n";
+            or die "could not isolate parameterized 181 branch\n";
          $branch=$1;
       } else {
          $text =~ /#elif TEMPLATE_lines == 170(.*?)#else/s
-            or die "could not isolate all-five 170 branch\n";
+            or die "could not isolate parameterized 170 branch\n";
          $branch=$1;
       }
       $text=$branch;
@@ -85,7 +86,7 @@ for my $spec (@components) {
    }
    require_value($text,'DRAW_ENTRY_CYCLE',3,$label);
    require_value($text,'DRAW_RETURN_CYCLE',0,$label);
-   if ($parameterized_all_five) {
+   if ($parameterized_renderer) {
       $text =~ /\bTEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_lines\b/
          or die "$label has no parameterized complete-scanline contract\n";
    } else {
@@ -139,6 +140,7 @@ for my $required (
    'Left/right two-plus-two score',
    'Poison debug score',
    '181-line player-color gameplay',
+   '170-line player-color gameplay',
    '170-line all-five gameplay',
    '181-line all-five gameplay',
    '192-line player-color gameplay',

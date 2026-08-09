@@ -10,7 +10,7 @@
 # Unofficial-opcode 181-line player-color renderer
 
 `player_color_181_unofficial.c26` is the measured experimental twin of the
-normal official-opcode `player_color_181` lifecycle component. It has the same
+normal official-opcode `player_color (lines:=181)` lifecycle profile. It has the same
 P0/P1/Ball API, packed full-range player handoff, per-row color contract,
 181-line gameplay field, 13/11/24-byte public/private/total RAM contract, scanline schedule,
 score-composition behavior, and terminal-line cleanup.

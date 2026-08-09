@@ -132,8 +132,13 @@ for my $family (@families) {
             $text =~ /instantiate\s+"\Q$renderer\E"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
                or die "$sources[0] does not use $renderer lines:=181\n";
          } else {
-            $text =~ /instantiate\s+"renderers\/\Q$family->{fixture}\E\/\Q$family->{fixture}\E\.c26"\s+as\s+game\b/
-               or die "$sources[0] does not use $family->{fixture}\n";
+            if ($family->{illegals}) {
+               $text =~ /instantiate\s+"renderers\/player_color_181_unofficial\/player_color_181_unofficial\.c26"\s+as\s+game\b/
+                  or die "$sources[0] does not use player_color_181_unofficial\n";
+            } else {
+               $text =~ /instantiate\s+"renderers\/player_color\/player_color\.c26"\s+as\s+game\s*\(\s*lines\s*:=\s*181\s*\)/
+                  or die "$sources[0] does not use player_color lines:=181\n";
+            }
          }
          my $expected=$order eq 'above'
             ? qr/score_draw\(\);.*vcs_ntsc_component_handoff\(\);.*game_draw\(\);/s

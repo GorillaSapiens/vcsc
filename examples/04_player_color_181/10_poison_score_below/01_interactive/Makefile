@@ -13,7 +13,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/renderers/poison_debug_score/poison_debug_score.c26 \
-           $(VCS_DIR)/renderers/player_color_181/player_color_181.c26 \
+           $(VCS_DIR)/renderers/player_color/player_color.c26 \
            $(ROOT)/examples/common/poison_score_controls.c26 \
            $(ROOT)/examples/common/player_color_181_interactive_common.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@

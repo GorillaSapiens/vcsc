@@ -13,7 +13,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/six_glyph_left_component.c26 \
-           $(VCS_DIR)/renderers/player_color_181/player_color_181.c26 \
+           $(VCS_DIR)/renderers/player_color/player_color.c26 \
            $(ROOT)/examples/common/fixed_six_digit_controls.c26 \
            $(ROOT)/examples/common/player_color_181_interactive_common.c26 \
            $(VCS_DIR)/fonts/default_decimal.c26

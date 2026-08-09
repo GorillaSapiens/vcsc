@@ -10,7 +10,7 @@
 # `player_color_192` example
 
 This group demonstrates the official-opcode
-`renderers/player_color_192/player_color_192.c26` lifecycle component.
+`renderers/player_color/player_color.c26` lifecycle component.
 
 The renderer owns all 192 visible lines as twelve playfield rows of sixteen
 scanlines each. It draws P0, P1, and Ball with independent page-contained
@@ -25,4 +25,4 @@ visible field, it cannot be composed with the 11-line score component.
 | 02 | [`animated_sprites`](02_animated_sprites/) | Move 29 attributed four-frame animations plus the source's sole three-frame animation across the screen in 15 pairs; the three-frame set uses an independent packed modulo-3 phase without selecting blank sprite 16, and each RAM row-color table rotates to follow vertical motion inside the glyph cell; this subexample has its own CC BY-NC-SA 4.0 license |
 
 For the exact RAM, table, and beam-timing contract, see
-[`libraries/vcs/renderers/player_color_192/README.md`](../../libraries/vcs/renderers/player_color_192/README.md).
+[`libraries/vcs/renderers/player_color/README.md`](../../libraries/vcs/renderers/player_color/README.md).

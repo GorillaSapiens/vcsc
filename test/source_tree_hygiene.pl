@@ -321,7 +321,7 @@ for my $component (
       or die "$component lost its object-owned inline-assembly stack allowance\n";
 }
 for my $component (
-   'player_color_181/player_color_181.c26',
+   'player_color/player_color.c26',
    'player_color_181_unofficial/player_color_181_unofficial.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
@@ -330,15 +330,19 @@ for my $component (
    index($source,'asm dec.z TEMPLATE_ball_y;')>=0
       or die "$component lost its mask-free direct-countdown zero-extra-stack contract\n";
 }
-my $player_color_192_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','player_color_192','player_color_192.c26'));
-index($player_color_192_source,'asm .callstackextra 0;')>=0 &&
-index($player_color_192_source,'TEMPLATE_object_masks')<0 &&
-index($player_color_192_source,'asm jsr @TEMPLATE_prepare_object_masks;')<0 &&
-index($player_color_192_source,'asm jsr @prepare_one;')<0 &&
-index($player_color_192_source,'asm jsr @set_range;')<0 &&
-index($player_color_192_source,'asm dec.z TEMPLATE_ball_y;')>=0 &&
-index($player_color_192_source,'asm cmp.z TEMPLATE_ball_y;')>=0
-   or die "player_color_192 lost its official direct-countdown zero-extra-stack contract\n";
+my $player_color_source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','player_color','player_color.c26'));
+index($player_color_source,'parameter lines;')>=0 &&
+index($player_color_source,'#if TEMPLATE_lines == 192')>=0 &&
+index($player_color_source,'#elif TEMPLATE_lines == 181')>=0 &&
+index($player_color_source,'#elif TEMPLATE_lines == 170')>=0 &&
+index($player_color_source,'asm .callstackextra 0;')>=0 &&
+index($player_color_source,'TEMPLATE_object_masks')<0 &&
+index($player_color_source,'asm jsr @TEMPLATE_prepare_object_masks;')<0 &&
+index($player_color_source,'asm jsr @prepare_one;')<0 &&
+index($player_color_source,'asm jsr @set_range;')<0 &&
+index($player_color_source,'asm dec.z TEMPLATE_ball_y;')>=0 &&
+index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
+   or die "parameterized player_color lost its official direct-countdown zero-extra-stack contract\n";
 my $standard_compat_cfg=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','vcs_standard_4k_ntsc.cfg'));
 $standard_compat_cfg !~ /callstack_extra|RENDERER_CODE|RENDERER_RODATA/
    or die "standard renderer compatibility cfg regained component-specific constraints

@@ -106,7 +106,7 @@ $install_frames_body =~ /game_player0_graphics\s*\+=\s*\(sprite0\s*&\s*0x0f\)\s*
 $install_frames_body =~ /pico8_tia_palette\[game_player0_graphics\[color_row0\s*>>\s*1\]\s*&\s*0x0f\]/ &&
 $install_frames_body =~ /game_player1_graphics\s*:=\s*sprite_frames_3/
    or die "install_frames no longer uses readable VCSC table/pointer selection\n";
-$source_text =~ /alias\s+VCS_PLAYER_COLOR_192_MUTABLE_COLORS\s+1/
+$source_text =~ /alias\s+VCS_PLAYER_COLOR_MUTABLE_COLORS\s+1/
    or die "animated gallery no longer requests mutable renderer color tables\n";
 $source_text =~ /most frequent nontransparent color wins/ &&
 $source_text =~ /source-derived color per sprite row/ &&

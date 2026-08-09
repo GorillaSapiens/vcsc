@@ -46,7 +46,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
-my $module=File::Spec->catfile($vcs,qw(renderers player_color_181 player_color_181.c26));
+my $module=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_181 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_181.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_181.map');
@@ -67,8 +67,12 @@ sha256_hex(read_file($reference)) eq
    '769d2ec6a076edf2f27587e74922045b55f65dff31b4caf94bc3059ac7e66b99'
    or die "reviewed player-color 181 Stella reference PNG changed\n";
 my $text=read_file($module);
+$text =~ /^parameter\s+lines;/m or die "unified player-color renderer lacks required lines parameter\n";
+$text =~ /#elif TEMPLATE_lines == 181(.*?)#elif TEMPLATE_lines == 170/s
+   or die "could not isolate player-color 181 branch\n";
+$text=$1;
 my $map=read_file($mapfile);
-require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/, 'visible-line contract changed');
+require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/, 'visible-line contract is not parameterized');
 require_re($text,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*13/, 'public-RAM contract changed');
 require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*11/, 'private-RAM contract changed');
 require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*24/, 'module-RAM contract changed');

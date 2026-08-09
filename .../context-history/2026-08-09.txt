@@ -1,0 +1,1 @@
+2026-08-09 05:26:58 UTC, Consolidated official player-color 192/181 renderers into parameterized lines:=192/181/170 source and added 170-line dual-score proof.

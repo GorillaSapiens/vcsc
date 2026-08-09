@@ -56,7 +56,7 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
-my $module=File::Spec->catfile($vcs,qw(renderers player_color_192 player_color_192.c26));
+my $module=File::Spec->catfile($vcs,qw(renderers player_color player_color.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures player_color_192 smoke.c26));
 my $bin=File::Spec->catfile($tmp,'player_color_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'player_color_192.map');
@@ -73,9 +73,13 @@ without_usage($out) eq '' && $err eq '' or die "player-color 192 terminal build 
 -s $terminal_bin == 4096 or die "player-color 192 terminal ROM is not 4096 bytes\n";
 my $terminal_map=read_file($terminal_mapfile);
 my $text=read_file($module);
+$text =~ /^parameter\s+lines;/m or die "unified player-color renderer lacks required lines parameter\n";
+$text =~ /#if TEMPLATE_lines == 192(.*?)#elif TEMPLATE_lines == 181/s
+   or die "could not isolate player-color 192 branch\n";
+$text=$1;
 my $fixture=read_file($source);
 my $map=read_file($mapfile);
-require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/, 'visible-line contract changed');
+require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/, 'visible-line contract is not parameterized');
 require_re($text,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*48/, 'playfield-byte contract changed');
 require_re($text,qr/TEMPLATE_PLAYFIELD_ROWS\s*:=\s*12/, 'playfield-row contract changed');
 require_re($text,qr/TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*13/, 'public-RAM contract changed');

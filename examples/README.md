@@ -33,6 +33,7 @@ the shared timing, resource, opcode, and composition contracts.
 | [`10_faithful_legacy_multisprite`](10_faithful_legacy_multisprite/) | Faithful unbanked/non-Superchip legacy multisprite baseline with integrated score/playfield and retained unofficial opcodes | Fixed P0 + five multiplexed-P1 raster, asymmetric playfield, and six-digit score diagnostic |
 | [`11_all_five_170`](11_all_five_170/) | Official parameterized all-five renderer at `lines:=170` | Interactive score-above + gameplay + score-below composition |
 | [`12_all_five_170_unofficial`](12_all_five_170_unofficial/) | Stable/common-NMOS unofficial parameterized all-five twin at `lines:=170` | Matching interactive score-above + gameplay + score-below composition |
+| [`13_player_color_170`](13_player_color_170/) | Official parameterized player-color renderer at `lines:=170` | Interactive score-above + P0/P1/Ball gameplay + score-below composition |
 
 The four 181-line groups contribute a **40-cartridge composition matrix**:
 four gameplay families x four production score layouts x two orders, plus eight
