@@ -15,6 +15,13 @@ all: version.h vcsc-ld
 .PHONY: version FORCE
 version: version.h
 
+ifeq ($(OS),Windows_NT)
+
+version.h: FORCE
+	$(file >$@,#define VERSION "unknown Windows nogit unsupported")
+
+else
+
 version.h: FORCE
 	@if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && \
 	   git rev-parse --verify HEAD >/dev/null 2>&1; then \
@@ -40,6 +47,7 @@ version.h: FORCE
 	      "$$fqdn" \
 	      > version.h; \
 	fi
+endif
 
 vcsc-ld: version.h $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o vcsc-ld
